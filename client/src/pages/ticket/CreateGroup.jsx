@@ -95,25 +95,24 @@ const CreateGroup = () => {
     fetchUserData();
   }, []);
 
-const fetchUserCapabilities = async () => {
+  // NEW: This useEffect automatically sets the group type if only one is available
+  useEffect(() => {
+    if (capabilities?.userRole === 'admin' && Array.isArray(existingGroups)) {
+      const creatableTypes = ['admin', 'organisation'].filter(type => canCreateGroupType(type));
+      
+      if (creatableTypes.length === 1 && formData.grp_type !== creatableTypes[0]) {
+        // Automatically select the only available group type by simulating a change event
+        handleGroupTypeChange({ target: { value: creatableTypes[0] } });
+      }
+    }
+  }, [capabilities, existingGroups]);
+
+  const fetchUserCapabilities = async () => {
     try {
-      // Log the start of the function call
-      console.log("1. Fetching user capabilities...");
-      
       const caps = await getUserGroupCapabilities();
-      
-      // Log the entire raw response from the API
-      console.log("2. Raw API Response (caps):", caps);
-
       const userGroups = caps.userGroups || [];
-      
-      // Log the specific array you are about to put into state
-      console.log("3. Groups to be set in state (userGroups):", userGroups);
-
       setCapabilities(caps);
       setExistingGroups(userGroups);
-
-      // ... rest of the function
     } catch (error) {
       console.error("Error fetching capabilities:", error);
     }
@@ -543,32 +542,32 @@ const fetchUserCapabilities = async () => {
             <BackButton onClick={handleBack} isDarkMode={darkMode} />
             <h1 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Create Group</h1>
               <div
-              onClick={() => setDarkMode(!darkMode)}
-              className="w-[70px] h-[36px] rounded-full cursor-pointer relative px-[3px] flex items-center justify-between transition-all duration-300"
-              style={{
-                background: darkMode ? '#212426' : '#E5E7EB',
-                boxShadow: darkMode 
-                  ? 'inset -1px -1px 2px rgba(255, 255, 255, 0.06), inset 1px 1px 3px rgba(0, 0, 0, 0.4)'
-                  : 'inset 2px 2px 4px #cdd3da, inset -2px -2px 4px #fdffff'
-              }}
-            >
-              <div
-                className="absolute top-[3px] left-[3px] w-[30px] h-[30px] rounded-full transition-all duration-300 z-10"
+                onClick={() => setDarkMode(!darkMode)}
+                className="w-[70px] h-[36px] rounded-full cursor-pointer relative px-[3px] flex items-center justify-between transition-all duration-300"
                 style={{
-                  transform: darkMode ? 'translateX(34px)' : 'translateX(0)',
-                  backgroundColor: darkMode ? '#2E2E2E' : '#FFFFFF',
-                   boxShadow: darkMode 
-                  ? 'inset -1px -1px 1px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(0, 0, 0, 0.3)'
-                  : '2px 2px 4px #cdd3da, -2px -2px 4px #fdffff'
+                  background: darkMode ? '#212426' : '#E5E7EB',
+                  boxShadow: darkMode 
+                    ? 'inset -1px -1px 2px rgba(255, 255, 255, 0.06), inset 1px 1px 3px rgba(0, 0, 0, 0.4)'
+                    : 'inset 2px 2px 4px #cdd3da, inset -2px -2px 4px #fdffff'
                 }}
-              />
-              <div className="w-[30px] h-[30px] flex items-center justify-center z-20">
-                <img src={LightIcon} alt="Light Mode" className={`w-4 h-4 ${!darkMode ? 'filter brightness-0' : ''}`} />
+              >
+                <div
+                  className="absolute top-[3px] left-[3px] w-[30px] h-[30px] rounded-full transition-all duration-300 z-10"
+                  style={{
+                    transform: darkMode ? 'translateX(34px)' : 'translateX(0)',
+                    backgroundColor: darkMode ? '#2E2E2E' : '#FFFFFF',
+                      boxShadow: darkMode 
+                      ? 'inset -1px -1px 1px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(0, 0, 0, 0.3)'
+                      : '2px 2px 4px #cdd3da, -2px -2px 4px #fdffff'
+                  }}
+                />
+                <div className="w-[30px] h-[30px] flex items-center justify-center z-20">
+                  <img src={LightIcon} alt="Light Mode" className={`w-4 h-4 ${!darkMode ? 'filter brightness-0' : ''}`} />
+                </div>
+                <div className="w-[30px] h-[30px] flex items-center justify-center z-20">
+                  <img src={DarkIcon} alt="Dark Mode" className={`w-4 h-4 ${!darkMode ? 'filter brightness-0' : ''}`} />
+                </div>
               </div>
-              <div className="w-[30px] h-[30px] flex items-center justify-center z-20">
-                <img src={DarkIcon} alt="Dark Mode" className={`w-4 h-4 ${!darkMode ? 'filter brightness-0' : ''}`} />
-              </div>
-            </div>
         </div>
 
         <div className="hidden lg:flex justify-end p-6">
@@ -623,34 +622,53 @@ const fetchUserCapabilities = async () => {
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-6">
-                {capabilities.userRole === 'admin' && (
-                  <div>
-                    <label className={`block text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Event created under <span className="text-red-400">*</span>
-                    </label>
-                    <div className="flex space-x-6">
-                      {['admin', 'organisation'].map(type => {
-                        const canCreate = canCreateGroupType(type);
-                        // Only render the option if the user can create this type of group
-                        return canCreate && (
-                          <label key={type} className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="grp_type"
-                              value={type}
-                              checked={formData.grp_type === type}
-                              onChange={handleGroupTypeChange}
-                              className={`w-4 h-4 text-indigo-600 focus:ring-indigo-500 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-gray-100 border-gray-300'}`}
-                            />
-                            <span className={`${darkMode ? 'text-gray-300' : 'text-gray-700'} capitalize`}>
-                              {type}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                
+                {/* UPDATED: Group type selection logic */}
+                {capabilities.userRole === 'admin' && (() => {
+                  const creatableTypes = ['admin', 'organisation'].filter(type => canCreateGroupType(type));
+
+                  if (creatableTypes.length > 1) {
+                    return (
+                      <div>
+                        <label className={`block text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Event created under <span className="text-red-400">*</span>
+                        </label>
+                        <div className="flex space-x-6">
+                          {creatableTypes.map(type => (
+                            <label key={type} className="flex items-center space-x-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="grp_type"
+                                value={type}
+                                checked={formData.grp_type === type}
+                                onChange={handleGroupTypeChange}
+                                className={`w-4 h-4 text-indigo-600 focus:ring-indigo-500 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-gray-100 border-gray-300'}`}
+                              />
+                              <span className={`${darkMode ? 'text-gray-300' : 'text-gray-700'} capitalize`}>
+                                {type}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (creatableTypes.length === 1) {
+                    return (
+                      <div>
+                        <label className={`block text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Event created under <span className="text-red-400">*</span>
+                        </label>
+                        <div className={`px-4 capitalize  font-medium ${darkMode ? ' text-gray-200' : ' text-gray-800'}`}>
+                          {creatableTypes[0]}
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  return null;
+                })()}
 
                 {/* Admin Group Form */}
                 {formData.grp_type === 'admin' && (
