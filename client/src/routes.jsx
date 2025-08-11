@@ -19,7 +19,7 @@ import CreateTicket from './pages/ticket/CreateTicket';
 import UpdateTicketMedia from './pages/ticket/UpdateTicketMedia';
 import GroupSelectionModal from './components/modals/GroupSelectionModal';
 import ViewEvents from './pages/ticket/ViewEvents';
-
+import UpdateTicketDetails from './pages/ticket/UpdateTicketDetails';
 // Protected Route - Only for authenticated users
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
@@ -183,6 +183,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <UpdateTicketMedia />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/update-ticket-details/:ticketId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <UpdateTicketDetails />
           </ProtectedRoute>
         }
       />
