@@ -43,17 +43,25 @@ export const createTicketBasicInfo = async (formData) => {
     throw error;
   }
 }
-export const updateTicketMedia = async (formData) => {
+export const updateTicketMedia = async (ticketId, formData) => {
   try {
-    const response = await api.post(`ticket/update-ticket-media/${formData.ticketId}`, formData);
+    console.log('Calling API with ticketId:', ticketId);
+    console.log('FormData contents:', Array.from(formData.entries()));
+    
+    const response = await api.post(`/ticket/update-ticket-media/${ticketId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   } catch (error) {
+    console.error('API call error:', error.response?.data || error.message);
     throw error;
   }
-}
-export const updateTicketAddOns = async (formData) => {
+};
+export const updateTicketAddOns = async (ticketId, formData) => {
   try {
-    const response = await api.post("ticket/ticket-addons", formData);
+    const response = await api.post(`/ticket/ticket-addons/${ticketId}`, formData);
     return response.data;
   } catch (error) {
     throw error;

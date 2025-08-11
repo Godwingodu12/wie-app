@@ -77,7 +77,6 @@ const CreateTicket = () => {
         setPageLoading(false);
       }
     };
-
     initializeComponent();
   }, [groupId, navigate]);
 

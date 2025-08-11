@@ -236,9 +236,7 @@ export const organisationSignup = async (req, res) => {
 };
 export const login = async (req, res) => {
   try {
-    console.log("hiiii");
     const { identifier, password } = req.body;
-    console.log("Backend received login attempt:", req.body);
     if (!identifier || !password) {
       return res
         .status(400)
@@ -255,7 +253,6 @@ export const login = async (req, res) => {
     if (!user) {
       return res.status(400).json({ message: "Invalid email or password" });
     }
-
     const match = await comparePassword(password, user.password);
     if (!match) {
       return res.status(400).json({ message: "Invalid password" });
