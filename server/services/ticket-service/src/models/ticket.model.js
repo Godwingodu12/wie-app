@@ -1,19 +1,16 @@
 import mongoose from 'mongoose';
-
 // Guest Schema
 const guestSchema = new mongoose.Schema({
   guest_name: { type: String },
   guest_profile: { type: String }, // Image URL
   guest_link: { type: String }, // Social media or website link
 });
-
 // Guide Schema
 const guideSchema = new mongoose.Schema({
   guide_name: { type: String },
   guide_profile: { type: String }, // Image URL
   guide_link: { type: String }, // Contact or profile link
 });
-
 // Ticket Type Schema
 const ticketTypeSchema = new mongoose.Schema({
   ticket_type: { type: String },
@@ -56,8 +53,28 @@ const subEventSchema = new mongoose.Schema({
   event_description: { type: String, required: true },
   event_logo: { type: String, required: true },
   event_banner: { type: String, required: true },
-  event_images: [{ type: String }], // Array of image URLs (max 10)
-  
+  event_images: [{
+      path: {
+        type: String,
+        required: true
+      },
+      originalName: {
+        type: String,
+        required: true
+      },
+      mimeType: {
+        type: String,
+        required: true
+      },
+      size: {
+        type: Number,
+        required: true
+      },
+      uploadedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],  
   // Event Details
   hashtag: [{ type: String }], // Array of hashtags
   payment_type: { type: String, enum: ['free', 'paid'], required: true },
@@ -101,11 +118,35 @@ const ticketSchema = new mongoose.Schema({
   end_date: { type: Date },
   start_time: { type: String, required: false },
   end_time: { type: String, required: false },
+  
   // Description and Media
   event_description: { type: String, required: false },
   event_logo: { type: String, required: false },
   event_banner: { type: String, required: false },
-  event_images: [{ type: String }], // Array of image URLs (max 10)
+  
+  // FIXED: Changed from [{ type: String }] to match the object structure you're saving
+  event_images: [{
+    path: {
+      type: String,
+      required: true
+    },
+    originalName: {
+      type: String,
+      required: true
+    },
+    mimeType: {
+      type: String,
+      required: true
+    },
+    size: {
+      type: Number,
+      required: true
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }], // Array of image objects (max 10)
   
   // Event Details
   hashtag: [{ type: String }], // Array of hashtags
@@ -155,5 +196,6 @@ ticketSchema.index({ groupId: 1, userId: 1 });
 ticketSchema.index({ event_status: 1 });
 ticketSchema.index({ start_date: 1 });
 ticketSchema.index({ event_category: 1, event_subcategory: 1 });
+
 const Ticket = mongoose.model('Ticket', ticketSchema);
 export default Ticket;
