@@ -1,5 +1,4 @@
 // D:\DEVELOP\wie\client\src\pages\ticket\UpdateTicketDetails.jsx
-
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
