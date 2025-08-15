@@ -87,7 +87,7 @@ const OrganisationSignup = () => {
     >
       <div className="min-h-screen w-full flex flex-col justify-center items-center p-4 bg-black/60">
         <header className="absolute top-0 left-0 w-full p-6 flex justify-between items-center md:px-12">
-          <img src={Logo} alt="Wie Logo" className="h-8" />
+          <img src={Logo} alt="Wie Logo" className="h-10" />
           <Link
             to="/register"
             className="text-white/80 hover:text-white transition-colors text-sm font-medium"
