@@ -294,28 +294,21 @@ export const getUserById = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 export const verifyOTP = async (req, res) => {
   const { email, contact_no, otp } = req.body;
-  console.log(email, contact_no, otp);
   try {
-    let user = null; // Declare user outside if-else
-    // If it's a valid email, search by email
+    let user = null; 
     if (validateEmail(email)) {
       user = await User.findOne({ email: email });
-    }
-    // Else if contact number is provided, search by contact_no
-    else if (contact_no) {
+    } else if (contact_no) {
       user = await User.findOne({ contact_no: contact_no });
     }
-    console.log(user);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    const isValid = await otpService.verifyOtp(user._id, otp);
-    console.log(isValid);
-    if (!isValid) {
-      return res.status(400).json({ message: "Invalid or expired OTP" });
+    const otpResult = await otpService.verifyOtp(user._id, otp);
+    if (!otpResult.isValid) {
+      return res.status(400).json({ message: otpResult.message });
     }
     user.status = "active";
     await user.save();
