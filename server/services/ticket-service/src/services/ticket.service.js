@@ -1,4 +1,3 @@
-import User from "../../../auth-service/src/models/user.model.js";
 import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import upload from '../middlewares/upload.js';
@@ -37,11 +36,9 @@ export const CreateGroup = async (req, res) => {
     
     const userId = req.user._id || req.user.id;
     const userRole = req.user.role;
-    
     if (!['admin', 'organisation'].includes(userRole)) {
       return res.status(400).json({ message: "Invalid user role" });
     }
-    
     const userData = await sendRPC('get-user', userId);
     if (!userData) {
       return res.status(404).json({ message: "User not found in auth service" });
@@ -57,7 +54,7 @@ export const CreateGroup = async (req, res) => {
       gst_no,
       pan_no,
       organisation_type,
-      grp_type,
+      grp_type
     } = req.body;
     
     const filePaths = {
