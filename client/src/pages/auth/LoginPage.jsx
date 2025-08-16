@@ -53,7 +53,7 @@ const LoginPage = () => {
         
         <header className="absolute top-0 left-0 w-full p-6 flex justify-between items-center md:px-12">
           <div>
-            <img src={Logo} alt="Wie Logo" className="h-8"/>
+            <img src={Logo} alt="Wie Logo" className="h-10"/>
           </div>
           <Link to="/login" className="text-white/80 hover:text-white transition-colors text-sm font-medium">Login</Link>
         </header>
