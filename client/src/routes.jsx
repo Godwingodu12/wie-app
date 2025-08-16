@@ -179,6 +179,14 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/ticket/create-event/:groupId/:ticketId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <CreateTicket />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/ticket/update-ticket-media/:ticketId"
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
