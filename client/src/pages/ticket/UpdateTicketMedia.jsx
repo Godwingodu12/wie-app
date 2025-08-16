@@ -1,25 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { updateTicketMedia } from '../../services/ticketService';
+import { updateTicketMedia, getTicketById } from '../../services/ticketService';
 import './UpdateTicketMedia.css';
 
 const UpdateTicketMedia = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
-  
-  // Validate ticketId format on component mount
-  useEffect(() => {
-    const isValidObjectId = (id) => {
-      return /^[0-9a-fA-F]{24}$/.test(id);
-    };
-    
-    if (!ticketId || !isValidObjectId(ticketId)) {
-      console.error('Invalid ticket ID format:', ticketId);
-      navigate('/'); // Redirect to tickets list or appropriate page
-      return;
-    }
-  }, [ticketId, navigate]);
   
   const { user } = useSelector((state) => state.auth);
   
@@ -35,12 +22,102 @@ const UpdateTicketMedia = () => {
     event_images: []
   });
   
+  // Add state for existing media data
+  const [existingMedia, setExistingMedia] = useState({
+    event_logo: null,
+    event_banner: null,
+    event_images: []
+  });
+  
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   
   const logoRef = useRef(null);
   const bannerRef = useRef(null);
   const imagesRef = useRef(null);
+
+  // Validate ticketId format
+  const isValidObjectId = (id) => {
+    return /^[0-9a-fA-F]{24}$/.test(id);
+  };
+
+  // Load existing ticket data
+  const loadExistingTicketData = async () => {
+    try {
+      setInitialLoading(true);
+      console.log('Loading ticket data for ID:', ticketId);
+
+      // Make API call with detailed logging
+      const ticketResponse = await getTicketById(ticketId);
+      console.log('Full API Response:', ticketResponse);
+      console.log('Response keys:', Object.keys(ticketResponse || {}));
+
+      // Try multiple ways to extract the data
+      let ticketData = null;
+      
+      if (ticketResponse) {
+        // Try different response structures
+        ticketData = ticketResponse.data ||
+                     ticketResponse.ticket ||
+                     ticketResponse.result ||
+                     (Array.isArray(ticketResponse) ? ticketResponse[0] : ticketResponse);
+      }
+
+      console.log('Extracted ticket data:', ticketData);
+
+      if (!ticketData) {
+        console.error('No ticket data found in response');
+        return;
+      }
+
+      // Extract media information from the ticket data
+      const mediaData = {
+        event_logo: ticketData.event_logo || null,
+        event_banner: ticketData.event_banner || null,
+        event_images: ticketData.event_images || []
+      };
+
+      console.log('Extracted media data:', mediaData);
+
+      // Set existing media data
+      setExistingMedia(mediaData);
+
+      // Set previews for existing media (assuming these are URLs)
+      const existingPreviews = {
+        event_logo: mediaData.event_logo || null,
+        event_banner: mediaData.event_banner || null,
+        event_images: (mediaData.event_images || []).map((imageUrl, index) => ({
+          file: { name: `Existing Image ${index + 1}`, type: 'image/jpeg' }, // Mock file object
+          preview: imageUrl,
+          isExisting: true
+        }))
+      };
+
+      setPreviews(existingPreviews);
+
+    } catch (error) {
+      console.error('Error loading ticket data:', error);
+      setErrors(prev => ({
+        ...prev,
+        general: 'Failed to load existing ticket data. Please refresh the page.'
+      }));
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  // Initial validation and data loading
+  useEffect(() => {
+    if (!ticketId || !isValidObjectId(ticketId)) {
+      console.error('Invalid ticket ID format:', ticketId);
+      navigate('/home'); // Redirect to tickets list or appropriate page
+      return;
+    }
+
+    // Load existing ticket data
+    loadExistingTicketData();
+  }, [ticketId, navigate]);
 
   const validateFile = (file, type) => {
     const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
@@ -160,10 +237,6 @@ const UpdateTicketMedia = () => {
     e.preventDefault();
     
     // Validate ticketId again before submission
-    const isValidObjectId = (id) => {
-      return /^[0-9a-fA-F]{24}$/.test(id);
-    };
-    
     if (!ticketId || !isValidObjectId(ticketId)) {
       setErrors(prev => ({ 
         ...prev, 
@@ -172,8 +245,11 @@ const UpdateTicketMedia = () => {
       return;
     }
     
-    // Check if at least one file is selected
-    if (!formData.event_logo && !formData.event_banner && formData.event_images.length === 0) {
+    // Check if at least one file is selected or if existing media exists
+    const hasNewFiles = formData.event_logo || formData.event_banner || formData.event_images.length > 0;
+    const hasExistingMedia = existingMedia.event_logo || existingMedia.event_banner || existingMedia.event_images.length > 0;
+    
+    if (!hasNewFiles && !hasExistingMedia) {
       setErrors(prev => ({ ...prev, general: 'Please select at least one file to upload.' }));
       return;
     }
@@ -183,7 +259,6 @@ const UpdateTicketMedia = () => {
     
     try {
       const submitData = new FormData();
-      
       if (formData.event_logo) {
         submitData.append('event_logo', formData.event_logo);
       }
@@ -191,16 +266,15 @@ const UpdateTicketMedia = () => {
       if (formData.event_banner) {
         submitData.append('event_banner', formData.event_banner);
       }
-      
       formData.event_images.forEach(file => {
         submitData.append('event_images', file);
       });
       
-      console.log('Submitting to ticketId:', ticketId); // Debug log
-      console.log('FormData entries:', Array.from(submitData.entries())); // Debug log
+      console.log('Submitting to ticketId:', ticketId);
+      console.log('FormData entries:', Array.from(submitData.entries()));
       
       const response = await updateTicketMedia(ticketId, submitData);
-      console.log('Upload response:', response); // Debug log
+      console.log('Upload response:', response);
       
       // Use the returned ticketId from response if available, otherwise use params
       const validTicketId = response?.ticketId || ticketId;
@@ -223,6 +297,19 @@ const UpdateTicketMedia = () => {
       setLoading(false);
     }
   };
+
+  // Show loading spinner while fetching initial data
+  if (initialLoading) {
+    return (
+      <div className="update-ticket-media">
+        <div className="container">
+          <div className="loading-container">
+            <p>Loading ticket data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="update-ticket-media">
@@ -264,6 +351,9 @@ const UpdateTicketMedia = () => {
                   >
                     ×
                   </button>
+                  {existingMedia.event_logo && !formData.event_logo && (
+                    <div className="existing-label">Current Logo</div>
+                  )}
                 </div>
               </div>
             )}
@@ -298,6 +388,9 @@ const UpdateTicketMedia = () => {
                   >
                     ×
                   </button>
+                  {existingMedia.event_banner && !formData.event_banner && (
+                    <div className="existing-label">Current Banner</div>
+                  )}
                 </div>
               </div>
             )}
@@ -326,7 +419,7 @@ const UpdateTicketMedia = () => {
               <div className="preview-container grid">
                 {previews.event_images.map((item, index) => (
                   <div key={index} className="preview-item">
-                    {item.file.type.startsWith('image/') ? (
+                    {item.file.type.startsWith('image/') || item.isExisting ? (
                       <img src={item.preview} alt={`Event Image ${index + 1}`} />
                     ) : (
                       <video src={item.preview} controls />
@@ -339,6 +432,9 @@ const UpdateTicketMedia = () => {
                       ×
                     </button>
                     <div className="file-name">{item.file.name}</div>
+                    {item.isExisting && (
+                      <div className="existing-label">Current Image</div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -349,15 +445,10 @@ const UpdateTicketMedia = () => {
             <button
               type="button"
               onClick={() => {
-                // Validate ticketId before navigation
-                const isValidObjectId = (id) => {
-                  return /^[0-9a-fA-F]{24}$/.test(id);
-                };
-                
                 if (ticketId && isValidObjectId(ticketId)) {
                   navigate(`/ticket/update-ticket-details/${ticketId}`);
                 } else {
-                  navigate('/'); // Navigate to safe fallback
+                  navigate('/home');
                 }
               }}
               className="btn-secondary"
@@ -377,5 +468,4 @@ const UpdateTicketMedia = () => {
     </div>
   );
 };
-
 export default UpdateTicketMedia;
