@@ -115,6 +115,14 @@ export const getTicketById = async (ticketId) => {
     throw error;
   }
 }
+export const getGroupsTypes = async () => {
+  try {
+    const response = await api.get("ticket/get-groups-types");
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
 export const deleteTicket = async (ticketId) => {
   try {
     const response = await api.delete("ticket/delete-ticket", { data: { ticketId } });
