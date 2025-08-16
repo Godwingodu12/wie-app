@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-// 1. Import getUserGroupCapabilities instead of getGroups
-import { getUserGroupCapabilities } from '../../services/ticketService';
+import { getGroups, getGroupsTypes } from '../../services/ticketService'; 
 import './ViewGroups.css';
 
 const ViewGroups = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [groups, setGroups] = useState([]);
-  const [capabilities, setCapabilities] = useState(null); // State to hold user capabilities
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -16,54 +14,136 @@ const ViewGroups = () => {
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  
+  // New state for group creation limitations
+  const [groupCounts, setGroupCounts] = useState({
+    adminCount: 0,
+    organisationCount: 0
+  });
+  const [userType, setUserType] = useState(''); // 'admin' or 'organisation'
+  const [canCreateGroup, setCanCreateGroup] = useState(false);
+  const [limitationMessage, setLimitationMessage] = useState('');
 
   useEffect(() => {
-    // 2. Fetch all necessary data when the component loads
-    fetchData();
+    fetchGroups();
+    fetchGroupCounts();
     
+    // Check if we came from create group page with success message
     if (location.state?.message) {
       setSuccessMessage(location.state.message);
+      // Clear the message after 5 seconds
       setTimeout(() => setSuccessMessage(''), 5000);
-      // Clear location state to prevent message from reappearing on refresh
-      navigate(location.pathname, { replace: true });
     }
   }, [location.state]);
 
-  const fetchData = async () => {
+  const fetchGroups = async () => {
     try {
       setLoading(true);
-      // 3. Call the more comprehensive API endpoint
-      const data = await getUserGroupCapabilities();
-      setGroups(data.userGroups || []);
-      setCapabilities(data); // Store the capabilities, including the user's role
+      const data = await getGroups();
+      setGroups(data);
       setError('');
     } catch (err) {
-      console.error('Error fetching data:', err);
-      setError('Failed to fetch group data. Please try again.');
+      console.error('Error fetching groups:', err);
+      setError('Failed to fetch groups. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Helper function to determine if the user can create more groups
-  const canCreateMore = () => {
-    if (!capabilities) return false; // Don't show button until data is loaded
-
-    if (capabilities.userRole === 'admin') {
-      const hasAdminGroup = groups.some(g => g.grp_type === 'admin');
-      const hasOrgGroup = groups.some(g => g.grp_type === 'organisation');
-      // Return true (can create) if they are missing at least one of the two types
-      return !(hasAdminGroup && hasOrgGroup);
-    } 
-    
-    if (capabilities.userRole === 'organisation') {
-      // Return true (can create) if they have fewer than 4 groups
-      return groups.length < 4;
+  const fetchGroupCounts = async () => {
+    try {
+      const data = await getGroupsTypes();
+      console.log('getGroupsTypes API Response:', data);
+      
+      setGroupCounts({
+        adminCount: data.adminCount || 0,
+        organisationCount: data.organisationCount || 0
+      });
+      
+      // Get user type from API response (this is more reliable than localStorage)
+      let currentUserType = data.userRole || 'organisation';
+      
+      // Fallback to localStorage if API doesn't return userRole
+      if (!data.userRole) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        currentUserType = currentUser.role || currentUser.user_type || currentUser.userType || 'organisation';
+      }
+      
+      console.log('Current User Type:', currentUserType);
+      console.log('Group Counts - Admin:', data.adminCount, 'Organisation:', data.organisationCount);
+      
+      setUserType(currentUserType);
+      
+      // Check creation limitations
+      checkGroupCreationLimitations(
+        data.adminCount || 0, 
+        data.organisationCount || 0, 
+        currentUserType
+      );
+      
+    } catch (err) {
+      console.error('Error fetching group counts:', err);
+      setError('Failed to fetch group information. Please try again.');
     }
-    
-    return false; // Default case
   };
 
+  const checkGroupCreationLimitations = (adminCount, orgCount, userRole) => {
+    let canCreate = false;
+    let message = '';
+
+    console.log('Group Creation Check Input:', { 
+      userRole, 
+      adminCount, 
+      orgCount 
+    });
+
+    if (userRole === 'admin') {
+      // Admin can create maximum 1 admin group + 1 organisation group = total 2 groups
+      const totalGroups = adminCount + orgCount;
+      
+      if (totalGroups >= 2) {
+        // Admin has reached maximum limit (2 groups total)
+        canCreate = false;
+      } else if (totalGroups === 1) {
+        // Admin has created 1 group, can create 1 more
+        if (adminCount === 1 && orgCount === 0) {
+          canCreate = true;
+        } else if (adminCount === 0 && orgCount === 1) {
+          canCreate = true;
+        } else {
+          // This shouldn't happen, but just in case
+          canCreate = false;
+        }
+      } else {
+        // Admin has created 0 groups
+        canCreate = true;
+      }
+    } else if (userRole === 'organisation') {
+      // Organisation user can create only organisation groups (maximum 4)
+      if (orgCount >= 4) {
+        canCreate = false;
+      } else {
+        canCreate = true;
+        const remaining = 4 - orgCount;
+      }
+    } else {
+      // Unknown user type - default to no creation
+      canCreate = false;
+      message = 'Unable to determine group creation permissions.';
+    }
+
+    console.log('Group Creation Check Result:', { 
+      userRole, 
+      adminCount, 
+      orgCount, 
+      totalGroups: userRole === 'admin' ? adminCount + orgCount : orgCount,
+      canCreate, 
+      message 
+    });
+
+    setCanCreateGroup(canCreate);
+    setLimitationMessage(message);
+  };
 
   const handleViewDetails = (group) => {
     setSelectedGroup(group);
@@ -76,19 +156,21 @@ const ViewGroups = () => {
   };
 
   const handleCreateNew = () => {
-    navigate('/ticket/create-group');
+    if (canCreateGroup) {
+      navigate('/ticket/create-group');
+    }
   };
+
   const handleBack = () => {
     navigate(-1);
   };
-  
+
+  // Filter and search logic
   const filteredGroups = groups.filter(group => {
     const matchesSearch = group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          group.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          group.contact_no.includes(searchTerm);
-    
+                         group.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         group.contact_no.includes(searchTerm);
     const matchesFilter = filterType === 'all' || group.grp_type === filterType;
-    
     return matchesSearch && matchesFilter;
   });
 
@@ -116,8 +198,8 @@ const ViewGroups = () => {
       <div className="view-groups-header">
         <div className="header-content">
           <h1>Manage Groups</h1>
-          {/* 4. Conditionally render the "Create New Group" button */}
-          {canCreateMore() && (
+          {/* Only show Create New Group button if user can create groups */}
+          {canCreateGroup && (
             <button className="btn-create-new" onClick={handleCreateNew}>
               <span className="plus-icon">+</span>
               Create New Group
@@ -130,6 +212,21 @@ const ViewGroups = () => {
                 Back
             </button>
         </div>
+        
+        {/* Group creation limitation info - Always show this */}
+        {limitationMessage && (
+          <div className={`p-3 rounded-lg mb-4 flex items-center gap-2 ${
+            canCreateGroup 
+              ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-400' 
+              : 'bg-red-50 text-red-700 border-l-4 border-red-400'
+          }`}>
+            <span className="text-lg">
+              {canCreateGroup ? '💡' : '🚫'}
+            </span>
+            <span className="text-sm font-medium">{limitationMessage}</span>
+          </div>
+        )}
+
         {successMessage && (
           <div className="success-message">
             <span className="success-icon">✓</span>
@@ -141,7 +238,7 @@ const ViewGroups = () => {
           <div className="error-message">
             <span className="error-icon">!</span>
             {error}
-            <button className="retry-btn" onClick={fetchData}>Retry</button>
+            <button className="retry-btn" onClick={fetchGroups}>Retry</button>
           </div>
         )}
       </div>
@@ -175,16 +272,19 @@ const ViewGroups = () => {
           <h3>{groups.length}</h3>
           <p>Total Groups</p>
         </div>
-        {/* 5. Conditionally render the "Admin Groups" stat card for admins only */}
-        {capabilities?.userRole === 'admin' && (
-          <div className="stat-card">
-            <h3>{groups.filter(g => g.grp_type === 'admin').length}</h3>
-            <p>Admin Groups</p>
-          </div>
-        )}
         <div className="stat-card">
-          <h3>{groups.filter(g => g.grp_type === 'organisation').length}</h3>
+          <h3>{groupCounts.adminCount}</h3>
+          <p>Admin Groups</p>
+          {userType === 'admin' && (
+            <small className="text-gray-500 text-xs block mt-1">(Max: 1)</small>
+          )}
+        </div>
+        <div className="stat-card">
+          <h3>{groupCounts.organisationCount}</h3>
           <p>Organisation Groups</p>
+          <small className="text-gray-500 text-xs block mt-1">
+            (Max: {userType === 'admin' ? '1' : '4'})
+          </small>
         </div>
       </div>
 
@@ -198,11 +298,17 @@ const ViewGroups = () => {
               : 'Get started by creating your first group.'
             }
           </p>
-          {/* Also check canCreateMore() here for the "Create First Group" button */}
-          {!searchTerm && filterType === 'all' && canCreateMore() && (
+          {/* Only show "Create First Group" button if user can create groups and no search/filter is active */}
+          {!searchTerm && filterType === 'all' && canCreateGroup && (
             <button className="btn-create-first" onClick={handleCreateNew}>
               Create First Group
             </button>
+          )}
+          {/* Show limitation message when user cannot create groups */}
+          {!canCreateGroup && !searchTerm && filterType === 'all' && (
+            <p className="text-red-500 italic text-sm mt-2">
+              You have reached your group creation limit.
+            </p>
           )}
         </div>
       ) : (
@@ -283,7 +389,6 @@ const ViewGroups = () => {
                   </div>
                   <div className="detail-item">
                     <label>ID Proof:</label>
-                    {/* Assuming id_proof is a URL or filename */}
                     <span>{selectedGroup.id_proof}</span>
                   </div>
                   {selectedGroup.gst_no && (
@@ -350,17 +455,17 @@ const ViewGroups = () => {
                     <label>Group ID:</label>
                     <span className="group-id">{selectedGroup._id}</span>
                   </div>
-                   {selectedGroup.userId && (
+                  {selectedGroup.userId && (
                     <div className="detail-item">
-                       <label>Created By:</label>
-                       <span>
-                         {typeof selectedGroup.userId === 'object' && selectedGroup.userId !== null ? 
-                           `${selectedGroup.userId.name} (${selectedGroup.userId.email})` : 
-                           selectedGroup.userId
-                         }
-                       </span>
-                     </div>
-                   )}
+                      <label>Created By:</label>
+                      <span>
+                        {selectedGroup.userId.name ? 
+                          `${selectedGroup.userId.name} (${selectedGroup.userId.email})` : 
+                          selectedGroup.userId
+                        }
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -376,5 +481,4 @@ const ViewGroups = () => {
     </div>
   );
 };
-
 export default ViewGroups;
