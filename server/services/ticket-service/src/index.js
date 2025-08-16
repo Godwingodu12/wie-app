@@ -6,8 +6,10 @@ import ticketRoutes from './routes/ticket.routes.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import fs from 'fs';
 import { connectRabbitMQ } from './rabbit/connection.js';
 import { startConsumers } from './rabbit/index.js';
+
 // 👇 Needed for __dirname in ES module
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -17,11 +19,74 @@ dotenv.config();
 const app = express();
 app.use(express.json({ limit: '50mb' })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-// Middleware
+
+// CORS configuration
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Set uploads directory path
+const uploadsPath = path.join(__dirname, '../uploads');
+
+// Create uploads directory if it doesn't exist
+if (!fs.existsSync(uploadsPath)) {
+  console.log('📁 Creating uploads directory at:', uploadsPath);
+  fs.mkdirSync(uploadsPath, { recursive: true });
+} else {
+  console.log('✅ Found uploads directory at:', uploadsPath);
+}
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(uploadsPath));
+
+// List files in uploads directory for debugging
+try {
+  const files = fs.readdirSync(uploadsPath);
+  const imageFiles = files.filter(file => 
+    file.match(/\.(jpg|jpeg|png|gif|webp|mp4|avi|mov)$/i)
+  );
+  
+  console.log(`📄 Found ${files.length} total files, ${imageFiles.length} media files`);
+  
+  if (imageFiles.length > 0) {
+    const sampleFile = imageFiles[0];
+    console.log(`🔗 Sample URL: http://localhost:5003/uploads/${sampleFile}`);
+  }
+} catch (err) {
+  console.error('❌ Error reading uploads directory:', err.message);
+}
+
+// Add a test endpoint to verify static file serving
+app.get('/test-uploads', (req, res) => {
+  try {
+    const files = fs.readdirSync(uploadsPath);
+    const mediaFiles = files.filter(file => 
+      file.match(/\.(jpg|jpeg|png|gif|webp|mp4|avi|mov)$/i)
+    );
+    
+    const sampleUrls = mediaFiles.slice(0, 3).map(file => ({
+      filename: file,
+      url: `http://localhost:5003/uploads/${file}`,
+      exists: fs.existsSync(path.join(uploadsPath, file))
+    }));
+    
+    res.json({
+      success: true,
+      uploadsPath,
+      totalFiles: files.length,
+      mediaFiles: mediaFiles.length,
+      sampleUrls
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      uploadsPath
+    });
+  }
+});
+
 // Routes
 app.use('/api/ticket', ticketRoutes);
+
 // Start server and services
 const PORT = process.env.PORT || 5003;
 const startServer = async () => {
