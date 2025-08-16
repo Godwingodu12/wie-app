@@ -682,11 +682,11 @@ export const getTicketById = async (req, res) => {
         message: "Missing required parameter: ticketId in URL"
       });
     }
-    // Find ticket by ID and groupId
     const ticket = await Ticket.findOne({ 
-      _id: ticketId, 
+      _id: ticketId,
+      userId: userId 
     });
-    if (!ticket) {
+    if (!ticket || !userId) {
       return res.status(404).json({ 
         message: "Ticket not found or you don't have access to this ticket" 
       });
@@ -713,6 +713,7 @@ export const deleteTicket = async (req, res) => {
   try {
     const { ticketId, groupId } = req.body;
     // Validate required parameters
+    userId = req.user._id || req.user.id;
     if (!ticketId || !groupId) {
       return res.status(400).json({ 
         message: "Missing required parameters",
@@ -721,7 +722,8 @@ export const deleteTicket = async (req, res) => {
     }
     const deletedTicket = await Ticket.findOneAndDelete({ 
       _id: ticketId, 
-      groupId: groupId 
+      groupId: groupId,
+      userId: userId
     });
     if (!deletedTicket) {
       return res.status(404).json({ message: "Ticket not found or unauthorized" });
