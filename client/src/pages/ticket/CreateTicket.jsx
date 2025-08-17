@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { createTicketBasicInfo, getGroups } from '../../services/ticketService';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { createTicketBasicInfo, getGroups, getTicketById } from '../../services/ticketService';
 
 const CreateTicket = () => {
   const navigate = useNavigate();
-  const { groupId } = useParams(); // Get groupId from URL parameters
+  const location = useLocation();
+  const { groupId, ticketId: urlTicketId } = useParams(); // Extract both groupId and ticketId from params
+  const queryTicketId = new URLSearchParams(location.search).get('ticketId'); // Also check query params
   const [loading, setLoading] = useState(false);
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
-  const [pageLoading, setPageLoading] = useState(true); // Separate loading state for page initialization
+  const [pageLoading, setPageLoading] = useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const autocompleteRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -26,33 +29,191 @@ const CreateTicket = () => {
       longitude: '12.9716',
       address: 'tedrgtgtrgtrg'
     },
-    event_date_type: 'one-day', // Fixed: changed from 'one day' to 'one-day'
+    event_date_type: 'one-day',
     start_date: '',
     end_date: '',
     start_time: '',
     end_time: '',
     event_description: '',
     guests: [],
-    groupId: groupId || '' // Use groupId from URL params if available
+    groupId: groupId || ''
   });
+  
   const [guestInput, setGuestInput] = useState({
     guest_name: '',
     guest_profile: '',
     guest_link: ''
   });
 
+  // Helper function to format date for input fields
+  const formatDateForInput = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+  };
+
+  // Helper function to format time for input fields
+  const formatTimeForInput = (timeString) => {
+    if (!timeString) return '';
+    // If it's already in HH:MM format, return as is
+    if (/^\d{2}:\d{2}$/.test(timeString)) return timeString;
+    // If it's a full datetime string, extract time
+    const date = new Date(timeString);
+    return date.toTimeString().slice(0, 5);
+  };
+
+  // Function to save form data to localStorage
+  const saveFormDataToStorage = (data) => {
+    const storageKey = `createTicket_${groupId}`;
+    localStorage.setItem(storageKey, JSON.stringify(data));
+  };
+
+  // Function to load form data from localStorage
+  const loadFormDataFromStorage = () => {
+    const storageKey = `createTicket_${groupId}`;
+    const savedData = localStorage.getItem(storageKey);
+    if (savedData) {
+      try {
+        return JSON.parse(savedData);
+      } catch (error) {
+        console.error('Error parsing saved form data:', error);
+        return null;
+      }
+    }
+    return null;
+  };
+
+  // Function to clear form data from localStorage
+  const clearFormDataFromStorage = () => {
+    const storageKey = `createTicket_${groupId}`;
+    localStorage.removeItem(storageKey);
+  };
+
+  // Load existing ticket data if ticketId is provided
+  const loadExistingTicketData = async (ticketIdParam) => {
+    try {
+      console.log('Loading existing ticket data for ID:', ticketIdParam);
+      console.log('ticketIdParam type:', typeof ticketIdParam);
+      console.log('ticketIdParam length:', ticketIdParam?.length);
+      
+      // Validate ticketId before making API call
+      if (!ticketIdParam || ticketIdParam.trim() === '') {
+        console.error('Invalid ticketId provided:', ticketIdParam);
+        return null;
+      }
+
+      // Make API call with detailed logging
+      const ticketResponse = await getTicketById(ticketIdParam);
+      console.log('Response keys:', Object.keys(ticketResponse || {}));
+      // Try multiple ways to extract the data
+      let ticketData = null;
+      
+      if (ticketResponse) {
+        // Try different response structures
+        ticketData = ticketResponse.data || 
+                    ticketResponse.ticket || 
+                    ticketResponse.result || 
+                    (Array.isArray(ticketResponse) ? ticketResponse[0] : ticketResponse);
+      }
+      
+      console.log('Extracted ticket data:', ticketData);
+      
+      if (!ticketData) {
+        console.error('No ticket data found in response');
+        // Try to load from localStorage as fallback
+        const savedFormData = loadFormDataFromStorage();
+        if (savedFormData) {
+          console.log('Loading from localStorage as fallback');
+          setFormData(savedFormData);
+          return savedFormData;
+        }
+        return null;
+      }
+
+      console.log('Processing ticket data fields:');
+      console.log('- event_name:', ticketData.event_name);
+      console.log('- event_category:', ticketData.event_category);
+      console.log('- location:', ticketData.location);
+      console.log('- exact_map_location:', ticketData.exact_map_location);
+      
+      // Populate form with existing data
+      const loadedData = {
+        event_name: ticketData.event_name || ticketData.title || '',
+        event_category: ticketData.event_category || ticketData.category || '',
+        event_subcategory: ticketData.event_subcategory || ticketData.subcategory || '',
+        event_type: ticketData.event_type || ticketData.type || 'public',
+        location: ticketData.location || ticketData.event_location || '',
+        venue: ticketData.venue || ticketData.event_venue || '',
+        exact_map_location: {
+          latitude: (ticketData.exact_map_location?.latitude || ticketData.latitude)?.toString() || '12.9716',
+          longitude: (ticketData.exact_map_location?.longitude || ticketData.longitude)?.toString() || '12.9716',
+          address: ticketData.exact_map_location?.address || ticketData.address || 'tedrgtgtrgtrg'
+        },
+        event_date_type: ticketData.event_date_type || ticketData.date_type || 'one-day',
+        start_date: formatDateForInput(ticketData.start_date || ticketData.event_start_date),
+        end_date: formatDateForInput(ticketData.end_date || ticketData.event_end_date),
+        start_time: formatTimeForInput(ticketData.start_time || ticketData.event_start_time),
+        end_time: formatTimeForInput(ticketData.end_time || ticketData.event_end_time),
+        event_description: ticketData.event_description || ticketData.description || '',
+        guests: ticketData.guests || ticketData.speakers || [],
+        groupId: ticketData.groupId || ticketData.group_id || groupId || ''
+      };
+      
+      console.log('Final loaded data:', loadedData);
+      
+      setFormData(loadedData);
+      // Save to localStorage for persistence
+      saveFormDataToStorage(loadedData);
+      setIsEditMode(true);
+      return ticketData;
+    } catch (error) {
+      console.error('Error loading existing ticket:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText
+      });
+      
+      // Try to load from localStorage as fallback
+      const savedFormData = loadFormDataFromStorage();
+      if (savedFormData) {
+        console.log('Using localStorage data as fallback');
+        setFormData(savedFormData);
+        return savedFormData;
+      }
+      
+      // If ticket doesn't exist, continue with empty form
+      return null;
+    }
+  };
+
   // Initialize component and fetch groups
   useEffect(() => {
     const initializeComponent = async () => {
       try {
-        // Check if groupId is provided
+        setPageLoading(true);
+        
+        // Determine the current ticketId from multiple sources
+        const currentTicketId = urlTicketId || // From URL params first
+                               queryTicketId || // From query params second
+                               location.state?.ticketId || // From navigation state third
+                               localStorage.getItem('currentTicketId'); // From localStorage last
+        
+        console.log('Initializing with:');
+        console.log('- groupId from URL params:', groupId);
+        console.log('- urlTicketId from URL params:', urlTicketId);
+        console.log('- queryTicketId from query:', queryTicketId);
+        console.log('- final ticketId:', currentTicketId);
+        console.log('- location.search:', location.search);
+        console.log('- location.state:', location.state);
+
+        // Use groupId from URL params (always required)
         if (!groupId) {
           alert('No group selected. Redirecting to home page.');
           navigate('/home');
           return;
         }
-
-        setPageLoading(true);
         
         // Fetch groups to populate the dropdown and validate the selected group
         const groupsResponse = await getGroups();
@@ -69,16 +230,99 @@ const CreateTicket = () => {
           return;
         }
 
+        // Load existing ticket data if ticketId exists
+        let loadedTicketData = null;
+        if (currentTicketId && currentTicketId !== groupId) { // Make sure ticketId is not the same as groupId
+          console.log('=== LOADING TICKET DATA ===');
+          console.log('Current ticketId:', currentTicketId);
+          console.log('GroupId:', groupId);
+          console.log('TicketId !== GroupId?', currentTicketId !== groupId);
+          
+          loadedTicketData = await loadExistingTicketData(currentTicketId);
+          
+          if (loadedTicketData) {
+            console.log('✅ Successfully loaded ticket data');
+            // Store ticketId in localStorage for persistence across navigation
+            localStorage.setItem('currentTicketId', currentTicketId);
+            
+            // Update URL to reflect the ticketId in params if not already there
+            if (!urlTicketId) {
+              const newUrl = `/ticket/create-event/${groupId}/${currentTicketId}`;
+              console.log('Updating URL to include ticketId:', newUrl);
+              window.history.replaceState({}, '', newUrl);
+            }
+          } else {
+            console.log('❌ Failed to load ticket data, trying fallback methods');
+            
+            // Try localStorage as fallback
+            const savedFormData = loadFormDataFromStorage();
+            if (savedFormData) {
+              console.log('📦 Loading saved form data from localStorage:', savedFormData);
+              setFormData(prevData => ({
+                ...savedFormData,
+                groupId: groupId // Always ensure groupId is from URL
+              }));
+            }
+          }
+        } else {
+          console.log('=== NO VALID TICKET ID FOUND ===');
+          console.log('currentTicketId:', currentTicketId);
+          console.log('groupId:', groupId);
+          console.log('Reason: ', !currentTicketId ? 'No ticketId' : 'ticketId same as groupId');
+          
+          // If no valid ticketId, try to load from localStorage (for back navigation)
+          const savedFormData = loadFormDataFromStorage();
+          const savedTicketId = localStorage.getItem('currentTicketId');
+          
+          if (savedTicketId && savedTicketId !== groupId) {
+            // If we have a saved ticketId, try to load that data and update URL
+            console.log('Found saved ticketId, attempting to load:', savedTicketId);
+            try {
+              loadedTicketData = await loadExistingTicketData(savedTicketId);
+              if (loadedTicketData) {
+                // Update URL to include the saved ticketId
+                const newUrl = `/ticket/create-event/${groupId}/${savedTicketId}`;
+                console.log('Updating URL with saved ticketId:', newUrl);
+                window.history.replaceState({}, '', newUrl);
+              }
+            } catch (error) {
+              console.log('Could not load saved ticket, using localStorage form data');
+              // If can't load saved ticket, fall back to localStorage form data
+              if (savedFormData) {
+                console.log('Loading saved form data from localStorage:', savedFormData);
+                setFormData(prevData => ({
+                  ...savedFormData,
+                  groupId: groupId // Always ensure groupId is from URL
+                }));
+              }
+            }
+          } else if (savedFormData) {
+            console.log('Loading saved form data from localStorage:', savedFormData);
+            setFormData(prevData => ({
+              ...savedFormData,
+              groupId: groupId // Always ensure groupId is from URL
+            }));
+          } else {
+            // Initialize with groupId if no saved data
+            console.log('Initializing with empty form, groupId:', groupId);
+            setFormData(prev => ({
+              ...prev,
+              groupId: groupId
+            }));
+          }
+        }
+
       } catch (error) {
         console.error('Error initializing component:', error);
-        alert('Error loading group information. Please try again.');
+        alert('Error loading information. Please try again.');
         navigate('/home');
       } finally {
         setPageLoading(false);
       }
     };
+    
     initializeComponent();
-  }, [groupId, navigate]);
+  }, [groupId, urlTicketId, queryTicketId, navigate, location.search, location.state, location.pathname]);
 
   // Load Google Maps API
   useEffect(() => {
@@ -101,7 +345,7 @@ const CreateTicket = () => {
 
   // Setup Google Maps Autocomplete
   useEffect(() => {
-    if (mapLoaded && autocompleteRef.current) {
+    if (mapLoaded && autocompleteRef.current && !autocompleteRef.current._autocompleteSetup) {
       const autocomplete = new window.google.maps.places.Autocomplete(
         autocompleteRef.current,
         {
@@ -122,15 +366,19 @@ const CreateTicket = () => {
         const lng = place.geometry.location.lng();
         const address = place.formatted_address;
 
-        setFormData(prev => ({
-          ...prev,
+        const newFormData = {
+          ...formData,
           location: place.name || address,
           exact_map_location: {
             latitude: lat.toString(),
             longitude: lng.toString(),
             address: address
           }
-        }));
+        };
+
+        setFormData(newFormData);
+        // Save updated data to localStorage
+        saveFormDataToStorage(newFormData);
 
         // Update map if it exists
         if (mapRef.current) {
@@ -150,8 +398,11 @@ const CreateTicket = () => {
           });
         }
       });
+      
+      // Mark as setup to prevent duplicate setup
+      autocompleteRef.current._autocompleteSetup = true;
     }
-  }, [mapLoaded]);
+  }, [mapLoaded, formData]);
 
   // Initialize map
   useEffect(() => {
@@ -159,42 +410,51 @@ const CreateTicket = () => {
       const lat = parseFloat(formData.exact_map_location.latitude);
       const lng = parseFloat(formData.exact_map_location.longitude);
 
-      const map = new window.google.maps.Map(mapRef.current, {
-        center: { lat, lng },
-        zoom: 15
-      });
+      // Only create map if coordinates are valid
+      if (!isNaN(lat) && !isNaN(lng)) {
+        const map = new window.google.maps.Map(mapRef.current, {
+          center: { lat, lng },
+          zoom: 15
+        });
 
-      if (markerRef.current) {
-        markerRef.current.setMap(null);
+        if (markerRef.current) {
+          markerRef.current.setMap(null);
+        }
+
+        markerRef.current = new window.google.maps.Marker({
+          position: { lat, lng },
+          map: map,
+          title: formData.location || 'Event Location'
+        });
       }
-
-      markerRef.current = new window.google.maps.Marker({
-        position: { lat, lng },
-        map: map,
-        title: formData.location || 'Event Location'
-      });
     }
-  }, [mapLoaded, formData.exact_map_location.latitude, formData.exact_map_location.longitude]);
+  }, [mapLoaded, formData.exact_map_location.latitude, formData.exact_map_location.longitude, formData.location]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
+    let newFormData;
+    
     // Handle nested object for exact_map_location
     if (name.startsWith('map_')) {
       const field = name.replace('map_', '');
-      setFormData(prev => ({
-        ...prev,
+      newFormData = {
+        ...formData,
         exact_map_location: {
-          ...prev.exact_map_location,
+          ...formData.exact_map_location,
           [field]: value
         }
-      }));
+      };
     } else {
-      setFormData(prev => ({
-        ...prev,
+      newFormData = {
+        ...formData,
         [name]: value
-      }));
+      };
     }
+    
+    setFormData(newFormData);
+    // Save to localStorage on every change
+    saveFormDataToStorage(newFormData);
   };
 
   const handleGuestInputChange = (e) => {
@@ -207,10 +467,15 @@ const CreateTicket = () => {
 
   const addGuest = () => {
     if (guestInput.guest_name.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        guests: [...prev.guests, { ...guestInput }]
-      }));
+      const newFormData = {
+        ...formData,
+        guests: [...formData.guests, { ...guestInput }]
+      };
+      
+      setFormData(newFormData);
+      // Save to localStorage
+      saveFormDataToStorage(newFormData);
+      
       setGuestInput({
         guest_name: '',
         guest_profile: '',
@@ -220,10 +485,14 @@ const CreateTicket = () => {
   };
 
   const removeGuest = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      guests: prev.guests.filter((_, i) => i !== index)
-    }));
+    const newFormData = {
+      ...formData,
+      guests: formData.guests.filter((_, i) => i !== index)
+    };
+    
+    setFormData(newFormData);
+    // Save to localStorage
+    saveFormDataToStorage(newFormData);
   };
 
   const handleSubmit = async (e) => {
@@ -257,12 +526,29 @@ const CreateTicket = () => {
 
       console.log('Submitting data:', submitData);
       
-      const response = await createTicketBasicInfo(submitData);
-      console.log('Event created:', response);
+      let response;
+      if (isEditMode) {
+        // If we're in edit mode, we might need an update API call
+        // For now, we'll still use createTicketBasicInfo as it might handle updates
+        response = await createTicketBasicInfo(submitData);
+      } else {
+        response = await createTicketBasicInfo(submitData);
+      }
+      
+      console.log('Event created/updated:', response);
+      
+      // Store the ticketId for future navigation
+      const newTicketId = response.ticketId || response.data?.ticketId || response.data?._id;
+      if (newTicketId) {
+        localStorage.setItem('currentTicketId', newTicketId);
+      }
+      // Don't clear form data yet - keep it for potential back navigation
+      // Navigate to next step with both groupId and ticketId in URL path
       navigate(`/ticket/update-ticket-media/${response.ticketId}`, { 
         state: { 
-          message: 'Event created successfully!',
-          newEvent: response.data 
+          message: isEditMode ? 'Event updated successfully!' : 'Event created successfully!',
+          newEvent: response.data,
+          ticketId: response.ticketId
         }
       });
     } catch (error) {
@@ -272,6 +558,18 @@ const CreateTicket = () => {
       setLoading(false);
     }
   };
+
+  // Handle cleanup when component unmounts or when user explicitly navigates away
+  useEffect(() => {
+    return () => {
+      // Only clear storage if we're navigating to home or away from the flow
+      const currentPath = window.location.pathname;
+      if (currentPath === '/home' || currentPath === '/' || !currentPath.includes('/ticket/')) {
+        clearFormDataFromStorage();
+        localStorage.removeItem('currentTicketId');
+      }
+    };
+  }, []);
 
   const eventCategories = [
     'Technology',
@@ -305,7 +603,7 @@ const CreateTicket = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading group information...</p>
+          <p className="text-gray-600">Loading event information...</p>
         </div>
       </div>
     );
@@ -335,6 +633,9 @@ const CreateTicket = () => {
   }
   
   const handleBack = () => {
+    // Clear the stored ticketId and form data when going back to home
+    clearFormDataFromStorage();
+    localStorage.removeItem('currentTicketId');
     navigate('/home');
   };
   
@@ -349,9 +650,11 @@ const CreateTicket = () => {
                   Back
               </button>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">Create New Event</h1>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {isEditMode ? 'Edit Event' : 'Create New Event'}
+            </h1>
             <p className="text-gray-600 mt-2">
-              Fill in the basic information for your event under <span className="font-semibold text-blue-600">{selectedGroup.name || selectedGroup.group_name}</span>
+              {isEditMode ? 'Update the' : 'Fill in the basic'} information for your event under <span className="font-semibold text-blue-600">{selectedGroup.name || selectedGroup.group_name}</span>
             </p>
           </div>
 
@@ -364,7 +667,7 @@ const CreateTicket = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">
-                    Creating event under: {selectedGroup.name || selectedGroup.group_name}
+                    {isEditMode ? 'Editing event under:' : 'Creating event under:'} {selectedGroup.name || selectedGroup.group_name}
                   </h3>
                   {selectedGroup.category && (
                     <span className="inline-block px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full mt-1">
@@ -740,7 +1043,7 @@ const CreateTicket = () => {
                 {loading && (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                 )}
-                {loading ? 'Creating...' : 'Create Event'}
+                {loading ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Event' : 'Create Event')}
               </button>
             </div>
           </form>
@@ -749,5 +1052,4 @@ const CreateTicket = () => {
     </div>
   );
 };
-
 export default CreateTicket;

@@ -1,4 +1,3 @@
-import User from "../../../auth-service/src/models/user.model.js";
 import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import upload from '../middlewares/upload.js';
@@ -37,11 +36,9 @@ export const CreateGroup = async (req, res) => {
     
     const userId = req.user._id || req.user.id;
     const userRole = req.user.role;
-    
     if (!['admin', 'organisation'].includes(userRole)) {
       return res.status(400).json({ message: "Invalid user role" });
     }
-    
     const userData = await sendRPC('get-user', userId);
     if (!userData) {
       return res.status(404).json({ message: "User not found in auth service" });
@@ -57,7 +54,7 @@ export const CreateGroup = async (req, res) => {
       gst_no,
       pan_no,
       organisation_type,
-      grp_type,
+      grp_type
     } = req.body;
     
     const filePaths = {
@@ -685,11 +682,11 @@ export const getTicketById = async (req, res) => {
         message: "Missing required parameter: ticketId in URL"
       });
     }
-    // Find ticket by ID and groupId
     const ticket = await Ticket.findOne({ 
-      _id: ticketId, 
+      _id: ticketId,
+      userId: userId 
     });
-    if (!ticket) {
+    if (!ticket || !userId) {
       return res.status(404).json({ 
         message: "Ticket not found or you don't have access to this ticket" 
       });
@@ -716,6 +713,7 @@ export const deleteTicket = async (req, res) => {
   try {
     const { ticketId, groupId } = req.body;
     // Validate required parameters
+    userId = req.user._id || req.user.id;
     if (!ticketId || !groupId) {
       return res.status(400).json({ 
         message: "Missing required parameters",
@@ -724,7 +722,8 @@ export const deleteTicket = async (req, res) => {
     }
     const deletedTicket = await Ticket.findOneAndDelete({ 
       _id: ticketId, 
-      groupId: groupId 
+      groupId: groupId,
+      userId: userId
     });
     if (!deletedTicket) {
       return res.status(404).json({ message: "Ticket not found or unauthorized" });

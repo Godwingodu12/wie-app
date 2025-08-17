@@ -453,7 +453,7 @@ const ContentContainer = ({ children, className, isDarkMode }) => {
 };
 
 // --- Main Dashboard Component ---
-const GroupsDashboard = () => {
+const ViewGroups = () => {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [activeNavItem, setActiveNavItem] = useState("group");
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -1250,4 +1250,4 @@ const GroupsDashboard = () => {
   );
 };
 
-export default GroupsDashboard;
+export default ViewGroups;
