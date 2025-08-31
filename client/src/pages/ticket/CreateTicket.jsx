@@ -21,15 +21,15 @@ const CreateTicket = () => {
     event_name: '',
     event_category: '',
     event_subcategory: '',
-    event_type: 'public',
+    event_type: '',
     location: '',
     venue: '',
     exact_map_location: {
-      latitude: '12.9716',
-      longitude: '12.9716',
-      address: 'tedrgtgtrgtrg'
+      latitude: '',
+      longitude: '',
+      address: ''
     },
-    event_date_type: 'one-day',
+    event_date_type: '',
     start_date: '',
     end_date: '',
     start_time: '',
