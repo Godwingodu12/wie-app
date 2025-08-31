@@ -28,28 +28,27 @@ const validateName = (name) => {
 export const adminSignup = async (req, res) => {
   try {
     const { name, email, contact_no, password } = req.body;
+    
+    // Validation checks
     if (!name || !validateName(name)) {
-      return res
-        .status(400)
-        .json({
-          message: "Name is required and must be at least 2 characters",
-        });
+      return res.status(400).json({
+        message: "Name is required and must be at least 2 characters",
+      });
     }
     if (!email || !validateEmail(email)) {
       return res.status(400).json({ message: "Valid email is required" });
     }
     if (!contact_no || !validateContactNo(contact_no)) {
-      return res
-        .status(400)
-        .json({ message: "Valid contact number is required (10-15 digits)" });
+      return res.status(400).json({ 
+        message: "Valid contact number is required (10-15 digits)" 
+      });
     }
     if (!password || !validatePassword(password)) {
-      return res
-        .status(400)
-        .json({
-          message: "Password is required and must be at least 6 characters",
-        });
+      return res.status(400).json({
+        message: "Password is required and must be at least 6 characters",
+      });
     }
+    // Check for existing active users
     const exist = await User.findOne({ email: email, status: "active" });
     if (exist) {
       return res.status(400).json({ message: "Email already in use" });
@@ -61,36 +60,75 @@ export const adminSignup = async (req, res) => {
     if (contactExist) {
       return res.status(400).json({ message: "Contact number already in use" });
     }
+    // Check for existing unverified users by email
     const existingEmail = await User.findOne({
       email: email,
       status: "unverified",
     });
     if (existingEmail) {
-      const otp = generateOtp(); // Generate new OTP
+      const otp = generateOtp();
       await otpService.insertOTP(existingEmail._id, otp, 1); // 1 minute OTP with new expiry
-      await sendEmail(existingEmail.email, otp);
-      await sendSMSOTP(existingEmail.contact_no, otp);
-      res
-        .status(201)
-        .json({
-          message: "Signup successfully. OTP sent to email and Contact number.",
-        });
+      let emailSent = false;
+      let smsSent = false;
+      try {
+        await sendEmail(existingEmail.email, otp);
+        emailSent = true;
+      } catch (emailError) {
+        console.error("Email sending failed:", emailError);
+      }
+      try {
+        await sendSMSOTP(existingEmail.contact_no, otp);
+        smsSent = true;
+      } catch (smsError) {
+        console.error("SMS sending failed (Twilio might be expired):", smsError);
+      }
+      let message = "Signup successful.";
+      if (emailSent && smsSent) {
+        message += " OTP sent to email and contact number.";
+      } else if (emailSent) {
+        message += " OTP sent to email only. SMS service temporarily unavailable.";
+      } else if (smsSent) {
+        message += " OTP sent to contact number only. Email service temporarily unavailable.";
+      } else {
+        message += " OTP generation successful, but delivery services are temporarily unavailable. Please try again.";
+      }
+      return res.status(201).json({ message });
     }
+    // Check for existing unverified users by contact number
     const existingContact_no = await User.findOne({
       contact_no: contact_no,
       status: "unverified",
     });
     if (existingContact_no) {
-      const otp = generateOtp(); // Generate new OTP
-      await otpService.insertOTP(existingContact_no._id, otp, 10); // Update OTP with new expiry
-      await sendEmail(existingContact_no.email, otp);
-      await sendSMSOTP(existingContact_no.contact_no, otp);
-      res
-        .status(201)
-        .json({
-          message: "Signup successfully. OTP sent to email and Contact number.",
-        });
+      const otp = generateOtp();
+      await otpService.insertOTP(existingContact_no._id, otp, 1); // Update OTP with new expiry
+      let emailSent = false;
+      let smsSent = false;
+      try {
+        await sendEmail(existingContact_no.email, otp);
+        emailSent = true;
+      } catch (emailError) {
+        console.error("Email sending failed:", emailError);
+      }
+      try {
+        await sendSMSOTP(existingContact_no.contact_no, otp);
+        smsSent = true;
+      } catch (smsError) {
+        console.error("SMS sending failed (Twilio might be expired):", smsError);
+      }
+      let message = "Signup successful.";
+      if (emailSent && smsSent) {
+        message += " OTP sent to email and contact number.";
+      } else if (emailSent) {
+        message += " OTP sent to email only. SMS service temporarily unavailable.";
+      } else if (smsSent) {
+        message += " OTP sent to contact number only. Email service temporarily unavailable.";
+      } else {
+        message += " OTP generation successful, but delivery services are temporarily unavailable. Please try again.";
+      }
+      return res.status(201).json({ message });
     }
+    // Create new admin user
     const hashed = await hashPassword(password);
     const image = req.file ? req.file.filename : "";
     const user = await User.create({
@@ -102,73 +140,84 @@ export const adminSignup = async (req, res) => {
       status: "unverified",
       role: "admin",
     });
-    // Generate OTP (e.g., 6 digit)
-    const otp = generateOtp(); // => '123456'
-    // Save OTP to DB
-    await otpService.insertOTP(user._id, otp, 10); // 10 minutes expiry
-    // Send OTP via Email
-    await sendEmail(user.email, otp);
-    // Send OTP via SMS
-    await sendSMSOTP(user.contact_no, otp); // Assuming contact_no is a valid phone number
-    res
-      .status(201)
-      .json({
-        message: "Signup successfully. OTP sent to email and Contact number.",
-      });
+    const otp = generateOtp();
+    await otpService.insertOTP(user._id, otp, 1); // 1 minute expiry
+    let emailSent = false;
+    let smsSent = false;
+    try {
+      await sendEmail(user.email, otp);
+      emailSent = true;
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError);
+    }
+    try {
+      await sendSMSOTP(user.contact_no, otp);
+      smsSent = true;
+    } catch (smsError) {
+      console.error("SMS sending failed (Twilio might be expired):", smsError);
+    }
+    // Provide appropriate response based on what was sent successfully
+    let message = "Signup successful.";
+    if (emailSent && smsSent) {
+      message += " OTP sent to email and contact number.";
+    } else if (emailSent) {
+      message += " OTP sent to email only. SMS service temporarily unavailable.";
+    } else if (smsSent) {
+      message += " OTP sent to contact number only. Email service temporarily unavailable.";
+    } else {
+      message += " OTP generation successful, but delivery services are temporarily unavailable. Please try again.";
+    }
+    return res.status(201).json({ message });
   } catch (err) {
-    console.error("Signup error:", err);
-    res.status(500).json({ message: "Signup failed" });
+    console.error("Admin signup error:", err);
+    return res.status(500).json({ message: "Admin signup failed" });
   }
 };
 export const organisationSignup = async (req, res) => {
   try {
-    const { name, email, contact_no, organisation_type, address, password } =
-      req.body;
+    const { name, email, contact_no, organisation_type, address, password } = req.body;
+    
+    // Validation checks
     if (!name || !validateName(name)) {
-      return res
-        .status(400)
-        .json({
-          message: "Name is required and must be at least 2 characters",
-        });
+      return res.status(400).json({
+        message: "Name is required and must be at least 2 characters",
+      });
     }
     if (!email || !validateEmail(email)) {
       return res.status(400).json({ message: "Valid email is required" });
     }
     if (!contact_no || !validateContactNo(contact_no)) {
-      return res
-        .status(400)
-        .json({ message: "Valid contact number is required (10-15 digits)" });
+      return res.status(400).json({ 
+        message: "Valid contact number is required (10-15 digits)" 
+      });
     }
+    
     const validOrgTypes = [
-      "Private",
-      "Government",
-      "NGO",
-      "Educational",
-      "Healthcare",
-      "Non-profit",
-      "Other",
+      "Private", "Government", "NGO", "Educational", 
+      "Healthcare", "Non-profit", "Other"
     ];
     if (!validOrgTypes.includes(organisation_type)) {
       return res.status(400).json({ message: "Invalid organisation type" });
     }
+    
     if (!address || address.trim().length < 5) {
-      return res
-        .status(400)
-        .json({
-          message: "Address is required and must be at least 5 characters",
-        });
+      return res.status(400).json({
+        message: "Address is required and must be at least 5 characters",
+      });
     }
+    
     if (!password || !validatePassword(password)) {
-      return res
-        .status(400)
-        .json({
-          message: "Password is required and must be at least 6 characters",
-        });
+      return res.status(400).json({
+        message: "Password is required and must be at least 6 characters",
+      });
     }
+
+    // Check for existing active users
     const exist = await User.findOne({ email: email, status: "active" });
     if (exist) {
       return res.status(400).json({ message: "Email already in use" });
     }
+
     const contactExist = await User.findOne({
       contact_no: contact_no,
       status: "active",
@@ -176,36 +225,62 @@ export const organisationSignup = async (req, res) => {
     if (contactExist) {
       return res.status(400).json({ message: "Contact number already in use" });
     }
+
+    // Check for existing unverified users by email
     const existingEmail = await User.findOne({
       email: email,
       status: "unverified",
     });
     if (existingEmail) {
-      const otp = generateOtp(); // Generate new OTP
-      await otpService.insertOTP(existingEmail._id, otp, 10); // Update OTP with new expiry
-      await sendEmail(existingEmail.email, otp);
-      await sendSMSOTP(existingEmail.contact_no, otp);
-      res
-        .status(201)
-        .json({
-          message: "Signup successfully. OTP sent to email and Contact number.",
-        });
+      const otp = generateOtp();
+      await otpService.insertOTP(existingEmail._id, otp, 10);
+      
+      try {
+        await sendEmail(existingEmail.email, otp);
+      } catch (emailError) {
+        console.error("Email sending failed:", emailError);
+        // Continue execution even if email fails
+      }
+      
+      try {
+        await sendSMSOTP(existingEmail.contact_no, otp);
+      } catch (smsError) {
+        console.error("SMS sending failed:", smsError);
+        // Continue execution even if SMS fails (e.g., Twilio expired)
+      }
+      
+      return res.status(201).json({
+        message: "Signup successfully. OTP sent to email and contact number.",
+      });
     }
+
+    // Check for existing unverified users by contact number
     const existingContact_no = await User.findOne({
       contact_no: contact_no,
       status: "unverified",
     });
     if (existingContact_no) {
-      const otp = generateOtp(); // Generate new OTP
-      await otpService.insertOTP(existingContact_no._id, otp, 10); // Update OTP with new expiry
-      await sendEmail(existingContact_no.email, otp);
-      await sendSMSOTP(existingContact_no.contact_no, otp);
-      res
-        .status(201)
-        .json({
-          message: "Signup successfully. OTP sent to email and Contact number.",
-        });
+      const otp = generateOtp();
+      await otpService.insertOTP(existingContact_no._id, otp, 10);
+      
+      try {
+        await sendEmail(existingContact_no.email, otp);
+      } catch (emailError) {
+        console.error("Email sending failed:", emailError);
+        // Continue execution even if email fails
+      }
+      
+      try {
+        await sendSMSOTP(existingContact_no.contact_no, otp);
+      } catch (smsError) {
+        console.error("SMS sending failed:", smsError);
+        // Continue execution even if SMS fails (e.g., Twilio expired)
+      }
+      return res.status(201).json({
+        message: "Signup successfully. OTP sent to email and contact number.",
+      });
     }
+    // Create new user
     const hashed = await hashPassword(password);
     const image = req.file ? req.file.filename : "";
     const user = await User.create({
@@ -216,22 +291,46 @@ export const organisationSignup = async (req, res) => {
       address,
       password: hashed,
       image,
-      role: "organisation", // Set role to organisation
+      role: "organisation",
     });
-    // Generate OTP (e.g., 6 digit)
-    const otp = generateOtp(); // =>
-    // Save OTP to DB
-    await otpService.insertOTP(user._id, otp, 10); // 10 minutes
-    // Send OTP via Email
-    await sendEmail(user.email, otp);
-    // Send OTP via SMS
-    await sendSMSOTP(user.contact_no, otp); // Assuming contact_no is a valid phone number
-    res
-      .status(201)
-      .json({ message: "Signup successfully. OTP sent to email and SMS." });
+
+    // Generate and save OTP
+    const otp = generateOtp();
+    await otpService.insertOTP(user._id, otp, 10);
+
+    // Send OTP via email and SMS with error handling
+    let emailSent = false;
+    let smsSent = false;
+    
+    try {
+      await sendEmail(user.email, otp);
+      emailSent = true;
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError);
+    }
+    
+    try {
+      await sendSMSOTP(user.contact_no, otp);
+      smsSent = true;
+    } catch (smsError) {
+      console.error("SMS sending failed (Twilio might be expired):", smsError);
+    }
+
+    // Provide appropriate response based on what was sent successfully
+    let message = "Signup successful.";
+    if (emailSent && smsSent) {
+      message += " OTP sent to email and SMS.";
+    } else if (emailSent) {
+      message += " OTP sent to email only. SMS service temporarily unavailable.";
+    } else if (smsSent) {
+      message += " OTP sent to SMS only. Email service temporarily unavailable.";
+    } else {
+      message += " OTP generation successful, but delivery services are temporarily unavailable. Please try again.";
+    }
+    return res.status(201).json({ message });
   } catch (err) {
     console.error("Organisation signup error:", err);
-    res.status(500).json({ message: "Organisation signup failed" });
+    return res.status(500).json({ message: "Organisation signup failed" });
   }
 };
 export const login = async (req, res) => {
@@ -440,13 +539,11 @@ export const verifyUser = async (req, res) => {
         message: "Please provide either email or contact number",
       });
     }
-
     if (!otp) {
       return res.status(400).json({
         message: "Please provide OTP",
       });
     }
-
     // Find user by either email or contact_no
     let user;
     if (input.email) {
@@ -465,7 +562,6 @@ export const verifyUser = async (req, res) => {
     if (!verificationResult.isValid) {
       return res.status(400).json({ message: verificationResult.message });
     }
-
     const token = generateToken(user.id);
     res.status(200).json({
       message: "User verified successfully",
