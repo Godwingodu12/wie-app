@@ -33,9 +33,12 @@ export const CreateGroup = async (req, res) => {
         return resolve();
       });
     });
-    
     const userId = req.user._id || req.user.id;
     const userRole = req.user.role;
+    let usertype;
+    if (userRole === 'organisation') {
+      usertype = req.user.organisation_type;
+    }
     if (!['admin', 'organisation'].includes(userRole)) {
       return res.status(400).json({ message: "Invalid user role" });
     }
@@ -43,9 +46,6 @@ export const CreateGroup = async (req, res) => {
     if (!userData) {
       return res.status(404).json({ message: "User not found in auth service" });
     }
-    
-    console.log("User data from auth service:", userData);
-    
     const {
       name,
       email,
@@ -54,16 +54,18 @@ export const CreateGroup = async (req, res) => {
       gst_no,
       pan_no,
       organisation_type,
-      grp_type
+      grp_type,
+      primary_bank_acc_type,
+      primary_bank_acc_no,
+      primary_bank_ifsc,
+      primary_bank_acc_holder
     } = req.body;
-    
     const filePaths = {
       id_proof: req.files?.id_proof?.[0]?.path || null,
       bank_check: req.files?.bank_check?.[0]?.path || null,
       company_certificate: req.files?.company_certificate?.[0]?.path || null,
       company_logo: req.files?.company_logo?.[0]?.path || null,
     };
-    
     // Determine actual group type
     let actualGroupType;
     if (userRole === 'admin') {
@@ -76,21 +78,17 @@ export const CreateGroup = async (req, res) => {
     } else {
       actualGroupType = 'organisation';
     }
-    
     // Check group creation limits
     const existingGroups = await Group.find({ userId: userId });
-    
     if (userRole === 'admin') {
       // Admin user limits: 1 admin group + 1 organisation group = max 2 groups
       const adminGroups = existingGroups.filter(g => g.grp_type === 'admin');
       const orgGroups = existingGroups.filter(g => g.grp_type === 'organisation');
-      
       if (actualGroupType === 'admin' && adminGroups.length >= 1) {
         return res.status(400).json({
           message: "Admin users can only create one admin group"
         });
       }
-      
       if (actualGroupType === 'organisation' && orgGroups.length >= 1) {
         return res.status(400).json({
           message: "Admin users can only create one organisation group"
@@ -104,7 +102,82 @@ export const CreateGroup = async (req, res) => {
         });
       }
     }
-    
+    // Prepare data for duplication checking
+    let checkName, checkEmail, checkContact, checkPan, checkGst;
+    if (actualGroupType === 'admin') {
+      // For admin groups, use user data from auth service
+      checkName = userData.name;
+      checkEmail = userData.email;
+      checkContact = userData.contact_no;
+      checkPan = pan_no;
+      checkGst = gst_no || null;
+    } else {
+      // For organisation groups, use form data
+      checkName = name;
+      checkEmail = email;
+      checkContact = contact_no;
+      checkPan = pan_no;
+      checkGst = gst_no || null;
+    }
+    // COMPREHENSIVE DUPLICATION CHECK
+    const duplicateQuery = {
+      $or: [
+        // Check for duplicate PAN number (most unique identifier)
+        { pan_no: checkPan },
+        // Check for duplicate combination of name + email
+        {
+          $and: [
+            { name: { $regex: new RegExp(`^${checkName.trim()}$`, 'i') } },
+            { email: { $regex: new RegExp(`^${checkEmail.trim()}$`, 'i') } }
+          ]
+        },
+        // Check for duplicate combination of name + contact
+        {
+          $and: [
+            { name: { $regex: new RegExp(`^${checkName.trim()}$`, 'i') } },
+            { contact_no: checkContact.trim() }
+          ]
+        },
+        
+        // Check for duplicate combination of email + contact
+        {
+          $and: [
+            { email: { $regex: new RegExp(`^${checkEmail.trim()}$`, 'i') } },
+            { contact_no: checkContact.trim() }
+          ]
+        }
+      ]
+    };
+    // Add GST number to duplication check if provided
+    if (checkGst && checkGst.trim()) {
+      duplicateQuery.$or.push({ gst_no: checkGst.trim() });
+    }
+    const existingGroup = await Group.findOne(duplicateQuery);
+    if (existingGroup) {
+      // Determine which field(s) caused the duplication
+      let duplicateFields = [];
+      
+      if (existingGroup.pan_no === checkPan) {
+        duplicateFields.push('PAN number');
+      }
+      if (existingGroup.name.toLowerCase() === checkName.toLowerCase()) {
+        duplicateFields.push('name');
+      }
+      if (existingGroup.email.toLowerCase() === checkEmail.toLowerCase()) {
+        duplicateFields.push('email');
+      }
+      if (existingGroup.contact_no === checkContact) {
+        duplicateFields.push('contact number');
+      }
+      if (checkGst && existingGroup.gst_no === checkGst) {
+        duplicateFields.push('GST number');
+      }
+      return res.status(409).json({
+        message: `Group with the same ${duplicateFields.join(', ')} already exists`,
+        duplicateFields: duplicateFields,
+        existingGroupId: existingGroup._id
+      });
+    }
     // Validation based on group type
     if (actualGroupType === 'admin') {
       // For admin groups, use user data from auth service
@@ -113,7 +186,6 @@ export const CreateGroup = async (req, res) => {
           message: "Admin user data incomplete. Please update your profile."
         });
       }
-      
       // Basic validation for admin group
       if (!pan_no || !filePaths.id_proof) {
         return res.status(400).json({
@@ -127,30 +199,53 @@ export const CreateGroup = async (req, res) => {
           message: "Missing required fields: name, email, contact_no, pan_no, id_proof file",
         });
       }
-      
       if (!organisation_type) {
         return res.status(400).json({ message: "Organisation type is required" });
       }
-      
       if (!address) {
         return res.status(400).json({ message: "Address is required" });
       }
+      // Additional validation for non-Educational organisations
+      // Use organisation_type (from req.body.organisation_type) to check if Educational
+      // Make case-insensitive comparison
+      if (organisation_type.toLowerCase() !== 'educational') {
+        if (!gst_no) {
+          return res.status(400).json({ 
+            message: "GST number is required for non-educational organisations" 
+          });
+        }
+        if (!filePaths.bank_check) {
+          return res.status(400).json({ 
+            message: "Bank check document is required for non-educational organisations" 
+          });
+        }
+        if (!filePaths.company_logo) {
+          return res.status(400).json({ 
+            message: "Company logo is required for non-educational organisations" 
+          });
+        }
+      }
     }
-    
     // Build group data
     const groupData = {
-      pan_no,
+      pan_no: checkPan,
       id_proof: filePaths.id_proof,
       userId: userId,
       grp_type: actualGroupType,
       status: 'active',
+      primary_bank_acc_type,
+      primary_bank_acc_no,
+      primary_bank_ifsc,
+      primary_bank_acc_holder
     };
-    
     if (actualGroupType === 'admin') {
       // Use admin user data from auth service
       groupData.name = userData.name;
       groupData.email = userData.email;
       groupData.contact_no = userData.contact_no;
+      // Add optional fields for admin
+      if (filePaths.bank_check) groupData.bank_check = filePaths.bank_check;
+      if (gst_no) groupData.gst_no = gst_no;
     } else {
       // Use form data for organisation
       groupData.name = name;
@@ -158,12 +253,19 @@ export const CreateGroup = async (req, res) => {
       groupData.contact_no = contact_no;
       groupData.address = address;
       groupData.organisation_type = organisation_type;
+      // For Educational organisations, gst_no and bank_check are optional
+      // For other organisations, they are required (validated above)
+      // Use usertype to determine if Educational
+      if (gst_no) {
+        groupData.gst_no = gst_no;
+      }
+      if (filePaths.bank_check) {
+        groupData.bank_check = filePaths.bank_check;
+      }
+      // Optional files for all organisations
       if (filePaths.company_certificate) groupData.company_certificate = filePaths.company_certificate;
       if (filePaths.company_logo) groupData.company_logo = filePaths.company_logo;
     }
-    // Add optional fields
-    if (gst_no) groupData.gst_no = gst_no;
-    if (filePaths.bank_check) groupData.bank_check = filePaths.bank_check;
     const newGroup = new Group(groupData);
     await newGroup.save();
     res.status(201).json({
@@ -181,6 +283,14 @@ export const CreateGroup = async (req, res) => {
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({ message: "Validation error", errors: messages });
+    }
+    // Handle MongoDB duplicate key error
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(409).json({
+        message: `Group with this ${field} already exists`,
+        field: field
+      });
     }
     res.status(500).json({
       message: "Internal server error",
@@ -738,3 +848,4 @@ export const deleteTicket = async (req, res) => {
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
+

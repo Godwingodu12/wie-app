@@ -17,9 +17,7 @@ const ticketTypeSchema = new mongoose.Schema({
   ticket_price: { type: Number },
   ticket_photo: { type: String }, // Image URL
   max_capacity: { type: Number },
-  seating_arrangement: { type: Boolean, default: false },
 });
-
 // Banking Details Schema
 const bankingDetailsSchema = new mongoose.Schema({
   bank_acc_type: { type: String },
@@ -27,13 +25,23 @@ const bankingDetailsSchema = new mongoose.Schema({
   bank_ifsc: { type: String },
   bank_acc_holder: { type: String },
 });
-
+const offerTicketSchema = new mongoose.Schema({
+  offer_ticket_type: { type: String, required: false },
+  offer_ticket_price: { type: String, required: false },
+  set_limit_for_user: { type: String, required: false },
+  offer_ticket_pic: { type: String, required: false },
+});
 // Sub Event Schema (for add-on events)
 const subEventSchema = new mongoose.Schema({
   event_name: { type: String, required: true },
   event_category: { type: String, required: true },
   event_subcategory: { type: String, required: true },
-  event_type: { type: String, required: true },
+  event_type: { type: String, required: true,enum: ['private', 'public']},
+  event_language: { type: String, required: true,enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other']},
+  min_age_allowed: { type: Number, required: true },
+  seating_arrangement: { type: String, default: false, enum: ['seated', 'standing','seated and standing','other']},
+  kids_friendly: { type: Boolean, default: false },
+  pet_friendly: { type: Boolean, default: false },
   location: { type: String, required: true },
   venue: { type: String, required: true },
   exact_map_location: {
@@ -41,14 +49,15 @@ const subEventSchema = new mongoose.Schema({
     longitude: { type: Number },
     address: { type: String }
   },
-  
   // Date and Time
-  event_date_type: { type: String, enum: ['one-day', 'multi-day', 'specific-dates'], required: false },
+  event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: false },
   start_date: { type: Date, required: true },
   end_date: { type: Date },
   start_time: { type: String, required: true },
   end_time: { type: String },
-  
+  event_instagram_link: { type: String, required: false },
+  event_youtube_link: { type: String, required: false },
+  event_rules: { type: String, required: false },
   // Description and Media
   event_description: { type: String, required: true },
   event_logo: { type: String, required: true },
@@ -102,7 +111,11 @@ const ticketSchema = new mongoose.Schema({
   event_category: { type: String, required: false },
   event_subcategory: { type: String, required: false },
   event_type: { type: String, required: false },
-  
+  event_language: { type: String, required: true,enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other']},
+  min_age_allowed: { type: Number, required: true },
+  seating_arrangement: { type: String, default: false, enum: ['seated', 'standing','seated and standing','other']},
+  kids_friendly: { type: Boolean, default: false },
+  pet_friendly: { type: Boolean, default: false },
   // Location
   location: { type: String, required: false },
   venue: { type: String, required: false },
@@ -113,13 +126,16 @@ const ticketSchema = new mongoose.Schema({
   },
   
   // Date and Time
-  event_date_type: { type: String, enum: ['one-day', 'multi-day', 'specific-dates'], required: true },
+  event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: true },
   start_date: { type: Date, required: false },
   end_date: { type: Date },
   start_time: { type: String, required: false },
   end_time: { type: String, required: false },
-  
+  event_instagram_link: { type: String, required: false },
+  event_youtube_link: { type: String, required: false },
+  event_rules: { type: String, required: false },
   // Description and Media
+  college_authorisation: { type: String, required: false },
   event_description: { type: String, required: false },
   event_logo: { type: String, required: false },
   event_banner: { type: String, required: false },
@@ -158,11 +174,16 @@ const ticketSchema = new mongoose.Schema({
   // Multiple Guests, Guides, and Ticket Types
   guests: [guestSchema],
   guides: [guideSchema],
+  total_capacity: { type: String, required: false },
+  booking_start_date: { type: String, required: false },
+  booking_end_date: { type: String, required: false },
   ticket_types: [ticketTypeSchema],
-  
+
   // Sub Events (Add-on Events)
   sub_events: [subEventSchema],
-  
+  //ticket offer or bulk booking
+  event_ticket_offer: { type: Boolean, default: false },
+  offerTickets: [offerTicketSchema],
   // References
   groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'CreateGroup', required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
