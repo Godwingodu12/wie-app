@@ -1,13 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { getMe } from '../../services/userService';
+import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { logoutSuccess } from '../../features/auth/authSlice'; // ⬅️ your auth slice action
+import { logout } from '../../services/authService'; // optional if you call backend logout
 
 const ProfilePage = () => {
   const [user, setUser] = useState(null);
-
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await getMe(); 
+        const res = await getMe();
         const userData = res.data;
         console.log("User fetched:", userData);
         setUser(userData);
@@ -18,6 +23,21 @@ const ProfilePage = () => {
 
     fetchUser();
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logout(); // if you have backend logout API
+    } catch (err) {
+      console.error("Logout failed", err);
+    } finally {
+      // clear Redux auth state
+      dispatch(logoutSuccess());
+      // clear storage (if you store token there)
+      localStorage.clear();
+      // redirect
+      navigate("/login");
+    }
+  };
 
   return (
     <div className="max-w-2xl mx-auto mt-10 p-6 bg-white rounded shadow">
@@ -41,12 +61,20 @@ const ProfilePage = () => {
             </div>
           </div>
 
-          <div className="text-gray-700 space-y-2">
+          <div className="text-gray-700 space-y-2 mb-6">
             <p><span className="font-medium">Name:</span> {user.name}</p>
             <p><span className="font-medium">Email:</span> {user.email}</p>
             <p><span className="font-medium">Role:</span> {user.role}</p>
             <p><span className="font-medium">Blocked:</span> {user.isBlocked ? 'Yes' : 'No'}</p>
           </div>
+
+          {/* Logout Button */}
+          <button
+            onClick={handleLogout}
+            className="w-full bg-red-500 text-white py-2 rounded hover:bg-red-600 transition"
+          >
+            Logout
+          </button>
         </>
       ) : (
         <p className="text-gray-500">Loading profile...</p>
