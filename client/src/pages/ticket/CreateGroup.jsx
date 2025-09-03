@@ -30,6 +30,15 @@ const darkThemeStyles = `
     background: #212426;
     color: white;
   }
+  /* Fix for autofill background in dark mode */
+  .dark input:-webkit-autofill,
+  .dark input:-webkit-autofill:hover,
+  .dark input:-webkit-autofill:focus,
+  .dark input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0px 1000px #212426 inset !important; /* Matches your dark background */
+    -webkit-text-fill-color: white !important; /* Ensures text is white */
+    caret-color: white !important; /* Ensures cursor is white */
+  }
 `;
 
 const lightThemeStyles = `
@@ -50,6 +59,49 @@ const lightThemeStyles = `
   }
 `;
 
+// Custom CSS for the light green scrollbar
+const scrollbarStyles = `
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #4ADE80; /* This is a light green color */
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: #34D399;
+  }
+`;
+
+// Reusable InfoTooltip component
+const InfoTooltip = ({ note }) => {
+  const InfoIconSvg = () => (
+    <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+    </svg>
+  );
+
+  return (
+    <div className="relative flex items-center group ml-1">
+      <InfoIconSvg />
+      <div className={`absolute left-full top-1/2 -translate-y-1/2 ml-3 w-max max-w-xs p-3 text-xs font-medium text-white bg-gray-900 rounded-lg shadow-lg 
+                       opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10`}>
+        {note}
+        {/* SVG arrow pointing left */}
+        <svg className="absolute text-gray-900 h-3 w-3 -left-1 top-1/2 -translate-y-1/2" x="0px" y="0px" viewBox="0 0 255 255">
+            <polygon className="fill-current" points="255,0 255,255 0,127.5"/>
+        </svg>
+      </div>
+    </div>
+  );
+};
+
+
 const CreateGroup = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -57,7 +109,7 @@ const CreateGroup = () => {
   const [userData, setUserData] = useState(null);
   const [darkMode, setDarkMode] = useState(true);
   const [filePreviews, setFilePreviews] = useState({});
-  const [hasGst, setHasGst] = useState(''); // Separate state for GST registration question
+  const [hasGst, setHasGst] = useState('');
   const [existingGroups, setExistingGroups] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
@@ -67,15 +119,18 @@ const CreateGroup = () => {
     gst_no: '',
     pan_no: '',
     organisation_type: '',
-    grp_type: 'organisation' // Default to organisation
+    grp_type: 'organisation',
+    primary_bank_acc_type: '',
+    primary_bank_acc_holder: '',
+    primary_bank_acc_no: '',
+    primary_bank_ifsc: '',
   });
   
-  // Separate state for files
   const [files, setFiles] = useState({
     id_proof: null,
     bank_check: null,
+    company_logo: null,
     company_certificate: null,
-    company_logo: null
   });
   
   const [errors, setErrors] = useState({});
@@ -95,17 +150,33 @@ const CreateGroup = () => {
     fetchUserData();
   }, []);
 
-  // NEW: This useEffect automatically sets the group type if only one is available
   useEffect(() => {
     if (capabilities?.userRole === 'admin' && Array.isArray(existingGroups)) {
       const creatableTypes = ['admin', 'organisation'].filter(type => canCreateGroupType(type));
       
       if (creatableTypes.length === 1 && formData.grp_type !== creatableTypes[0]) {
-        // Automatically select the only available group type by simulating a change event
         handleGroupTypeChange({ target: { value: creatableTypes[0] } });
       }
     }
   }, [capabilities, existingGroups]);
+
+  useEffect(() => {
+    if (
+      userData &&
+      capabilities &&
+      capabilities.userRole === 'organisation' &&
+      existingGroups.length === 0
+    ) {
+      setFormData(prev => ({
+        ...prev,
+        name: userData.name || '',
+        email: userData.email || '',
+        contact_no: userData.contact_no || '',
+        address: userData.address || '',
+        organisation_type: userData.organisation_type || ''
+      }));
+    }
+  }, [userData, capabilities, existingGroups]);
 
   const fetchUserCapabilities = async () => {
     try {
@@ -123,22 +194,12 @@ const CreateGroup = () => {
       const response = await getUserData();
       if (response && response.user) {
         setUserData(response.user);
-        // Auto-fill form data with user data for organisation type
-        setFormData(prev => ({
-          ...prev,
-          name: response.user.name || '',
-          email: response.user.email || '',
-          contact_no: response.user.contact_no || '',
-          address: response.user.address || '',
-          organisation_type: response.user.organisation_type || ''
-        }));
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
     }
   };
 
-  // Check if user can create specific group type
   const canCreateGroupType = (groupType) => {
     if (!capabilities || !existingGroups) return false;
     
@@ -149,7 +210,6 @@ const CreateGroup = () => {
         return existingGroups.filter(g => g.grp_type === 'organisation').length === 0;
       }
     } else {
-      // Organisation user can create up to 4 groups
       return existingGroups.length < 4;
     }
   };
@@ -179,6 +239,7 @@ const CreateGroup = () => {
       }
     }
   };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -187,36 +248,34 @@ const CreateGroup = () => {
     }));
 
     if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+      setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
   const handleGroupTypeChange = (e) => {
     const value = e.target.value;
-    setErrors({}); // Clear errors when switching
+    setErrors({});
+    setHasGst('');
 
     setFormData(prev => {
         const newState = {
             ...prev,
-            grp_type: value
+            grp_type: value,
+            gst_no: '',
         };
 
-        // If switching to 'organisation', auto-fill the fields from user data.
-        if (value === 'organisation' && userData) {
-            newState.name = userData.name || '';
-            newState.email = userData.email || '';
-            newState.contact_no = userData.contact_no || '';
-            newState.address = userData.address || '';
-            newState.organisation_type = userData.organisation_type || '';
+        if (value === 'organisation') {
+            newState.name = '';
+            newState.email = '';
+            newState.contact_no = '';
+            newState.address = '';
+            newState.organisation_type = '';
         }
         
         return newState;
     });
   };
-
+  
   const handleGstChange = (e) => {
     const value = e.target.value;
     setHasGst(value);
@@ -225,25 +284,41 @@ const CreateGroup = () => {
       setFormData(prev => ({ ...prev, gst_no: '' }));
     }
     
-    if (errors.gst_no) {
-      setErrors(prev => ({ ...prev, gst_no: '' }));
+    if (errors.gst_no || errors.hasGst) {
+      setErrors(prev => ({ ...prev, gst_no: '', hasGst: '' }));
     }
   };
 
-  const validateForm = () => {
+const validateForm = () => {
     const newErrors = {};
     
-    // Common required fields
-    if (!formData.pan_no.trim()) newErrors.pan_no = 'PAN number is required';
-    if (!files.id_proof) newErrors.id_proof = 'ID proof is required';
+    // PAN validation (Required + Format)
+    if (!formData.pan_no.trim()) {
+      newErrors.pan_no = 'PAN number is required';
+    } else if (!/^[A-Z0-9]{10}$/i.test(formData.pan_no)) {
+      newErrors.pan_no = 'PAN must be 10 alphanumeric characters.';
+    }
+
+    if (!files.id_proof) {
+      newErrors.id_proof = 'Aadhaar card is required';
+    }
 
     if (formData.grp_type === 'admin') {
-      // Admin group validation - no need to validate name, email, contact as they come from user data
       if (!userData?.name) newErrors.name = 'Admin name is required in profile';
       if (!userData?.email) newErrors.email = 'Admin email is required in profile';
       if (!userData?.contact_no) newErrors.contact_no = 'Admin contact is required in profile';
-    } else {
-      // Organisation group validations
+
+      if (!hasGst) {
+        newErrors.hasGst = 'Please select if you have GST registration.';
+      } else if (hasGst === 'Yes') {
+        if (!formData.gst_no.trim()) {
+            newErrors.gst_no = 'GST number is required.';
+        } else if (!/^[0-9A-Z]{15}$/i.test(formData.gst_no)) { // GST Format Check
+            newErrors.gst_no = 'GST must be 15 alphanumeric characters.';
+        }
+      }
+
+    } else { // Organisation validation
       if (!formData.name.trim()) newErrors.name = 'Organization name is required';
       if (!formData.email.trim()) newErrors.email = 'Email is required';
       if (!formData.contact_no.trim()) newErrors.contact_no = 'Contact number is required';
@@ -259,6 +334,35 @@ const CreateGroup = () => {
       if (formData.contact_no && !phoneRegex.test(formData.contact_no)) {
         newErrors.contact_no = 'Contact number must be 10 digits';
       }
+      
+      if (formData.organisation_type && formData.organisation_type.toLowerCase() !== 'educational') {
+        if (!formData.gst_no.trim()) {
+          newErrors.gst_no = 'GST number is required for non-educational organisations';
+        } else if (!/^[0-9A-Z]{15}$/i.test(formData.gst_no)) { // GST Format Check
+            newErrors.gst_no = 'GST must be 15 alphanumeric characters.';
+        }
+        if (!files.bank_check) {
+          newErrors.bank_check = 'Bank check is required for non-educational organisations';
+        }
+        if (!files.company_logo) {
+          newErrors.company_logo = 'Company logo is required for non-educational organisations';
+        }
+      }
+    }
+
+    // IFSC Code Format Check (only if a value is entered)
+    if (formData.primary_bank_ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(formData.primary_bank_ifsc)) {
+        newErrors.primary_bank_ifsc = 'Please enter a valid 11-character IFSC code.';
+    }
+
+    // PAN vs GST Check
+    if (
+      formData.pan_no.trim() &&
+      formData.gst_no.trim() &&
+      formData.pan_no.trim().toUpperCase() === formData.gst_no.trim().toUpperCase()
+    ) {
+      newErrors.pan_no = 'PAN and GST numbers cannot be the same.';
+      newErrors.gst_no = 'PAN and GST numbers cannot be the same.';
     }
 
     setErrors(newErrors);
@@ -268,7 +372,6 @@ const CreateGroup = () => {
   const handleSubmit = async (e) => {
       e.preventDefault();
       
-      // Check if user can create this group type
       if (!canCreateGroupType(formData.grp_type)) {
         setErrors({ general: `You cannot create more ${formData.grp_type} groups.` });
         return;
@@ -278,17 +381,12 @@ const CreateGroup = () => {
 
       setLoading(true);
       try {
-        // Create FormData for file upload
         const submitData = new FormData();
         
-        // Append all form fields (backend will handle admin vs org logic)
         Object.keys(formData).forEach(key => {
-          if (formData[key] !== '') {
-            submitData.append(key, formData[key]);
-          }
+          submitData.append(key, formData[key]);
         });
         
-        // Append files
         Object.keys(files).forEach(key => {
           if (files[key]) {
             submitData.append(key, files[key]);
@@ -338,22 +436,11 @@ const CreateGroup = () => {
     setFiles(prev => ({ ...prev, [name]: file }));
 
     const fileType = file?.type || '';
-    const fileName = file?.name || '';
-
-    let previewURL = '';
-
     if (fileType.startsWith('image/')) {
-      previewURL = URL.createObjectURL(file);
-    } else if (fileType === 'application/pdf') {
-      previewURL = '/assets/Event/PdfIcon.svg'; // Static preview icon
-    } else if (
-      fileName.endsWith('.doc') || fileName.endsWith('.docx')
-    ) {
-      previewURL = '/assets/Event/DocIcon.svg';
-    }
-
-    if (previewURL) {
+      const previewURL = URL.createObjectURL(file);
       setFilePreviews(prev => ({ ...prev, [name]: previewURL }));
+    } else {
+      setFilePreviews(prev => ({ ...prev, [name]: null }));
     }
 
     if (errors[name]) {
@@ -362,19 +449,37 @@ const CreateGroup = () => {
   };
 
   const FileUploadArea = ({ label, name }) => {
-    const handleClick = () => {
+    const openFileDialog = () => {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
+
       input.onchange = (e) => {
         const file = e.target.files[0];
-        if (file && file.size <= 10 * 1024 * 1024) { // 10MB limit
-          handleFileUpload(name, file);
-        } else if (file) {
-          alert('File size must be less than 10MB');
+        if (!file) return;
+
+        const allowedTypes = [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'image/jpeg',
+          'image/png',
+          'image/jpg',
+        ];
+
+        if (!allowedTypes.includes(file.type)) {
+          alert('Error: Invalid file type. Only PDF, DOC, DOCX, and image files are allowed.');
+          return;
         }
-        input.value = '';
+
+        if (file.size > 10 * 1024 * 1024) {
+          alert('File size must be less than 10MB');
+          return;
+        }
+
+        handleFileUpload(name, file);
       };
+      
       input.click();
     };
     
@@ -382,7 +487,6 @@ const CreateGroup = () => {
       e.stopPropagation();
       setFiles(prev => ({ ...prev, [name]: null }));
       setFilePreviews(prev => ({ ...prev, [name]: null }));
-
       if (errors[name]) {
         setErrors(prev => ({ ...prev, [name]: '' }));
       }
@@ -390,63 +494,66 @@ const CreateGroup = () => {
     
     const hasError = !!errors[name];
     const hasFile = !!files[name];
+    const previewUrl = filePreviews[name];
 
     return (
       <div className="space-y-2">
-        <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{label}</label>
+        <label className={`flex items-center text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+          {label}
+          <InfoTooltip note="This is a dummy note for the file upload." />
+        </label>
         <div
-          onClick={handleClick}
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer h-32 flex flex-col items-center justify-center relative
+          onClick={!hasFile ? openFileDialog : undefined}
+          className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors flex flex-col items-center justify-center min-h-[220px]
             ${darkMode
-              ? `bg-[#212426] ${hasError ? 'border-red-500' : 'border-gray-600'} hover:border-gray-500`
+              ? `bg-transparent ${hasError ? 'border-red-500' : 'border-gray-600'} hover:border-gray-500`
               : `bg-white ${hasError ? 'border-red-500' : 'border-gray-300'} hover:border-gray-400`
             }`
           }
         >
-          {hasFile ? (
-            <>
-              <div className="mb-2">
-                <svg className={`w-8 h-8 mx-auto ${darkMode ? 'text-green-400' : 'text-green-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+          {hasFile && (
+            <button
+              onClick={handleRemoveFile}
+              className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center z-10 ${
+                darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+              } transition-colors`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+
+          <div className="flex flex-col items-center justify-center space-y-4 flex-grow">
+            {previewUrl ? (
+              <img src={previewUrl} alt="Preview" className="max-h-24 object-contain rounded" />
+            ) : hasFile ? (
+              <div className="text-center">
+                 <svg className="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                 </svg>
+                 <p className="text-sm mt-2">{files[name]?.name}</p>
               </div>
-             <div className="flex flex-col items-center space-y-2">
-                {filePreviews[name] ? (
-                  <img
-                    src={filePreviews[name]}
-                    alt="Preview"
-                    className="h-20 object-contain rounded border"
-                  />
-                ) : (
-                  <p className={`text-xs truncate max-w-full px-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {files[name].name}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={handleRemoveFile}
-                className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center ${
-                  darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
-                } transition-colors`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="mb-2">
-                <svg className={`w-8 h-8 mx-auto ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            ) : (
+              <>
+                <svg className={`w-10 h-10 mx-auto ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
-              </div>
-              <p className={`text-sm mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                Drag your file(s) or <span className={darkMode ? "text-white hover:text-gray-200" : "text-indigo-600 hover:text-indigo-700"}>browse</span>
-              </p>
-              <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Max 10 MB files are allowed</p>
-            </>
-          )}
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Drag your file(s) or <span className="font-semibold text-indigo-400">browse</span>
+                </p>
+                <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Max 10 MB files are allowed</p>
+              </>
+            )}
+            
+            <button
+              type="button"
+              onClick={openFileDialog}
+              className="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              Browse file
+            </button>
+          </div>
         </div>
         {hasError && <p className="text-red-500 text-sm mt-1">{errors[name]}</p>}
       </div>
@@ -479,402 +586,562 @@ const CreateGroup = () => {
   );
 
   return (
-    <div className={`min-h-screen flex ${darkMode ? 'dark' : 'light'}`}>
-      <div className={`hidden lg:flex w-[300px] p-6 flex-col transition-colors duration-300 ${darkMode ? 'bg-black text-white' : 'bg-white text-gray-800'}`}>
-        <div className="flex items-center space-x-2 mb-8">
-          <img src={WieLogo} alt="Wie Logo" className="w-10 h-10" />
-        </div>
-        <div className="mb-8">
-          <div className="flex items-center space-x-3">
-            <BackButton onClick={handleBack} isDarkMode={darkMode} />
-            <span className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>Create a new event</span>
+    <>
+      <style>{scrollbarStyles}</style>
+      <div className={`min-h-screen flex ${darkMode ? 'dark' : 'light'}`}>
+        <div className={`hidden lg:flex w-[300px] p-6 flex-col transition-colors duration-300 sticky top-0 h-screen overflow-y-auto custom-scrollbar ${darkMode ? 'bg-black text-white' : 'bg-white text-gray-800'}`}>
+          <div className="flex items-center space-x-2 mb-8">
+            <img src={WieLogo} alt="Wie Logo" className="w-10 h-10" />
           </div>
-        </div>
-        <div className="mb-8 flex justify-center">
-          <div className="relative w-28 h-28">
-            <svg className="w-28 h-28 transform -rotate-90">
-              <circle cx="56" cy="56" r="50" stroke="currentColor" strokeWidth="10" fill="none" className={darkMode ? "text-gray-700" : "text-gray-200"} />
-              <circle cx="56" cy="56" r="50" stroke="currentColor" strokeWidth="10" fill="none" strokeDasharray={`${2 * Math.PI * 52}`} strokeDashoffset={`${2 * Math.PI * 52 * 0.79}`} className={darkMode ? "text-green-400" : "text-green-500"} />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-sm font-semibold">21%</span>
-              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>completed</span>
+          <div className="mb-8">
+            <div className="flex items-center space-x-3">
+              <BackButton onClick={handleBack} isDarkMode={darkMode} />
+              <span className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>Create a new event</span>
             </div>
           </div>
-        </div>
-        <nav className="space-y-2 -mx-6 px-6">
-          {navigationSteps.map((step, index) => {
-            const isActive = step.active;
-            const stepIconClass = `w-4 h-4 transition-opacity duration-200 ${index !== 0 ? 'opacity-50' : ''} ${darkMode ? 'filter brightness-0 invert' : ''}`;
-            const iconBgColor = index !== 0 ? (darkMode ? 'rgba(30, 18, 66, 0.5)' : 'rgba(30, 18, 66, 0.5)') : '#1E1242';
+          <div className="mb-8 flex justify-center">
+            <div className="relative w-28 h-28">
+              <svg className="w-28 h-28 transform -rotate-90">
+                <circle cx="56" cy="56" r="50" stroke="currentColor" strokeWidth="10" fill="none" className={darkMode ? "text-gray-700" : "text-gray-200"} />
+                <circle cx="56" cy="56" r="50" stroke="currentColor" strokeWidth="10" fill="none" strokeDasharray={`${2 * Math.PI * 52}`} strokeDashoffset={`${2 * Math.PI * 52 * 0.79}`} className={darkMode ? "text-green-400" : "text-green-500"} />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-sm font-semibold">21%</span>
+                <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>completed</span>
+              </div>
+            </div>
+          </div>
+          <nav className="space-y-2 -mx-6 px-6">
+            {navigationSteps.map((step, index) => {
+              const isActive = step.active;
+              const stepIconClass = `w-4 h-4 transition-opacity duration-200 ${index !== 0 ? 'opacity-50' : ''} ${darkMode ? 'filter brightness-0 invert' : ''}`;
+              const iconBgColor = index !== 0 ? (darkMode ? 'rgba(30, 18, 66, 0.5)' : 'rgba(30, 18, 66, 0.5)') : '#1E1242';
 
-            return (
-              <div
-                key={step.id}
-                className={`flex items-center space-x-3 px-6 py-4 -mx-6 transition-colors rounded-lg
-                  ${isActive
-                    ? darkMode ? 'text-white' : 'text-indigo-700'
-                    : darkMode ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'
-                  }`}
-                style={isActive ? { backgroundColor: darkMode ? '#363A3F' : 'rgba(126, 126, 126, 0.2)' } : {}}
-              >
-                <img src={NoteIcon} alt="Note" className="w-4 h-4" />
-                <span className="text-sm flex-1">{step.name}</span>
+              return (
                 <div
-                  className="px-3 py-1.5 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: iconBgColor }}
+                  key={step.id}
+                  className={`flex items-center space-x-3 px-6 py-4 -mx-6 transition-colors rounded-lg
+                    ${isActive
+                      ? darkMode ? 'text-white' : 'text-indigo-700'
+                      : darkMode ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'
+                    }`}
+                  style={isActive ? { backgroundColor: darkMode ? '#363A3F' : 'rgba(126, 126, 126, 0.2)' } : {}}
                 >
-                  <img
-                    src={step.icon}
-                    alt={step.name}
-                    className={stepIconClass}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </nav>
-      </div>
-
-      <div className="flex-1 transition-colors duration-300" style={{ backgroundColor: darkMode ? '#212426' : '#F9FAFB' }}>
-        
-        <div className={`lg:hidden sticky top-0 z-30 flex items-center justify-between p-4 border-b ${darkMode ? 'bg-[#212426] border-gray-700' : 'bg-[#F9FAFB] border-gray-200'}`}>
-            <BackButton onClick={handleBack} isDarkMode={darkMode} />
-            <h1 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Create Group</h1>
-              <div
-                onClick={() => setDarkMode(!darkMode)}
-                className="w-[70px] h-[36px] rounded-full cursor-pointer relative px-[3px] flex items-center justify-between transition-all duration-300"
-                style={{
-                  background: darkMode ? '#212426' : '#E5E7EB',
-                  boxShadow: darkMode 
-                    ? 'inset -1px -1px 2px rgba(255, 255, 255, 0.06), inset 1px 1px 3px rgba(0, 0, 0, 0.4)'
-                    : 'inset 2px 2px 4px #cdd3da, inset -2px -2px 4px #fdffff'
-                }}
-              >
-                <div
-                  className="absolute top-[3px] left-[3px] w-[30px] h-[30px] rounded-full transition-all duration-300 z-10"
-                  style={{
-                    transform: darkMode ? 'translateX(34px)' : 'translateX(0)',
-                    backgroundColor: darkMode ? '#2E2E2E' : '#FFFFFF',
-                      boxShadow: darkMode 
-                      ? 'inset -1px -1px 1px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(0, 0, 0, 0.3)'
-                      : '2px 2px 4px #cdd3da, -2px -2px 4px #fdffff'
-                  }}
-                />
-                <div className="w-[30px] h-[30px] flex items-center justify-center z-20">
-                  <img src={LightIcon} alt="Light Mode" className={`w-4 h-4 ${!darkMode ? 'filter brightness-0' : ''}`} />
-                </div>
-                <div className="w-[30px] h-[30px] flex items-center justify-center z-20">
-                  <img src={DarkIcon} alt="Dark Mode" className={`w-4 h-4 ${!darkMode ? 'filter brightness-0' : ''}`} />
-                </div>
-              </div>
-        </div>
-
-        <div className="hidden lg:flex justify-end p-6">
-          <div
-            onClick={() => setDarkMode(!darkMode)}
-            className="w-[92px] h-[48px] rounded-full cursor-pointer relative px-[4px] flex items-center justify-between transition-all duration-300"
-            style={{
-              background: darkMode ? '#212426' : '#E5E7EB',
-              boxShadow: darkMode 
-                ? 'inset -1px -1px 2px rgba(255, 255, 255, 0.06), inset 1px 1px 3px rgba(0, 0, 0, 0.4)'
-                : 'inset 2px 2px 4px #cdd3da, inset -2px -2px 4px #fdffff'
-            }}
-          >
-            <div
-              className="absolute top-[4px] left-[4px] w-[40px] h-[40px] rounded-full transition-all duration-300 z-10"
-              style={{
-                transform: darkMode ? 'translateX(44px)' : 'translateX(0)',
-                backgroundColor: darkMode ? '#2E2E2E' : '#FFFFFF',
-                  boxShadow: darkMode 
-                  ? 'inset -1px -1px 1px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(0, 0, 0, 0.3)'
-                  : '2px 2px 4px #cdd3da, -2px -2px 4px #fdffff'
-              }}
-            />
-            <div className="w-[40px] h-[40px] flex items-center justify-center z-20">
-              <img src={LightIcon} alt="Light Mode" className={`w-[18px] h-[18px] ${!darkMode ? 'filter brightness-0' : ''}`} />
-            </div>
-            <div className="w-[40px] h-[40px] flex items-center justify-center z-20">
-              <img src={DarkIcon} alt="Dark Mode" className={`w-[18px] h-[18px] ${!darkMode ? 'filter brightness-0' : ''}`} />
-            </div>
-          </div>
-        </div>
-
-        <div className="p-4 sm:p-6">
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-6 lg:mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style={{ backgroundColor: darkMode ? '#1E1242' : '#1E1242' }}>
-                <img src={OrgIcon} alt="Organization" className="w-8 h-8 filter brightness-0 invert" />
-              </div>
-              <p className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>SECTION 1/6</p>
-              <h1 className={`text-xl lg:text-2xl font-semibold lg:mb-8 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Create your group to organize the event</h1>
-              
-              <div className={`mt-4 p-3 rounded-lg ${darkMode ? 'bg-blue-900/20 border border-blue-700/30 text-blue-300' : 'bg-blue-50 border border-blue-200 text-blue-700'}`}>
-                <p className="text-sm">{getGroupCreationMessage()}</p>
-              </div>
-            </div>
-
-            {errors.general && (
-              <div className={`border px-4 py-3 rounded-lg mb-6 ${darkMode ? 'bg-red-900/50 border-red-500 text-red-200' : 'bg-red-100 border-red-400 text-red-700'}`}>
-                {errors.general}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-6">
-                
-                {/* UPDATED: Group type selection logic */}
-                {capabilities.userRole === 'admin' && (() => {
-                  const creatableTypes = ['admin', 'organisation'].filter(type => canCreateGroupType(type));
-
-                  if (creatableTypes.length > 1) {
-                    return (
-                      <div>
-                        <label className={`block text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Event created under <span className="text-red-400">*</span>
-                        </label>
-                        <div className="flex space-x-6">
-                          {creatableTypes.map(type => (
-                            <label key={type} className="flex items-center space-x-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="grp_type"
-                                value={type}
-                                checked={formData.grp_type === type}
-                                onChange={handleGroupTypeChange}
-                                className={`w-4 h-4 text-indigo-600 focus:ring-indigo-500 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-gray-100 border-gray-300'}`}
-                              />
-                              <span className={`${darkMode ? 'text-gray-300' : 'text-gray-700'} capitalize`}>
-                                {type}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  if (creatableTypes.length === 1) {
-                    return (
-                      <div>
-                        <label className={`block text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Event created under <span className="text-red-400">*</span>
-                        </label>
-                        <div className={`px-4 capitalize  font-medium ${darkMode ? ' text-gray-200' : ' text-gray-800'}`}>
-                          {creatableTypes[0]}
-                        </div>
-                      </div>
-                    );
-                  }
-                  
-                  return null;
-                })()}
-
-                {/* Admin Group Form */}
-                {formData.grp_type === 'admin' && (
-                  <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800/50 border border-gray-700' : 'bg-gray-50 border border-gray-200'}`}>
-                    <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Admin Group Details</h3>
-                    <div className={`p-3 rounded ${darkMode ? 'bg-blue-900/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>
-                      <p className="text-sm mb-2">Admin details will be automatically filled from your profile:</p>
-                      <ul className="text-sm space-y-1">
-                        <li>• Name: {userData?.name || 'Not set'}</li>
-                        <li>• Email: {userData?.email || 'Not set'}</li>
-                        <li>• Contact: {userData?.contact_no || 'Not set'}</li>
-                      </ul>
-                    </div>
-                    {(!userData?.name || !userData?.email || !userData?.contact_no) && (
-                      <div className={`mt-3 p-3 rounded ${darkMode ? 'bg-red-900/20 border border-red-700/30 text-red-300' : 'bg-red-50 border border-red-200 text-red-700'}`}>
-                        <p className="text-sm">Please update your profile with missing information before creating an admin group.</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Organisation Group Form */}
-                {formData.grp_type === 'organisation' && (
-                  <>
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Organization name <span className="text-red-400">*</span>
-                      </label>
-                      <input 
-                        type="text" 
-                        name="name" 
-                        value={formData.name} 
-                        onChange={handleInputChange} 
-                        placeholder="Enter your organization name"
-                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12
-                          ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
-                          ${errors.name ? 'border-red-500' : ''}`
-                        }
-                        style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
-                      />
-                      {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Organisation email ID <span className="text-red-400">*</span>
-                        </label>
-                        <input 
-                          type="email" 
-                          name="email" 
-                          value={formData.email} 
-                          onChange={handleInputChange} 
-                          placeholder="Enter your organization email"
-                          className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12
-                            ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
-                            ${errors.email ? 'border-red-500' : ''}`
-                          }
-                          style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
-                        />
-                        {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
-                      </div>
-                      <div>
-                        <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Organisation contact <span className="text-red-400">*</span>
-                        </label>
-                        <input 
-                          type="tel" 
-                          name="contact_no" 
-                          value={formData.contact_no} 
-                          onChange={handleInputChange} 
-                          placeholder="Enter your contact number" 
-                          maxLength="10"
-                          className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12
-                            ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
-                            ${errors.contact_no ? 'border-red-500' : ''}`
-                          }
-                          style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
-                        />
-                        {errors.contact_no && <p className="text-red-500 text-sm mt-1">{errors.contact_no}</p>}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Type of organization <span className="text-red-400">*</span>
-                      </label>
-                      <div className="relative">
-                        <select name="organisation_type" value={formData.organisation_type} onChange={handleInputChange}
-                          className={`appearance-none w-full pr-10 pl-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12
-                            ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
-                            ${errors.organisation_type ? 'border-red-500' : ''}
-                            ${!formData.organisation_type ? (darkMode ? 'font-thin text-white opacity-80' : 'font-thin text-gray-500') : 'font-normal'}`
-                          }
-                          style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
-                        >
-                          <option value="" disabled>Select your organization type</option>
-                          {['Private Limited', 'Public Limited', 'Partnership', 'Proprietorship', 'LLP', 'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Trust', 'Society', 'Other'].map(opt => (
-                              <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                          <svg className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      </div>
-                      {errors.organisation_type && <p className="text-red-500 text-sm mt-1">{errors.organisation_type}</p>}
-                    </div>
-                    
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Organisation address <span className="text-red-400">*</span>
-                      </label>
-                      <textarea name="address" value={formData.address} onChange={handleInputChange} placeholder="Enter your organisation address" rows="4"
-                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none min-h-[100px]
-                          ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
-                          ${errors.address ? 'border-red-500' : ''}`
-                        }
-                        style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
-                      />
-                      {errors.address && <p className="text-red-500 text-sm mt-1">{errors.address}</p>}
-                    </div>
-                  </>
-                )}
-
-                <div>
-                  <label className={`block text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Do you have GST registration <span className="text-red-400">*</span>
-                  </label>
-                  <div className="flex space-x-6">
-                    {['Yes', 'No'].map(option => (
-                      <label key={option} className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                          type="radio" name="hasGst" value={option} checked={hasGst === option} onChange={handleGstChange}
-                          className={`w-4 h-4 text-indigo-600 focus:ring-indigo-500 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-gray-100 border-gray-300'}`}
-                        />
-                        <span className={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{option}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {hasGst === 'Yes' && (
-                  <div className="mt-4">
-                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>GST IN</label>
-                    <input
-                      type="text" name="gst_no" value={formData.gst_no} onChange={handleInputChange} placeholder="Enter your GST number"
-                      className={`w-full px-4 py-3 border rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                      ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}`}
-                      style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
+                  <img src={NoteIcon} alt="Note" className={`w-4 h-4 ${!darkMode ? 'filter invert' : ''}`} />
+                  <span className="text-sm flex-1">{step.name}</span>
+                  <div
+                    className="px-3 py-1.5 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: iconBgColor }}
+                  >
+                    <img
+                      src={step.icon}
+                      alt={step.name}
+                      className={stepIconClass}
                     />
                   </div>
-                )}
-
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    PAN number <span className="text-red-400">*</span>
-                  </label>
-                  <input type="text" name="pan_no" value={formData.pan_no} onChange={handleInputChange} placeholder="Enter your PAN number"
-                    className={`w-full px-4 py-3 border rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                      ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
-                      ${errors.pan_no ? 'border-red-500' : ''}`
-                    }
-                    style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
-                  />
-                  {errors.pan_no && <p className="text-red-500 text-sm mt-1">{errors.pan_no}</p>}
                 </div>
+              );
+            })}
+          </nav>
+        </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FileUploadArea label="ID proof *" name="id_proof" />
-                  <FileUploadArea label="Bank cheque" name="bank_check" />
-                </div>
-
-                {formData.grp_type === 'organisation' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FileUploadArea label="Company Certificate" name="company_certificate" />
-                    <FileUploadArea label="Company Logo" name="company_logo" />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col sm:flex-row justify-end gap-4 pt-8">
-                <button type="button" onClick={() => navigate('/ticket/groups')} disabled={loading}
-                  className="w-full sm:w-auto px-8 py-3 rounded-lg transition-colors disabled:opacity-50 h-12 min-w-[120px] font-semibold"
+        <div className="flex-1 transition-colors duration-300" style={{ backgroundColor: darkMode ? '#212426' : '#F9FAFB' }}>
+          <div className={`lg:hidden sticky top-0 z-30 flex items-center justify-between p-4 border-b ${darkMode ? 'bg-[#212426] border-gray-700' : 'bg-[#F9FAFB] border-gray-200'}`}>
+              <BackButton onClick={handleBack} isDarkMode={darkMode} />
+              <h1 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Create Group</h1>
+                <div
+                  onClick={() => setDarkMode(!darkMode)}
+                  className="w-[70px] h-[36px] rounded-full cursor-pointer relative px-[3px] flex items-center justify-between transition-all duration-300"
                   style={{
-                    backgroundColor: darkMode ? '#363A3F' : '#E5E7EB',
-                    color: darkMode ? 'white' : '#374151',
+                    background: darkMode ? '#212426' : '#E5E7EB',
+                    boxShadow: darkMode 
+                      ? 'inset -1px -1px 2px rgba(255, 255, 255, 0.06), inset 1px 1px 3px rgba(0, 0, 0, 0.4)'
+                      : 'inset 2px 2px 4px #cdd3da, inset -2px -2px 4px #fdffff'
                   }}
                 >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={loading || !canCreateGroupType(formData.grp_type)}
-                  className="w-full sm:w-auto px-8 py-3 text-white rounded-lg transition-colors disabled:opacity-50 h-12 min-w-[120px] font-semibold"
-                  style={{ backgroundColor: darkMode ? '#1E1242' : '#1E1242' }}
-                >
-                  {loading ? 'Creating...' : 'Add group'}
-                </button>
+                  <div
+                    className="absolute top-[3px] left-[3px] w-[30px] h-[30px] rounded-full transition-all duration-300 z-10"
+                    style={{
+                      transform: darkMode ? 'translateX(34px)' : 'translateX(0)',
+                      backgroundColor: darkMode ? '#2E2E2E' : '#FFFFFF',
+                        boxShadow: darkMode 
+                        ? 'inset -1px -1px 1px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(0, 0, 0, 0.3)'
+                        : '2px 2px 4px #cdd3da, -2px -2px 4px #fdffff'
+                    }}
+                  />
+                  <div className="w-[30px] h-[30px] flex items-center justify-center z-20">
+                    <img src={LightIcon} alt="Light Mode" className={`w-4 h-4 ${!darkMode ? 'filter brightness-0' : ''}`} />
+                  </div>
+                  <div className="w-[30px] h-[30px] flex items-center justify-center z-20">
+                    <img src={DarkIcon} alt="Dark Mode" className={`w-4 h-4 ${!darkMode ? 'filter brightness-0' : ''}`} />
+                  </div>
+                </div>
+          </div>
+          <div className="hidden lg:flex justify-end p-6">
+            <div
+              onClick={() => setDarkMode(!darkMode)}
+              className="w-[92px] h-[48px] rounded-full cursor-pointer relative px-[4px] flex items-center justify-between transition-all duration-300"
+              style={{
+                background: darkMode ? '#212426' : '#E5E7EB',
+                boxShadow: darkMode 
+                  ? 'inset -1px -1px 2px rgba(255, 255, 255, 0.06), inset 1px 1px 3px rgba(0, 0, 0, 0.4)'
+                  : 'inset 2px 2px 4px #cdd3da, inset -2px -2px 4px #fdffff'
+              }}
+            >
+              <div
+                className="absolute top-[4px] left-[4px] w-[40px] h-[40px] rounded-full transition-all duration-300 z-10"
+                style={{
+                  transform: darkMode ? 'translateX(44px)' : 'translateX(0)',
+                  backgroundColor: darkMode ? '#2E2E2E' : '#FFFFFF',
+                    boxShadow: darkMode 
+                    ? 'inset -1px -1px 1px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(0, 0, 0, 0.3)'
+                    : '2px 2px 4px #cdd3da, -2px -2px 4px #fdffff'
+                }}
+              />
+              <div className="w-[40px] h-[40px] flex items-center justify-center z-20">
+                <img src={LightIcon} alt="Light Mode" className={`w-[18px] h-[18px] ${!darkMode ? 'filter brightness-0' : ''}`} />
               </div>
-            </form>
+              <div className="w-[40px] h-[40px] flex items-center justify-center z-20">
+                <img src={DarkIcon} alt="Dark Mode" className={`w-[18px] h-[18px] ${!darkMode ? 'filter brightness-0' : ''}`} />
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-6">
+            <div className="max-w-4xl mx-auto">
+              <div className="text-center mb-6 lg:mb-8">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style={{ backgroundColor: darkMode ? '#1E1242' : '#1E1242' }}>
+                  <img src={OrgIcon} alt="Organization" className="w-8 h-8 filter brightness-0 invert" />
+                </div>
+                <p className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>SECTION 1/6</p>
+                <h1 className={`text-xl lg:text-2xl font-semibold lg:mb-8 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Create your group to organize the event</h1>
+                
+                <div className={`mt-4 p-3 rounded-lg ${darkMode ? 'bg-blue-900/20 border border-blue-700/30 text-blue-300' : 'bg-blue-50 border border-blue-200 text-blue-700'}`}>
+                  <p className="text-sm">{getGroupCreationMessage()}</p>
+                </div>
+              </div>
+
+              {errors.general && (
+                <div className={`border px-4 py-3 rounded-lg mb-6 ${darkMode ? 'bg-red-900/50 border-red-500 text-red-200' : 'bg-red-100 border-red-400 text-red-700'}`}>
+                  {errors.general}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-6">
+                  
+                  {capabilities.userRole === 'admin' && (() => {
+                    const creatableTypes = ['admin', 'organisation'].filter(type => canCreateGroupType(type));
+
+                    if (creatableTypes.length > 1) {
+                      return (
+                        <div>
+                          <label className={`flex items-center text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            Event created under <span className="text-red-400 mx-1">*</span>
+                            <InfoTooltip note="Choose to create this event under your personal Admin profile or a new Organisation." />
+                          </label>
+                          <div className="flex space-x-6">
+                            {creatableTypes.map(type => (
+                              <label key={type} className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="grp_type"
+                                  value={type}
+                                  checked={formData.grp_type === type}
+                                  onChange={handleGroupTypeChange}
+                                  className={`w-4 h-4 text-indigo-600 focus:ring-indigo-500 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-gray-100 border-gray-300'}`}
+                                />
+                                <span className={`${darkMode ? 'text-gray-300' : 'text-gray-700'} capitalize`}>
+                                  {type}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (creatableTypes.length === 1) {
+                      return (
+                        <div>
+                          <label className={`block text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            Event created under <span className="text-red-400">*</span>
+                          </label>
+                          <div className={`px-4 capitalize  font-medium ${darkMode ? ' text-gray-200' : ' text-gray-800'}`}>
+                            {creatableTypes[0]}
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    return null;
+                  })()}
+
+                  {formData.grp_type === 'admin' && (
+                    <div className="space-y-6">
+                      <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800/50 border border-gray-700' : 'bg-gray-50 border border-gray-200'}`}>
+                          <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Admin Group Details</h3>
+                          <div className={`p-3 rounded ${darkMode ? 'bg-blue-900/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`}>
+                          <p className="text-sm mb-2">Admin details will be automatically filled from your profile:</p>
+                          <ul className="text-sm space-y-1">
+                              <li>• Name: {userData?.name || 'Not set'}</li>
+                              <li>• Email: {userData?.email || 'Not set'}</li>
+                              <li>• Contact: {userData?.contact_no || 'Not set'}</li>
+                          </ul>
+                          </div>
+                          {(!userData?.name || !userData?.email || !userData?.contact_no) && (
+                          <div className={`mt-3 p-3 rounded ${darkMode ? 'bg-red-900/20 border border-red-700/30 text-red-300' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+                              <p className="text-sm">Please update your profile with missing information before creating an admin group.</p>
+                          </div>
+                          )}
+                      </div>
+                      <div>
+                          <label className={`flex items-center text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            Do you have GST registration <span className="text-red-400 mx-1">*</span>
+                            <InfoTooltip note="Select if you are registered under the Goods and Services Tax." />
+                          </label>
+                          <div className="flex space-x-6">
+                          {['Yes', 'No'].map(option => (
+                              <label key={option} className="flex items-center space-x-2 cursor-pointer">
+                              <input
+                                  type="radio" name="hasGst" value={option} checked={hasGst === option} onChange={handleGstChange}
+                                  className={`w-4 h-4 text-indigo-600 focus:ring-indigo-500 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-gray-100 border-gray-300'}`}
+                              />
+                              <span className={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{option}</span>
+                              </label>
+                          ))}
+                          </div>
+                          {errors.hasGst && <p className="text-red-500 text-sm mt-1">{errors.hasGst}</p>}
+                      </div>
+
+                      {hasGst === 'Yes' && (
+                          <div className="mt-4">
+                              <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                  GST IN <span className="text-red-400 mx-1">*</span>
+                                  <InfoTooltip note="Enter your 15-digit GST Identification Number." />
+                              </label>
+                              <input
+                                  type="text" name="gst_no" value={formData.gst_no} onChange={handleInputChange} placeholder="Enter your GST number"
+                                  className={`w-full px-4 py-3 border rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                                  ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
+                                  ${errors.gst_no ? 'border-red-500' : ''}`}
+                                  style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
+                              />
+                              {errors.gst_no && <p className="text-red-500 text-sm mt-1">{errors.gst_no}</p>}
+                          </div>
+                      )}
+                    </div>
+                  )}
+
+                  {formData.grp_type === 'organisation' && (
+                    <>
+                      <div>
+                        <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Organization name <span className="text-red-400 mx-1">*</span>
+                           <InfoTooltip note="Enter the legal name of your organization." />
+                        </label>
+                        <input 
+                          type="text" 
+                          name="name" 
+                          value={formData.name} 
+                          onChange={handleInputChange} 
+                          placeholder="Enter your organization name"
+                          className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12
+                            ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
+                            ${errors.name ? 'border-red-500' : ''}`
+                          }
+                          style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
+                        />
+                        {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            Organisation email ID <span className="text-red-400 mx-1">*</span>
+                            <InfoTooltip note="This email will be used for official communication." />
+                          </label>
+                          <input 
+                            type="email" 
+                            name="email" 
+                            value={formData.email} 
+                            onChange={handleInputChange} 
+                            placeholder="Enter your organization email"
+                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12
+                              ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
+                              ${errors.email ? 'border-red-500' : ''}`
+                            }
+                            style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
+                          />
+                          {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+                        </div>
+                        <div>
+                          <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            Organisation contact <span className="text-red-400 mx-1">*</span>
+                            <InfoTooltip note="Enter a 10-digit mobile number." />
+                          </label>
+                          <input 
+                            type="tel" 
+                            name="contact_no" 
+                            value={formData.contact_no} 
+                            onChange={handleInputChange} 
+                            placeholder="Enter your contact number" 
+                            maxLength="10"
+                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12
+                              ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
+                              ${errors.contact_no ? 'border-red-500' : ''}`
+                            }
+                            style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
+                          />
+                          {errors.contact_no && <p className="text-red-500 text-sm mt-1">{errors.contact_no}</p>}
+                        </div>
+                      </div>
+                      <div>
+                        <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Type of organization <span className="text-red-400 mx-1">*</span>
+                          <InfoTooltip note="Select the legal structure of your organization." />
+                        </label>
+                        <div className="relative">
+                          <select name="organisation_type" value={formData.organisation_type} onChange={handleInputChange}
+                            className={`appearance-none w-full pr-10 pl-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12
+                              ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
+                              ${errors.organisation_type ? 'border-red-500' : ''}
+                              ${!formData.organisation_type ? (darkMode ? 'font-thin text-white opacity-80' : 'font-thin text-gray-500') : 'font-normal'}`
+                            }
+                            style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
+                          >
+                            <option value="" disabled>Select your organization type</option>
+                            {['Private Limited', 'Public Limited', 'Partnership', 'Proprietorship', 'LLP', 'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Trust', 'Society', 'Other'].map(opt => (
+                                <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                            <svg className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        </div>
+                        {errors.organisation_type && <p className="text-red-500 text-sm mt-1">{errors.organisation_type}</p>}
+                      </div>
+                      <div>
+                        <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Organisation address <span className="text-red-400 mx-1">*</span>
+                          <InfoTooltip note="Enter the official registered address." />
+                        </label>
+                        <textarea name="address" value={formData.address} onChange={handleInputChange} placeholder="Enter your organisation address" rows="4"
+                          className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none min-h-[100px]
+                            ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
+                            ${errors.address ? 'border-red-500' : ''}`
+                          }
+                          style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
+                        />
+                        {errors.address && <p className="text-red-500 text-sm mt-1">{errors.address}</p>}
+                      </div>
+                      
+                      <div>
+                          <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              GST IN {formData.organisation_type && formData.organisation_type.toLowerCase() !== 'educational' && <span className="text-red-400 mx-1">*</span>}
+                              <InfoTooltip note="Mandatory for all non-educational organizations." />
+                          </label>
+                          <input
+                              type="text"
+                              name="gst_no"
+                              value={formData.gst_no}
+                              onChange={handleInputChange}
+                              placeholder="Enter your GST number"
+                              className={`w-full px-4 py-3 border rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                                  ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
+                                  ${errors.gst_no ? 'border-red-500' : ''}`
+                              }
+                              style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
+                          />
+                          {errors.gst_no && <p className="text-red-500 text-sm mt-1">{errors.gst_no}</p>}
+                      </div>
+                    </>
+                  )}
+
+                  <div>
+                    <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      PAN number <span className="text-red-400 mx-1">*</span>
+                      <InfoTooltip note="Enter your 10-digit Permanent Account Number." />
+                    </label>
+                    <input type="text" name="pan_no" value={formData.pan_no} onChange={handleInputChange} placeholder="Enter your PAN number"
+                      className={`w-full px-4 py-3 border rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                        ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
+                        ${errors.pan_no ? 'border-red-500' : ''}`
+                      }
+                      style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
+                    />
+                    {errors.pan_no && <p className="text-red-500 text-sm mt-1">{errors.pan_no}</p>}
+                  </div>
+                  
+                  <div 
+                    className={`rounded-xl p-6 md:p-8 ${darkMode ? '' : 'bg-white border'}`}
+                    style={darkMode ? { backgroundColor: '#2B2B2B' } : {}}
+                  >
+                      <div className="space-y-6">
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                              <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  Primary banking details
+                              </h2>
+                              <span className={`text-xs font-medium px-3 py-1 rounded-full ${darkMode ? 'bg-yellow-400/20 text-yellow-300' : 'bg-yellow-100 text-yellow-800'}`}>
+                                  Bank account must be a current account or merchant account
+                              </span>
+                          </div>
+                          <p className={`text-sm -mt-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              Provide bank account details for payment processing, settlements, or refunds.
+                          </p>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              {(() => {
+                                  const inputStyle = {
+                                      background: 'transparent',
+                                      border: darkMode 
+                                          ? '1px solid #4A4A4A'
+                                          : '1px solid #D1D5DB'
+                                  };
+
+                                  return (
+                                      <>
+                                          <div>
+                                              <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                  Account type
+                                                  <InfoTooltip note="Select if your account is Savings or Current." />
+                                              </label>
+                                              <div className="relative">
+                                                  <select
+                                                      name="primary_bank_acc_type"
+                                                      value={formData.primary_bank_acc_type}
+                                                      onChange={handleInputChange}
+                                                      className={`appearance-none w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12 ${darkMode ? 'text-white' : 'text-gray-900'}
+                                                          ${!formData.primary_bank_acc_type ? (darkMode ? 'font-thin text-white opacity-80' : 'font-thin text-gray-500') : 'font-normal'}
+                                                          ${errors.primary_bank_acc_type ? 'ring-2 ring-red-500' : ''}`
+                                                      }
+                                                      style={inputStyle}
+                                                  >
+                                                      <option value="" disabled>Select your account type</option>
+                                                      <option value="Savings">Savings</option>
+                                                      <option value="Current">Current</option>
+                                                      <option value="Merchant">Merchant</option>
+                                                  </select>
+                                                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                                                      <svg className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
+                                                          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                                      </svg>
+                                                  </div>
+                                              </div>
+                                              {errors.primary_bank_acc_type && <p className="text-red-500 text-sm mt-1">{errors.primary_bank_acc_type}</p>}
+                                          </div>
+
+                                          <div>
+                                              <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                  Account holder name
+                                                  <InfoTooltip note="Enter the full name as it appears on your bank account." />
+                                              </label>
+                                              <input
+                                                  type="text"
+                                                  name="primary_bank_acc_holder"
+                                                  value={formData.primary_bank_acc_holder}
+                                                  onChange={handleInputChange}
+                                                  placeholder="eg: John Doe"
+                                                  className={`w-full px-4 py-3 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${darkMode ? 'text-white' : 'text-gray-900'}
+                                                      ${errors.primary_bank_acc_holder ? 'ring-2 ring-red-500' : ''}`
+                                                  }
+                                                  style={inputStyle}
+                                              />
+                                              {errors.primary_bank_acc_holder && <p className="text-red-500 text-sm mt-1">{errors.primary_bank_acc_holder}</p>}
+                                          </div>
+
+                                          <div>
+                                              <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                  Account number
+                                                  <InfoTooltip note="Enter your complete bank account number." />
+                                              </label>
+                                              <input
+                                                  type="text"
+                                                  name="primary_bank_acc_no"
+                                                  value={formData.primary_bank_acc_no}
+                                                  onChange={handleInputChange}
+                                                  placeholder="XXXX - XXXX - XXXX - XXXX"
+                                                  className={`w-full px-4 py-3 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${darkMode ? 'text-white' : 'text-gray-900'}
+                                                      ${errors.primary_bank_acc_no ? 'ring-2 ring-red-500' : ''}`
+                                                  }
+                                                  style={inputStyle}
+                                              />
+                                              {errors.primary_bank_acc_no && <p className="text-red-500 text-sm mt-1">{errors.primary_bank_acc_no}</p>}
+                                          </div>
+
+                                          <div>
+                                              <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                  IFSC code
+                                                  <InfoTooltip note="Enter the 11-character IFSC code of your bank branch." />
+                                              </label>
+                                              <input
+                                                  type="text"
+                                                  name="primary_bank_ifsc"
+                                                  value={formData.primary_bank_ifsc}
+                                                  onChange={handleInputChange}
+                                                  placeholder="XXXXXXXXXXX"
+                                                  maxLength="11"
+                                                  className={`w-full px-4 py-3 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${darkMode ? 'text-white' : 'text-gray-900'}
+                                                      ${errors.primary_bank_ifsc ? 'ring-2 ring-red-500' : ''}`
+                                                  }
+                                                  style={inputStyle}
+                                              />
+                                              {errors.primary_bank_ifsc && <p className="text-red-500 text-sm mt-1">{errors.primary_bank_ifsc}</p>}
+                                          </div>
+                                      </>
+                                  );
+                              })()}
+                          </div>
+                      </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {formData.grp_type === 'admin' && (
+                        <>
+                            <FileUploadArea label="Aadhaar card *" name="id_proof" />
+                            <FileUploadArea label="Cancelled bank cheque" name="bank_check" />
+                        </>
+                    )}
+                    
+                    {formData.grp_type === 'organisation' && (
+                      <>
+                        <FileUploadArea label="Aadhaar card *" name="id_proof" />
+                        <FileUploadArea label="Cancelled bank cheque" name="bank_check" />
+                        <FileUploadArea label="Company logo" name="company_logo" />
+                        <FileUploadArea label="MOA/AOA/Company certificates" name="company_certificate" />
+                      </>
+                    )}
+                  </div>
+
+                </div>
+
+                <div className="flex flex-col sm:flex-row justify-end gap-4 pt-8">
+                  <button type="button" onClick={() => navigate('/ticket/groups')} disabled={loading}
+                    className="w-full sm:w-auto px-8 py-3 rounded-lg transition-colors disabled:opacity-50 h-12 min-w-[120px] font-semibold"
+                    style={{
+                      backgroundColor: darkMode ? '#363A3F' : '#E5E7EB',
+                      color: darkMode ? 'white' : '#374151',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={loading || !canCreateGroupType(formData.grp_type)}
+                    className="w-full sm:w-auto px-8 py-3 text-white rounded-lg transition-colors disabled:opacity-50 h-12 min-w-[120px] font-semibold"
+                    style={{ backgroundColor: darkMode ? '#1E1242' : '#1E1242' }}
+                  >
+                    {loading ? 'Creating...' : 'Add group'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
+
 export default CreateGroup;
