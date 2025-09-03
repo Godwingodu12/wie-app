@@ -24,7 +24,7 @@ const Sidebar = ({ user, theme }) => {
 
   return (
     <aside
-      className={`flex flex-col items-center ${theme.bg} py-4 transition-colors duration-300 flex-shrink-0`}
+      className={`flex flex-col items-center ${theme.bg} py-4  transition-colors duration-300 flex-shrink-0`}
       style={{ 
         width: SIDEBAR_WIDTH,
         height: '100%',
