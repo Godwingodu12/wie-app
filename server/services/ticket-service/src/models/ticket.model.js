@@ -5,12 +5,7 @@ const guestSchema = new mongoose.Schema({
   guest_profile: { type: String }, // Image URL
   guest_link: { type: String }, // Social media or website link
 });
-// Guide Schema
-const guideSchema = new mongoose.Schema({
-  guide_name: { type: String },
-  guide_profile: { type: String }, // Image URL
-  guide_link: { type: String }, // Contact or profile link
-});
+
 // Ticket Type Schema
 const ticketTypeSchema = new mongoose.Schema({
   ticket_type: { type: String },
@@ -30,6 +25,12 @@ const offerTicketSchema = new mongoose.Schema({
   offer_ticket_price: { type: String, required: false },
   set_limit_for_user: { type: String, required: false },
   offer_ticket_pic: { type: String, required: false },
+});
+//poc
+const POCSchema = new mongoose.Schema({
+  POC_name: { type: String, required: false },
+  POC_email: { type: String, required: false },
+  POC_contact: { type: String, required: false },
 });
 // Sub Event Schema (for add-on events)
 const subEventSchema = new mongoose.Schema({
@@ -93,7 +94,6 @@ const subEventSchema = new mongoose.Schema({
   
   // Multiple Guests, Guides, and Ticket Types for sub-events
   guests: [guestSchema],
-  guides: [guideSchema],
   ticket_types: [ticketTypeSchema],
   
   // Status
@@ -137,6 +137,10 @@ const ticketSchema = new mongoose.Schema({
   // Description and Media
   college_authorisation: { type: String, required: false },
   event_description: { type: String, required: false },
+
+  POC_name: { type: String, required: false },
+  POC_email: { type: String, required: false },
+  POC_contact: { type: String, required: false },
   event_logo: { type: String, required: false },
   event_banner: { type: String, required: false },
   
@@ -173,12 +177,12 @@ const ticketSchema = new mongoose.Schema({
   
   // Multiple Guests, Guides, and Ticket Types
   guests: [guestSchema],
-  guides: [guideSchema],
+  POCS: [POCSchema],
   total_capacity: { type: String, required: false },
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
   ticket_types: [ticketTypeSchema],
-
+  created_by: { type: String, required: false },
   // Sub Events (Add-on Events)
   sub_events: [subEventSchema],
   //ticket offer or bulk booking
