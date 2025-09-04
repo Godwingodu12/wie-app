@@ -351,32 +351,83 @@ export const getGroups = async (req, res) => {
 export const createTicketBasicInfo = async (req, res) => {
   try {
     const { 
+      // Basic Information
       event_name, 
       event_category, 
       event_subcategory,
       event_type,
+      event_language,
+      min_age_allowed,
+      seating_arrangement,
+      kids_friendly,
+      pet_friendly,
+      
+      // Location
       location, 
       venue,
       exact_map_location,
+      
+      // Date and Time
       event_date_type,
       start_date,
-      end_date,
+      end_date, // Optional field
       start_time,
-      end_time,
+      end_time, // Optional field
+      
+      // Social Media and Rules
+      event_instagram_link,
+      event_youtube_link,
+      event_rules,
+      hashtag,      
+      // Guests or Guides
+      guests, 
+      //Point of contact     
+      POCS,
       event_description,
-      guests,
-      groupId: bodyGroupId 
+      // Group ID
+      groupId: bodyGroupId
     } = req.body;
 
     // Get groupId from params or body
     const groupId = req.params.groupId || bodyGroupId;
     const userId = req.user._id || req.user.id;
 
-    // Validate required fields
-    if (!event_name || !event_category || !location || !venue || !start_date || !start_time || !event_description || !groupId) {
+    // Enhanced validation for required fields
+    const requiredFields = {
+      event_name,
+      event_category,
+      location,
+      venue,
+      start_date,
+      start_time,
+      event_description,
+      groupId,
+      event_language,
+      min_age_allowed,
+      event_date_type,
+      event_rules: event_rules || '', // Optional field
+    };
+    const missingFields = Object.entries(requiredFields)
+      .filter(([key, value]) => !value)
+      .map(([key]) => key);
+
+    if (missingFields.length > 0) {
       return res.status(400).json({ 
         message: "Missing required fields",
-        required: ["event_name", "event_category", "location", "venue", "start_date", "start_time", "event_description", "groupId"]
+        missingFields,
+        required: [
+          "event_name", 
+          "event_category", 
+          "location", 
+          "venue", 
+          "start_date", 
+          "start_time", 
+          "event_description", 
+          "groupId",
+          "event_language",
+          "min_age_allowed",
+          "event_date_type"
+        ]
       });
     }
 
@@ -388,43 +439,135 @@ export const createTicketBasicInfo = async (req, res) => {
       });
     }
 
-    // Create new ticket with basic information
-    const newTicket = new Ticket({
+    // Validate enum fields
+    const validEventTypes = ['private', 'public'];
+    if (event_type && !validEventTypes.includes(event_type)) {
+      return res.status(400).json({
+        message: "Invalid event_type",
+        validOptions: validEventTypes
+      });
+    }
+
+    const validLanguages = [
+      'English', 'Hindi', 'Malayalam', 'Tamil', 'Kannada', 'Telugu', 
+      'Marathi', 'Gujarati', 'Punjabi', 'Urdu', 'Bengali', 'Spanish', 
+      'French', 'German', 'Chinese', 'Japanese', 'Russian', 'Turkish', 
+      'Korean', 'Portuguese', 'Arabic', 'Indonesian', 'Vietnamese', 'Other'
+    ];
+    if (event_language && !validLanguages.includes(event_language)) {
+      return res.status(400).json({
+        message: "Invalid event_language",
+        validOptions: validLanguages
+      });
+    }
+
+    const validSeatingArrangements = ['seated', 'standing', 'seated and standing', 'other'];
+    if (seating_arrangement && !validSeatingArrangements.includes(seating_arrangement)) {
+      return res.status(400).json({
+        message: "Invalid seating_arrangement",
+        validOptions: validSeatingArrangements
+      });
+    }
+
+    const validDateTypes = ['one-day', 'multi-day', 'weekly'];
+    if (!validDateTypes.includes(event_date_type)) {
+      return res.status(400).json({
+        message: "Invalid event_date_type",
+        validOptions: validDateTypes
+      });
+    }
+    // Date validation
+    const startDate = new Date(start_date);
+    const endDate = end_date ? new Date(end_date) : null;
+    if (endDate && endDate < startDate) {
+      return res.status(400).json({
+        message: "End date cannot be before start date"
+      });
+    }
+    // Age validation
+    if (min_age_allowed < 0 || min_age_allowed > 70) {
+      return res.status(400).json({
+        message: "Minimum age allowed must be between 0 and 100"
+      });
+    }
+
+    // Create comprehensive ticket object
+    const ticketData = {
+      // Basic Information
       event_name,
       event_category,
       event_subcategory,
       event_type,
+      event_language,
+      min_age_allowed: Number(min_age_allowed),
+      seating_arrangement: seating_arrangement || 'other',
+      kids_friendly: Boolean(kids_friendly),
+      pet_friendly: Boolean(pet_friendly),
+      
+      // Location
       location,
       venue,
-      exact_map_location,
+      exact_map_location: exact_map_location || {},
+      
+      // Date and Time
       event_date_type,
-      start_date,
-      end_date,
+      start_date: startDate,
+      end_date: endDate,
       start_time,
       end_time,
+      
+      // Social Media and Rules
+      event_instagram_link: event_instagram_link || '',
+      event_youtube_link: event_youtube_link || '',
+      event_rules: event_rules || '',
+      hashtag: Array.isArray(hashtag) ? hashtag : [],      
       event_description,
-      guests: guests || [],
-      groupId: groupId, // This ensures groupId is properly saved
+      // Guests
+      guests: Array.isArray(guests) ? guests : [],
+      POCS: Array.isArray(POCS) ? POCS : [],
+      // References
+      groupId: groupId,
       userId: userId,
-      form_progress: {
-        basic_info: true,
-        media: false,
-        add_on_events: false,
-        banking_tickets: false,
-        terms_conditions: false,
-      }
-    });
+      // Status and Updates
+      event_status: 'pending',
+      updated_by: userId,
+      updated_at: new Date(),
+      created_by: userId
+    };
+
+    // Create new ticket with comprehensive information
+    const newTicket = new Ticket(ticketData);
     await newTicket.save();
+
     res.status(201).json({ 
-      message: "Event created successfully", 
+      message: "Event created successfully with comprehensive data", 
       ticket: newTicket,
       ticketId: newTicket._id,
       userId: userId,
       groupId: groupId,
+      formProgress: newTicket.form_progress
     });
+
   } catch (error) {
     console.error("Error creating event:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    
+    // Handle specific MongoDB validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.keys(error.errors).map(key => ({
+        field: key,
+        message: error.errors[key].message
+      }));
+      
+      return res.status(400).json({
+        message: "Validation error",
+        errors: validationErrors
+      });
+    }
+
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message 
+    });
   }
 };
 export const updateTicketMedia = async (req, res) => {
@@ -599,7 +742,7 @@ export const updateTicketDetails = async (req, res) => {
     const { 
       ticketId,
       ticket_types, 
-      guides
+      guests,
     } = req.body;
 
     // Validate required parameters
