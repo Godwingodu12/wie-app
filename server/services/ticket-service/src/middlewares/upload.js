@@ -22,7 +22,6 @@ const generalFileFilter = (req, file, cb) => {
   if (!allowed.includes(ext)) return cb(new Error('Only PDF, doc, and image files are allowed'));
   cb(null, true);
 };
-
 const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
@@ -59,6 +58,11 @@ export const uploadTicketMedia = ticketMediaUpload.fields([
   { name: 'event_banner', maxCount: 1 },
   { name: 'event_images', maxCount: 10 }
 ]);
+const uploadFields = upload.fields([
+  { name: 'guest_profile', maxCount: 1 }, // Single image file
+  { name: 'event_rules', maxCount: 1 }    // Single PDF/doc file
+]);
+export { uploadFields };
 // Alternative: Single file upload for ticket media (if needed)
 export const uploadSingleTicketMedia = ticketMediaUpload.single('file');
 
