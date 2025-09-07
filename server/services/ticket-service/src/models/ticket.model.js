@@ -14,7 +14,12 @@ const ticketTypeSchema = new mongoose.Schema({
   ticket_photo: { type: String }, // Image URL
   max_capacity: { type: Number },
 });
-
+const ticketdateSchema = new mongoose.Schema({
+    start_date: { type: String, required: true },
+    end_date: { type: String },
+    start_time: { type: String, required: false },
+    end_time: { type: String, required: false },
+});
 // Banking Details Schema
 const bankingDetailsSchema = new mongoose.Schema({
   bank_acc_type: { type: String },
@@ -68,6 +73,7 @@ const ticketSchema = new mongoose.Schema({
   pet_friendly: { type: Boolean, default: false },
   
   // Location
+  location_type: {type: String, enum: ['offline', 'online', 'recorded'], required: true},
   location: { type: String, required: false },
   venue: { type: String, required: false },
   exact_map_location: {
@@ -78,14 +84,13 @@ const ticketSchema = new mongoose.Schema({
   
   // Date and Time
   event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: true },
-  start_date: { type: Date, required: false },
-  end_date: { type: Date },
-  start_time: { type: String, required: false },
-  end_time: { type: String, required: false },
+  event_dates: [ticketdateSchema], // Supports multiple dates for multi-day or weekly events
   event_instagram_link: { type: String, required: false },
   gate_open_time: { type: String, required: false },
   event_youtube_link: { type: String, required: false },
-  
+  //for online event
+  event_link: { type: String},
+  verification_event_code: { type: String},
   // FIXED: Changed from String to Object using fileSchema
   event_rules: fileSchema,
   
@@ -191,7 +196,7 @@ const subEventSchema = new mongoose.Schema({
     type: String, 
     enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other']
   }],
-  
+  location_type: {type: String, enum: ['offline', 'online', 'recorded'], required: true},
   min_age_allowed: { type: Number, required: true },
   seating_arrangement: { type: String, default: false, enum: ['seated', 'standing','seated and standing','other']},
   kids_friendly: { type: Boolean, default: false },
@@ -206,13 +211,13 @@ const subEventSchema = new mongoose.Schema({
   
   // Date and Time
   event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: false },
-  start_date: { type: Date, required: true },
-  end_date: { type: Date },
-  start_time: { type: String, required: true },
-  end_time: { type: String },
+  event_dates: [ticketdateSchema], // Supports multiple dates for multi-day or weekly events
+  gate_open_time: { type: String, required: false },
   event_instagram_link: { type: String, required: false },
   event_youtube_link: { type: String, required: false },
-  
+  //for online event
+  event_link: { type: String},
+  verification_event_code: { type: String},
   // FIXED: Changed from String to Object for sub events too
   event_rules: fileSchema,
   
@@ -267,7 +272,6 @@ const subEventSchema = new mongoose.Schema({
 // Indexes for better performance
 ticketSchema.index({ groupId: 1, userId: 1 });
 ticketSchema.index({ event_status: 1 });
-ticketSchema.index({ start_date: 1 });
 ticketSchema.index({ event_category: 1, event_subcategory: 1 });
 const Ticket = mongoose.model('Ticket', ticketSchema);
 export default Ticket;
