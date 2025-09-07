@@ -390,18 +390,20 @@ export const createTicketBasicInfo = async (req, res) => {
       pet_friendly,
       
       // Location
+      location_type,
       location, 
       venue,
       exact_map_location,
       
       // Date and Time
       event_date_type,
-      start_date,
-      end_date,
-      start_time,
-      end_time,
+      event_dates,
       gate_open_time,
       prohibited_items,
+      
+      // Online/Recorded specific fields
+      event_link,
+      verification_event_code,
       
       // Social Media and Rules
       event_instagram_link,
@@ -446,26 +448,46 @@ export const createTicketBasicInfo = async (req, res) => {
       });
     }
 
-    // Validation: Required fields
-    const requiredFields = [
+    // Base required fields for all location types
+    const baseRequiredFields = [
       { key: 'event_name', value: event_name },
       { key: 'event_category', value: event_category },
       { key: 'event_subcategory', value: event_subcategory },
       { key: 'event_type', value: event_type },
       { key: 'event_language', value: event_language },
-      { key: 'seating_arrangement', value: seating_arrangement },
-      { key: 'location', value: location },
-      { key: 'venue', value: venue },
-      { key: 'start_date', value: start_date },
-      { key: 'start_time', value: start_time },
+      { key: 'location_type', value: location_type },
+      { key: 'event_date_type', value: event_date_type },
+      { key: 'event_dates', value: event_dates },
       { key: 'event_description', value: event_description },
       { key: 'groupId', value: groupId },
       { key: 'min_age_allowed', value: min_age_allowed },
-      { key: 'event_date_type', value: event_date_type },
-      { key: 'userId', value: userId }
+      { key: 'userId', value: userId },
     ];
 
-    const missingFields = requiredFields
+    // Location-type specific required fields
+    let locationSpecificRequiredFields = [];
+    
+    if (location_type === 'offline') {
+      locationSpecificRequiredFields = [
+        { key: 'seating_arrangement', value: seating_arrangement },
+        { key: 'location', value: location },
+        { key: 'venue', value: venue },
+        { key: 'exact_map_location', value: exact_map_location }
+      ];
+    } else if (location_type === 'online') {
+      locationSpecificRequiredFields = [
+        { key: 'event_link', value: event_link }
+      ];
+    } else if (location_type === 'recorded') {
+      locationSpecificRequiredFields = [
+        { key: 'event_link', value: event_link }
+      ];
+    }
+
+    // Combine all required fields
+    const allRequiredFields = [...baseRequiredFields, ...locationSpecificRequiredFields];
+
+    const missingFields = allRequiredFields
       .filter(({ value }) => !value)
       .map(({ key }) => key);
 
@@ -473,7 +495,12 @@ export const createTicketBasicInfo = async (req, res) => {
       return res.status(400).json({ 
         message: "Missing required fields",
         missingFields,
-        requiredFields: requiredFields.map(({ key }) => key)
+        requiredFields: allRequiredFields.map(({ key }) => key),
+        note: location_type === 'offline' 
+          ? "For offline events: seating_arrangement, location, venue, and exact_map_location are required"
+          : location_type === 'online' || location_type === 'recorded'
+          ? "For online/recorded events: event_link is required"
+          : ""
       });
     }
 
@@ -515,13 +542,26 @@ export const createTicketBasicInfo = async (req, res) => {
       }
     }
 
-    const validSeatingArrangements = ['seated', 'standing', 'seated and standing', 'other'];
-    if (seating_arrangement && !validSeatingArrangements.includes(seating_arrangement)) {
+    // Validate location_type
+    const validLocationTypes = ['offline', 'online', 'recorded'];
+    if (!validLocationTypes.includes(location_type)) {
       return res.status(400).json({
-        message: "Invalid seating_arrangement",
-        provided: seating_arrangement,
-        validOptions: validSeatingArrangements
+        message: "Invalid location_type",
+        provided: location_type,
+        validOptions: validLocationTypes
       });
+    }
+
+    // Validate seating_arrangement only for offline events
+    if (location_type === 'offline') {
+      const validSeatingArrangements = ['seated', 'standing', 'seated and standing', 'other'];
+      if (seating_arrangement && !validSeatingArrangements.includes(seating_arrangement)) {
+        return res.status(400).json({
+          message: "Invalid seating_arrangement",
+          provided: seating_arrangement,
+          validOptions: validSeatingArrangements
+        });
+      }
     }
 
     const validDateTypes = ['one-day', 'multi-day', 'weekly'];
@@ -564,9 +604,9 @@ export const createTicketBasicInfo = async (req, res) => {
       }
     }
 
-    // Process exact_map_location
+    // Process exact_map_location only for offline events
     let mapLocation = {};
-    if (exact_map_location) {
+    if (location_type === 'offline' && exact_map_location) {
       try {
         mapLocation = typeof exact_map_location === 'string' 
           ? JSON.parse(exact_map_location) 
@@ -580,14 +620,13 @@ export const createTicketBasicInfo = async (req, res) => {
     let processedGuests = [];
     if (guests) {
       const guestsArray = parseJSONSafely(guests, []);
-      
       // Limit to maximum 10 guests
-      if (guestsArray.length > 10) {
+      if(guestsArray.length > 10) {
         return res.status(400).json({
           message: "Maximum 10 guests allowed"
         });
       }
-
+      
       // Process each guest with their corresponding profile image
       processedGuests = guestsArray.map((guest, index) => {
         let guestData = {
@@ -595,7 +634,7 @@ export const createTicketBasicInfo = async (req, res) => {
           guest_profile: '',
           guest_link: ''
         };
-
+        
         if (typeof guest === 'string') {
           guestData.guest_name = guest;
         } else if (typeof guest === 'object' && guest !== null) {
@@ -605,7 +644,7 @@ export const createTicketBasicInfo = async (req, res) => {
             guest_link: guest.guest_link || ''
           };
         }
-
+        
         // Add uploaded profile image path if available
         if (guestProfileFiles[index]) {
           guestData.guest_profile = guestProfileFiles[index].path;
@@ -615,7 +654,40 @@ export const createTicketBasicInfo = async (req, res) => {
       });
     }
 
-    // Create ticket data object
+    // Process event dates - Fixed to handle multiple dates correctly
+    let totalEventDates = [];
+    if(event_dates) {
+      const eventDatesArray = parseJSONSafely(event_dates, []);
+      
+      // Validate based on event_date_type
+      if (event_date_type === 'one-day' && eventDatesArray.length > 1) {
+        return res.status(400).json({
+          message: "One-day events can only have one date entry"
+        });
+      }
+      
+      totalEventDates = eventDatesArray.map((eventDate) => {
+        let dateData = {
+          start_date: '',
+          end_date: '',
+          start_time: '',
+          end_time: '',
+        };
+        
+        if (typeof eventDate === 'object' && eventDate !== null) {
+          dateData = {
+            start_date: eventDate.start_date || '',
+            end_date: eventDate.end_date || eventDate.start_date || '', // Default end_date to start_date if not provided
+            start_time: eventDate.start_time || '',
+            end_time: eventDate.end_time || '',
+          };
+        }
+        
+        return dateData;
+      });
+    }
+
+    // Create ticket data object with location-type specific fields
     const ticketData = {
       // Basic Information
       event_name: event_name.trim(),
@@ -624,29 +696,21 @@ export const createTicketBasicInfo = async (req, res) => {
       event_type: event_type || 'public',
       event_language: languageArray,
       min_age_allowed: ageNum,
-      seating_arrangement: seating_arrangement || 'other',
       kids_friendly: Boolean(kids_friendly === 'true' || kids_friendly === true),
       pet_friendly: Boolean(pet_friendly === 'true' || pet_friendly === true),
       
       // Location
-      location: location.trim(),
-      venue: venue.trim(),
-      exact_map_location: mapLocation,
+      location_type: location_type,
       
       // Date and Time
       event_date_type,
-      start_date: start_date.trim(),
-      end_date: end_date?.trim() || '',
-      start_time: start_time.trim(),
-      end_time: end_time?.trim() || '',
-      gate_open_time: gate_open_time?.trim() || '',
+      event_dates: totalEventDates,
       
       // Social Media and Rules
       event_instagram_link: event_instagram_link?.trim() || '',
       event_youtube_link: event_youtube_link?.trim() || '',
       hashtag: parseJSONSafely(hashtag, []),
       event_description: event_description.trim(),
-      prohibited_items: parseJSONSafely(prohibited_items, []),
       
       // Guests and Contacts with profile images
       guests: processedGuests,
@@ -670,6 +734,26 @@ export const createTicketBasicInfo = async (req, res) => {
       }
     };
 
+    // Add location-type specific fields
+    if (location_type === 'offline') {
+      ticketData.seating_arrangement = seating_arrangement || 'other';
+      ticketData.location = location.trim();
+      ticketData.venue = venue.trim();
+      ticketData.exact_map_location = mapLocation;
+      ticketData.gate_open_time = gate_open_time?.trim() || '';
+      ticketData.prohibited_items = parseJSONSafely(prohibited_items, []);
+    } else if (location_type === 'online' || location_type === 'recorded') {
+      ticketData.event_link = event_link?.trim() || '';
+      ticketData.verification_event_code = verification_event_code?.trim() || '';
+      // For online/recorded events, these fields should not be set or should be null/empty
+      ticketData.seating_arrangement = null;
+      ticketData.location = '';
+      ticketData.venue = '';
+      ticketData.exact_map_location = {};
+      ticketData.gate_open_time = '';
+      ticketData.prohibited_items = [];
+    }
+
     // Handle event rules (text or file)
     if (eventRulesFiles.length > 0) {
       ticketData.event_rules = {
@@ -691,20 +775,39 @@ export const createTicketBasicInfo = async (req, res) => {
     const newTicket = new Ticket(ticketData);
     await newTicket.save();
 
-    // Success response
-    res.status(201).json({ 
+    // Success response with location-type specific information
+    const responseData = {
       message: "Event created successfully", 
       ticket: newTicket,
       ticketId: newTicket._id,
       userId,
       groupId,
+      location_type: location_type,
       formProgress: newTicket.form_progress,
       uploadedFiles: {
         guest_profiles: Object.keys(guestProfileFiles).length,
         event_rules: eventRulesFiles.length
       },
-      processedGuests: processedGuests.length
-    });
+      processedGuests: processedGuests.length,
+      eventDatesCount: totalEventDates.length
+    };
+
+    // Add location-specific response information
+    if (location_type === 'offline') {
+      responseData.offline_fields = {
+        seating_arrangement: newTicket.seating_arrangement,
+        location: newTicket.location,
+        venue: newTicket.venue,
+        has_map_location: Object.keys(newTicket.exact_map_location || {}).length > 0
+      };
+    } else if (location_type === 'online' || location_type === 'recorded') {
+      responseData.online_fields = {
+        event_link: newTicket.event_link,
+        verification_code: newTicket.verification_event_code || 'Not provided'
+      };
+    }
+
+    res.status(201).json(responseData);
 
   } catch (error) {
     console.error("Error creating event:", error);
@@ -760,7 +863,6 @@ export const createTicketBasicInfo = async (req, res) => {
         errors: validationErrors
       });
     }
-
     // Handle duplicate key errors
     if (error.code === 11000) {
       return res.status(409).json({
@@ -768,7 +870,6 @@ export const createTicketBasicInfo = async (req, res) => {
         error: "Event with similar details already exists"
       });
     }
-
     // Generic error response
     res.status(500).json({ 
       message: "Internal server error", 
@@ -787,6 +888,7 @@ export const updateTicketMedia = async (req, res) => {
         resolve();
       });
     });
+
     const ticketId = req.params.ticketId;
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({ 
@@ -794,19 +896,54 @@ export const updateTicketMedia = async (req, res) => {
         ticketId: ticketId
       });
     }
+
     const uploadedFiles = req.files || {};
-    const { event_logo = [], event_banner = [], event_images = [] } = uploadedFiles;
-    // Check if at least one file is uploaded
+    const { 
+      event_logo = [], 
+      event_banner = [], 
+      event_images = [],
+      college_authorisation = [] // Add college_authorisation file field
+    } = uploadedFiles;
+
+    // Get organization_type
+    const userRole = req.user.role;
+    let organisation_type;
+    if (userRole === 'organisation') {
+      organisation_type = req.user.organisation_type;
+          // College authorization validation for educational organizations
+      if (organisation_type && organisation_type.toLowerCase() === 'educational') {
+        if (college_authorisation.length === 0) {
+          return res.status(400).json({
+            message: "college_authorisation file is required for educational organisations"
+          });
+        }
+        
+        // Validate college authorization file type (should be document)
+        const docExtensions = ['.pdf', '.doc', '.docx'];
+        const authFile = college_authorisation[0];
+        const ext = '.' + authFile.originalname.toLowerCase().split('.').pop();
+        
+        if (!docExtensions.includes(ext)) {
+          return res.status(400).json({
+            message: "College authorization file must be a document (PDF, DOC, DOCX)"
+          });
+        }
+      }
+    }
+
+    // Check if at least one file is uploaded (excluding college_authorisation for the count)
     if (event_logo.length === 0 && event_banner.length === 0 && event_images.length === 0) {
       return res.status(400).json({ 
-        message: "At least one file must be uploaded" 
+        message: "At least one media file (logo, banner, or images) must be uploaded" 
       });
     }
+
     if (event_images.length > 10) {
       return res.status(400).json({ 
         message: "Maximum 10 files allowed for event images" 
       });
     }
+
     const videoExtensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
     const videoCount = event_images.filter(file => {
       const ext = file.originalname.toLowerCase().split('.').pop();
@@ -818,18 +955,22 @@ export const updateTicketMedia = async (req, res) => {
         message: "Maximum 1 video allowed in event images" 
       });
     }
+
     const userId = req.user._id || req.user.id;
     const updateData = {
       'form_progress.media': true,
       updated_by: userId,
       updated_at: new Date()
     };
+
     if (event_logo.length > 0) {
       updateData.event_logo = event_logo[0].path;
     }
+
     if (event_banner.length > 0) {
       updateData.event_banner = event_banner[0].path;
     }
+
     if (event_images.length > 0) {
       updateData.event_images = event_images.map(file => ({
         path: file.path,
@@ -839,18 +980,26 @@ export const updateTicketMedia = async (req, res) => {
         uploadedAt: new Date()
       }));
     }
+
+    // Add college authorization file if uploaded
+    if (college_authorisation.length > 0) {
+      updateData.college_authorisation = college_authorisation[0].path;
+    }
+
     // Find and update the ticket
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
       updateData,
       { new: true, runValidators: true }
     );
+
     if (!updatedTicket) {
       return res.status(404).json({ 
         message: "Ticket not found or unauthorized",
         ticketId: ticketId
       });
     }
+
     res.status(200).json({ 
       message: "Ticket media updated successfully", 
       ticket: updatedTicket,
@@ -858,11 +1007,14 @@ export const updateTicketMedia = async (req, res) => {
       uploadedFiles: {
         event_logo: event_logo.length,
         event_banner: event_banner.length,
-        event_images: event_images.length
-      }
+        event_images: event_images.length,
+        college_authorisation: college_authorisation.length || 'Not applicable'
+      },
+      organisationType: organisation_type || 'Not specified'
     });
   } catch (error) {
     console.error("Error updating ticket media:", error);
+    
     // Handle multer errors
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ 
@@ -872,7 +1024,15 @@ export const updateTicketMedia = async (req, res) => {
     
     if (error.code === 'LIMIT_FILE_COUNT') {
       return res.status(400).json({ 
-        message: "Too many files uploaded. Maximum limits: 1 logo, 1 banner, 10 event images." 
+        message: "Too many files uploaded. Maximum limits: 1 logo, 1 banner, 10 event images, 1 college authorization." 
+      });
+    }
+
+    // Handle file type errors
+    if (error.message && error.message.includes('College authorization file must be a document')) {
+      return res.status(400).json({
+        message: "Invalid file type",
+        error: error.message
       });
     }
 
@@ -884,12 +1044,14 @@ export const updateTicketMedia = async (req, res) => {
         field: error.path
       });
     }
+    
     if (error.name === 'ValidationError') {
       return res.status(400).json({ 
         message: "Validation error",
         error: error.message
       });
     }
+
     res.status(500).json({ 
       message: "Internal server error", 
       error: error.message
