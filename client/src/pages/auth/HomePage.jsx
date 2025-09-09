@@ -1,7 +1,7 @@
 // src/pages/HomePage/HomePage.jsx
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getGroups } from "../../services/ticketService";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
@@ -12,7 +12,7 @@ import SideBar from "../../components/HomePage/SideBar.jsx";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
 import TicketIcon from "../../assets/HomePage/TicketIcon.svg";
-import OrgIcon from "../../assets/HomePage/OrgIcon.svg";
+import LinkIcon from "../../assets/HomePage/LiveIcon.svg";
 import SpeakerIcon from "../../assets/HomePage/SpeakerIcon.svg";
 import ChatIcon from "../../assets/HomePage/ChatIcon.svg";
 import SettingIcon from "../../assets/HomePage/SettingIcon.svg";
@@ -20,11 +20,52 @@ import CalenderIcon from "../../assets/HomePage/CalenderIcon.svg";
 import EventCalenderIcon from "../../assets/HomePage/EventCalenderIcon.svg";
 import MoneyIcon from "../../assets/HomePage/MoneyIcon.svg";
 import MovieIcon from "../../assets/HomePage/MovieIcon.svg";
-import RevenueIcon from "../../assets/HomePage/RevenueIcon.svg";
 import LiveIcon from "../../assets/HomePage/LiveIcon.svg";
 import GroupIcon from "../../assets/HomePage/GroupIcon.svg";
 import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
+import WieText from "../../assets/HomePage/PlusIcon.svg";
+import RevenueICon from "../../assets/HomePage/RevenueICon.svg"
+import PathIcon from "../../assets/HomePage/PathIcon.svg"
+
+// ✅ EDITED: Added a media query to scale the UI on xl screens and up
+const CustomScrollbarStyles = () => (
+  <style>{`
+    /* Vertical Scrollbar */
+    .main-scrollbar::-webkit-scrollbar { width: 8px; }
+    .main-scrollbar::-webkit-scrollbar-track { background: #232426; }
+    .main-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #4f4f4f;
+      border-radius: 10px;
+      border: 2px solid #232426;
+    }
+    .main-scrollbar {
+      scrollbar-width: thin;
+      scrollbar-color: #4f4f4f #232426;
+    }
+    
+    /* Horizontal Scrollbar */
+    .horizontal-scrollbar::-webkit-scrollbar { height: 8px; }
+    .horizontal-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .horizontal-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #4f4f4f;
+      border-radius: 10px;
+    }
+    .horizontal-scrollbar {
+       scrollbar-width: thin;
+       scrollbar-color: #4f4f4f transparent;
+    }
+
+    /* UI Scaling for larger screens */
+    @media (min-width: 1280px) {
+      html {
+        /* Default is 16px. Increasing this scales up all rem-based units. */
+        font-size: 18px; 
+      }
+    }
+  `}</style>
+);
+
 
 const dashboardStats = [
   { icon: EventCalenderIcon, title: "Total Event Created", temp: "🎈", value: "Nothing's Happening... Yet!" },
@@ -37,19 +78,18 @@ const HEADER_HEIGHT = 72;
 const HomePage = () => {
   const { user } = useSelector((state) => state.auth);
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [loading, setLoading] = useState(false);
   const [groups, setGroups] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState(3);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const shouldBeDark = savedTheme ? savedTheme === "dark" : systemPrefersDark;
-    
     setIsDark(shouldBeDark);
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
@@ -84,115 +124,233 @@ const HomePage = () => {
   };
 
   const displayName = user?.name || "User";
-  const isHomePage = location.pathname === "/home" || location.pathname === "/";
 
   const theme = isDark ? {
-    bg: "bg-[#212426]", text: "text-white", subText: "text-[#c9c9cf]",
-    cardBg: "bg-[#232426]", border: "border-[#23233a]", inputBg: "bg-[#212426]"
+    bg: "bg-[#212426]",
+    text: "text-white",
+    subText: "text-[#c9c9cf]",
+    cardBg: "bg-[#232426]",
+    border: "border-[#23233a]",
+    inputBg: "bg-[#212426]"
   } : {
-    bg: "bg-white", text: "text-gray-900", subText: "text-gray-600",
-    cardBg: "bg-gray-50", border: "border-gray-200", inputBg: "bg-gray-100"
+    bg: "bg-[#f0f2f5]",
+  text: "text-gray-900",
+  subText: "text-gray-600",
+  cardBg: "bg-[#f0f2f5]",
+  border: "border-[#e4e6ea]",
+  inputBg: "bg-[#ffffff]"
   };
 
-  const monochromaticNavIcons = [HomeIcon, ChatIcon];
-
   const BottomNavigation = () => (
-    <nav className="bg-white dark:bg-[#212426] border-t border-gray-200 dark:border-[#23233a] px-4 py-2 fixed bottom-0 left-0 right-0 z-50 md:hidden">
-      <div className="flex justify-around items-center max-w-md mx-auto">
-        {[{ to: "/home", icon: HomeIcon, label: "Home", active: isHomePage }, { to: "/ticket/events", icon: TicketIcon, label: "Tickets" }, { to: "/ticket/groups", icon: OrgIcon, label: "Group" }, { to: "/ticket/live-events", icon: SpeakerIcon, label: "Live" }, { to: "/ticket/chats", icon: ChatIcon, label: "Chat" }].map(({ to, icon, label, active }) => (
-          <Link key={label} to={to} className="flex flex-col items-center gap-1 p-2">
-            <div style={{ boxShadow: active && !isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' : active && isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'none' }} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200`}>
-              <img src={icon} alt={label} className={`w-4 h-4 ${monochromaticNavIcons.includes(icon) ? 'filter brightness-0 dark:invert' : ''} ${active ? 'opacity-100' : 'opacity-70'}`} />
-            </div>
-            <span className={`text-xs ${active ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>{label}</span>
-          </Link>
-        ))}
+    <nav className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 w-[95%] md:hidden">
+      <div className={`flex justify-around items-center py-3 px-4 rounded-full ${theme.cardBg} ${theme.border} ${isDark ? 'shadow-[6px_6px_12px_rgba(0,0,0,0.6),-6px_-6px_12px_rgba(60,60,60,0.3)]' : 'shadow-[6px_6px_12px_rgba(0,0,0,0.1),-6px_-6px_12px_rgba(255,255,255,0.8)]'}`}>{[{ to: "/home", icon: HomeIcon, label: "Home", isHome: true }, { to: "/ticket/events", icon: TicketIcon, label: "Tickets" }, { icon: PlusIcon, label: "Create", special: true }, { to: "/ticket/live-events", icon: SpeakerIcon, label: "Live Events" }, { to: "/profile", label: "Profile", profile: true },].map(({ to, icon, label, special, profile, isHome }) => special ? (
+        <div key={label} className="relative">
+          <button onClick={handleCreateEvent} disabled={loading} style={{ boxShadow: isDark ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)" : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)", }} className="w-8 h-8 rounded-full bg-[#21d18b] flex items-center justify-center transition hover:scale-105">
+            <img src={icon} alt="Create" className="w-6 h-6 invert brightness-0" />
+          </button>
+        </div>
+      ) : (
+        <Link key={label} to={to} className="flex items-center justify-center p-2">{profile ? (<div className="w-8 h-8 rounded-full overflow-hidden bg-[#6a47fa] flex items-center justify-center text-white font-bold">{displayName.charAt(0).toUpperCase()}</div>) : (isHome ? (
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer ${isDark ? 'bg-[#212426] shadow-[inset_2px_2px_6px_rgba(0,0,0,0.6),inset_-3px_-2px_6px_rgba(255,255,255,0.15)]' : 'bg-white border border-gray-300 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.15),inset_-2px_-2px_4px_rgba(255,255,255,0.8)]'}`}><img src={icon}  alt={label} className="w-5 h-5"style={{ filter: isDark ? 'none' : 'invert(1)' }}/></div>) : (
+        <div className="w-8 h-8 flex items-center justify-center"><img src={icon} alt={label} className={`w-5 h-5 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} /></div>
+))}
+        </Link>
+))}
       </div>
     </nav>
   );
 
   return (
-    <div className="bg-white dark:bg-[#212426] text-gray-900 dark:text-white h-screen flex overflow-hidden transition-colors duration-300">
-      <div className="hidden md:flex flex-col flex-shrink-0 bg-white dark:bg-[#212426]">
-        <div className="flex items-center justify-center" style={{ height: HEADER_HEIGHT }}>
-          <img src={WieLogo} alt="Wie Logo" className="w-12 h-12" />
-        </div>
-        <div className="flex-1">
-          <SideBar user={user} theme={theme} />
-        </div>
-      </div>
-
-      <div className="flex flex-col flex-1 w-full overflow-hidden">
-        <header className="flex items-center justify-between px-4 md:px-6 flex-shrink-0" style={{ height: HEADER_HEIGHT }}>
-          <div className="flex md:hidden items-center justify-between w-full">
-            <Link to="/profile" className="w-10 h-10 rounded-full overflow-hidden"><div className="w-full h-full bg-[#6a47fa] flex items-center justify-center text-white font-bold">{displayName.charAt(0).toUpperCase()}</div></Link>
-            <div className="flex items-center gap-3">
-              <div className="relative"><div style={{ boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)'}} className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-[#212426]"><img src={NotificationIcon} alt="Notification" className="w-4 h-4 filter brightness-0 dark:invert" /></div><span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span></div>
-              <button style={{ boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)'}} className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-[#212426]"><img src={SettingIcon} alt="Settings" className="w-4 h-4 filter brightness-0 dark:invert" /></button>
-            </div>
+    <>
+      <CustomScrollbarStyles isDark={isDark} />
+      <div className={`${theme.bg} ${theme.text} min-h-screen flex overflow-hidden transition-colors duration-300`}>
+        
+        {/* Desktop Sidebar */}
+        <div className={`hidden md:flex flex-col flex-shrink-0 nest-hub-sidebar ${theme.bg} border-r ${theme.border}`}>
+          <div className="flex items-center justify-center" style={{ height: HEADER_HEIGHT }}>
+            <img src={WieLogo} alt="Wie Logo" className="w-10 h-10 lg:w-12 lg:h-12" />
           </div>
-          
-          <div className="hidden md:flex items-center gap-4 w-full">
-            <div className="flex-1 min-w-0">
-                <SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} onTuneClick={() => console.log("Tune clicked")} />
-            </div>
-            <div className="flex items-center gap-4 ml-auto flex-shrink-0">
-              <div className="relative"><div style={{ boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)'}} className="w-12 h-12 rounded-full flex items-center justify-center bg-white dark:bg-[#212426]"><img src={NotificationIcon} alt="Notification" className="w-4 h-4 filter brightness-0 dark:invert" /></div><span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span></div>
-              <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
-            </div>
+          <div className="flex-1 sidebar-content overflow-y-auto">
+            <SideBar user={user} theme={theme} />
           </div>
-        </header>
+        </div>
 
-        <main className="flex flex-col flex-1 p-4 md:px-6 md:pt-6 overflow-y-auto pb-24 md:pb-4 bg-gray-50 dark:bg-[#1a1c1e]">
-          <div className="w-full flex flex-col flex-1">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 flex-shrink-0">
-              <div className="mb-4 md:mb-0"><h1 className="text-xl md:text-2xl font-semibold">Good day, {displayName}!</h1><p className="text-sm text-gray-500 dark:text-gray-400">Let's Rock This!</p></div>
-              <div className="mb-4 md:hidden"><SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} onTuneClick={() => console.log("Tune clicked")} /></div>
+        <div className="flex flex-col flex-1 w-full overflow-hidden">
+          <header className="flex items-center justify-between px-4 md:px-6 flex-shrink-0" style={{ height: HEADER_HEIGHT }}>
+            <div className="flex md:hidden items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                <img src={WieLogo} alt="WIE Logo" className="w-8 h-8 object-contain" />
+                <img src={WieText} alt="WIE" className="h-5 object-contain" />
+              </div>
               <div className="flex items-center gap-3">
-                <button onClick={handleCreateEvent} disabled={loading} style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }} className="flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 bg-white text-gray-900 hover:bg-gray-200 dark:bg-[#232426] dark:text-white dark:hover:bg-[#2a2d2f]"><span className="bg-[#21d18b] rounded-full w-8 h-8 flex items-center justify-center -ml-2"><img src={PlusIcon} alt="Add" className="w-6 h-6" /></span>{loading ? "Checking..." : "Create event"}</button>
-                <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }} className="flex items-center gap-2 px-4 py-2 rounded-full h-12 bg-white dark:bg-[#232426]"><span className="bg-[#249EFF] rounded-full w-8 h-8 flex items-center justify-center -ml-2"><img src={CalenderIcon} alt="Calendar" className="w-5 h-5" /></span><span className="text-sm">{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span></div>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-4 flex-1">
-              <div className="py-2 md:py-2 xl:py-8">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 h-full">
-                  {dashboardStats.map((stat) => (
-                    <div key={stat.title} style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }} className="bg-white dark:bg-[#232426] rounded-3xl relative p-6 flex flex-col items-center justify-center gap-3 h-full transition-all duration-300">
-                      <div style={{ boxShadow: isDark ? 'inset 4px 4px 8px 0px rgba(0,0,0,0.30), inset -4px -4px 8px 0px rgba(255,255,255,0.09)' : 'inset 4px 4px 8px 0px rgba(0,0,0,0.10), inset -4px -4px 8px 0px rgba(255,255,255,0.22)' }} className="absolute top-0 left-1/2 -translate-x-1/2 w-14 h-6 rounded-b-xl z-10 bg-white dark:bg-[#232426]"></div>
-                      <img src={stat.icon} alt={stat.title} className="w-5 h-5 absolute left-8 top-3 z-20" />
-                      <div className="flex flex-col items-center w-full mt-4"><div className="font-semibold text-center mb-2 text-sm text-gray-800 dark:text-gray-100" style={{ letterSpacing: '0.05em' }}>{stat.title.toUpperCase()}</div><div className="text-center mt-2 text-2xl">{stat.temp}</div><div className="text-gray-500 dark:text-gray-400 text-base text-center mt-4 px-1">{stat.value}</div></div>
-                    </div>
-                  ))}
+                <div className="relative">
+                  <div style={{ boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' }} className={`w-10 h-10 rounded-full flex items-center justify-center ${theme.bg}`}>
+                    <img src={NotificationIcon} alt="Notification" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} /></div>
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
                 </div>
-              </div>
-
-              <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }} className="h-full bg-white dark:bg-[#232426] rounded-3xl p-6 flex flex-col transition-all duration-300">
-                <div className="flex items-center gap-3 flex-shrink-0"><img src={LiveIcon} alt="Live Events" className="w-5 h-5" /><div className="font-semibold text-base">Live Events</div></div>
-                <div className="flex-1 flex flex-col items-center justify-center text-center"><p className="text-gray-500 dark:text-gray-400 text-sm">Nothing's Happening... Now!</p><p className="text-gray-500 dark:text-gray-400 text-xs mt-2 px-2">Ready to make some noise? Create your first event.</p></div>
-                <div className="flex justify-center pt-2"><button style={{ boxShadow: isDark ? '4px 4px 8px rgba(0, 0, 0, 0.6), -4px -4px 8px rgba(255, 255, 255, 0.08)' : '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(255, 255, 255, 0.8)' }} onClick={handleCreateEvent} className="rounded-full p-3 transition-all duration-200 bg-white hover:bg-gray-200 dark:bg-[#232426] dark:hover:bg-[#2a2d2f]"><img src={PlusIcon} alt="Add Event" className="w-5 h-5 filter brightness-0 dark:invert" /></button></div>
-              </div>
-
-              <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }} className="h-full bg-white dark:bg-[#232426] rounded-3xl p-6 flex flex-col transition-all duration-300">
-                <div className="flex items-center gap-3 mb-4 flex-shrink-0"><img src={RevenueIcon} alt="Revenue" className="w-5 h-5" /><div className="font-semibold text-base">Live Events Revenue Statistics</div></div>
-                <div className="flex-1 flex flex-col items-center justify-center"><p className="text-gray-500 dark:text-gray-400 text-sm">Revenue Data Not Available</p><p className="text-gray-500 dark:text-gray-400 text-xs mt-2 px-2 text-center">This section will update as revenue data comes in.</p></div>
-              </div>
-
-              <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }} className="h-full bg-white dark:bg-[#232426] rounded-3xl p-6 flex flex-col transition-all duration-300">
-                <div className="flex items-center gap-3 flex-shrink-0"><img src={GroupIcon} alt="My Groups" className="w-5 h-5" /><div className="font-semibold text-base">My Groups</div></div>
-                <div className="flex-1 flex flex-col items-center justify-center text-center"><p className="text-gray-500 dark:text-gray-400 text-sm">It's Lonely Here!</p><p className="text-gray-500 dark:text-gray-400 text-xs mt-2 px-2">No groups yet — let's fix that by creating one!</p></div>
-                <div className="flex justify-center pt-2"><button style={{ boxShadow: isDark ? '4px 4px 8px rgba(0, 0, 0, 0.6), -4px -4px 8px rgba(255, 255, 255, 0.08)' : '4px 4px 8px rgba(0, 0, 0, 0.15), -4px -4px 8px rgba(255, 255, 255, 0.8)' }} onClick={() => navigate("/ticket/create-group")} className="rounded-full p-3 transition-all duration-200 bg-white hover:bg-gray-200 dark:bg-[#232426] dark:hover:bg-[#2a2d2f]"><img src={PlusIcon} alt="Add Group" className="w-5 h-5 filter brightness-0 dark:invert" /></button></div>
+                <button style={{ boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' }} className={`w-10 h-10 rounded-full flex items-center justify-center ${theme.bg}`}>
+                  <img src={ChatIcon} alt="chats" className={`w-6 h-6 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
+                </button>
               </div>
             </div>
-          </div>
-        </main>
 
-        <BottomNavigation />
+            <div className="hidden md:flex items-center gap-4 w-full">
+              <div className="flex-1 min-w-0">
+                <SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} onTuneClick={() => console.log("Tune clicked")} />
+              </div>
+              <div className="flex items-center gap-4 ml-auto flex-shrink-0">
+                <div className="relative">
+                  <div style={{ boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' }} className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg}`}>
+                    <img src={NotificationIcon} alt="Notification" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
+                  </div>
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
+                </div>
+                <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
+              </div>
+            </div>
+          </header>
+
+          <main className={`main-scrollbar flex flex-col flex-1 p-4 md:px-6 md:pt-6 overflow-y-auto pb-24 md:pb-4 ${theme.cardBg}`}>
+              <div className="w-full flex flex-col flex-1">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 flex-shrink-0">
+                      <div className="mb-4 md:mb-0">
+                          <h1 className={`text-xl md:text-2xl font-semibold ${theme.text}`}>Good day, {displayName}!</h1>
+                          <p className={`text-sm ${theme.subText}`}>Let's Rock This!</p>
+                      </div>
+                      <div className="mb-4 md:hidden">
+                          <SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} onTuneClick={() => console.log("Tune clicked")} />
+                      </div>
+                      <div className="flex items-center gap-3">
+                          <button onClick={handleCreateEvent} disabled={loading} style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' :'-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)' }} className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg} ${theme.text} ${isDark ? 'hover:bg-[#2a2d2f]' : 'hover:bg-gray-200'}`}>
+                              <span className="bg-[#21d18b] rounded-full w-8 h-8 flex items-center justify-center -ml-2"><img src={PlusIcon} alt="Add" className="w-6 h-6" /></span>{loading ? "Checking..." : "Create event"}
+                          </button>
+                          <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }} className={`flex items-center gap-2 px-4 py-2 rounded-full h-12 ${theme.bg} mx-auto sm:mx-0`}>
+                              <span className="bg-[#249EFF] rounded-full w-8 h-8 flex items-center justify-center -ml-2"><img src={CalenderIcon} alt="Calendar" className="w-5 h-5" /></span>
+                              <span className={`text-sm ${theme.text}`}>{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                          </div>
+                      </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 3xl:grid-cols-1 gap-4 flex-1 self-start">
+                      
+                      {/* Left Column */}
+                      <div className="flex flex-col gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                              {dashboardStats.map((stat) => (
+                                  <div key={stat.title} style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }} className={`${theme.bg} rounded-[2.5rem] relative p-6 flex flex-col items-center justify-center gap-3 h-full transition-all duration-300`}>
+                                      <div style={{ boxShadow: isDark ? 'inset 4px 4px 8px 0px rgba(0,0,0,0.30), inset -4px -4px 8px 0px rgba(255,255,255,0.09)' : 'inset 4px 4px 8px 0px rgba(0,0,0,0.10), inset -4px -4px 8px 0px rgba(255,255,255,0.22)' }} className={`absolute top-0 left-1/2 -translate-x-1/2 w-14 h-6 rounded-b-xl z-10 ${theme.bg}`}></div><img src={stat.icon} alt={stat.title} className="w-5 h-5 absolute left-5 top-3 z-20" />
+                                      <div className="flex flex-col items-center w-full mt-4">
+                                          <div className={`font-semibold text-center mb-2 text-sm ${theme.text}`} style={{ letterSpacing: '0.05em' }}>{stat.title.toUpperCase()} </div>
+                                          <div className="text-center mt-2 text-2xl">{stat.temp}</div>
+                                          <div className={`${theme.subText} text-base text-center mt-4 px-1`}>{stat.value}</div>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+
+                          <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)'}}
+                              className={`flex-1 ${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300`}
+                          >
+                              <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                                  <div className="flex items-center gap-3">
+                                      <img src={RevenueICon} alt="Earnings Statistics" className="w-5 h-5 " />
+                                      <div className={`font-semibold text-base ${theme.text}`}>LIVE EVENTS EARNING STATISTICS</div>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-sm">
+                                      <span className={`${theme.subText}`}>(JAN-AUG)</span>
+                                      <select className={`bg-transparent border-none ${theme.text} outline-none cursor-pointer`}>
+                                          <option className="bg-[#212426] text-white" value="months">Months</option>
+                                          <option className="bg-[#212426] text-white" value="weeks">Weeks</option>
+                                          <option className="bg-[#212426] text-white" value="days">Days</option>
+                                      </select>
+                                  </div>
+                              </div>
+                              <div className="flex items-start justify-between mb-4">
+                                  <div className="flex flex-col">
+                                      <div className={`text-xl font-bold ${theme.text}`}>Bellie Eilish Concert</div>
+                                      <div className={`text-3xl font-extrabold text-[#21d18b] mt-1`}>$66,672.61</div>
+                                      <div className={`text-sm ${theme.subText}`}>Total amount</div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                      <img src={PathIcon} alt="Growth Trend" className="w-16 h-8"/>
+                                      <div className="w-10 h-10 rounded-full border border-gray-600 flex items-center justify-center">
+                                          <span className={`text-sm font-bold ${theme.text}`}>14%</span>
+                                      </div>
+                                  </div>
+                              </div>
+                              <div className="flex-1 flex items-end justify-around py-4">
+                                  {['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG'].map((month, index) => (
+                                      <div key={month} className="flex flex-col items-center">
+                                          <div className={`text-xs ${theme.subText} mb-1`}>320k</div>
+                                          <div className="w-4 rounded-xl bg-[#21d18b]" style={{ height: `${(index + 1) * 8 + 15}px` }}></div>
+                                          <div className={`text-xs mt-1 ${theme.subText}`}>{month}</div>
+                                      </div>
+                                  ))}
+                              </div>
+                              <div className="flex flex-col items-center mt-auto pt-2">
+                                  <div className="w-full flex justify-between items-center text-xs">
+                                      <span className={`${theme.subText}`}>Coldpaly concert : $666.27k</span>
+                                      <span className={`${theme.subText}`}>Total booking (Coldpaly concert) : 22k</span>
+                                  </div>
+                                  <div className="flex gap-1.5 mt-2">
+    <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-400'}`}></div>
+    <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-white' : 'bg-gray-800'}`}></div>
+    <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-400'}`}></div>
+</div>
+                              </div>
+                          </div>
+                      </div>
+                      
+                      {/* Right Column */}
+                      <div className="flex flex-col gap-4">
+                          <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }}
+                              className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300`}
+                          >
+                              <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4">
+                                  <div className="flex items-center gap-3">
+                                      <img src={LiveIcon} alt="Live Events" className="w-5 h-5" />
+                                      <div className={`font-semibold text-base ${theme.text}`}>LIVE EVENTS</div>
+                                  </div>
+<button className="bg-[#6a47fa] text-white rounded-full px-6 py-2 text-sm font-light tracking-wider hover:bg-[#5a3fea] transition-colors">see all</button>                              </div>
+                              <div className="flex-1 pr-2">{[{id: 1, name: "Bellie Eilish Concert"}, {id: 2, name: "Bellie Eilish Concert"}, {id: 3, name: "Bellie Eilish Concert"}].slice(0, 3).map((event) => {const isSelected = selectedEvent === event.id;return (
+                                          <div key={event.id} onClick={() => setSelectedEvent(event.id)}className={`flex items-center justify-between p-3 mb-2 rounded-2xl cursor-pointer transition-all duration-300`}style={{ boxShadow: isSelected ? (isDark ? 'inset 3px 3px 6px rgba(0,0,0,0.6), inset -3px -3px 6px rgba(60,60,60,0.3)' : 'inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.8)') : 'none' }}>
+                                              <div className="flex items-center gap-3"><img src="https://via.placeholder.com/40" alt="Event" className="w-10 h-10 rounded-md object-cover" />
+                                                  <div><p className={`${theme.text} text-sm font-medium`}>{event.name}</p><p className={`${theme.subText} text-xs`}>22 January 2025</p></div>
+                                              </div>{isSelected && (<div className="flex items-center gap-3 text-gray-400"><img src={TicketIcon} alt="Ticket" className={`w-5 h-5 ${isDark ? '' : 'filter brightness-0'}`} /><img src={LinkIcon} alt="Link" className={`w-5 h-5 }`} /><div className={`h-4 w-px ${isDark ? 'bg-gray-600' : 'bg-gray-400'}`}></div><img src={SettingIcon} alt="More" className={`w-5 h-5 ${isDark ? '' : 'filter brightness-0'}`} /></div>)}
+                                          </div>
+                                      );
+                                  })}
+                              </div>
+                          </div>
+                          
+                          <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }}className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1`}>
+                              <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4">
+                                  <div className="flex items-center gap-3"><img src={GroupIcon} alt="My Groups" className="w-5 h-5" /><div className={`font-semibold text-base ${theme.text}`}>MY GROUPS</div></div><button className={`border border-[rgba(101,73,184,1)] rounded-full px-6 py-2 text-sm font-light tracking-wider transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'}`}>see all</button></div>
+                              <div className="flex gap-4 overflow-x-auto horizontal-scrollbar">{[1, 2, 3, 4, 5, 6].map((group) => (
+                                      <div key={group} className="p-4 flex flex-col items-center gap-2 rounded-3xl flex-shrink-0 w-40"style={{ boxShadow: isDark ? 'inset 3px 3px 6px rgba(0,0,0,0.5), inset -3px -3px 6px rgba(60,60,60,0.25)' : 'none' }}>
+                                          <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center"><img src="https://via.placeholder.com/80" alt="Group" className="w-full h-full object-cover" />
+                                          </div><p className={`${theme.text} text-sm font-medium text-center`}>Nothing</p><p className={`${theme.subText} text-xs text-center`}>20 events created</p><button className={`w-full mt-2 border border-[rgba(101,73,184,1)] rounded-full py-1.5 text-xs font-light tracking-wider ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>view</button>
+                                      </div>
+                                  ))}
+                              </div>
+                          </div>
+                      </div>
+
+                  </div>
+              </div>
+          </main>
+
+          <BottomNavigation />
+        </div>
+
+        <GroupSelectionModal
+          groups={groups}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSelectGroup={handleSelectGroup}
+        />
       </div>
-
-      <GroupSelectionModal groups={groups} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSelectGroup={handleSelectGroup} />
-    </div>
+    </>
   );
 };
-
 export default HomePage;
