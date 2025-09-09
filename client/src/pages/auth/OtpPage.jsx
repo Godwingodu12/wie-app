@@ -128,11 +128,11 @@ const OtpPage = () => {
           src={isMobile ? bg1 : bg2}
           alt="Background"
           className="w-full h-full object-cover"
-          style={{ 
+          style={{
             zIndex: 0,
-            objectPosition: 'center center',
-            minHeight: '100vh',
-            minWidth: '100vw'
+            objectPosition: "center center",
+            minHeight: "100vh",
+            minWidth: "100vw",
           }}
         />
       </div>
@@ -153,30 +153,38 @@ const OtpPage = () => {
       </div>
 
       {/* Header - Fixed height with login button always visible */}
-      <header className="absolute top-0 left-0 right-0 z-30 w-full flex justify-between items-center pointer-events-auto p-4 sm:p-6 md:p-8 lg:p-10"
-        style={{ 
-          paddingTop: 'max(env(safe-area-inset-top, 16px), 16px)',
-          paddingRight: 'max(env(safe-area-inset-right, 16px), 16px)',
-          height: 'auto',
-          minHeight: '60px'
+      <header
+        className="absolute top-0 left-0 right-0 z-30 w-full flex justify-between items-center pointer-events-auto p-4 sm:p-6 md:p-8 lg:p-10"
+        style={{
+          paddingTop: "max(env(safe-area-inset-top, 16px), 16px)",
+          paddingRight: "max(env(safe-area-inset-right, 16px), 16px)",
+          height: "auto",
+          minHeight: "60px",
         }}
       >
-        <img
-          src="/src/assets/auth/logo.png"
-          alt="Wie Logo"
-          className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 lg:h-16 lg:w-16 hidden md:block"
-          style={{ 
-            filter: 'none !important', 
-            boxShadow: 'none !important',
-            dropShadow: 'none !important',
-            WebkitFilter: 'none !important',
-            textShadow: 'none !important'
-          }}
-        />
-        
+        {/* Placeholder for mobile to push button right */}
+        <div className="md:hidden"></div>
+
+        {/* Desktop logo */}
+        <div className="hidden md:flex items-center">
+          <img
+            src="/src/assets/auth/logo.png"
+            alt="Wie Logo"
+            className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10 lg:h-12 lg:w-12"
+            style={{
+              filter: "none !important",
+              boxShadow: "none !important",
+              dropShadow: "none !important",
+              WebkitFilter: "none !important",
+              textShadow: "none !important",
+            }}
+          />
+          <span className="ml-2 text-white text-base sm:text-lg md:text-xl lg:text-2xl wie-font">Wie</span>
+        </div>
+
         {/* Login button - Always visible on all devices */}
-        <button 
-          className="px-3 py-2 sm:px-4 sm:py-2 md:px-5 md:py-2.5 text-xs sm:text-sm md:text-base font-semibold rounded-lg bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 transition-all whitespace-nowrap"
+        <button
+          className="px-3 py-2 sm:px-4 sm:py-2 md:px-5 md:py-2.5 text-xs sm:text-sm md:text-base font-semibold transition-all whitespace-nowrap"
           onClick={() => navigate("/login")}
         >
           Login
@@ -184,28 +192,28 @@ const OtpPage = () => {
       </header>
 
       {/* Main content area - Centered without scroll */}
-      <div className="absolute inset-0 z-20 flex items-center justify-center"
-        style={{ 
-          paddingTop: '80px', // Space for header
-          paddingBottom: '80px', // Space for footer
-          paddingLeft: 'max(env(safe-area-inset-left, 16px), 16px)',
-          paddingRight: 'max(env(safe-area-inset-right, 16px), 16px)'
+      <div
+        className="absolute inset-0 z-20 flex items-center justify-center"
+        style={{
+          paddingTop: "80px", // Space for header
+          paddingBottom: "80px", // Space for footer
+          paddingLeft: "max(env(safe-area-inset-left, 16px), 16px)",
+          paddingRight: "max(env(safe-area-inset-right, 16px), 16px)",
         }}
       >
         <div className="w-full max-w-[85vw] sm:max-w-md md:max-w-lg lg:max-w-xl mx-auto">
-          
           {/* Mobile logo - no shadow, compact design */}
           <div className="flex md:hidden items-center justify-center mb-4 sm:mb-6 p-2 sm:p-3 rounded-xl bg-white/10 backdrop-blur-md mx-auto w-fit">
             <img
               src="/src/assets/auth/logo.png"
               alt="Wie Logo"
-              className="h-8 w-8 sm:h-10 sm:w-10"
-              style={{ 
-                filter: 'none !important', 
-                boxShadow: 'none !important',
-                dropShadow: 'none !important',
-                WebkitFilter: 'none !important',
-                textShadow: 'none !important'
+              className="h-7 w-7 sm:h-9 sm:w-9"
+              style={{
+                filter: "none !important",
+                boxShadow: "none !important",
+                dropShadow: "none !important",
+                WebkitFilter: "none !important",
+                textShadow: "none !important",
               }}
             />
           </div>
@@ -220,9 +228,9 @@ const OtpPage = () => {
               backdropFilter: "blur(40px)",
               WebkitBackdropFilter: "blur(40px)",
               boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)",
-              minHeight: 'auto',
-              maxHeight: 'none',
-              overflow: 'visible'
+              minHeight: "auto",
+              maxHeight: "none",
+              overflow: "visible",
             }}
           >
             <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center mb-3 sm:mb-4 md:mb-6">
@@ -238,7 +246,9 @@ const OtpPage = () => {
             </h1>
 
             {error && (
-              <p className="text-red-400 text-xs sm:text-sm mt-2 px-2">{error}</p>
+              <p className="text-red-400 text-xs sm:text-sm mt-2 px-2">
+                {error}
+              </p>
             )}
             {successMessage && (
               <p className="text-green-400 text-xs sm:text-sm mt-2 px-2">
@@ -310,39 +320,21 @@ const OtpPage = () => {
               </button>
             </p>
 
-            {/* Action buttons - Always inside container */}
             <div className="w-full mt-2 sm:mt-4">
-              {/* Desktop layout */}
-              <div className="hidden sm:flex items-center justify-center gap-3 md:gap-4">
+              {/* Single responsive layout for all screen sizes */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-full">
                 <button
-                  className="flex-1 max-w-[140px] md:max-w-[160px] lg:max-w-[180px] py-2.5 md:py-3 lg:py-4 border border-white/16 bg-transparent hover:bg-white/5 rounded-lg text-white/80 font-medium transition-all text-xs md:text-sm lg:text-base"
+                  className="w-full sm:w-[200px] py-3 border border-white/16 bg-transparent hover:bg-white/5 text-white/80 font-medium transition-all text-sm rounded-md"
                   onClick={() => navigate(-1)}
                 >
                   Go back
                 </button>
                 <button
-                  className="flex-1 max-w-[140px] md:max-w-[160px] lg:max-w-[180px] py-2.5 md:py-3 lg:py-4 bg-[#6d62ff] hover:bg-[#5a52f0] rounded-lg text-white font-medium transition-all shadow-lg text-xs md:text-sm lg:text-base"
+                  className="w-full sm:w-[200px] py-3 bg-[#6d62ff] hover:bg-[#5a52f0] text-white font-medium transition-all shadow-lg text-sm rounded-md"
                   onClick={handleSubmit}
                   disabled={isLoading}
                 >
                   {isLoading ? "Verifying..." : "Verify"}
-                </button>
-              </div>
-
-              {/* Mobile layout - Always visible and contained */}
-              <div className="flex sm:hidden flex-col gap-2.5 w-full">
-                <button
-                  className="w-full py-2.5 bg-[#6d62ff] hover:bg-[#5a52f0] rounded-full text-white font-medium transition-all shadow-lg text-sm"
-                  onClick={handleSubmit}
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Verifying..." : "Verify"}
-                </button>
-                <button
-                  className="w-full py-2.5 border border-white/16 bg-transparent hover:bg-white/5 rounded-full text-white/80 font-medium transition-all text-sm"
-                  onClick={() => navigate(-1)}
-                >
-                  Go back
                 </button>
               </div>
             </div>
@@ -351,19 +343,19 @@ const OtpPage = () => {
           {/* Mobile social media buttons - Under OTP container, horizontal layout */}
           <div className="block lg:hidden w-full mt-4 sm:mt-6">
             <div className="flex items-center justify-center space-x-4">
-              <button 
+              <button
                 className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200"
                 aria-label="Follow us on Twitter"
               >
                 <FaXTwitter size={12} className="text-white" />
               </button>
-              <button 
+              <button
                 className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200"
                 aria-label="Follow us on Facebook"
               >
                 <FaFacebookF size={12} className="text-white" />
               </button>
-              <button 
+              <button
                 className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200"
                 aria-label="Follow us on Instagram"
               >
@@ -375,34 +367,35 @@ const OtpPage = () => {
       </div>
 
       {/* Social media buttons - Desktop: Bottom left corner only */}
-      <div className="hidden lg:block absolute bottom-0 left-0 z-30 pointer-events-auto p-3 sm:p-4 md:p-6"
-        style={{ 
-          paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)',
-          paddingLeft: 'max(env(safe-area-inset-left, 12px), 12px)'
+      <div
+        className="hidden lg:block absolute bottom-0 left-0 z-30 pointer-events-auto p-3 sm:p-4 md:p-6"
+        style={{
+          paddingBottom: "max(env(safe-area-inset-bottom, 12px), 12px)",
+          paddingLeft: "max(env(safe-area-inset-left, 12px), 12px)",
         }}
       >
         {/* Desktop layout with label */}
         <div className="flex items-center space-x-3">
-          <span className="text-white/60 text-sm font-medium">
-            Follow us:
-          </span>
+          <span className="text-white/60 text-sm font-medium">Follow us:</span>
           <div className="flex space-x-2">
-            <button 
+            <button
               className="flex items-center justify-center w-8 h-8 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200"
               aria-label="Follow us on Twitter"
             >
               <FaXTwitter size={12} className="text-white" />
             </button>
-            <button 
+            <button
               className="flex items-center justify-center w-8 h-8 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200"
               aria-label="Follow us on Facebook"
             >
               <FaFacebookF size={12} className="text-white" />
             </button>
-            <button className="flex items-center justify-center w-8 h-8 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200"
-            aria-label="Follow us on Instagram">
-                <RiInstagramFill size={12} className="text-white" />
-              </button>
+            <button
+              className="flex items-center justify-center w-8 h-8 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200"
+              aria-label="Follow us on Instagram"
+            >
+              <RiInstagramFill size={12} className="text-white" />
+            </button>
           </div>
         </div>
       </div>
