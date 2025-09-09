@@ -24,7 +24,7 @@ import LiveIcon from "../../assets/HomePage/LiveIcon.svg";
 import GroupIcon from "../../assets/HomePage/GroupIcon.svg";
 import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
-import WieText from "../../assets/HomePage/PlusIcon.svg";
+import WieText from "../../assets/HomePage/WieText.svg";
 import RevenueICon from "../../assets/HomePage/RevenueICon.svg"
 import PathIcon from "../../assets/HomePage/PathIcon.svg"
 
@@ -33,15 +33,15 @@ const CustomScrollbarStyles = () => (
   <style>{`
     /* Vertical Scrollbar */
     .main-scrollbar::-webkit-scrollbar { width: 8px; }
-    .main-scrollbar::-webkit-scrollbar-track { background: #232426; }
+    .main-scrollbar::-webkit-scrollbar-track { background: #212426; }
     .main-scrollbar::-webkit-scrollbar-thumb {
       background-color: #4f4f4f;
       border-radius: 10px;
-      border: 2px solid #232426;
+      border: 2px solid #212426;
     }
     .main-scrollbar {
       scrollbar-width: thin;
-      scrollbar-color: #4f4f4f #232426;
+      scrollbar-color: #4f4f4f #212426;
     }
     
     /* Horizontal Scrollbar */
@@ -129,7 +129,7 @@ const HomePage = () => {
     bg: "bg-[#212426]",
     text: "text-white",
     subText: "text-[#c9c9cf]",
-    cardBg: "bg-[#232426]",
+    cardBg: "bg-[#212426]",
     border: "border-[#23233a]",
     inputBg: "bg-[#212426]"
   } : {
@@ -248,9 +248,9 @@ const HomePage = () => {
                               ))}
                           </div>
 
-                          <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)'}}
-                              className={`flex-1 ${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300`}
-                          >
+                  <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)'}}
+    className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 min-h-[400px] max-h-[500px]`}
+>
                               <div className="flex items-center justify-between mb-4 flex-shrink-0">
                                   <div className="flex items-center gap-3">
                                       <img src={RevenueICon} alt="Earnings Statistics" className="w-5 h-5 " />
@@ -265,8 +265,7 @@ const HomePage = () => {
                                       </select>
                                   </div>
                               </div>
-                              <div className="flex items-start justify-between mb-4">
-                                  <div className="flex flex-col">
+<div className="flex items-start justify-between mb-2">                                  <div className="flex flex-col">
                                       <div className={`text-xl font-bold ${theme.text}`}>Bellie Eilish Concert</div>
                                       <div className={`text-3xl font-extrabold text-[#21d18b] mt-1`}>$66,672.61</div>
                                       <div className={`text-sm ${theme.subText}`}>Total amount</div>
@@ -278,8 +277,7 @@ const HomePage = () => {
                                       </div>
                                   </div>
                               </div>
-                              <div className="flex-1 flex items-end justify-around py-4">
-                                  {['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG'].map((month, index) => (
+<div className="flex items-end justify-around py-2 mt-4">                                  {['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG'].map((month, index) => (
                                       <div key={month} className="flex flex-col items-center">
                                           <div className={`text-xs ${theme.subText} mb-1`}>320k</div>
                                           <div className="w-4 rounded-xl bg-[#21d18b]" style={{ height: `${(index + 1) * 8 + 15}px` }}></div>
@@ -287,8 +285,7 @@ const HomePage = () => {
                                       </div>
                                   ))}
                               </div>
-                              <div className="flex flex-col items-center mt-auto pt-2">
-                                  <div className="w-full flex justify-between items-center text-xs">
+<div className="flex flex-col items-center mt-4 pt-2">                                  <div className="w-full flex justify-between items-center text-xs">
                                       <span className={`${theme.subText}`}>Coldpaly concert : $666.27k</span>
                                       <span className={`${theme.subText}`}>Total booking (Coldpaly concert) : 22k</span>
                                   </div>
@@ -304,8 +301,8 @@ const HomePage = () => {
                       {/* Right Column */}
                       <div className="flex flex-col gap-4">
                           <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }}
-                              className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300`}
-                          >
+    className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 min-h-[300px] max-h-[400px]`}
+>
                               <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4">
                                   <div className="flex items-center gap-3">
                                       <img src={LiveIcon} alt="Live Events" className="w-5 h-5" />
@@ -323,7 +320,7 @@ const HomePage = () => {
                               </div>
                           </div>
                           
-                          <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }}className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1`}>
+                          <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }}className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 min-h-[350px] max-h-[450px]`}>
                               <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4">
                                   <div className="flex items-center gap-3"><img src={GroupIcon} alt="My Groups" className="w-5 h-5" /><div className={`font-semibold text-base ${theme.text}`}>MY GROUPS</div></div><button className={`border border-[rgba(101,73,184,1)] rounded-full px-6 py-2 text-sm font-light tracking-wider transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'}`}>see all</button></div>
                               <div className="flex gap-4 overflow-x-auto horizontal-scrollbar">{[1, 2, 3, 4, 5, 6].map((group) => (
