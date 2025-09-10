@@ -27,6 +27,7 @@ const RegisterPage = () => {
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
@@ -182,7 +183,7 @@ const RegisterPage = () => {
               {/* Password Input */}
               <div className="relative flex items-center">
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
@@ -193,14 +194,15 @@ const RegisterPage = () => {
                 <img
                   src={PasswordInputIcon}
                   alt="Password Icon"
-                  className="w-4 h-4 absolute right-4 pointer-events-none"
+                  className="w-4 h-4 absolute right-4 cursor-pointer"
+                  onClick={() => setShowPassword(!showPassword)}
                 />
               </div>
 
               {/* Confirm Password Input */}
               <div className="relative flex items-center">
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   name="confirm"
                   value={formData.confirm}
                   onChange={handleChange}
@@ -211,7 +213,8 @@ const RegisterPage = () => {
                 <img
                   src={PasswordInputIcon}
                   alt="Password Icon"
-                  className="w-4 h-4 absolute right-4 pointer-events-none"
+                  className="w-4 h-4 absolute right-4 cursor-pointer"
+                  onClick={() => setShowPassword(!showPassword)}
                 />
               </div>
 
