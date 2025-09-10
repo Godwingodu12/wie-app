@@ -396,22 +396,61 @@ export const getUserById = async (req, res) => {
 export const verifyOTP = async (req, res) => {
   const { email, contact_no, otp } = req.body;
   try {
-    let user = null; 
-    if (validateEmail(email)) {
+    console.log("Verify OTP request:", { email, contact_no, otp });
+
+    let user = null;
+    let searchField;
+    let searchValue;
+
+    if (email && validateEmail(email)) {
+      console.log("Searching for user by email:", email);
       user = await User.findOne({ email: email });
+      searchField = "email";
+      searchValue = email;
     } else if (contact_no) {
+      console.log("Searching for user by contact_no:", contact_no);
       user = await User.findOne({ contact_no: contact_no });
+      searchField = "contact_no";
+      searchValue = contact_no;
     }
+
+    console.log(`User search result for ${searchField} "${searchValue}":`, user ? "Found" : "Not found");
+    
+    if (user) {
+      console.log("Found user for verification:", {
+        id: user._id,
+        email: user.email,
+        contact_no: user.contact_no,
+        status: user.status
+      });
+    }
+
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ 
+        message: "User not found",
+        searchedBy: searchField,
+        searchValue: searchValue
+      });
     }
+
+    // Verify OTP using user._id
+    console.log("Verifying OTP for user ID:", user._id);
     const otpResult = await otpService.verifyOtp(user._id, otp);
+    console.log("OTP verification result:", otpResult);
+    
     if (!otpResult.isValid) {
+      console.log("OTP verification failed:", otpResult.message);
       return res.status(400).json({ message: otpResult.message });
     }
+
+    // Update user status to active
     user.status = "active";
     await user.save();
-    res.status(200).json({ message: "OTP verified successfully" });
+    console.log("User status updated to active for:", user._id);
+
+    res.status(200).json({ 
+      message: "OTP verified successfully"
+    });
   } catch (err) {
     console.error("OTP verification error:", err);
     res.status(500).json({ message: "Server error during OTP verification" });
@@ -482,44 +521,122 @@ export const forgotPassword = async (req, res) => {
 export const resendOtp = async (req, res) => {
   try {
     const input = req.body;
-
     console.log("Resend OTP request body:", input);
-
     // Validate input
     if (!input || (!input.email && !input.contact_no)) {
       return res.status(400).json({
         message: "Please provide either email or contact number",
       });
     }
-
     // Find user by either email or contact_no
     let user;
+    let searchField;
+    let searchValue;
+
     if (input.email) {
+      console.log("Searching for user by email:", input.email);
       user = await User.findOne({ email: input.email });
+      searchField = "email";
+      searchValue = input.email;
     } else if (input.contact_no) {
+      console.log("Searching for user by contact_no:", input.contact_no);
       user = await User.findOne({ contact_no: input.contact_no });
+      searchField = "contact_no";
+      searchValue = input.contact_no;
+    }
+
+    console.log(`User search result for ${searchField} "${searchValue}":`, user ? "Found" : "Not found");
+    
+    if (user) {
+      console.log("Found user details:", {
+        id: user._id,
+        email: user.email,
+        contact_no: user.contact_no,
+        userType: user.user_type || user.role || "unknown"
+      });
+    } else {
+      // Let's debug by finding all users with similar email/contact
+      if (input.email) {
+        const allUsersWithEmail = await User.find({
+          email: { $regex: input.email, $options: 'i' }
+        }).select('email contact_no user_type role');
+        console.log("Similar email users found:", allUsersWithEmail);
+      }
+      
+      if (input.contact_no) {
+        const allUsersWithContact = await User.find({
+          contact_no: { $regex: input.contact_no, $options: 'i' }
+        }).select('email contact_no user_type role');
+        console.log("Similar contact users found:", allUsersWithContact);
+      }
     }
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ 
+        message: "User not found",
+        searchedBy: searchField,
+        searchValue: searchValue
+      });
     }
 
     // Generate new OTP
     const otp = generateOtp();
+    console.log("Generated OTP:", otp, "for user:", user._id);
 
-    // Save new OTP to DB with expiry (this will delete existing OTPs automatically)
-    await otpService.insertOTP(user.id, otp, 1); // 1 minute expiry
+    // Save new OTP to DB with expiry - use user._id not user.id
+    await otpService.insertOTP(user._id, otp, 1); // 1 minute expiry
+    console.log("OTP saved to database for user:", user._id);
 
-    // Send OTP to the provided input
-    if (input.email) {
-      await sendEmail(input.email, otp);
-    } else if (input.contact_no) {
-      await sendSMSOTP(input.contact_no, otp);
+    // Send OTP - prioritize email
+    let otpSent = false;
+    let sendMethod = '';
+    let otpDestination = '';
+
+    // Try email first
+    const emailToUse = input.email || user.email;
+    if (emailToUse) {
+      try {
+        console.log("Attempting to send email to:", emailToUse);
+        await sendEmail(emailToUse, otp);
+        otpSent = true;
+        sendMethod = 'email';
+        otpDestination = emailToUse;
+        console.log("Email sent successfully to:", emailToUse);
+      } catch (emailError) {
+        console.error("Email sending failed:", emailError);
+      }
+    }
+
+    // Try SMS if email failed
+    if (!otpSent) {
+      const contactToUse = input.contact_no || user.contact_no;
+      if (contactToUse) {
+        try {
+          console.log("Attempting to send SMS to:", contactToUse);
+          await sendSMSOTP(contactToUse, otp);
+          otpSent = true;
+          sendMethod = 'sms';
+          otpDestination = contactToUse;
+          console.log("SMS sent successfully to:", contactToUse);
+        } catch (smsError) {
+          console.error("SMS sending failed:", smsError);
+        }
+      }
+    }
+
+    if (!otpSent) {
+      console.error("Failed to send OTP via both email and SMS");
+      return res.status(500).json({
+        message: "Failed to send OTP via email or SMS. Please try again later.",
+        success: false,
+      });
     }
 
     res.status(200).json({
-      message: "New OTP sent successfully. Previous OTP has been invalidated.",
+      message: `New OTP sent successfully to your ${sendMethod === 'email' ? 'email' : 'phone'}. Previous OTP has been invalidated.`,
       success: true,
+      sentTo: otpDestination,
+      method: sendMethod
     });
   } catch (err) {
     console.error("Resend OTP error:", err);
@@ -529,7 +646,6 @@ export const resendOtp = async (req, res) => {
     });
   }
 };
-
 export const verifyUser = async (req, res) => {
   try {
     const { input, otp } = req.body;

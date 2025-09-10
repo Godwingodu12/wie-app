@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { verifyOtp, resendOtp } from "../../services/authService";
 import { toast } from "react-toastify";
 import { FaFacebookF, FaXTwitter } from "react-icons/fa6";
@@ -17,9 +17,11 @@ const OtpPage = () => {
   const [timer, setTimer] = useState(60);
   const [isResending, setIsResending] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [otpDestination, setOtpDestination] = useState(""); // Track where OTP was sent
   const inputsRef = useRef([]);
   const intervalRef = useRef(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const handleResize = () => {
@@ -31,9 +33,36 @@ const OtpPage = () => {
   }, []);
 
   useEffect(() => {
+    // Multiple ways to get the email - with debugging
+    console.log("Checking for email in various sources...");
+    
+    // Method 1: From localStorage
     const storedEmail = localStorage.getItem("userEmail");
-    if (storedEmail) setEmail(storedEmail);
-  }, []);
+    console.log("Email from localStorage:", storedEmail);
+    
+    // Method 2: From navigation state (if passed from previous page)
+    const emailFromState = location.state?.email;
+    console.log("Email from navigation state:", emailFromState);
+    
+    // Method 3: From URL params (if passed as query param)
+    const urlParams = new URLSearchParams(location.search);
+    const emailFromUrl = urlParams.get('email');
+    console.log("Email from URL params:", emailFromUrl);
+    
+    // Use the first available email source
+    const finalEmail = storedEmail || emailFromState || emailFromUrl;
+    console.log("Final email to use:", finalEmail);
+    
+    if (finalEmail) {
+      setEmail(finalEmail);
+      setOtpDestination(finalEmail);
+      // Ensure it's stored in localStorage for future use
+      localStorage.setItem("userEmail", finalEmail);
+    } else {
+      console.error("No email found from any source!");
+      setError("No email found. Please go back and try again.");
+    }
+  }, [location]);
 
   useEffect(() => {
     if (timer > 0) {
@@ -78,6 +107,23 @@ const OtpPage = () => {
     }
   };
 
+  const getEmailForRequest = () => {
+    // Try multiple sources for email
+    const storedEmail = localStorage.getItem("userEmail");
+    const stateEmail = location.state?.email;
+    const currentEmail = email;
+    
+    const finalEmail = storedEmail || stateEmail || currentEmail;
+    console.log("Getting email for request:", {
+      storedEmail,
+      stateEmail,
+      currentEmail,
+      finalEmail
+    });
+    
+    return finalEmail;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -92,10 +138,28 @@ const OtpPage = () => {
     }
 
     try {
-      await verifyOtp({ email, otp: otpCode });
+      const emailToUse = getEmailForRequest();
+      
+      if (!emailToUse) {
+        setError("Email not found. Please go back and try the signup process again.");
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("Sending verification request:", { email: emailToUse, otp: otpCode });
+      
+      // Pass email and otp to verifyOtp
+      await verifyOtp({ 
+        email: emailToUse, 
+        otp: otpCode 
+      });
+      
       toast.success("OTP verified successfully!");
+      // Clear the stored email after successful verification
+      localStorage.removeItem("userEmail");
       navigate("/login");
     } catch (err) {
+      console.error("Verification error:", err);
       setError(err.response?.data?.message || "OTP verification failed");
     } finally {
       setIsLoading(false);
@@ -109,16 +173,49 @@ const OtpPage = () => {
     setSuccessMessage("");
 
     try {
-      const response = await resendOtp({ email });
+      const emailToUse = getEmailForRequest();
+      
+      if (!emailToUse) {
+        setError("Email not found. Please go back and try the signup process again.");
+        setIsResending(false);
+        return;
+      }
+
+      const payload = { email: emailToUse };
+      console.log("Sending resend request with payload:", payload);
+
+      const response = await resendOtp(payload);
+      console.log("Resend response:", response);
+
       setOtp(new Array(6).fill(""));
       setTimer(60);
-      setSuccessMessage(response.data?.message || "New OTP sent successfully!");
+      
+      // Update destination if backend provides it
+      if (response.data?.sentTo) {
+        setOtpDestination(response.data.sentTo);
+      }
+      
+      setSuccessMessage(response.data?.message || "New OTP sent successfully to your email!");
+      
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to resend OTP");
+      console.error("Resend error:", err);
+      setError(err?.response?.data?.message || "Failed to resend OTP. Please try again.");
     } finally {
       setIsResending(false);
     }
   };
+
+  // Show a loading state while we're trying to get the email
+  if (!email && !error) {
+    return (
+      <main className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans">
@@ -257,7 +354,7 @@ const OtpPage = () => {
             )}
 
             <p className="text-xs sm:text-sm md:text-base text-white/60 mb-4 sm:mb-5 md:mb-6 max-w-sm px-2">
-              Enter the code we sent to {email}.
+              Enter the code we sent to {otpDestination || email || "your email"}.
             </p>
 
             <div className="w-full mb-4 sm:mb-5 md:mb-6">
@@ -356,7 +453,7 @@ const OtpPage = () => {
                 <FaFacebookF size={12} className="text-white" />
               </button>
               <button
-                className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200"
+                className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#6d63ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200"
                 aria-label="Follow us on Instagram"
               >
                 <RiInstagramFill size={12} className="text-white" />
@@ -402,5 +499,4 @@ const OtpPage = () => {
     </main>
   );
 };
-
 export default OtpPage;

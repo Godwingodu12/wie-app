@@ -36,8 +36,14 @@ export const registerOrganisation = async (formData) => {
     throw err;
   }
 };
-export const verifyOtp = (data) => {
-  return api.post('/auth/verify-otp', data); // Adjust your endpoint
+export const verifyOtp = async (data) => {
+  try {
+    const response = await api.post('/auth/verify-otp', data);
+    return response.data;
+  } catch (err) {
+    console.error('verifyOtp error:', err);
+    throw err;
+  }
 };
 export const logout = () => {
   return api.post('/auth/logout');
@@ -53,13 +59,13 @@ export const forgotPassword = async (data) => {
 };
 export const resendOtp = async (data) => {
   try {
-    const res = await api.post('/auth/resend-otp', data); // data = { email } or { contact_no }
-    return res.data;
+    const response = await api.post('/auth/resend-otp', data);
+    return response; // Return full response object, not just response.data
   } catch (err) {
     console.error('resendOtp error:', err);
     throw err;
   }
-}
+};
 
 export const verifyUser = async (payload) => {
   try {
