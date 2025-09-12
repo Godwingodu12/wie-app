@@ -6,9 +6,12 @@ const createDirectories = () => {
   const dirs = [
     'uploads/guest_profiles',
     'uploads/event_rules',
+    'uploads/college_authorisations',
     'uploads/event_images',
     'uploads/event_logos',
-    'uploads/event_banners'
+    'uploads/event_banners',
+    'uploads/ticket_photos',
+    'uploads/ticket_layouts'
   ];
   
   dirs.forEach(dir => {
@@ -27,12 +30,20 @@ const storage = multer.diskStorage({
       cb(null, 'uploads/guest_profiles/');
     } else if (file.fieldname === 'event_rules') {
       cb(null, 'uploads/event_rules/');
+    } else if (file.fieldname === 'college_authorisation') {
+      cb(null, 'uploads/college_authorisations/');
     } else if (file.fieldname === 'event_logo') {
       cb(null, 'uploads/event_logos/');
     } else if (file.fieldname === 'event_banner') {
       cb(null, 'uploads/event_banners/');
     } else if (file.fieldname.startsWith('event_image')) {
       cb(null, 'uploads/event_images/');
+    } else if (file.fieldname === 'event_images') {
+      cb(null, 'uploads/event_images/');
+    } else if (file.fieldname.startsWith('ticket_photo')) {
+      cb(null, 'uploads/ticket_photos/');
+    } else if (file.fieldname === 'ticket_layout') {
+      cb(null, 'uploads/ticket_layouts/');
     } else {
       cb(null, 'uploads/');
     }
@@ -76,25 +87,63 @@ const upload = multer({
   fileFilter: generalFileFilter,
 });
 
-// Ticket Media specific file filter - for images and videos only
+// Enhanced Ticket Media specific file filter - for images, videos and documents
 const ticketMediaFileFilter = (req, file, cb) => {
   const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
   const videoTypes = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
+  const docTypes = ['.pdf', '.doc', '.docx']; // For college authorization and event rules
   const ext = path.extname(file.originalname).toLowerCase();
   
-  if (imageTypes.includes(ext) || videoTypes.includes(ext)) {
+  // Handle different field types
+  if (file.fieldname === 'college_authorisation') {
+    // College authorization must be document
+    if (docTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('College authorization file must be a document (PDF, DOC, DOCX)'), false);
+    }
+  } else if (file.fieldname === 'event_rules') {
+    // Event rules must be document
+    if (docTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Event rules file must be a document (PDF, DOC, DOCX)'), false);
+    }
+  } else if (file.fieldname.startsWith('guest_profile')) {
+    // Guest profiles must be images only
+    if (imageTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Guest profile must be an image file (JPG, JPEG, PNG, GIF, WEBP)'), false);
+    }
+  } else if (file.fieldname.startsWith('ticket_photo')) {
+    // Ticket photos must be images only
+    if (imageTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Ticket photo must be an image file (JPG, JPEG, PNG, GIF, WEBP)'), false);
+    }
+  } else if (file.fieldname === 'ticket_layout') {
+    // Ticket layout must be image only
+    if (imageTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Ticket layout must be an image file (JPG, JPEG, PNG, GIF, WEBP)'), false);
+    }
+  } else if (imageTypes.includes(ext) || videoTypes.includes(ext)) {
+    // Other media files (event_banner, event_images, etc.) can be images or videos
     cb(null, true);
   } else {
-    cb(new Error(`Only images (${imageTypes.join(', ')}) and videos (${videoTypes.join(', ')}) are allowed`), false);
+    cb(new Error(`Only images (${imageTypes.join(', ')}), videos (${videoTypes.join(', ')}), and documents (${docTypes.join(', ')}) are allowed`), false);
   }
 };
 
-// Ticket media upload middleware
+// Enhanced Ticket media upload middleware with dynamic field support
 const ticketMediaUpload = multer({
   storage,
   limits: { 
     fileSize: 50 * 1024 * 1024, // 50MB max for videos
-    files: 12 // Maximum 12 files total
+    files: 50 // Maximum 50 files total (increased to handle multiple ticket types)
   },
   fileFilter: ticketMediaFileFilter,
 });
@@ -126,11 +175,45 @@ export default upload;
 // Export the FIXED uploadFields for createTicketBasicInfo API
 export { uploadFields };
 
-// Export ticket media specific upload middleware
+// FIXED: Enhanced ticket media upload middleware with ALL required fields
 export const uploadTicketMedia = ticketMediaUpload.fields([
+  // Event media files
   { name: 'event_logo', maxCount: 1 },
   { name: 'event_banner', maxCount: 1 },
-  { name: 'event_images', maxCount: 10 }
+  { name: 'event_images', maxCount: 10 },
+  
+  // Guest profile images - supports up to 10 guests (FIXED: Added these)
+  { name: 'guest_profile_0', maxCount: 1 },
+  { name: 'guest_profile_1', maxCount: 1 },
+  { name: 'guest_profile_2', maxCount: 1 },
+  { name: 'guest_profile_3', maxCount: 1 },
+  { name: 'guest_profile_4', maxCount: 1 },
+  { name: 'guest_profile_5', maxCount: 1 },
+  { name: 'guest_profile_6', maxCount: 1 },
+  { name: 'guest_profile_7', maxCount: 1 },
+  { name: 'guest_profile_8', maxCount: 1 },
+  { name: 'guest_profile_9', maxCount: 1 },
+  
+  // Ticket photos for different ticket types (FIXED: Added these)
+  { name: 'ticket_photo_0', maxCount: 1 },
+  { name: 'ticket_photo_1', maxCount: 1 },
+  { name: 'ticket_photo_2', maxCount: 1 },
+  { name: 'ticket_photo_3', maxCount: 1 },
+  { name: 'ticket_photo_4', maxCount: 1 },
+  { name: 'ticket_photo_5', maxCount: 1 },
+  { name: 'ticket_photo_6', maxCount: 1 },
+  { name: 'ticket_photo_7', maxCount: 1 },
+  { name: 'ticket_photo_8', maxCount: 1 },
+  { name: 'ticket_photo_9', maxCount: 1 },
+  
+  // Additional fields for offline events (FIXED: Added these)
+  { name: 'ticket_layout', maxCount: 1 },
+  
+  // Event rules document (FIXED: Added this)
+  { name: 'event_rules', maxCount: 1 },
+  
+  // College authorization document
+  { name: 'college_authorisation', maxCount: 1 }
 ]);
 
 // Alternative: Single file upload for ticket media (if needed)
@@ -138,3 +221,26 @@ export const uploadSingleTicketMedia = ticketMediaUpload.single('file');
 
 // Alternative: Multiple files with same field name (if needed)
 export const uploadMultipleTicketMedia = ticketMediaUpload.array('files', 10);
+
+// Enhanced: Dynamic field support for any number of ticket photos
+export const createDynamicTicketUpload = (maxTicketTypes = 20) => {
+  const dynamicFields = [
+    // Fixed event media fields
+    { name: 'event_logo', maxCount: 1 },
+    { name: 'event_banner', maxCount: 1 },
+    { name: 'event_images', maxCount: 10 },
+    
+    // Guest profiles
+    ...Array.from({ length: 10 }, (_, i) => ({ name: `guest_profile_${i}`, maxCount: 1 })),
+    
+    // Dynamic ticket photos based on maxTicketTypes
+    ...Array.from({ length: maxTicketTypes }, (_, i) => ({ name: `ticket_photo_${i}`, maxCount: 1 })),
+    
+    // Other fields
+    { name: 'ticket_layout', maxCount: 1 },
+    { name: 'event_rules', maxCount: 1 },
+    { name: 'college_authorisation', maxCount: 1 }
+  ];
+  
+  return ticketMediaUpload.fields(dynamicFields);
+};
