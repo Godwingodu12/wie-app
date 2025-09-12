@@ -422,7 +422,6 @@ export const createTicketBasicInfo = async (req, res) => {
     const uploadedFiles = req.files || {};
     
     // Handle multiple guest profile uploads and event rules
-    // Expected file fields: guest_profile_0, guest_profile_1, ..., guest_profile_9, event_rules
     const guestProfileFiles = {};
     const eventRulesFiles = uploadedFiles.event_rules || [];
 
@@ -445,6 +444,163 @@ export const createTicketBasicInfo = async (req, res) => {
       return res.status(400).json({ 
         message: "Invalid group ID format. Please provide a valid MongoDB ObjectId.",
         groupId: groupId
+      });
+    }
+
+    // Helper function to validate date format and check if it's not in the past
+    const validateDate = (dateString, fieldName) => {
+      if (!dateString) return false;
+      
+      // Check if date is in YYYY-MM-DD format
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(dateString)) {
+        throw new Error(`${fieldName} must be in YYYY-MM-DD format`);
+      }
+      
+      const date = new Date(dateString);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset time to start of day
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        throw new Error(`${fieldName} is not a valid date`);
+      }
+      
+      // Check if date is not in the past
+      if (date < today) {
+        throw new Error(`${fieldName} cannot be a past date`);
+      }
+      
+      return true;
+    };
+
+    // Helper function to validate time format
+    const validateTime = (timeString, fieldName) => {
+      if (!timeString) return true; // Time is optional
+      
+      // Check if time is in HH:MM format (24-hour)
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(timeString)) {
+        throw new Error(`${fieldName} must be in HH:MM format (24-hour)`);
+      }
+      
+      return true;
+    };
+
+    // Process event dates with validation - FIXED for multipart/form-data
+    let totalEventDates = [];
+    if (event_dates) {
+      let eventDatesArray;
+      
+      // In multipart/form-data, everything comes as string, so we need to parse it
+      if (typeof event_dates === 'string') {
+        try {
+          // Clean the string first (remove any extra whitespace, newlines)
+          const cleanedEventDates = event_dates.trim();
+          eventDatesArray = JSON.parse(cleanedEventDates);
+          
+          // Ensure it's an array after parsing
+          if (!Array.isArray(eventDatesArray)) {
+            return res.status(400).json({
+              message: "event_dates must be an array of date objects"
+            });
+          }
+        } catch (error) {
+          return res.status(400).json({
+            message: "Invalid event_dates format. Must be valid JSON array string in multipart form.",
+            error: error.message,
+            received: typeof event_dates,
+            sample_format: '[{"start_date":"2025-07-15","end_date":"2025-07-17","start_time":"18:00","end_time":"23:00"}]'
+          });
+        }
+      } else if (Array.isArray(event_dates)) {
+        eventDatesArray = event_dates;
+      } else {
+        return res.status(400).json({
+          message: "event_dates must be a JSON array string (for multipart form) or array",
+          received: typeof event_dates
+        });
+      }
+
+      // Validate array is not empty
+      if (!eventDatesArray || eventDatesArray.length === 0) {
+        return res.status(400).json({
+          message: "event_dates array cannot be empty"
+        });
+      }
+
+      // Validate based on event_date_type
+      if (event_date_type === 'one-day' && eventDatesArray.length > 1) {
+        return res.status(400).json({
+          message: "One-day events can only have one date entry"
+        });
+      }
+
+      // Process and validate each date entry
+      try {
+        totalEventDates = eventDatesArray.map((eventDate, index) => {
+          // Ensure eventDate is an object
+          if (typeof eventDate !== 'object' || eventDate === null) {
+            throw new Error(`Event date entry ${index + 1} must be an object`);
+          }
+
+          const { start_date, end_date, start_time, end_time } = eventDate;
+
+          // Validate required start_date
+          if (!start_date) {
+            throw new Error(`Event date entry ${index + 1}: start_date is required`);
+          }
+
+          // Validate start_date
+          validateDate(start_date, `Event date entry ${index + 1}: start_date`);
+
+          // Validate end_date if provided, otherwise set to start_date
+          let validatedEndDate = start_date; // Default to start_date
+          if (end_date) {
+            validateDate(end_date, `Event date entry ${index + 1}: end_date`);
+            
+            // Ensure end_date is not before start_date
+            if (new Date(end_date) < new Date(start_date)) {
+              throw new Error(`Event date entry ${index + 1}: end_date cannot be before start_date`);
+            }
+            validatedEndDate = end_date;
+          }
+
+          // Validate times if provided
+          if (start_time) {
+            validateTime(start_time, `Event date entry ${index + 1}: start_time`);
+          }
+          if (end_time) {
+            validateTime(end_time, `Event date entry ${index + 1}: end_time`);
+          }
+
+          // Validate time logic
+          if (start_time && end_time) {
+            const startTimeMinutes = start_time.split(':').reduce((acc, time) => (60 * acc) + +time, 0);
+            const endTimeMinutes = end_time.split(':').reduce((acc, time) => (60 * acc) + +time, 0);
+            
+            // If it's the same day, end_time should be after start_time
+            if (start_date === validatedEndDate && endTimeMinutes <= startTimeMinutes) {
+              throw new Error(`Event date entry ${index + 1}: end_time must be after start_time for same-day events`);
+            }
+          }
+
+          return {
+            start_date: start_date.trim(),
+            end_date: validatedEndDate.trim(),
+            start_time: start_time ? start_time.trim() : '',
+            end_time: end_time ? end_time.trim() : ''
+          };
+        });
+      } catch (validationError) {
+        return res.status(400).json({
+          message: "Date validation error",
+          error: validationError.message
+        });
+      }
+    } else {
+      return res.status(400).json({
+        message: "event_dates is required"
       });
     }
 
@@ -563,6 +719,7 @@ export const createTicketBasicInfo = async (req, res) => {
         });
       }
     }
+
     const validDateTypes = ['one-day', 'multi-day', 'weekly'];
     if (!validDateTypes.includes(event_date_type)) {
       return res.status(400).json({
@@ -653,39 +810,6 @@ export const createTicketBasicInfo = async (req, res) => {
       });
     }
 
-    // Process event dates - Fixed to handle multiple dates correctly
-    let totalEventDates = [];
-    if(event_dates) {
-      const eventDatesArray = parseJSONSafely(event_dates, []);
-      
-      // Validate based on event_date_type
-      if (event_date_type === 'one-day' && eventDatesArray.length > 1) {
-        return res.status(400).json({
-          message: "One-day events can only have one date entry"
-        });
-      }
-      
-      totalEventDates = eventDatesArray.map((eventDate) => {
-        let dateData = {
-          start_date: '',
-          end_date: '',
-          start_time: '',
-          end_time: '',
-        };
-        
-        if (typeof eventDate === 'object' && eventDate !== null) {
-          dateData = {
-            start_date: eventDate.start_date || '',
-            end_date: eventDate.end_date || eventDate.start_date || '', // Default end_date to start_date if not provided
-            start_time: eventDate.start_time || '',
-            end_time: eventDate.end_time || '',
-          };
-        }
-        
-        return dateData;
-      });
-    }
-
     // Create ticket data object with location-type specific fields
     const ticketData = {
       // Basic Information
@@ -701,9 +825,9 @@ export const createTicketBasicInfo = async (req, res) => {
       // Location
       location_type: location_type,
       
-      // Date and Time
+      // Date and Time - FIXED: Properly assign the processed dates
       event_date_type,
-      event_dates: totalEventDates,
+      event_dates: totalEventDates, // This now contains properly validated dates
       
       // Social Media and Rules
       event_instagram_link: event_instagram_link?.trim() || '',
@@ -788,7 +912,8 @@ export const createTicketBasicInfo = async (req, res) => {
         event_rules: eventRulesFiles.length
       },
       processedGuests: processedGuests.length,
-      eventDatesCount: totalEventDates.length
+      eventDatesCount: totalEventDates.length,
+      eventDates: totalEventDates // Include the processed dates in response
     };
 
     // Add location-specific response information
