@@ -10,7 +10,7 @@ router.post('/create-group', CreateGroup);
 router.get('/get-groups', getGroups);
 router.get('/user-group-capabilities', getUserGroupCapabilities);
 router.post('/update-ticket-media/:ticketId', updateTicketMedia);
-router.post('/ticket-addons', updateTicketAddOns);
+router.post('/ticket-addons/:ticketId', updateTicketAddOns);
 router.post('/update-ticket-details', updateTicketDetails);
 router.post('/ticket-terms', updateTicketTerms);
 router.post('/submit-ticket', submitTicket);

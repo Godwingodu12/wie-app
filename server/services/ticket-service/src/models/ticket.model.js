@@ -52,7 +52,90 @@ const fileSchema = new mongoose.Schema({
   content: { type: String }, // For text type
   uploadedAt: { type: Date, default: Date.now }
 });
-
+// Sub Event Schema (for add-on events)
+const subEventSchema = new mongoose.Schema({
+  event_name: { type: String, required: true },
+  event_category: { type: String, required: true },
+  event_subcategory: { type: String, required: true },
+  event_type: { type: String, required: true,enum: ['private', 'public']},
+  
+  // FIXED: Changed from String to Array for sub events too
+  event_language: [{ 
+    type: String, 
+    enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other']
+  }],
+  location_type: {type: String, enum: ['offline', 'online', 'recorded'], required: true},
+  min_age_allowed: { type: Number, required: true },
+  seating_arrangement: { type: String, default: false, enum: ['seated', 'standing','seated and standing','other']},
+  kids_friendly: { type: Boolean, default: false },
+  pet_friendly: { type: Boolean, default: false },
+  location: { type: String, required: true },
+  venue: { type: String, required: true },
+  exact_map_location: {
+    latitude: { type: Number },
+    longitude: { type: Number },
+    address: { type: String }
+  },
+  
+  // Date and Time
+  event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: false },
+  event_dates: [ticketdateSchema], // Supports multiple dates for multi-day or weekly events
+  gate_open_time: { type: String, required: false },
+  event_instagram_link: { type: String, required: false },
+  event_youtube_link: { type: String, required: false },
+  //for online event
+  event_link: { type: String},
+  verification_event_code: { type: String},
+  // FIXED: Changed from String to Object for sub events too
+  event_rules: fileSchema,
+  
+  POCS: [POCSchema],
+  prohibited_items: [{ type: String }], // Array of prohibited items
+  // Description and Media
+  event_description: { type: String, required: true },
+  event_logo: { type: String, required: false },
+  event_banner: { type: String, required: true },
+  event_images: [{
+      path: {
+        type: String,
+        required: true
+      },
+      originalName: {
+        type: String,
+        required: true
+      },
+      mimeType: {
+        type: String,
+        required: true
+      },
+      size: {
+        type: Number,
+        required: true
+      },
+      uploadedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],  
+  
+  // Event Details
+  hashtag: [{ type: String }], // Array of hashtags
+  payment_type: { type: String, enum: ['free', 'paid'], required: true },
+  
+  // Banking Details for sub-events
+  banking_details: [bankingDetailsSchema],
+  
+  // Multiple Guests, Guides, and Ticket Types for sub-events
+  guests: [guestSchema],
+  ticket_types: [ticketTypeSchema],
+  ticket_layout: { type: String, required: false },
+  // Status
+  event_status: {
+    type: String,
+    enum: ['pending', 'confirmed', 'cancelled', 'live'],
+    default: 'pending'
+  },
+}, { timestamps: true });
 // Main Ticket Schema (Event)
 const ticketSchema = new mongoose.Schema({
   // Basic Information
@@ -101,16 +184,6 @@ const ticketSchema = new mongoose.Schema({
   event_description: { type: String, required: false },
   event_logo: { type: String, required: false },
   event_banner: { type: String, required: false },
-  
-  // Guest profile for single guest
-  guest_profile: {
-    path: { type: String },
-    originalName: { type: String },
-    mimeType: { type: String },
-    size: { type: Number },
-    uploadedAt: { type: Date, default: Date.now }
-  },
-  
   event_images: [{
     path: {
       type: String,
@@ -153,7 +226,7 @@ const ticketSchema = new mongoose.Schema({
   //ticket offer or bulk booking
   event_ticket_offer: { type: Boolean, default: false },
   offerTickets: [offerTicketSchema],
-  
+  sub_events: [subEventSchema], // Array of sub-events (add-on events)
   // References
   groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'CreateGroup', required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -183,92 +256,6 @@ const ticketSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
-
-// Sub Event Schema (for add-on events)
-const subEventSchema = new mongoose.Schema({
-  event_name: { type: String, required: true },
-  event_category: { type: String, required: true },
-  event_subcategory: { type: String, required: true },
-  event_type: { type: String, required: true,enum: ['private', 'public']},
-  
-  // FIXED: Changed from String to Array for sub events too
-  event_language: [{ 
-    type: String, 
-    enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other']
-  }],
-  location_type: {type: String, enum: ['offline', 'online', 'recorded'], required: true},
-  min_age_allowed: { type: Number, required: true },
-  seating_arrangement: { type: String, default: false, enum: ['seated', 'standing','seated and standing','other']},
-  kids_friendly: { type: Boolean, default: false },
-  pet_friendly: { type: Boolean, default: false },
-  location: { type: String, required: true },
-  venue: { type: String, required: true },
-  exact_map_location: {
-    latitude: { type: Number },
-    longitude: { type: Number },
-    address: { type: String }
-  },
-  
-  // Date and Time
-  event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: false },
-  event_dates: [ticketdateSchema], // Supports multiple dates for multi-day or weekly events
-  gate_open_time: { type: String, required: false },
-  event_instagram_link: { type: String, required: false },
-  event_youtube_link: { type: String, required: false },
-  //for online event
-  event_link: { type: String},
-  verification_event_code: { type: String},
-  // FIXED: Changed from String to Object for sub events too
-  event_rules: fileSchema,
-  
-  POCS: [POCSchema],
-  prohibited_items: [{ type: String }], // Array of prohibited items
-  
-  // Description and Media
-  event_description: { type: String, required: true },
-  event_logo: { type: String, required: true },
-  event_banner: { type: String, required: true },
-  event_images: [{
-      path: {
-        type: String,
-        required: true
-      },
-      originalName: {
-        type: String,
-        required: true
-      },
-      mimeType: {
-        type: String,
-        required: true
-      },
-      size: {
-        type: Number,
-        required: true
-      },
-      uploadedAt: {
-        type: Date,
-        default: Date.now
-      }
-    }],  
-  
-  // Event Details
-  hashtag: [{ type: String }], // Array of hashtags
-  payment_type: { type: String, enum: ['free', 'paid'], required: true },
-  
-  // Banking Details for sub-events
-  banking_details: [bankingDetailsSchema],
-  
-  // Multiple Guests, Guides, and Ticket Types for sub-events
-  guests: [guestSchema],
-  ticket_types: [ticketTypeSchema],
-  
-  // Status
-  event_status: {
-    type: String,
-    enum: ['pending', 'confirmed', 'cancelled', 'live'],
-    default: 'pending'
-  },
-}, { timestamps: true });
 // Indexes for better performance
 ticketSchema.index({ groupId: 1, userId: 1 });
 ticketSchema.index({ event_status: 1 });

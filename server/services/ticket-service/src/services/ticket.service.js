@@ -563,7 +563,6 @@ export const createTicketBasicInfo = async (req, res) => {
         });
       }
     }
-
     const validDateTypes = ['one-day', 'multi-day', 'weekly'];
     if (!validDateTypes.includes(event_date_type)) {
       return res.status(400).json({
@@ -1059,31 +1058,936 @@ export const updateTicketMedia = async (req, res) => {
   }
 };
 export const updateTicketAddOns = async (req, res) => {
+  const ticketId = req.params.ticketId;
+  
+  if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+    return res.status(400).json({ 
+      message: "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
+      ticketId: ticketId
+    });
+  }
+
+  // Add the missing parseJSONSafely utility function
+  const parseJSONSafely = (str, defaultValue = []) => {
+    try {
+      if (typeof str === 'string') {
+        return JSON.parse(str);
+      }
+      if (Array.isArray(str)) {
+        return str;
+      }
+      return defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  };
+
   try {
-    const { 
-      ticketId,
-      sub_events, 
-      banking_details, 
-      payment_type,
-      hashtag 
-    } = req.body;
-    // Validate required parameters
-    if (!ticketId) {
+    // Handle file uploads first with better error handling
+    await new Promise((resolve, reject) => {
+      uploadTicketMedia(req, res, (err) => {
+        if (err) {
+          console.error("Multer error:", err);
+          console.error("Error code:", err.code);
+          console.error("Error message:", err.message);
+          console.error("Error field:", err.field);
+          return reject(err);
+        }
+        resolve();
+      });
+    });
+
+    const userId = req.user._id || req.user.id;
+    
+    // Check if ticket exists
+    const existingTicket = await Ticket.findById(ticketId);
+    if (!existingTicket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+
+    // Enhanced sub_event data parsing with fallback logic
+    let subEventData;
+
+    try {
+      // First, try to parse from req.body.sub_event (expected format)
+      if (req.body.sub_event) {
+        subEventData = typeof req.body.sub_event === 'string' 
+          ? JSON.parse(req.body.sub_event) 
+          : req.body.sub_event;
+      } 
+      // Fallback: If sub_event is not provided, try to use the entire req.body
+      else if (req.body.event_name || req.body.event_category || req.body.location_type) {
+        // Data is sent directly in req.body (not wrapped in sub_event)
+        subEventData = req.body;
+      }
+      // Another fallback: Check for common variations
+      else if (req.body.subevent || req.body.subEvent) {
+        const subEventField = req.body.subevent || req.body.subEvent;
+        subEventData = typeof subEventField === 'string' 
+          ? JSON.parse(subEventField) 
+          : subEventField;
+      }
+      // Last fallback: Check if data is stringified in the entire body
+      else if (typeof req.body === 'string') {
+        const parsedBody = JSON.parse(req.body);
+        subEventData = parsedBody.sub_event || parsedBody;
+      }
+
+    } catch (parseError) {
+      console.error("Error parsing sub_event data:", parseError);
       return res.status(400).json({ 
-        message: "Missing required parameters",
-        required: ["ticketId"]
+        message: "Invalid sub_event data format",
+        error: parseError.message,
+        hint: "Make sure your data is properly formatted JSON",
+        receivedFields: Object.keys(req.body)
       });
     }
-    const userId = req.user._id || req.user.id;
+
+    // Enhanced validation with better error messages
+    if (!subEventData) {
+      return res.status(400).json({ 
+        message: "sub_event data is required",
+        receivedFields: Object.keys(req.body),
+        expectedFormat: "Send data in 'sub_event' field or include event fields directly in request body",
+        hint: "Required fields include: event_name, event_category, location_type, etc."
+      });
+    }
+
+    // Additional validation to ensure it's an object
+    if (typeof subEventData !== 'object' || Array.isArray(subEventData)) {
+      return res.status(400).json({
+        message: "sub_event data must be an object",
+        receivedType: Array.isArray(subEventData) ? 'array' : typeof subEventData,
+        hint: "Send data as a JSON object with event fields"
+      });
+    }
+
+    // Base required fields for all location types
+    const baseRequiredFields = [
+      { key: 'event_name', value: subEventData.event_name },
+      { key: 'event_category', value: subEventData.event_category },
+      { key: 'event_subcategory', value: subEventData.event_subcategory },
+      { key: 'event_type', value: subEventData.event_type },
+      { key: 'event_language', value: subEventData.event_language },
+      { key: 'location_type', value: subEventData.location_type },
+      { key: 'event_dates', value: subEventData.event_dates },
+      { key: 'min_age_allowed', value: subEventData.min_age_allowed },
+      { key: 'event_description', value: subEventData.event_description },
+      { key: 'payment_type', value: subEventData.payment_type },
+      { key: 'POCS', value: subEventData.POCS },
+      { key: 'hashtag', value: subEventData.hashtag }
+    ];
+
+    // Location-type specific required fields
+    let locationSpecificRequiredFields = [];
+    
+    if (subEventData.location_type === 'offline') {
+      locationSpecificRequiredFields = [
+        { key: 'location', value: subEventData.location },
+        { key: 'venue', value: subEventData.venue },
+        { key: 'seating_arrangement', value: subEventData.seating_arrangement }
+      ];
+    } else if (subEventData.location_type === 'online' || subEventData.location_type === 'recorded') {
+      locationSpecificRequiredFields = [
+        { key: 'event_link', value: subEventData.event_link }
+      ];
+    }
+
+    // Combine all required fields
+    const allRequiredFields = [...baseRequiredFields, ...locationSpecificRequiredFields];
+
+    const missingFields = allRequiredFields
+      .filter(({ value }) => !value)
+      .map(({ key }) => key);
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        message: "Missing required fields",
+        missingFields: missingFields,
+        note: subEventData.location_type === 'offline' 
+          ? "For offline events: location, venue, and seating_arrangement are required"
+          : subEventData.location_type === 'online' || subEventData.location_type === 'recorded'
+          ? "For online/recorded events: event_link is required"
+          : ""
+      });
+    }
+
+    // Validate enum fields
+    const validEventTypes = ['private', 'public'];
+    if (!validEventTypes.includes(subEventData.event_type)) {
+      return res.status(400).json({
+        message: "Invalid event_type",
+        provided: subEventData.event_type,
+        validOptions: validEventTypes
+      });
+    }
+
+    const validLanguages = [
+      'English', 'Hindi', 'Malayalam', 'Tamil', 'Kannada', 'Telugu', 
+      'Marathi', 'Gujarati', 'Punjabi', 'Urdu', 'Bengali', 'Spanish', 
+      'French', 'German', 'Chinese', 'Japanese', 'Russian', 'Turkish', 
+      'Korean', 'Portuguese', 'Arabic', 'Indonesian', 'Vietnamese', 'Other'
+    ];
+
+    // Parse and validate event_language as array
+    const languageArray = parseJSONSafely(subEventData.event_language, []);
+    if (languageArray.length > 0) {
+      const invalidLanguages = languageArray.filter(lang => !validLanguages.includes(lang));
+      if (invalidLanguages.length > 0) {
+        return res.status(400).json({
+          message: "Invalid event_language(s)",
+          provided: invalidLanguages,
+          validOptions: validLanguages
+        });
+      }
+    }
+
+    const validLocationTypes = ['offline', 'online', 'recorded'];
+    if (!validLocationTypes.includes(subEventData.location_type)) {
+      return res.status(400).json({
+        message: "Invalid location_type",
+        provided: subEventData.location_type,
+        validOptions: validLocationTypes
+      });
+    }
+
+    // Validate seating_arrangement only for offline events
+    if (subEventData.location_type === 'offline' && subEventData.seating_arrangement) {
+      const validSeatingArrangements = ['seated', 'standing', 'seated and standing', 'other'];
+      if (!validSeatingArrangements.includes(subEventData.seating_arrangement)) {
+        return res.status(400).json({
+          message: "Invalid seating_arrangement",
+          provided: subEventData.seating_arrangement,
+          validOptions: validSeatingArrangements
+        });
+      }
+    }
+
+    const validPaymentTypes = ['free', 'paid'];
+    if (!validPaymentTypes.includes(subEventData.payment_type)) {
+      return res.status(400).json({
+        message: "Invalid payment_type",
+        provided: subEventData.payment_type,
+        validOptions: validPaymentTypes
+      });
+    }
+
+    // Age validation
+    const ageNum = Number(subEventData.min_age_allowed);
+    if (isNaN(ageNum) || ageNum < 0 || ageNum > 100) {
+      return res.status(400).json({
+        message: "Minimum age allowed must be between 0 and 100"
+      });
+    }
+
+    // Process uploaded files - Fixed file handling logic
+    const processedFiles = {};
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const docExtensions = ['.pdf', '.doc', '.docx'];
+    
+    // Get uploaded files - Fix the file processing logic
+    const uploadedFiles = req.files || {};
+    
+    // Handle guest profile uploads (guest_profile_0, guest_profile_1, etc.)
+    const guestProfileFiles = {};
+    
+    // Handle ticket photo uploads (ticket_photo_0, ticket_photo_1, etc.) for offline events
+    const ticketPhotoFiles = {};
+    
+    // Extract guest profile files and ticket photo files from uploaded files
+    Object.keys(uploadedFiles).forEach(fieldName => {
+      // Handle guest profile files
+      if (fieldName.startsWith('guest_profile_')) {
+        const index = fieldName.split('_')[2]; // Extract index from guest_profile_X
+        if (!isNaN(index) && parseInt(index) >= 0 && parseInt(index) <= 9) {
+          const profileFile = uploadedFiles[fieldName][0]; // Take first file
+          const ext = '.' + profileFile.originalname.toLowerCase().split('.').pop();
+          if (!imageExtensions.includes(ext)) {
+            throw new Error(`Guest profile ${index} must be an image file (JPG, JPEG, PNG, GIF, WEBP)`);
+          }
+          guestProfileFiles[parseInt(index)] = profileFile;
+        }
+      }
+      
+      // Handle ticket photo files (only for offline events)
+      if (fieldName.startsWith('ticket_photo_')) {
+        const index = fieldName.split('_')[2]; // Extract index from ticket_photo_X
+        if (!isNaN(index) && parseInt(index) >= 0) {
+          const ticketPhotoFile = uploadedFiles[fieldName][0]; // Take first file
+          const ext = '.' + ticketPhotoFile.originalname.toLowerCase().split('.').pop();
+          if (!imageExtensions.includes(ext)) {
+            throw new Error(`Ticket photo ${index} must be an image file (JPG, JPEG, PNG, GIF, WEBP)`);
+          }
+          ticketPhotoFiles[parseInt(index)] = ticketPhotoFile;
+        }
+      }
+    });
+    
+    if (uploadedFiles) {
+      // Handle event banner (required)
+      if (uploadedFiles.event_banner && uploadedFiles.event_banner[0]) {
+        const bannerFile = uploadedFiles.event_banner[0];
+        const ext = '.' + bannerFile.originalname.toLowerCase().split('.').pop();
+        if (!imageExtensions.includes(ext)) {
+          return res.status(400).json({
+            message: "Event banner must be an image file (JPG, JPEG, PNG, GIF, WEBP)"
+          });
+        }
+        processedFiles.event_banner = bannerFile.path;
+      }
+      
+      // Handle event images (max 10)
+      if (uploadedFiles.event_images && uploadedFiles.event_images.length > 0) {
+        if (uploadedFiles.event_images.length > 10) {
+          return res.status(400).json({
+            message: "Maximum 10 event images allowed"
+          });
+        }
+        
+        // Validate each image file
+        for (const imageFile of uploadedFiles.event_images) {
+          const ext = '.' + imageFile.originalname.toLowerCase().split('.').pop();
+          if (!imageExtensions.includes(ext)) {
+            return res.status(400).json({
+              message: `Event image '${imageFile.originalname}' must be an image file (JPG, JPEG, PNG, GIF, WEBP)`
+            });
+          }
+        }
+        
+        processedFiles.event_images = uploadedFiles.event_images.map(file => ({
+          path: file.path,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          uploadedAt: new Date()
+        }));
+      }
+      
+      // Handle event rules file
+      if (uploadedFiles.event_rules && uploadedFiles.event_rules[0]) {
+        const rulesFile = uploadedFiles.event_rules[0];
+        const ext = '.' + rulesFile.originalname.toLowerCase().split('.').pop();
+        if (!docExtensions.includes(ext)) {
+          return res.status(400).json({
+            message: "Event rules file must be a document (PDF, DOC, DOCX)"
+          });
+        }
+        
+        processedFiles.event_rules = {
+          type: 'file',
+          path: rulesFile.path,
+          originalName: rulesFile.originalname,
+          mimeType: rulesFile.mimetype,
+          size: rulesFile.size,
+          uploadedAt: new Date()
+        };
+      }
+
+      // Handle ticket layout (only for offline events)
+      if (uploadedFiles.ticket_layout && uploadedFiles.ticket_layout[0] && subEventData.location_type === 'offline') {
+        const layoutFile = uploadedFiles.ticket_layout[0];
+        const ext = '.' + layoutFile.originalname.toLowerCase().split('.').pop();
+        if (!imageExtensions.includes(ext)) {
+          return res.status(400).json({
+            message: "Ticket layout must be an image file (JPG, JPEG, PNG, GIF, WEBP)"
+          });
+        }
+        processedFiles.ticket_layout = layoutFile.path;
+      }
+
+      // Handle event logo (if provided)
+      if (uploadedFiles.event_logo && uploadedFiles.event_logo[0]) {
+        const logoFile = uploadedFiles.event_logo[0];
+        const ext = '.' + logoFile.originalname.toLowerCase().split('.').pop();
+        if (!imageExtensions.includes(ext)) {
+          return res.status(400).json({
+            message: "Event logo must be an image file (JPG, JPEG, PNG, GIF, WEBP)"
+          });
+        }
+        processedFiles.event_logo = logoFile.path;
+      }
+      
+      // Store the processed file objects
+      processedFiles.guestProfileFiles = guestProfileFiles;
+      processedFiles.ticketPhotoFiles = ticketPhotoFiles;
+    }
+
+    // Validate required event banner
+    if (!processedFiles.event_banner) {
+      return res.status(400).json({
+        message: "Event banner is required for sub-events"
+      });
+    }
+
+    // Parse complex nested data structures
+    const parseNestedData = (data, fieldName) => {
+      if (!data) return [];
+      try {
+        if (typeof data === 'string') {
+          return JSON.parse(data);
+        }
+        return Array.isArray(data) ? data : [data];
+      } catch (error) {
+        console.warn(`Error parsing ${fieldName}:`, error);
+        return [];
+      }
+    };
+
+    // Parse nested arrays from request body
+    const guests = parseNestedData(subEventData.guests || req.body.guests, 'guests');
+    const bankingDetails = parseNestedData(subEventData.banking_details || req.body.banking_details, 'banking_details');
+    const POCS = parseNestedData(subEventData.POCS || req.body.POCS, 'POCS');
+    const eventDates = parseNestedData(subEventData.event_dates || req.body.event_dates, 'event_dates');
+    const ticketTypes = parseNestedData(subEventData.ticket_types || req.body.ticket_types, 'ticket_types');
+
+    // Process guests with profile images
+    let processedGuests = [];
+    if (guests && guests.length > 0) {
+      // Limit to maximum 10 guests
+      if (guests.length > 10) {
+        return res.status(400).json({
+          message: "Maximum 10 guests allowed"
+        });
+      }
+
+      processedGuests = guests.map((guest, index) => {
+        let guestData = {
+          guest_name: '',
+          guest_profile: '',
+          guest_link: ''
+        };
+        
+        if (typeof guest === 'string') {
+          guestData.guest_name = guest;
+        } else if (typeof guest === 'object' && guest !== null) {
+          guestData = {
+            guest_name: guest.guest_name || '',
+            guest_profile: guest.guest_profile || '',
+            guest_link: guest.guest_link || ''
+          };
+        }
+        
+        // Add uploaded profile image path if available
+        if (guestProfileFiles[index]) {
+          guestData.guest_profile = guestProfileFiles[index].path;
+        }
+
+        return guestData;
+      });
+    }
+
+    // Process ticket types with photos (only for offline events)
+    let processedTicketTypes = [];
+    if (subEventData.location_type === 'offline' && ticketTypes && ticketTypes.length > 0) {
+      processedTicketTypes = ticketTypes.map((ticket, index) => {
+        // Validate required fields for each ticket type
+        const requiredTicketFields = ['ticket_type', 'ticket_price', 'max_capacity'];
+        const missingTicketFields = requiredTicketFields.filter(field => !ticket[field] && ticket[field] !== 0);
+        
+        if (missingTicketFields.length > 0) {
+          throw new Error(`Missing required fields for ticket type ${index + 1}: ${missingTicketFields.join(', ')}`);
+        }
+
+        // Validate ticket price and capacity
+        const ticketPrice = Number(ticket.ticket_price);
+        const maxCapacity = Number(ticket.max_capacity);
+
+        if (isNaN(ticketPrice) || ticketPrice < 0) {
+          throw new Error(`Invalid ticket price for ticket type ${index + 1}. Must be a non-negative number.`);
+        }
+
+        if (isNaN(maxCapacity) || maxCapacity <= 0) {
+          throw new Error(`Invalid max capacity for ticket type ${index + 1}. Must be a positive number.`);
+        }
+
+        const ticketData = {
+          ticket_type: ticket.ticket_type.trim(),
+          ticket_price: ticketPrice,
+          max_capacity: maxCapacity,
+          ticket_photo: ticket.ticket_photo || '' // existing photo URL if any
+        };
+        
+        // Add uploaded ticket photo if available
+        if (ticketPhotoFiles[index]) {
+          ticketData.ticket_photo = ticketPhotoFiles[index].path;
+        }
+        
+        return ticketData;
+      });
+    }
+
+    // Parse exact map location (only for offline events)
+    let exactMapLocation = {};
+    if (subEventData.location_type === 'offline' && subEventData.exact_map_location) {
+      try {
+        exactMapLocation = typeof subEventData.exact_map_location === 'string' 
+          ? JSON.parse(subEventData.exact_map_location)
+          : subEventData.exact_map_location;
+      } catch (error) {
+        console.warn('Error parsing exact_map_location:', error);
+      }
+    }
+
+    // Create new sub-event object with proper field validation and types
+    const newSubEvent = {
+      // Basic required fields - ensure proper types
+      event_name: String(subEventData.event_name).trim(),
+      event_category: String(subEventData.event_category).trim(),
+      event_subcategory: subEventData.event_subcategory ? String(subEventData.event_subcategory).trim() : '',
+      event_type: String(subEventData.event_type),
+      location_type: String(subEventData.location_type),
+      min_age_allowed: Number(ageNum),
+      event_description: String(subEventData.event_description).trim(),
+      payment_type: String(subEventData.payment_type),
+
+      // Boolean fields - ensure proper boolean conversion
+      kids_friendly: Boolean(subEventData.kids_friendly === 'true' || subEventData.kids_friendly === true),
+      pet_friendly: Boolean(subEventData.pet_friendly === 'true' || subEventData.pet_friendly === true),
+      
+      // Optional string fields
+      event_date_type: subEventData.event_date_type ? String(subEventData.event_date_type) : '',
+      event_instagram_link: subEventData.event_instagram_link ? String(subEventData.event_instagram_link).trim() : '',
+      event_youtube_link: subEventData.event_youtube_link ? String(subEventData.event_youtube_link).trim() : '',
+      event_status: 'pending',
+
+      // Arrays - ensure they are proper arrays
+      event_language: Array.isArray(languageArray) ? languageArray.map(lang => String(lang)) : [],
+      hashtag: Array.isArray(parseJSONSafely(subEventData.hashtag, [])) ? 
+        parseJSONSafely(subEventData.hashtag, []).map(tag => String(tag)) : [],
+
+      // Complex nested objects - validate structure
+      guests: processedGuests.map(guest => ({
+        guest_name: String(guest.guest_name || ''),
+        guest_profile: String(guest.guest_profile || ''),
+        guest_link: String(guest.guest_link || '')
+      })),
+
+      banking_details: bankingDetails.map(banking => ({
+        bank_acc_type: String(banking.bank_acc_type || ''),
+        bank_acc_no: String(banking.bank_acc_no || ''),
+        bank_ifsc: String(banking.bank_ifsc || ''),
+        bank_acc_holder: String(banking.bank_acc_holder || '')
+      })),
+
+      POCS: POCS.map(poc => ({
+        POC_name: String(poc.POC_name || ''),
+        POC_email: String(poc.POC_email || ''),
+        POC_contact: String(poc.POC_contact || '')
+      })),
+
+      event_dates: eventDates.map(date => ({
+        start_date: String(date.start_date || ''),
+        end_date: String(date.end_date || ''),
+        start_time: String(date.start_time || ''),
+        end_time: String(date.end_time || '')
+      })),
+
+      // File uploads - ensure proper string paths
+      event_banner: String(processedFiles.event_banner || ''),
+      event_logo: String(processedFiles.event_logo || ''),
+      
+      // Array of image objects
+      event_images: (processedFiles.event_images || []).map(img => ({
+        path: String(img.path),
+        originalName: String(img.originalName),
+        mimeType: String(img.mimeType),
+        size: Number(img.size),
+        uploadedAt: new Date(img.uploadedAt)
+      }))
+    };
+
+    // Add location-type specific fields with proper validation
+    if (subEventData.location_type === 'offline') {
+      // Offline-specific fields
+      newSubEvent.seating_arrangement = String(subEventData.seating_arrangement || '');
+      newSubEvent.location = String(subEventData.location || '').trim();
+      newSubEvent.venue = String(subEventData.venue || '').trim();
+      
+      // Ensure exact_map_location is a proper object
+      newSubEvent.exact_map_location = {
+        latitude: exactMapLocation.latitude ? Number(exactMapLocation.latitude) : undefined,
+        longitude: exactMapLocation.longitude ? Number(exactMapLocation.longitude) : undefined,
+        address: exactMapLocation.address ? String(exactMapLocation.address) : ''
+      };
+      
+      newSubEvent.gate_open_time = String(subEventData.gate_open_time || '').trim();
+      
+      // Ensure prohibited_items is an array of strings
+      newSubEvent.prohibited_items = Array.isArray(parseJSONSafely(subEventData.prohibited_items, [])) ?
+        parseJSONSafely(subEventData.prohibited_items, []).map(item => String(item)) : [];
+      
+      // Process ticket types with proper validation
+      newSubEvent.ticket_types = processedTicketTypes.map(ticket => ({
+        ticket_type: String(ticket.ticket_type),
+        ticket_price: Number(ticket.ticket_price),
+        max_capacity: Number(ticket.max_capacity),
+        ticket_photo: String(ticket.ticket_photo || '')
+      }));
+      
+      newSubEvent.ticket_layout = String(processedFiles.ticket_layout || '');
+
+    } else if (subEventData.location_type === 'online' || subEventData.location_type === 'recorded') {
+      // Online/recorded-specific fields
+      newSubEvent.event_link = String(subEventData.event_link || '').trim();
+      newSubEvent.verification_event_code = String(subEventData.verification_event_code || '').trim();
+      
+      // Explicitly set offline fields to appropriate values
+      newSubEvent.seating_arrangement = '';
+      newSubEvent.location = '';
+      newSubEvent.venue = '';
+      newSubEvent.exact_map_location = {
+        latitude: undefined,
+        longitude: undefined,
+        address: ''
+      };
+      newSubEvent.gate_open_time = '';
+      newSubEvent.prohibited_items = [];
+      newSubEvent.ticket_types = [];
+      newSubEvent.ticket_layout = '';
+    }
+
+    // Handle event_rules with proper structure
+    if (processedFiles.event_rules) {
+      newSubEvent.event_rules = {
+        type: 'file',
+        path: String(processedFiles.event_rules.path),
+        originalName: String(processedFiles.event_rules.originalName),
+        mimeType: String(processedFiles.event_rules.mimeType),
+        size: Number(processedFiles.event_rules.size),
+        uploadedAt: new Date(processedFiles.event_rules.uploadedAt)
+      };
+    } else if (subEventData.event_rules_text && String(subEventData.event_rules_text).trim()) {
+      newSubEvent.event_rules = {
+        type: 'text',
+        content: String(subEventData.event_rules_text).trim(),
+        uploadedAt: new Date()
+      };
+    } else {
+      // Set default event_rules structure
+      newSubEvent.event_rules = {
+        type: 'text',
+        content: '',
+        uploadedAt: new Date()
+      };
+    }
+
+    // Additional validation - check for required nested arrays
+    if (!Array.isArray(newSubEvent.event_dates) || newSubEvent.event_dates.length === 0) {
+      return res.status(400).json({
+        message: "At least one event date is required",
+        hint: "Provide event_dates as an array with start_date, end_date, start_time, end_time"
+      });
+    }
+
+    if (!Array.isArray(newSubEvent.POCS) || newSubEvent.POCS.length === 0) {
+      return res.status(400).json({
+        message: "At least one Point of Contact (POC) is required",
+        hint: "Provide POCS as an array with POC_name, POC_email, POC_contact"
+      });
+    }
+
+    console.log('=== SUB-EVENT VALIDATION ===');
+    console.log('Event name:', newSubEvent.event_name);
+    console.log('Location type:', newSubEvent.location_type);
+    console.log('Event dates count:', newSubEvent.event_dates.length);
+    console.log('Guests count:', newSubEvent.guests.length);
+    console.log('POCS count:', newSubEvent.POCS.length);
+
+    // Now safely update the ticket - REMOVED the problematic validation
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
       {
-        sub_events: sub_events || [],
-        banking_details: banking_details || [],
-        payment_type: payment_type || 'free',
-        hashtag: hashtag || [],
+        $push: { sub_events: newSubEvent },
         'form_progress.add_on_events': true,
-        'form_progress.banking_tickets': true,
+        updated_by: userId,
+        updated_at: new Date()
+      },
+      { 
+        new: true,
+        runValidators: true,
+        upsert: false
+      }
+    );
+
+    if (!updatedTicket) {
+      return res.status(404).json({ 
+        message: "Failed to update ticket with sub-event",
+        hint: "Ticket not found or update failed"
+      });
+    }
+
+    // Prepare response data with location-type specific information
+    const responseData = {
+      message: "Sub-event added successfully to ticket", 
+      ticket: updatedTicket,
+      ticketId: ticketId,
+      userId: userId,
+      addedSubEvent: newSubEvent,
+      totalSubEvents: updatedTicket.sub_events.length,
+      location_type: subEventData.location_type,
+      uploadedFiles: {
+        event_banner: processedFiles.event_banner ? 1 : 0,
+        event_logo: processedFiles.event_logo ? 1 : 0,
+        event_images: processedFiles.event_images ? processedFiles.event_images.length : 0,
+        guest_profiles: Object.keys(guestProfileFiles).length,
+        ticket_photos: Object.keys(ticketPhotoFiles).length,
+        event_rules: processedFiles.event_rules ? 1 : 0,
+        ticket_layout: processedFiles.ticket_layout ? 1 : 0
+      },
+      processedGuests: processedGuests.length,
+      eventDatesCount: eventDates.length
+    };
+
+    // Add location-specific response information
+    if (subEventData.location_type === 'offline') {
+      responseData.offline_fields = {
+        seating_arrangement: newSubEvent.seating_arrangement,
+        location: newSubEvent.location,
+        venue: newSubEvent.venue,
+        has_map_location: Object.keys(newSubEvent.exact_map_location || {}).length > 0,
+        ticket_types: processedTicketTypes.length,
+        ticket_layout: newSubEvent.ticket_layout ? 1 : 0
+      };
+    } else if (subEventData.location_type === 'online' || subEventData.location_type === 'recorded') {
+      responseData.online_fields = {
+        event_link: newSubEvent.event_link,
+        verification_code: newSubEvent.verification_event_code || 'Not provided'
+      };
+    }
+
+    res.status(200).json(responseData);
+
+  } catch (error) {
+    console.error("Error updating ticket add-ons:", error);
+    
+    // Enhanced multer error handling with dynamic field information
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ 
+        message: "File size too large. Maximum 50MB allowed per file." 
+      });
+    }
+
+    if (error.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ 
+        message: "Too many files uploaded. Maximum limits exceeded." 
+      });
+    }
+
+    if (error.code === 'LIMIT_UNEXPECTED_FILE') {
+      // Get the actual allowed fields from your middleware configuration
+      const allowedFields = [
+        'event_banner', 'event_logo', 'event_images',
+        ...Array.from({ length: 10 }, (_, i) => `guest_profile_${i}`),
+        ...Array.from({ length: 20 }, (_, i) => `ticket_photo_${i}`),
+        'ticket_layout', 'event_rules'
+      ];
+
+      return res.status(400).json({ 
+        message: "Unexpected file field detected",
+        error: error.message,
+        field: error.field || 'Unknown field',
+        allowedFields: allowedFields,
+        hint: "Check your form field names against the allowed fields list"
+      });
+    }
+
+    // Handle ticket type validation errors
+    if (error.message && (
+      error.message.includes('Missing required fields for ticket type') ||
+      error.message.includes('Invalid ticket price') ||
+      error.message.includes('Invalid max capacity')
+    )) {
+      return res.status(400).json({
+        message: "Ticket type validation error",
+        error: error.message
+      });
+    }
+
+    // Handle file type errors
+    if (error.message && (
+      error.message.includes('must be an image file') ||
+      error.message.includes('must be a document') ||
+      error.message.includes('Invalid file type')
+    )) {
+      return res.status(400).json({
+        message: "Invalid file type",
+        error: error.message
+      });
+    }
+
+    // Handle mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.keys(error.errors).map(key => ({
+        field: key,
+        message: error.errors[key].message
+      }));
+      
+      return res.status(400).json({
+        message: "Validation error",
+        errors: validationErrors
+      });
+    }
+
+    // Handle specific MongoDB errors
+    if (error.name === 'CastError') {
+      return res.status(400).json({ 
+        message: "Data type casting error. Check your data format.",
+        error: error.message,
+        field: error.path
+      });
+    }
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: "Duplicate entry found",
+        error: "Sub-event with similar details already exists"
+      });
+    }
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+// Helper function to get all sub-events for a ticket
+export const getTicketSubEvents = async (req, res) => {
+  const ticketId = req.params.ticketId;
+  
+  if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+    return res.status(400).json({ 
+      message: "Invalid ticket ID format" 
+    });
+  }
+
+  try {
+    const ticket = await Ticket.findById(ticketId).select('sub_events event_name');
+    
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+
+    res.status(200).json({
+      message: "Sub-events retrieved successfully",
+      eventName: ticket.event_name,
+      subEvents: ticket.sub_events || [],
+      totalSubEvents: ticket.sub_events ? ticket.sub_events.length : 0
+    });
+
+  } catch (error) {
+    console.error("Error getting sub-events:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message 
+    });
+  }
+};
+
+// Helper function to update a specific sub-event
+export const updateSubEvent = async (req, res) => {
+  const { ticketId, subEventId } = req.params;
+  
+  if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+    return res.status(400).json({ 
+      message: "Invalid ticket ID format" 
+    });
+  }
+
+  try {
+    // Handle file uploads
+    await new Promise((resolve, reject) => {
+      uploadTicketMedia(req, res, (err) => {
+        if (err) {
+          console.error("Multer error:", err);
+          return reject(err);
+        }
+        resolve();
+      });
+    });
+
+    const userId = req.user._id || req.user.id;
+    
+    // Get the ticket and find the sub-event
+    const ticket = await Ticket.findById(ticketId);
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+
+    const subEventIndex = ticket.sub_events.findIndex(se => se._id.toString() === subEventId);
+    if (subEventIndex === -1) {
+      return res.status(404).json({ message: "Sub-event not found" });
+    }
+
+    // Process updates similar to the create logic
+    let updateData = req.body;
+    if (typeof updateData === 'string') {
+      updateData = JSON.parse(updateData);
+    }
+
+    // Process any new file uploads
+    const processedFiles = {};
+    if (req.files) {
+      if (req.files.event_banner && req.files.event_banner[0]) {
+        processedFiles.event_banner = req.files.event_banner[0].path;
+      }
+      // Add other file processing as needed
+    }
+
+    // Update the specific sub-event
+    const updateFields = {};
+    Object.keys(updateData).forEach(key => {
+      updateFields[`sub_events.${subEventIndex}.${key}`] = updateData[key];
+    });
+
+    // Add processed files to update
+    Object.keys(processedFiles).forEach(key => {
+      updateFields[`sub_events.${subEventIndex}.${key}`] = processedFiles[key];
+    });
+
+    const updatedTicket = await Ticket.findOneAndUpdate(
+      { _id: ticketId },
+      {
+        $set: {
+          ...updateFields,
+          updated_by: userId,
+          updated_at: new Date()
+        }
+      },
+      { new: true }
+    );
+
+    res.status(200).json({
+      message: "Sub-event updated successfully",
+      ticket: updatedTicket,
+      updatedSubEvent: updatedTicket.sub_events[subEventIndex]
+    });
+
+  } catch (error) {
+    console.error("Error updating sub-event:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message 
+    });
+  }
+};
+
+// Helper function to delete a specific sub-event
+export const deleteSubEvent = async (req, res) => {
+  const { ticketId, subEventId } = req.params;
+  
+  if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+    return res.status(400).json({ 
+      message: "Invalid ticket ID format" 
+    });
+  }
+
+  try {
+    const userId = req.user._id || req.user.id;
+    
+    const updatedTicket = await Ticket.findOneAndUpdate(
+      { _id: ticketId },
+      {
+        $pull: { sub_events: { _id: subEventId } },
         updated_by: userId,
         updated_at: new Date()
       },
@@ -1091,18 +1995,21 @@ export const updateTicketAddOns = async (req, res) => {
     );
 
     if (!updatedTicket) {
-      return res.status(404).json({ message: "Ticket not found or unauthorized" });
+      return res.status(404).json({ message: "Ticket not found" });
     }
 
-    res.status(200).json({ 
-      message: "Ticket add-on events and banking details updated successfully", 
+    res.status(200).json({
+      message: "Sub-event deleted successfully",
       ticket: updatedTicket,
-      ticketId: ticketId,
-      userId: userId,
+      remainingSubEvents: updatedTicket.sub_events.length
     });
+
   } catch (error) {
-    console.error("Error updating ticket add-ons:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    console.error("Error deleting sub-event:", error);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message 
+    });
   }
 };
 export const updateTicketDetails = async (req, res) => {

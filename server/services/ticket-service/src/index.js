@@ -26,14 +26,6 @@ app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
 // Set uploads directory path
 const uploadsPath = path.join(__dirname, '../uploads');
 
-// Create uploads directory if it doesn't exist
-if (!fs.existsSync(uploadsPath)) {
-  console.log('📁 Creating uploads directory at:', uploadsPath);
-  fs.mkdirSync(uploadsPath, { recursive: true });
-} else {
-  console.log('✅ Found uploads directory at:', uploadsPath);
-}
-
 // Serve static files from uploads directory
 app.use('/uploads', express.static(uploadsPath));
 
@@ -43,12 +35,9 @@ try {
   const imageFiles = files.filter(file => 
     file.match(/\.(jpg|jpeg|png|gif|webp|mp4|avi|mov)$/i)
   );
-  
-  console.log(`📄 Found ${files.length} total files, ${imageFiles.length} media files`);
-  
+    
   if (imageFiles.length > 0) {
     const sampleFile = imageFiles[0];
-    console.log(`🔗 Sample URL: http://localhost:5003/uploads/${sampleFile}`);
   }
 } catch (err) {
   console.error('❌ Error reading uploads directory:', err.message);
