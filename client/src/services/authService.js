@@ -85,3 +85,12 @@ export const resetPassword = async (resetData) => {
     throw err;
   }
 };
+export const findAllActiveUsers = async () => {
+  try {
+    const res = await api.get('/auth/active-users');
+    return res.data;
+  } catch (err) {
+    console.error('findAllActiveUsers error:', err);
+    throw err;
+  }
+};
