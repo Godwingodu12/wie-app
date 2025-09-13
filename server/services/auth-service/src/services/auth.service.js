@@ -740,3 +740,40 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ message: "Server error during password reset" });
   }
 };
+export const findAllActiveUsers = async (req, res) => {
+  try {
+    // Get only active users, exclude password
+    const users = await User.find({ status: 'active' })
+      .select('-password -__v')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Format response to match your schema structure
+    const formattedUsers = users.map(user => ({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      contact_no: user.contact_no,
+      organisation_type: user.organisation_type,
+      status: user.status,
+      address: user.address,
+      image: user.image,
+      role: user.role,
+      isBlocked: user.isBlocked,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    }));
+
+    res.status(200).json({
+      message: "Active users retrieved successfully",
+      users: formattedUsers,
+      count: formattedUsers.length
+    });
+  } catch (err) {
+    console.error("Find all users error:", err);
+    res.status(500).json({
+      message: "Server error during user retrieval",
+      error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    });
+  }
+};
