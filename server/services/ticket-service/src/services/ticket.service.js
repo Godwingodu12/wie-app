@@ -1184,14 +1184,12 @@ export const updateTicketMedia = async (req, res) => {
 };
 export const updateTicketAddOns = async (req, res) => {
   const ticketId = req.params.ticketId;
-  
   if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
     return res.status(400).json({ 
       message: "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
       ticketId: ticketId
     });
   }
-
   // Add the missing parseJSONSafely utility function
   const parseJSONSafely = (str, defaultValue = []) => {
     try {
@@ -1229,7 +1227,6 @@ export const updateTicketAddOns = async (req, res) => {
     if (!existingTicket) {
       return res.status(404).json({ message: "Ticket not found" });
     }
-
     // Enhanced sub_event data parsing with fallback logic
     let subEventData;
 
@@ -1300,7 +1297,9 @@ export const updateTicketAddOns = async (req, res) => {
       { key: 'event_description', value: subEventData.event_description },
       { key: 'payment_type', value: subEventData.payment_type },
       { key: 'POCS', value: subEventData.POCS },
-      { key: 'hashtag', value: subEventData.hashtag }
+      { key: 'hashtag', value: subEventData.hashtag },
+      { key: 'total_capacity', value: subEventData.total_capacity },
+      { key: 'booking_start_date', value: subEventData.booking_start_date },
     ];
 
     // Location-type specific required fields
@@ -1674,12 +1673,14 @@ export const updateTicketAddOns = async (req, res) => {
       event_instagram_link: subEventData.event_instagram_link ? String(subEventData.event_instagram_link).trim() : '',
       event_youtube_link: subEventData.event_youtube_link ? String(subEventData.event_youtube_link).trim() : '',
       event_status: 'pending',
-
+      subevent: '5',
       // Arrays - ensure they are proper arrays
       event_language: Array.isArray(languageArray) ? languageArray.map(lang => String(lang)) : [],
       hashtag: Array.isArray(parseJSONSafely(subEventData.hashtag, [])) ? 
         parseJSONSafely(subEventData.hashtag, []).map(tag => String(tag)) : [],
-
+      total_capacity: Number(subEventData.total_capacity) ?  String(subEventData.total_capacity) : '',
+      booking_start_date: String(subEventData.booking_start_date) ? String(subEventData.booking_start_date).trim() : '',
+      booking_end_date: String(subEventData.booking_end_date) ? String(subEventData.booking_end_date).trim() : '',
       // Complex nested objects - validate structure
       guests: processedGuests.map(guest => ({
         guest_name: String(guest.guest_name || ''),
@@ -1734,9 +1735,7 @@ export const updateTicketAddOns = async (req, res) => {
         longitude: exactMapLocation.longitude ? Number(exactMapLocation.longitude) : undefined,
         address: exactMapLocation.address ? String(exactMapLocation.address) : ''
       };
-      
       newSubEvent.gate_open_time = String(subEventData.gate_open_time || '').trim();
-      
       // Ensure prohibited_items is an array of strings
       newSubEvent.prohibited_items = Array.isArray(parseJSONSafely(subEventData.prohibited_items, [])) ?
         parseJSONSafely(subEventData.prohibited_items, []).map(item => String(item)) : [];
@@ -1975,55 +1974,40 @@ export const updateTicketAddOns = async (req, res) => {
     });
   }
 };
-// Helper function to get all sub-events for a ticket
-export const getTicketSubEvents = async (req, res) => {
+export const updateTicketDetails = async (req, res) => {
   const ticketId = req.params.ticketId;
   
   if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
     return res.status(400).json({ 
-      message: "Invalid ticket ID format" 
+      message: "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
+      ticketId: ticketId
     });
   }
 
-  try {
-    const ticket = await Ticket.findById(ticketId).select('sub_events event_name');
-    
-    if (!ticket) {
-      return res.status(404).json({ message: "Ticket not found" });
+  // Add the missing parseJSONSafely utility function
+  const parseJSONSafely = (str, defaultValue = []) => {
+    try {
+      if (typeof str === 'string') {
+        return JSON.parse(str);
+      }
+      if (Array.isArray(str)) {
+        return str;
+      }
+      return defaultValue;
+    } catch {
+      return defaultValue;
     }
-
-    res.status(200).json({
-      message: "Sub-events retrieved successfully",
-      eventName: ticket.event_name,
-      subEvents: ticket.sub_events || [],
-      totalSubEvents: ticket.sub_events ? ticket.sub_events.length : 0
-    });
-
-  } catch (error) {
-    console.error("Error getting sub-events:", error);
-    res.status(500).json({ 
-      message: "Internal server error", 
-      error: error.message 
-    });
-  }
-};
-
-// Helper function to update a specific sub-event
-export const updateSubEvent = async (req, res) => {
-  const { ticketId, subEventId } = req.params;
-  
-  if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
-    return res.status(400).json({ 
-      message: "Invalid ticket ID format" 
-    });
-  }
+  };
 
   try {
-    // Handle file uploads
+    // Handle file uploads first with better error handling
     await new Promise((resolve, reject) => {
       uploadTicketMedia(req, res, (err) => {
         if (err) {
           console.error("Multer error:", err);
+          console.error("Error code:", err.code);
+          console.error("Error message:", err.message);
+          console.error("Error field:", err.field);
           return reject(err);
         }
         resolve();
@@ -2032,152 +2016,411 @@ export const updateSubEvent = async (req, res) => {
 
     const userId = req.user._id || req.user.id;
     
-    // Get the ticket and find the sub-event
-    const ticket = await Ticket.findById(ticketId);
-    if (!ticket) {
+    // Check if ticket exists
+    const existingTicket = await Ticket.findById(ticketId);
+    if (!existingTicket) {
       return res.status(404).json({ message: "Ticket not found" });
     }
 
-    const subEventIndex = ticket.sub_events.findIndex(se => se._id.toString() === subEventId);
-    if (subEventIndex === -1) {
-      return res.status(404).json({ message: "Sub-event not found" });
+    // Get the associated group for default banking details
+    const GroupBank = await Group.findById(existingTicket.groupId);
+    if (!GroupBank) {
+      return res.status(404).json({ message: "Associated group not found" });
     }
 
-    // Process updates similar to the create logic
-    let updateData = req.body;
-    if (typeof updateData === 'string') {
-      updateData = JSON.parse(updateData);
-    }
-
-    // Process any new file uploads
-    const processedFiles = {};
-    if (req.files) {
-      if (req.files.event_banner && req.files.event_banner[0]) {
-        processedFiles.event_banner = req.files.event_banner[0].path;
-      }
-      // Add other file processing as needed
-    }
-
-    // Update the specific sub-event
-    const updateFields = {};
-    Object.keys(updateData).forEach(key => {
-      updateFields[`sub_events.${subEventIndex}.${key}`] = updateData[key];
-    });
-
-    // Add processed files to update
-    Object.keys(processedFiles).forEach(key => {
-      updateFields[`sub_events.${subEventIndex}.${key}`] = processedFiles[key];
-    });
-
-    const updatedTicket = await Ticket.findOneAndUpdate(
-      { _id: ticketId },
-      {
-        $set: {
-          ...updateFields,
-          updated_by: userId,
-          updated_at: new Date()
-        }
-      },
-      { new: true }
-    );
-
-    res.status(200).json({
-      message: "Sub-event updated successfully",
-      ticket: updatedTicket,
-      updatedSubEvent: updatedTicket.sub_events[subEventIndex]
-    });
-
-  } catch (error) {
-    console.error("Error updating sub-event:", error);
-    res.status(500).json({ 
-      message: "Internal server error", 
-      error: error.message 
-    });
-  }
-};
-
-// Helper function to delete a specific sub-event
-export const deleteSubEvent = async (req, res) => {
-  const { ticketId, subEventId } = req.params;
-  
-  if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
-    return res.status(400).json({ 
-      message: "Invalid ticket ID format" 
-    });
-  }
-
-  try {
-    const userId = req.user._id || req.user.id;
-    
-    const updatedTicket = await Ticket.findOneAndUpdate(
-      { _id: ticketId },
-      {
-        $pull: { sub_events: { _id: subEventId } },
-        updated_by: userId,
-        updated_at: new Date()
-      },
-      { new: true }
-    );
-
-    if (!updatedTicket) {
-      return res.status(404).json({ message: "Ticket not found" });
-    }
-
-    res.status(200).json({
-      message: "Sub-event deleted successfully",
-      ticket: updatedTicket,
-      remainingSubEvents: updatedTicket.sub_events.length
-    });
-
-  } catch (error) {
-    console.error("Error deleting sub-event:", error);
-    res.status(500).json({ 
-      message: "Internal server error", 
-      error: error.message 
-    });
-  }
-};
-export const updateTicketDetails = async (req, res) => {
-  try {
+    // Extract form data
     const { 
-      ticketId,
-      ticket_types, 
-      guests,
+      payment_type,
+      ticket_layout, 
+      total_capacity,
+      booking_start_date,
+      booking_end_date,
+      use_group_bank_account = 'true' // Default to true for group bank account
     } = req.body;
 
-    // Validate required parameters
-    if (!ticketId) {
-      return res.status(400).json({ 
-        message: "Missing required parameters",
-        required: ["ticketId"]
+    // Parse complex nested data structures
+    const parseNestedData = (data, fieldName) => {
+      if (!data) return [];
+      try {
+        if (typeof data === 'string') {
+          return JSON.parse(data);
+        }
+        return Array.isArray(data) ? data : [data];
+      } catch (error) {
+        console.warn(`Error parsing ${fieldName}:`, error);
+        return [];
+      }
+    };
+
+    // Parse nested arrays from request body
+    const bankingDetails = parseNestedData(req.body.banking_details, 'banking_details');
+    const ticketTypes = parseNestedData(req.body.ticket_types, 'ticket_types');
+
+    // Process uploaded files - Handle ticket photo uploads
+    const processedFiles = {};
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    
+    // Get uploaded files
+    const uploadedFiles = req.files || {};
+    
+    // Handle ticket photo uploads (ticket_photo_0, ticket_photo_1, etc.)
+    const ticketPhotoFiles = {};
+    
+    // Extract ticket photo files from uploaded files
+    Object.keys(uploadedFiles).forEach(fieldName => {
+      // Handle ticket photo files
+      if (fieldName.startsWith('ticket_photo_')) {
+        const index = fieldName.split('_')[2]; // Extract index from ticket_photo_X
+        if (!isNaN(index) && parseInt(index) >= 0) {
+          const ticketPhotoFile = uploadedFiles[fieldName][0]; // Take first file
+          const ext = '.' + ticketPhotoFile.originalname.toLowerCase().split('.').pop();
+          if (!imageExtensions.includes(ext)) {
+            throw new Error(`Ticket photo ${index} must be an image file (JPG, JPEG, PNG, GIF, WEBP)`);
+          }
+          ticketPhotoFiles[parseInt(index)] = ticketPhotoFile;
+        }
+      }
+    });
+
+    // Handle ticket layout upload
+    if (uploadedFiles.ticket_layout && uploadedFiles.ticket_layout[0]) {
+      const layoutFile = uploadedFiles.ticket_layout[0];
+      const ext = '.' + layoutFile.originalname.toLowerCase().split('.').pop();
+      if (!imageExtensions.includes(ext)) {
+        return res.status(400).json({
+          message: "Ticket layout must be an image file (JPG, JPEG, PNG, GIF, WEBP)"
+        });
+      }
+      processedFiles.ticket_layout = layoutFile.path;
+    }
+
+    // Store the processed file objects
+    processedFiles.ticketPhotoFiles = ticketPhotoFiles;
+
+    // Validate required fields
+    if (!payment_type) {
+      return res.status(400).json({
+        message: "Payment type is required"
       });
     }
-    const userId = req.user._id || req.user.id;
+
+    // Validate payment type
+    const validPaymentTypes = ['free', 'paid'];
+    if (!validPaymentTypes.includes(payment_type)) {
+      return res.status(400).json({
+        message: "Invalid payment_type",
+        provided: payment_type,
+        validOptions: validPaymentTypes
+      });
+    }
+
+    // Process ticket types with photos
+    let processedTicketTypes = [];
+    if (ticketTypes && ticketTypes.length > 0) {
+      processedTicketTypes = ticketTypes.map((ticket, index) => {
+        // Validate required fields for each ticket type
+        const requiredTicketFields = ['ticket_type', 'ticket_price', 'max_capacity'];
+        const missingTicketFields = requiredTicketFields.filter(field => !ticket[field] && ticket[field] !== 0);
+        
+        if (missingTicketFields.length > 0) {
+          throw new Error(`Missing required fields for ticket type ${index + 1}: ${missingTicketFields.join(', ')}`);
+        }
+
+        // Validate ticket price and capacity
+        const ticketPrice = Number(ticket.ticket_price);
+        const maxCapacity = Number(ticket.max_capacity);
+
+        if (isNaN(ticketPrice) || ticketPrice < 0) {
+          throw new Error(`Invalid ticket price for ticket type ${index + 1}. Must be a non-negative number.`);
+        }
+
+        if (isNaN(maxCapacity) || maxCapacity <= 0) {
+          throw new Error(`Invalid max capacity for ticket type ${index + 1}. Must be a positive number.`);
+        }
+
+        const ticketData = {
+          ticket_type: String(ticket.ticket_type).trim(),
+          ticket_price: ticketPrice,
+          max_capacity: maxCapacity,
+          ticket_photo: ticket.ticket_photo || '' // existing photo URL if any
+        };
+        
+        // Add uploaded ticket photo if available
+        if (ticketPhotoFiles[index]) {
+          ticketData.ticket_photo = ticketPhotoFiles[index].path;
+        }
+        
+        return ticketData;
+      });
+    }
+
+    // Handle banking details logic
+    let finalBankingDetails = [];
+
+    if (use_group_bank_account === 'true') {
+      // Use group bank account
+      if (!GroupBank.bank_acc_no || !GroupBank.bank_ifsc || !GroupBank.bank_acc_holder || !GroupBank.bank_acc_type) {
+        return res.status(400).json({ 
+          message: "Group banking details are incomplete. Please update your group banking details before proceeding",
+          missingFields: {
+            bank_acc_no: !GroupBank.bank_acc_no,
+            bank_ifsc: !GroupBank.bank_ifsc,
+            bank_acc_holder: !GroupBank.bank_acc_holder,
+            bank_acc_type: !GroupBank.bank_acc_type
+          }
+        });
+      }
+
+      finalBankingDetails = [{
+        bank_acc_type: String(GroupBank.bank_acc_type),
+        bank_acc_no: String(GroupBank.bank_acc_no),
+        bank_ifsc: String(GroupBank.bank_ifsc),
+        bank_acc_holder: String(GroupBank.bank_acc_holder),
+        is_group_account: true
+      }];
+    } else {
+      // Use custom banking details
+      if (!bankingDetails || bankingDetails.length === 0) {
+        return res.status(400).json({
+          message: "Custom banking details are required when not using group bank account"
+        });
+      }
+
+      // Validate custom banking details
+      finalBankingDetails = bankingDetails.map((banking, index) => {
+        const requiredBankFields = ['bank_acc_type', 'bank_acc_no', 'bank_ifsc', 'bank_acc_holder'];
+        const missingBankFields = requiredBankFields.filter(field => !banking[field]);
+        
+        if (missingBankFields.length > 0) {
+          throw new Error(`Missing required banking fields for account ${index + 1}: ${missingBankFields.join(', ')}`);
+        }
+
+        return {
+          bank_acc_type: String(banking.bank_acc_type).trim(),
+          bank_acc_no: String(banking.bank_acc_no).trim(),
+          bank_ifsc: String(banking.bank_ifsc).trim(),
+          bank_acc_holder: String(banking.bank_acc_holder).trim(),
+          is_group_account: false
+        };
+      });
+    }
+
+    // Validate dates if provided
+    if (booking_start_date && booking_end_date) {
+      const startDate = new Date(booking_start_date);
+      const endDate = new Date(booking_end_date);
+      
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return res.status(400).json({
+          message: "Invalid date format for booking dates"
+        });
+      }
+
+      if (startDate >= endDate) {
+        return res.status(400).json({
+          message: "Booking start date must be before booking end date"
+        });
+      }
+    }
+
+    // Validate total capacity if provided
+    if (total_capacity !== undefined) {
+      const totalCap = Number(total_capacity);
+      if (isNaN(totalCap) || totalCap <= 0) {
+        return res.status(400).json({
+          message: "Total capacity must be a positive number"
+        });
+      }
+    }
+
+    // Prepare update data
+    const updateData = {
+      payment_type: String(payment_type),
+      banking_details: finalBankingDetails,
+      'form_progress.banking_tickets': true,
+      updated_by: userId,
+      updated_at: new Date()
+    };
+
+    // Add optional fields if provided
+    if (processedTicketTypes.length > 0) {
+      updateData.ticket_types = processedTicketTypes;
+    }
+
+    if (processedFiles.ticket_layout) {
+      updateData.ticket_layout = String(processedFiles.ticket_layout);
+    }
+
+    if (total_capacity !== undefined) {
+      updateData.total_capacity = Number(total_capacity);
+    }
+
+    if (booking_start_date) {
+      updateData.booking_start_date = new Date(booking_start_date);
+    }
+
+    if (booking_end_date) {
+      updateData.booking_end_date = new Date(booking_end_date);
+    }
+
+    console.log('=== TICKET DETAILS UPDATE ===');
+    console.log('Payment type:', payment_type);
+    console.log('Using group bank account:', use_group_bank_account === 'true');
+    console.log('Banking details count:', finalBankingDetails.length);
+    console.log('Ticket types count:', processedTicketTypes.length);
+    console.log('Uploaded ticket photos:', Object.keys(ticketPhotoFiles).length);
+
+    // Update the ticket
     const updatedTicket = await Ticket.findOneAndUpdate(
-      { _id: ticketId},
-      {
-        ticket_types: ticket_types || [],
-        guides: guides || [],
-        'form_progress.banking_tickets': true,
-        updated_by: userId,
-        updated_at: new Date()
-      },
-      { new: true }
+      { _id: ticketId },
+      updateData,
+      { 
+        new: true,
+        runValidators: true,
+        upsert: false
+      }
     );
 
     if (!updatedTicket) {
-      return res.status(404).json({ message: "Ticket not found or unauthorized" });
+      return res.status(404).json({ 
+        message: "Failed to update ticket details",
+        hint: "Ticket not found or update failed"
+      });
     }
 
-    res.status(200).json({ 
+    // Prepare response data
+    const responseData = {
       message: "Ticket details updated successfully", 
       ticket: updatedTicket,
       ticketId: ticketId,
       userId: userId,
-    });
+      payment_type: payment_type,
+      banking_method: use_group_bank_account === 'true' ? 'group_account' : 'custom_account',
+      banking_details_count: finalBankingDetails.length,
+      ticket_types_count: processedTicketTypes.length,
+      uploadedFiles: {
+        ticket_layout: processedFiles.ticket_layout ? 1 : 0,
+        ticket_photos: Object.keys(ticketPhotoFiles).length
+      },
+      form_progress: {
+        banking_tickets: true
+      }
+    };
+
+    // Add banking details info to response (without sensitive data)
+    if (use_group_bank_account === 'true') {
+      responseData.group_bank_info = {
+        account_holder: GroupBank.bank_acc_holder,
+        account_type: GroupBank.bank_acc_type,
+        bank_name: GroupBank.bank_name || 'Not specified'
+      };
+    } else {
+      responseData.custom_bank_accounts = finalBankingDetails.map(bank => ({
+        account_holder: bank.bank_acc_holder,
+        account_type: bank.bank_acc_type,
+        last_four_digits: bank.bank_acc_no.slice(-4)
+      }));
+    }
+
+    res.status(200).json(responseData);
+
   } catch (error) {
     console.error("Error updating ticket details:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    
+    // Enhanced multer error handling
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ 
+        message: "File size too large. Maximum 50MB allowed per file." 
+      });
+    }
+
+    if (error.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ 
+        message: "Too many files uploaded. Maximum limits exceeded." 
+      });
+    }
+
+    if (error.code === 'LIMIT_UNEXPECTED_FILE') {
+      const allowedFields = [
+        'ticket_layout',
+        ...Array.from({ length: 20 }, (_, i) => `ticket_photo_${i}`)
+      ];
+
+      return res.status(400).json({ 
+        message: "Unexpected file field detected",
+        error: error.message,
+        field: error.field || 'Unknown field',
+        allowedFields: allowedFields,
+        hint: "Check your form field names against the allowed fields list"
+      });
+    }
+
+    // Handle ticket type validation errors
+    if (error.message && (
+      error.message.includes('Missing required fields for ticket type') ||
+      error.message.includes('Invalid ticket price') ||
+      error.message.includes('Invalid max capacity')
+    )) {
+      return res.status(400).json({
+        message: "Ticket type validation error",
+        error: error.message
+      });
+    }
+
+    // Handle banking validation errors
+    if (error.message && error.message.includes('Missing required banking fields')) {
+      return res.status(400).json({
+        message: "Banking details validation error",
+        error: error.message
+      });
+    }
+
+    // Handle file type errors
+    if (error.message && (
+      error.message.includes('must be an image file') ||
+      error.message.includes('Invalid file type')
+    )) {
+      return res.status(400).json({
+        message: "Invalid file type",
+        error: error.message
+      });
+    }
+
+    // Handle mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.keys(error.errors).map(key => ({
+        field: key,
+        message: error.errors[key].message
+      }));
+      
+      return res.status(400).json({
+        message: "Validation error",
+        errors: validationErrors
+      });
+    }
+
+    // Handle specific MongoDB errors
+    if (error.name === 'CastError') {
+      return res.status(400).json({ 
+        message: "Data type casting error. Check your data format.",
+        error: error.message,
+        field: error.path
+      });
+    }
+
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: "Duplicate entry found",
+        error: "Ticket details with similar data already exists"
+      });
+    }
+
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 // Step 5: Update Ticket - Terms & Conditions (Company Provided)
