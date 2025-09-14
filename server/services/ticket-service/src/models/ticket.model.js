@@ -58,7 +58,7 @@ const subEventSchema = new mongoose.Schema({
   event_category: { type: String, required: true },
   event_subcategory: { type: String, required: true },
   event_type: { type: String, required: true,enum: ['private', 'public']},
-  
+  subevent: { type: String, required: true, enum: ['1','2','5']},
   // FIXED: Changed from String to Array for sub events too
   event_language: [{ 
     type: String, 
@@ -129,6 +129,9 @@ const subEventSchema = new mongoose.Schema({
   guests: [guestSchema],
   ticket_types: [ticketTypeSchema],
   ticket_layout: { type: String, required: false },
+  total_capacity: { type: String, required: false },
+  booking_start_date: { type: String, required: false },
+  booking_end_date: { type: String, required: false },
   // Status
   event_status: {
     type: String,
@@ -167,7 +170,7 @@ const ticketSchema = new mongoose.Schema({
   
   // Date and Time
   event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: true },
-  event_dates: [ticketdateSchema], // Supports multiple dates for multi-day or weekly events
+  event_dates: [ticketdateSchema],
   event_instagram_link: { type: String, required: false },
   gate_open_time: { type: String, required: false },
   event_youtube_link: { type: String, required: false },
@@ -220,6 +223,7 @@ const ticketSchema = new mongoose.Schema({
   total_capacity: { type: String, required: false },
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
+  ticket_layout: { type: String, required: false },
   ticket_types: [ticketTypeSchema],
   created_by: { type: String, required: false },
   
