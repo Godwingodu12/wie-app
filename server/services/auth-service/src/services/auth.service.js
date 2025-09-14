@@ -2,6 +2,7 @@ import User from "../models/user.model.js";
 import { hashPassword, comparePassword } from "../utils/hash.js";
 import { generateToken, verifyResetToken } from "../utils/jwt.js";
 import otpService from "../reposetory/otp.js";
+import upload from "../middlewares/upload.js";
 import { generateOtp } from "../utils/otp.js";
 import { sendEmail } from "../utils/sendMail.js";
 import { sendSMSOTP } from "../utils/sendSMS.js";
@@ -747,7 +748,6 @@ export const findAllActiveUsers = async (req, res) => {
       .select('-password -__v')
       .sort({ createdAt: -1 })
       .lean();
-
     // Format response to match your schema structure
     const formattedUsers = users.map(user => ({
       _id: user._id,
@@ -774,6 +774,169 @@ export const findAllActiveUsers = async (req, res) => {
     res.status(500).json({
       message: "Server error during user retrieval",
       error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    });
+  }
+};
+export const editProfile = async (req, res) => {
+  try {
+    // Handle file upload first
+    await new Promise((resolve, reject) => {
+      upload.fields([
+        { name: 'image', maxCount: 1 },
+      ])(req, res, (err) => {
+        if (err) return reject(err);
+        return resolve();
+      });
+    });
+    let userId;
+    if (req.user) {
+      userId = req.user._id || req.user.id || req.user.userId;
+    } else if (req.params.userId) {
+      userId = req.params.userId;
+    } else {
+      throw new Error("Authentication required - No user information found");
+    }
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+    // Store original values for fallback
+    const originalValues = {
+      name: user.name,
+      contact_no: user.contact_no,
+      address: user.address,
+      image: user.image,
+      website: user.website,
+      bio: user.bio,
+      gender: user.gender,
+      organisation_type: user.organisation_type
+    };
+
+    // Common fields for both admin and organisation
+    
+    // Update name if provided and valid
+    if (req.body.name !== undefined) {
+      if (req.body.name.trim() && validateName(req.body.name)) {
+        user.name = req.body.name.trim();
+      } else if (req.body.name.trim() === '') {
+        // If empty string provided, keep original value
+        user.name = originalValues.name;
+      }
+    }
+    // Update contact_no if provided and valid
+    if (req.body.contact_no !== undefined) {
+      if (req.body.contact_no.trim() && validateContactNo(req.body.contact_no)) {
+        user.contact_no = req.body.contact_no.trim();
+      } else if (req.body.contact_no.trim() === '') {
+        // If empty string provided, keep original value
+        user.contact_no = originalValues.contact_no;
+      }
+    }
+    // Role-based field updates
+    if (user.role === 'admin') {
+      // Admin-specific fields (website, bio, gender are optional for admin)
+      // Update website if provided
+      if (req.body.website !== undefined) {
+        user.website = req.body.website.trim() || originalValues.website;
+      }
+      // Update bio if provided
+      if (req.body.bio !== undefined) {
+        user.bio = req.body.bio.trim() || originalValues.bio;
+      }
+      // Update gender if provided and valid
+      if (req.body.gender !== undefined) {
+        const validGenders = ['male', 'female', 'other'];
+        if (validGenders.includes(req.body.gender)) {
+          user.gender = req.body.gender;
+        } else {
+          user.gender = originalValues.gender;
+        }
+      }
+
+      // Ignore organisation-specific fields for admin
+      // (address and organisation_type are not updated for admin)
+      
+    } else if (user.role === 'organisation') {
+      // Organisation-specific fields
+      
+      // Update address if provided and valid (required for organisation)
+      if (req.body.address !== undefined) {
+        if (req.body.address.trim() && req.body.address.trim().length >= 5) {
+          user.address = req.body.address.trim();
+        } else if (req.body.address.trim() === '') {
+          // If empty string provided, keep original value
+          user.address = originalValues.address;
+        }
+      }
+
+      // Update organisation_type if provided and valid (required for organisation)
+      if (req.body.organisation_type !== undefined) {
+        const validTypes = ['Private', 'Government', 'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Other'];
+        if (validTypes.includes(req.body.organisation_type)) {
+          user.organisation_type = req.body.organisation_type;
+        } else {
+          user.organisation_type = originalValues.organisation_type;
+        }
+      }
+
+      // Update website if provided
+      if (req.body.website !== undefined) {
+        user.website = req.body.website.trim() || originalValues.website;
+      }
+
+      // Update bio if provided
+      if (req.body.bio !== undefined) {
+        user.bio = req.body.bio.trim() || originalValues.bio;
+      }
+
+      // Update gender if provided and valid
+      if (req.body.gender !== undefined) {
+        const validGenders = ['male', 'female', 'other'];
+        if (validGenders.includes(req.body.gender)) {
+          user.gender = req.body.gender;
+        } else {
+          user.gender = originalValues.gender;
+        }
+      }
+    }
+
+    // Handle image upload
+    if (req.files && req.files.image && req.files.image[0]) {
+      user.image = req.files.image[0].filename;
+    }
+    // If no new image is uploaded, keep the existing image (originalValues.image is already preserved)
+
+    // Save the updated user
+    await user.save();
+
+    // Return user without password and only with role-appropriate fields
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    
+    // Filter response based on role
+    if (user.role === 'admin') {
+      // Remove organisation-specific fields from admin response
+      delete userResponse.address;
+      delete userResponse.organisation_type;
+    }
+    
+    // Send success response
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      user: userResponse
+    });
+
+  } catch (err) {
+    console.error("Edit profile error:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message
     });
   }
 };
