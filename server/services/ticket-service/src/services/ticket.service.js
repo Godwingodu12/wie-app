@@ -1283,8 +1283,6 @@ export const updateTicketAddOns = async (req, res) => {
         hint: "Send data as a JSON object with event fields"
       });
     }
-
-    // Base required fields for all location types
     const baseRequiredFields = [
       { key: 'event_name', value: subEventData.event_name },
       { key: 'event_category', value: subEventData.event_category },
@@ -1301,10 +1299,7 @@ export const updateTicketAddOns = async (req, res) => {
       { key: 'total_capacity', value: subEventData.total_capacity },
       { key: 'booking_start_date', value: subEventData.booking_start_date },
     ];
-
-    // Location-type specific required fields
     let locationSpecificRequiredFields = [];
-    
     if (subEventData.location_type === 'offline') {
       locationSpecificRequiredFields = [
         { key: 'location', value: subEventData.location },
@@ -2426,7 +2421,8 @@ export const updateTicketDetails = async (req, res) => {
 // Step 5: Update Ticket - Terms & Conditions (Company Provided)
 export const updateTicketTerms = async (req, res) => {
   try {
-    const { ticketId, terms_accepted, company_terms_version } = req.body;
+    const ticketId = req.params.ticketId;
+    const {terms_accepted, company_terms_version } = req.body;
     // Validate required parameters
     if (!ticketId) {
       return res.status(400).json({ 
@@ -2469,7 +2465,7 @@ export const updateTicketTerms = async (req, res) => {
 // Step 6: Final Preview and Submit Ticket
 export const submitTicket = async (req, res) => {
   try {
-    const { ticketId } = req.body;
+    const ticketId = req.params.ticketId;
     // Validate required parameters
     if (!ticketId) {
       return res.status(400).json({ 
@@ -2607,18 +2603,17 @@ export const getTicketById = async (req, res) => {
 // Delete Ticket
 export const deleteTicket = async (req, res) => {
   try {
-    const { ticketId, groupId } = req.body;
+    const ticketId = req.params.ticketId;
     // Validate required parameters
-    userId = req.user._id || req.user.id;
-    if (!ticketId || !groupId) {
+    const userId = req.user._id || req.user.id;
+    if (!ticketId || !userId) {
       return res.status(400).json({ 
         message: "Missing required parameters",
-        required: ["ticketId", "groupId"]
+        required: ["ticketId", "userId"]
       });
     }
     const deletedTicket = await Ticket.findOneAndDelete({ 
       _id: ticketId, 
-      groupId: groupId,
       userId: userId
     });
     if (!deletedTicket) {
@@ -2627,7 +2622,7 @@ export const deleteTicket = async (req, res) => {
     res.status(200).json({ 
       message: "Ticket deleted successfully",
       ticketId: ticketId,
-      groupId: groupId
+      userId: userId
     });
   } catch (error) {
     console.error("Error deleting ticket:", error);
