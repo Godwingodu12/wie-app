@@ -1331,6 +1331,96 @@ export const updateTicketAddOns = async (req, res) => {
       });
     }
 
+    // Parse nested arrays from request body early for duplication check
+    const parseNestedData = (data, fieldName) => {
+      if (!data) return [];
+      try {
+        if (typeof data === 'string') {
+          return JSON.parse(data);
+        }
+        return Array.isArray(data) ? data : [data];
+      } catch (error) {
+        console.warn(`Error parsing ${fieldName}:`, error);
+        return [];
+      }
+    };
+
+    const eventDates = parseNestedData(subEventData.event_dates || req.body.event_dates, 'event_dates');
+
+    // DUPLICATION CHECK - Check for existing sub-events with same details
+    if (existingTicket.sub_events && existingTicket.sub_events.length > 0) {
+      const newEventName = String(subEventData.event_name).trim().toLowerCase();
+      const newLocation = subEventData.location_type === 'offline' 
+        ? String(subEventData.location || '').trim().toLowerCase() 
+        : String(subEventData.event_link || '').trim().toLowerCase();
+      const newVenue = subEventData.location_type === 'offline' 
+        ? String(subEventData.venue || '').trim().toLowerCase() 
+        : '';
+
+      // Check each new event date against existing sub-events
+      for (const newEventDate of eventDates) {
+        const newStartDate = newEventDate.start_date;
+        const newStartTime = newEventDate.start_time;
+        const newEndTime = newEventDate.end_time;
+
+        // Find duplicate sub-events
+        const duplicateSubEvent = existingTicket.sub_events.find(existingSubEvent => {
+          // Check if event names match (case-insensitive)
+          const existingEventName = String(existingSubEvent.event_name || '').trim().toLowerCase();
+          if (existingEventName !== newEventName) {
+            return false;
+          }
+
+          // Check location based on location_type
+          let locationMatches = false;
+          if (subEventData.location_type === 'offline') {
+            const existingLocation = String(existingSubEvent.location || '').trim().toLowerCase();
+            const existingVenue = String(existingSubEvent.venue || '').trim().toLowerCase();
+            locationMatches = (existingLocation === newLocation && existingVenue === newVenue);
+          } else if (subEventData.location_type === 'online' || subEventData.location_type === 'recorded') {
+            const existingEventLink = String(existingSubEvent.event_link || '').trim().toLowerCase();
+            locationMatches = (existingEventLink === newLocation);
+          }
+
+          if (!locationMatches) {
+            return false;
+          }
+
+          // Check if any event date matches
+          if (existingSubEvent.event_dates && existingSubEvent.event_dates.length > 0) {
+            return existingSubEvent.event_dates.some(existingDate => {
+              return (
+                existingDate.start_date === newStartDate &&
+                existingDate.start_time === newStartTime &&
+                existingDate.end_time === newEndTime
+              );
+            });
+          }
+
+          return false;
+        });
+
+        if (duplicateSubEvent) {
+          return res.status(409).json({
+            message: "Duplicate sub-event detected",
+            error: "A sub-event with the same event name, location, date, and time already exists",
+            conflictDetails: {
+              event_name: subEventData.event_name,
+              location_type: subEventData.location_type,
+              location: subEventData.location_type === 'offline' ? subEventData.location : subEventData.event_link,
+              venue: subEventData.location_type === 'offline' ? subEventData.venue : null,
+              conflicting_date: {
+                start_date: newStartDate,
+                start_time: newStartTime,
+                end_time: newEndTime
+              }
+            },
+            hint: "Please modify the event name, location, or schedule to avoid conflicts"
+          });
+        }
+      }
+    }
+
     // Validate enum fields
     const validEventTypes = ['private', 'public'];
     if (!validEventTypes.includes(subEventData.event_type)) {
@@ -1539,24 +1629,9 @@ export const updateTicketAddOns = async (req, res) => {
     }
 
     // Parse complex nested data structures
-    const parseNestedData = (data, fieldName) => {
-      if (!data) return [];
-      try {
-        if (typeof data === 'string') {
-          return JSON.parse(data);
-        }
-        return Array.isArray(data) ? data : [data];
-      } catch (error) {
-        console.warn(`Error parsing ${fieldName}:`, error);
-        return [];
-      }
-    };
-
-    // Parse nested arrays from request body
     const guests = parseNestedData(subEventData.guests || req.body.guests, 'guests');
     const bankingDetails = parseNestedData(subEventData.banking_details || req.body.banking_details, 'banking_details');
     const POCS = parseNestedData(subEventData.POCS || req.body.POCS, 'POCS');
-    const eventDates = parseNestedData(subEventData.event_dates || req.body.event_dates, 'event_dates');
     const ticketTypes = parseNestedData(subEventData.ticket_types || req.body.ticket_types, 'ticket_types');
 
     // Process guests with profile images
@@ -1811,8 +1886,9 @@ export const updateTicketAddOns = async (req, res) => {
     console.log('Event dates count:', newSubEvent.event_dates.length);
     console.log('Guests count:', newSubEvent.guests.length);
     console.log('POCS count:', newSubEvent.POCS.length);
+    console.log('=== DUPLICATION CHECK PASSED ===');
 
-    // Now safely update the ticket - REMOVED the problematic validation
+    // Now safely update the ticket
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
       {
@@ -1844,6 +1920,11 @@ export const updateTicketAddOns = async (req, res) => {
       addedSubEvent: newSubEvent,
       totalSubEvents: updatedTicket.sub_events.length,
       location_type: subEventData.location_type,
+      duplicationCheck: {
+        performed: true,
+        status: "passed",
+        message: "No duplicate sub-events found"
+      },
       uploadedFiles: {
         event_banner: processedFiles.event_banner ? 1 : 0,
         event_logo: processedFiles.event_logo ? 1 : 0,
