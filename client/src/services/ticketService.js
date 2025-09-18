@@ -47,7 +47,6 @@ export const updateTicketMedia = async (ticketId, formData) => {
   try {
     console.log('Calling API with ticketId:', ticketId);
     console.log('FormData contents:', Array.from(formData.entries()));
-    
     const response = await api.post(`/ticket/update-ticket-media/${ticketId}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -126,6 +125,63 @@ export const getGroupsTypes = async () => {
 export const deleteTicket = async (ticketId) => {
   try {
     const response = await api.delete("ticket/delete-ticket", { data: { ticketId } });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+export const getGroupView = async (ticketId) => {
+  try {
+    const response = await api.get(`ticket/get-group-view/${ticketId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+export const getMyEvents = async () => {
+  try {
+    const response = await api.get("ticket/my-events");
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+export const getMyEventById = async (ticketId) => {
+  try {
+    const response = await api.get(`ticket/my-event-view/${ticketId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+export const getMyLiveEvents = async () => {
+  try {
+    const response = await api.get("ticket/my-live-events");
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+export const getMyLiveEventView = async (ticketId) => {
+  try {
+    const response = await api.get(`ticket/my-live-event-view/${ticketId}`);
+    return response.data;
+  }
+  catch (error) {
+    throw error;
+  }
+}
+export const getMyPastEvents = async () => {
+  try {
+    const response = await api.get("ticket/my-past-events");
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+export const getMyUpcomingEvents = async () => {
+  try {
+    const response = await api.get("ticket/my-upcoming-events");
     return response.data;
   } catch (error) {
     throw error;
