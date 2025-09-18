@@ -20,6 +20,7 @@ import UpdateTicketMedia from './pages/ticket/UpdateTicketMedia';
 import GroupSelectionModal from './components/modals/GroupSelectionModal';
 import ViewEvents from './pages/ticket/ViewEvents';
 import UpdateTicketDetails from './pages/ticket/UpdateTicketDetails';
+import IndexMessage from "./pages/message/indexMessage";
 // Protected Route - Only for authenticated users
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
@@ -115,7 +116,7 @@ const AppRoutes = () => {
       <Route 
         path="/otp" 
         element={
-          <PublicRoute>
+            <PublicRoute allowedRoles={['admin', 'organisation']}>
             <OtpPage />
           </PublicRoute>
         } 
@@ -123,7 +124,7 @@ const AppRoutes = () => {
       <Route 
         path="/verify-user/:input" 
         element={
-          <PublicRoute>
+          <PublicRoute allowedRoles={['admin', 'organisation']}>
             <VerifyUser />
           </PublicRoute>
         } 
@@ -131,7 +132,7 @@ const AppRoutes = () => {
       <Route 
         path="/reset-password/:input" 
         element={
-          <PublicRoute>
+          <PublicRoute allowedRoles={['admin', 'organisation']}>
             <ResetPassword />
           </PublicRoute>
         } 
@@ -215,6 +216,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['admin', 'organisation']}>
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/message"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "organisation"]}>
+            <IndexMessage />
           </ProtectedRoute>
         }
       />
