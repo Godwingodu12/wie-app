@@ -15,3 +15,15 @@ export const getMe = async () => {
     };
   }
 };
+export const updateProfile = async (profileData) => {
+  try {
+    const res = await userAPI.post('/user/update-profile', profileData);
+    return res;
+  } catch (error) {
+    console.error('updateProfile error:', error);
+    return {
+      data: null,
+      error: error.response?.data?.message || 'Something went wrong',
+    };
+  }
+};  
