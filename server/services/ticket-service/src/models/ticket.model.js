@@ -135,7 +135,7 @@ const subEventSchema = new mongoose.Schema({
   // Status
   event_status: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled', 'live'],
+    enum: ['pending', 'confirmed', 'cancelled', 'live','completed'],
     default: 'pending'
   },
 }, { timestamps: true });

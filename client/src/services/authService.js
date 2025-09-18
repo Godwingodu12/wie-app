@@ -102,4 +102,13 @@ export const editProfile = async (formData) => {
     console.error('editProfile error:', err);
     throw err;
   }
-};  
+};
+export const viewAllUsers = async () => {
+  try {
+    const res = await api.get('/auth/view-all-users');
+    return res.data;
+  } catch (err) {
+    console.error('viewAllUsers error:', err);
+    throw err;
+  }
+};

@@ -49,6 +49,19 @@ const userSchema = new mongoose.Schema(
       enum: ['organisation', 'admin'],
       default: 'admin',
     },
+    website: {
+      type: String,
+      default: '',
+    },
+    bio: {
+      type: String,
+      default: '',
+    },
+    gender: { 
+      type: String,
+      enum: ['male', 'female', 'other'],
+      default: 'other'
+    },
     lastLogout: {
       type: Date
     },
@@ -80,5 +93,4 @@ userSchema.index(
   }
 );
 const User = mongoose.model('User', userSchema);
-
 export default User;

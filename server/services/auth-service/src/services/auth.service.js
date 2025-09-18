@@ -940,3 +940,47 @@ export const editProfile = async (req, res) => {
     });
   }
 };
+export const viewAllUsers = async (req, res) => { 
+  try {
+    const { page = 1, limit = 15, sortBy = 'createdAt', order = 'desc', search = '' } = req.query;
+    // Build the query object
+    const query = {
+      $or: [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { contact_no: { $regex: search, $options: 'i' } }
+      ]
+    };
+    // Fetch users from the database
+    const users = await User.find({
+      ...query,        // existing filters
+      status: "active" // only active users
+    })
+      .sort({ [sortBy]: order === "desc" ? -1 : 1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    // Get total user count
+    const totalUsers = await User.countDocuments({
+      ...query,
+      status: "active" // only active users
+    });
+
+    // Send response
+    return res.status(200).json({
+      success: true,
+      data: users,
+      meta: {
+        total: totalUsers,
+        page,
+        limit
+      }
+    });
+  } catch (err) {
+    console.error("View all users error:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+};
