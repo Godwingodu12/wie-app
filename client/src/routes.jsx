@@ -21,7 +21,7 @@ import GroupSelectionModal from './components/modals/GroupSelectionModal';
 import ViewEvents from './pages/ticket/ViewEvents';
 import UpdateTicketDetails from './pages/ticket/UpdateTicketDetails';
 import IndexMessage from "./pages/message/indexMessage";
-// Protected Route - Only for authenticated users
+import  EditProfile  from './pages/Settings/EditProfile';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
 
@@ -224,6 +224,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={["admin", "organisation"]}>
             <IndexMessage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/editprofile"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "organisation"]}>
+            <EditProfile />
           </ProtectedRoute>
         }
       />
