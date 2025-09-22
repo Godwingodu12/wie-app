@@ -112,3 +112,12 @@ export const viewAllUsers = async () => {
     throw err;
   }
 };
+export const getOtherProfile = async (otherId)=>{
+  try{
+    const res = await api.get(`/auth/other-profile/${otherId}`);
+    return res.data;
+  }catch(err){
+    console.error('getOtherProfile error:',err);
+    throw err;
+  }
+};
