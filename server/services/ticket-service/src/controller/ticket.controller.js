@@ -361,3 +361,66 @@ export const getMyUpcomingEvents = async (req, res) => {
         });
     }
 };
+export const getOthersEvents = async(req, res)=>{
+  try {
+      const other = req.params.otherId;
+      const tickets = await Ticket.find({ 
+                userId: other,
+                status: ['completed','live']
+            });
+      res.status(200).json({
+            message: "Other User Tickets retrieved successfully",
+            tickets: tickets
+        });
+  } catch (error) {
+    console.error("Error fetching Others tickets:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+  }
+};
+export const getOtherLiveEvents = async(req, res)=>{
+  try {
+      const other = req.params.otherId;
+      const currentDate = new Date();
+      const tickets = await Ticket.find({ 
+                userId: other,
+                status: 'live',
+                event_start_date: { $lte: currentDate },
+                event_end_date: { $gte: currentDate }
+            });
+      res.status(200).json({
+            message: "Other User Live Tickets retrieved successfully",
+            tickets: tickets
+        });
+  } catch (error) {
+    console.error("Error fetching Others Live tickets:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+  }
+};
+export const getOthersPastEvents = async (req, res) => {
+    try {
+        const other = req.params.otherId;
+        const currentDate = new Date();
+        const tickets = await Ticket.find({ 
+            userId: other,
+            status: 'completed',
+            event_end_date: { $lt: currentDate }
+        });
+        res.status(200).json({
+            message: "other user Past Tickets retrieved successfully",
+            tickets: tickets
+        });
+    }
+    catch (error) {
+        console.error("Error fetching past tickets:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+};
