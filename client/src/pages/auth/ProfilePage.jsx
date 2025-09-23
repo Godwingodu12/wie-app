@@ -27,9 +27,8 @@ import LiveEventIcon from "../../assets/PROFILEPAGE/LiveEventIcon.svg";
 import PastEventIcon from "../../assets/PROFILEPAGE/PastEventIcon.svg";
 import LikeIcon from "../../assets/PROFILEPAGE/LikeIcon.svg";
 import SendIcon from "../../assets/PROFILEPAGE/SendIcon.svg";
-import CameraICon from "../../assets/PROFILEPAGE/CameraIcon.svg"
-import RightArrowIcon from "../../assets/PROFILEPAGE/RightArrowIcon.svg"
-
+import CameraICon from "../../assets/PROFILEPAGE/CameraIcon.svg";
+import RightArrowIcon from "../../assets/PROFILEPAGE/RightArrowIcon.svg";
 // Bottom Nav Icons
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
 import TicketIcon from "../../assets/HomePage/TicketIcon.svg";
@@ -1178,14 +1177,11 @@ const ProfilePage = () => {
                             <img
                               src={
                                 event.event_banner ||
-                                event.image ||
-                                event.eventImage ||
-                                event.banner ||
+                                event.event_logo ||
                                 event.event_image ||
-                                event.eventBanner ||
                                 "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
                               }
-                              alt={event.title || event.name || event.event_title || event.eventName || "Event"}
+                              alt={event.event_name || "Event"}
                               className="h-48 w-full object-cover"
                               onError={(e) => {
                                 e.target.src =
@@ -1197,39 +1193,30 @@ const ProfilePage = () => {
                             <div className="flex flex-col flex-1 p-4">
                               <div className="text-center mb-4">
                                 <h3 className={`font-semibold text-base ${theme.text}`}>
-                                  {event.event_title || 
-                                   event.title || 
-                                   event.name || 
-                                   event.eventName || 
-                                   event.eventTitle ||
-                                   "Event"}
+                                  {event.event_name ||"Event"}
                                 </h3>
                                 <p className={`text-sm ${theme.subText} mt-1`}>
-                                  {event.event_category || 
-                                   event.category || 
-                                   event.type || 
-                                   event.eventType || 
-                                   event.eventCategory ||
+                                  {event.event_category ||
                                    "Event Type"}
                                 </p>
                                 {/* Show event date if available */}
-                                {(event.event_date || event.eventDate || event.date) && (
+                                {(event.start_date) && (
                                   <p className={`text-xs ${theme.subText} mt-1`}>
                                     {new Date(event.event_date || event.eventDate || event.date).toLocaleDateString()}
                                   </p>
                                 )}
                                 {/* Show event status if available */}
-                                {(event.status || event.eventStatus) && (
+                                {(event.event_status || event.eventStatus) && (
                                   <span className={`inline-block px-2 py-1 rounded-full text-xs mt-2 ${
-                                    (event.status || event.eventStatus).toLowerCase() === 'live' || 
-                                    (event.status || event.eventStatus).toLowerCase() === 'active'
+                                    (event.event_status || event.eventStatus).toLowerCase() === 'live' || 
+                                    (event.event_status || event.eventStatus).toLowerCase() === 'active'
                                       ? 'bg-green-100 text-green-800' 
-                                      : (event.status || event.eventStatus).toLowerCase() === 'completed' ||
-                                        (event.status || event.eventStatus).toLowerCase() === 'ended'
+                                      : (event.event_status || event.eventStatus).toLowerCase() === 'completed' ||
+                                        (event.event_status || event.eventStatus).toLowerCase() === 'ended'
                                       ? 'bg-gray-100 text-gray-800'
                                       : 'bg-blue-100 text-blue-800'
                                   }`}>
-                                    {event.status || event.eventStatus}
+                                    {event.event_status || event.eventStatus}
                                   </span>
                                 )}
                               </div>
@@ -1277,7 +1264,7 @@ const ProfilePage = () => {
                               <div className="flex justify-center">
                                 <button
                                   onClick={() => {
-                                    const eventId = event._id || event.id || event.eventId;
+                                    const eventId = event._id || event.id;
                                     if (eventId) {
                                       navigate(`/ticket/event/${eventId}`);
                                     } else {
