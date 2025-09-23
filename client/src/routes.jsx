@@ -21,7 +21,8 @@ import GroupSelectionModal from './components/modals/GroupSelectionModal';
 import ViewEvents from './pages/ticket/ViewEvents';
 import UpdateTicketDetails from './pages/ticket/UpdateTicketDetails';
 import IndexMessage from "./pages/message/indexMessage";
-import  EditProfile  from './pages/Settings/EditProfile';
+import  EditProfile  from './pages/settings/EditProfile';
+import TicketTerms from './pages/ticket/TicketTerms';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
 
@@ -200,6 +201,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <UpdateTicketDetails />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/ticket-terms/:ticketId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <TicketTerms />
           </ProtectedRoute>
         }
       />

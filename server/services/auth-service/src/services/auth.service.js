@@ -984,3 +984,19 @@ export const viewAllUsers = async (req, res) => {
     });
   }
 };
+export const getOtherProfile = async(req,res)=>{
+  try{
+    const other = req.params.otherId;
+    const user = await User.find({_id: other,status: 'active',});
+    res.status(200).json({
+            message: "Other User Profile fetched successfully",
+            user: user
+    });
+  }catch(error){
+    console.error("Error fetching Other User Profile:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+  }
+};

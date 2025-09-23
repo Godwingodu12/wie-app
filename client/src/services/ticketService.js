@@ -187,3 +187,27 @@ export const getMyUpcomingEvents = async () => {
     throw error;
   }
 }
+export const getOthersEvents = async(otherId)=>{
+  try{
+    const response = await api.get(`ticket/get-others-events/${otherId}`);
+    return response.data;
+  }catch(error){
+    throw error;
+  }
+};
+export const getOtherLiveEvents = async(otherId)=>{
+  try{
+    const response = await api.get(`ticket/get-others-live-events/${otherId}`);
+    return response.data;
+  }catch(error){
+    throw error;
+  }
+};
+export const getOthersPastEvents = async(otherId)=>{
+  try{
+    const response = await api.get(`ticket/get-others-past-events/${otherId}`);
+    return response.data;
+  }catch(error){
+    throw error;
+  }
+};

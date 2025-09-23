@@ -1,5 +1,5 @@
 import express from 'express';
-import {index, login, adminSignup,organisationSignup,getUserById,verifyOTP,logout,forgotPassword,resendOtp,verifyUser,resetPassword,findAllActiveUsers,editProfile,viewAllUsers } from '../services/auth.service.js';
+import {index, login, adminSignup,organisationSignup,getUserById,verifyOTP,logout,forgotPassword,resendOtp,verifyUser,resetPassword,findAllActiveUsers,editProfile,viewAllUsers,getOtherProfile } from '../services/auth.service.js';
 import upload from '../middlewares/upload.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
@@ -18,4 +18,5 @@ router.post('/reset-password', resetPassword);
 router.get('/active-users', findAllActiveUsers);
 router.post('/edit-profile', protect, editProfile);
 router.get('/view-all-users', protect, viewAllUsers);
+router.get('/other-profile/:otherId',getOtherProfile);
 export default router;
