@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { getMe } from "../../services/userService";
 import { findAllActiveUsers } from "../../services/authService";
 import { useNavigate, Link } from 'react-router-dom';
-import { getGroups, getMyEvents } from "../../services/ticketService";
+import { getGroups, getMyEvents, getMyLiveEvents, getMyPastEvents } from "../../services/ticketService";
 import { useDispatch } from 'react-redux';
 import { logoutSuccess } from '../../features/auth/authSlice'; 
 import { logout } from '../../services/authService';
@@ -22,11 +22,13 @@ import FollowersIcon from "../../assets/PROFILEPAGE/FollowersIcon.svg";
 import FollowingIcon from "../../assets/PROFILEPAGE/FollowingIcon.svg";
 import HandburgerIcon from "../../assets/PROFILEPAGE/HandburgerIcon.svg";
 import VerifiedIcon from "../../assets/PROFILEPAGE/VerifiedIcon.svg"
-import MyEventIcon from "../../assets/PROFILEPAGE/MyEventIcon.svg";
+import AllEventsIcon from "../../assets/PROFILEPAGE/AllEventsIcon.svg";
 import LiveEventIcon from "../../assets/PROFILEPAGE/LiveEventIcon.svg";
-import ViewIcon from "../../assets/PROFILEPAGE/ViewIcon.svg";
+import PastEventIcon from "../../assets/PROFILEPAGE/PastEventIcon.svg";
 import LikeIcon from "../../assets/PROFILEPAGE/LikeIcon.svg";
 import SendIcon from "../../assets/PROFILEPAGE/SendIcon.svg";
+import CameraICon from "../../assets/PROFILEPAGE/CameraIcon.svg"
+import RightArrowIcon from "../../assets/PROFILEPAGE/RightArrowIcon.svg"
 
 // Bottom Nav Icons
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
@@ -54,16 +56,102 @@ const ProfilePage = () => {
   const [user, setUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [groups, setGroups] = useState([]);
-  const [myEvents, setMyEvents] = useState([]);
+  
+  // Separate state for different event types
+  const [allEvents, setAllEvents] = useState([]);
+  const [liveEvents, setLiveEvents] = useState([]);
+  const [pastEvents, setPastEvents] = useState([]);
+  
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Active tab state: 'all', 'live', 'past'
+  const [activeTab, setActiveTab] = useState('all');
   
   // State for hamburger menu dropdown
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const hamburgerRef = useRef(null);
+
+  // Helper function to parse API response and extract tickets/events
+  const parseApiResponse = (response, dataType = 'events') => {
+    console.log(`Parsing ${dataType} response:`, response);
+    
+    let data = [];
+    
+    // Try different response structures
+    if (response?.data?.tickets) {
+      data = response.data.tickets;
+    } else if (response?.tickets) {
+      data = response.tickets;
+    } else if (response?.data?.events) {
+      data = response.data.events;
+    } else if (response?.events) {
+      data = response.events;
+    } else if (Array.isArray(response?.data)) {
+      data = response.data;
+    } else if (Array.isArray(response)) {
+      data = response;
+    } else if (response?.data && typeof response.data === 'object') {
+      // If response.data is an object, try to extract events from it
+      const dataKeys = Object.keys(response.data);
+      const eventKey = dataKeys.find(key => 
+        Array.isArray(response.data[key]) || 
+        key.toLowerCase().includes('event') ||
+        key.toLowerCase().includes('ticket')
+      );
+      if (eventKey && Array.isArray(response.data[eventKey])) {
+        data = response.data[eventKey];
+      }
+    }
+    
+    console.log(`Parsed ${dataType} data:`, data);
+    return Array.isArray(data) ? data : [];
+  };
+
+  // Helper function to categorize events based on dates and status
+  const categorizeEvents = (tickets) => {
+    const now = new Date();
+    const all = [];
+    const live = [];
+    const past = [];
+
+    tickets.forEach(ticket => {
+      // Add to all events regardless
+      all.push(ticket);
+
+      // Check if event has date fields to categorize
+      const eventDate = ticket.event_date || ticket.eventDate || ticket.date;
+      const eventEndDate = ticket.event_end_date || ticket.eventEndDate || ticket.endDate;
+      const eventStatus = ticket.status || ticket.eventStatus;
+
+      if (eventDate) {
+        const startDate = new Date(eventDate);
+        const endDate = eventEndDate ? new Date(eventEndDate) : startDate;
+
+        // Live events: currently happening (between start and end date)
+        if (startDate <= now && endDate >= now) {
+          live.push(ticket);
+        }
+        // Past events: end date has passed
+        else if (endDate < now) {
+          past.push(ticket);
+        }
+      } else if (eventStatus) {
+        // Fallback: use status if no dates
+        if (eventStatus.toLowerCase() === 'live' || eventStatus.toLowerCase() === 'active') {
+          live.push(ticket);
+        } else if (eventStatus.toLowerCase() === 'completed' || eventStatus.toLowerCase() === 'ended') {
+          past.push(ticket);
+        }
+      }
+    });
+
+    return { all, live, past };
+  };
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -91,6 +179,7 @@ const ProfilePage = () => {
         console.log("Fetching active users...");
         const response = await findAllActiveUsers();
         console.log("API Response:", response);
+        
         if (response?.data?.users) {
           setUsers(response.data.users);
         } else if (response?.users) {
@@ -136,30 +225,92 @@ const ProfilePage = () => {
     fetchGroups();
   }, []);
 
+  // Fetch all events - Updated to handle tickets response
   useEffect(() => {
-    const fetchMyEvents = async () => {
+    const fetchAllEvents = async () => {
       setEventsLoading(true);
       try {
         const response = await getMyEvents();
         console.log("My Events API Response:", response);
         
-        if (response?.data) {
-          setMyEvents(Array.isArray(response.data) ? response.data : []);
-        } else if (Array.isArray(response)) {
-          setMyEvents(response);
+        const tickets = parseApiResponse(response, 'tickets');
+        
+        if (tickets.length > 0) {
+          const { all, live, past } = categorizeEvents(tickets);
+          setAllEvents(all);
+          setLiveEvents(live);
+          setPastEvents(past);
+          
+          console.log("Categorized events:", { 
+            all: all.length, 
+            live: live.length, 
+            past: past.length 
+          });
         } else {
-          console.log("Unexpected events response format:", response);
-          setMyEvents([]);
+          console.log("No tickets found in response");
+          setAllEvents([]);
+          setLiveEvents([]);
+          setPastEvents([]);
         }
       } catch (err) {
-        console.error("Failed to fetch my events:", err);
-        setMyEvents([]);
+        console.error("Failed to fetch all events:", err);
+        setAllEvents([]);
+        setLiveEvents([]);
+        setPastEvents([]);
       } finally {
         setEventsLoading(false);
       }
     };
-    fetchMyEvents();
+    fetchAllEvents();
   }, []);
+
+  // Optional: Fetch live events separately if you have separate endpoints
+  useEffect(() => {
+    const fetchLiveEvents = async () => {
+      try {
+        const response = await getMyLiveEvents();
+        console.log("Live Events API Response:", response);
+        
+        const events = parseApiResponse(response, 'live events');
+        // Only update if this endpoint returns different data
+        if (events.length > 0 && liveEvents.length === 0) {
+          setLiveEvents(events);
+        }
+      } catch (err) {
+        console.error("Failed to fetch live events:", err);
+        // Don't reset liveEvents here as it might be populated from categorizeEvents
+      }
+    };
+    
+    // Only fetch if we don't have live events from the main fetch
+    if (liveEvents.length === 0) {
+      fetchLiveEvents();
+    }
+  }, [liveEvents.length]);
+
+  // Optional: Fetch past events separately if you have separate endpoints
+  useEffect(() => {
+    const fetchPastEvents = async () => {
+      try {
+        const response = await getMyPastEvents();
+        console.log("Past Events API Response:", response);
+        
+        const events = parseApiResponse(response, 'past events');
+        // Only update if this endpoint returns different data
+        if (events.length > 0 && pastEvents.length === 0) {
+          setPastEvents(events);
+        }
+      } catch (err) {
+        console.error("Failed to fetch past events:", err);
+        // Don't reset pastEvents here as it might be populated from categorizeEvents
+      }
+    };
+    
+    // Only fetch if we don't have past events from the main fetch
+    if (pastEvents.length === 0) {
+      fetchPastEvents();
+    }
+  }, [pastEvents.length]);
 
   // Close hamburger menu when clicking outside
   useEffect(() => {
@@ -186,9 +337,14 @@ const ProfilePage = () => {
     if (!user) return;
     setLoading(true);
     try {
-      navigate("/ticket/create-event");
+      const groupsResponse = await getGroups();
+      const groupsArray = Array.isArray(groupsResponse) ? groupsResponse : groupsResponse.data || [];
+      setGroups(groupsArray);
+      if (groupsArray.length === 0) navigate("/ticket/create-group");
+      else if (groupsArray.length === 1) navigate(`/ticket/create-event/${groupsArray[0]._id}`);
+      else setIsModalOpen(true);
     } catch {
-      alert("Error creating event. Please try again.");
+      alert("Error fetching groups. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -208,6 +364,18 @@ const ProfilePage = () => {
 
   const handleHamburgerClick = () => {
     setShowHamburgerMenu(!showHamburgerMenu);
+  };
+
+  // Get current events based on active tab
+  const getCurrentEvents = () => {
+    switch (activeTab) {
+      case 'live':
+        return liveEvents;
+      case 'past':
+        return pastEvents;
+      default:
+        return allEvents;
+    }
   };
 
   const theme = isDark
@@ -241,6 +409,54 @@ const ProfilePage = () => {
       };
 
   const displayName = user?.name || "User";
+
+  // Group Selection Modal Component
+  const GroupSelectionModal = () => (
+    isModalOpen && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className={`${theme.cardBg} rounded-2xl p-6 m-4 max-w-md w-full max-h-[80vh] overflow-y-auto`}>
+          <h3 className={`text-lg font-semibold ${theme.text} mb-4`}>Select a Group</h3>
+          <div className="space-y-3">
+            {groups.map((group) => (
+              <button
+                key={group._id}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  navigate(`/ticket/create-event/${group._id}`);
+                }}
+                className={`w-full text-left p-3 rounded-lg border ${theme.border} ${theme.buttonHoverBg} transition-colors duration-200`}
+              >
+                <div className="flex items-center gap-3">
+                  {group.image ? (
+                    <img 
+                      src={group.image}
+                      alt={group.name || group.groupName}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center">
+                      <span className="text-white text-sm font-bold">
+                        {(group.name || group.groupName || 'G')[0].toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <span className={`font-medium ${theme.text}`}>
+                    {group.name || group.groupName || 'Group'}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setIsModalOpen(false)}
+            className={`mt-4 w-full py-2 rounded-lg ${theme.border} border ${theme.text} ${theme.buttonHoverBg} transition-colors duration-200`}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  );
 
   const BottomNavigation = () => (
     <nav className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 w-[95%] md:hidden">
@@ -413,7 +629,7 @@ const ProfilePage = () => {
                       <div className={`rounded-[2rem] px-6 py-4 flex gap-6 transition-all duration-300 ${theme.cardBg}`} style={{boxShadow: theme.smallCardShadow}}>
                         <div className="text-center flex flex-col items-center gap-1.5">
                           <img src={EventIcon} alt="Event" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
-                          <p className={`text-2xl font-bold ${theme.text}`}>{user.eventsCount || 0}</p>
+                          <p className={`text-2xl font-bold ${theme.text}`}>{allEvents.length}</p>
                           <p className={`text-xs ${theme.subText}`}>Events</p>
                         </div>
                         <div className="text-center flex flex-col items-center gap-1.5">
@@ -460,6 +676,7 @@ const ProfilePage = () => {
                           alt="Profile"
                           className={`w-48 h-48 rounded-full object-cover border-4 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
                         />
+                        
                         <div className="space-y-2 flex-1">
                           <h1 className={`text-2xl font-bold ${theme.text}`}>{user.name}</h1>
                           <p className={`text-sm ${theme.subText}`}>@{user.username}</p>
@@ -503,7 +720,8 @@ const ProfilePage = () => {
                       <div className="flex flex-col items-end gap-4">
                         {/* Create Event + Hamburger */}
                         <div className="flex items-center gap-3">
-                          <button 
+                          <button onClick={handleCreateEvent} 
+                            disabled={loading}
                             className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 ${
                               isDark ? 'text-white' : 'text-gray-800'
                             }`}
@@ -528,7 +746,7 @@ const ProfilePage = () => {
                               alt="Event"
                               className={`w-6 h-6 ${!isDark ? "filter brightness-0" : ""}`}
                             />
-                            <p className={`text-3xl font-bold ${theme.text}`}>{user.eventsCount || 0}</p>
+                            <p className={`text-3xl font-bold ${theme.text}`}>{allEvents.length}</p>
                             <p className={`text-sm ${theme.subText}`}>Event created</p>
                           </div>
 
@@ -558,7 +776,7 @@ const ProfilePage = () => {
                     </div>
                   </div>
 
-                  {/* Groups Section - Updated to show only "New group" button when no groups found */}
+                  {/* Groups Section */}
                   <div className={`rounded-3xl p-6 ${theme.cardBg} transition-all duration-300`} style={{ boxShadow: theme.cardShadow}}>
                     <div className="flex items-center gap-4 mb-4 md:mb-0">
                       <h2 className={`text-lg font-semibold ${theme.text}`}>My groups</h2>
@@ -591,6 +809,7 @@ const ProfilePage = () => {
                             ))}
                             <div className="flex flex-col items-center flex-shrink-0">
                               <button 
+                                onClick={() => navigate("/ticket/create-group")}
                                 className={`w-14 h-14 rounded-full border-2 border-dashed flex items-center justify-center ${
                                   isDark ? "border-gray-600" : "border-gray-400"
                                 }`} 
@@ -633,6 +852,7 @@ const ProfilePage = () => {
                             {/* Plus Button */}
                             <div className="flex flex-col items-center">
                               <button 
+                                onClick={() => navigate("/ticket/create-group")}
                                 className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
                                   isDark ? "border-gray-600" : "border-gray-400"
                                 }`} 
@@ -648,138 +868,273 @@ const ProfilePage = () => {
                     </div>
                   </div>
 
-                  {/* Suggestions - Horizontal scroll on all devices */}
+                  {/* Suggestions */}
                   <div className={`rounded-xl p-6 ${theme.cardBg} transition-all duration-300`}>
                     <div className="flex justify-between items-center mb-6">
                       <h2 className={`text-lg font-semibold ${theme.text}`}>Suggestions</h2>
-                      <button className={`text-sm px-4 py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${isDark ? 'text-[#FFFFFF]' : 'text-[#000000]'}`}>
+                      <button
+                        className={`text-sm px-4 py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${
+                          isDark ? "text-[#FFFFFF]" : "text-[#000000]"
+                        }`}
+                      >
                         see all
                       </button>
                     </div>
 
-                    <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
-                      {users.length > 0 ? (
-                        users.slice(0, 8).map((suggestedUser) => (
-                          <div 
-                            key={suggestedUser._id} 
-                            className="w-[200px] md:w-[246px] h-[280px] md:h-[363px] flex-shrink-0 rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 hover:scale-105"
-                            style={{
-                              backgroundColor: isDark ? "#212426" : "#ffffff",
-                              boxShadow: theme.smallCardShadow,
-                            }}
-                          >
-                            {/* Top Section: Image + Content */}
-                            <div className="flex flex-col">
-                              {/* Profile Image */}
-                              <div className="relative mb-4">
-                                <img 
-                                  src={suggestedUser.image
-                                    ? `http://localhost:3001/uploads/${suggestedUser.image}`
-                                    : "https://via.placeholder.com/214x160"
-                                  }
-                                  alt={suggestedUser.name}
-                                  className="w-full h-[120px] md:h-[160px] object-cover rounded-2xl"
-                                />
-                              </div>
-                              {/* User Info: Name + Verified + Role */}
-                              <div className="px-1" style={{ marginTop: '2rem' }}>
-                                <div className="flex items-center gap-2 mb-1 justify-center">
-                                  <h3 className={`text-base font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
-                                  <img src={VerifiedIcon} alt="Verified" className="w-4 h-4 flex-shrink-0" />
-                                </div>
-                                <p className={`text-sm ${theme.subText} capitalize text-center`}>{suggestedUser.role || "User"}</p>
-                              </div>
-                            </div>
+                    {/* Scrollable Container with Arrows */}
+                    <div className="relative">
+                      {/* Left Arrow */}
+                      <button
+                        onClick={() => {
+                          document.getElementById("suggestions-scroll").scrollBy({
+                            left: -250,
+                            behavior: "smooth",
+                          });
+                        }}
+                        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full  transition hidden"
+                        id="left-arrow"
+                      >
+                        <img src={RightArrowIcon} alt="Scroll Left" className="w-6 h-6 rotate-180 invert" />
+                      </button>
 
-                            {/* Bottom Section: Stats + Follow Button */}
-                            <div className="flex justify-between items-center px-1" style={{ marginBottom: '1rem' }}>
-                              <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-1">
-                                  <img src={FollowersIcon} alt="Followers" className={`w-4 h-4 ${!isDark ? 'filter brightness-0' : ''}`}/>
-                                  <span className={`text-sm font-medium ${theme.text}`}>{Math.floor(Math.random() * 500) + 100}</span>
+                      {/* Scrollable Users */}
+                      <div
+                        id="suggestions-scroll"
+                        className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 scroll-smooth"
+                        onScroll={(e) => {
+                          const container = e.target;
+                          const leftArrow = document.getElementById("left-arrow");
+                          const rightArrow = document.getElementById("right-arrow");
+
+                          // Show/hide arrows based on scroll position
+                          if (container.scrollLeft > 0) {
+                            leftArrow.classList.remove("hidden");
+                          } else {
+                            leftArrow.classList.add("hidden");
+                          }
+
+                          if (container.scrollLeft + container.clientWidth < container.scrollWidth) {
+                            rightArrow.classList.remove("hidden");
+                          } else {
+                            rightArrow.classList.add("hidden");
+                          }
+                        }}
+                      >
+                        {users.length > 0 ? (
+                          users.slice(0, 8).map((suggestedUser) => (
+                            <div
+                              key={suggestedUser._id}
+                              className="w-[200px] md:w-[246px] h-[280px] md:h-[363px] flex-shrink-0 rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 hover:scale-105"
+                              style={{
+                                backgroundColor: isDark ? "#212426" : "#ffffff",
+                                boxShadow: theme.smallCardShadow,
+                              }}
+                            >
+                              <div className="flex flex-col">
+                                <div className="relative mb-4">
+                                  <img
+                                    src={
+                                      suggestedUser.image
+                                        ? `http://localhost:3001/uploads/${suggestedUser.image}`
+                                        : "https://via.placeholder.com/214x160"
+                                    }
+                                    alt={suggestedUser.name}
+                                    className="w-full h-[120px] md:h-[160px] object-cover rounded-2xl"
+                                  />
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <img src={EventIcon} alt="Events" className={`w-4 h-4 ${!isDark ? 'filter brightness-0' : ''}`}/>
-                                  <span className={`text-sm font-medium ${theme.text}`}>{Math.floor(Math.random() * 500) + 100}</span>
+                                <div className="px-1" style={{ marginTop: "2rem" }}>
+                                  <div className="flex items-center gap-2 mb-1 justify-center">
+                                    <h3 className={`text-base font-semibold ${theme.text} truncate`}>
+                                      {suggestedUser.name}
+                                    </h3>
+                                    <img
+                                      src={VerifiedIcon}
+                                      alt="Verified"
+                                      className="w-4 h-4 flex-shrink-0"
+                                    />
+                                  </div>
+                                  <p
+                                    className={`text-sm ${theme.subText} capitalize text-center`}
+                                  >
+                                    {suggestedUser.role || "User"}
+                                  </p>
                                 </div>
                               </div>
-                              <button className="px-4 py-1.5 rounded-full text-white text-sm font-medium bg-blue-500 hover:bg-blue-600 transition-colors duration-200">
-                                Follow +
-                              </button>
+
+                              <div
+                                className="flex justify-between items-center px-1"
+                                style={{ marginBottom: "1rem" }}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-1">
+                                    <img
+                                      src={FollowersIcon}
+                                      alt="Followers"
+                                      className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
+                                    />
+                                    <span className={`text-sm font-medium ${theme.text}`}>
+                                      {Math.floor(Math.random() * 500) + 100}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <img
+                                      src={EventIcon}
+                                      alt="Events"
+                                      className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
+                                    />
+                                    <span className={`text-sm font-medium ${theme.text}`}>
+                                      {Math.floor(Math.random() * 500) + 100}
+                                    </span>
+                                  </div>
+                                </div>
+                                <button className="px-4 py-1.5 rounded-full text-white text-sm font-medium bg-blue-500 hover:bg-blue-600 transition-colors duration-200">
+                                  Follow +
+                                </button>
+                              </div>
                             </div>
+                          ))
+                        ) : (
+                          <div className={`w-full text-center py-8 ${theme.subText}`}>
+                            <p className="text-sm">No suggestions available</p>
                           </div>
-                        ))
-                      ) : (
-                        <div className={`w-full text-center py-8 ${theme.subText}`}>
-                          <p className="text-sm">No suggestions available</p>
-                        </div>
-                      )}
+                        )}
+                      </div>
+
+                      {/* Right Arrow */}
+                      <button
+                        onClick={() => {
+                          document.getElementById("suggestions-scroll").scrollBy({
+                            left: 250,
+                            behavior: "smooth",
+                          });
+                        }}
+                        className="absolute right-0 top-1/2 -translate-y-1/3 z-10   p-2 rounded-full  transition"
+                        id="right-arrow"
+                      >
+                        <img src={RightArrowIcon} alt="Scroll Right" className="w-6 h-6 invert" />
+                      </button>
                     </div>
                   </div>
 
-                  {/* Post Area - Updated to show My Events with cards */}
-                  <div className={`rounded-[2.5rem] p-6 ${theme.cardBg} transition-all duration-300`} style={{boxShadow: theme.cardShadow}}>
+                  {/* Events Section with Tabs */}
+                  <div
+                    className={`rounded-[2.5rem] p-6 ${theme.cardBg} transition-all duration-300`}
+                    style={{ boxShadow: theme.cardShadow }}
+                  >
                     {/* Tabs */}
                     <div className="flex items-center justify-between mb-6 px-4">
-                      {/* Mobile: Center tabs with active indicator */}
+                      {/* Mobile Tabs */}
                       <div className="flex md:hidden items-center justify-center w-full gap-8 relative">
-                        <div className="flex flex-col items-center gap-2 cursor-pointer">
-                          <img 
-                            src={MyEventIcon}
+                        <div 
+                          className={`flex flex-col items-center gap-2 cursor-pointer ${activeTab === 'all' ? '' : 'opacity-60'}`}
+                          onClick={() => setActiveTab('all')}
+                        >
+                          <img
+                            src={AllEventsIcon}
                             alt="My events"
                             className={`w-6 h-6 ${!isDark ? "filter brightness-0" : ""}`}
                           />
-                          <span className={`text-sm font-medium ${theme.text}`}>My events</span>
-                          <div className="w-full h-0.5 bg-blue-500"></div>
+                          <span className={`text-sm font-medium ${theme.text}`}>
+                            All Events
+                          </span>
+                          {activeTab === 'all' && <div className="w-full h-0.5 bg-blue-500"></div>}
                         </div>
-                        <div className="flex flex-col items-center gap-2 cursor-pointer opacity-60">
-                          <img 
+                        <div 
+                          className={`flex flex-col items-center gap-2 cursor-pointer ${activeTab === 'live' ? '' : 'opacity-60'}`}
+                          onClick={() => setActiveTab('live')}
+                        >
+                          <img
                             src={LiveEventIcon}
                             alt="Live events"
                             className={`w-6 h-6 ${!isDark ? "filter brightness-0" : ""}`}
                           />
-                          <span className={`text-sm font-medium ${theme.text}`}>Live events</span>
+                          <span className={`text-sm font-medium ${theme.text}`}>
+                            Live Events
+                          </span>
+                          {activeTab === 'live' && <div className="w-full h-0.5 bg-blue-500"></div>}
+                        </div>
+                        <div 
+                          className={`flex flex-col items-center gap-2 cursor-pointer ${activeTab === 'past' ? '' : 'opacity-60'}`}
+                          onClick={() => setActiveTab('past')}
+                        >
+                          <img
+                            src={PastEventIcon}
+                            alt="Past events"
+                            className={`w-6 h-6 ${!isDark ? "filter brightness-0" : ""}`}
+                          />
+                          <span className={`text-sm font-medium ${theme.text}`}>
+                            Past Events
+                          </span>
+                          {activeTab === 'past' && <div className="w-full h-0.5 bg-blue-500"></div>}
                         </div>
                       </div>
 
-                      {/* Desktop: Keep original layout */}
+                      {/* Desktop Tabs */}
                       <div className="hidden md:flex items-center justify-between w-full">
-                        {/* Left: My events - with pressed neumorphic effect */}
-                        <div 
-                          className="flex items-center gap-2 cursor-pointer p-3 rounded-xl transition-all duration-200"
+                        <div
+                          className={`flex items-center gap-2 cursor-pointer p-3 rounded-xl transition-all duration-200 ${
+                            activeTab === 'all' ? '' : 'opacity-60'
+                          }`}
                           style={{
-                            boxShadow: isDark 
-                              ? 'inset 2px 2px 4px rgba(0,0,0,0.3), inset -2px -2px 4px rgba(255,255,255,0.1)' 
-                              : 'inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)',
-                            backgroundColor: isDark ? '#1a1d20' : '#f0f2f5'
+                            boxShadow: activeTab === 'all' ? (isDark
+                              ? "inset 2px 2px 4px rgba(0,0,0,0.3), inset -2px -2px 4px rgba(255,255,255,0.1)"
+                              : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
+                            backgroundColor: activeTab === 'all' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
                           }}
+                          onClick={() => setActiveTab('all')}
                         >
-                          <img 
-                            src={MyEventIcon}
+                          <img
+                            src={AllEventsIcon}
                             alt="My events"
                             className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
                           />
-                          <span className={`text-sm font-medium ${theme.text}`}>My events</span>
+                          <span className={`text-sm font-medium ${theme.text}`}>
+                            All Events ({allEvents.length})
+                          </span>
                         </div>
 
-                        {/* Center: Live events */}
-                        <div className="flex items-center gap-2 cursor-pointer mx-auto">
-                          <img 
+                        <div 
+                          className={`flex items-center gap-2 cursor-pointer mx-auto p-3 rounded-xl transition-all duration-200 ${
+                            activeTab === 'live' ? '' : 'opacity-60'
+                          }`}
+                          style={{
+                            boxShadow: activeTab === 'live' ? (isDark
+                              ? "inset 2px 2px 4px rgba(0,0,0,0.3), inset -2px -2px 4px rgba(255,255,255,0.1)"
+                              : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
+                            backgroundColor: activeTab === 'live' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+                          }}
+                          onClick={() => setActiveTab('live')}
+                        >
+                          <img
                             src={LiveEventIcon}
                             alt="Live events"
                             className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
                           />
-                          <span className={`text-sm font-medium ${theme.text}`}>Live events</span>
+                          <span className={`text-sm font-medium ${theme.text}`}>
+                            Live Events ({liveEvents.length})
+                          </span>
                         </div>
 
-                        {/* Right: View - moved slightly left */}
-                        <div className="flex items-center gap-2 cursor-pointer -mr-2 p-4">
-                          <img 
-                            src={ViewIcon}
-                            alt="View" 
-                            className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
+                        <div 
+                          className={`flex items-center gap-2 cursor-pointer -mr-2 p-4 rounded-xl transition-all duration-200 ${
+                            activeTab === 'past' ? '' : 'opacity-60'
+                          }`}
+                          style={{
+                            boxShadow: activeTab === 'past' ? (isDark
+                              ? "inset 2px 2px 4px rgba(0,0,0,0.3), inset -2px -2px 4px rgba(255,255,255,0.1)"
+                              : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
+                            backgroundColor: activeTab === 'past' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+                          }}
+                          onClick={() => setActiveTab('past')}
+                        >
+                          <img
+                            src={PastEventIcon}
+                            alt="PastEvent"
+                            className={`w-7 h-7 ${!isDark ? "filter brightness-0" : ""}`}
                           />
-                          <span className={`text-sm font-medium ${theme.text}`}>View</span>
+                          <span className={`text-sm font-medium ${theme.text}`}>
+                            Past Events ({pastEvents.length})
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -789,23 +1144,30 @@ const ProfilePage = () => {
                       <div className="flex justify-center items-center py-16">
                         <div className={`text-lg ${theme.subText}`}>Loading events...</div>
                       </div>
-                    ) : myEvents.length === 0 ? (
+                    ) : getCurrentEvents().length === 0 ? (
                       /* Empty State */
                       <div className="flex flex-col items-center justify-center py-16 md:py-24">
-                        <h3 className={`text-xl font-medium ${theme.text} mb-4`}>Create your first post</h3>
-                        <button 
-                          onClick={handleCreateEvent}
-                          className="px-8 md:px-14 py-2.5 rounded-full text-white text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90 transition-opacity duration-200"
-                        >
-                          Create
-                        </button>
+                        <h3 className={`text-xl font-medium ${theme.text} mb-4`}>
+                          {activeTab === 'all' ? 'Create your first Event' : 
+                           activeTab === 'live' ? 'No live events yet' : 
+                           'No past events yet'}
+                        </h3>
+                        {activeTab === 'all' && (
+                          <button
+                            onClick={handleCreateEvent}
+                            disabled={loading}
+                            className="px-8 md:px-14 py-2.5 rounded-full text-white text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90 transition-opacity duration-200"
+                          >
+                            {loading ? "Loading..." : "Create"}
+                          </button>
+                        )}
                       </div>
                     ) : (
                       /* Events Grid */
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {myEvents.map((event) => (
+                        {getCurrentEvents().map((event, index) => (
                           <div
-                            key={event._id}
+                            key={event._id || `event-${index}`}
                             className="rounded-2xl overflow-hidden flex flex-col"
                             style={{
                               backgroundColor: isDark ? "#212426" : "#ffffff",
@@ -814,23 +1176,65 @@ const ProfilePage = () => {
                           >
                             {/* Event Image */}
                             <img
-                              src={event.image || event.eventImage || "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"}
-                              alt={event.title || event.name}
+                              src={
+                                event.event_banner ||
+                                event.image ||
+                                event.eventImage ||
+                                event.banner ||
+                                event.event_image ||
+                                event.eventBanner ||
+                                "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
+                              }
+                              alt={event.title || event.name || event.event_title || event.eventName || "Event"}
                               className="h-48 w-full object-cover"
+                              onError={(e) => {
+                                e.target.src =
+                                  "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
+                              }}
                             />
 
-                            {/* Event Info - centered */}
+                            {/* Event Info */}
                             <div className="flex flex-col flex-1 p-4">
                               <div className="text-center mb-4">
                                 <h3 className={`font-semibold text-base ${theme.text}`}>
-                                  {event.title || event.name || 'Event'}
+                                  {event.event_title || 
+                                   event.title || 
+                                   event.name || 
+                                   event.eventName || 
+                                   event.eventTitle ||
+                                   "Event"}
                                 </h3>
                                 <p className={`text-sm ${theme.subText} mt-1`}>
-                                  {event.category || event.type || 'Event Type'}
+                                  {event.event_category || 
+                                   event.category || 
+                                   event.type || 
+                                   event.eventType || 
+                                   event.eventCategory ||
+                                   "Event Type"}
                                 </p>
+                                {/* Show event date if available */}
+                                {(event.event_date || event.eventDate || event.date) && (
+                                  <p className={`text-xs ${theme.subText} mt-1`}>
+                                    {new Date(event.event_date || event.eventDate || event.date).toLocaleDateString()}
+                                  </p>
+                                )}
+                                {/* Show event status if available */}
+                                {(event.status || event.eventStatus) && (
+                                  <span className={`inline-block px-2 py-1 rounded-full text-xs mt-2 ${
+                                    (event.status || event.eventStatus).toLowerCase() === 'live' || 
+                                    (event.status || event.eventStatus).toLowerCase() === 'active'
+                                      ? 'bg-green-100 text-green-800' 
+                                      : (event.status || event.eventStatus).toLowerCase() === 'completed' ||
+                                        (event.status || event.eventStatus).toLowerCase() === 'ended'
+                                      ? 'bg-gray-100 text-gray-800'
+                                      : 'bg-blue-100 text-blue-800'
+                                  }`}>
+                                    {event.status || event.eventStatus}
+                                  </span>
+                                )}
                               </div>
 
-                              {/* Stats - properly spaced */}
+                              {/* Stats */}
                               <div className="flex justify-center items-center gap-6 text-sm mb-3">
                                 <div className="flex items-center gap-1">
                                   <img
@@ -838,7 +1242,9 @@ const ProfilePage = () => {
                                     alt="Likes"
                                     className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
                                   />
-                                  <span className={theme.subText}>{event.likes || '0'}</span>
+                                  <span className={theme.subText}>
+                                    {event.likes || event.likesCount || "0"}
+                                  </span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <img
@@ -846,7 +1252,14 @@ const ProfilePage = () => {
                                     alt="Tickets"
                                     className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
                                   />
-                                  <span className={theme.subText}>{event.ticketsSold || event.registrations || '0'}</span>
+                                  <span className={theme.subText}>
+                                    {event.ticketsSold ||
+                                      event.registrations ||
+                                      event.attendeesCount ||
+                                      event.ticket_count ||
+                                      event.ticketCount ||
+                                      "0"}
+                                  </span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <img
@@ -854,17 +1267,26 @@ const ProfilePage = () => {
                                     alt="Shares"
                                     className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
                                   />
-                                  <span className={theme.subText}>{event.shares || '0'}</span>
+                                  <span className={theme.subText}>
+                                    {event.shares || event.sharesCount || "0"}
+                                  </span>
                                 </div>
                               </div>
 
-                              {/* View button - on next line, slightly moved right */}
+                              {/* View button */}
                               <div className="flex justify-center">
-                                <button 
-                                  onClick={() => navigate(`/ticket/event/${event._id}`)}
+                                <button
+                                  onClick={() => {
+                                    const eventId = event._id || event.id || event.eventId;
+                                    if (eventId) {
+                                      navigate(`/ticket/event/${eventId}`);
+                                    } else {
+                                      console.warn("No event ID found for navigation");
+                                    }
+                                  }}
                                   className="px-6 py-2 rounded-full text-white text-sm font-medium bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90 transition ml-2"
                                 >
-                                  View
+                                  View Event
                                 </button>
                               </div>
                             </div>
@@ -881,6 +1303,9 @@ const ProfilePage = () => {
           {/* Bottom Navigation */}
           <BottomNavigation />
         </div>
+
+        {/* Group Selection Modal */}
+        <GroupSelectionModal />
       </div>
     </>
   );
