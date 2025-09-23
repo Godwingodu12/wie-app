@@ -23,6 +23,7 @@ import UpdateTicketDetails from './pages/ticket/UpdateTicketDetails';
 import IndexMessage from "./pages/message/indexMessage";
 import  EditProfile  from './pages/settings/EditProfile';
 import TicketTerms from './pages/ticket/TicketTerms';
+import UpdateTicketAddOns from './pages/ticket/UpdateTicketAddOns';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
 
@@ -62,9 +63,7 @@ const AppRoutes = () => {
   return (
     <Routes>
       {/* Mixed Routes - Accessible to everyone */}
-      <Route path="/blocked" element={<div className="p-10 text-center text-red-600 text-xl font-semibold">You are blocked.</div>} />
-      <Route path="/ticket/view-events" element={<ViewEvents />} />
-      
+      <Route path="/blocked" element={<div className="p-10 text-center text-red-600 text-xl font-semibold">You are blocked.</div>} />      
       {/* Public Routes - Only for non-authenticated users */}
       <Route 
         path="/" 
@@ -205,6 +204,14 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/ticket/update-ticket-addons/:ticketId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <UpdateTicketAddOns />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/ticket/ticket-terms/:ticketId"
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
@@ -217,6 +224,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <GroupSelectionModal />
+          </ProtectedRoute>
+        }
+      />
+    <Route
+        path="/ticket/view-events"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <ViewEvents />
           </ProtectedRoute>
         }
       />

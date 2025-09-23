@@ -349,12 +349,6 @@ const validateForm = () => {
         }
       }
     }
-
-    // IFSC Code Format Check (only if a value is entered)
-    if (formData.primary_bank_ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(formData.primary_bank_ifsc)) {
-        newErrors.primary_bank_ifsc = 'Please enter a valid 11-character IFSC code.';
-    }
-
     // PAN vs GST Check
     if (
       formData.pan_no.trim() &&
