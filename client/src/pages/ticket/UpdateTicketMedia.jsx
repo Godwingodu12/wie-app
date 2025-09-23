@@ -1,692 +1,446 @@
-import React, { useState, useEffect, useRef } from 'react';
+// src/pages/UpdateTicketMedia.jsx
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { updateTicketMedia, getTicketById } from '../../services/ticketService';
-import ticketAPI from '../../services/ticketAxiox';
-import './UpdateTicketMedia.css';
+import EventSidebar from "../../components/CreateGroup/EventSidebar";
+import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
+import ExtraEventsPlanner from '../../components/modals/ExtraEventsPlanner'; // Import the new modal
 
-const UpdateTicketMedia = () => {
-  const { ticketId } = useParams();
-  const navigate = useNavigate();
-  
-  const { user } = useSelector((state) => state.auth);
-  
-  // Use the ticket service base URL from your axios config
-  const TICKET_API_BASE_URL = 'http://localhost:5003'; // Remove /api for static files
-  
-  // Debug: Log the current frontend port
-  useEffect(() => {
-    console.log('Frontend running on:', window.location.origin);
-    console.log('Backend API base:', TICKET_API_BASE_URL);
-  }, []);
-  
-  const [formData, setFormData] = useState({
-    event_logo: null,
-    event_banner: null,
-    event_images: []
-  });
-  
-  const [previews, setPreviews] = useState({
-    event_logo: null,
-    event_banner: null,
-    event_images: []
-  });
-  
-  // Add state for existing media data
-  const [existingMedia, setExistingMedia] = useState({
-    event_logo: null,
-    event_banner: null,
-    event_images: []
-  });
-  
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  
-  const logoRef = useRef(null);
-  const bannerRef = useRef(null);
-  const imagesRef = useRef(null);
+// --- Helper Components & Functions ---
+const InfoTooltip = ({ note }) => ( 
+    <div className="relative flex items-center group ml-1.5"> 
+        <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"></path>
+        </svg> 
+        <div className="absolute left-full ml-2 w-max max-w-xs p-2 text-xs font-medium text-white bg-gray-900 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20"> 
+            {note} 
+        </div> 
+    </div> 
+);
 
-  // Helper function to construct image URL using ticket service
-  const getImageUrl = (imagePath) => {
-    // Handle null, undefined, or non-string values
-    if (!imagePath || typeof imagePath !== 'string') {
-      console.log('Invalid imagePath:', imagePath, 'Type:', typeof imagePath);
-      return null;
-    }
-    
-    // If it's already a complete URL, return as is
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return imagePath;
-    }
-    
-    // Convert backslashes to forward slashes for web URLs
-    const normalizedPath = imagePath.replace(/\\/g, '/');
-    
-    // Remove leading slash if present to avoid double slashes
-    const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
-    
-    // Construct full URL using ticket service base URL
-    const fullUrl = `${TICKET_API_BASE_URL}/${cleanPath}`;
-    console.log('Generated image URL:', fullUrl, 'from path:', imagePath);
-    return fullUrl;
-  };
+const fileToBase64 = (file) => new Promise((resolve, reject) => { 
+    const reader = new FileReader(); 
+    reader.readAsDataURL(file); 
+    reader.onload = () => resolve(reader.result); 
+    reader.onerror = error => reject(error); 
+});
 
-  // Function to test if image URL is accessible
-  const testImageUrl = (url) => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve(true);
-      img.onerror = () => resolve(false);
-      img.src = url;
-      // Set a timeout to avoid hanging
-      setTimeout(() => resolve(false), 5000);
-    });
-  };
-
-  // Enhanced function to find working image URL
-  const findWorkingImageUrl = async (imagePath) => {
-    if (!imagePath) return null;
-    
-    // Try the default URL first
-    const defaultUrl = getImageUrl(imagePath);
-    const isDefaultWorking = await testImageUrl(defaultUrl);
-    
-    if (isDefaultWorking) {
-      console.log('Image URL working:', defaultUrl);
-      return defaultUrl;
-    } else {
-      console.error('Image URL not accessible:', defaultUrl);
-      // Return the URL anyway for debugging, but log the issue
-      return defaultUrl;
-    }
-  };
-
-  // Validate ticketId format
-  const isValidObjectId = (id) => {
-    return /^[0-9a-fA-F]{24}$/.test(id);
-  };
-
-  // Load existing ticket data
-  const loadExistingTicketData = async () => {
-    try {
-      setInitialLoading(true);
-      console.log('Loading ticket data for ID:', ticketId);
-
-      // Make API call with detailed logging
-      const ticketResponse = await getTicketById(ticketId);
-      console.log('Full API Response:', ticketResponse);
-      console.log('Response keys:', Object.keys(ticketResponse || {}));
-
-      // Try multiple ways to extract the data
-      let ticketData = null;
-      
-      if (ticketResponse) {
-        // Try different response structures
-        ticketData = ticketResponse.data ||
-                     ticketResponse.ticket ||
-                     ticketResponse.result ||
-                     (Array.isArray(ticketResponse) ? ticketResponse[0] : ticketResponse);
-      }
-
-      console.log('Extracted ticket data:', ticketData);
-
-      if (!ticketData) {
-        console.error('No ticket data found in response');
-        return;
-      }
-
-      // Extract media information from the ticket data with better error handling
-      const mediaData = {
-        event_logo: null,
-        event_banner: null,
-        event_images: []
-      };
-
-      // Safely extract media data
-      if (ticketData.event_logo) {
-        mediaData.event_logo = ticketData.event_logo;
-      }
-      
-      if (ticketData.event_banner) {
-        mediaData.event_banner = ticketData.event_banner;
-      }
-      
-      // Handle event_images - it might be an array of strings or objects
-      if (ticketData.event_images) {
-        if (Array.isArray(ticketData.event_images)) {
-          // If it's an array of objects with path property (new structure from your API)
-          mediaData.event_images = ticketData.event_images.map(item => {
-            if (typeof item === 'object' && item.path) {
-              return item.path;
-            }
-            // If it's a string (old structure)
-            return item;
-          }).filter(Boolean); // Remove any null/undefined values
-        }
-      }
-
-      console.log('Raw media data from API:', mediaData);
-      console.log('Media data types:', {
-        logo: typeof mediaData.event_logo,
-        banner: typeof mediaData.event_banner,
-        images: Array.isArray(mediaData.event_images) ? 'array' : typeof mediaData.event_images,
-        imagesLength: Array.isArray(mediaData.event_images) ? mediaData.event_images.length : 'N/A'
-      });
-
-      // Set existing media data (keep original paths)
-      setExistingMedia(mediaData);
-
-      // Create properly formatted URLs for display with error handling and URL testing
-      console.log('Testing image URLs...');
-      const logoUrl = await findWorkingImageUrl(mediaData.event_logo);
-      const bannerUrl = await findWorkingImageUrl(mediaData.event_banner);
-      
-      // Handle event_images array safely with URL testing
-      const imageUrls = [];
-      if (Array.isArray(mediaData.event_images)) {
-        for (let i = 0; i < mediaData.event_images.length; i++) {
-          const imagePath = mediaData.event_images[i];
-          const imageUrl = await findWorkingImageUrl(imagePath);
-          if (imageUrl) {
-            // Get file extension to determine file type
-            const extension = imagePath.toLowerCase().split('.').pop();
-            const isVideo = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'].includes(extension);
-            
-            imageUrls.push({
-              file: { 
-                name: `Existing ${isVideo ? 'Video' : 'Image'} ${i + 1}`, 
-                type: isVideo ? `video/${extension}` : `image/${extension || 'jpeg'}`
-              },
-              preview: imageUrl,
-              isExisting: true,
-              originalPath: imagePath
-            });
-          }
-        }
-      }
-
-      console.log('Final URLs after testing:', {
-        logoUrl,
-        bannerUrl,
-        imageUrls: imageUrls.map(img => ({ name: img.file.name, preview: img.preview }))
-      });
-
-      // Set previews for existing media with proper URLs
-      const existingPreviews = {
-        event_logo: logoUrl,
-        event_banner: bannerUrl,
-        event_images: imageUrls
-      };
-
-      setPreviews(existingPreviews);
-
-    } catch (error) {
-      console.error('Error loading ticket data:', error);
-      setErrors(prev => ({
-        ...prev,
-        general: 'Failed to load existing ticket data. Please refresh the page.'
-      }));
-    } finally {
-      setInitialLoading(false);
-    }
-  };
-
-  // Initial validation and data loading
-  useEffect(() => {
-    if (!ticketId || !isValidObjectId(ticketId)) {
-      console.error('Invalid ticket ID format:', ticketId);
-      navigate('/home'); // Redirect to tickets list or appropriate page
-      return;
-    }
-
-    // Load existing ticket data
-    loadExistingTicketData();
-  }, [ticketId, navigate]);
-
-  const validateFile = (file, type) => {
-    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-    const videoTypes = ['video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/webm'];
-    
-    // Size validation (50MB for videos, 10MB for images)
-    const maxSize = videoTypes.includes(file.type) ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
-    if (file.size > maxSize) {
-      return `File size too large. Maximum ${videoTypes.includes(file.type) ? '50MB' : '10MB'} allowed.`;
-    }
-    
-    // Type validation
-    if (type === 'event_images') {
-      if (!imageTypes.includes(file.type) && !videoTypes.includes(file.type)) {
-        return 'Only images (JPG, PNG, GIF, WebP) and videos (MP4, AVI, MOV, etc.) are allowed for event images.';
-      }
-    } else if (type === 'event_logo' || type === 'event_banner') {
-      if (!imageTypes.includes(file.type)) {
-        return 'Only image files (JPG, PNG, GIF, WebP) are allowed for logo and banner.';
-      }
-    }
-    
-    return null;
-  };
-
-  const handleSingleFileChange = (e, type) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const error = validateFile(file, type);
-    if (error) {
-      setErrors(prev => ({ ...prev, [type]: error }));
-      return;
-    }
-    
-    setErrors(prev => ({ ...prev, [type]: null }));
-    setFormData(prev => ({ ...prev, [type]: file }));
-    
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setPreviews(prev => ({ ...prev, [type]: e.target.result }));
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleMultipleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
-    
-    // Get current existing images count to validate total
-    const existingCount = previews.event_images.filter(item => item.isExisting).length;
-    const totalCount = existingCount + files.length;
-    
-    // Validate total count (max 10)
-    if (totalCount > 10) {
-      setErrors(prev => ({ ...prev, event_images: `Maximum 10 files allowed for event images. You currently have ${existingCount} existing images.` }));
-      return;
-    }
-    
-    // Validate video count (max 1)
-    const videoTypes = ['video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/webm'];
-    const newVideoCount = files.filter(file => videoTypes.includes(file.type)).length;
-    const existingVideoCount = previews.event_images.filter(item => 
-      item.isExisting && item.file.type.startsWith('video/')
-    ).length;
-    
-    if (newVideoCount + existingVideoCount > 1) {
-      setErrors(prev => ({ ...prev, event_images: `Maximum 1 video allowed in event images. You already have ${existingVideoCount} video(s).` }));
-      return;
-    }
-    
-    // Validate each file
-    let hasError = false;
-    for (const file of files) {
-      const error = validateFile(file, 'event_images');
-      if (error) {
-        setErrors(prev => ({ ...prev, event_images: error }));
-        hasError = true;
-        break;
-      }
-    }
-    
-    if (hasError) return;
-    
-    setErrors(prev => ({ ...prev, event_images: null }));
-    setFormData(prev => ({ ...prev, event_images: files }));
-    
-    // Create previews for new files
-    const previewPromises = files.map(file => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve({ 
-          file, 
-          preview: e.target.result,
-          isExisting: false
-        });
-        reader.readAsDataURL(file);
-      });
-    });
-    
-    Promise.all(previewPromises).then(newPreviews => {
-      // Combine existing and new previews
-      setPreviews(prev => ({ 
-        ...prev, 
-        event_images: [
-          ...prev.event_images.filter(item => item.isExisting), // Keep existing images
-          ...newPreviews // Add new images
-        ]
-      }));
-    });
-  };
-
-  const removeFile = (type, index = null) => {
-    if (type === 'event_images' && index !== null) {
-      const itemToRemove = previews.event_images[index];
-      
-      if (itemToRemove.isExisting) {
-        // Remove existing image from preview
-        const newPreviews = [...previews.event_images];
-        newPreviews.splice(index, 1);
-        setPreviews(prev => ({ ...prev, event_images: newPreviews }));
-        
-        // Also remove from existing media to track deletions
-        const newExistingImages = [...existingMedia.event_images];
-        const originalIndex = existingMedia.event_images.findIndex(path => 
-          path === itemToRemove.originalPath
-        );
-        if (originalIndex > -1) {
-          newExistingImages.splice(originalIndex, 1);
-          setExistingMedia(prev => ({ ...prev, event_images: newExistingImages }));
-        }
-      } else {
-        // Remove new file from both formData and previews
-        const newFiles = [...formData.event_images];
-        const newFileIndex = previews.event_images.slice(0, index).filter(item => !item.isExisting).length;
-        newFiles.splice(newFileIndex, 1);
-        setFormData(prev => ({ ...prev, event_images: newFiles }));
-        
-        const newPreviews = [...previews.event_images];
-        newPreviews.splice(index, 1);
-        setPreviews(prev => ({ ...prev, event_images: newPreviews }));
-      }
-    } else {
-      // Handle single files (logo/banner)
-      setFormData(prev => ({ ...prev, [type]: null }));
-      
-      // If there's an existing image, show it again, otherwise clear preview
-      const existingImage = type === 'event_logo' ? 
-        getImageUrl(existingMedia.event_logo) : 
-        getImageUrl(existingMedia.event_banner);
-      setPreviews(prev => ({ ...prev, [type]: existingImage }));
-      
-      // Reset file input
-      if (type === 'event_logo') logoRef.current.value = '';
-      if (type === 'event_banner') bannerRef.current.value = '';
-    }
-    
-    setErrors(prev => ({ ...prev, [type]: null }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Validate ticketId again before submission
-    if (!ticketId || !isValidObjectId(ticketId)) {
-      setErrors(prev => ({ 
-        ...prev, 
-        general: 'Invalid ticket ID. Please check the URL and try again.' 
-      }));
-      return;
-    }
-    
-    // Check if at least one file is selected or if existing media exists
-    const hasNewFiles = formData.event_logo || formData.event_banner || formData.event_images.length > 0;
-    const hasExistingMedia = existingMedia.event_logo || existingMedia.event_banner || existingMedia.event_images.length > 0;
-    
-    if (!hasNewFiles && !hasExistingMedia) {
-      setErrors(prev => ({ ...prev, general: 'Please select at least one file to upload.' }));
-      return;
-    }
-    
-    setLoading(true);
-    setErrors({});
-    
-    try {
-      const submitData = new FormData();
-      if (formData.event_logo) {
-        submitData.append('event_logo', formData.event_logo);
-      }
-      
-      if (formData.event_banner) {
-        submitData.append('event_banner', formData.event_banner);
-      }
-      
-      formData.event_images.forEach(file => {
-        submitData.append('event_images', file);
-      });
-      
-      console.log('Submitting to ticketId:', ticketId);
-      console.log('FormData entries:', Array.from(submitData.entries()));
-      
-      const response = await updateTicketMedia(ticketId, submitData);
-      console.log('Upload response:', response);
-      
-      // Use the returned ticketId from response if available, otherwise use params
-      const validTicketId = response?.ticketId || ticketId;
-      navigate(`/ticket/update-ticket-details/${validTicketId}`);
-    } catch (error) {
-      console.error("Error updating ticket media:", error);
-      let errorMessage = 'Failed to upload files. Please try again.';
-      
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setErrors(prev => ({ 
-        ...prev, 
-        general: errorMessage
-      }));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Show loading spinner while fetching initial data
-  if (initialLoading) {
-    return (
-      <div className="update-ticket-media">
-        <div className="container">
-          <div className="loading-container">
-            <p>Loading ticket data...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="update-ticket-media">
-      <div className="container">
-        <h2>Update Ticket Media</h2>
-        <p className="subtitle">Upload images and videos for your event</p>
-        
-        <form onSubmit={handleSubmit} className="media-form">
-          {errors.general && (
-            <div className="error-message general-error">{errors.general}</div>
-          )}
-          
-          {/* Event Logo */}
-          <div className="form-group">
-            <label htmlFor="event_logo">Event Logo</label>
-            <div className="file-info">
-              <span className="limit">Maximum: 1 image • Max size: 10MB</span>
-              <span className="formats">Formats: JPG, PNG, GIF, WebP</span>
-            </div>
-            <input
-              ref={logoRef}
-              type="file"
-              id="event_logo"
-              accept="image/*"
-              onChange={(e) => handleSingleFileChange(e, 'event_logo')}
-              className="file-input"
-            />
-            {errors.event_logo && (
-              <div className="error-message">{errors.event_logo}</div>
-            )}
-            {previews.event_logo && (
-              <div className="preview-container">
-                <div className="preview-item">
-                  <img 
-                    src={previews.event_logo} 
-                    alt="Event Logo Preview"
-                    onError={(e) => {
-                      console.error('Logo image failed to load:', previews.event_logo);
-                      // Show a placeholder or error state
-                      e.target.style.border = '2px dashed #ff6b6b';
-                      e.target.style.backgroundColor = '#fff5f5';
-                      e.target.style.display = 'flex';
-                      e.target.style.alignItems = 'center';
-                      e.target.style.justifyContent = 'center';
-                      e.target.alt = '❌ Image failed to load';
-                    }}
-                    onLoad={() => {
-                      console.log('Logo image loaded successfully:', previews.event_logo);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeFile('event_logo')}
-                    className="remove-btn"
-                  >
-                    ×
-                  </button>
-                  {existingMedia.event_logo && !formData.event_logo && (
-                    <div className="existing-label">Current Logo</div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Event Banner */}
-          <div className="form-group">
-            <label htmlFor="event_banner">Event Banner</label>
-            <div className="file-info">
-              <span className="limit">Maximum: 1 image • Max size: 10MB</span>
-              <span className="formats">Formats: JPG, PNG, GIF, WebP</span>
-            </div>
-            <input
-              ref={bannerRef}
-              type="file"
-              id="event_banner"
-              accept="image/*"
-              onChange={(e) => handleSingleFileChange(e, 'event_banner')}
-              className="file-input"
-            />
-            {errors.event_banner && (
-              <div className="error-message">{errors.event_banner}</div>
-            )}
-            {previews.event_banner && (
-              <div className="preview-container">
-                <div className="preview-item banner">
-                  <img 
-                    src={previews.event_banner} 
-                    alt="Event Banner Preview"
-                    onError={(e) => {
-                      console.error('Banner image failed to load:', previews.event_banner);
-                      // Show a placeholder or error state
-                      e.target.style.border = '2px dashed #ff6b6b';
-                      e.target.style.backgroundColor = '#fff5f5';
-                      e.target.style.display = 'flex';
-                      e.target.style.alignItems = 'center';
-                      e.target.style.justifyContent = 'center';
-                      e.target.alt = '❌ Image failed to load';
-                    }}
-                    onLoad={() => {
-                      console.log('Banner image loaded successfully:', previews.event_banner);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeFile('event_banner')}
-                    className="remove-btn"
-                  >
-                    ×
-                  </button>
-                  {existingMedia.event_banner && !formData.event_banner && (
-                    <div className="existing-label">Current Banner</div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Event Images */}
-          <div className="form-group">
-            <label htmlFor="event_images">Event Images & Video</label>
-            <div className="file-info">
-              <span className="limit">Maximum: 10 files (9 images + 1 video) • Max size: 10MB per image, 50MB for video</span>
-              <span className="formats">Images: JPG, PNG, GIF, WebP • Videos: MP4, AVI, MOV, WMV, FLV, WebM</span>
-            </div>
-            <input
-              ref={imagesRef}
-              type="file"
-              id="event_images"
-              multiple
-              accept="image/*,video/*"
-              onChange={handleMultipleFileChange}
-              className="file-input"
-            />
-            {errors.event_images && (
-              <div className="error-message">{errors.event_images}</div>
-            )}
-            {previews.event_images.length > 0 && (
-              <div className="preview-container grid">
-                {previews.event_images.map((item, index) => (
-                  <div key={index} className="preview-item">
-                    {item.file.type.startsWith('image/') || item.isExisting ? (
-                      <img 
-                        src={item.preview} 
-                        alt={`Event Image ${index + 1}`}
-                        onError={(e) => {
-                          console.error('Event image failed to load:', item.preview);
-                          // Show a placeholder or error state
-                          e.target.style.border = '2px dashed #ff6b6b';
-                          e.target.style.backgroundColor = '#fff5f5';
-                          e.target.style.display = 'flex';
-                          e.target.style.alignItems = 'center';
-                          e.target.style.justifyContent = 'center';
-                          e.target.alt = '❌ Image failed to load';
-                        }}
-                        onLoad={() => {
-                          console.log('Event image loaded successfully:', item.preview);
-                        }}
-                      />
-                    ) : (
-                      <video src={item.preview} controls />
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removeFile('event_images', index)}
-                      className="remove-btn"
-                    >
-                      ×
-                    </button>
-                    <div className="file-name">{item.file.name}</div>
-                    {item.isExisting && (
-                      <div className="existing-label">Current Media</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          
-          <div className="form-actions">
-            <button
-              type="button"
-              onClick={() => {
-                if (ticketId && isValidObjectId(ticketId)) {
-                  navigate(`/ticket/update-ticket-details/${ticketId}`);
-                } else {
-                  navigate('/home');
-                }
-              }}
-              className="btn-secondary"
-            >
-              Skip
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary"
-            >
-              {loading ? 'Uploading...' : 'Upload & Continue'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+const base64ToFile = (base64, filename) => { 
+    const arr = base64.split(','); 
+    const mimeMatch = arr[0].match(/:(.*?);/); 
+    if (!mimeMatch) return null; 
+    const mime = mimeMatch[1]; 
+    const bstr = atob(arr[1]); 
+    let n = bstr.length; 
+    const u8arr = new Uint8Array(n); 
+    while (n--) { 
+        u8arr[n] = bstr.charCodeAt(n); 
+    } 
+    return new File([u8arr], filename, { type: mime }); 
 };
+
+// --- Main Component ---
+const UpdateTicketMedia = () => {
+    const { ticketId } = useParams();
+    const navigate = useNavigate();
+    const { user } = useSelector((state) => state.auth);
+    
+    // Debug log to check if ticketId is available
+    console.log('UpdateTicketMedia: ticketId from useParams:', ticketId);
+    console.log('UpdateTicketMedia: current URL:', window.location.href);
+    
+    const [darkMode, setDarkMode] = useState(true);
+    const [isEducationalOrg, setIsEducationalOrg] = useState(false);
+    const [formData, setFormData] = useState({ 
+        event_logo: null, 
+        event_banner: null, 
+        event_images: [], 
+        college_authorisation: null 
+    });
+    const [previews, setPreviews] = useState({ 
+        event_logo: null, 
+        event_banner: null, 
+        event_images: [], 
+        college_authorisation: null 
+    });
+    const [existingMedia, setExistingMedia] = useState({ 
+        event_logo: null, 
+        event_banner: null, 
+        event_images: [], 
+        college_authorisation: null 
+    });
+    const [errors, setErrors] = useState({});
+    const [loading, setLoading] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true);
+    const [isExtraEventsModalOpen, setIsExtraEventsModalOpen] = useState(false);
+    
+    const storageKey = `ticketMediaFormData_${ticketId}`;
+
+    useEffect(() => {
+        if (!initialLoading) { 
+            sessionStorage.setItem(storageKey, JSON.stringify(previews)); 
+        }
+    }, [previews, storageKey, initialLoading]);
+
+    useEffect(() => {
+        const initializeState = async () => {
+            let loadedPreviews = null;
+            const savedState = sessionStorage.getItem(storageKey);
+            if (savedState) {
+                try { 
+                    loadedPreviews = JSON.parse(savedState); 
+                } catch (e) { 
+                    sessionStorage.removeItem(storageKey); 
+                }
+            }
+            if (loadedPreviews) {
+                setPreviews(loadedPreviews);
+                const newFormData = { event_images: [] };
+                if (loadedPreviews.event_logo?.startsWith('data:')) 
+                    newFormData.event_logo = base64ToFile(loadedPreviews.event_logo, 'event_logo_preview');
+                if (loadedPreviews.event_banner?.startsWith('data:')) 
+                    newFormData.event_banner = base64ToFile(loadedPreviews.event_banner, 'event_banner_preview');
+                if (typeof loadedPreviews.college_authorisation === 'object' && loadedPreviews.college_authorisation?.data) { 
+                    newFormData.college_authorisation = base64ToFile(loadedPreviews.college_authorisation.data, loadedPreviews.college_authorisation.name); 
+                }
+                loadedPreviews.event_images.forEach(img => { 
+                    if (!img.isExisting && img.preview.startsWith('data:')) { 
+                        newFormData.event_images.push(base64ToFile(img.preview, img.name)); 
+                    } 
+                });
+                setFormData(fd => ({...fd, ...newFormData}));
+            } else {
+                try {
+                    const response = await getTicketById(ticketId);
+                    const ticketData = response?.ticket;
+                    if (ticketData) {
+                        const getUrl = (path) => path ? `${process.env.TICKET_API_BASE_URL}/${path.replace(/\\/g, '/')}` : null;
+                        const serverMedia = { 
+                            event_logo: getUrl(ticketData.event_logo), 
+                            event_banner: getUrl(ticketData.event_banner), 
+                            college_authorisation: ticketData.college_authorisation, 
+                            event_images: (ticketData.event_images || []).map(img => ({ 
+                                id: img.path, 
+                                preview: getUrl(img.path), 
+                                name: img.originalName, 
+                                isExisting: true 
+                            })) 
+                        };
+                        setPreviews(serverMedia);
+                        setExistingMedia(serverMedia);
+                    }
+                } catch (error) { 
+                    console.error("Failed to fetch media:", error); 
+                }
+            }
+            setInitialLoading(false);
+        };
+        if (user?.role === 'organisation' && user?.organisation_type?.toLowerCase() === 'educational') { 
+            setIsEducationalOrg(true); 
+        }
+        initializeState();
+    }, [ticketId, storageKey, user]);
+
+    const handleSingleFileChange = async (e, type) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setLoading(true);
+        try {
+            const base64 = await fileToBase64(file);
+            if (type === 'college_authorisation') { 
+                setPreviews(prev => ({ ...prev, [type]: { name: file.name, data: base64 } })); 
+            } else { 
+                setPreviews(prev => ({ ...prev, [type]: base64 })); 
+            }
+            setFormData(prev => ({ ...prev, [type]: file }));
+            setErrors(prev => ({ ...prev, [type]: null }));
+        } catch (error) { 
+            setErrors(prev => ({ ...prev, [type]: "Could not read the selected file." })); 
+        } finally { 
+            setLoading(false); 
+        }
+    };
+
+    const removeSingleFile = (type) => {
+        setPreviews(prev => ({ ...prev, [type]: existingMedia[type] || null }));
+        setFormData(prev => ({ ...prev, [type]: null }));
+    };
+    
+    const handleMultipleFileChange = async (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+        const allowedTypes = ['image/jpeg', 'image/png', 'video/mp4', 'application/pdf'];
+        const invalidFiles = files.filter(file => !allowedTypes.includes(file.type));
+        if (invalidFiles.length > 0) { 
+            setErrors(prev => ({ ...prev, event_images: "Only images, videos, and PDF documents are allowed" })); 
+            return; 
+        }
+        setLoading(true);
+        const fileProcessingPromises = files.map(async (file) => {
+            try {
+                const base64 = await fileToBase64(file);
+                return { 
+                    id: `${file.name}-${file.lastModified}`, 
+                    preview: base64, 
+                    name: file.name, 
+                    isExisting: false, 
+                    originalFile: file 
+                };
+            } catch (error) { 
+                return null; 
+            }
+        });
+        try {
+            const processedItems = await Promise.all(fileProcessingPromises);
+            const validItems = processedItems.filter(item => item !== null);
+            if (validItems.length === 0) { 
+                setErrors(prev => ({...prev, event_images: "Error processing files."})); 
+                return; 
+            }
+            setPreviews(prev => ({ ...prev, event_images: [...prev.event_images, ...validItems] }));
+            setFormData(prev => ({ 
+                ...prev, 
+                event_images: [ ...prev.event_images, ...validItems.map(item => item.originalFile) ] 
+            }));
+            setErrors(prev => ({...prev, event_images: null}));
+        } catch (error) { 
+            setErrors(prev => ({...prev, event_images: "Error processing one or more files."})); 
+        } finally { 
+            setLoading(false); 
+        }
+    };
+
+    const removeImageFromList = (idToRemove) => {
+        const fileToRemove = previews.event_images.find(img => img.id === idToRemove);
+        if (!fileToRemove) return;
+        setPreviews(prev => ({ 
+            ...prev, 
+            event_images: prev.event_images.filter(img => img.id !== idToRemove) 
+        }));
+        if (!fileToRemove.isExisting) {
+            setFormData(prev => ({ 
+                ...prev, 
+                event_images: prev.event_images.filter(file => { 
+                    const fileId = `${file.name}-${file.lastModified}`; 
+                    return fileId !== idToRemove; 
+                })
+            }));
+        }
+    };
+
+    const handleBack = useCallback(() => {
+        sessionStorage.removeItem(storageKey);
+        navigate(`/create-ticket/basic-info/${ticketId}`);
+    }, [navigate, ticketId, storageKey]);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        const submitData = new FormData();
+        if (formData.event_logo) submitData.append('event_logo', formData.event_logo);
+        if (formData.event_banner) submitData.append('event_banner', formData.event_banner);
+        if (formData.college_authorisation) submitData.append('college_authorisation', formData.college_authorisation);
+        if (formData.event_images?.length) { 
+            formData.event_images.forEach(file => { 
+                if (file instanceof File) submitData.append('event_images', file); 
+            }); 
+        }
+        
+        try {
+            await updateTicketMedia(ticketId, submitData);
+            sessionStorage.removeItem(storageKey);
+            console.log('UpdateTicketMedia: Opening modal with ticketId:', ticketId);
+            setIsExtraEventsModalOpen(true);
+        } catch (error) {
+            console.error("Error submitting media:", error);
+            const errorMessage = error.response?.data?.message || "An error occurred during upload.";
+            setErrors({ general: errorMessage });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleModalYes = () => {
+        console.log('UpdateTicketMedia: handleModalYes called with ticketId:', ticketId);
+        setIsExtraEventsModalOpen(false);
+        // Navigation will be handled by the modal itself
+    };
+
+    const handleModalNo = () => {
+        console.log('UpdateTicketMedia: handleModalNo called with ticketId:', ticketId);
+        setIsExtraEventsModalOpen(false);
+        // Navigation will be handled by the modal itself
+    };
+
+    if (initialLoading) {
+        return (
+            <div className="dark bg-[#212426] min-h-screen flex items-center justify-center text-white">
+                Loading Media Editor...
+            </div>
+        );
+    }
+
+    return (
+        <div className={darkMode ? "dark" : ""}>
+            <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
+                <EventSidebar darkMode={darkMode} progress={42} handleBack={handleBack} />
+                <main className="flex-1 relative p-4 sm:p-6 md:p-8 overflow-y-auto">
+                    <div className="absolute top-6 right-6 z-10">
+                        <ThemeToggle isDark={darkMode} onToggle={() => setDarkMode(!darkMode)} />
+                    </div>
+                    <div className="w-full max-w-5xl mx-auto">
+                        <header className="text-center mt-4 mb-12">
+                            <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6 bg-[#2B2B2B] border border-gray-700">
+                               <svg className="w-10 h-10 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                               </svg>
+                            </div>
+                            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">Showcase Your Event</h1>
+                            <p className="text-gray-500 dark:text-gray-400">Drop your visuals here to bring your event to life.</p>
+                        </header>
+                        <form onSubmit={handleSubmit} className="space-y-12">
+                            {isEducationalOrg && (
+                                <FileInput 
+                                    id="college_authorisation" 
+                                    label="Authorisation Letter*" 
+                                    onFileChange={handleSingleFileChange} 
+                                    onRemove={removeSingleFile} 
+                                    preview={previews.college_authorisation} 
+                                    error={errors.college_authorisation} 
+                                    isDocument={true} 
+                                    maxSizeMB={10} 
+                                    info="Required for educational organizations." 
+                                />
+                            )}
+                            <div className="grid md:grid-cols-2 gap-8">
+                                <FileInput 
+                                    id="event_logo" 
+                                    label="Event or Organisation Logo" 
+                                    onFileChange={handleSingleFileChange} 
+                                    onRemove={removeSingleFile} 
+                                    preview={previews.event_logo} 
+                                    error={errors.event_logo} 
+                                    maxSizeMB={10} 
+                                    info="1:1 ratio recommended." 
+                                />
+                                <FileInput 
+                                    id="event_banner" 
+                                    label="Event Banner" 
+                                    onFileChange={handleSingleFileChange} 
+                                    onRemove={removeSingleFile} 
+                                    preview={previews.event_banner} 
+                                    error={errors.event_banner} 
+                                    maxSizeMB={10} 
+                                    info="2:1 ratio recommended." 
+                                />
+                            </div>
+                            <div>
+                                <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                                    Images & Videos <InfoTooltip note="Max 10 files (1 video)." />
+                                </label>
+                                {previews.event_images.length > 0 && (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
+                                        {previews.event_images.map((img) => (
+                                            <div key={img.id} className="relative aspect-square bg-gray-100 dark:bg-[#2B2B2B] rounded-lg overflow-hidden group">
+                                                <img src={img.preview} alt={img.name || 'preview'} className="w-full h-full object-cover" />
+                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                    <button type="button" onClick={() => removeImageFromList(img.id)} className="text-white text-3xl font-bold">&times;</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <label htmlFor="event_images_input" className="relative rounded-lg p-5 text-center bg-gray-100 dark:bg-[#2B2B2B] flex flex-col items-center justify-center gap-2 cursor-pointer min-h-[150px] border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors">
+                                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                    </svg>
+                                    <span className="text-indigo-500 dark:text-indigo-400 font-semibold">Add more files...</span>
+                                    <input id="event_images_input" type="file" multiple onChange={handleMultipleFileChange} className="sr-only"/>
+                                </label>
+                            </div>
+                            {errors.general && <p className="text-red-500 mt-4 text-center">{errors.general}</p>}
+                            <div className="pt-8 flex justify-end gap-4">
+                                <button 
+                                    type="button" 
+                                    onClick={handleBack} 
+                                    className="px-8 py-3 rounded-lg font-semibold bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+                                >
+                                    Go back
+                                </button>
+                                <button 
+                                    type="submit" 
+                                    disabled={loading} 
+                                    className="px-8 py-3 rounded-lg font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                                >
+                                    {loading ? "Saving..." : "Save and continue"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </main>
+            </div>
+            
+            {/* Pass ticketId explicitly to the modal */}
+            <ExtraEventsPlanner 
+                isOpen={isExtraEventsModalOpen} 
+                onYes={handleModalYes} 
+                onNo={handleModalNo} 
+                ticketId={ticketId}  // ← This is the key line that passes ticketId
+            />
+        </div>
+    );
+};
+
+// --- Sub-Component: File Input ---
+const FileInput = ({ id, label, info, acceptedFiles, maxSizeMB, error, preview, onFileChange, onRemove, isDocument = false }) => (
+    <div>
+        <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+            {label}{info && <InfoTooltip note={info} />}
+        </label>
+        <div className={`relative rounded-lg p-5 text-center bg-gray-100 dark:bg-[#2B2B2B] min-h-[220px] flex justify-center items-center`}>
+            {preview ? (
+                <div className="w-full h-full min-h-[180px] flex justify-center items-center">
+                    {isDocument ? (
+                        <div className="text-center">
+                            <span role="img" aria-label="document" className="text-5xl">📄</span>
+                            <p className="mt-2 text-sm text-gray-300 break-all">
+                                {typeof preview === 'object' ? preview.name : 'Document'}
+                            </p>
+                        </div>
+                    ) : (
+                        <img src={preview} alt={`${label} preview`} className="max-w-full max-h-[180px] object-contain rounded-lg"/>
+                    )}
+                    <button 
+                        type="button" 
+                        onClick={() => onRemove(id)} 
+                        className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center"
+                    >
+                        &times;
+                    </button>
+                </div>
+            ) : (
+                <div className="flex flex-col items-center gap-2">
+                    <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Drag & drop or <span className="font-semibold text-indigo-500 dark:text-indigo-400">browse</span>
+                    </p>
+                    <p className="text-xs text-gray-500">Max file size: {maxSizeMB}MB</p>
+                </div>
+            )}
+            <input 
+                id={id + "_input"} 
+                type="file" 
+                accept={acceptedFiles} 
+                className="opacity-0 absolute inset-0 w-full h-full cursor-pointer" 
+                onChange={(e) => onFileChange(e, id)} 
+            />
+        </div>
+        {error && <small className="text-red-500 mt-2 block text-left">{error}</small>}
+    </div>
+);
 
 export default UpdateTicketMedia;
