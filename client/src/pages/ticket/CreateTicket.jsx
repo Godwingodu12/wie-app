@@ -10,6 +10,7 @@ import {
 // Import shared components
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
+import EventDatePick from "../../assets/Event/EventDatePick.svg";
 
 // --- Reusable UI Components ---
 const CustomScrollbarStyles = ({ isDark }) => {
@@ -36,6 +37,21 @@ const CustomScrollbarStyles = ({ isDark }) => {
         background-clip: content-box;
       }
       .custom-scrollbar { scrollbar-width: thin; scrollbar-color: ${widgetThumbColor} transparent; }
+      
+      /* Fix time input placeholder positioning */
+      input[type="time"]::-webkit-datetime-edit-text,
+      input[type="time"]::-webkit-datetime-edit-hour-field,
+      input[type="time"]::-webkit-datetime-edit-minute-field {
+        color: transparent;
+      }
+      input[type="time"]:focus::-webkit-datetime-edit-text,
+      input[type="time"]:focus::-webkit-datetime-edit-hour-field,
+      input[type="time"]:focus::-webkit-datetime-edit-minute-field,
+      input[type="time"]:not(:placeholder-shown)::-webkit-datetime-edit-text,
+      input[type="time"]:not(:placeholder-shown)::-webkit-datetime-edit-hour-field,
+      input[type="time"]:not(:placeholder-shown)::-webkit-datetime-edit-minute-field {
+        color: inherit;
+      }
     `}</style>
   );
 };
@@ -147,7 +163,6 @@ const TagInput = ({ label, tags, onTagsChange, placeholder, darkMode }) => {
     </div>
   );
 };
-
 const DatePickerModal = ({
   isOpen,
   onClose,
@@ -155,10 +170,11 @@ const DatePickerModal = ({
   initialDates,
   darkMode,
 }) => {
-  const [dateType, setDateType] = useState("Multi days");
+  const [dateType, setDateType] = useState("Single day");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState(initialDates || []);
   const [useSameTime, setUseSameTime] = useState(true);
+  
   useEffect(() => {
     setSelectedDates(initialDates || []);
   }, [initialDates]);
@@ -169,6 +185,62 @@ const DatePickerModal = ({
   };
 
   if (!isOpen) return null;
+
+  // Helper function to convert 12-hour time to 24-hour format
+  const convertTo24Hour = (time12h, ampm) => {
+    if (!time12h || !ampm) return '';
+    
+    const [hours, minutes] = time12h.split(':');
+    let hour24 = parseInt(hours);
+    
+    if (ampm === 'AM' && hour24 === 12) {
+      hour24 = 0;
+    } else if (ampm === 'PM' && hour24 !== 12) {
+      hour24 += 12;
+    }
+    
+    return `${hour24.toString().padStart(2, '0')}:${minutes}`;
+  };
+
+  // Helper function to convert 24-hour time to 12-hour format
+  const convertTo12Hour = (time24h) => {
+    if (!time24h) return { time: '', ampm: '' };
+    
+    const [hours, minutes] = time24h.split(':');
+    let hour12 = parseInt(hours);
+    const ampm = hour12 >= 12 ? 'PM' : 'AM';
+    
+    if (hour12 === 0) {
+      hour12 = 12;
+    } else if (hour12 > 12) {
+      hour12 -= 12;
+    }
+    
+    return {
+      time: `${hour12.toString().padStart(2, '0')}:${minutes}`,
+      ampm: ampm
+    };
+  };
+
+  // Helper function to validate time
+  const validateTime = (startTime, endTime, startAmPm, endAmPm) => {
+    if (!startTime || !endTime || !startAmPm || !endAmPm) return true; // Allow incomplete times
+    
+    const start24 = convertTo24Hour(startTime, startAmPm);
+    const end24 = convertTo24Hour(endTime, endAmPm);
+    
+    if (!start24 || !end24) return true;
+    
+    const start = new Date(`1970-01-01T${start24}:00`);
+    const end = new Date(`1970-01-01T${end24}:00`);
+    
+    return end > start;
+  };
+
+  // Helper function to show time validation error
+  const showTimeValidationError = () => {
+    alert("Error: End time must be after start time for same-day events. Please select a valid time range.");
+  };
 
   const generateCalendarDays = () => {
     const year = currentMonth.getFullYear();
@@ -227,13 +299,24 @@ const DatePickerModal = ({
         ? {
             startTime: selectedDates[0].startTime,
             endTime: selectedDates[0].endTime,
+            startAmPm: selectedDates[0].startAmPm,
+            endAmPm: selectedDates[0].endAmPm,
           }
-        : { startTime: "10:00", endTime: "18:00" };
+        : { startTime: "", endTime: "", startAmPm: "", endAmPm: "" };
 
     switch (dateType) {
       case "Single day": {
         const isSelected = selectedDates.some((d) => d.date === dateStr);
-        setSelectedDates(isSelected ? [] : [{ date: dateStr, ...commonTime }]);
+        if (isSelected) {
+          setSelectedDates([]);
+        } else {
+          // For single day events, both start_date and end_date should be the same
+          setSelectedDates([{ 
+            date: dateStr, 
+            endDate: dateStr, // Set end_date to same as start_date
+            ...commonTime 
+          }]);
+        }
         break;
       }
       case "Multi days": {
@@ -242,7 +325,12 @@ const DatePickerModal = ({
         if (isSelected) {
           newDates = selectedDates.filter((d) => d.date !== dateStr);
         } else {
-          newDates = [...selectedDates, { date: dateStr, ...commonTime }];
+          // For multi-day events, each day is independent
+          newDates = [...selectedDates, { 
+            date: dateStr, 
+            endDate: dateStr, // Each day has same start and end date
+            ...commonTime 
+          }];
         }
         setSelectedDates(
           newDates.sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -262,8 +350,10 @@ const DatePickerModal = ({
         for (let day = 1; day <= daysInMonth; day++) {
           const date = new Date(year, month, day);
           if (date.getDay() === dayOfWeek && date >= today) {
+            const dayDateStr = format(date, "yyyy-MM-dd");
             datesForDayOfWeek.push({
-              date: format(date, "yyyy-MM-dd"),
+              date: dayDateStr,
+              endDate: dayDateStr, // Each day has same start and end date
               ...commonTime,
             });
           }
@@ -279,18 +369,115 @@ const DatePickerModal = ({
 
   const handleIndividualTimeChange = (index, field, value) => {
     if (useSameTime) {
-      setSelectedDates((currentDates) =>
-        currentDates.map((d) => ({ ...d, [field]: value }))
-      );
+      // When "Use same time" is enabled, update all dates
+      const updatedDates = selectedDates.map((d) => ({ ...d, [field]: value }));
+      
+      // Only validate when both time and ampm are set for both start and end
+      if (field === 'endAmPm' || (field === 'endTime' && updatedDates[0].endAmPm) ||
+          field === 'startAmPm' || (field === 'startTime' && updatedDates[0].startAmPm)) {
+        
+        const currentDate = updatedDates[0];
+        const startTime = field === 'startTime' ? value : currentDate.startTime;
+        const endTime = field === 'endTime' ? value : currentDate.endTime;
+        const startAmPm = field === 'startAmPm' ? value : currentDate.startAmPm;
+        const endAmPm = field === 'endAmPm' ? value : currentDate.endAmPm;
+        
+        // Only validate if we have complete time information
+        if (startTime && endTime && startAmPm && endAmPm && 
+            !validateTime(startTime, endTime, startAmPm, endAmPm)) {
+          showTimeValidationError();
+          return; // Don't update if validation fails
+        }
+      }
+      
+      setSelectedDates(updatedDates);
     } else {
+      // When disabled, update only the specific date
       const updatedDates = [...selectedDates];
       updatedDates[index][field] = value;
+      
+      // Only validate when both time and ampm are set for both start and end
+      if (field === 'endAmPm' || (field === 'endTime' && updatedDates[index].endAmPm) ||
+          field === 'startAmPm' || (field === 'startTime' && updatedDates[index].startAmPm)) {
+        
+        const currentDate = updatedDates[index];
+        const startTime = field === 'startTime' ? value : currentDate.startTime;
+        const endTime = field === 'endTime' ? value : currentDate.endTime;
+        const startAmPm = field === 'startAmPm' ? value : currentDate.startAmPm;
+        const endAmPm = field === 'endAmPm' ? value : currentDate.endAmPm;
+        
+        // Only validate if we have complete time information
+        if (startTime && endTime && startAmPm && endAmPm && 
+            !validateTime(startTime, endTime, startAmPm, endAmPm)) {
+          showTimeValidationError();
+          return; // Don't update if validation fails
+        }
+      }
+      
       setSelectedDates(updatedDates);
     }
   };
 
+  // Handle "Use same time" toggle
+  const handleUseSameTimeChange = (e) => {
+    const isEnabled = e.target.checked;
+    setUseSameTime(isEnabled);
+    
+    if (isEnabled && selectedDates.length > 0) {
+      // Auto-fill all dates with the first date's time
+      const firstDateTime = selectedDates[0];
+      if (firstDateTime.startTime || firstDateTime.endTime) {
+        // Only validate if we have complete time information
+        if (firstDateTime.startTime && firstDateTime.endTime && 
+            firstDateTime.startAmPm && firstDateTime.endAmPm &&
+            !validateTime(firstDateTime.startTime, firstDateTime.endTime, 
+                         firstDateTime.startAmPm, firstDateTime.endAmPm)) {
+          showTimeValidationError();
+          return;
+        }
+        
+        setSelectedDates(currentDates =>
+          currentDates.map(d => ({
+            ...d,
+            startTime: firstDateTime.startTime || d.startTime,
+            endTime: firstDateTime.endTime || d.endTime,
+            startAmPm: firstDateTime.startAmPm || d.startAmPm,
+            endAmPm: firstDateTime.endAmPm || d.endAmPm,
+          }))
+        );
+      }
+    }
+  };
+
   const handleSave = () => {
-    onSave(selectedDates, dateType);
+    // Validate all dates before saving
+    for (let i = 0; i < selectedDates.length; i++) {
+      const dateEntry = selectedDates[i];
+      // Only validate if we have complete time information
+      if (dateEntry.startTime && dateEntry.endTime && 
+          dateEntry.startAmPm && dateEntry.endAmPm &&
+          !validateTime(dateEntry.startTime, dateEntry.endTime, 
+                       dateEntry.startAmPm, dateEntry.endAmPm)) {
+        showTimeValidationError();
+        return; // Don't save if validation fails
+      }
+    }
+
+    // Convert 12-hour format to 24-hour format for backend
+    const convertedDates = selectedDates.map(dateEntry => ({
+      ...dateEntry,
+      startTime: dateEntry.startTime && dateEntry.startAmPm ? 
+                 convertTo24Hour(dateEntry.startTime, dateEntry.startAmPm) : dateEntry.startTime,
+      endTime: dateEntry.endTime && dateEntry.endAmPm ? 
+               convertTo24Hour(dateEntry.endTime, dateEntry.endAmPm) : dateEntry.endTime,
+      // Keep the original 12-hour format for display purposes
+      startTime12h: dateEntry.startTime,
+      endTime12h: dateEntry.endTime,
+      startAmPm: dateEntry.startAmPm,
+      endAmPm: dateEntry.endAmPm
+    }));
+
+    onSave(convertedDates, dateType);
     onClose();
   };
 
@@ -457,7 +644,7 @@ const DatePickerModal = ({
                 <input
                   type="checkbox"
                   checked={useSameTime}
-                  onChange={(e) => setUseSameTime(e.target.checked)}
+                  onChange={handleUseSameTimeChange}
                   className={`form-checkbox h-4 w-4 rounded border-gray-600 focus:ring-emerald-500 ${
                     darkMode
                       ? "bg-gray-700 text-emerald-500"
@@ -484,38 +671,71 @@ const DatePickerModal = ({
                     >
                       {formattedDate}
                     </span>
-                    <input
-                      type="time"
-                      value={item.startTime}
-                      onChange={(e) =>
-                        handleIndividualTimeChange(
-                          index,
-                          "startTime",
-                          e.target.value
-                        )
-                      }
-                      className={`border rounded-lg p-2 text-sm w-full ${
-                        darkMode
-                          ? "bg-gray-800 border-gray-600 text-white"
-                          : "bg-white border-gray-300 text-black"
-                      }`}
-                    />
-                    <input
-                      type="time"
-                      value={item.endTime}
-                      onChange={(e) =>
-                        handleIndividualTimeChange(
-                          index,
-                          "endTime",
-                          e.target.value
-                        )
-                      }
-                      className={`border rounded-lg p-2 text-sm w-full ${
-                        darkMode
-                          ? "bg-gray-800 border-gray-600 text-white"
-                          : "bg-white border-gray-300 text-black"
-                      }`}
-                    />
+                    
+                    {/* Start Time Fields */}
+                    <div className="flex gap-1 w-full">
+                      <input
+                        type="time"
+                        value={item.startTime || ""}
+                        onChange={(e) =>
+                          handleIndividualTimeChange(index, "startTime", e.target.value)
+                        }
+                        className={`border rounded-lg p-2 text-sm flex-1 ${
+                          darkMode
+                            ? "bg-gray-800 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      />
+                      <select
+                        value={item.startAmPm || ""}
+                        onChange={(e) =>
+                          handleIndividualTimeChange(index, "startAmPm", e.target.value)
+                        }
+                        className={`border rounded-lg p-2 text-sm w-16 ${
+                          darkMode
+                            ? "bg-gray-800 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      >
+                        <option value="">-</option>
+                        <option value="AM">AM</option>
+                        <option value="PM">PM</option>
+                      </select>
+                    </div>
+
+                    <span className="text-gray-400 text-sm">to</span>
+
+                    {/* End Time Fields */}
+                    <div className="flex gap-1 w-full">
+                      <input
+                        type="time"
+                        value={item.endTime || ""}
+                        onChange={(e) =>
+                          handleIndividualTimeChange(index, "endTime", e.target.value)
+                        }
+                        className={`border rounded-lg p-2 text-sm flex-1 ${
+                          darkMode
+                            ? "bg-gray-800 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      />
+                      <select
+                        value={item.endAmPm || ""}
+                        onChange={(e) =>
+                          handleIndividualTimeChange(index, "endAmPm", e.target.value)
+                        }
+                        className={`border rounded-lg p-2 text-sm w-16 ${
+                          darkMode
+                            ? "bg-gray-800 border-gray-600 text-white"
+                            : "bg-white border-gray-300 text-black"
+                        }`}
+                      >
+                        <option value="">-</option>
+                        <option value="AM">AM</option>
+                        <option value="PM">PM</option>
+                      </select>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => handleDateClick(item.date)}
@@ -573,7 +793,6 @@ const DatePickerModal = ({
     </div>
   );
 };
-
 const GuestModal = ({
   isOpen,
   onClose,
@@ -1130,6 +1349,13 @@ const CreateTicket = () => {
   const rulesEditorRef = useRef(null);
   const descriptionEditorRef = useRef(null);
 
+  // Set initial map location (Thrissur, Kerala, India)
+  const INITIAL_MAP_LOCATION = {
+    lat: 10.5276,
+    lng: 76.2144,
+    address: "Thrissur, Kerala, India"
+  };
+
   const [formData, setFormData] = useState({
     _id: null,
     event_name: "",
@@ -1149,18 +1375,26 @@ const CreateTicket = () => {
     event_youtube_link: "",
     hashtag: [],
     event_dates: [],
-    event_date_type: "",
+    event_date_type: "Single day",
     gatesOpenEarly: false,
     gate_open_time: "",
+    gate_open_hour: "", // Initialize as empty
+    gate_open_minute: "", // Initialize as empty
+    gate_open_ampm: "", // Initialize as empty
     guests: [],
     event_rules: { type: "text", content: "" },
     event_rules_file: null,
     prohibited_items: [],
     POCS: [],
     event_description: "",
-    exact_map_location: { latitude: "", longitude: "", address: "" },
+    exact_map_location: { 
+      latitude: INITIAL_MAP_LOCATION.lat.toString(), 
+      longitude: INITIAL_MAP_LOCATION.lng.toString(), 
+      address: INITIAL_MAP_LOCATION.address 
+    },
     groupId: groupId || "",
   });
+
 
   const [poc, setPoc] = useState({
     POC_name: "",
@@ -1222,6 +1456,7 @@ const CreateTicket = () => {
         if (savedFormData) setFormData(savedFormData);
         return savedFormData || null;
       }
+      
       // Helper function to format date for input (ISO to YYYY-MM-DD)
       const formatDateForInput = (isoDate) => {
         if (!isoDate) return '';
@@ -1277,15 +1512,29 @@ const CreateTicket = () => {
             : "Multi days",
         gate_open_time: formatTimeForInput(ticketData.gate_open_time) || "",
         gatesOpenEarly: !!ticketData.gate_open_time,
+        // Parse gate opening time into separate fields
+        gate_open_hour: ticketData.gate_open_time ? (() => {
+          const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
+          let hour = time.getHours();
+          return hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+        })() : "",
+        gate_open_minute: ticketData.gate_open_time ? (() => {
+          const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
+          return time.getMinutes().toString().padStart(2, "0");
+        })() : "",
+        gate_open_ampm: ticketData.gate_open_time ? (() => {
+          const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
+          return time.getHours() >= 12 ? "PM" : "AM";
+        })() : "",
         guests: ticketData.guests || [],
         event_rules: ticketData.event_rules || { type: "text", content: "" },
         prohibited_items: ticketData.prohibited_items || [],
         POCS: ticketData.POCS || [],
         event_description: ticketData.event_description || "",
         exact_map_location: {
-          latitude: ticketData.exact_map_location?.latitude?.toString() || "",
-          longitude: ticketData.exact_map_location?.longitude?.toString() || "",
-          address: ticketData.exact_map_location?.address || "",
+          latitude: ticketData.exact_map_location?.latitude?.toString() || INITIAL_MAP_LOCATION.lat.toString(),
+          longitude: ticketData.exact_map_location?.longitude?.toString() || INITIAL_MAP_LOCATION.lng.toString(),
+          address: ticketData.exact_map_location?.address || INITIAL_MAP_LOCATION.address,
         },
         groupId: ticketData.groupId || groupId || "",
       };
@@ -1301,11 +1550,13 @@ const CreateTicket = () => {
       return savedFormData || null;
     }
   };
+  const [dataLoaded, setDataLoaded] = useState(false);
   useEffect(() => {
     if (formData.event_name || formData.location) {
       saveFormDataToStorage(formData);
     }
   }, [formData]);
+  
   useEffect(() => {
     const initializeComponent = async () => {
       setPageLoading(true);
@@ -1349,167 +1600,237 @@ const CreateTicket = () => {
     };
     initializeComponent();
   }, [groupId, urlTicketId, navigate, location.state]);
+  
   useEffect(() => {
     if (!pageLoading && !isEditMode) {
       saveFormDataToStorage(formData);
     }
   }, [formData, pageLoading, isEditMode]);
-useEffect(() => {
-  const callbackName = "initMapCallback";
-  window[callbackName] = () => setIsApiReady(true);
-  const scriptId = "google-maps-script";
-  
-  if (!document.getElementById(scriptId)) {
-    const script = document.createElement("script");
-    script.id = scriptId;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyB5MQdwuxFIG6Msf_At0bV2vPXuFwEkVkI&libraries=places&callback=${callbackName}`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-  } else if (window.google) {
-    setIsApiReady(true);
-  }
-  
-  return () => {
-    delete window[callbackName];
-  };
-}, []);
 
-// Single comprehensive useEffect for map initialization and updates
-useEffect(() => {
-  if (!isApiReady || !mapRef.current) return;
-
-  // If location type is not offline, cleanup and return
-  if (formData.location_type !== 'offline') {
-    if (map) {
-      setMap(null);
-      markerRef.current = null;
+  useEffect(() => {
+    const callbackName = "initMapCallback";
+    window[callbackName] = () => setIsApiReady(true);
+    const scriptId = "google-maps-script";
+    
+    if (!document.getElementById(scriptId)) {
+      const script = document.createElement("script");
+      script.id = scriptId;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyB5MQdwuxFIG6Msf_At0bV2vPXuFwEkVkI&libraries=places&callback=${callbackName}`;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    } else if (window.google) {
+      setIsApiReady(true);
     }
-    return;
-  }
+    
+    return () => {
+      delete window[callbackName];
+    };
+  }, []);
 
-  const initializeMap = () => {
-    const initialCenter = formData.exact_map_location.latitude && formData.exact_map_location.longitude
-      ? {
-          lat: parseFloat(formData.exact_map_location.latitude),
-          lng: parseFloat(formData.exact_map_location.longitude),
+  // Enhanced map initialization with initial location
+  useEffect(() => {
+    if (!isApiReady || !mapRef.current || !dataLoaded) return;
+
+    // If location type is not offline, cleanup and return
+    if (formData.location_type !== 'offline') {
+      if (map) {
+        setMap(null);
+        markerRef.current = null;
+      }
+      return;
+    }
+
+    const initializeMap = () => {
+      // Use form data coordinates if available, otherwise use initial location
+      const initialCenter = formData.exact_map_location.latitude && formData.exact_map_location.longitude
+        ? {
+            lat: parseFloat(formData.exact_map_location.latitude),
+            lng: parseFloat(formData.exact_map_location.longitude),
+          }
+        : INITIAL_MAP_LOCATION;
+
+      // Clean up existing map first
+      if (map) {
+        window.google.maps.event.clearInstanceListeners(map);
+        if (markerRef.current) {
+          markerRef.current.setMap(null);
         }
-      : { lat: 28.6139, lng: 77.209 };
+      }
 
-    const mapInstance = new window.google.maps.Map(mapRef.current, {
-      center: initialCenter,
-      zoom: formData.exact_map_location.latitude ? 15 : 12,
-    });
+      const mapInstance = new window.google.maps.Map(mapRef.current, {
+        center: initialCenter,
+        zoom: 15,
+        mapTypeId: 'roadmap',
+        gestureHandling: 'cooperative',
+      });
 
-    const markerInstance = new window.google.maps.Marker({
-      position: initialCenter,
-      map: mapInstance,
-      draggable: true,
-    });
+      const markerInstance = new window.google.maps.Marker({
+        position: initialCenter,
+        map: mapInstance,
+        draggable: true,
+        title: 'Event Location'
+      });
 
-    const updateStateFromCoords = (lat, lng) => {
-      const geocoder = new window.google.maps.Geocoder();
-      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-        if (status === "OK" && results[0]) {
+      const updateStateFromCoords = (lat, lng) => {
+        const geocoder = new window.google.maps.Geocoder();
+        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+          if (status === "OK" && results[0]) {
+            setFormData((prev) => ({
+              ...prev,
+              location: results[0].formatted_address,
+              exact_map_location: {
+                latitude: lat.toString(),
+                longitude: lng.toString(),
+                address: results[0].formatted_address,
+              },
+            }));
+          }
+        });
+      };
+
+      // Map click listener
+      mapInstance.addListener("click", (e) => {
+        markerInstance.setPosition(e.latLng);
+        updateStateFromCoords(e.latLng.lat(), e.latLng.lng());
+      });
+
+      // Marker drag listener
+      markerInstance.addListener("dragend", (e) => {
+        updateStateFromCoords(e.latLng.lat(), e.latLng.lng());
+      });
+
+      // Autocomplete setup
+      if (autocompleteRef.current) {
+        const autocompleteInstance = new window.google.maps.places.Autocomplete(
+          autocompleteRef.current,
+          { 
+            fields: ["geometry", "name", "formatted_address"],
+            types: ["establishment", "geocode"]
+          }
+        );
+
+        autocompleteInstance.addListener("place_changed", () => {
+          const place = autocompleteInstance.getPlace();
+          if (!place.geometry?.location) return;
+          
+          const { lat, lng } = place.geometry.location;
+          const newPosition = { lat: lat(), lng: lng() };
+          
           setFormData((prev) => ({
             ...prev,
-            location: results[0].formatted_address,
+            location: place.formatted_address || "",
+            venue: place.name || prev.venue,
             exact_map_location: {
-              latitude: lat.toString(),
-              longitude: lng.toString(),
-              address: results[0].formatted_address,
+              latitude: lat().toString(),
+              longitude: lng().toString(),
+              address: place.formatted_address || "",
             },
           }));
+          
+          mapInstance.setCenter(newPosition);
+          mapInstance.setZoom(15);
+          markerInstance.setPosition(newPosition);
+        });
+      }
+      
+      setMap(mapInstance);
+      markerRef.current = markerInstance;
+      
+      // Ensure map renders properly with multiple resize triggers
+      const triggerResize = () => {
+        if (mapInstance && mapRef.current) {
+          window.google.maps.event.trigger(mapInstance, 'resize');
+          mapInstance.setCenter(initialCenter);
+          mapInstance.setZoom(15);
         }
-      });
-    };
+      };
 
-    // Map click listener
-    mapInstance.addListener("click", (e) => {
-      markerInstance.setPosition(e.latLng);
-      updateStateFromCoords(e.latLng.lat(), e.latLng.lng());
-    });
-
-    // Marker drag listener
-    markerInstance.addListener("dragend", (e) => {
-      updateStateFromCoords(e.latLng.lat(), e.latLng.lng());
-    });
-
-    // Autocomplete setup
-    if (autocompleteRef.current) {
-      const autocompleteInstance = new window.google.maps.places.Autocomplete(
-        autocompleteRef.current,
-        { fields: ["geometry", "name", "formatted_address"] }
-      );
-
-      autocompleteInstance.addListener("place_changed", () => {
-        const place = autocompleteInstance.getPlace();
-        if (!place.geometry?.location) return;
-        
-        const { lat, lng } = place.geometry.location;
-        const newPosition = { lat: lat(), lng: lng() };
-        
-        setFormData((prev) => ({
-          ...prev,
-          location: place.formatted_address || "",
-          venue: place.name || prev.venue,
-          exact_map_location: {
-            latitude: lat().toString(),
-            longitude: lng().toString(),
-            address: place.formatted_address || "",
-          },
-        }));
-        
-        mapInstance.setCenter(newPosition);
-        mapInstance.setZoom(15);
-        markerInstance.setPosition(newPosition);
-      });
-    }
-    setMap(mapInstance);
-    markerRef.current = markerInstance;
-    // Ensure map renders properly
-    setTimeout(() => {
-      window.google.maps.event.trigger(mapInstance, 'resize');
-    }, 100);
-  };
-  // Clean up existing map before initializing new one
-  if (map) {
-    window.google.maps.event.clearInstanceListeners(map);
-    if (markerRef.current) {
-      markerRef.current.setMap(null);
-    }
-  }
-  // Initialize map with a small delay to ensure DOM is ready
-  setTimeout(initializeMap, 50);
-}, [isApiReady, formData.location_type, formData.exact_map_location.latitude, formData.exact_map_location.longitude]);
-// Update map position when coordinates change
-useEffect(() => {
-  if (!map || !markerRef.current || formData.location_type !== 'offline') return;
-  
-  if (formData.exact_map_location.latitude && formData.exact_map_location.longitude) {
-    const newPosition = {
-      lat: parseFloat(formData.exact_map_location.latitude),
-      lng: parseFloat(formData.exact_map_location.longitude),
+      // Multiple resize attempts to ensure proper rendering
+      setTimeout(triggerResize, 100);
+      setTimeout(triggerResize, 300);
+      setTimeout(triggerResize, 500);
     };
     
-    // Use setTimeout to ensure the map container is visible
-    setTimeout(() => {
-      map.setCenter(newPosition);
-      map.setZoom(15);
-      markerRef.current.setPosition(newPosition);
-      window.google.maps.event.trigger(map, 'resize');
-    }, 50);
-  }
-}, [formData.exact_map_location.latitude, formData.exact_map_location.longitude, map, formData.location_type]);
+    initializeMap();
+  }, [isApiReady, formData.location_type, dataLoaded]);
+  useEffect(() => {
+  const initializeComponent = async () => {
+    setPageLoading(true);
+    setDataLoaded(false); // Reset data loaded state
+    
+    if (!groupId) {
+      navigate("/select-group");
+      return;
+    }
 
-// Add this effect to handle visibility changes
-useEffect(() => {
-  if (map && formData.location_type === 'offline') {
-    // Trigger resize when switching back to offline mode
+    try {
+      const groupsResponse = await getGroups();
+      const groupsArray = Array.isArray(groupsResponse)
+        ? groupsResponse
+        : groupsResponse.data || [];
+      const groupData = groupsArray.find((g) => g._id === groupId);
+      if (!groupData) {
+        alert("Group not found.");
+        navigate("/select-group");
+        return;
+      }
+      setSelectedGroup(groupData);
+
+      if (urlTicketId) {
+        setIsEditMode(true);
+        await loadExistingTicketData(urlTicketId);
+      } else {
+        if (location.state?.formData) {
+          setFormData(location.state.formData);
+          saveFormDataToStorage(location.state.formData);
+        } else {
+          const savedData = loadFormDataFromStorage();
+          if (savedData) {
+            setFormData(savedData);
+          }
+        }
+      }
+      
+      // Set data loaded to true after all data operations are complete
+      setDataLoaded(true);
+      
+    } catch (error) {
+      console.error("Initialization error:", error);
+      setDataLoaded(true); // Set to true even on error to allow map initialization
+    } finally {
+      setPageLoading(false);
+    }
+  };
+  initializeComponent();
+}, [groupId, urlTicketId, navigate, location.state]);
+  // Update map position when coordinates change
+  useEffect(() => {
+    if (!map || !markerRef.current || formData.location_type !== 'offline') return;
+    
+    if (formData.exact_map_location.latitude && formData.exact_map_location.longitude) {
+      const newPosition = {
+        lat: parseFloat(formData.exact_map_location.latitude),
+        lng: parseFloat(formData.exact_map_location.longitude),
+      };
+      
+      // Use setTimeout to ensure the map container is visible
+      setTimeout(() => {
+        map.setCenter(newPosition);
+        map.setZoom(15);
+        markerRef.current.setPosition(newPosition);
+        window.google.maps.event.trigger(map, 'resize');
+      }, 50);
+    }
+  }, [formData.exact_map_location.latitude, formData.exact_map_location.longitude, map, formData.location_type]);
+
+  // Add this effect to handle visibility changes
+  useEffect(() => {
+  if (map && formData.location_type === 'offline' && dataLoaded) {
+    // Small delay to ensure DOM is updated
     setTimeout(() => {
       window.google.maps.event.trigger(map, 'resize');
       
-      // Recenter the map if coordinates exist
       if (formData.exact_map_location.latitude && formData.exact_map_location.longitude) {
         const center = {
           lat: parseFloat(formData.exact_map_location.latitude),
@@ -1517,10 +1838,43 @@ useEffect(() => {
         };
         map.setCenter(center);
         map.setZoom(15);
+        if (markerRef.current) {
+          markerRef.current.setPosition(center);
+        }
       }
     }, 100);
   }
-}, [map, formData.location_type]);
+}, [map, formData.location_type, dataLoaded]);
+  useEffect(() => {
+  if (!mapRef.current || !map) return;
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && map) {
+          setTimeout(() => {
+            window.google.maps.event.trigger(map, 'resize');
+            if (formData.exact_map_location.latitude && formData.exact_map_location.longitude) {
+              const center = {
+                lat: parseFloat(formData.exact_map_location.latitude),
+                lng: parseFloat(formData.exact_map_location.longitude),
+              };
+              map.setCenter(center);
+            }
+          }, 100);
+        }
+      });
+    },
+    { threshold: 0.1 }
+  );
+
+  observer.observe(mapRef.current);
+
+  return () => {
+    if (mapRef.current) {
+      observer.unobserve(mapRef.current);
+    }
+  };
+}, [map, formData.exact_map_location]);
 
   useEffect(() => {
     if (formData.event_name || formData.location) {
@@ -2099,7 +2453,12 @@ useEffect(() => {
                         <div
                           ref={mapRef}
                           className="w-full h-64 rounded-lg border bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-[#4A4A4A]"
-                          style={{ minHeight: "300px" }}
+                          style={{ 
+                            minHeight: "300px", 
+                            display: formData.location_type === 'offline' ? 'block' : 'none',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}
                         ></div>
                         <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                           Click anywhere on the map or drag the marker to set
@@ -2498,7 +2857,7 @@ useEffect(() => {
                                 <InfoTooltip note="Set the time when gates will open." />
                               </label>
 
-                              {/* Custom 12-hour time picker */}
+                              {/* Custom 12-hour time picker with placeholders */}
                               <div className="flex gap-2">
                                 {/* Hour */}
                                 <select
@@ -2509,6 +2868,7 @@ useEffect(() => {
                                   className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
                                     ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
                                 >
+                                  <option value="" disabled>Hour</option>
                                   {[...Array(12)].map((_, i) => {
                                     const hour = i + 1;
                                     return (
@@ -2528,6 +2888,7 @@ useEffect(() => {
                                   className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
                                     ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
                                 >
+                                  <option value="" disabled>Minute</option>
                                   {[...Array(60)].map((_, i) => {
                                     const minute = i.toString().padStart(2, "0");
                                     return (
@@ -2547,6 +2908,7 @@ useEffect(() => {
                                   className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
                                     ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
                                 >
+                                  <option value="" disabled>AM/PM</option>
                                   <option value="AM">AM</option>
                                   <option value="PM">PM</option>
                                 </select>
