@@ -2163,7 +2163,7 @@ const setGroupDefaults = () => {
             event_date_type:
               eventDateTypeMap[formData.event_date_type] || "one-day",
             gate_open_time: formData.gate_open_time
-              ? formData.gate_open_time?.trim() || ""
+              ? formData.gate_open_time|| ""
               : "",
             event_dates: formData.event_dates.map(d => ({
                 start_date: d.date,
@@ -2587,7 +2587,7 @@ const setGroupDefaults = () => {
                   pet_friendly: formData.pet_friendly,
                   location_type: formData.location_type,
                   event_date_type: eventDateTypeMap[formData.event_date_type] || "one-day",
-                  gate_open_time: formData.gate_open_time ? formData.gate_open_time?.trim() || "" : "",
+                  gate_open_time: formData.gate_open_time || "",
                   event_dates: formData.event_dates.map(d => ({
                       start_date: d.date,
                       end_date: d.date,
