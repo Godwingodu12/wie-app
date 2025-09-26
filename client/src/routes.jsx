@@ -24,6 +24,7 @@ import IndexMessage from "./pages/message/indexMessage";
 import  EditProfile  from './pages/settings/EditProfile';
 import TicketTerms from './pages/ticket/TicketTerms';
 import UpdateTicketAddOns from './pages/ticket/UpdateTicketAddOns';
+import TicketPreview from './pages/ticket/TicketPreview';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
 
@@ -216,6 +217,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <TicketTerms />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/ticket-preview/:ticketId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <TicketPreview />
           </ProtectedRoute>
         }
       />
