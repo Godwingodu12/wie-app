@@ -387,22 +387,22 @@ const ProfilePage = () => {
         border: "border-gray-700",
         buttonBg: "bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30]",
         buttonShadow: "shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)]",
-        cardShadow: "8px 8px 16px #1a1c1e, -8px -8px 16px #262a2c",
-        smallCardShadow: "6px 6px 12px #1a1c1e, -6px -6px 12px #262a2c",
+        cardShadow: "7px 7px 14px #1c1f20,-7px -7px 14px #26292c",
+        smallCardShadow: "7px 7px 14px #1c1f20,-7px -7px 14px #26292c",
         buttonHoverBg: "hover:bg-gray-700",
         notificationShadow: "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)",
       }
     : {
-        bg: "bg-white",
+        bg: "#f9f9f9",
         text: "text-gray-900",
         subText: "text-gray-600",
-        cardBg: "bg-white",
-        subCardBg: "bg-gray-50",
+        cardBg: "#f2f2f2",
+        subCardBg: "#f2f2f2",
         border: "border-gray-300",
         buttonBg: "bg-gradient-to-b from-gray-100 to-gray-200",
         buttonShadow: "shadow-md hover:shadow-lg",
         cardShadow: "8px 8px 24px rgba(0,0,0,0.1), -8px -8px 24px rgba(255,255,255,0.8)",
-        smallCardShadow: "6px 6px 12px rgba(0,0,0,0.1), -6px -6px 12px rgba(255,255,255,0.8)",
+        smallCardShadow: "6px 6px 12px #6a6a6a,-6px -6px 12px #ffffff",
         buttonHoverBg: "hover:bg-gray-100",
         notificationShadow: "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
       };
@@ -1076,7 +1076,7 @@ const ProfilePage = () => {
                           }`}
                           style={{
                             boxShadow: activeTab === 'all' ? (isDark
-                              ? "inset 2px 2px 4px rgba(0,0,0,0.3), inset -2px -2px 4px rgba(255,255,255,0.1)"
+                              ? "inset -17px -17px 34px #1c1f20,inset 17px 17px 34px #26292c"
                               : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
                             backgroundColor: activeTab === 'all' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
                           }}
@@ -1088,7 +1088,7 @@ const ProfilePage = () => {
                             className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
                           />
                           <span className={`text-sm font-medium ${theme.text}`}>
-                            All Events ({allEvents.length})
+                            All Events
                           </span>
                         </div>
 
@@ -1110,7 +1110,7 @@ const ProfilePage = () => {
                             className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
                           />
                           <span className={`text-sm font-medium ${theme.text}`}>
-                            Live Events ({liveEvents.length})
+                            Live Events
                           </span>
                         </div>
 
@@ -1132,7 +1132,7 @@ const ProfilePage = () => {
                             className={`w-7 h-7 ${!isDark ? "filter brightness-0" : ""}`}
                           />
                           <span className={`text-sm font-medium ${theme.text}`}>
-                            Past Events ({pastEvents.length})
+                            Past Events
                           </span>
                         </div>
                       </div>
@@ -1163,17 +1163,19 @@ const ProfilePage = () => {
                       </div>
                     ) : (
                       /* Events Grid */
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-14">
                         {getCurrentEvents().map((event, index) => (
                           <div
                             key={event._id || `event-${index}`}
-                            className="rounded-2xl overflow-hidden flex flex-col"
+                            className="rounded-3xl overflow-hidden flex flex-col "
                             style={{
                               backgroundColor: isDark ? "#212426" : "#ffffff",
                               boxShadow: theme.smallCardShadow,
                             }}
                           >
                             {/* Event Image */}
+                            <div className="p-4">
+
                             <img
                               src={
                                 event.event_banner ||
@@ -1182,86 +1184,72 @@ const ProfilePage = () => {
                                 "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
                               }
                               alt={event.event_name || "Event"}
-                              className="h-48 w-full object-cover"
+    className="rounded-[1rem] h-70 w-full object-cover border-2 border-white border-opacity-50"
                               onError={(e) => {
                                 e.target.src =
                                   "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
                               }}
                             />
+                            </div>
+
 
                             {/* Event Info */}
                             <div className="flex flex-col flex-1 p-4">
-                              <div className="text-center mb-4">
-                                <h3 className={`font-semibold text-base ${theme.text}`}>
+                              <div className="text-center mb-6">
+                                <h3 className={`font-bold text-base ${theme.text}`}>
                                   {event.event_name ||"Event"}
                                 </h3>
                                 <p className={`text-sm ${theme.subText} mt-1`}>
                                   {event.event_category ||
                                    "Event Type"}
                                 </p>
-                                {/* Show event date if available */}
-                                {(event.start_date) && (
-                                  <p className={`text-xs ${theme.subText} mt-1`}>
-                                    {new Date(event.event_date || event.eventDate || event.date).toLocaleDateString()}
-                                  </p>
-                                )}
-                                {/* Show event status if available */}
-                                {(event.event_status || event.eventStatus) && (
-                                  <span className={`inline-block px-2 py-1 rounded-full text-xs mt-2 ${
-                                    (event.event_status || event.eventStatus).toLowerCase() === 'live' || 
-                                    (event.event_status || event.eventStatus).toLowerCase() === 'active'
-                                      ? 'bg-green-100 text-green-800' 
-                                      : (event.event_status || event.eventStatus).toLowerCase() === 'completed' ||
-                                        (event.event_status || event.eventStatus).toLowerCase() === 'ended'
-                                      ? 'bg-gray-100 text-gray-800'
-                                      : 'bg-blue-100 text-blue-800'
-                                  }`}>
-                                    {event.event_status || event.eventStatus}
-                                  </span>
-                                )}
                               </div>
 
                               {/* Stats */}
-                              <div className="flex justify-center items-center gap-6 text-sm mb-3">
-                                <div className="flex items-center gap-1">
-                                  <img
-                                    src={LikeIcon}
-                                    alt="Likes"
-                                    className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
-                                  />
-                                  <span className={theme.subText}>
-                                    {event.likes || event.likesCount || "0"}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <img
-                                    src={TicketIcon}
-                                    alt="Tickets"
-                                    className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
-                                  />
-                                  <span className={theme.subText}>
-                                    {event.ticketsSold ||
-                                      event.registrations ||
-                                      event.attendeesCount ||
-                                      event.ticket_count ||
-                                      event.ticketCount ||
-                                      "0"}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <img
-                                    src={SendIcon}
-                                    alt="Shares"
-                                    className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
-                                  />
-                                  <span className={theme.subText}>
-                                    {event.shares || event.sharesCount || "0"}
-                                  </span>
-                                </div>
-                              </div>
+<div className="flex justify-center items-center gap-20 text-sm mb-3">
+  <div className="flex flex-col items-center">
+    <img
+      src={LikeIcon}
+      alt="Likes"
+      className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}
+    />
+    <span className={theme.subText}>
+      {event.likes || event.likesCount || "0"}
+    </span>
+  </div>
+
+  <div className="flex flex-col items-center">
+    <img
+      src={TicketIcon}
+      alt="Tickets"
+      className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}
+    />
+    <span className={theme.subText}>
+      {event.ticketsSold ||
+        event.registrations ||
+        event.attendeesCount ||
+        event.ticket_count ||
+        event.ticketCount ||
+        "0"}
+    </span>
+  </div>
+
+  <div className="flex flex-col items-center">
+    <img
+      src={SendIcon}
+      alt="Shares"
+      className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}
+    />
+    <span className={theme.subText}>
+      {event.shares || event.sharesCount || "0"}
+    </span>
+  </div>
+</div>
+
 
                               {/* View button */}
-                              <div className="flex justify-center">
+                              <div className="flex justify-center pt-4 "
+                              >
                                 <button
                                   onClick={() => {
                                     const eventId = event._id || event.id;
@@ -1271,9 +1259,13 @@ const ProfilePage = () => {
                                       console.warn("No event ID found for navigation");
                                     }
                                   }}
-                                  className="px-6 py-2 rounded-full text-white text-sm font-medium bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90 transition ml-2"
+                                  className="px-10 py-2 rounded-full text-white text-sm font-medium  ml-4"
+                                  style={{
+  background: "linear-gradient(180deg, #2e1745 0%, #7f53e7 100%)"
+}}
+
                                 >
-                                  View Event
+                                  View
                                 </button>
                               </div>
                             </div>
