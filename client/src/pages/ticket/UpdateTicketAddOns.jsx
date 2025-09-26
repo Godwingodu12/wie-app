@@ -72,11 +72,10 @@ const DatePickerModal = ({
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState(initialDates || []);
   const [useSameTime, setUseSameTime] = useState(true);
-  
+  const [isEditingSubEvent, setIsEditingSubEvent] = useState(false);
   useEffect(() => {
     setSelectedDates(initialDates || []);
   }, [initialDates]);
-
   const handleDateTypeChange = (type) => {
     setSelectedDates([]);
     setDateType(type);
@@ -99,9 +98,6 @@ const DatePickerModal = ({
     
     return `${hour24.toString().padStart(2, '0')}:${minutes}`;
   };
-
-  // Helper function to convert 24-hour time to 12-hour format
-  // 1. Add helper function to convert 24-hour time to 12-hour format
     const convertTo12Hour = (time24h) => {
         if (!time24h) return { time: '', ampm: '' };
         const [hours, minutes] = time24h.split(':');
@@ -114,131 +110,39 @@ const DatePickerModal = ({
             ampm: ampm
         };
     };
-
-// 2. Add state for gate opening time components
-const [gateOpenHour, setGateOpenHour] = useState('');
-const [gateOpenMinute, setGateOpenMinute] = useState('');
-const [gateOpenAmPm, setGateOpenAmPm] = useState('');
-
-
-// 4. Update the gate opening time section in your JSX
-{formData.gate_open_time && (
-    <div>
-        <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-            Time of gate opening?
-            <span className="text-red-400">*</span>
-            <InfoTooltip note="Set the time when gates will open." />
-        </label>
-
-        <div className="flex gap-2">
-            <select
-                name="gate_open_hour"
-                value={formData.gate_open_hour || ""}
-                onChange={handleInputChange}
-                className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                    ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
-            >
-                <option value="" disabled>Hour</option>
-                {[...Array(12)].map((_, i) => {
-                    const hour = i + 1;
-                    return (
-                        <option key={hour} value={hour.toString().padStart(2, '0')}>
-                            {hour}
-                        </option>
-                    );
-                })}
-            </select>
-
-            <select
-                name="gate_open_minute"
-                value={formData.gate_open_minute || ""}
-                onChange={handleInputChange}
-                className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                    ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
-            >
-                <option value="" disabled>Minute</option>
-                {[...Array(60)].map((_, i) => {
-                    const minute = i.toString().padStart(2, "0");
-                    return (
-                        <option key={minute} value={minute}>
-                            {minute}
-                        </option>
-                    );
-                })}
-            </select>
-
-            <select
-                name="gate_open_ampm"
-                value={formData.gate_open_ampm || ""}
-                onChange={handleInputChange}
-                className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                    ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
-            >
-                <option value="" disabled>AM/PM</option>
-                <option value="AM">AM</option>
-                <option value="PM">PM</option>
-            </select>
-        </div>
-    </div>
-)}
-
-// 5. Update handleSubmit to construct gate_open_time from components
-const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    // ... existing code ...
-
-    // Construct gate_open_time if gate_open_time is true
-    let gate_open_time = "";
-    if (formData.gate_open_time && formData.gate_open_hour && formData.gate_open_minute && formData.gate_open_ampm) {
-        // Convert 12-hour format to 24-hour format
-        let hour24 = parseInt(formData.gate_open_hour);
-        if (formData.gate_open_ampm === 'AM' && hour24 === 12) {
-            hour24 = 0;
-        } else if (formData.gate_open_ampm === 'PM' && hour24 !== 12) {
-            hour24 += 12;
-        }
-        gate_open_time = `${hour24.toString().padStart(2, '0')}:${formData.gate_open_minute}`;
-    }
-};
-
-// 6. Update the resetForm function to clear gate time components
-const resetForm = () => {
-    setFormData(initialFormState);
-    setPreviews({ ticket_layout: null, event_banner: null, event_logo: null });
-    setEditingSubEventId(null);
-    setIsEditingSubEvent(false);
-    setHasSeatingLayout(false); // Reset seating layout toggle
-    if (rulesEditorRef.current) rulesEditorRef.current.innerHTML = '';
-    if (descriptionEditorRef.current) descriptionEditorRef.current.innerHTML = '';
-};
-
-// 7. Add a note about media files in the editing section
-{isEditingSubEvent && (
-    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-        <div className="flex items-center justify-between">
-            <div>
-                <p className="text-blue-800 dark:text-blue-200 font-medium">
-                    Editing Sub-Event: {formData.event_name || 'Untitled Event'}
-                </p>
-                <p className="text-blue-600 dark:text-blue-300 text-sm">
-                    Make your changes below and click "Save and continue" or "Add more sub events"
-                </p>
-                <p className="text-blue-500 dark:text-blue-400 text-xs mt-1">
-                    Note: You'll need to re-upload media files (banner, logo, images) as they can't be restored from the database.
-                </p>
+    const resetForm = () => {
+        setFormData(initialFormState);
+        setPreviews({ ticket_layout: null, event_banner: null, event_logo: null });
+        setEditingSubEventId(null);
+        setIsEditingSubEvent(false);
+        setHasSeatingLayout(false); // Reset seating layout toggle
+        if (rulesEditorRef.current) rulesEditorRef.current.innerHTML = '';
+        if (descriptionEditorRef.current) descriptionEditorRef.current.innerHTML = '';
+    };
+    {isEditingSubEvent && (
+        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="text-blue-800 dark:text-blue-200 font-medium">
+                        Editing Sub-Event: {formData.event_name || 'Untitled Event'}
+                    </p>
+                    <p className="text-blue-600 dark:text-blue-300 text-sm">
+                        Make your changes below and click "Save and continue" or "Add more sub events"
+                    </p>
+                    <p className="text-blue-500 dark:text-blue-400 text-xs mt-1">
+                        Note: You'll need to re-upload media files (banner, logo, images) as they can't be restored from the database.
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    onClick={resetForm}
+                    className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
+                >
+                    Cancel Edit
+                </button>
             </div>
-            <button
-                type="button"
-                onClick={resetForm}
-                className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
-            >
-                Cancel Edit
-            </button>
         </div>
-    </div>
-)}
+    )}
 
   // Helper function to validate time
   const validateTime = (startTime, endTime, startAmPm, endAmPm) => {
@@ -2235,9 +2139,7 @@ const setGroupDefaults = () => {
         return { ...prev, banking_details: newBankingDetails };
     });
     };
-    
-    // FIX: This is the fully functional submit handler
-const handleSubmit = async (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
 
@@ -2293,7 +2195,7 @@ const handleSubmit = async (e) => {
             subEventPayload.exact_map_location = formData.exact_map_location;
             subEventPayload.gate_open_time = formData.gate_open_time;
             subEventPayload.total_capacity = formData.total_capacity;
-             if (formData.payment_type === 'paid') {
+            if (formData.payment_type === 'paid') {
                 subEventPayload.ticket_types = formData.ticket_types.map(t => ({
                     ticket_type: t.name,
                     ticket_price: Number(t.price),
@@ -2328,8 +2230,8 @@ const handleSubmit = async (e) => {
         try {
             await updateTicketAddOns(ticketId, submissionForm);
             alert("Sub-event added successfully!");
-            resetForm(); // Reset form for the next entry
-            fetchData(); // Refresh the list to show the new event
+            // Navigate to ticket-terms only for "Save and continue"
+            navigate(`/ticket/ticket-terms/${ticketId}`);
         } catch (error) {
             console.error("Error submitting form:", error.response ? error.response.data : error);
             alert(`Submission failed: ${error.response?.data?.message || 'An error occurred.'}`);
@@ -2751,28 +2653,28 @@ const handleSubmit = async (e) => {
                       if (ticket.photoFile) submissionForm.append(`ticket_photo_${index}`, ticket.photoFile);
                   });
               }
+              
               try {
                   await updateTicketAddOns(ticketId, submissionForm);
                   alert(isEditingSubEvent ? "Sub-event updated successfully!" : "Sub-event added successfully!");
-                  navigate(`/ticket/ticket-terms/${ticketId}`);
+                  
+                  // Reset form for new entry and stay on same page
+                  resetForm();
+                  await fetchData(); // Refresh the existing events list
+                  // Scroll to top
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  
               } catch (error) {
                   console.error("Error submitting form:", error.response ? error.response.data : error);
                   alert(`Submission failed: ${error.response?.data?.message || 'An error occurred.'}`);
-              } finally {
-                  setIsSubmitting(false);
               }
-              // Reset form for new entry
-              resetForm();
-              await fetchData(); // Refresh the existing events list
-              // Scroll to top
-              window.scrollTo({ top: 0, behavior: 'smooth' });
           } catch (error) {
               console.error("Error saving sub-event:", error);
               alert(`Failed to save sub-event: ${error.response?.data?.message || 'An error occurred.'}`);
-          } finally {
-              setIsSubmitting(false);
-          }
-      };
+    } finally {
+        setIsSubmitting(false);
+    }
+};
       // Add this function to your UpdateTicketAddOns component
       const handleSubEventClick = async (subEventId) => {
           console.log('Sub-event ID:', subEventId);
