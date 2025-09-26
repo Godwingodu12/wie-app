@@ -340,11 +340,10 @@ const UpdateTicketDetails = () => {
         if (hasSeatingLayout && seatingLayoutFile instanceof File) {
             apiFormData.append('ticket_layout', seatingLayoutFile);
         }
-
         try {
             await updateTicketDetails(ticketId, apiFormData);
             localStorage.removeItem(storageKey); 
-            navigate(`/ticket-terms/${ticketId}`); 
+            navigate(`/ticket/ticket-terms/${ticketId}`); 
         } catch (error) {
             console.error("Submission failed:", error);
             setErrors({ general: error.response?.data?.message || "An error occurred while saving." });

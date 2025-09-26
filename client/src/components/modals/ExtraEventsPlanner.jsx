@@ -51,12 +51,6 @@ const ExtraEventsPlanner = ({ isOpen, onYes, onNo, ticketId }) => {
         style={{ backgroundColor: '#262628' }} // Applied your main background color
         className="rounded-xl shadow-2xl w-full max-w-md mx-auto p-8 text-center"
       >
-        {/* Debug info - remove in production */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="text-xs text-gray-500 mb-2">
-            Debug: ticketId = {ticketId || 'undefined'}
-          </div>
-        )}
 
         {/* Icon container with your specified color */}
         <div 

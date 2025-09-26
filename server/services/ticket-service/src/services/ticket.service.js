@@ -2767,8 +2767,10 @@ export const updateTicketDetails = async (req, res) => {
 // Step 5: Update Ticket - Terms & Conditions (Company Provided)
 export const updateTicketTerms = async (req, res) => {
   try {
-    const ticketId = req.params.ticketId;
-    const {terms_accepted, company_terms_version } = req.body;
+    // Get ticketId from params first, fallback to body
+    const ticketId = req.params.ticketId || req.body.ticketId;
+    const { terms_accepted, company_terms_version } = req.body;
+    console.log('updateTicketTerms called with:', { ticketId, terms_accepted, company_terms_version });
     // Validate required parameters
     if (!ticketId) {
       return res.status(400).json({ 
@@ -2776,12 +2778,17 @@ export const updateTicketTerms = async (req, res) => {
         required: ["ticketId"]
       });
     }
+    
     if (!terms_accepted) {
       return res.status(400).json({ message: "Company terms and conditions must be accepted" });
     }
+
     const userId = req.user._id || req.user.id;
+    
+    console.log('Updating ticket with ID:', ticketId); // Debug log
+    
     const updatedTicket = await Ticket.findOneAndUpdate(
-      { _id: ticketId},
+      { _id: ticketId },
       {
         terms_accepted: true,
         terms_accepted_at: new Date(),
@@ -2794,9 +2801,10 @@ export const updateTicketTerms = async (req, res) => {
     );
 
     if (!updatedTicket) {
+      console.log('Ticket not found for ID:', ticketId); // Debug log
       return res.status(404).json({ message: "Ticket not found or unauthorized" });
     }
-
+    console.log('Ticket updated successfully:', updatedTicket._id); // Debug log
     res.status(200).json({ 
       message: "Company terms and conditions accepted successfully", 
       ticket: updatedTicket,

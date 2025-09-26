@@ -66,22 +66,23 @@ export const updateTicketAddOns = async (ticketId, formData) => {
     throw error;
   }
 }
-export const updateTicketDetails = async (formData) => {
+export const updateTicketDetails = async (ticketId,apiFormData) => {
   try {
-    const response = await api.post("ticket/update-ticket-details", formData);
+    const response = await api.post(`/ticket/update-ticket-details/${ticketId}`, apiFormData);
     return response.data;
   } catch (error) {
     throw error;
   }
 }
-export const updateTicketTerms = async (formData) => {
+export const updateTicketTerms = async (ticketId, updateData) => {
   try {
-    const response = await api.post("ticket/ticket-terms", formData);
+    const response = await api.post(`/ticket/ticket-terms/${ticketId}`, updateData);
     return response.data;
   } catch (error) {
+    console.error('Error updating ticket terms:', error);
     throw error;
   }
-}
+};
 export const submitTicket = async (formData) => {
   try {
     const response = await api.post("ticket/submit-ticket", formData);
@@ -170,7 +171,7 @@ export const getMyLiveEventView = async (ticketId) => {
   catch (error) {
     throw error;
   }
-}
+};
 export const getMyPastEvents = async () => {
   try {
     const response = await api.get("ticket/my-past-events");
@@ -178,7 +179,7 @@ export const getMyPastEvents = async () => {
   } catch (error) {
     throw error;
   }
-}
+};
 export const getMyUpcomingEvents = async () => {
   try {
     const response = await api.get("ticket/my-upcoming-events");
@@ -186,7 +187,7 @@ export const getMyUpcomingEvents = async () => {
   } catch (error) {
     throw error;
   }
-}
+};
 export const getOthersEvents = async(otherId)=>{
   try{
     const response = await api.get(`ticket/get-others-events/${otherId}`);
