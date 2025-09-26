@@ -87,54 +87,123 @@ const upload = multer({
   fileFilter: generalFileFilter,
 });
 
-// Enhanced Ticket Media specific file filter - for images, videos and documents
+// FIXED: Enhanced Ticket Media specific file filter - for images, videos and documents
 const ticketMediaFileFilter = (req, file, cb) => {
-  const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-  const videoTypes = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
-  const docTypes = ['.pdf', '.doc', '.docx']; // For college authorization and event rules
-  const ext = path.extname(file.originalname).toLowerCase();
-  
-  // Handle different field types
-  if (file.fieldname === 'college_authorisation') {
-    // College authorization must be document
-    if (docTypes.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('College authorization file must be a document (PDF, DOC, DOCX)'), false);
+  try {
+    // Log the file being processed for debugging
+    console.log('Processing file:', {
+      fieldname: file.fieldname,
+      originalname: file.originalname,
+      mimetype: file.mimetype
+    });
+
+    const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const videoTypes = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
+    const docTypes = ['.pdf', '.doc', '.docx'];
+    
+    // Get file extension - handle cases where there might be no extension
+    let ext = path.extname(file.originalname).toLowerCase();
+    
+    // If no extension, try to determine from MIME type
+    if (!ext && file.mimetype) {
+      const mimeTypeMap = {
+        'image/jpeg': '.jpg',
+        'image/jpg': '.jpg',
+        'image/png': '.png',
+        'image/gif': '.gif',
+        'image/webp': '.webp',
+        'video/mp4': '.mp4',
+        'video/avi': '.avi',
+        'video/mov': '.mov',
+        'video/wmv': '.wmv',
+        'video/flv': '.flv',
+        'video/webm': '.webm',
+        'application/pdf': '.pdf',
+        'application/msword': '.doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx'
+      };
+      
+      ext = mimeTypeMap[file.mimetype] || '';
+      console.log('Extension determined from MIME type:', file.mimetype, '->', ext);
     }
-  } else if (file.fieldname === 'event_rules') {
-    // Event rules must be document
-    if (docTypes.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Event rules file must be a document (PDF, DOC, DOCX)'), false);
+    
+    if (!ext) {
+      return cb(new Error(`File must have a valid extension or MIME type. Received: ${file.originalname} with MIME type: ${file.mimetype}`), false);
     }
-  } else if (file.fieldname.startsWith('guest_profile')) {
-    // Guest profiles must be images only
-    if (imageTypes.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Guest profile must be an image file (JPG, JPEG, PNG, GIF, WEBP)'), false);
+    
+    // Define allowed types for each field
+    const fieldTypeMap = {
+      // Documents only
+      college_authorisation: {
+        allowed: docTypes,
+        errorMsg: 'College authorization file must be a document (PDF, DOC, DOCX)'
+      },
+      event_rules: {
+        allowed: docTypes,
+        errorMsg: 'Event rules file must be a document (PDF, DOC, DOCX)'
+      },
+      
+      // Images only
+      event_logo: {
+        allowed: imageTypes,
+        errorMsg: 'Event logo must be an image file (JPG, JPEG, PNG, GIF, WEBP)'
+      },
+      event_banner: {
+        allowed: imageTypes,
+        errorMsg: 'Event banner must be an image file (JPG, JPEG, PNG, GIF, WEBP)'
+      },
+      ticket_layout: {
+        allowed: imageTypes,
+        errorMsg: 'Ticket layout must be an image file (JPG, JPEG, PNG, GIF, WEBP)'
+      },
+      
+      // Images and videos
+      event_images: {
+        allowed: [...imageTypes, ...videoTypes],
+        errorMsg: 'Event images must be image or video files (JPG, JPEG, PNG, GIF, WEBP, MP4, AVI, MOV, WMV, FLV, WEBM)'
+      }
+    };
+    
+    // Handle guest profile fields (guest_profile_0, guest_profile_1, etc.)
+    if (file.fieldname.startsWith('guest_profile')) {
+      if (imageTypes.includes(ext)) {
+        return cb(null, true);
+      } else {
+        return cb(new Error('Guest profile must be an image file (JPG, JPEG, PNG, GIF, WEBP)'), false);
+      }
     }
-  } else if (file.fieldname.startsWith('ticket_photo')) {
-    // Ticket photos must be images only
-    if (imageTypes.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Ticket photo must be an image file (JPG, JPEG, PNG, GIF, WEBP)'), false);
+    
+    // Handle ticket photo fields (ticket_photo_0, ticket_photo_1, etc.)
+    if (file.fieldname.startsWith('ticket_photo')) {
+      if (imageTypes.includes(ext)) {
+        return cb(null, true);
+      } else {
+        return cb(new Error('Ticket photo must be an image file (JPG, JPEG, PNG, GIF, WEBP)'), false);
+      }
     }
-  } else if (file.fieldname === 'ticket_layout') {
-    // Ticket layout must be image only
-    if (imageTypes.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Ticket layout must be an image file (JPG, JPEG, PNG, GIF, WEBP)'), false);
+    
+    // Handle defined field types
+    const fieldConfig = fieldTypeMap[file.fieldname];
+    if (fieldConfig) {
+      if (fieldConfig.allowed.includes(ext)) {
+        return cb(null, true);
+      } else {
+        return cb(new Error(fieldConfig.errorMsg), false);
+      }
     }
-  } else if (imageTypes.includes(ext) || videoTypes.includes(ext)) {
-    // Other media files (event_banner, event_images, etc.) can be images or videos
-    cb(null, true);
-  } else {
-    cb(new Error(`Only images (${imageTypes.join(', ')}), videos (${videoTypes.join(', ')}), and documents (${docTypes.join(', ')}) are allowed`), false);
+    
+    // Default: check if it's any allowed file type
+    const allAllowedTypes = [...imageTypes, ...videoTypes, ...docTypes];
+    if (allAllowedTypes.includes(ext)) {
+      return cb(null, true);
+    }
+    
+    // If we reach here, the file type is not allowed
+    return cb(new Error(`Only images (${imageTypes.join(', ')}), videos (${videoTypes.join(', ')}), and documents (${docTypes.join(', ')}) are allowed`), false);
+    
+  } catch (error) {
+    console.error('Error in ticketMediaFileFilter:', error);
+    return cb(new Error('File validation error'), false);
   }
 };
 
@@ -143,7 +212,7 @@ const ticketMediaUpload = multer({
   storage,
   limits: { 
     fileSize: 50 * 1024 * 1024, // 50MB max for videos
-    files: 50 // Maximum 50 files total (increased to handle multiple ticket types)
+    files: 50 // Maximum 50 files total
   },
   fileFilter: ticketMediaFileFilter,
 });
@@ -182,7 +251,7 @@ export const uploadTicketMedia = ticketMediaUpload.fields([
   { name: 'event_banner', maxCount: 1 },
   { name: 'event_images', maxCount: 10 },
   
-  // Guest profile images - supports up to 10 guests (FIXED: Added these)
+  // Guest profile images - supports up to 10 guests
   { name: 'guest_profile_0', maxCount: 1 },
   { name: 'guest_profile_1', maxCount: 1 },
   { name: 'guest_profile_2', maxCount: 1 },
@@ -194,7 +263,7 @@ export const uploadTicketMedia = ticketMediaUpload.fields([
   { name: 'guest_profile_8', maxCount: 1 },
   { name: 'guest_profile_9', maxCount: 1 },
   
-  // Ticket photos for different ticket types (FIXED: Added these)
+  // Ticket photos for different ticket types
   { name: 'ticket_photo_0', maxCount: 1 },
   { name: 'ticket_photo_1', maxCount: 1 },
   { name: 'ticket_photo_2', maxCount: 1 },
@@ -206,10 +275,10 @@ export const uploadTicketMedia = ticketMediaUpload.fields([
   { name: 'ticket_photo_8', maxCount: 1 },
   { name: 'ticket_photo_9', maxCount: 1 },
   
-  // Additional fields for offline events (FIXED: Added these)
+  // Additional fields for offline events
   { name: 'ticket_layout', maxCount: 1 },
   
-  // Event rules document (FIXED: Added this)
+  // Event rules document
   { name: 'event_rules', maxCount: 1 },
   
   // College authorization document
@@ -241,6 +310,5 @@ export const createDynamicTicketUpload = (maxTicketTypes = 20) => {
     { name: 'event_rules', maxCount: 1 },
     { name: 'college_authorisation', maxCount: 1 }
   ];
-  
   return ticketMediaUpload.fields(dynamicFields);
 };

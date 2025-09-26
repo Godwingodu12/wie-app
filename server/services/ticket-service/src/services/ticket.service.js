@@ -1148,15 +1148,32 @@ export const createTicketBasicInfo = async (req, res) => {
 };
 export const updateTicketMedia = async (req, res) => {
   try {
+    // Enhanced logging for debugging
+    console.log('Starting ticket media update process...');
+    console.log('Request params:', req.params);
+    console.log('User info:', { 
+      role: req.user?.role, 
+      organisation_type: req.user?.organisation_type,
+      id: req.user?._id || req.user?.id 
+    });
+
     await new Promise((resolve, reject) => {
       uploadTicketMedia(req, res, (err) => {
         if (err) {
-          console.error("Multer error:", err);
+          console.error("Multer error details:", {
+            message: err.message,
+            code: err.code,
+            field: err.field,
+            stack: err.stack
+          });
           return reject(err);
         }
         resolve();
       });
     });
+
+    console.log('Multer processing completed successfully');
+    console.log('Uploaded files:', Object.keys(req.files || {}));
 
     const ticketId = req.params.ticketId;
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
@@ -1167,63 +1184,112 @@ export const updateTicketMedia = async (req, res) => {
     }
 
     const uploadedFiles = req.files || {};
+    console.log('Processing uploaded files:', Object.keys(uploadedFiles));
+    
     const { 
       event_logo = [], 
       event_banner = [], 
       event_images = [],
-      college_authorisation = [] // Add college_authorisation file field
+      college_authorisation = [] 
     } = uploadedFiles;
 
-    // Get organization_type
-    const userRole = req.user.role;
-    let organisation_type;
+    // Log file counts for debugging
+    console.log('File counts:', {
+      event_logo: event_logo.length,
+      event_banner: event_banner.length,
+      event_images: event_images.length,
+      college_authorisation: college_authorisation.length
+    });
+
+    // Get organization_type - Enhanced validation
+    const userRole = req.user?.role;
+    let organisation_type = null;
+    
     if (userRole === 'organisation') {
-      organisation_type = req.user.organisation_type;
-          // College authorization validation for educational organizations
+      organisation_type = req.user?.organisation_type;
+      console.log('Organization type detected:', organisation_type);
+      
+      // College authorization validation for educational organizations
       if (organisation_type && organisation_type.toLowerCase() === 'educational') {
+        console.log('Educational organization detected, checking college authorization...');
+        
         if (college_authorisation.length === 0) {
+          console.error('Missing college authorization for educational organization');
           return res.status(400).json({
-            message: "college_authorisation file is required for educational organisations"
+            message: "College authorization file is required for educational organizations",
+            required_field: "college_authorisation",
+            organization_type: organisation_type
           });
         }
         
         // Validate college authorization file type (should be document)
         const docExtensions = ['.pdf', '.doc', '.docx'];
         const authFile = college_authorisation[0];
+        
+        if (!authFile || !authFile.originalname) {
+          return res.status(400).json({
+            message: "Invalid college authorization file",
+            error: "File missing or corrupted"
+          });
+        }
+        
         const ext = '.' + authFile.originalname.toLowerCase().split('.').pop();
+        console.log('College authorization file extension:', ext);
         
         if (!docExtensions.includes(ext)) {
           return res.status(400).json({
-            message: "College authorization file must be a document (PDF, DOC, DOCX)"
+            message: "College authorization file must be a document (PDF, DOC, DOCX)",
+            received_extension: ext,
+            allowed_extensions: docExtensions
           });
         }
+        
+        console.log('College authorization validation passed');
       }
+    } else {
+      console.log('User role is not organization:', userRole);
     }
 
     // Check if at least one file is uploaded (excluding college_authorisation for the count)
-    if (event_logo.length === 0 && event_banner.length === 0 && event_images.length === 0) {
+    const hasMediaFiles = event_logo.length > 0 || event_banner.length > 0 || event_images.length > 0;
+    if (!hasMediaFiles) {
+      console.error('No media files uploaded');
       return res.status(400).json({ 
-        message: "At least one media file (logo, banner, or images) must be uploaded" 
+        message: "At least one media file (logo, banner, or images) must be uploaded",
+        uploaded_files: {
+          event_logo: event_logo.length,
+          event_banner: event_banner.length,
+          event_images: event_images.length
+        }
       });
     }
 
+    // Validate event images count
     if (event_images.length > 10) {
       return res.status(400).json({ 
-        message: "Maximum 10 files allowed for event images" 
+        message: "Maximum 10 files allowed for event images",
+        uploaded_count: event_images.length,
+        max_allowed: 10
       });
     }
 
+    // Validate video count in event images
     const videoExtensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
     const videoCount = event_images.filter(file => {
-      const ext = file.originalname.toLowerCase().split('.').pop();
-      return videoExtensions.includes('.' + ext);
+      if (!file.originalname) return false;
+      const ext = '.' + file.originalname.toLowerCase().split('.').pop();
+      return videoExtensions.includes(ext);
     }).length;
 
     if (videoCount > 1) {
       return res.status(400).json({ 
-        message: "Maximum 1 video allowed in event images" 
+        message: "Maximum 1 video allowed in event images",
+        video_count: videoCount,
+        max_videos_allowed: 1
       });
     }
+
+    console.log('All validations passed, preparing update data...');
 
     const userId = req.user._id || req.user.id;
     const updateData = {
@@ -1232,12 +1298,15 @@ export const updateTicketMedia = async (req, res) => {
       updated_at: new Date()
     };
 
+    // Process uploaded files
     if (event_logo.length > 0) {
       updateData.event_logo = event_logo[0].path;
+      console.log('Event logo updated:', event_logo[0].path);
     }
 
     if (event_banner.length > 0) {
       updateData.event_banner = event_banner[0].path;
+      console.log('Event banner updated:', event_banner[0].path);
     }
 
     if (event_images.length > 0) {
@@ -1248,12 +1317,16 @@ export const updateTicketMedia = async (req, res) => {
         size: file.size,
         uploadedAt: new Date()
       }));
+      console.log('Event images updated:', event_images.length, 'files');
     }
 
     // Add college authorization file if uploaded
     if (college_authorisation.length > 0) {
       updateData.college_authorisation = college_authorisation[0].path;
+      console.log('College authorization updated:', college_authorisation[0].path);
     }
+
+    console.log('Updating ticket in database...');
 
     // Find and update the ticket
     const updatedTicket = await Ticket.findOneAndUpdate(
@@ -1263,11 +1336,14 @@ export const updateTicketMedia = async (req, res) => {
     );
 
     if (!updatedTicket) {
+      console.error('Ticket not found:', ticketId);
       return res.status(404).json({ 
         message: "Ticket not found or unauthorized",
         ticketId: ticketId
       });
     }
+
+    console.log('Ticket updated successfully');
 
     res.status(200).json({ 
       message: "Ticket media updated successfully", 
@@ -1277,31 +1353,61 @@ export const updateTicketMedia = async (req, res) => {
         event_logo: event_logo.length,
         event_banner: event_banner.length,
         event_images: event_images.length,
-        college_authorisation: college_authorisation.length || 'Not applicable'
+        college_authorisation: college_authorisation.length > 0 ? college_authorisation.length : 'Not applicable'
       },
-      organisationType: organisation_type || 'Not specified'
+      organisationType: organisation_type || 'Not specified',
+      videoCount: videoCount
     });
+
   } catch (error) {
     console.error("Error updating ticket media:", error);
+    
+    // Enhanced error handling with more specific responses
     
     // Handle multer errors
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ 
-        message: "File size too large. Maximum 50MB allowed per file." 
+        message: "File size too large. Maximum 50MB allowed per file.",
+        error_code: 'FILE_TOO_LARGE',
+        max_size: '50MB'
       });
     }
     
     if (error.code === 'LIMIT_FILE_COUNT') {
       return res.status(400).json({ 
-        message: "Too many files uploaded. Maximum limits: 1 logo, 1 banner, 10 event images, 1 college authorization." 
+        message: "Too many files uploaded. Maximum limits: 1 logo, 1 banner, 10 event images, 1 college authorization.",
+        error_code: 'TOO_MANY_FILES'
       });
     }
 
-    // Handle file type errors
-    if (error.message && error.message.includes('College authorization file must be a document')) {
+    // Handle file type validation errors from multer
+    if (error.message && (
+      error.message.includes('Only images') || 
+      error.message.includes('must be a document') ||
+      error.message.includes('must be an image file')
+    )) {
       return res.status(400).json({
         message: "Invalid file type",
-        error: error.message
+        error: error.message,
+        error_code: 'INVALID_FILE_TYPE'
+      });
+    }
+
+    // Handle multer field errors
+    if (error.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({
+        message: "Unexpected file field",
+        error: `Unexpected field: ${error.field}`,
+        error_code: 'UNEXPECTED_FIELD'
+      });
+    }
+
+    // Handle specific validation errors
+    if (error.message && error.message.includes('College authorization file must be a document')) {
+      return res.status(400).json({
+        message: "Invalid college authorization file type",
+        error: error.message,
+        error_code: 'INVALID_COLLEGE_AUTH_TYPE'
       });
     }
 
@@ -1310,20 +1416,34 @@ export const updateTicketMedia = async (req, res) => {
       return res.status(400).json({ 
         message: "Data type casting error. Check your schema definition for event_images field.",
         error: error.message,
-        field: error.path
+        field: error.path,
+        error_code: 'CAST_ERROR'
       });
     }
     
     if (error.name === 'ValidationError') {
       return res.status(400).json({ 
         message: "Validation error",
-        error: error.message
+        error: error.message,
+        error_code: 'VALIDATION_ERROR'
       });
     }
 
+    // Handle database connection errors
+    if (error.name === 'MongoError' || error.name === 'MongooseError') {
+      return res.status(500).json({
+        message: "Database error occurred",
+        error_code: 'DATABASE_ERROR'
+      });
+    }
+
+    // Generic server error
     res.status(500).json({ 
       message: "Internal server error", 
-      error: error.message
+      error: error.message,
+      error_code: 'INTERNAL_ERROR',
+      // Only include stack trace in development
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
     });
   }
 };
