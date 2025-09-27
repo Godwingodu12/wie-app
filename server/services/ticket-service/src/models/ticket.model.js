@@ -238,7 +238,7 @@ const ticketSchema = new mongoose.Schema({
   // Status and Updates
   event_status: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled'],
+    enum: ['pending', 'confirmed', 'cancelled','live','completed'],
     default: 'pending'
   },
   updated_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
