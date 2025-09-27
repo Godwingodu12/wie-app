@@ -212,3 +212,11 @@ export const getOthersPastEvents = async(otherId)=>{
     throw error;
   }
 };
+export const getGroupStatistics = async () => {
+  try {
+    const response = await api.get(`ticket/get-group-statistics`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
