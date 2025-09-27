@@ -1345,7 +1345,7 @@ const CreateTicket = () => {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const [map, setMap] = useState(null);
-  const storageKey = `ticketFormData_${groupId || "new"}`;
+  const storageKey = `ticketFormData_${groupId || "new"}_${urlTicketId || "create"}`;
   const rulesEditorRef = useRef(null);
   const descriptionEditorRef = useRef(null);
 
@@ -1421,10 +1421,19 @@ const CreateTicket = () => {
       return null;
     }
   };
-
   const clearFormDataFromStorage = () => {
     try {
-      localStorage.removeItem(storageKey);
+      const baseKey = `ticketFormData_${groupId || "new"}`;
+      const keysToRemove = [
+        storageKey,
+        baseKey,
+        `${baseKey}_create`,
+        `ticketFormData_${groupId || "new"}`
+      ];
+      
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+      });
     } catch (error) {
       console.error("Error clearing data from localStorage:", error);
     }
@@ -1552,14 +1561,15 @@ const CreateTicket = () => {
   };
   const [dataLoaded, setDataLoaded] = useState(false);
   useEffect(() => {
-    if (formData.event_name || formData.location) {
+    if (isEditMode || formData.event_name || formData.location) {
       saveFormDataToStorage(formData);
     }
-  }, [formData]);
-  
+  }, [formData, isEditMode]);
   useEffect(() => {
     const initializeComponent = async () => {
       setPageLoading(true);
+      setDataLoaded(false);
+      
       if (!groupId) {
         navigate("/select-group");
         return;
@@ -1571,6 +1581,7 @@ const CreateTicket = () => {
           ? groupsResponse
           : groupsResponse.data || [];
         const groupData = groupsArray.find((g) => g._id === groupId);
+        
         if (!groupData) {
           alert("Group not found.");
           navigate("/select-group");
@@ -1578,28 +1589,75 @@ const CreateTicket = () => {
         }
         setSelectedGroup(groupData);
 
+        // Check if we're editing an existing ticket
         if (urlTicketId) {
           setIsEditMode(true);
           await loadExistingTicketData(urlTicketId);
         } else {
-          if (location.state?.formData) {
+          // For new event creation, clear any saved data and start fresh
+          clearFormDataFromStorage();
+          
+          // Reset to initial form state with only groupId
+          const freshFormData = {
+            _id: null,
+            event_name: "",
+            event_category: "",
+            event_subcategory: "",
+            event_type: "public",
+            location_type: "offline",
+            event_link: "",
+            location: "",
+            venue: "",
+            event_language: "",
+            min_age_allowed: "",
+            seating_arrangement: "",
+            kids_friendly: false,
+            pet_friendly: false,
+            event_instagram_link: "",
+            event_youtube_link: "",
+            hashtag: [],
+            event_dates: [],
+            event_date_type: "Single day",
+            gatesOpenEarly: false,
+            gate_open_time: "",
+            gate_open_hour: "",
+            gate_open_minute: "",
+            gate_open_ampm: "",
+            guests: [],
+            event_rules: { type: "text", content: "" },
+            event_rules_file: null,
+            prohibited_items: [],
+            POCS: [],
+            event_description: "",
+            exact_map_location: { 
+              latitude: INITIAL_MAP_LOCATION.lat.toString(), 
+              longitude: INITIAL_MAP_LOCATION.lng.toString(), 
+              address: INITIAL_MAP_LOCATION.address 
+            },
+            groupId: groupId || "",
+          };
+          
+          setFormData(freshFormData);
+          
+          // Only use location.state.formData if it's explicitly passed (like from a draft)
+          if (location.state?.formData && location.state?.isDraft) {
             setFormData(location.state.formData);
             saveFormDataToStorage(location.state.formData);
-          } else {
-            const savedData = loadFormDataFromStorage();
-            if (savedData) {
-              setFormData(savedData);
-            }
           }
         }
+        
+        setDataLoaded(true);
+        
       } catch (error) {
         console.error("Initialization error:", error);
+        setDataLoaded(true);
       } finally {
         setPageLoading(false);
       }
     };
+    
     initializeComponent();
-  }, [groupId, urlTicketId, navigate, location.state]);
+  }, [groupId, urlTicketId, navigate]);
   
   useEffect(() => {
     if (!pageLoading && !isEditMode) {
@@ -1877,10 +1935,10 @@ const CreateTicket = () => {
 }, [map, formData.exact_map_location]);
 
   useEffect(() => {
-    if (formData.event_name || formData.location) {
+    if (isEditMode || formData.event_name || formData.location) {
       saveFormDataToStorage(formData);
     }
-  }, [formData]);
+  }, [formData, isEditMode]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
