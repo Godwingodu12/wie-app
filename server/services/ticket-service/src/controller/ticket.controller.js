@@ -220,7 +220,9 @@ export const getGroupView = async (req, res) => {
 export const getMyEvents = async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
-        const tickets = await Ticket.find({ userId: userId });
+        const tickets = await Ticket.find({ userId: userId })
+        .sort({ createdAt: -1 }) // newest first
+        .exec();
         res.status(200).json({
             message: "My All Tickets retrieved successfully",
             tickets: tickets
@@ -424,3 +426,148 @@ export const getOthersPastEvents = async (req, res) => {
         });
     }
 };
+import mongoose from 'mongoose';
+
+export const getGroupTicketPercentages = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    
+    // Fetch all groups for the user
+    const groups = await Group.find({ userId: userId }).sort({ createdAt: -1 });
+    
+    if (groups.length === 0) {
+      return res.status(200).json({
+        message: "No groups found for this user",
+        groupPercentages: {}
+      });
+    }
+    
+    // Ensure groupIds are ObjectIds
+    const groupIds = groups.map(g => new mongoose.Types.ObjectId(g._id));
+    
+    console.log("Group IDs:", groupIds);
+    
+    // First, let's check if there are any tickets at all
+    const totalTicketsCheck = await Ticket.countDocuments({
+      groupId: { $in: groupIds }
+    });
+    
+    console.log("Total tickets found:", totalTicketsCheck);
+    
+    // Single aggregation query to get ticket counts per group
+    const ticketStats = await Ticket.aggregate([
+      {
+        $match: {
+          groupId: { $in: groupIds },
+          status: { $in: ['live', 'completed', 'pending'] }
+        }
+      },
+      {
+        $group: {
+          _id: "$groupId",
+          ticketCount: { $sum: 1 }
+        }
+      }
+    ]);
+    
+    console.log("Ticket Stats from aggregation:", ticketStats);
+    
+    // Calculate total tickets
+    const totalTickets = ticketStats.reduce((sum, stat) => sum + stat.ticketCount, 0);
+    
+    if (totalTickets === 0) {
+      return res.status(200).json({
+        message: "No tickets found for any group",
+        groupPercentages: {},
+        debug: {
+          totalGroupsFound: groups.length,
+          groupIds: groupIds.map(id => id.toString()),
+          totalTicketsInDB: totalTicketsCheck
+        }
+      });
+    }
+    
+    // Create a map for ticket counts
+    const ticketCountMap = {};
+    ticketStats.forEach(stat => {
+      ticketCountMap[stat._id.toString()] = stat.ticketCount;
+    });
+    
+    // Calculate percentages for each group
+    const groupPercentages = {};
+    
+    groups.forEach(group => {
+      const groupTicketCount = ticketCountMap[group._id.toString()] || 0;
+      const percentage = parseFloat(((groupTicketCount / totalTickets) * 100).toFixed(2));
+      groupPercentages[group.name] = `${percentage}%`;
+    });
+    
+    res.status(200).json({
+      message: "Group ticket percentages retrieved successfully",
+      totalTickets: totalTickets,
+      groupPercentages: groupPercentages
+    });
+    
+  } catch (error) {
+    console.error("Error fetching group ticket percentages:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+export const getGroupStatistics = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const groups = await Group.find({ userId: userId }).sort({ createdAt: -1 });
+    const groupCount = groups.length;
+    if (groups.length === 0) {
+      return res.status(200).json({
+        message: "No groups found for this user",
+        groupPercentages: {}
+      });
+    }
+    const groupTicketCounts = await Promise.all(
+      groups.map(async (group) => {
+        const ticketCount = await Ticket.countDocuments({
+          groupId: group._id,
+          event_status: { $in: ['pending', 'confirmed', 'live', 'completed'] }
+        });
+        return {
+          groupId: group._id,
+          groupName: group.name,
+          ticketCount: ticketCount
+        };
+      })
+    );
+    const totalTickets = groupTicketCounts.reduce((sum, group) => sum + group.ticketCount, 0);
+    if (totalTickets === 0) {
+      return res.status(200).json({
+        message: "No tickets found for any group",
+        groupPercentages: {},
+        debug: {
+          groupTicketCounts: groupTicketCounts
+        }
+      });
+    }
+    const groupPercentages = {};
+    groupTicketCounts.forEach(group => {
+      const percentage = parseFloat(((group.ticketCount / totalTickets) * 100).toFixed(2));
+      groupPercentages[group.groupName] = `${percentage}%`;
+    });
+    res.status(200).json({
+      message: "Group ticket percentages retrieved successfully",
+      groupCount: groupCount,
+      groupTicketCounts: groupTicketCounts,
+      totalTickets: totalTickets,
+      groupPercentages: groupPercentages
+    });
+  } catch (error) {
+    console.error("Error fetching group ticket percentages:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
