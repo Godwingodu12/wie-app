@@ -203,8 +203,7 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
     </div>
   </div>
 );
-// StatsCard.jsx
-const StatsCard = ({ count, title }) => (
+const StatsCard = ({ count, title, isDark, theme }) => (
   <div
     style={{
       width: "119px",
@@ -212,22 +211,21 @@ const StatsCard = ({ count, title }) => (
       borderRadius: "40px",
       padding: "15px 27px",
       gap: "10px",
-      background: "var(--Color, #FFFFFF)",
-      boxShadow:
-        "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
+      background: isDark ? "#2a2d30" : "#FFFFFF",
+      boxShadow: isDark 
+        ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
+        : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
     }}
     className="flex flex-col items-center justify-around"
   >
     <div className="text-yellow-400">
       <PartyPopper className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
     </div>
-    <p className="text-2xl sm:text-3xl md:text-5xl font-semibold">{count}</p>
-    <p className="text-xs text-gray-500">{title}</p>
+    <p className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}>{count}</p>
+    <p className={`text-xs ${theme.subText}`}>{title}</p>
   </div>
 );
-
-// LiveEventsCard.jsx
-const LiveEventsCard = ({ count }) => (
+const LiveEventsCard = ({ count, isDark, theme }) => (
   <div
     style={{
       width: "119px",
@@ -235,17 +233,18 @@ const LiveEventsCard = ({ count }) => (
       borderRadius: "40px",
       padding: "15px 27px",
       gap: "10px",
-      background: "var(--Color, #FFFFFF)",
-      boxShadow:
-        "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
+      background: isDark ? "#2a2d30" : "#FFFFFF",
+      boxShadow: isDark 
+        ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
+        : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
     }}
     className="flex flex-col items-center justify-around"
   >
     <div className="text-red-500 relative">
       <Radio className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
     </div>
-    <p className="text-2xl sm:text-3xl md:text-5xl font-semibold">{count}</p>
-    <p className="text-xs text-gray-500">Live events</p>
+    <p className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}>{count}</p>
+    <p className={`text-xs ${theme.subText}`}>Live events</p>
   </div>
 );
 function MonthSelector({
@@ -353,9 +352,9 @@ function CalendarControls({
 
   return (
     <div
-      className={`flex flex-row items-center justify-between ${className || ""}`}
+      className={`flex flex-row items-center justify-between ${className || ""} ${theme.text}`}
       style={{
-        width: '411px', // Reduced width to fit better
+        width: '411px',
         height: '42px',
         opacity: 1,
       }}
@@ -473,35 +472,34 @@ function CalendarControls({
     </div>
   );
 }
-function CalendarGrid({
+const CalendarGrid = ({
   isDark,
   theme,
   dates,
   selectedDate,
   onDateClick,
   className,
-}) {
+}) => {
   const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-  const calendarBg = isDark ? theme.cardBg : "bg-gray-200";
 
   return (
     <div
-      className={`${calendarBg} rounded-[2.5rem] mx-auto ${getOuterDepthShadows(isDark)}`}
+      className={`${isDark ? theme.cardBg : 'bg-gray-200'} rounded-[2.5rem] mx-auto ${getOuterDepthShadows(isDark)}`}
       style={{
-        width: '411px', // Reduced width to match controls
-        height: '280px', // Increased height to show all dates
-        padding: '20px 16px', // Reduced padding for more space
+        width: '411px',
+        height: '250px',
+        padding: '20px 16px',
         gap: '8px',
         opacity: 1,
         display: 'flex',
         flexDirection: 'column',
       }}
     >
-      <div className="grid grid-cols-7 gap-1 text-center mb-2"> {/* Reduced gap and added margin-bottom */}
+      <div className="grid grid-cols-7 gap-1 text-center mb-2">
         {days.map((day) => (
           <div
             key={day}
-            className={`text-xs font-bold ${theme.subText}`} // Reduced font size
+            className={`text-xs font-bold ${theme.subText}`}
           >
             {day}
           </div>
@@ -523,7 +521,7 @@ function CalendarGrid({
             textColorClass = isDark ? "text-purple-400" : "text-purple-600";
             ringClass = isDark ? "ring-2 ring-purple-400" : "ring-2 ring-purple-600";
             fontClass = "font-bold";
-            bgColorClass = isDark ? "" : "bg-white";
+            bgColorClass = isDark ? "bg-gray-700" : "bg-white";
           } else if (isToday) {
             bgColorClass = "bg-[#6549B8]";
             textColorClass = "text-white";
@@ -533,8 +531,8 @@ function CalendarGrid({
           return (
             <div
               key={index}
-              className={`p-1 rounded-xl text-sm flex items-center justify-center cursor-pointer transition-colors duration-200 ${bgColorClass} ${textColorClass} ${fontClass} ${ringClass} ${otherClasses}`} // Reduced padding and font size
-              style={{ minHeight: '28px', minWidth: '28px' }} // Added minimum dimensions
+              className={`p-1 rounded-xl text-sm flex items-center justify-center cursor-pointer transition-colors duration-200 ${bgColorClass} ${textColorClass} ${fontClass} ${ringClass} ${otherClasses}`}
+              style={{ minHeight: '28px', minWidth: '28px' }}
               onClick={() => onDateClick(dayInfo)}
             >
               {dayInfo.date}
@@ -544,7 +542,7 @@ function CalendarGrid({
       </div>
     </div>
   );
-}
+};
 const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
@@ -580,15 +578,17 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
   }
 
  return (
-  <div 
+    <div 
     style={{
       width: '717px',
       height: '362px',
       borderRadius: '50px',
       padding: '21px 40px',
       gap: '10px',
-      background: isDark ? theme.cardBg : '#F1F1F1',
-      boxShadow: 'inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)',
+      background: isDark ? "#2a2d30" : '#F1F1F1',
+      boxShadow: isDark
+        ? 'inset 6px 6px 12px rgba(0,0,0,0.3), inset -6px -6px 12px rgba(255,255,255,0.05)'
+        : 'inset 6px 6px 12px rgba(0,0,0,0.18), inset -6px -6px 12px rgba(255,255,255,0.08)',
       opacity: 1,
       transform: 'rotate(0deg)',
       display: 'flex',
@@ -667,36 +667,36 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
       </div>
       <table className="hidden md:table w-full table-fixed text-left">
         <thead>
-          <tr
-            className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
-              isDark ? "border-gray-700" : "border-gray-200"
-            } text-sm sticky top-0`}
-            style={{ 
-              background: isDark ? theme.cardBg : '#F1F1F1',
-              zIndex: 10 
-            }}
-          >
-            <th className="py-3 px-4 font-bold text-lg w-[45%]">
-              <div className="flex items-center gap-2">
-                <span>Event</span>
-                <Search className="w-4 h-4" />
-              </div>
-            </th>
-            <th className="w-[145px] h-[24px] px-[10px] font-bold text-lg">
-              <div className="flex flex-row items-center gap-[10px]">
-                <span>Category</span>
-                <ChevronDown className="w-4 h-4" />
-              </div>
-            </th>
-            <th className="py-3 px-4 font-bold text-lg w-[20%]">
-              <div className="flex items-center gap-2">
-                <span>Event type</span>
-                <ChevronDown className="w-4 h-4" />
-              </div>
-            </th>
-            <th className="py-3 px-4 font-normal w-[15%]"></th>
-          </tr>
-        </thead>
+            <tr
+              className={`${isDark ? "text-gray-300" : "text-black"} border-b ${
+                isDark ? "border-gray-600" : "border-gray-200"
+              } text-sm sticky top-0`}
+              style={{ 
+                background: isDark ? "#2a2d30" : '#F1F1F1',
+                zIndex: 10 
+              }}
+            >
+              <th className="py-3 px-4 font-bold text-lg w-[45%]">
+                <div className="flex items-center gap-2">
+                  <span>Event</span>
+                  <Search className={`w-4 h-4 ${isDark ? "text-gray-300" : "text-black"}`} />
+                </div>
+              </th>
+              <th className="w-[145px] h-[24px] px-[10px] font-bold text-lg">
+                <div className="flex flex-row items-center gap-[10px]">
+                  <span>Category</span>
+                  <ChevronDown className={`w-4 h-4 ${isDark ? "text-gray-300" : "text-black"}`} />
+                </div>
+              </th>
+              <th className="py-3 px-4 font-bold text-lg w-[20%]">
+                <div className="flex items-center gap-2">
+                  <span>Event type</span>
+                  <ChevronDown className={`w-4 h-4 ${isDark ? "text-gray-300" : "text-black"}`} />
+                </div>
+              </th>
+              <th className="py-3 px-4 font-normal w-[15%]"></th>
+            </tr>
+          </thead>
         <tbody>
           {displayEvents.map((event, index) => {
             if (!event) {
@@ -1033,19 +1033,18 @@ const ViewEvent = () => {
   };
 
   const theme = isDark
-    ? {
-        bg: "bg-[#212426]",
-        text: "text-white",
-        subText: "text-[#c9c9cf]",
-        cardBg: "bg-[#232426]",
-      }
-    : {
-        bg: "bg-slate-100",
-        text: "text-gray-900",
-        subText: "text-gray-600",
-        cardBg: "bg-slate-100",
-      };
-
+  ? {
+      bg: "bg-[#212426]",
+      text: "text-white",
+      subText: "text-[#c9c9cf]",
+      cardBg: "bg-[#2a2d30]",
+    }
+  : {
+      bg: "bg-slate-100",
+      text: "text-gray-900",
+      subText: "text-gray-600",
+      cardBg: "bg-white",
+    };
   const user = { name: "U" };
 
   return (
@@ -1093,11 +1092,22 @@ const ViewEvent = () => {
               />
             </div>
             <div className="relative">
-                <div style={{ boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' }} className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg}`}>
-                  <img src={NotificationIcon} alt="Notification" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
-                </div>
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
-            </div>
+  <div 
+    style={{ 
+      boxShadow: isDark 
+        ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' 
+        : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' 
+    }} 
+    className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg}`}
+  >
+    <img 
+      src={NotificationIcon} 
+      alt="Notification" 
+      className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} 
+    />
+  </div>
+  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
+</div>
             <div className="flex items-center gap-4 ml-auto flex-shrink-0">
               <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
             </div>
@@ -1125,32 +1135,31 @@ const ViewEvent = () => {
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 xl:gap-8">
                 <MyGroupsCard theme={theme} groups={groups} isDark={isDark} />
                <div
-                  style={{
-                    width: "300px",
-                    height: "203px",
-                    borderRadius: "50px",
-                    padding: "21px",
-                    gap: "20px",
-                    background: "var(--white_cardfill, #F1F1F1)",
-                    boxShadow:
-                      "inset 6px 6px 12px #0000002E, inset -6px -6px 12px #FFFFFF14",
-                  }}
-                  className="grid grid-cols-2 items-center"
-                >
-                  <StatsCard
-                    isDark={isDark}
-                    theme={theme}
-                    className="w-full h-56"
-                    count={confirmedEventsCount}
-                    title="Total events"
-                  />
-                  <LiveEventsCard
-                    isDark={isDark}
-                    theme={theme}
-                    className="w-full h-56"
-                    count={liveEventsCount}
-                  />
-                </div>
+                style={{
+                  width: "300px",
+                  height: "203px",
+                  borderRadius: "50px",
+                  padding: "21px",
+                  gap: "20px",
+                  background: isDark ? "#2a2d30" : "#F1F1F1",
+                  boxShadow: isDark
+                    ? "inset 6px 6px 12px rgba(0,0,0,0.3), inset -6px -6px 12px rgba(255,255,255,0.05)"
+                    : "inset 6px 6px 12px #0000002E, inset -6px -6px 12px #FFFFFF14",
+                }}
+                className="grid grid-cols-2 items-center"
+              >
+                <StatsCard
+                  isDark={isDark}
+                  theme={theme}
+                  count={confirmedEventsCount}
+                  title="Total events"
+                />
+                <LiveEventsCard
+                  isDark={isDark}
+                  theme={theme}
+                  count={liveEventsCount}
+                />
+              </div>
 
               </div>
               <div className="flex justify-end items-center mb-2">
@@ -1203,8 +1212,10 @@ const ViewEvent = () => {
                   borderRadius: '50px',
                   opacity: 1,
                   transform: 'rotate(0deg)',
-                  background: isDark ? theme.cardBg : '#F1F1F1',
-                  boxShadow: 'inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)',
+                  background: isDark ? "#2a2d30" : '#F1F1F1',
+                  boxShadow: isDark
+                    ? 'inset 6px 6px 12px rgba(0,0,0,0.3), inset -6px -6px 12px rgba(255,255,255,0.05)'
+                    : 'inset 6px 6px 12px rgba(0,0,0,0.18), inset -6px -6px 12px rgba(255,255,255,0.08)',
                   padding: '24px',
                   display: 'flex',
                   flexDirection: 'column',
