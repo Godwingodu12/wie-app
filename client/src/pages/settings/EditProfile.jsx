@@ -1,15 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { getMe } from "../../services/userService.js";
+import { editProfile } from "../../services/authService.js";
 import { useNavigate } from 'react-router-dom';
-
-
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
-
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
-
 import PersonalIcon from "../../assets/Settings/PersonalIcon.svg";
 import PasswordIcon from "../../assets/Settings/PasswordIcon.svg";
 import EventIcon from "../../assets/Settings/EventIcon.svg";
@@ -29,12 +26,15 @@ import LinkedInIcon from "../../assets/Settings/LinkedInIcon.svg";
 import XIcon from "../../assets/Settings/XIcon.svg";
 
 const HEADER_HEIGHT = 72;
-
 const EditProfile = () => {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
   const [user, setUser] = useState(null);
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     website: "",
     bio: "",
@@ -65,6 +65,10 @@ const EditProfile = () => {
           showBadge: res.data.showBadge !== undefined ? res.data.showBadge : true,
           showSuggestion: res.data.showSuggestion !== undefined ? res.data.showSuggestion : true
         });
+        // Set image preview if user has an image
+        if (res.data.image) {
+          setImagePreview(`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${res.data.image}`);
+        }
       } catch (err) {
         console.error("Failed to fetch user", err);
       }
@@ -86,9 +90,73 @@ const EditProfile = () => {
     }));
   };
 
+  const handleImageClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+      if (!validTypes.includes(file.type)) {
+        alert('Please select a valid image file (JPEG, PNG, or GIF)');
+        return;
+      }
+
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size should be less than 5MB');
+        return;
+      }
+
+      setSelectedImage(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async () => {
-    // Add your submit logic here
-    console.log("Form data to submit:", formData);
+    setIsLoading(true);
+    try {
+      const formDataToSend = new FormData();
+      
+      // Append form fields
+      formDataToSend.append('website', formData.website);
+      formDataToSend.append('bio', formData.bio);
+      formDataToSend.append('gender', formData.gender.toLowerCase());
+      
+      // Append image if selected
+      if (selectedImage) {
+        formDataToSend.append('image', selectedImage);
+      }
+
+      const response = await editProfile(formDataToSend);
+      
+      if (response.success) {
+        alert('Profile updated successfully!');
+        
+        // Update user state with new data
+        setUser(response.user);
+        
+        // Update image preview with new image
+        if (response.user.image) {
+          setImagePreview(`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${response.user.image}`);
+        }
+        // Clear selected image
+        setSelectedImage(null);
+      }
+    } catch (err) {
+      console.error("Failed to update profile", err);
+      alert(err.response?.data?.error || 'Failed to update profile. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const theme = isDark
@@ -130,7 +198,7 @@ const EditProfile = () => {
     {
       title: "How to use Wie centre",
       items: [
-        { icon: EditIcon, text: "Edit profile", active: true }, // This is active
+        { icon: EditIcon, text: "Edit profile", active: true },
         { icon: NotificationSettingsIcon, text: "Notification", active: false }
       ]
     },
@@ -198,32 +266,28 @@ const EditProfile = () => {
         {/* Main Content with Settings Sidebar and Edit Profile */}
         <main className="flex-1 p-6 overflow-y-auto">
           <div className="max-w-7xl mx-auto">
-            {/* Single Neumorphic Container */}
             <div 
               className={`${theme.bg} rounded-[2.5rem] transition-colors duration-300 flex overflow-hidden`}
               style={{ boxShadow: theme.cardShadow }}
             >
               {/* Settings Sidebar */}
-              <div className=" relative w-80 p-6 ">
-                  <div className="absolute right-0 top-0 h-full w-[0.1px] bg-gradient-to-b from-transparent via-white/30 to-transparent pointer-events-none" />
+              <div className="relative w-80 p-6">
+                <div className="absolute right-0 top-0 h-full w-[0.1px] bg-gradient-to-b from-transparent via-white/30 to-transparent pointer-events-none" />
 
                 <div className="flex items-center gap-2 mb-8">
-  <button
-    className="p-3 rounded-full transition-all duration-300"
-                     style={{ boxShadow: theme.notificationShadow }} 
-
-  >
-    <img
-      src={BackArrowIcon}
-      alt="Back"
-                                onClick={() => navigate('/Profile')}
-
-      className={`w-3 h-3  ${isDark ? "filter brightness-0 invert" : "filter brightness-0"}`}
-    />
-  </button>
-  <h2 className="text-lg font-semibold">Settings</h2>
-</div>
-
+                  <button
+                    className="p-3 rounded-full transition-all duration-300"
+                    style={{ boxShadow: theme.notificationShadow }}
+                    onClick={() => navigate('/Profile')}
+                  >
+                    <img
+                      src={BackArrowIcon}
+                      alt="Back"
+                      className={`w-3 h-3 ${isDark ? "filter brightness-0 invert" : "filter brightness-0"}`}
+                    />
+                  </button>
+                  <h2 className="text-lg font-semibold">Settings</h2>
+                </div>
 
                 <div className="space-y-8">
                   {sidebarItems.map((section, sectionIndex) => (
@@ -270,11 +334,8 @@ const EditProfile = () => {
                 </div>
               </div>
 
-              
-
               {/* Edit Profile Form */}
               <div className="flex-1 p-8">
-                {/* Header */}
                 <div className="mb-8">
                   <h1 className="text-2xl font-bold mb-2">Edit Profile</h1>
                   <p className="text-gray-500 text-sm">
@@ -285,10 +346,13 @@ const EditProfile = () => {
                 {/* Profile Picture Section */}
                 <div className="flex items-center justify-center mb-8">
                   <div className="relative">
-                    <div className="w-24 h-24 rounded-full overflow-hidden">
-                      {user?.avatar ? (
+                    <div 
+                      className="w-24 h-24 rounded-full overflow-hidden cursor-pointer"
+                      onClick={handleImageClick}
+                    >
+                      {imagePreview ? (
                         <img 
-                          src={user.avatar} 
+                          src={imagePreview} 
                           alt="Profile" 
                           className="w-full h-full object-cover"
                         />
@@ -300,85 +364,87 @@ const EditProfile = () => {
                         </div>
                       )}
                     </div>
-                    <button className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#1E1242] rounded-full flex items-center justify-center text-white border-2 border-white">
+                    <button 
+                      onClick={handleImageClick}
+                      className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#1E1242] rounded-full flex items-center justify-center text-white border-2 border-white"
+                    >
                       <img src={CameraIcon} alt="Edit" className="w-4 h-4"/>
                     </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
                   </div>
                 </div>
 
                 <div className="text-center mb-8">
                   <h3 className="font-semibold">{user?.name || 'Loading...'}</h3>
-                  <p className="text-sm text-gray-500">@{user?.username || 'loading'}</p>
                 </div>
-
                 {/* Form Fields */}
                 <div className="space-y-4">
                   {/* Website */}
                   <div className="grid grid-cols-12 gap-4 items-center">
-                      <label className="col-span-3 text-sm font-medium flex justify-end">Website</label>
-                      <input
-                        type="text"
-                        value={formData.website}
-                        onChange={(e) => handleInputChange('website', e.target.value)}
-                        placeholder=" "
-                        className={`col-span-9 px-4 py-3 rounded-lg ${theme.inputBg} ${theme.text} transition-colors duration-300 border-2 border-white opacity-35 outline-none`}
+                    <label className="col-span-3 text-sm font-medium flex justify-end">Website</label>
+                    <input
+                      type="text"
+                      value={formData.website}
+                      onChange={(e) => handleInputChange('website', e.target.value)}
+                      placeholder="https://example.com"
+                      className={`col-span-9 px-4 py-3 rounded-lg ${theme.inputBg} ${theme.text} transition-colors duration-300 border-2 border-white opacity-35 outline-none`}
+                      style={{ boxShadow: theme.inputShadow }}
+                    />
+                  </div>
+
+                  {/* Bio */}
+                  <div className="grid grid-cols-12 gap-4">
+                    <label className="col-span-3 text-sm font-medium flex justify-end">Bio</label>
+                    <div className="col-span-9">
+                      <textarea
+                        value={formData.bio}
+                        onChange={(e) => handleInputChange('bio', e.target.value)}
+                        rows={4}
+                        maxLength={150}
+                        placeholder="Tell us about yourself..."
+                        className={`w-full px-4 py-3 rounded-lg ${theme.inputBg} ${theme.text} transition-colors duration-300 border-2 border-white opacity-35 outline-none resize-none`}
                         style={{ boxShadow: theme.inputShadow }}
                       />
+                      <div className="text-left text-xs text-gray-500 mt-1">
+                        {formData.bio.length}/150
+                      </div>
+
+                      {/* Show wie account badge */}
+                      <div className="flex items-center gap-3 mt-4">
+                        <span className="text-sm font-medium">Show wie account badge</span>
+                        <div
+                          className="relative w-12 h-6 rounded-full cursor-pointer transition-all duration-300 ml-3"
+                          style={{
+                            backgroundColor: "#212426",
+                            boxShadow: `
+                              inset 3px 3px 6px rgba(0, 0, 0, 0.7),
+                              inset -3px -3px 6px rgba(255, 255, 255, 0.12)
+                            `,
+                          }}
+                          onClick={() => handleInputChange("showBadge", !formData.showBadge)}
+                        >
+                          <div
+                            className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform duration-300 ${
+                              formData.showBadge ? "translate-x-6" : "translate-x-0.5"
+                            }`}
+                            style={{
+                              backgroundColor: "#5E5CE6",
+                              boxShadow: `
+                                2px 2px 5px rgba(0, 0, 0, 0.6),
+                                -2px -2px 6px rgba(255, 255, 255, 0.15)
+                              `,
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
-
-
-                {/* Bio */}
-<div className="grid grid-cols-12 gap-4">
-  <label className="col-span-3 text-sm font-medium flex justify-end">Bio</label>
-  <div className="col-span-9">
-    <textarea
-      value={formData.bio}
-      onChange={(e) => handleInputChange('bio', e.target.value)}
-      rows={4}
-      maxLength={150}
-      placeholder=""
-      className={`w-full px-4 py-3 rounded-lg ${theme.inputBg} ${theme.text} transition-colors duration-300 border-2 border-white opacity-35 outline-none resize-none`}
-      style={{ boxShadow: theme.inputShadow }}
-    />
-    <div className="text-left text-xs text-gray-500 mt-1">
-      {formData.bio.length}/150
-    </div>
-
-   {/* Show wie account badge */}
-<div className="flex items-center gap-3 mt-4">
-  <span className="text-sm font-medium">Show wie account badge</span>
-
-  <div
-    className="relative w-12 h-6 rounded-full cursor-pointer transition-all duration-300 ml-3"
-    style={{
-      backgroundColor: "#212426",
-      boxShadow: `
-        inset 3px 3px 6px rgba(0, 0, 0, 0.7),
-        inset -3px -3px 6px rgba(255, 255, 255, 0.12)
-      `,
-    }}
-    onClick={() => handleInputChange("showBadge", !formData.showBadge)}
-  >
-    <div
-      className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform duration-300 ${
-        formData.showBadge ? "translate-x-6" : "translate-x-0.5"
-      }`}
-      style={{
-        backgroundColor: "#5E5CE6",
-        boxShadow: `
-          2px 2px 5px rgba(0, 0, 0, 0.6),
-          -2px -2px 6px rgba(255, 255, 255, 0.15)
-        `,
-      }}
-    />
-  </div>
-</div>
-
-  </div>
-</div>
-
-
-
+                  </div>
 
                   {/* Gender */}
                   <div className="grid grid-cols-12 gap-4 items-center py-3">
@@ -401,85 +467,78 @@ const EditProfile = () => {
                     </div>
                   </div>
 
-{/* Show wie account suggestion on profile */}
-<div className="grid grid-cols-12 gap-4 items-center mt-4">
-  <label className="col-span-3" /> {/* Empty label for alignment */}
-  <div className="col-span-9">
-    <div className="flex items-center gap-3">
-      <span className="text-sm font-medium">
-        Show wie account suggestion on profile
-      </span>
+                  {/* Show wie account suggestion on profile */}
+                  <div className="grid grid-cols-12 gap-4 items-center mt-4">
+                    <label className="col-span-3" />
+                    <div className="col-span-9">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium">
+                          Show wie account suggestion on profile
+                        </span>
+                        <div
+                          className="relative w-12 h-6 rounded-full cursor-pointer transition-all duration-300"
+                          style={{
+                            backgroundColor: "#212426",
+                            boxShadow: `
+                              inset 3px 3px 6px rgba(0, 0, 0, 0.7),
+                              inset -3px -3px 6px rgba(255, 255, 255, 0.12)
+                            `,
+                          }}
+                          onClick={() => handleInputChange("showSuggestion", !formData.showSuggestion)}
+                        >
+                          <div
+                            className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform duration-300 ${
+                              formData.showSuggestion ? "translate-x-6" : "translate-x-0.5"
+                            }`}
+                            style={{
+                              backgroundColor: "#5E5CE6",
+                              boxShadow: `
+                                2px 2px 5px rgba(0, 0, 0, 0.6),
+                                -2px -2px 6px rgba(255, 255, 255, 0.15)
+                              `,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-      {/* Neumorphic Toggle */}
-      <div
-        className="relative w-12 h-6 rounded-full cursor-pointer transition-all duration-300"
-        style={{
-          backgroundColor: "#212426",
-          boxShadow: `
-            inset 3px 3px 6px rgba(0, 0, 0, 0.7),
-            inset -3px -3px 6px rgba(255, 255, 255, 0.12)
-          `,
-        }}
-        onClick={() => handleInputChange("showSuggestion", !formData.showSuggestion)}
-      >
-        <div
-          className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform duration-300 ${
-            formData.showSuggestion ? "translate-x-6" : "translate-x-0.5"
-          }`}
-          style={{
-            backgroundColor: "#5E5CE6",
-            boxShadow: `
-              2px 2px 5px rgba(0, 0, 0, 0.6),
-              -2px -2px 6px rgba(255, 255, 255, 0.15)
-            `,
-          }}
-        />
-      </div>
-    </div>
-  </div>
-</div>
+                  {/* Connect accounts with Submit button */}
+                  <div className="grid grid-cols-12 gap-4 items-center">
+                    <div className="col-span-3" />
+                    <div className="col-span-9 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium">Connect accounts</span>
+                        <div className="flex gap-3">
+                          {[
+                            { name: 'whatsapp', icon: <img src={WhatsappIcon} alt="WhatsApp" className="w-5 h-5" /> },
+                            { name: 'instagram', icon: <img src={InstagramIcon} alt="Instagram" className="w-6 h-6" />},
+                            { name: 'X', icon: <img src={XIcon} alt="X" className="w-4 h-4" />},
+                            { name: 'facebook', icon: <img src={FacebookIcon} alt="FaceBook" className="w-6 h-6" /> },
+                            { name: 'linkedin', icon: <img src={LinkedInIcon} alt="LinkedIn" className="w-6 h-6" /> }
+                          ].map((social) => (
+                            <div
+                              key={social.name}
+                              className={`w-10 h-10 flex items-center justify-center cursor-pointer transition-colors duration-300 hover:bg-opacity-80`}
+                              title={`Connect ${social.name}`}
+                            >
+                              <span className="text-lg">{social.icon}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
-
-                 {/* Connect accounts with Submit button on same line */}
-<div className="grid grid-cols-12 gap-4 items-center">
-  {/* Empty label space to align with textbox start */}
-  <div className="col-span-3" /> 
-
-  {/* Content starts where textbox starts */}
-  <div className="col-span-9 flex items-center justify-between">
-    {/* Label + Icons */}
-    <div className="flex items-center gap-3">
-      <span className="text-sm font-medium">Connect accounts</span>
-      <div className="flex gap-3">
-        {[
-          { name: 'whatsapp', icon: <img src={WhatsappIcon} alt="WhatsApp" className="w-5 h-5" /> },
-          { name: 'instagram', icon: <img src={InstagramIcon} alt="Instagram" className="w-6 h-6" />},
-          { name: 'X', icon:  <img src={XIcon} alt="X" className="w-4 h-4" />},
-          { name: 'facebook', icon:  <img src={FacebookIcon} alt="FaceBook" className="w-6 h-6" /> },
-          { name: 'linkedin', icon:  <img src={LinkedInIcon} alt="LinkedIn" className="w-6 h-6" /> }
-        ].map((social) => (
-          <div
-            key={social.name}
-            className={`w-10 h-10  flex items-center justify-center cursor-pointer transition-colors duration-300 hover:bg-opacity-80`}      
-                  title={`Connect ${social.name}`}
-          >
-            <span className="text-lg">{social.icon}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-
-    {/* Submit Button */}
-    <button
-      onClick={handleSubmit}
-      className={`px-12 py-2 bg-blue-600 text-white rounded-full font-medium hover:bg-blue-700 transition-colors duration-300`}
-      style={{ boxShadow: theme.buttonShadow }}
-    >
-      Submit
-    </button>
-  </div>
-</div>
-
+                      {/* Submit Button */}
+                      <button
+                        onClick={handleSubmit}
+                        disabled={isLoading}
+                        className={`px-12 py-2 bg-blue-600 text-white rounded-full font-medium hover:bg-blue-700 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed`}
+                        style={{ boxShadow: theme.buttonShadow }}
+                      >
+                        {isLoading ? 'Saving...' : 'Submit'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
