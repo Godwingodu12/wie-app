@@ -49,6 +49,30 @@ const userSchema = new mongoose.Schema(
       enum: ['organisation', 'admin'],
       default: 'admin',
     },
+    followers: {
+      type: String,
+      default: 0,
+    },
+    following: {
+      type: String,
+      default: 0, 
+    },
+    followersList: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      default: []
+    },
+    followingList: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      default: []
+    },
+    social_links: {
+      facebook: { type: String, default: '' },
+      x: { type: String, default: '' },
+      linkedin: { type: String, default: '' },
+      instagram: { type: String, default: '' },
+      google: { type: String, default: '' },
+      whatsapp: { type: String, default: '' }
+    },
     website: {
       type: String,
       default: '',
