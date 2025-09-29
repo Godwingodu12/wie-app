@@ -7,7 +7,6 @@ import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import SideBar from "../../components/HomePage/SideBar.jsx";
-
 // ICONS
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
@@ -221,8 +220,9 @@ const HomePage = () => {
                           <SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} onTuneClick={() => console.log("Tune clicked")} />
                       </div>
                       <div className="flex items-center gap-3">
-                          <button onClick={handleCreateEvent} disabled={loading} style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' :'-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)' }} className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg} ${theme.text} ${isDark ? 'hover:bg-[#2a2d2f]' : 'hover:bg-gray-200'}`}>
-                              <span className="bg-[#21d18b] rounded-full w-8 h-8 flex items-center justify-center -ml-2"><img src={PlusIcon} alt="Add" className="w-6 h-6" /></span>{loading ? "Checking..." : "Create event"}
+                          <button onClick={handleCreateEvent} disabled={loading} style={{boxShadow: isDark? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)": "-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)", }}className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg} ${theme.text} ${ isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"}`}>
+                          <span className="w-[38px] h-[38px] flex items-center justify-center rounded-full -ml-2"style={{background: "#3EB489", padding: "7px",boxShadow:"inset 4px 4px 12px #00000052, inset -4px -4px 8px #FFFFFF05", }} >
+                          <img src={PlusIcon} alt="Add" className="w-6 h-6" /></span>{loading ? "Checking..." : "Create event"}
                           </button>
                           <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }} className={`flex items-center gap-2 px-4 py-2 rounded-full h-12 ${theme.bg} mx-auto sm:mx-0`}>
                               <span className="bg-[#249EFF] rounded-full w-8 h-8 flex items-center justify-center -ml-2"><img src={CalenderIcon} alt="Calendar" className="w-5 h-5" /></span>
