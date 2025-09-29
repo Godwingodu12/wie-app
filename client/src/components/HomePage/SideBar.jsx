@@ -1,7 +1,7 @@
 // src/components/HomePage/SideBar.jsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-
+import { getMe } from "../../services/userService.js";
 // ICONS
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
 import TicketIcon from "../../assets/HomePage/TicketIcon.svg";
@@ -16,10 +16,26 @@ const SIDEBAR_WIDTH = 80;
 const Sidebar = ({ user, theme }) => {
   const location = useLocation();
   const currentPath = location.pathname;
+  const [userImage, setUserImage] = useState(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await getMe();
+        // Construct the image URL if user has an image
+        if (res.data.image) {
+          const imageUrl = `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${res.data.image}`;
+          setUserImage(imageUrl);
+        }
+      } catch (err) {
+        console.error("Failed to fetch user", err);
+      }
+    };
+    fetchUser();
+  }, []);
 
   // Check if currently on home page
   const isHomePage = currentPath === "/home";
-
   const isDark = theme.bg === "bg-[#212426]";
 
   return (
@@ -104,7 +120,6 @@ const Sidebar = ({ user, theme }) => {
               }`}
             />
           </Link>
-
           <Link
             to="/message"
             className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full hover:opacity-80 transition-opacity"
@@ -117,7 +132,6 @@ const Sidebar = ({ user, theme }) => {
               }`}
             />
           </Link>
-
           <div className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full hover:opacity-80 transition-opacity cursor-pointer">
             <img
               src={Vector}
@@ -129,39 +143,51 @@ const Sidebar = ({ user, theme }) => {
           </div>
         </div>
       </div>
-
       {/* FLEXIBLE SPACER - Reduced to move bottom section up */}
-      <div className="flex-1 min-h-4 max-h-12 lg:max-h-4">
-        {/* BOTTOM SECTION - Settings and Profile */}
-        <div className="flex flex-col items-center w-full mb-4">
-          <div
-            className={`${theme.cardBg} rounded-full flex flex-col items-center py-2 sm:py-3 w-10 sm:w-12 lg:w-14 transition-all duration-300`}
-            style={{
-              gap: "0.75rem",
-              boxShadow: isDark
-                ? "-4px -4px 8px rgba(255,255,255,0.08), 4px 4px 8px rgba(0,0,0,0.4)"
-                : "-4px -4px 8px rgba(255,255,255,0.8), 4px 4px 8px rgba(0,0,0,0.15)",
-            }}
-          >
-            {/* Settings Icon */}
-            <button className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full hover:opacity-80 transition-opacity">
-              <img
-                src={SettingIcon}
-                alt="Settings"
-                className={`w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 opacity-70 hover:opacity-100 transition-opacity ${
-                  isDark ? "" : "filter brightness-0"
-                }`}
-              />
-            </button>
-
-            {/* User Avatar */}
-            <Link
-              to="/profile"
-              className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 bg-[#6a47fa] rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm lg:text-lg hover:opacity-80 transition-opacity"
-            >
-              {user?.name?.[0]?.toUpperCase() || "U"}
-            </Link>
-          </div>
+      <div className="flex-1 min-h-4 max-h-12 lg:max-h-4"></div>
+      
+      {/* BOTTOM SECTION - Settings and Profile */}
+      <div className="flex flex-col items-center w-full mb-4">
+        <div
+          className={`${theme.cardBg} rounded-full flex flex-col items-center py-2 sm:py-3 w-10 sm:w-12 lg:w-14 transition-all duration-300`}
+          style={{
+            gap: "0.75rem",
+            boxShadow: isDark
+              ? "-4px -4px 8px rgba(255,255,255,0.08), 4px 4px 8px rgba(0,0,0,0.4)"
+              : "-4px -4px 8px rgba(255,255,255,0.8), 4px 4px 8px rgba(0,0,0,0.15)",
+          }}
+        >
+          <button className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full hover:opacity-80 transition-opacity">
+            <img
+              src={SettingIcon}
+              alt="Settings"
+              className={`w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 opacity-70 hover:opacity-100 transition-opacity ${
+                isDark ? "" : "filter brightness-0"
+              }`}
+            />
+          </button>
+<Link
+  to="/profile"
+  className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center overflow-hidden hover:opacity-80 transition-opacity"
+>
+  {user?.image ? (
+    <img
+      src={`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${user.image}`}
+      alt="User profile"
+      className="w-full h-full object-cover rounded-full"
+      onError={(e) => {
+        console.error('Image failed to load:', e.target.src);
+        e.target.style.display = 'none';
+      }}
+    />
+  ) : (
+    <div className="w-full h-full bg-[#6a47fa] rounded-full flex items-center justify-center">
+      <span className="text-white font-bold text-xs sm:text-sm lg:text-lg">
+        {user?.name?.[0]?.toUpperCase() || "U"}
+      </span>
+    </div>
+  )}
+</Link> 
         </div>
       </div>
     </aside>
