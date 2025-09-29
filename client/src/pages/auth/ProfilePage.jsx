@@ -76,11 +76,8 @@ const ProfilePage = () => {
   const hamburgerRef = useRef(null);
 
   // Helper function to parse API response and extract tickets/events
-  const parseApiResponse = (response, dataType = 'events') => {
-    console.log(`Parsing ${dataType} response:`, response);
-    
+  const parseApiResponse = (response, dataType = 'events') => {    
     let data = [];
-    
     // Try different response structures
     if (response?.data?.tickets) {
       data = response.data.tickets;
@@ -106,11 +103,8 @@ const ProfilePage = () => {
         data = response.data[eventKey];
       }
     }
-    
-    console.log(`Parsed ${dataType} data:`, data);
     return Array.isArray(data) ? data : [];
   };
-
   // Helper function to categorize events based on dates and status
   const categorizeEvents = (tickets) => {
     const now = new Date();
@@ -175,10 +169,7 @@ const ProfilePage = () => {
   useEffect(() => {
     const fetchActiveUsers = async () => {
       try {
-        console.log("Fetching active users...");
-        const response = await findAllActiveUsers();
-        console.log("API Response:", response);
-        
+        const response = await findAllActiveUsers();        
         if (response?.data?.users) {
           setUsers(response.data.users);
         } else if (response?.users) {
@@ -203,9 +194,7 @@ const ProfilePage = () => {
     const fetchGroups = async () => {
       setGroupsLoading(true);
       try {
-        const response = await getGroups();
-        console.log("Groups API Response:", response);
-        
+        const response = await getGroups();        
         if (response?.data) {
           setGroups(Array.isArray(response.data) ? response.data : []);
         } else if (Array.isArray(response)) {
@@ -229,9 +218,7 @@ const ProfilePage = () => {
     const fetchAllEvents = async () => {
       setEventsLoading(true);
       try {
-        const response = await getMyEvents();
-        console.log("My Events API Response:", response);
-        
+        const response = await getMyEvents();        
         const tickets = parseApiResponse(response, 'tickets');
         
         if (tickets.length > 0) {
@@ -239,12 +226,6 @@ const ProfilePage = () => {
           setAllEvents(all);
           setLiveEvents(live);
           setPastEvents(past);
-          
-          console.log("Categorized events:", { 
-            all: all.length, 
-            live: live.length, 
-            past: past.length 
-          });
         } else {
           console.log("No tickets found in response");
           setAllEvents([]);
@@ -267,9 +248,7 @@ const ProfilePage = () => {
   useEffect(() => {
     const fetchLiveEvents = async () => {
       try {
-        const response = await getMyLiveEvents();
-        console.log("Live Events API Response:", response);
-        
+        const response = await getMyLiveEvents();        
         const events = parseApiResponse(response, 'live events');
         // Only update if this endpoint returns different data
         if (events.length > 0 && liveEvents.length === 0) {
@@ -291,17 +270,13 @@ const ProfilePage = () => {
   useEffect(() => {
     const fetchPastEvents = async () => {
       try {
-        const response = await getMyPastEvents();
-        console.log("Past Events API Response:", response);
-        
+        const response = await getMyPastEvents();        
         const events = parseApiResponse(response, 'past events');
-        // Only update if this endpoint returns different data
         if (events.length > 0 && pastEvents.length === 0) {
           setPastEvents(events);
         }
       } catch (err) {
         console.error("Failed to fetch past events:", err);
-        // Don't reset pastEvents here as it might be populated from categorizeEvents
       }
     };
     
@@ -610,7 +585,7 @@ const ProfilePage = () => {
                     {/* Mobile Layout */}
                     <div className="flex md:hidden flex-col items-center text-center space-y-4">
                       <img 
-                        src={user.avatar || "https://via.placeholder.com/100"}
+                        src={`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${user.image}`}
                         alt="Profile"
                         className={`w-24 h-24 rounded-full object-cover border-4 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
                       />   
@@ -671,7 +646,7 @@ const ProfilePage = () => {
                       {/* Left side */}
                       <div className="flex items-start gap-6">
                         <img 
-                          src={user.avatar || "https://via.placeholder.com/100"}
+                          src={`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${user.image}`}
                           alt="Profile"
                           className={`w-48 h-48 rounded-full object-cover border-4 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
                         />
@@ -928,15 +903,12 @@ const ProfilePage = () => {
                                 backgroundColor: isDark ? "#212426" : "#ffffff",
                                 boxShadow: theme.smallCardShadow,
                               }}
+onClick={() => navigate(`/profile/${suggestedUser._id}`)}
                             >
                               <div className="flex flex-col">
                                 <div className="relative mb-4">
                                   <img
-                                    src={
-                                      suggestedUser.image
-                                        ? `http://localhost:3001/uploads/${suggestedUser.image}`
-                                        : "https://via.placeholder.com/214x160"
-                                    }
+                                    src={`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}`}
                                     alt={suggestedUser.name}
                                     className="w-full h-[120px] md:h-[160px] object-cover rounded-2xl"
                                   />
@@ -986,7 +958,12 @@ const ProfilePage = () => {
                                     </span>
                                   </div>
                                 </div>
-                                <button className="px-4 py-1.5 rounded-full text-white text-sm font-medium bg-blue-500 hover:bg-blue-600 transition-colors duration-200">
+                                <button className="px-4 py-1.5 rounded-full text-white text-sm font-medium bg-blue-500 hover:bg-blue-600 transition-colors duration-200"
+                                onClick={(e) => {
+            e.stopPropagation(); // Prevent card click when clicking follow button
+            // Add your follow logic here
+            console.log('Follow user:', suggestedUser._id);}}
+            >
                                   Follow +
                                 </button>
                               </div>
@@ -1289,5 +1266,4 @@ const ProfilePage = () => {
     </>
   );
 };
-
 export default ProfilePage;
