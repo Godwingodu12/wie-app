@@ -121,3 +121,21 @@ export const getOtherProfile = async (otherId)=>{
     throw err;
   }
 };
+export const followUser = async (otherId) => {
+  try {
+    const res = await api.post(`/auth/follow/${otherId}`);
+    return res.data;
+  } catch (err) {
+    console.error('followUser error:', err);
+    throw err;
+  }
+};
+export const unfollowUser = async (otherId) => {
+  try {
+    const res = await api.post(`/auth/unfollow/${otherId}`);
+    return res.data;
+  } catch (err) {
+    console.error('unfollowUser error:', err);
+    throw err;
+  }
+};
