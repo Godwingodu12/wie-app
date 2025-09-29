@@ -96,7 +96,7 @@ export const findAllActiveUsers = async () => {
 };
 export const editProfile = async (formData) => {
   try {
-    const response = await api.post('/auth/edit-profile', formData);
+    const response = await api.post(`/auth/edit-profile`, formData);
     return response.data;
   } catch (err) {
     console.error('editProfile error:', err);
