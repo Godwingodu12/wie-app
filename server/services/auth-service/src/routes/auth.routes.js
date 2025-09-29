@@ -1,9 +1,9 @@
 import express from 'express';
 import {index, login, adminSignup,organisationSignup,getUserById,verifyOTP,logout,forgotPassword,resendOtp,verifyUser,resetPassword,findAllActiveUsers,editProfile,viewAllUsers,getOtherProfile } from '../services/auth.service.js';
+import { followUser, unfollowUser } from '../controllers/auth.controller.js';
 import upload from '../middlewares/upload.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
-
 router.post('/adminsignup', upload.single('image'), adminSignup);
 router.post('/organisationsignup', upload.single('image'), organisationSignup);
 router.post('/login', login);
@@ -19,4 +19,6 @@ router.get('/active-users', findAllActiveUsers);
 router.post('/edit-profile', protect, editProfile);
 router.get('/view-all-users', protect, viewAllUsers);
 router.get('/other-profile/:otherId',getOtherProfile);
+router.post('/follow/:otherId', protect, followUser);
+router.post('/unfollow/:otherId', protect, unfollowUser);
 export default router;
