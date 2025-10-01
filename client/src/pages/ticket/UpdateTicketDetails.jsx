@@ -4,7 +4,6 @@ import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 // --- API Service Imports ---
 import { getTicketById, updateTicketDetails, getGroupView } from '../../services/ticketService';
-
 // --- Reusable Helper Components ---
 const InfoTooltip = ({ note }) => (
     <div className="relative flex items-center group ml-1.5">
@@ -389,30 +388,38 @@ const UpdateTicketDetails = () => {
                     setBookingEndDate(savedDraft?.bookingEndDate ?? (ticketData.booking_end_date ? new Date(ticketData.booking_end_date).toISOString().split('T')[0] : ''));
                     setTickets(savedDraft?.tickets ?? ticketData.ticket_types?.map(t => ({...t, id: t._id || Date.now(), name: t.ticket_type, price: t.ticket_price, capacity: t.max_capacity, image: t.ticket_photo })) ?? []);
                 }
-                
-                if (groupData && groupData.primary_bank_acc_no) {
-                    setGroupHasBankAccount(true);
-                    
-                    const { primary_bank_acc_type, primary_bank_acc_holder, primary_bank_acc_no, primary_bank_ifsc } = groupData;
-                    const areDetailsComplete = primary_bank_acc_type && primary_bank_acc_holder && primary_bank_acc_no && primary_bank_ifsc;
+               if (groupData && groupData.primary_bank_acc_no) {
+    setGroupHasBankAccount(true);
+    
+    // Add console.log to see what value is actually coming from API
+    console.log('Group bank account type from API:', groupData.primary_bank_acc_type);
+    
+    const { primary_bank_acc_type, primary_bank_acc_holder, primary_bank_acc_no, primary_bank_ifsc } = groupData;
+    
+    // Normalize the account type to match your select options
+    const normalizedAccType = primary_bank_acc_type?.toLowerCase();
+    
+    const areDetailsComplete = primary_bank_acc_type && primary_bank_acc_holder && primary_bank_acc_no && primary_bank_ifsc;
 
-                    if (areDetailsComplete) {
-                        setUseGroupBankAccount(savedDraft?.useGroupBankAccount ?? true);
-                        setBankingDetails([{
-                            id: groupData._id,
-                            bank_acc_type: primary_bank_acc_type,
-                            bank_acc_holder: primary_bank_acc_holder,
-                            bank_acc_no: primary_bank_acc_no,
-                            bank_ifsc: primary_bank_ifsc
-                        }]);
-                    } else {
-                        setGroupBankDetailsIncomplete(true);
-                        setUseGroupBankAccount(false);
-                    }
-                } else {
-                    setGroupHasBankAccount(false);
-                    setUseGroupBankAccount(false);
-                }
+    if (areDetailsComplete) {
+        const groupBankDetails = [{
+            id: groupData._id,
+            bank_acc_type: normalizedAccType, // Use normalized value
+            bank_acc_holder: primary_bank_acc_holder,
+            bank_acc_no: primary_bank_acc_no,
+            bank_ifsc: primary_bank_ifsc
+        }];
+        
+        setUseGroupBankAccount(savedDraft?.useGroupBankAccount ?? true);
+        setBankingDetails(groupBankDetails);
+        
+        // Store for toggle functionality
+        window.groupBankDetails = groupBankDetails;
+    } else {
+        setGroupBankDetailsIncomplete(true);
+        setUseGroupBankAccount(false);
+    }
+}
 
                 if (savedDraft?.bankingDetails && !useGroupBankAccount) {
                     setBankingDetails(savedDraft.bankingDetails);
@@ -485,7 +492,6 @@ const UpdateTicketDetails = () => {
         localStorage.removeItem(storageKey);
         navigate(`/ticket/update-ticket-media/${ticketId}`);
     };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -570,10 +576,25 @@ const UpdateTicketDetails = () => {
                                                 Do you want to use the bank account used for group creation?
                                             </label>
                                             <ToggleSwitch
-                                                checked={useGroupBankAccount}
-                                                onChange={() => setUseGroupBankAccount(!useGroupBankAccount)}
-                                                disabled={!groupHasBankAccount || groupBankDetailsIncomplete}
-                                            />
+    checked={useGroupBankAccount}
+    onChange={() => {
+        const newValue = !useGroupBankAccount;
+        setUseGroupBankAccount(newValue);
+        
+        if (newValue && window.groupBankDetails) {
+            setBankingDetails([...window.groupBankDetails]); // Create new array reference
+        } else {
+            setBankingDetails([{ 
+                id: Date.now(), 
+                bank_acc_type: '', 
+                bank_acc_holder: '', 
+                bank_acc_no: '', 
+                bank_ifsc: '' 
+            }]);
+        }
+    }}
+    disabled={!groupHasBankAccount || groupBankDetailsIncomplete}
+/>
                                         </div>
                                         {groupBankDetailsIncomplete && (
                                             <p className="text-sm text-yellow-600 dark:text-yellow-500 mt-2">
@@ -648,5 +669,4 @@ const UpdateTicketDetails = () => {
         </div>
     );
 };
-
 export default UpdateTicketDetails;

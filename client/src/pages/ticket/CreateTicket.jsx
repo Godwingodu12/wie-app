@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { format } from "date-fns";
+import Select from 'react-select';
 import {
   createTicketBasicInfo,
   getGroups,
@@ -10,7 +11,7 @@ import {
 // Import shared components
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
-import EventDatePick from "../../assets/Event/EventDatePick.svg";
+
 
 // --- Reusable UI Components ---
 const CustomScrollbarStyles = ({ isDark }) => {
@@ -18,8 +19,24 @@ const CustomScrollbarStyles = ({ isDark }) => {
   const mainThumbColor = isDark ? "#4f4f4f" : "#cbd5e1";
   const widgetThumbColor = isDark ? "#818cf8" : "#6366f1";
 
+  const autofillTextColor = isDark ? '#FFFFFF' : '#1F2937';
+
   return (
     <style>{`
+      /* --- ADD THIS FOR THE MAIN BROWSER SCROLLBAR --- */
+      body::-webkit-scrollbar {
+        width: 12px;
+      }
+      body::-webkit-scrollbar-track {
+        background: #232426;
+      }
+      body::-webkit-scrollbar-thumb {
+        background-color: #4f4f4f;
+        border-radius: 20px;
+        border: 3px solid #232426;
+      }
+      /* --- END OF NEW SCROLLBAR CODE --- */
+
       .main-scrollbar::-webkit-scrollbar { width: 8px; }
       .main-scrollbar::-webkit-scrollbar-track { background: ${mainTrackColor}; }
       .main-scrollbar::-webkit-scrollbar-thumb {
@@ -38,7 +55,6 @@ const CustomScrollbarStyles = ({ isDark }) => {
       }
       .custom-scrollbar { scrollbar-width: thin; scrollbar-color: ${widgetThumbColor} transparent; }
       
-      /* Fix time input placeholder positioning */
       input[type="time"]::-webkit-datetime-edit-text,
       input[type="time"]::-webkit-datetime-edit-hour-field,
       input[type="time"]::-webkit-datetime-edit-minute-field {
@@ -52,6 +68,17 @@ const CustomScrollbarStyles = ({ isDark }) => {
       input[type="time"]:not(:placeholder-shown)::-webkit-datetime-edit-minute-field {
         color: inherit;
       }
+
+      input:-webkit-autofill,
+      input:-webkit-autofill:hover,
+      input:-webkit-autofill:focus,
+      input:-webkit-autofill:active {
+          -webkit-text-fill-color: ${autofillTextColor} !important;
+          background-color: transparent !important;
+          -webkit-box-shadow: none !important;
+          transition: background-color 9999s ease-in-out 0s;
+      }
+
     `}</style>
   );
 };
@@ -270,21 +297,21 @@ const DatePickerModal = ({
           key={day}
           onClick={() => !isPast && handleDateClick(dateStr)}
           className={`flex items-center justify-center h-10 w-10 rounded-lg transition-colors
-                        ${
-                          isPast
-                            ? "text-gray-600 cursor-not-allowed"
-                            : "cursor-pointer"
-                        }
-                        ${
-                          isSelected
-                            ? "bg-emerald-500 text-white"
-                            : "hover:bg-gray-700"
-                        }
-                        ${
-                          isToday && !isSelected
-                            ? "border border-emerald-500"
-                            : ""
-                        }`}
+                                ${
+                                  isPast
+                                    ? "text-gray-600 cursor-not-allowed"
+                                    : "cursor-pointer"
+                                }
+                                ${
+                                  isSelected
+                                    ? "bg-emerald-500 text-white"
+                                    : "hover:bg-gray-700"
+                                }
+                                ${
+                                  isToday && !isSelected
+                                    ? "border border-emerald-500"
+                                    : ""
+                                }`}
         >
           {day}
         </div>
@@ -431,7 +458,7 @@ const DatePickerModal = ({
         if (firstDateTime.startTime && firstDateTime.endTime && 
             firstDateTime.startAmPm && firstDateTime.endAmPm &&
             !validateTime(firstDateTime.startTime, firstDateTime.endTime, 
-                         firstDateTime.startAmPm, firstDateTime.endAmPm)) {
+                           firstDateTime.startAmPm, firstDateTime.endAmPm)) {
           showTimeValidationError();
           return;
         }
@@ -457,7 +484,7 @@ const DatePickerModal = ({
       if (dateEntry.startTime && dateEntry.endTime && 
           dateEntry.startAmPm && dateEntry.endAmPm &&
           !validateTime(dateEntry.startTime, dateEntry.endTime, 
-                       dateEntry.startAmPm, dateEntry.endAmPm)) {
+                         dateEntry.startAmPm, dateEntry.endAmPm)) {
         showTimeValidationError();
         return; // Don't save if validation fails
       }
@@ -1324,6 +1351,94 @@ const ProhibitedItemsModal = ({
   );
 };
 
+
+
+// --- NEW: Language options array ---
+const eventCategories = {
+    "Arts, Culture, & Literature": [ "Art Exhibitions", "Cultural Festivals", "Theater Performances", "Literature Festivals", "Historical Reenactments", "Art Installations", "Art Workshops & Competitions", "Guided Art Walks", "Printmaking & Conceptual Art", "Residency Showcases", "Art Auctions" ],
+    "Music": [ "Concerts", "Music Festivals", "Live Performances", "Battle of the Bands", "DJ Nights" ],
+    "Entertainment & Performing Arts": [ "Comedy Shows", "Magic Shows", "Circus Performances" ],
+    "Dance": [ "Recitals & Showcases", "Competitions & Galas", "Social Dance Nights", "Dance Workshops", "Themed Dances", "Classical Dance", "Contemporary Dance", "Street & Urban Dance", "Bollywood & Tollywood Dance", "Folk & Traditional Dance", "K-pop Dance" ],
+    "Sports, Fitness, & Adventure": [ "Sporting Competitions", "Marathons & Races", "Fitness Workshops", "Adventure Sports", "Camping & Hiking", "Turf Booking", "Esports" ],
+    "Education & Learning": [ "Workshops & Seminars", "Conferences & Summits", "Academic Competitions & MUNs", "Career Fairs & Counseling", "Public Lectures", "Bootcamps", "Certification Programs", "College Fests", "Webinars", "Startup Competitions", "Quiz Sessions" ],
+    "Business & Innovation": [ "Tech Expos", "Hackathons", "Product Launches", "Robotics Competitions", "Trade Shows", "Networking Events" ],
+    "Food, Lifestyle, & Wellness": [ "Food Festivals", "Wine Tastings", "Cooking Classes", "Yoga & Spiritual Retreats", "Mindfulness Workshops", "Fashion Shows" ],
+    "Film, Media, & Gaming": [ "Film Festivals & Screenings", "Animation Showcases", "Board Game Nights", "Cosplay Conventions" ],
+    "Travel, Holidays, & Tourism": [ "Travel Expos", "Destination Showcases", "Cruise Events", "Holiday Events (e.g., Halloween, Christmas)" ],
+    "Festivals & Celebrations": [ "National & Regional Festivals", "Harvest Festivals", "Lantern Festivals", "Cultural Parades", "Religious Festivals" ],
+    "Environment, Sustainability, & Agriculture": [ "Eco-Festivals", "Sustainable Living Workshops", "Tree-Planting & Clean Energy Campaigns", "Agricultural Fairs & Farmers' Markets", "Green Hackathons", "Cyclothons", "Eco-Tourism Trails", "Green Tech Conferences" ],
+    "Religious & Spiritual Events": [ "Pilgrimages", "Spiritual Retreats", "Meditation Camps" ]
+};
+
+const languageOptions = ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other'].map(lang => ({ value: lang, label: lang }));
+// Add these constants near your other dropdown data arrays
+const ageOptions = [
+    { value: "0", label: "All ages" },
+    { value: "13", label: "13+" },
+    { value: "16", label: "16+" },
+    { value: "18", label: "18+" },
+    { value: "21", label: "21+" }
+];
+
+const seatingOptions = [
+    { value: "seated", label: "Seated" },
+    { value: "standing", label: "Standing" },
+    { value: "seated and standing", label: "Seated and Standing" },
+    { value: "other", label: "Other" }
+];
+const customSelectStyles = (isDark) => ({
+  control: (provided, state) => ({
+    ...provided,
+    backgroundColor: 'transparent',
+    borderColor: state.isFocused ? '#6366F1' : (isDark ? '#4A4A4A' : '#D1D5DB'),
+    padding: '0.5rem',
+    borderRadius: '0.5rem',
+    boxShadow: 'none',
+    '&:hover': {
+      borderColor: '#6366F1',
+    },
+  }),
+  valueContainer: (provided) => ({
+    ...provided,
+    padding: '0 2px',
+  }),
+  input: (provided) => ({
+    ...provided,
+    color: isDark ? '#FFFFFF' : '#1F2937',
+  }),
+  singleValue: (provided) => ({
+    ...provided,
+    color: isDark ? '#FFFFFF' : '#1F2937',
+  }),
+  placeholder: (provided) => ({
+    ...provided,
+    color: isDark ? '#6B7280' : '#9CA3AF',
+  }),
+  menu: (provided) => ({
+    ...provided,
+    backgroundColor: isDark ? '#2B2B2B' : '#FFFFFF',
+    borderRadius: '0.5rem',
+    zIndex: 50,
+  }),
+  option: (provided, state) => ({
+    ...provided,
+    backgroundColor: state.isSelected ? '#4F46E5' : state.isFocused ? (isDark ? '#374151' : '#E5E7EB') : 'transparent',
+    color: isDark ? '#FFFFFF' : '#1F2937',
+    '&:active': {
+      backgroundColor: '#4338CA',
+    },
+  }),
+  menuList: (provided) => ({
+    ...provided,
+    '::-webkit-scrollbar': { width: '8px' },
+    '::-webkit-scrollbar-track': { background: isDark ? '#232426' : '#f1f5f9' },
+    '::-webkit-scrollbar-thumb': {
+      backgroundColor: isDark ? '#4f4f4f' : '#cbd5e1',
+      borderRadius: '10px',
+      border: `2px solid ${isDark ? '#232426' : '#f1f5f9'}`,
+    },
+  }),
+});
 const CreateTicket = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1345,9 +1460,12 @@ const CreateTicket = () => {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const [map, setMap] = useState(null);
-  const storageKey = `ticketFormData_${groupId || "new"}_${urlTicketId || "create"}`;
+  const storageKey = `ticketFormData_${groupId || "new"}`;
   const rulesEditorRef = useRef(null);
   const descriptionEditorRef = useRef(null);
+
+  // --- NEW: Data structure for event categories and subcategories ---
+
 
   // Set initial map location (Thrissur, Kerala, India)
   const INITIAL_MAP_LOCATION = {
@@ -1367,7 +1485,7 @@ const CreateTicket = () => {
     location: "",
     venue: "",
     event_language: "",
-    min_age_allowed: "",
+    min_age_allowed: "0",
     seating_arrangement: "",
     kids_friendly: false,
     pet_friendly: false,
@@ -1401,6 +1519,13 @@ const CreateTicket = () => {
     POC_email: "",
     POC_contact: "",
   });
+          const categoryOptions = Object.keys(eventCategories).map(category => ({
+        value: category,
+        label: category
+    }));
+    const subCategoryOptions = formData.event_category 
+        ? eventCategories[formData.event_category].map(sub => ({ value: sub, label: sub }))
+        : [];
 
   const saveFormDataToStorage = (data) => {
     try {
@@ -1421,19 +1546,10 @@ const CreateTicket = () => {
       return null;
     }
   };
+
   const clearFormDataFromStorage = () => {
     try {
-      const baseKey = `ticketFormData_${groupId || "new"}`;
-      const keysToRemove = [
-        storageKey,
-        baseKey,
-        `${baseKey}_create`,
-        `ticketFormData_${groupId || "new"}`
-      ];
-      
-      keysToRemove.forEach(key => {
-        localStorage.removeItem(key);
-      });
+      localStorage.removeItem(storageKey);
     } catch (error) {
       console.error("Error clearing data from localStorage:", error);
     }
@@ -1561,15 +1677,14 @@ const CreateTicket = () => {
   };
   const [dataLoaded, setDataLoaded] = useState(false);
   useEffect(() => {
-    if (isEditMode || formData.event_name || formData.location) {
+    if (formData.event_name || formData.location) {
       saveFormDataToStorage(formData);
     }
-  }, [formData, isEditMode]);
+  }, [formData]);
+  
   useEffect(() => {
     const initializeComponent = async () => {
       setPageLoading(true);
-      setDataLoaded(false);
-      
       if (!groupId) {
         navigate("/select-group");
         return;
@@ -1581,7 +1696,6 @@ const CreateTicket = () => {
           ? groupsResponse
           : groupsResponse.data || [];
         const groupData = groupsArray.find((g) => g._id === groupId);
-        
         if (!groupData) {
           alert("Group not found.");
           navigate("/select-group");
@@ -1589,75 +1703,28 @@ const CreateTicket = () => {
         }
         setSelectedGroup(groupData);
 
-        // Check if we're editing an existing ticket
         if (urlTicketId) {
           setIsEditMode(true);
           await loadExistingTicketData(urlTicketId);
         } else {
-          // For new event creation, clear any saved data and start fresh
-          clearFormDataFromStorage();
-          
-          // Reset to initial form state with only groupId
-          const freshFormData = {
-            _id: null,
-            event_name: "",
-            event_category: "",
-            event_subcategory: "",
-            event_type: "public",
-            location_type: "offline",
-            event_link: "",
-            location: "",
-            venue: "",
-            event_language: "",
-            min_age_allowed: "",
-            seating_arrangement: "",
-            kids_friendly: false,
-            pet_friendly: false,
-            event_instagram_link: "",
-            event_youtube_link: "",
-            hashtag: [],
-            event_dates: [],
-            event_date_type: "Single day",
-            gatesOpenEarly: false,
-            gate_open_time: "",
-            gate_open_hour: "",
-            gate_open_minute: "",
-            gate_open_ampm: "",
-            guests: [],
-            event_rules: { type: "text", content: "" },
-            event_rules_file: null,
-            prohibited_items: [],
-            POCS: [],
-            event_description: "",
-            exact_map_location: { 
-              latitude: INITIAL_MAP_LOCATION.lat.toString(), 
-              longitude: INITIAL_MAP_LOCATION.lng.toString(), 
-              address: INITIAL_MAP_LOCATION.address 
-            },
-            groupId: groupId || "",
-          };
-          
-          setFormData(freshFormData);
-          
-          // Only use location.state.formData if it's explicitly passed (like from a draft)
-          if (location.state?.formData && location.state?.isDraft) {
+          if (location.state?.formData) {
             setFormData(location.state.formData);
             saveFormDataToStorage(location.state.formData);
+          } else {
+            const savedData = loadFormDataFromStorage();
+            if (savedData) {
+              setFormData(savedData);
+            }
           }
         }
-        
-        setDataLoaded(true);
-        
       } catch (error) {
         console.error("Initialization error:", error);
-        setDataLoaded(true);
       } finally {
         setPageLoading(false);
       }
     };
-    
     initializeComponent();
-  }, [groupId, urlTicketId, navigate]);
+  }, [groupId, urlTicketId, navigate, location.state]);
   
   useEffect(() => {
     if (!pageLoading && !isEditMode) {
@@ -1935,172 +2002,148 @@ const CreateTicket = () => {
 }, [map, formData.exact_map_location]);
 
   useEffect(() => {
-    if (isEditMode || formData.event_name || formData.location) {
+    if (formData.event_name || formData.location) {
       saveFormDataToStorage(formData);
     }
-  }, [formData, isEditMode]);
+  }, [formData]);
 
+  // --- MODIFIED: handleInputChange to reset subcategory ---
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const newData = { ...prev, [name]: value };
+      // If the category changes, reset the subcategory
+      if (name === "event_category") {
+        newData.event_subcategory = "";
+      }
+      return newData;
+    });
   };
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.groupId) {
-      alert("Group ID is missing. Please select a group first.");
-      navigate("/select-group");
-      return;
-    } // URL Validation
-    const youtubeRegex =
-    /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})$/;
-    if (
-      formData.event_youtube_link &&
-      !youtubeRegex.test(formData.event_youtube_link)
-    ) {
-      alert(
-        "Invalid YouTube URL. Please use formats like: https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID"
-      );
-      return;
-    }
 
-    const instagramRegex =
-      /^(https?:\/\/)?(www\.)?instagram\.com\/[a-zA-Z0-9(\.\_)]{1,30}\/?$/;
-    if (
-      formData.event_instagram_link &&
-      !instagramRegex.test(formData.event_instagram_link)
-    ) {
-      alert(
-        "Invalid Instagram URL. Please enter a valid profile link, like: https://instagram.com/username"
-      );
-      return;
-    } // Required Fields Validation
-
-    const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = formData.event_description || "";
-    const descriptionText = (tempDiv.textContent || tempDiv.innerText).trim();
-    const requiredFields = {
-      event_name: formData.event_name?.trim(),
-      event_category: formData.event_category?.trim(),
-      event_subcategory: formData.event_subcategory?.trim(),
-      event_type: formData.event_type?.trim(),
-      event_language: formData.event_language?.trim(),
-      location_type: formData.location_type?.trim(),
-      event_dates: formData.event_dates,
-      event_description: descriptionText,
-      min_age_allowed: formData.min_age_allowed?.trim(),
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!formData.groupId) {
+    alert("Group ID is missing. Please select a group first.");
+    navigate("/select-group");
+    return;
+  }
+  const youtubeRegex = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
+  if (formData.event_youtube_link && !youtubeRegex.test(formData.event_youtube_link)) {
+    alert("Invalid YouTube URL. Please use a valid format like 'youtube.com/watch?v=VIDEO_ID'");
+    return;
+  }
+  const instagramRegex = /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
+  if (formData.event_instagram_link && !instagramRegex.test(formData.event_instagram_link)) {
+    alert("Invalid Instagram URL. Please enter a valid profile link, like 'instagram.com/username'");
+    return;
+  }
+  const tempDiv = document.createElement("div");
+  tempDiv.innerHTML = formData.event_description || "";
+  const descriptionText = (tempDiv.textContent || tempDiv.innerText).trim();
+  const requiredFields = {
+    event_name: formData.event_name?.trim(),
+    event_category: formData.event_category?.trim(),
+    event_subcategory: formData.event_subcategory?.trim(),
+    event_type: formData.event_type?.trim(),
+    event_language: formData.event_language?.trim(),
+    location_type: formData.location_type?.trim(),
+    event_dates: formData.event_dates,
+    event_description: descriptionText,
+    min_age_allowed: formData.min_age_allowed?.trim(),
+  };
+  const missingFields = Object.entries(requiredFields)
+    .filter(([_, value]) => !value || (Array.isArray(value) && value.length === 0))
+    .map(([key, _]) => key.replace(/_/g, " "));
+  if (missingFields.length > 0) {
+    alert(`Please fill in the following required fields: ${missingFields.join(", ")}`);
+    return;
+  }
+  setLoading(true);
+  try {
+    const parseDate = (dateValue) => {
+      if (!dateValue) return null;
+      if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return dateValue;
+      }
+      const date = new Date(dateValue);
+      return date.toISOString().split('T')[0];
     };
-    const missingFields = Object.entries(requiredFields)
-      .filter(
-        ([_, value]) => !value || (Array.isArray(value) && value.length === 0)
-      )
-      .map(([key, _]) => key.replace(/_/g, " "));
-    if (missingFields.length > 0) {
-      alert(
-        `Please fill in the following required fields: ${missingFields.join(
-          ", "
-        )}`
-      );
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Helper function to parse date - converts YYYY-MM-DD to YYYY-MM-DD format (not ISO)
-      const parseDate = (dateValue) => {
-        if (!dateValue) return null;
-        
-        // If it's already in YYYY-MM-DD format, return as is
-        if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-          return dateValue;
-        }
-        
-        // If it's in another format, convert to YYYY-MM-DD
-        const date = new Date(dateValue);
-        return date.toISOString().split('T')[0];
-      };
-
-      const transformedDates = formData.event_dates.map((d) => ({
-        start_date: parseDate(d.date), // Will be in YYYY-MM-DD format
-        end_date: parseDate(d.endDate), // Add end_date support
-        start_time: d.startTime,
-        end_time: d.endTime,
-      }));
-
-      const eventDateTypeMap = {
-        "Single day": "one-day",
-        "Multi days": "multi-day",
-        Weekly: "weekly",
-      };
-
-      const submitData = {
-        ...formData,
-        event_name: formData.event_name.trim(),
-        event_category: formData.event_category.trim(),
-        event_subcategory: formData.event_subcategory.trim(),
-        event_type: formData.event_type.trim(),
-        event_description: formData.event_description.trim(),
-        userId: "user_12345", // Placeholder
-        location_type: formData.location_type.trim(),
-        event_link: formData.event_link?.trim() || "",
-        location: formData.location?.trim() || "",
-        venue: formData.venue?.trim() || "",
-        event_language: [formData.event_language.trim()],
-        min_age_allowed: parseInt(formData.min_age_allowed.trim()),
-        event_dates: transformedDates,
-        event_date_type:
-          eventDateTypeMap[formData.event_date_type] || "one-day",
-        gate_open_time: formData.gatesOpenEarly
-          ? formData.gate_open_time?.trim() || ""
-          : "",
-        exact_map_location:
-          formData.exact_map_location?.latitude &&
-          formData.exact_map_location?.longitude
-            ? {
-                latitude: parseFloat(formData.exact_map_location.latitude),
-                longitude: parseFloat(formData.exact_map_location.longitude),
-                address: formData.exact_map_location.address,
-              }
-            : undefined,
-      };
-
-      const response = await createTicketBasicInfo(submitData);
-      const newTicketId = response.ticketId || response.data?.ticketId || response.data?._id;
-      const groupId = formData.groupId;
-      console.log(
-        "Navigating with groupId:",
-        groupId,
-        "and ticketId:",
-        newTicketId
-      );
-
-      navigate(`/ticket/update-ticket-media/${newTicketId}`, {
-        state: {
-          message: `${isEditMode ? "Event updated" : "Event created"} successfully!`,
-          newEvent: response.data,
-          ticketId: newTicketId,
-          formData: formData,
-        },
-      });
-    } catch (error) {
-      console.error("Error creating event:", error);
-      alert(
-        error.response?.data?.message ||
-          "Error creating event. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
+    const transformedDates = formData.event_dates.map((d) => ({
+      start_date: parseDate(d.date),
+      end_date: parseDate(d.endDate),
+      start_time: d.startTime,
+      end_time: d.endTime,
+    }));
+    const eventDateTypeMap = {
+      "Single day": "one-day",
+      "Multi days": "multi-day",
+      Weekly: "weekly",
+    };
+    const submitData = {
+      ...formData,
+      event_name: formData.event_name.trim(),
+      event_category: formData.event_category.trim(),
+      event_subcategory: formData.event_subcategory.trim(),
+      event_type: formData.event_type.trim(),
+      event_description: formData.event_description.trim(),
+      userId: "user_12345",
+      location_type: formData.location_type.trim(),
+      event_link: formData.event_link?.trim() || "",
+      location: formData.location?.trim() || "",
+      venue: formData.venue?.trim() || "",
+      event_language: [formData.event_language.trim()],
+      min_age_allowed: parseInt(formData.min_age_allowed.trim()),
+      event_dates: transformedDates,
+      event_date_type: eventDateTypeMap[formData.event_date_type] || "one-day",
+      gate_open_time: formData.gatesOpenEarly ? formData.gate_open_time?.trim() || "" : "",
+      exact_map_location: formData.exact_map_location?.latitude && formData.exact_map_location?.longitude
+        ? {
+            latitude: parseFloat(formData.exact_map_location.latitude),
+            longitude: parseFloat(formData.exact_map_location.longitude),
+            address: formData.exact_map_location.address,
+          }
+        : undefined,
+    };
+    // Pass the ticketId if in edit mode (from urlTicketId)
+    const response = await createTicketBasicInfo(submitData, urlTicketId || null);
+    const newTicketId = response.ticketId || response.data?.ticketId || response.data?._id || urlTicketId;
+    console.log("Navigating with groupId:", groupId, "and ticketId:", newTicketId);
+    // Clear storage only after successful save
+    clearFormDataFromStorage();
+    navigate(`/ticket/update-ticket-media/${newTicketId}`, {
+      state: {
+        message: `${isEditMode ? "Event updated" : "Event created"} successfully!`,
+        newEvent: response.data,
+        ticketId: newTicketId,
+        formData: formData,
+      },
+    });
+  } catch (error) {
+    console.error("Error creating event:", error);
+    alert(error.response?.data?.message || "Error creating event. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
   const handleBack = () => {
     clearFormDataFromStorage();
     navigate("/select-group");
   };
   const handleLocationInputChange = (e) => handleInputChange(e);
   const handleToggleChange = (name) =>
-    setFormData((prev) => ({ ...prev, [name]: !prev[name] }));
+  setFormData((prev) => ({ ...prev, [name]: !prev[name] }));
   const handleTagChange = (name, newTags) =>
     setFormData((prev) => ({ ...prev, [name]: newTags }));
+      const handleSelectChange = (selectedOption, { name }) => {
+        const value = selectedOption ? selectedOption.value : "";
+        setFormData((prev) => {
+            const newData = { ...prev, [name]: value };
+            if (name === "event_category") {
+                newData.event_subcategory = "";
+            }
+            return newData;
+        });
+    };
   const handleLocationTypeChange = (type) =>
     setFormData((prev) => ({ ...prev, location_type: type.toLowerCase() }));
   const handleDatesSave = (newDates, dateType) =>
@@ -2131,20 +2174,39 @@ const CreateTicket = () => {
     }));
   const handlePocChange = (e) =>
     setPoc({ ...poc, [e.target.name]: e.target.value });
-  const handleAddPoc = () => {
-    const isNameValid = poc.POC_name.trim() !== "";
-    const isEmailValid = poc.POC_email.trim() !== "";
-    const isContactValid = poc.POC_contact.trim() !== "";
-
-    if (isNameValid && isEmailValid && isContactValid) {
-      setFormData((prev) => ({ ...prev, POCS: [...prev.POCS, poc] }));
-      setPoc({ POC_name: "", POC_email: "", POC_contact: "" });
-    } else {
-      alert(
-        "Please fill in all Point of Contact fields: Name, Email, and Contact Number."
-      );
-    }
-  };
+    const handleAddPoc = () => {
+      // Trim input values once for consistency
+      const trimmedName = poc.POC_name.trim();
+      const trimmedEmail = poc.POC_email.trim();
+      const trimmedContact = poc.POC_contact.trim();
+  
+      // 1. Check for empty fields first
+      if (!trimmedName || !trimmedEmail || !trimmedContact) {
+        alert("Please fill in all Point of Contact fields: Name, Email, and Contact Number.");
+        return;
+      }
+  
+      // 2. Check for duplicate email
+      const isDuplicateEmail = formData.POCS.some(p => p.POC_email === trimmedEmail);
+      if (isDuplicateEmail) {
+        alert("This email address is already in use by another POC. Please use a different email.");
+        return;
+      }
+      // 3. Check for duplicate contact number
+      const isDuplicateContact = formData.POCS.some(p => p.POC_contact === trimmedContact);
+      if (isDuplicateContact) {
+        alert("This contact number is already in use by another POC. Please use a different number.");
+        return;
+      }
+      // If all checks pass, add the new POC
+      const newPoc = {
+        POC_name: trimmedName,
+        POC_email: trimmedEmail,
+        POC_contact: trimmedContact,
+      };
+      setFormData((prev) => ({ ...prev, POCS: [...prev.POCS, newPoc] }));
+      setPoc({ POC_name: "", POC_email: "", POC_contact: "" }); // Reset form
+    };
   const handleRemovePoc = (indexToRemove) => {
     setFormData((prev) => ({
       ...prev,
@@ -2156,7 +2218,6 @@ const CreateTicket = () => {
     if (e.target.files[0])
       setFormData((prev) => ({ ...prev, event_rules_file: e.target.files[0] }));
   };
-
   if (pageLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -2167,7 +2228,6 @@ const CreateTicket = () => {
       </div>
     );
   }
-
   if (!selectedGroup) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -2236,10 +2296,11 @@ const CreateTicket = () => {
       <div className={`${darkMode ? "dark" : ""}`}>
         <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
           <EventSidebar
-            darkMode={darkMode}
-            handleBack={handleBack}
-            progress={21}
-          />
+  darkMode={darkMode}         // dark theme boolean from your app state
+  currentStep={2}     // current step index (1-based)
+  isAddShowFlow={false} // true if Add Show path, else Banking & Tickets
+/>
+
           <main className="flex-1 relative p-4 sm:p-6 md:p-8 overflow-y-auto main-scrollbar">
             <div className="absolute top-6 right-6 z-10">
               <ThemeToggle
@@ -2317,59 +2378,20 @@ const CreateTicket = () => {
                         Event category<span className="text-red-400">*</span>
                         <InfoTooltip note="Helps attendees find your event." />
                       </label>
-                      <div className="relative">
-                        <select
-                          id="event_category"
-                          name="event_category"
-                          value={formData.event_category}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 bg-white dark:bg-gray-700 border rounded-lg text-gray-800 dark:text-gray-200 appearance-none focus:outline-none border-gray-300 dark:border-[#4A4A4A] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
-                        >
-                          <option className="dark:bg-gray-700" value="">
-                            Select your event category
-                          </option>
-                          <option
-                            className="dark:bg-gray-700"
-                            value="Technology"
-                          >
-                            Technology
-                          </option>
-                          <option className="dark:bg-gray-700" value="Music">
-                            Music
-                          </option>
-                          <option
-                            className="dark:bg-gray-700"
-                            value="Conference"
-                          >
-                            Conference
-                          </option>
-                          <option className="dark:bg-gray-700" value="Workshop">
-                            Workshop
-                          </option>
-                          <option className="dark:bg-gray-700" value="Sports">
-                            Sports
-                          </option>
-                          <option className="dark:bg-gray-700" value="Art">
-                            Art
-                          </option>
-                        </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M19 9l-7 7-7-7"
-                            ></path>
-                          </svg>
-                        </div>
-                      </div>
+                                        <div className="relative">
+                                            <Select
+                                                name="event_category"
+                                                options={categoryOptions}
+                                                value={categoryOptions.find(option => option.value === formData.event_category)}
+                                                onChange={handleSelectChange}
+                                                placeholder="Select category"
+                                                styles={customSelectStyles(darkMode)}
+                                                required
+                                            />
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                            </div>
+                                        </div>
                     </div>
                     <div>
                       <label
@@ -2380,16 +2402,17 @@ const CreateTicket = () => {
                         <span className="text-red-400">*</span>
                         <InfoTooltip note="Get more specific with your category." />
                       </label>
-                      <input
-                        id="event_subcategory"
-                        name="event_subcategory"
-                        type="text"
-                        value={formData.event_subcategory}
-                        onChange={handleInputChange}
-                        required
-                        placeholder="e.g., AI Conference"
-                        className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
-                      />
+                      {/* --- MODIFIED: Event Subcategory Dropdown --- */}
+                                            <Select
+                                                name="event_subcategory"
+                                                options={subCategoryOptions}
+                                                value={subCategoryOptions.find(option => option.value === formData.event_subcategory)}
+                                                onChange={handleSelectChange}
+                                                placeholder="Select subcategory"
+                                                styles={customSelectStyles(darkMode)}
+                                                isDisabled={!formData.event_category}
+                                                required
+                                            />   
                     </div>
                   </div>
                   <div>
@@ -2555,7 +2578,7 @@ const CreateTicket = () => {
                       <input
                         id="event_link"
                         name="event_link"
-                        type="url"
+                        type="text"
                         value={formData.event_link}
                         onChange={handleInputChange}
                         required
@@ -2578,57 +2601,16 @@ const CreateTicket = () => {
                         <InfoTooltip note="Select the primary language." />
                       </label>
                       <div className="relative">
-                        <select
-                          id="event_language"
-                          name="event_language"
-                          value={formData.event_language}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 bg-white dark:bg-gray-700 border rounded-lg text-gray-800 dark:text-gray-200 appearance-none border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
-                        >
-                          <option className="dark:bg-gray-700" value="">
-                            Select language
-                          </option>
-                          <option className="dark:bg-gray-700" value="English">
-                            English
-                          </option>
-                          <option
-                            className="dark:bg-gray-700"
-                            value="Malayalam"
-                          >
-                            Malayalam
-                          </option>
-                          <option className="dark:bg-gray-700" value="Hindi">
-                            Hindi
-                          </option>
-                          <option className="dark:bg-gray-700" value="Tamil">
-                            Tamil
-                          </option>
-                          <option className="dark:bg-gray-700" value="Telugu">
-                            Telugu
-                          </option>
-                          <option className="dark:bg-gray-700" value="Kannada">
-                            Kannada
-                          </option>
-                          <option className="dark:bg-gray-700" value="Bengali">
-                            Bengali
-                          </option>
-                          <option className="dark:bg-gray-700" value="Gujarati">
-                            Gujarati
-                          </option>
-                          <option className="dark:bg-gray-700" value="Marathi">
-                            Marathi
-                          </option>
-                          <option className="dark:bg-gray-700" value="Punjabi">
-                            Punjabi
-                          </option>
-                          <option className="dark:bg-gray-700" value="Urdu">
-                            Urdu
-                          </option>
-                          <option className="dark:bg-gray-700" value="Other">
-                            Other
-                          </option>
-                        </select>
+                        {/* --- MODIFIED: Event Language Dropdown --- */}
+                                                                <Select
+                                            name="event_language"
+                                            options={languageOptions}
+                                            value={languageOptions.find(option => option.value === formData.event_language)}
+                                            onChange={handleSelectChange}
+                                            placeholder="Select language"
+                                            styles={customSelectStyles(darkMode)}
+                                            required
+                                        />
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
                           <svg
                             className="w-5 h-5"
@@ -2656,33 +2638,16 @@ const CreateTicket = () => {
                         <InfoTooltip note="Select an age limit if applicable." />
                       </label>
                       <div className="relative">
-                        <select
-                          id="min_age_allowed"
-                          name="min_age_allowed"
-                          value={formData.min_age_allowed}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 bg-white dark:bg-gray-700 border rounded-lg text-gray-800 dark:text-gray-200 appearance-none border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
-                        >
-                          <option className="dark:bg-gray-700" value="">
-                            Select minimum age
-                          </option>
-                          <option className="dark:bg-gray-700" value="0">
-                            All ages
-                          </option>
-                          <option className="dark:bg-gray-700" value="13">
-                            13+
-                          </option>
-                          <option className="dark:bg-gray-700" value="16">
-                            16+
-                          </option>
-                          <option className="dark:bg-gray-700" value="18">
-                            18+
-                          </option>
-                          <option className="dark:bg-gray-700" value="21">
-                            21+
-                          </option>
-                        </select>
+                            <Select
+        name="min_age_allowed"
+        options={ageOptions}
+        value={ageOptions.find(option => option.value === formData.min_age_allowed)}
+        onChange={handleSelectChange}
+        placeholder="Select minimum age"
+        styles={customSelectStyles(darkMode)}
+        
+        required
+    />
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
                           <svg
                             className="w-5 h-5"
@@ -2712,33 +2677,16 @@ const CreateTicket = () => {
                         <InfoTooltip note="Specify the audience arrangement." />
                       </label>
                       <div className="relative">
-                        <select
-                          id="seating_arrangement"
-                          name="seating_arrangement"
-                          value={formData.seating_arrangement}
-                          onChange={handleInputChange}
-                          required={formData.location_type === "offline"}
-                          className="w-full px-4 py-3 bg-white dark:bg-gray-700 border rounded-lg text-gray-800 dark:text-gray-200 appearance-none border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
-                        >
-                          <option className="dark:bg-gray-700" value="">
-                            Select a type
-                          </option>
-                          <option className="dark:bg-gray-700" value="seated">
-                            Seated
-                          </option>
-                          <option className="dark:bg-gray-700" value="standing">
-                            Standing
-                          </option>
-                          <option
-                            className="dark:bg-gray-700"
-                            value="seated and standing"
-                          >
-                            Seated and Standing
-                          </option>
-                          <option className="dark:bg-gray-700" value="other">
-                            Other
-                          </option>
-                        </select>
+    <Select
+        name="seating_arrangement"
+        options={seatingOptions}
+        value={seatingOptions.find(option => option.value === formData.seating_arrangement)}
+        onChange={handleSelectChange}
+        placeholder="Select a type"
+        styles={customSelectStyles(darkMode)}
+        
+        required={formData.location_type === 'offline'}
+    />
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
                           <svg
                             className="w-5 h-5"
@@ -2783,7 +2731,7 @@ const CreateTicket = () => {
                       <input
                         id="event_instagram_link"
                         name="event_instagram_link"
-                        type="url"
+                        type="text"
                         value={formData.event_instagram_link}
                         onChange={handleInputChange}
                         placeholder="https://instagram.com/..."
@@ -2801,7 +2749,7 @@ const CreateTicket = () => {
                       <input
                         id="event_youtube_link"
                         name="event_youtube_link"
-                        type="url"
+                        type="text  "
                         value={formData.event_youtube_link}
                         onChange={handleInputChange}
                         placeholder="https://youtube.com/..."
@@ -2882,99 +2830,99 @@ const CreateTicket = () => {
                     </div>
                   )}
                   {formData.location_type === "offline" && (
-                        <div className="animate-fade-in">
-                          <div className="flex items-center justify-between pt-4">
-                            <span className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
-                              Does the gates open before event starting time?
-                            </span>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={formData.gatesOpenEarly}
-                                onChange={() => handleToggleChange("gatesOpenEarly")}
-                              />
-                              <div
-                                className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${
-                                  darkMode
-                                    ? "bg-gray-600 after:border-gray-500 peer-checked:bg-indigo-600"
-                                    : "bg-gray-200 after:border-gray-300 peer-checked:bg-indigo-500"
-                                }`}
-                              ></div>
-                            </label>
-                          </div>
-
-                          {formData.gatesOpenEarly && (
-                            <div>
-                              <label
-                                htmlFor="gate_open_time"
-                                className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                              >
-                                Time of gate opening?
-                                <span className="text-red-400">*</span>{" "}
-                                <InfoTooltip note="Set the time when gates will open." />
+                          <div className="animate-fade-in">
+                            <div className="flex items-center justify-between pt-4">
+                              <span className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Does the gates open before event starting time?
+                              </span>
+                              <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  className="sr-only peer"
+                                  checked={formData.gatesOpenEarly}
+                                  onChange={() => handleToggleChange("gatesOpenEarly")}
+                                />
+                                <div
+                                  className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${
+                                    darkMode
+                                      ? "bg-gray-600 after:border-gray-500 peer-checked:bg-indigo-600"
+                                      : "bg-gray-200 after:border-gray-300 peer-checked:bg-indigo-500"
+                                  }`}
+                                ></div>
                               </label>
-
-                              {/* Custom 12-hour time picker with placeholders */}
-                              <div className="flex gap-2">
-                                {/* Hour */}
-                                <select
-                                  id="gate_open_hour"
-                                  name="gate_open_hour"
-                                  value={formData.gate_open_hour || ""}
-                                  onChange={handleInputChange}
-                                  className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                                    ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
-                                >
-                                  <option value="" disabled>Hour</option>
-                                  {[...Array(12)].map((_, i) => {
-                                    const hour = i + 1;
-                                    return (
-                                      <option key={hour} value={hour}>
-                                        {hour}
-                                      </option>
-                                    );
-                                  })}
-                                </select>
-
-                                {/* Minute */}
-                                <select
-                                  id="gate_open_minute"
-                                  name="gate_open_minute"
-                                  value={formData.gate_open_minute || ""}
-                                  onChange={handleInputChange}
-                                  className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                                    ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
-                                >
-                                  <option value="" disabled>Minute</option>
-                                  {[...Array(60)].map((_, i) => {
-                                    const minute = i.toString().padStart(2, "0");
-                                    return (
-                                      <option key={minute} value={minute}>
-                                        {minute}
-                                      </option>
-                                    );
-                                  })}
-                                </select>
-
-                                {/* AM/PM */}
-                                <select
-                                  id="gate_open_ampm"
-                                  name="gate_open_ampm"
-                                  value={formData.gate_open_ampm || ""}
-                                  onChange={handleInputChange}
-                                  className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                                    ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
-                                >
-                                  <option value="" disabled>AM/PM</option>
-                                  <option value="AM">AM</option>
-                                  <option value="PM">PM</option>
-                                </select>
-                              </div>
                             </div>
-                          )}
-                        </div>
-                      )}
+
+                            {formData.gatesOpenEarly && (
+                              <div>
+                                <label
+                                  htmlFor="gate_open_time"
+                                  className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                                >
+                                  Time of gate opening?
+                                  <span className="text-red-400">*</span>{" "}
+                                  <InfoTooltip note="Set the time when gates will open." />
+                                </label>
+
+                                {/* Custom 12-hour time picker with placeholders */}
+                                <div className="flex gap-2">
+                                  {/* Hour */}
+                                  <select
+                                    id="gate_open_hour"
+                                    name="gate_open_hour"
+                                    value={formData.gate_open_hour || ""}
+                                    onChange={handleInputChange}
+                                    className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
+                                      ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
+                                  >
+                                    <option value="" disabled>Hour</option>
+                                    {[...Array(12)].map((_, i) => {
+                                      const hour = i + 1;
+                                      return (
+                                        <option key={hour} value={hour}>
+                                          {hour}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+
+                                  {/* Minute */}
+                                  <select
+                                    id="gate_open_minute"
+                                    name="gate_open_minute"
+                                    value={formData.gate_open_minute || ""}
+                                    onChange={handleInputChange}
+                                    className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
+                                      ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
+                                  >
+                                    <option value="" disabled>Minute</option>
+                                    {[...Array(60)].map((_, i) => {
+                                      const minute = i.toString().padStart(2, "0");
+                                      return (
+                                        <option key={minute} value={minute}>
+                                          {minute}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+
+                                  {/* AM/PM */}
+                                  <select
+                                    id="gate_open_ampm"
+                                    name="gate_open_ampm"
+                                    value={formData.gate_open_ampm || ""}
+                                    onChange={handleInputChange}
+                                    className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
+                                      ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
+                                  >
+                                    <option value="" disabled>AM/PM</option>
+                                    <option value="AM">AM</option>
+                                    <option value="PM">PM</option>
+                                  </select>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                 </div>
                 {/* --- GUESTS, RULES, ETC. --- */}
                 <div className="space-y-12">
@@ -3124,6 +3072,7 @@ const CreateTicket = () => {
                         className="w-full min-h-[120px] p-3 focus:outline-none resize-none text-left [direction:ltr]"
                       ></div>
                     </div>
+                    <p className="px-4">  or</p>
                     <div>
                       <label
                         htmlFor="rule-file-upload"
