@@ -99,7 +99,7 @@ const UpdateTicketMedia = () => {
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
     const [isExtraEventsModalOpen, setIsExtraEventsModalOpen] = useState(false);
-    
+    const [ticketData, setTicketData] = useState(null);
     const storageKey = `ticketMediaFormData_${ticketId}`;
 
     // Fetch user details to determine organization type
@@ -162,17 +162,23 @@ const UpdateTicketMedia = () => {
                     } 
                 });
                 setFormData(fd => ({...fd, ...newFormData}));
-            } else {
-                try {
-                    const response = await getTicketById(ticketId);
-                    const ticketData = response?.ticket;
-                    if (ticketData) {
-                        const getUrl = (path) => path ? `${process.env.TICKET_API_BASE_URL}/${path.replace(/\\/g, '/')}` : null;
+            }
+            
+            // Always fetch ticket data to get groupId
+            try {
+                const response = await getTicketById(ticketId);
+                const ticket = response?.ticket;
+                if (ticket) {
+                    setTicketData(ticket); // Store the ticket data
+                    
+                    // Only set media if not loaded from session storage
+                    if (!loadedPreviews) {
+                        const getUrl = (path) => path ? `${import.meta.env.VITE_TICKET_API_BASE_URL}/${path.replace(/\\/g, '/')}` : null;
                         const serverMedia = { 
-                            event_logo: getUrl(ticketData.event_logo), 
-                            event_banner: getUrl(ticketData.event_banner), 
-                            college_authorisation: ticketData.college_authorisation, 
-                            event_images: (ticketData.event_images || []).map(img => ({ 
+                            event_logo: getUrl(ticket.event_logo), 
+                            event_banner: getUrl(ticket.event_banner), 
+                            college_authorisation: ticket.college_authorisation, 
+                            event_images: (ticket.event_images || []).map(img => ({ 
                                 id: img.path, 
                                 preview: getUrl(img.path), 
                                 name: img.originalName, 
@@ -182,10 +188,11 @@ const UpdateTicketMedia = () => {
                         setPreviews(serverMedia);
                         setExistingMedia(serverMedia);
                     }
-                } catch (error) { 
-                    console.error("Failed to fetch media:", error); 
                 }
+            } catch (error) { 
+                console.error("Failed to fetch ticket data:", error); 
             }
+            
             setInitialLoading(false);
         };
 
@@ -360,12 +367,16 @@ const UpdateTicketMedia = () => {
             }));
         }
     };
-
     const handleBack = useCallback(() => {
         sessionStorage.removeItem(storageKey);
-        navigate(`/create-ticket/basic-info/${ticketId}`);
-    }, [navigate, ticketId, storageKey]);
-
+        if (ticketData?.groupId) {
+            navigate(`/ticket/create-event/${ticketData.groupId}/${ticketId}`);
+        } else {
+            // Fallback: try to navigate without groupId (will use the alternate route)
+            console.warn('No groupId found, navigating with ticketId only');
+            navigate(`/ticket/create-event/${ticketId}`);
+        }
+    }, [navigate, ticketId, storageKey, ticketData]);
     const validateForm = () => {
         const newErrors = {};
         
