@@ -743,12 +743,19 @@ export const resetPassword = async (req, res) => {
 };
 export const findAllActiveUsers = async (req, res) => {
   try {
-    // Get only active users, exclude password
-    const users = await User.find({ status: 'active' })
+    if (!req.user) {
+      return res.status(401).json({
+        message: "Unauthorized. User authentication required."
+      });
+    }
+    const userId = req.user._id || req.user.id;
+    const users = await User.find({ 
+      status: 'active',
+      _id: { $ne: userId } // Exclude current user
+    })
       .select('-password -__v')
       .sort({ createdAt: -1 })
       .lean();
-    // Format response to match your schema structure
     const formattedUsers = users.map(user => ({
       _id: user._id,
       name: user.name,
@@ -763,7 +770,7 @@ export const findAllActiveUsers = async (req, res) => {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     }));
-
+    
     res.status(200).json({
       message: "Active users retrieved successfully",
       users: formattedUsers,
@@ -779,7 +786,6 @@ export const findAllActiveUsers = async (req, res) => {
 };
 export const editProfile = async (req, res) => {
   try {
-    // Handle file upload first
     await new Promise((resolve, reject) => {
       upload.fields([
         { name: 'image', maxCount: 1 },
@@ -816,9 +822,7 @@ export const editProfile = async (req, res) => {
       gender: user.gender,
       organisation_type: user.organisation_type
     };
-
     // Common fields for both admin and organisation
-    
     // Update name if provided and valid
     if (req.body.name !== undefined) {
       if (req.body.name.trim() && validateName(req.body.name)) {
@@ -828,7 +832,6 @@ export const editProfile = async (req, res) => {
         user.name = originalValues.name;
       }
     }
-    // Update contact_no if provided and valid
     if (req.body.contact_no !== undefined) {
       if (req.body.contact_no.trim() && validateContactNo(req.body.contact_no)) {
         user.contact_no = req.body.contact_no.trim();
@@ -883,7 +886,6 @@ export const editProfile = async (req, res) => {
           user.organisation_type = originalValues.organisation_type;
         }
       }
-
       // Update website if provided
       if (req.body.website !== undefined) {
         user.website = req.body.website.trim() || originalValues.website;
@@ -904,7 +906,6 @@ export const editProfile = async (req, res) => {
         }
       }
     }
-
     // Handle image upload
     if (req.files && req.files.image && req.files.image[0]) {
       user.image = req.files.image[0].filename;
