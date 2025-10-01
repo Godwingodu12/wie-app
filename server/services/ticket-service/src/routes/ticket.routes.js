@@ -1,7 +1,7 @@
 import express from 'express';
 import {getUserData,CreateGroup, createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
 getTicketById,deleteTicket,viewTickets } from '../services/ticket.service.js';
-import { getGroupsTypes,getTicketSubEvents,getGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getOthersEvents,getOtherLiveEvents,getOthersPastEvents,getGroupStatistics } from '../controller/ticket.controller.js';
+import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getOthersEvents,getOtherLiveEvents,getOthersPastEvents,getGroupStatistics } from '../controller/ticket.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);
@@ -12,6 +12,7 @@ router.get('/get-groups', getGroups);
 router.get('/user-group-capabilities', getUserGroupCapabilities);
 router.post('/update-ticket-media/:ticketId', updateTicketMedia);
 router.post('/ticket-addons/:ticketId', updateTicketAddOns);
+router.put('/update-sub-event/:ticketId/:subEventId', updateSubEvent);
 router.post('/update-ticket-details/:ticketId', updateTicketDetails);
 router.post('/ticket-terms/:ticketId', updateTicketTerms);
 router.post('/submit-ticket/:ticketId', submitTicket);
