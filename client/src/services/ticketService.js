@@ -65,7 +65,15 @@ export const updateTicketAddOns = async (ticketId, formData) => {
   } catch (error) {
     throw error;
   }
-}
+};
+export const updateSubEvent = async (ticketId, subEventId, formData) => {
+  try {
+    const response = await api.put(`/ticket/update-sub-event/${ticketId}/${subEventId}`, formData);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
 export const updateTicketDetails = async (ticketId,apiFormData) => {
   try {
     const response = await api.post(`/ticket/update-ticket-details/${ticketId}`, apiFormData);
