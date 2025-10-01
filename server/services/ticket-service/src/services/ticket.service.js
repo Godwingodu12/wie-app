@@ -437,9 +437,8 @@ export const createTicketBasicInfo = async (req, res) => {
 
     // Get IDs
     const groupId = req.params.groupId || bodyGroupId;
+    const ticketId = req.params.ticketId;
     const userId = req.user?._id || req.user?.id;
-
-    // Validate groupId format
     if (!groupId || !groupId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({ 
         message: "Invalid group ID format. Please provide a valid MongoDB ObjectId.",
@@ -603,10 +602,6 @@ export const createTicketBasicInfo = async (req, res) => {
         message: "event_dates is required"
       });
     }
-
-    // ===== COMPREHENSIVE DUPLICATE VALIDATION =====
-    
-    // Helper function to normalize strings for comparison
     const normalizeString = (str) => {
       if (!str) return '';
       return str.toLowerCase().trim().replace(/\s+/g, ' ');
@@ -635,18 +630,19 @@ export const createTicketBasicInfo = async (req, res) => {
 
     // Build duplicate check query based on location type
     let duplicateCheckQuery = {
-      userId: userId, // Only check within the same user's events
-      event_status: { $ne: 'cancelled' }, // Exclude cancelled events
+      userId: userId,
+      event_status: { $ne: 'cancelled' },
       $and: [
         {
-          // Case-insensitive event name comparison
           event_name: { 
             $regex: new RegExp(`^${normalizedEventName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') 
           }
         }
       ]
     };
-
+    if (ticketId) {
+      duplicateCheckQuery._id = { $ne: ticketId };
+    }
     // Location-specific duplicate checks
     if (location_type === 'offline') {
       // For offline events: check location + venue combination
@@ -752,10 +748,6 @@ export const createTicketBasicInfo = async (req, res) => {
         conflicts: internalConflicts
       });
     }
-
-    // ===== END DUPLICATE VALIDATION =====
-
-    // Base required fields for all location types
     const baseRequiredFields = [
       { key: 'event_name', value: event_name },
       { key: 'event_category', value: event_category },
@@ -962,8 +954,8 @@ export const createTicketBasicInfo = async (req, res) => {
     }
 
     // Create ticket data object with location-type specific fields
+    let ticket;
     const ticketData = {
-      // Basic Information
       event_name: event_name.trim(),
       event_category: event_category.trim(),
       event_subcategory: event_subcategory?.trim() || '',
@@ -1007,7 +999,7 @@ export const createTicketBasicInfo = async (req, res) => {
         additional_info: false
       }
     };
-
+    
     // Add location-type specific fields
     if (location_type === 'offline') {
       ticketData.seating_arrangement = seating_arrangement || 'other';
@@ -1044,20 +1036,42 @@ export const createTicketBasicInfo = async (req, res) => {
         content: event_rules_text.trim()
       };
     }
-
     // Create and save ticket
-    const newTicket = new Ticket(ticketData);
-    await newTicket.save();
+      if (ticketId) {
+        ticket = await Ticket.findById(ticketId);
+        if (!ticket) {
+          return res.status(404).json({ 
+            message: "Ticket not found" 
+          });
+      }
+      // Verify ownership
+      if (ticket.userId.toString() !== userId.toString()) {
+        return res.status(403).json({ 
+          message: "You don't have permission to update this ticket" 
+        });
+      }
+      // Update ticket fields
+      Object.assign(ticket, ticketData);
+      ticket.updated_by = userId;
+      ticket.updated_at = new Date();
+      await ticket.save();
+      const responseMessage = "Event updated successfully";
+    } else {
+      // CREATE new ticket
+      ticket = new Ticket(ticketData);
+      await ticket.save();
+      var responseMessage = "Event created successfully";
+    }
 
     // Success response with location-type specific information
     const responseData = {
       message: "Event created successfully", 
-      ticket: newTicket,
-      ticketId: newTicket._id,
+      ticket: ticket,
+      ticketId: ticket._id,
       userId,
       groupId,
       location_type: location_type,
-      formProgress: newTicket.form_progress,
+      formProgress: ticket.form_progress,
       uploadedFiles: {
         guest_profiles: Object.keys(guestProfileFiles).length,
         event_rules: eventRulesFiles.length
@@ -1071,15 +1085,15 @@ export const createTicketBasicInfo = async (req, res) => {
     // Add location-specific response information
     if (location_type === 'offline') {
       responseData.offline_fields = {
-        seating_arrangement: newTicket.seating_arrangement,
-        location: newTicket.location,
-        venue: newTicket.venue,
-        has_map_location: Object.keys(newTicket.exact_map_location || {}).length > 0
+        seating_arrangement: ticket.seating_arrangement,
+        location: ticket.location,
+        venue: ticket.venue,
+        has_map_location: Object.keys(ticket.exact_map_location || {}).length > 0
       };
     } else if (location_type === 'online' || location_type === 'recorded') {
       responseData.online_fields = {
-        event_link: newTicket.event_link,
-        verification_code: newTicket.verification_event_code || 'Not provided'
+        event_link: ticket.event_link,
+        verification_code: ticket.verification_event_code || 'Not provided'
       };
     }
     res.status(201).json(responseData);
