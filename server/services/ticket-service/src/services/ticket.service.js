@@ -1595,7 +1595,6 @@ export const updateTicketAddOns = async (req, res) => {
           : ""
       });
     }
-
     // Parse nested arrays from request body early for duplication check
     const parseNestedData = (data, fieldName) => {
       if (!data) return [];
@@ -1627,7 +1626,6 @@ export const updateTicketAddOns = async (req, res) => {
         const newStartDate = newEventDate.start_date;
         const newStartTime = newEventDate.start_time;
         const newEndTime = newEventDate.end_time;
-
         // Find duplicate sub-events
         const duplicateSubEvent = existingTicket.sub_events.find(existingSubEvent => {
           // Check if event names match (case-insensitive)
@@ -2060,7 +2058,7 @@ export const updateTicketAddOns = async (req, res) => {
     // Add location-type specific fields with proper validation
     if (subEventData.location_type === 'offline') {
       // Offline-specific fields
-      newSubEvent.seating_arrangement = String(subEventData.seating_arrangement || '');
+      newSubEvent.seating_arrangement = String(subEventData.seating_arrangement || 'none');
       newSubEvent.location = String(subEventData.location || '').trim();
       newSubEvent.venue = String(subEventData.venue || '').trim();
       
@@ -2089,20 +2087,19 @@ export const updateTicketAddOns = async (req, res) => {
       // Online/recorded-specific fields
       newSubEvent.event_link = String(subEventData.event_link || '').trim();
       newSubEvent.verification_event_code = String(subEventData.verification_event_code || '').trim();
-      
       // Explicitly set offline fields to appropriate values
-      newSubEvent.seating_arrangement = '';
-      newSubEvent.location = '';
-      newSubEvent.venue = '';
+      newSubEvent.seating_arrangement = undefined;
+      newSubEvent.location = undefined;
+      newSubEvent.venue = undefined;
       newSubEvent.exact_map_location = {
         latitude: undefined,
         longitude: undefined,
-        address: ''
+        address: undefined
       };
-      newSubEvent.gate_open_time = '';
+      newSubEvent.gate_open_time = undefined;
       newSubEvent.prohibited_items = [];
       newSubEvent.ticket_types = [];
-      newSubEvent.ticket_layout = '';
+      newSubEvent.ticket_layout = undefined;
     }
 
     // Handle event_rules with proper structure
