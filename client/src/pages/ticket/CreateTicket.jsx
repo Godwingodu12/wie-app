@@ -2020,157 +2020,118 @@ const CreateTicket = () => {
     });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.groupId) {
-      alert("Group ID is missing. Please select a group first.");
-      navigate("/select-group");
-      return;
-    } 
-    
-    // --- MODIFIED: URL Validation to allow for missing "https://" ---
-const youtubeRegex = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
-    if (
-      formData.event_youtube_link &&
-      !youtubeRegex.test(formData.event_youtube_link)
-    ) {
-      alert(
-        "Invalid YouTube URL. Please use a valid format like 'youtube.com/watch?v=VIDEO_ID'"
-      );
-      return;
-    }
-
-    const instagramRegex = /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
-    if (
-      formData.event_instagram_link &&
-      !instagramRegex.test(formData.event_instagram_link)
-    ) {
-      alert(
-        "Invalid Instagram URL. Please enter a valid profile link, like 'instagram.com/username'"
-      );
-      return;
-    }  
-    // --- END OF MODIFICATION ---
-
-    const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = formData.event_description || "";
-    const descriptionText = (tempDiv.textContent || tempDiv.innerText).trim();
-    const requiredFields = {
-      event_name: formData.event_name?.trim(),
-      event_category: formData.event_category?.trim(),
-      event_subcategory: formData.event_subcategory?.trim(),
-      event_type: formData.event_type?.trim(),
-      event_language: formData.event_language?.trim(),
-      location_type: formData.location_type?.trim(),
-      event_dates: formData.event_dates,
-      event_description: descriptionText,
-      min_age_allowed: formData.min_age_allowed?.trim(),
-    };
-    const missingFields = Object.entries(requiredFields)
-      .filter(
-        ([_, value]) => !value || (Array.isArray(value) && value.length === 0)
-      )
-      .map(([key, _]) => key.replace(/_/g, " "));
-    if (missingFields.length > 0) {
-      alert(
-        `Please fill in the following required fields: ${missingFields.join(
-          ", "
-        )}`
-      );
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const parseDate = (dateValue) => {
-        if (!dateValue) return null;
-        if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-          return dateValue;
-        }
-        const date = new Date(dateValue);
-        return date.toISOString().split('T')[0];
-      };
-
-      const transformedDates = formData.event_dates.map((d) => ({
-        start_date: parseDate(d.date),
-        end_date: parseDate(d.endDate),
-        start_time: d.startTime,
-        end_time: d.endTime,
-      }));
-
-      const eventDateTypeMap = {
-        "Single day": "one-day",
-        "Multi days": "multi-day",
-        Weekly: "weekly",
-      };
-
-      const submitData = {
-        ...formData,
-        event_name: formData.event_name.trim(),
-        event_category: formData.event_category.trim(),
-        event_subcategory: formData.event_subcategory.trim(),
-        event_type: formData.event_type.trim(),
-        event_description: formData.event_description.trim(),
-        userId: "user_12345", 
-        location_type: formData.location_type.trim(),
-        event_link: formData.event_link?.trim() || "",
-        location: formData.location?.trim() || "",
-        venue: formData.venue?.trim() || "",
-        event_language: [formData.event_language.trim()],
-        min_age_allowed: parseInt(formData.min_age_allowed.trim()),
-        event_dates: transformedDates,
-        event_date_type:
-          eventDateTypeMap[formData.event_date_type] || "one-day",
-        gate_open_time: formData.gatesOpenEarly
-          ? formData.gate_open_time?.trim() || ""
-          : "",
-        exact_map_location:
-          formData.exact_map_location?.latitude &&
-          formData.exact_map_location?.longitude
-            ? {
-                latitude: parseFloat(formData.exact_map_location.latitude),
-                longitude: parseFloat(formData.exact_map_location.longitude),
-                address: formData.exact_map_location.address,
-              }
-            : undefined,
-      };
-
-      const response = await createTicketBasicInfo(submitData);
-      const newTicketId = response.ticketId || response.data?.ticketId || response.data?._id;
-      const groupId = formData.groupId;
-      console.log(
-        "Navigating with groupId:",
-        groupId,
-        "and ticketId:",
-        newTicketId
-      );
-
-      navigate(`/ticket/update-ticket-media/${newTicketId}`, {
-        state: {
-          message: `${isEditMode ? "Event updated" : "Event created"} successfully!`,
-          newEvent: response.data,
-          ticketId: newTicketId,
-          formData: formData,
-        },
-      });
-    } catch (error) {
-      console.error("Error creating event:", error);
-      alert(
-        error.response?.data?.message ||
-          "Error creating event. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!formData.groupId) {
+    alert("Group ID is missing. Please select a group first.");
+    navigate("/select-group");
+    return;
+  }
+  const youtubeRegex = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
+  if (formData.event_youtube_link && !youtubeRegex.test(formData.event_youtube_link)) {
+    alert("Invalid YouTube URL. Please use a valid format like 'youtube.com/watch?v=VIDEO_ID'");
+    return;
+  }
+  const instagramRegex = /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
+  if (formData.event_instagram_link && !instagramRegex.test(formData.event_instagram_link)) {
+    alert("Invalid Instagram URL. Please enter a valid profile link, like 'instagram.com/username'");
+    return;
+  }
+  const tempDiv = document.createElement("div");
+  tempDiv.innerHTML = formData.event_description || "";
+  const descriptionText = (tempDiv.textContent || tempDiv.innerText).trim();
+  const requiredFields = {
+    event_name: formData.event_name?.trim(),
+    event_category: formData.event_category?.trim(),
+    event_subcategory: formData.event_subcategory?.trim(),
+    event_type: formData.event_type?.trim(),
+    event_language: formData.event_language?.trim(),
+    location_type: formData.location_type?.trim(),
+    event_dates: formData.event_dates,
+    event_description: descriptionText,
+    min_age_allowed: formData.min_age_allowed?.trim(),
   };
-
+  const missingFields = Object.entries(requiredFields)
+    .filter(([_, value]) => !value || (Array.isArray(value) && value.length === 0))
+    .map(([key, _]) => key.replace(/_/g, " "));
+  if (missingFields.length > 0) {
+    alert(`Please fill in the following required fields: ${missingFields.join(", ")}`);
+    return;
+  }
+  setLoading(true);
+  try {
+    const parseDate = (dateValue) => {
+      if (!dateValue) return null;
+      if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return dateValue;
+      }
+      const date = new Date(dateValue);
+      return date.toISOString().split('T')[0];
+    };
+    const transformedDates = formData.event_dates.map((d) => ({
+      start_date: parseDate(d.date),
+      end_date: parseDate(d.endDate),
+      start_time: d.startTime,
+      end_time: d.endTime,
+    }));
+    const eventDateTypeMap = {
+      "Single day": "one-day",
+      "Multi days": "multi-day",
+      Weekly: "weekly",
+    };
+    const submitData = {
+      ...formData,
+      event_name: formData.event_name.trim(),
+      event_category: formData.event_category.trim(),
+      event_subcategory: formData.event_subcategory.trim(),
+      event_type: formData.event_type.trim(),
+      event_description: formData.event_description.trim(),
+      userId: "user_12345",
+      location_type: formData.location_type.trim(),
+      event_link: formData.event_link?.trim() || "",
+      location: formData.location?.trim() || "",
+      venue: formData.venue?.trim() || "",
+      event_language: [formData.event_language.trim()],
+      min_age_allowed: parseInt(formData.min_age_allowed.trim()),
+      event_dates: transformedDates,
+      event_date_type: eventDateTypeMap[formData.event_date_type] || "one-day",
+      gate_open_time: formData.gatesOpenEarly ? formData.gate_open_time?.trim() || "" : "",
+      exact_map_location: formData.exact_map_location?.latitude && formData.exact_map_location?.longitude
+        ? {
+            latitude: parseFloat(formData.exact_map_location.latitude),
+            longitude: parseFloat(formData.exact_map_location.longitude),
+            address: formData.exact_map_location.address,
+          }
+        : undefined,
+    };
+    // Pass the ticketId if in edit mode (from urlTicketId)
+    const response = await createTicketBasicInfo(submitData, urlTicketId || null);
+    const newTicketId = response.ticketId || response.data?.ticketId || response.data?._id || urlTicketId;
+    console.log("Navigating with groupId:", groupId, "and ticketId:", newTicketId);
+    // Clear storage only after successful save
+    clearFormDataFromStorage();
+    navigate(`/ticket/update-ticket-media/${newTicketId}`, {
+      state: {
+        message: `${isEditMode ? "Event updated" : "Event created"} successfully!`,
+        newEvent: response.data,
+        ticketId: newTicketId,
+        formData: formData,
+      },
+    });
+  } catch (error) {
+    console.error("Error creating event:", error);
+    alert(error.response?.data?.message || "Error creating event. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
   const handleBack = () => {
     clearFormDataFromStorage();
     navigate("/select-group");
   };
   const handleLocationInputChange = (e) => handleInputChange(e);
   const handleToggleChange = (name) =>
-    setFormData((prev) => ({ ...prev, [name]: !prev[name] }));
+  setFormData((prev) => ({ ...prev, [name]: !prev[name] }));
   const handleTagChange = (name, newTags) =>
     setFormData((prev) => ({ ...prev, [name]: newTags }));
       const handleSelectChange = (selectedOption, { name }) => {
@@ -2213,7 +2174,6 @@ const youtubeRegex = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\
     }));
   const handlePocChange = (e) =>
     setPoc({ ...poc, [e.target.name]: e.target.value });
-  
     const handleAddPoc = () => {
       // Trim input values once for consistency
       const trimmedName = poc.POC_name.trim();
@@ -2232,14 +2192,12 @@ const youtubeRegex = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\
         alert("This email address is already in use by another POC. Please use a different email.");
         return;
       }
-  
       // 3. Check for duplicate contact number
       const isDuplicateContact = formData.POCS.some(p => p.POC_contact === trimmedContact);
       if (isDuplicateContact) {
         alert("This contact number is already in use by another POC. Please use a different number.");
         return;
       }
-  
       // If all checks pass, add the new POC
       const newPoc = {
         POC_name: trimmedName,
@@ -2249,7 +2207,6 @@ const youtubeRegex = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\
       setFormData((prev) => ({ ...prev, POCS: [...prev.POCS, newPoc] }));
       setPoc({ POC_name: "", POC_email: "", POC_contact: "" }); // Reset form
     };
-
   const handleRemovePoc = (indexToRemove) => {
     setFormData((prev) => ({
       ...prev,
@@ -2261,7 +2218,6 @@ const youtubeRegex = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\
     if (e.target.files[0])
       setFormData((prev) => ({ ...prev, event_rules_file: e.target.files[0] }));
   };
-
   if (pageLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -2272,7 +2228,6 @@ const youtubeRegex = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\
       </div>
     );
   }
-
   if (!selectedGroup) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
