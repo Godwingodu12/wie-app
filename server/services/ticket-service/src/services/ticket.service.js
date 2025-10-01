@@ -221,9 +221,6 @@ export const CreateGroup = async (req, res) => {
       if (!address) {
         return res.status(400).json({ message: "Address is required" });
       }
-      // Additional validation for non-Educational organisations
-      // Use organisation_type (from req.body.organisation_type) to check if Educational
-      // Make case-insensitive comparison
       if (organisation_type.toLowerCase() !== 'educational') {
         if (!gst_no) {
           return res.status(400).json({ 
@@ -2510,24 +2507,25 @@ export const updateTicketDetails = async (req, res) => {
     let finalBankingDetails = [];
 
     if (use_group_bank_account === 'true') {
-      // Use group bank account
-      if (!GroupBank.bank_acc_no || !GroupBank.bank_ifsc || !GroupBank.bank_acc_holder || !GroupBank.bank_acc_type) {
+      // Use group bank account - CHECK FOR primary_ PREFIXED FIELDS
+      if (!GroupBank.primary_bank_acc_no || !GroupBank.primary_bank_ifsc || 
+          !GroupBank.primary_bank_acc_holder || !GroupBank.primary_bank_acc_type) {
         return res.status(400).json({ 
           message: "Group banking details are incomplete. Please update your group banking details before proceeding",
           missingFields: {
-            bank_acc_no: !GroupBank.bank_acc_no,
-            bank_ifsc: !GroupBank.bank_ifsc,
-            bank_acc_holder: !GroupBank.bank_acc_holder,
-            bank_acc_type: !GroupBank.bank_acc_type
+            bank_acc_no: !GroupBank.primary_bank_acc_no,
+            bank_ifsc: !GroupBank.primary_bank_ifsc,
+            bank_acc_holder: !GroupBank.primary_bank_acc_holder,
+            bank_acc_type: !GroupBank.primary_bank_acc_type
           }
         });
       }
 
       finalBankingDetails = [{
-        bank_acc_type: String(GroupBank.bank_acc_type),
-        bank_acc_no: String(GroupBank.bank_acc_no),
-        bank_ifsc: String(GroupBank.bank_ifsc),
-        bank_acc_holder: String(GroupBank.bank_acc_holder),
+        bank_acc_type: String(GroupBank.primary_bank_acc_type),
+        bank_acc_no: String(GroupBank.primary_bank_acc_no),
+        bank_ifsc: String(GroupBank.primary_bank_ifsc),
+        bank_acc_holder: String(GroupBank.primary_bank_acc_holder),
         is_group_account: true
       }];
     } else {
@@ -2662,8 +2660,8 @@ export const updateTicketDetails = async (req, res) => {
     // Add banking details info to response (without sensitive data)
     if (use_group_bank_account === 'true') {
       responseData.group_bank_info = {
-        account_holder: GroupBank.bank_acc_holder,
-        account_type: GroupBank.bank_acc_type,
+        account_holder: GroupBank.primary_bank_acc_holder,
+        account_type: GroupBank.primary_bank_acc_type,
         bank_name: GroupBank.bank_name || 'Not specified'
       };
     } else {
@@ -2767,7 +2765,6 @@ export const updateTicketDetails = async (req, res) => {
         error: "Ticket details with similar data already exists"
       });
     }
-
     res.status(500).json({ 
       message: "Internal server error", 
       error: error.message,
