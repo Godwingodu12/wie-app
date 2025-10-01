@@ -64,13 +64,23 @@ const subEventSchema = new mongoose.Schema({
     type: String, 
     enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other']
   }],
-  location_type: {type: String, enum: ['offline', 'online', 'recorded'], required: true},
+  location: { 
+    type: String, 
+    required: function() { return this.location_type === 'offline'; } 
+  },
+  venue: { 
+      type: String, 
+      required: function() { return this.location_type === 'offline'; } 
+  },
+  seating_arrangement: { 
+      type: String, 
+      default: 'none', 
+      enum: ['seated', 'standing','seated and standing','other','none'],
+      required: function() { return this.location_type === 'offline'; }
+  },
   min_age_allowed: { type: Number, required: true },
-  seating_arrangement: { type: String, default: false, enum: ['seated', 'standing','seated and standing','other']},
   kids_friendly: { type: Boolean, default: false },
   pet_friendly: { type: Boolean, default: false },
-  location: { type: String, required: true },
-  venue: { type: String, required: true },
   exact_map_location: {
     latitude: { type: Number },
     longitude: { type: Number },
@@ -167,7 +177,6 @@ const ticketSchema = new mongoose.Schema({
     longitude: { type: Number },
     address: { type: String }
   },
-  
   // Date and Time
   event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: true },
   event_dates: [ticketdateSchema],
@@ -230,7 +239,7 @@ const ticketSchema = new mongoose.Schema({
   //ticket offer or bulk booking
   event_ticket_offer: { type: Boolean, default: false },
   offerTickets: [offerTicketSchema],
-  sub_events: [subEventSchema], // Array of sub-events (add-on events)
+  sub_events: [subEventSchema],
   // References
   groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'CreateGroup', required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
