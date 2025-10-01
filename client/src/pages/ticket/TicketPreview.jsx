@@ -13,7 +13,8 @@ const HeartIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w
 const ShareIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12s-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.368a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" /></svg>;
 const EnlargeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 1v4m0 0h-4m4 0l-5-5" /></svg>;
 const CakeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 3.5a1.5 1.5 0 013 0V5h2.25a.75.75 0 010 1.5H11v3.75a.75.75 0 01-1.5 0V6.5H8V8a.75.75 0 01-1.5 0V6.5H5.25a.75.75 0 010-1.5H7.5V3.5zM3 9.75a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75zM3 13.25a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75z" clipRule="evenodd" /><path d="M5 16.5a1 1 0 00-1 1v.25a.75.75 0 001.5 0V17.5a1 1 0 00-1-1zM15 16.5a1 1 0 00-1 1v.25a.75.75 0 001.5 0V17.5a1 1 0 00-1-1z" /></svg>;
-
+const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
+console.log("API Base URL:", API_BASE_URL); 
 const TicketPreview = () => {
     const { ticketId } = useParams();
     
@@ -32,8 +33,16 @@ const TicketPreview = () => {
             }
             try {
                 setLoading(true);
-                const data = await getTicketById(ticketId);
-                setEventData(data);
+                const response = await getTicketById(ticketId);
+                const ticketInfo = response?.ticket || response?.data?.ticket || response?.data || response;
+                
+                if (!ticketInfo || !ticketInfo._id) {
+                     throw new Error("Ticket data not found in the API response.");
+                }
+                console.log(ticketInfo)
+
+                setEventData(ticketInfo);
+                
             } catch (err) {
                 console.error("API call failed:", err);
                 setError(err.message || 'Failed to fetch event data.');
@@ -46,15 +55,13 @@ const TicketPreview = () => {
         window.scrollTo(0, 0);
     }, [ticketId]);
 
-    const subEvents = useMemo(() => eventData?.sub_events || [], [eventData]);
+const subEvents = useMemo(() => eventData?.sub_events || [], [eventData]);
 
-    const tabs = ['About & Dates', 'Event guidelines', 'Artists', 'Photos', 'Hashtags', 'Additional info'];
-    
-    const activeTabStyle = { background: 'linear-gradient(270deg, rgba(36, 158, 255, 0.8) -8.43%, rgba(255, 255, 255, 0.8) 171.23%)' };
-    const boxStyle = { background: 'linear-gradient(133.41deg, rgba(41, 121, 255, 0.1) -14.78%, rgba(185, 208, 247, 0.05) 100%)' };
-    const selectedDateStyle = { background: 'linear-gradient(147.67deg, #2979FF 13.16%, #9DC1FF 100.03%)' };
-
-    const fullDescription = useMemo(() => eventData?.event_description?.split('\n') || [], [eventData]);
+ const tabs = ['About & Dates', 'Event guidelines', 'Artists', 'Photos', 'Hashtags', 'Additional info'];
+ const activeTabStyle = { background: 'linear-gradient(270deg, rgba(36, 158, 255, 0.8) -8.43%, rgba(255, 255, 255, 0.8) 171.23%)' };
+const boxStyle = { background: 'linear-gradient(133.41deg, rgba(41, 121, 255, 0.1) -14.78%, rgba(185, 208, 247, 0.05) 100%)' };
+const selectedDateStyle = { background: 'linear-gradient(147.67deg, #2979FF 13.16%, #9DC1FF 100.03%)' };
+ const fullDescription = useMemo(() => eventData?.event_description?.split('\n') || [], [eventData]);
     const truncatedDescription = useMemo(() => fullDescription.slice(0, 2), [fullDescription]);
     
     const eventDatesWithEvents = useMemo(() => new Set(subEvents.map(e => e.event_dates?.[0]?.start_date).filter(Boolean)), [subEvents]);
@@ -176,7 +183,8 @@ const TicketPreview = () => {
                             <div className="flex gap-4">
                                 {eventData.guests.map(guest => (
                                     <div key={guest.guest_name} className="text-center">
-                                        <img src={guest.guest_profile} alt={guest.guest_name} className="w-24 h-24 rounded-full object-cover mx-auto mb-2 border-2 border-gray-600"/>
+                                        <img src={`${API_BASE_URL}/${guest.guest_profile?.replace(/\\/g, '/')}`} alt={guest.guest_name} className="w-24 h-24 rounded-full object-cover mx-auto mb-2 border-2 border-gray-600"/>
+                                        
                                         <p className="font-semibold text-white">{guest.guest_name}</p>
                                         <a href={guest.guest_link} className="text-xs text-blue-400 hover:underline">View Profile</a>
                                     </div>
@@ -194,7 +202,7 @@ const TicketPreview = () => {
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                 {eventData.event_images.map((image, index) => (
                                     <div key={index} className="aspect-square rounded-lg overflow-hidden">
-                                        <img src={image.path} alt={`Event gallery ${index + 1}`} className="w-full h-full object-cover"/>
+                                        <img src={`${API_BASE_URL}${image.path}`} alt={`Event gallery ${index + 1}`}  className="w-full h-full object-cover"/>
                                     </div>
                                 ))}
                             </div>
@@ -252,6 +260,7 @@ const TicketPreview = () => {
         new Date(`1970-01-01T${eventData.event_dates[0].start_time}Z`).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true }) : 
         'Time TBA';
 
+
     return (
         <>
             <style>{`.no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
@@ -264,7 +273,7 @@ const TicketPreview = () => {
                     </a>
 
                     {/* Hero Section */}
-                    <div className="relative rounded-2xl overflow-hidden text-white p-6 md:p-10 min-h-[550px] flex flex-col justify-between" style={{ backgroundImage: `url(${eventData.event_banner || ''})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                    <div className="relative rounded-2xl overflow-hidden text-white p-6 md:p-10 min-h-[550px] flex flex-col justify-between" style={{    backgroundImage: `url(${API_BASE_URL}/${(eventData.event_banner || '').replace(/\\/g, '/')})` , backgroundSize: 'cover', backgroundPosition: 'center' }} >
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
                         <div className="relative z-10">
                             <div className="flex flex-wrap gap-2 mb-4">
@@ -371,8 +380,9 @@ const TicketPreview = () => {
                         {filteredSubEvents.length > 0 ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                                 {filteredSubEvents.map(event => (
-                                    <div key={event.id} style={boxStyle} className="rounded-xl overflow-hidden group transform hover:-translate-y-2 transition-transform duration-300 shadow-lg">
-                                        <img src={event.event_banner} alt={event.event_name} className="w-full h-40 object-cover" />
+                                    <div key={event._id} style={boxStyle} className="rounded-xl overflow-hidden group transform hover:-translate-y-2 transition-transform duration-300 shadow-lg">
+                                        <img src={`${API_BASE_URL}/${event.event_banner?.replace(/\\/g, '/')}`} alt={event.event_name} className="w-full h-40 object-cover" />
+
                                         <div className="p-4">
                                             <h3 className="font-bold text-lg text-white mb-1">{event.event_name}</h3>
                                             <p className="text-sm text-gray-400 mb-3">{event.event_dates?.[0]?.start_date ? new Date(event.event_dates[0].start_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'Date TBA'}</p>
