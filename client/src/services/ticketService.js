@@ -35,14 +35,17 @@ export const getGroups = async () => {
     throw error;
   }
 };
-export const createTicketBasicInfo = async (formData) => {
+export const createTicketBasicInfo = async (formData, ticketId = null) => {
   try {
-    const response = await api.post(`ticket/create-event/${formData.groupId}`, formData);
+    const url = ticketId 
+      ? `ticket/create-event/${formData.groupId}/${ticketId}`
+      : `ticket/create-event/${formData.groupId}`;
+    const response = await api.post(url, formData);
     return response.data;
   } catch (error) {
     throw error;
   }
-}
+};
 export const updateTicketMedia = async (ticketId, formData) => {
   try {
     console.log('Calling API with ticketId:', ticketId);
