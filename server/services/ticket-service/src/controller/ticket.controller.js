@@ -666,7 +666,7 @@ export const getOthersEvents = async(req, res)=>{
       const other = req.params.otherId;
       const tickets = await Ticket.find({ 
                 userId: other,
-                status: ['completed','live','pending']
+                event_status: ['completed','live','pending']
             });
       res.status(200).json({
             message: "Other User Tickets retrieved successfully",
