@@ -1,99 +1,200 @@
-// D:\DEVELOP\wie\wie_creator\services\auth-service\client\src\pages\auth\Signup.jsx
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import './Signup.css';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { FaFacebookF, FaXTwitter } from "react-icons/fa6";
+import { RiInstagramFill } from "react-icons/ri";
+import LightRays from "../../components/auth-model/LightRays";
+import bg1 from "../../assets/auth/img_mob.jpg";
+import bg2 from "../../assets/auth/img_bg.jpeg";
+import userTopIcon from "../../assets/auth/user_top.svg";
 
-const Signup = () => {
+const RegisterPage = () => {
+  const [isMobile, setIsMobile] = useState(false);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const handleAdminSignup = () => {
-    navigate('/adminsignup');
+    navigate("/adminsignup");
   };
 
   const handleOrganisationSignup = () => {
-    navigate('/organisationsignup');
-  };
-
-  const handleBackToHome = () => {
-    navigate('/');
-  };
-
-  const handleGoToLogin = () => {
-    navigate('/login');
+    navigate("/organisationsignup");
   };
 
   return (
-    <div className="signup-selection-container">
-      <div className="signup-selection-card">
-        <div className="signup-selection-header">
-          <h1>Join WIE Creator</h1>
-          <p>Choose your account type to get started</p>
-        </div>
+    <div className="relative min-h-screen w-full font-sans text-white bg-black">
+      {/* Background */}
+      <div className="absolute inset-0 w-full h-full">
+        <img
+          src={isMobile ? bg1 : bg2}
+          alt="Background"
+          className="w-full h-full object-cover"
+          style={{
+            zIndex: 0,
+            objectPosition: "center center",
+          }}
+        />
+      </div>
 
-        <div className="signup-options">
-          <div className="signup-option" onClick={handleAdminSignup}>
-            <div className="option-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M20.59 22C20.59 18.13 16.74 15 12 15C7.26 15 3.41 18.13 3.41 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <div className="option-content">
-              <h3>Admin Account</h3>
-              <p>For individual administrators and system managers</p>
-              <ul>
-                <li>Full system access</li>
-                <li>User management</li>
-                <li>System configuration</li>
-              </ul>
-            </div>
-            <div className="option-arrow">→</div>
+      {/* Light rays overlay */}
+      <div className="absolute inset-0 pointer-events-none z-10">
+        <LightRays
+          raysOrigin="top-center"
+          raysColor="#5a5cff"
+          raysSpeed={1.1}
+          lightSpread={0.95}
+          rayLength={1.2}
+          followMouse={true}
+          mouseInfluence={0.06}
+          distortion={0.02}
+          className="fullpage-rays"
+        />
+      </div>
+
+      {/* Centering container */}
+      <div className="relative min-h-screen w-full flex flex-col justify-center items-center p-2 z-20">
+        
+        {/* Header */}
+        <header
+          className="absolute top-0 left-0 right-0 z-30 w-full flex justify-between items-center pointer-events-auto p-4 sm:p-6 md:p-8 lg:p-10"
+          style={{
+            paddingTop: "max(env(safe-area-inset-top, 16px), 16px)",
+            paddingRight: "max(env(safe-area-inset-right, 16px), 16px)",
+            height: "auto",
+            minHeight: "60px",
+          }}
+        >
+          <div className="md:hidden"></div>
+          <div className="hidden md:flex items-center">
+            <img
+              src="/src/assets/auth/logo.png"
+              alt="Wie Logo"
+              className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10 lg:h-12 lg:w-12"
+            />
+            <span className="ml-2 text-white text-base sm:text-lg md:text-xl lg:text-2xl wie-font">
+              Wie
+            </span>
           </div>
-
-          <div className="signup-option" onClick={handleOrganisationSignup}>
-            <div className="option-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M9 11C11.2091 11 13 9.20914 13 7C13 4.79086 11.2091 3 9 3C6.79086 3 5 4.79086 5 7C5 9.20914 6.79086 11 9 11Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M23 21V19C22.9993 18.1137 22.7044 17.2528 22.1614 16.5523C21.6184 15.8519 20.8581 15.3516 20 15.13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M16 3.13C16.8604 3.35031 17.623 3.85071 18.1676 4.55232C18.7122 5.25392 19.0078 6.11683 19.0078 7.005C19.0078 7.89318 18.7122 8.75608 18.1676 9.45769C17.623 10.1593 16.8604 10.6597 16 10.88" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <div className="option-content">
-              <h3>Organisation Account</h3>
-              <p>For companies, institutions, and organizations</p>
-              <ul>
-                <li>Organization management</li>
-                <li>Team collaboration</li>
-                <li>Multi-user access</li>
-              </ul>
-            </div>
-            <div className="option-arrow">→</div>
-          </div>
-        </div>
-
-        <div className="signup-selection-footer">
-          <p>
-            Already have an account?{' '}
-            <button 
-              type="button" 
-              className="link-btn" 
-              onClick={handleGoToLogin}
-            >
-              Sign in here
-            </button>
-          </p>
-          <button 
-            type="button" 
-            className="back-btn" 
-            onClick={handleBackToHome}
+          <button
+            className="px-3 py-2 sm:px-4 sm:py-2 md:px-5 md:py-2.5 text-xs sm:text-sm md:text-base font-semibold transition-all whitespace-nowrap"
+            onClick={() => navigate("/login")}
           >
-            ← Back to Home
+            Login
           </button>
-        </div>
+        </header>
+
+        {/* Main content area */}
+        <main className="w-full max-w-[85vw] sm:max-w-xl lg:max-w-2xl mx-auto">
+          {/* Mobile logo */}
+          <div className="flex md:hidden items-center justify-center mb-4 sm:mb-6 p-2 sm:p-3 rounded-xl bg-white/10 backdrop-blur-md mx-auto w-fit">
+            <img
+              src="/src/assets/auth/logo.png"
+              alt="Wie Logo"
+              className="h-7 w-7 sm:h-9 sm:w-9"
+            />
+          </div>
+
+          {/* Signup Container */}
+          <div
+            className="w-full px-8 py-16 pointer-events-auto rounded-[2rem] flex flex-col items-center justify-center text-center relative max-w-[600px] mx-auto"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.05))",
+              border: "1px solid rgba(255, 255, 255, 0.18)",
+              backdropFilter: "blur(40px)",
+              WebkitBackdropFilter: "blur(40px)",
+              boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)",
+            }}
+          >
+            {/* Top Section */}
+            <div className="flex flex-col items-center">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center mb-4">
+                <img src={userTopIcon} alt="Signup Icon" />
+              </div>
+              <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-semibold text-white mb-6">
+                Signup
+              </h1>
+              <p className="text-xs sm:text-sm md:text-base text-white/60 max-w-sm px-2 font-semibold">
+                You can create events as an admin or organisation
+              </p>
+            </div>
+
+            {/* Middle Section - Buttons */}
+            <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-8 sm:gap-10 mt-8 mb-8">
+              <button
+                className="w-full sm:w-[260px] py-4 border border-white/20 bg-transparent hover:bg-white/5 text-white font-medium transition-all text-lg rounded-full"
+                onClick={handleAdminSignup}
+              >
+                Admin
+              </button>
+              <button
+                className="w-full sm:w-[260px] py-4 bg-[#6d62ff] hover:bg-[#5a52f0] text-white font-medium transition-all shadow-lg text-lg rounded-full"
+                onClick={handleOrganisationSignup}
+              >
+                Organization
+              </button>
+            </div>
+
+            {/* Bottom Section - Login Link */}
+            <p className="text-sm text-white/60">
+              Already have an account?{' '}
+              <button 
+                className="text-white font-bold hover:text-white/80 transition-colors"
+                onClick={() => navigate('/login')}
+              >
+                Login
+              </button>
+            </p>
+          </div>
+
+          {/* Mobile social media buttons */}
+          <div className="block lg:hidden w-full mt-4 sm:mt-6">
+            <div className="flex items-center justify-center space-x-4">
+              <button className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200">
+                <FaXTwitter size={12} className="text-white" />
+              </button>
+              <button className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200">
+                <FaFacebookF size={12} className="text-white" />
+              </button>
+              <button className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200">
+                <RiInstagramFill size={12} className="text-white" />
+              </button>
+            </div>
+          </div>
+        </main>
+
+        {/* Desktop social media buttons */}
+        <footer
+          className="hidden lg:block absolute bottom-0 left-0 z-30 pointer-events-auto p-3 sm:p-4 md:p-6"
+          style={{
+            paddingBottom: "max(env(safe-area-inset-bottom, 12px), 12px)",
+            paddingLeft: "max(env(safe-area-inset-left, 12px), 12px)",
+          }}
+        >
+          <div className="flex items-center space-x-3">
+            <span className="text-white/60 text-sm font-medium">Follow us:</span>
+            <div className="flex space-x-2">
+              <button className="flex items-center justify-center w-8 h-8 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200">
+                <FaXTwitter size={12} className="text-white" />
+              </button>
+              <button className="flex items-center justify-center w-8 h-8 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200">
+                <FaFacebookF size={12} className="text-white" />
+              </button>
+              <button className="flex items-center justify-center w-8 h-8 rounded-full bg-[#6d62ff]/80 hover:bg-[#6d62ff] backdrop-blur-sm transition-all duration-200">
+                <RiInstagramFill size={12} className="text-white" />
+              </button>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );
 };
-
-export default Signup;
+export default RegisterPage;
