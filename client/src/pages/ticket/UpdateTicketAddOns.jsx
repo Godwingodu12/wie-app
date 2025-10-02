@@ -1860,7 +1860,7 @@ const UpdateTicketAddOns = () => {
     event_link: "",
     location: "",
     venue: "",
-    event_language: "",
+    event_language: [],
     min_age_allowed: "",
     seating_arrangement: "none",
     kids_friendly: false,
@@ -2299,16 +2299,21 @@ const UpdateTicketAddOns = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSelectChange = (selectedOption, { name }) => {
-    const value = selectedOption ? selectedOption.value : "";
+const handleSelectChange = (selectedOptions, { name }) => {
+    // For multi-select, selectedOptions is an array of objects. Map over it to get values.
+    // For single-select, it's a single object.
+    const value = Array.isArray(selectedOptions)
+      ? selectedOptions.map(option => option.value)
+      : (selectedOptions ? selectedOptions.value : "");
+
     setFormData((prev) => {
-      const newData = { ...prev, [name]: value };
-      if (name === "event_category") {
-        newData.event_subcategory = "";
-      }
-      return newData;
+        const newData = { ...prev, [name]: value };
+        if (name === "event_category") {
+            newData.event_subcategory = "";
+        }
+        return newData;
     });
-  };
+};
 
   const handleLocationTypeChange = (type) => {
     setFormData((prev) => ({ ...prev, location_type: type.toLowerCase() }));
@@ -2596,7 +2601,7 @@ const UpdateTicketAddOns = () => {
       event_category: formData.event_category,
       event_subcategory: formData.event_subcategory,
       event_type: formData.event_type,
-      event_language: [formData.event_language],
+      event_language: formData.event_language,
       min_age_allowed: Number(formData.min_age_allowed),
       kids_friendly: formData.kids_friendly,
       pet_friendly: formData.pet_friendly,
@@ -2696,6 +2701,12 @@ const UpdateTicketAddOns = () => {
       );
     }
   };
+  const handleBack =(e)=>{
+    e.preventDefault();
+    
+    navigate(`/ticket/update-ticket-media/${ticketId}`)
+                      
+  }
   const currentBankDetail = formData.banking_details[0] || {};
   const [dataLoaded, setDataLoaded] = useState(false);
   const saveFormDataToStorage = (data) => {
@@ -3149,7 +3160,9 @@ const UpdateTicketAddOns = () => {
           event_link: subEvent.event_link || "",
           location: subEvent.location || "",
           venue: subEvent.venue || "",
-          event_language: subEvent.event_language?.[0] || "",
+          event_language: Array.isArray(subEvent.event_language) 
+        ? subEvent.event_language 
+        : (subEvent.event_language ? [subEvent.event_language] : []),
           min_age_allowed: subEvent.min_age_allowed || "",
           seating_arrangement: subEvent.seating_arrangement || "none",
           kids_friendly: subEvent.kids_friendly || false,
@@ -3273,7 +3286,9 @@ const UpdateTicketAddOns = () => {
     }
   };
   const mainEventStartDate = mainEventData?.event_dates?.[0]?.start_date;
-const mainEventEndDate = mainEventData?.event_dates?.[0]?.end_date;
+
+ 
+const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.length - 1]?.end_date;
   return (
     <>
       <CustomScrollbarStyles isDark={darkMode} />
@@ -3325,9 +3340,12 @@ const mainEventEndDate = mainEventData?.event_dates?.[0]?.end_date;
       <div className={`${darkMode ? "dark" : ""}`}>
         <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
           <EventSidebar
-            darkMode={darkMode} // dark theme boolean from your app state
-            currentStep={4} // current step index (1-based)
-            isAddShowFlow={true} // true if Add Show path, else Banking & Tickets
+          darkMode={darkMode}
+            onBackClick={handleBack} // Your existing back function
+    // Pass props from your 'mainEventData' state object
+    formProgress={mainEventData?.form_progress || {}}
+    groupId={mainEventData?.groupId}
+    ticketId={ticketId} // 
           />
           <main className="flex-1 relative p-4 sm:p-6 md:p-8 overflow-y-auto">
             <div className="absolute top-6 right-6 z-10">
@@ -3490,21 +3508,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[0]?.end_date;
                           styles={customSelectStyles(darkMode)}
                           required
                         />
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M19 9l-7 7-7-7"
-                            ></path>
-                          </svg>
-                        </div>
+
                       </div>
                     </div>
                     <div>
@@ -3729,7 +3733,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[0]?.end_date;
                           value={formData.total_capacity}
                           onChange={handleInputChange}
                           placeholder="Enter capacity"
-                          className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3"
+                          className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
                           required
                         />
                       </div>
@@ -3749,31 +3753,17 @@ const mainEventEndDate = mainEventData?.event_dates?.[0]?.end_date;
                       </label>
                       <div className="relative">
                         <Select
-                          name="event_language"
-                          options={languageOptions}
-                          value={languageOptions.find(
-                            (option) => option.value === formData.event_language
-                          )}
-                          onChange={handleSelectChange}
-                          placeholder="Select language"
-                          styles={customSelectStyles(darkMode)}
-                          required
-                        />
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M19 9l-7 7-7-7"
-                            ></path>
-                          </svg>
-                        </div>
+    isMulti // <-- Add this prop
+    name="event_language"
+    options={languageOptions}
+    // Filter options based on the array of values in formData
+    value={languageOptions.filter(option => formData.event_language.includes(option.value))}
+    onChange={handleSelectChange}
+    placeholder="Select language(s)"
+    styles={customSelectStyles(darkMode)}
+    required
+/>
+
                       </div>
                     </div>
                     <div>
@@ -3784,16 +3774,15 @@ const mainEventEndDate = mainEventData?.event_dates?.[0]?.end_date;
                         Minimum age allowed
                         <span className="text-red-400">*</span>
                       </label>
-                      <Select
+                      
+                      <input
+                        id="min_age_allowed"
                         name="min_age_allowed"
-                        options={ageOptions}
-                        value={ageOptions.find(
-                          (option) => option.value === formData.min_age_allowed
-                        )}
-                        onChange={handleSelectChange}
-                        placeholder="Select minimum age"
-                        styles={customSelectStyles(darkMode)}
-                        required
+                        type="number"
+                        value={formData.min_age_allowed}
+                        onChange={handleInputChange}
+                        placeholder="Enter Min Age Allowed"
+                        className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
                       />
                     </div>
                   </div>
@@ -5130,8 +5119,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[0]?.end_date;
                   <div className="flex gap-4">
                     <button
                       type="button"
-                      onClick={() =>
-                        navigate(`/ticket/update-ticket-media/${ticketId}`)
+                      onClick={handleBack
                       }
                       className="px-8 py-3 rounded-lg font-semibold bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
                     >
