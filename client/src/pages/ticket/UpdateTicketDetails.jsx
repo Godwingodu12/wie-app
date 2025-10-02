@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
-// --- API Service Imports ---
 import { getTicketById, updateTicketDetails, getGroupView } from '../../services/ticketService';
-// --- Reusable Helper Components ---
 const InfoTooltip = ({ note }) => (
     <div className="relative flex items-center group ml-1.5">
         <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"></path></svg>
@@ -13,15 +11,12 @@ const InfoTooltip = ({ note }) => (
         </div>
     </div>
 );
-
 const ToggleSwitch = ({ checked, onChange, disabled = false }) => (
     <label className={`relative inline-flex items-center ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
         <input type="checkbox" className="sr-only peer" checked={checked} onChange={onChange} disabled={disabled} />
         <div className="w-11 h-6 bg-gray-200 dark:bg-[#363A3F] rounded-full peer peer-checked:bg-indigo-600 shadow-inner-dark after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
     </label>
 );
-
-// --- Create/Edit Ticket Modal Component ---
 const CreateTicketModal = ({ isOpen, onClose, onSave, onResetAll, editingTicket, existingTickets }) => {
     const [localTickets, setLocalTickets] = useState([]);
     const [ticketType, setTicketType] = useState('');
@@ -30,7 +25,6 @@ const CreateTicketModal = ({ isOpen, onClose, onSave, onResetAll, editingTicket,
     const [ticketPhoto, setTicketPhoto] = useState(null);
     const [ticketPhotoPreview, setTicketPhotoPreview] = useState('');
     const [currentEditId, setCurrentEditId] = useState(null);
-
     useEffect(() => {
         if (isOpen) {
             setLocalTickets(existingTickets || []);
@@ -353,6 +347,7 @@ const UpdateTicketDetails = () => {
     // Ticketing Details State
     const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
     const [tickets, setTickets] = useState([]);
+    const [eventEndDate, setEventEndDate] = useState('');
     const [editingTicket, setEditingTicket] = useState(null);
     const [bookingStartDate, setBookingStartDate] = useState('');
     const [bookingEndDate, setBookingEndDate] = useState('');
@@ -377,16 +372,14 @@ const UpdateTicketDetails = () => {
                 // Load saved draft from localStorage
                 const savedDraftRaw = localStorage.getItem(storageKey);
                 const savedDraft = savedDraftRaw ? JSON.parse(savedDraftRaw) : null;
-
-                // Set initial state from API, then override with draft if it exists
                 if (ticketData) {
-                    // ✅ FIX: Use consistent nullish coalescing operators (??) to avoid syntax errors
                     setPaymentType(savedDraft?.paymentType ?? ticketData.payment_type ?? 'free');
                     setTotalCapacity(savedDraft?.totalCapacity ?? ticketData.total_capacity ?? '');
                     setHasSeatingLayout(savedDraft?.hasSeatingLayout ?? !!ticketData.ticket_layout);
                     setBookingStartDate(savedDraft?.bookingStartDate ?? (ticketData.booking_start_date ? new Date(ticketData.booking_start_date).toISOString().split('T')[0] : ''));
                     setBookingEndDate(savedDraft?.bookingEndDate ?? (ticketData.booking_end_date ? new Date(ticketData.booking_end_date).toISOString().split('T')[0] : ''));
                     setTickets(savedDraft?.tickets ?? ticketData.ticket_types?.map(t => ({...t, id: t._id || Date.now(), name: t.ticket_type, price: t.ticket_price, capacity: t.max_capacity, image: t.ticket_photo })) ?? []);
+                    setEventEndDate(ticketData.end_date ? new Date(ticketData.end_date).toISOString().split('T')[0] : '');
                 }
                if (groupData && groupData.primary_bank_acc_no) {
     setGroupHasBankAccount(true);
@@ -404,16 +397,13 @@ const UpdateTicketDetails = () => {
     if (areDetailsComplete) {
         const groupBankDetails = [{
             id: groupData._id,
-            bank_acc_type: normalizedAccType, // Use normalized value
+            bank_acc_type: normalizedAccType,
             bank_acc_holder: primary_bank_acc_holder,
             bank_acc_no: primary_bank_acc_no,
             bank_ifsc: primary_bank_ifsc
         }];
-        
         setUseGroupBankAccount(savedDraft?.useGroupBankAccount ?? true);
         setBankingDetails(groupBankDetails);
-        
-        // Store for toggle functionality
         window.groupBankDetails = groupBankDetails;
     } else {
         setGroupBankDetailsIncomplete(true);
@@ -508,7 +498,11 @@ const UpdateTicketDetails = () => {
             const cleanBankingDetails = bankingDetails.map(({ id, ...rest }) => rest);
             apiFormData.append('banking_details', JSON.stringify(cleanBankingDetails));
         }
-
+        if (paymentType === 'paid' && bookingEndDate && eventEndDate && bookingEndDate > eventEndDate) {
+            setErrors({ general: "Booking end date cannot be after the event end date." });
+            setLoading(false);
+            return;
+        }
         const cleanTicketTypes = tickets.map(({ id, image, photoFile, name, price, capacity }) => ({
             ticket_type: name,
             ticket_price: price,
@@ -625,28 +619,30 @@ const UpdateTicketDetails = () => {
                                 <div className="flex items-center justify-between"><label className="font-medium text-gray-900 dark:text-white text-md">Do you have seating layout?</label><ToggleSwitch checked={hasSeatingLayout} onChange={() => setHasSeatingLayout(!hasSeatingLayout)} /></div>
                                 {hasSeatingLayout && (<div className="animate-fade-in grid grid-cols-2 gap-8 items-start"><div className="col-span-1 space-y-2"><label className="flex items-center text-base font-medium text-gray-800 dark:text-gray-300">Upload seating layout <InfoTooltip note="Upload an image of your event's seating arrangement." /></label><div className="flex justify-center rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-6 py-10 text-center"><label htmlFor="seating-layout-upload" className="cursor-pointer"><svg className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg><p className="text-sm text-gray-500 dark:text-gray-400">Drag your file(s) or browse</p><p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Max 10 MB files are allowed</p><span className="mt-4 inline-block rounded-md font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm">Browse file</span><input id="seating-layout-upload" type="file" className="sr-only" onChange={handleSeatingLayoutChange} accept="image/*" /></label></div></div><div className="col-span-1">{seatingLayoutPreview && ( <div className="relative group w-full"><img src={seatingLayoutPreview} alt="Seating layout preview" className="w-full h-auto rounded-lg object-cover" /><div onClick={removeSeatingLayout} className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex items-center justify-center cursor-pointer rounded-lg"><span className="text-red-500 text-3xl font-bold">&times;</span></div></div> )}</div></div>)}
                             </section>
-                            
                             <section className="space-y-6">
                                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Ticketing details</h2>
-                                <p className="text-gray-500 dark:text-gray-400 text-sm">Add ticket types, set prices, and control how attendees book their spot.</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 pt-2">
-                                    <div><label htmlFor="booking_start_date" className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Booking start date? <span className="text-red-500 ml-1">*</span></label><div className="relative"><input type="date" id="booking_start_date" name="booking_start_date" value={bookingStartDate} onChange={e => setBookingStartDate(e.target.value)} className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 appearance-none"/><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3"><svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div></div></div>
-                                    <div><label htmlFor="booking_end_date" className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Booking end date? <span className="text-red-500 ml-1">*</span></label><div className="relative"><input type="date" id="booking_end_date" name="booking_end_date" value={bookingEndDate} onChange={e => setBookingEndDate(e.target.value)} className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 appearance-none"/><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3"><svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div></div></div>
-                                </div>
-                                <button type="button" onClick={handleOpenModalForAdd} className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center space-x-2 hover:bg-indigo-700 transition"><span>Add tickets</span><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2H5z" /></svg></button>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                                    {tickets.map(ticket => (
-                                        <div key={ticket.id} className="bg-white dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none">
-                                            <div className="flex items-center space-x-3"><img src={ticket.image} alt={ticket.name} className="w-16 h-16 rounded-md object-cover" /><div><p className="font-semibold text-gray-900 dark:text-white">{`${ticket.name} - ₹${Number(ticket.price).toLocaleString()}`}</p><p className="text-xs text-gray-500 dark:text-gray-400">Capacity: {ticket.capacity}</p></div></div>
-                                            <div className="flex items-center space-x-2">
-                                                <button type="button" onClick={() => handleOpenModalForEdit(ticket)} className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg></button>
-                                                <button type="button" onClick={() => handleDeleteTicket(ticket.id)} className="text-gray-400 hover:text-red-500 transition"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                        <div><label htmlFor="booking_start_date" className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Booking start date? <span className="text-red-500 ml-1">*</span></label><div className="relative"><input type="date" id="booking_start_date" name="booking_start_date" value={bookingStartDate} onChange={e => setBookingStartDate(e.target.value)} className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 appearance-none"/><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3"><svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div></div></div>
+                                        <div><label htmlFor="booking_end_date" className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Booking end date? <span className="text-red-500 ml-1">*</span></label><div className="relative"><input type="date" id="booking_end_date" name="booking_end_date" value={bookingEndDate} onChange={e => setBookingEndDate(e.target.value)} max={eventEndDate} className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 appearance-none"/><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3"><svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div></div>{eventEndDate && bookingEndDate > eventEndDate && (<p className="text-xs text-red-500 mt-1">Booking end date cannot be after event end date ({new Date(eventEndDate).toLocaleDateString()})</p>)}</div>
+                                  </div>
                             </section>
-                            
+                            {paymentType === 'paid' && (
+                                <section className="space-y-6">
+                                    <p className="text-gray-500 dark:text-gray-400 text-sm">Add ticket types, set prices, and control how attendees book their spot.</p>
+                                    <button type="button" onClick={handleOpenModalForAdd} className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center space-x-2 hover:bg-indigo-700 transition"><span>Add tickets</span><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2H5z" /></svg></button>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
+                                        {tickets.map(ticket => (
+                                            <div key={ticket.id} className="bg-white dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none">
+                                                <div className="flex items-center space-x-3"><img src={ticket.image} alt={ticket.name} className="w-16 h-16 rounded-md object-cover" /><div><p className="font-semibold text-gray-900 dark:text-white">{`${ticket.name} - ₹${Number(ticket.price).toLocaleString()}`}</p><p className="text-xs text-gray-500 dark:text-gray-400">Capacity: {ticket.capacity}</p></div></div>
+                                                <div className="flex items-center space-x-2">
+                                                    <button type="button" onClick={() => handleOpenModalForEdit(ticket)} className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg></button>
+                                                    <button type="button" onClick={() => handleDeleteTicket(ticket.id)} className="text-gray-400 hover:text-red-500 transition"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
                             <div className="pt-8 flex justify-between items-center">
                                 <button type="button" onClick={handleGoBack} className="px-10 py-4 rounded-xl font-semibold text-lg bg-gray-200 dark:bg-[#363A3F] text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-700 transition">Go back</button>
                                 <button type="submit" disabled={loading} className="px-10 py-4 rounded-xl font-semibold text-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition">
