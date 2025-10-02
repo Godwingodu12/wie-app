@@ -467,7 +467,12 @@ const UpdateTicketMedia = () => {
     return (
         <div className={darkMode ? "dark" : ""}>
             <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
-                <EventSidebar darkMode={darkMode} progress={42} handleBack={handleBack} />
+                <EventSidebar onBackClick={handleBack}
+                darkMode={darkMode}
+    // Pass props from your 'ticketData' state object
+    formProgress={ticketData?.form_progress || {}}
+    groupId={ticketData?.groupId} 
+    ticketId={ticketId} />
                 <main className="flex-1 relative p-4 sm:p-6 md:p-8 overflow-y-auto">
                     <div className="absolute top-6 right-6 z-10">
                         <ThemeToggle isDark={darkMode} onToggle={() => setDarkMode(!darkMode)} />

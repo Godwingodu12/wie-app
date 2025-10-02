@@ -1484,7 +1484,7 @@ const CreateTicket = () => {
     event_link: "",
     location: "",
     venue: "",
-    event_language: "",
+    event_language: [],
     min_age_allowed: "0",
     seating_arrangement: "",
     kids_friendly: false,
@@ -2045,7 +2045,7 @@ const handleSubmit = async (e) => {
     event_category: formData.event_category?.trim(),
     event_subcategory: formData.event_subcategory?.trim(),
     event_type: formData.event_type?.trim(),
-    event_language: formData.event_language?.trim(),
+    event_language: formData.event_language||[],
     location_type: formData.location_type?.trim(),
     event_dates: formData.event_dates,
     event_description: descriptionText,
@@ -2091,7 +2091,7 @@ const handleSubmit = async (e) => {
       event_link: formData.event_link?.trim() || "",
       location: formData.location?.trim() || "",
       venue: formData.venue?.trim() || "",
-      event_language: [formData.event_language.trim()],
+      event_language: formData.event_language,
       min_age_allowed: parseInt(formData.min_age_allowed.trim()),
       event_dates: transformedDates,
       event_date_type: eventDateTypeMap[formData.event_date_type] || "one-day",
@@ -2134,7 +2134,7 @@ const handleSubmit = async (e) => {
   setFormData((prev) => ({ ...prev, [name]: !prev[name] }));
   const handleTagChange = (name, newTags) =>
     setFormData((prev) => ({ ...prev, [name]: newTags }));
-      const handleSelectChange = (selectedOption, { name }) => {
+    const handleSelectChange = (selectedOption, { name }) => {
         const value = selectedOption ? selectedOption.value : "";
         setFormData((prev) => {
             const newData = { ...prev, [name]: value };
@@ -2144,6 +2144,106 @@ const handleSubmit = async (e) => {
             return newData;
         });
     };
+    const handleLanguageChange = (selectedOptions) => {
+    const values = selectedOptions ? selectedOptions.map(opt => opt.value) : [];
+      setFormData((prev) => ({
+            ...prev,
+            event_language: values
+        }));
+    };
+    const customSelectStyles = (darkMode) => ({
+    control: (provided, state) => ({
+        ...provided,
+        background: darkMode 
+            ? 'rgba(255, 255, 255, 0.08)' // Subtle white glass in dark mode
+            : 'rgba(255, 255, 255, 0.7)', // Medium white glass in light mode
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)', // For Safari support
+        border: darkMode
+            ? '1px solid rgba(255, 255, 255, 0.15)'
+            : '1px solid rgba(255, 255, 255, 0.3)',
+        boxShadow: state.isFocused 
+            ? (darkMode 
+                ? '0 0 0 1px rgba(255, 255, 255, 0.2)' 
+                : '0 0 0 1px rgba(0, 0, 0, 0.1)')
+            : 'none',
+        borderRadius: '8px',
+        minHeight: '42px',
+        '&:hover': {
+            border: darkMode
+                ? '1px solid rgba(255, 255, 255, 0.25)'
+                : '1px solid rgba(0, 0, 0, 0.2)',
+        }
+    }),
+    menu: (provided) => ({
+        ...provided,
+        background: darkMode 
+            ? 'rgba(30, 30, 30, 0.95)' 
+            : 'rgba(255, 255, 255, 0.95)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: darkMode
+            ? '1px solid rgba(255, 255, 255, 0.1)'
+            : '1px solid rgba(0, 0, 0, 0.1)',
+        borderRadius: '8px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+        overflow: 'hidden',
+    }),
+    option: (provided, state) => ({
+        ...provided,
+        background: state.isSelected 
+            ? (darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)')
+            : state.isFocused 
+            ? (darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)')
+            : 'transparent',
+        color: darkMode ? '#ffffff' : '#1f2937',
+        cursor: 'pointer',
+        '&:active': {
+            background: darkMode 
+                ? 'rgba(255, 255, 255, 0.2)' 
+                : 'rgba(0, 0, 0, 0.1)',
+        }
+    }),
+    multiValue: (provided) => ({
+        ...provided,
+        background: darkMode 
+            ? 'rgba(255, 255, 255, 0.15)' 
+            : 'rgba(0, 0, 0, 0.08)',
+        backdropFilter: 'blur(8px)',
+        borderRadius: '6px',
+        border: darkMode
+            ? '1px solid rgba(255, 255, 255, 0.2)'
+            : '1px solid rgba(0, 0, 0, 0.1)',
+    }),
+    multiValueLabel: (provided) => ({
+        ...provided,
+        color: darkMode ? '#ffffff' : '#1f2937',
+        padding: '2px 6px',
+    }),
+    multiValueRemove: (provided) => ({
+        ...provided,
+        color: darkMode ? '#ffffff' : '#6b7280',
+        ':hover': {
+            background: darkMode 
+                ? 'rgba(255, 255, 255, 0.25)' 
+                : 'rgba(0, 0, 0, 0.15)',
+            color: darkMode ? '#ffffff' : '#1f2937',
+        },
+        borderRadius: '0 4px 4px 0',
+    }),
+    placeholder: (provided) => ({
+        ...provided,
+        color: darkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)',
+    }),
+    singleValue: (provided) => ({
+        ...provided,
+        color: darkMode ? '#ffffff' : '#1f2937',
+    }),
+    input: (provided) => ({
+        ...provided,
+        color: darkMode ? '#ffffff' : '#1f2937',
+    }),
+});
   const handleLocationTypeChange = (type) =>
     setFormData((prev) => ({ ...prev, location_type: type.toLowerCase() }));
   const handleDatesSave = (newDates, dateType) =>
@@ -2591,43 +2691,29 @@ const handleSubmit = async (e) => {
                 {/* Additional Fields */}
                 <div className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                      <label
-                        htmlFor="event_language"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                      >
-                        Which language will your event be performed in?
-                        <span className="text-red-400">*</span>{" "}
-                        <InfoTooltip note="Select the primary language." />
-                      </label>
-                      <div className="relative">
-                        {/* --- MODIFIED: Event Language Dropdown --- */}
-                                                                <Select
-                                            name="event_language"
-                                            options={languageOptions}
-                                            value={languageOptions.find(option => option.value === formData.event_language)}
-                                            onChange={handleSelectChange}
-                                            placeholder="Select language"
-                                            styles={customSelectStyles(darkMode)}
-                                            required
-                                        />
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M19 9l-7 7-7-7"
-                            ></path>
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
+<div>
+  <label
+    htmlFor="event_language"
+    className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+  >
+    Which language will your event be performed in?
+    <span className="text-red-400">*</span>{" "}
+    <InfoTooltip note="Select one or more languages." />
+  </label>
+  <Select
+    name="event_language"
+    options={languageOptions}
+    isMulti
+    value={languageOptions.filter(option =>
+        (formData.event_language || []).includes(option.value)
+    )}
+    onChange={handleLanguageChange}  // Use the new handler
+    placeholder="Select language(s)"
+    styles={customSelectStyles(darkMode)}
+    classNamePrefix="react-select"
+/>
+</div>
+
                     <div>
                       <label
                         htmlFor="min_age_allowed"

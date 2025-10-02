@@ -1,17 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CreationGroup, getUserGroupCapabilities, getUserData } from '../../services/ticketService';
-import WieLogo from '../../assets/Event/WieLogo.svg';
-import BankIcon from '../../assets/Event/BankIcon.svg';
-import InfoIcon from '../../assets/Event/InfoIcon.svg';
-import MediaIcon from '../../assets/Event/MediaIcon.svg';
-import NoteIcon from '../../assets/Event/NoteIcon.svg';
+import Select from 'react-select';
 import OrgIcon from '../../assets/Event/OrgIcon.svg';
-import PreviewIcon from '../../assets/Event/PreviewIcon.svg';
-import TcIcon from '../../assets/Event/T&cIcon.svg';
+
 import LightIcon from '../../assets/Event/LightIcon.svg';
 import DarkIcon from '../../assets/Event/DarkIcon.svg';
-import BackIcon from '../../assets/Event/BackIcon.svg';
+
+import ThemeToggle from '../../components/HomePage/ThemeToggle';
+import EventSidebar from '../../components/CreateGroup/EventSidebar';
 
 // CSS for placeholders, which will be injected based on the theme
 const darkThemeStyles = `
@@ -101,7 +98,72 @@ const InfoTooltip = ({ note }) => {
   );
 };
 
+const organisationTypeOptions = [
+    'Private Limited', 'Public Limited', 'Partnership', 'Proprietorship', 'LLP', 
+    'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Trust', 'Society', 'Other'
+].map(opt => ({ value: opt, label: opt }));
 
+const accountTypeOptions = [
+    { value: 'Current', label: 'Current' },
+    { value: 'Merchant', label: 'Merchant' }
+];
+const themeOverride = (theme) => ({
+    ...theme,
+    colors: { ...theme.colors, neutral0: 'transparent' },
+});
+const customSelectStyles = (isDark) => ({
+  control: (provided, state) => ({
+    ...provided,
+    backgroundColor: 'transparent',
+    borderColor: state.isFocused ? '#6366F1' : (isDark ? '#4A4A4A' : '#D1D5DB'),
+    padding: '0.5rem',
+    borderRadius: '0.5rem',
+    boxShadow: 'none',
+    '&:hover': {
+      borderColor: '#6366F1',
+    },
+  }),
+  valueContainer: (provided) => ({
+    ...provided,
+    padding: '0 2px',
+  }),
+  input: (provided) => ({
+    ...provided,
+    color: isDark ? '#FFFFFF' : '#1F2937',
+  }),
+  singleValue: (provided) => ({
+    ...provided,
+    color: isDark ? '#FFFFFF' : '#1F2937',
+  }),
+  placeholder: (provided) => ({
+    ...provided,
+    color: isDark ? '#6B7280' : '#9CA3AF',
+  }),
+  menu: (provided) => ({
+    ...provided,
+    backgroundColor: isDark ? '#2B2B2B' : '#FFFFFF',
+    borderRadius: '0.5rem',
+    zIndex: 50,
+  }),
+  option: (provided, state) => ({
+    ...provided,
+    backgroundColor: state.isSelected ? '#4F46E5' : state.isFocused ? (isDark ? '#374151' : '#E5E7EB') : 'transparent',
+    color: isDark ? '#FFFFFF' : '#1F2937',
+    '&:active': {
+      backgroundColor: '#4338CA',
+    },
+  }),
+  menuList: (provided) => ({
+    ...provided,
+    '::-webkit-scrollbar': { width: '8px' },
+    '::-webkit-scrollbar-track': { background: isDark ? '#232426' : '#f1f5f9' },
+    '::-webkit-scrollbar-thumb': {
+      backgroundColor: isDark ? '#4f4f4f' : '#cbd5e1',
+      borderRadius: '10px',
+      border: `2px solid ${isDark ? '#232426' : '#f1f5f9'}`,
+    },
+  }),
+});
 const CreateGroup = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -111,6 +173,7 @@ const CreateGroup = () => {
   const [filePreviews, setFilePreviews] = useState({});
   const [hasGst, setHasGst] = useState('');
   const [existingGroups, setExistingGroups] = useState([]);
+  const [ticketData, setTicketData] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -134,6 +197,7 @@ const CreateGroup = () => {
   });
   
   const [errors, setErrors] = useState({});
+  
 
   useEffect(() => {
     let styleSheet = document.getElementById('dynamic-theme-styles');
@@ -251,6 +315,12 @@ const CreateGroup = () => {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
+    const handleSelectChange = (selectedOption, { name }) => {
+        setFormData(prev => ({
+            ...prev,
+            [name]: selectedOption ? selectedOption.value : ''
+        }));
+    };
 
   const handleGroupTypeChange = (e) => {
     const value = e.target.value;
@@ -554,123 +624,26 @@ const validateForm = () => {
     );
   };
 
-  const navigationSteps = [
-    { id: 1, name: 'Group creation', icon: OrgIcon, active: true },
-    { id: 2, name: 'Basic information', icon: InfoIcon, active: false },
-    { id: 3, name: 'Media', icon: MediaIcon, active: false },
-    { id: 4, name: 'Banking & tickets', icon: BankIcon, active: false },
-    { id: 5, name: 'Terms & conditions', icon: TcIcon, active: false },
-    { id: 6, name: 'Preview', icon: PreviewIcon, active: false }
-  ];
 
-  const BackButton = ({ onClick, isDarkMode }) => (
-    <button onClick={onClick} className="rounded-full transition-colors">
-      <div
-        className="w-8 h-8 rounded-full flex items-center justify-center"
-        style={{
-          backgroundColor: isDarkMode ? '#363A3F' : '#F3F4F6',
-          boxShadow: isDarkMode
-            ? 'inset 1px 1px 2px #1e2022, inset -1px -1px 2px #4e545c'
-            : 'inset 1px 1px 2px #d1d5db, inset -1px -1px 2px #ffffff'
-        }}
-      >
-        <img src={BackIcon} alt="Back" className={`w-3 h-3 ${!isDarkMode && 'filter invert'}`} />
-      </div>
-    </button>
-  );
+
+
 
   return (
     <>
       <style>{scrollbarStyles}</style>
       <div className={`min-h-screen flex ${darkMode ? 'dark' : 'light'}`}>
-        <div className={`hidden lg:flex w-[300px] p-6 flex-col transition-colors duration-300 sticky top-0 h-screen overflow-y-auto custom-scrollbar ${darkMode ? 'bg-black text-white' : 'bg-white text-gray-800'}`}>
-          <div className="flex items-center space-x-2 mb-8">
-            <img src={WieLogo} alt="Wie Logo" className="w-10 h-10" />
-          </div>
-          <div className="mb-8">
-            <div className="flex items-center space-x-3">
-              <BackButton onClick={handleBack} isDarkMode={darkMode} />
-              <span className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>Create a new event</span>
-            </div>
-          </div>
-          <div className="mb-8 flex justify-center">
-            <div className="relative w-28 h-28">
-              <svg className="w-28 h-28 transform -rotate-90">
-                <circle cx="56" cy="56" r="50" stroke="currentColor" strokeWidth="10" fill="none" className={darkMode ? "text-gray-700" : "text-gray-200"} />
-                <circle cx="56" cy="56" r="50" stroke="currentColor" strokeWidth="10" fill="none" strokeDasharray={`${2 * Math.PI * 52}`} strokeDashoffset={`${2 * Math.PI * 52 * 0.79}`} className={darkMode ? "text-green-400" : "text-green-500"} />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-sm font-semibold">21%</span>
-                <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>completed</span>
-              </div>
-            </div>
-          </div>
-          <nav className="space-y-2 -mx-6 px-6">
-            {navigationSteps.map((step, index) => {
-              const isActive = step.active;
-              const stepIconClass = `w-4 h-4 transition-opacity duration-200 ${index !== 0 ? 'opacity-50' : ''} ${darkMode ? 'filter brightness-0 invert' : ''}`;
-              const iconBgColor = index !== 0 ? (darkMode ? 'rgba(30, 18, 66, 0.5)' : 'rgba(30, 18, 66, 0.5)') : '#1E1242';
-
-              return (
-                <div
-                  key={step.id}
-                  className={`flex items-center space-x-3 px-6 py-4 -mx-6 transition-colors rounded-lg
-                    ${isActive
-                      ? darkMode ? 'text-white' : 'text-indigo-700'
-                      : darkMode ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'
-                    }`}
-                  style={isActive ? { backgroundColor: darkMode ? '#363A3F' : 'rgba(126, 126, 126, 0.2)' } : {}}
-                >
-                  <img src={NoteIcon} alt="Note" className={`w-4 h-4 ${!darkMode ? 'filter invert' : ''}`} />
-                  <span className="text-sm flex-1">{step.name}</span>
-                  <div
-                    className="px-3 py-1.5 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: iconBgColor }}
-                  >
-                    <img
-                      src={step.icon}
-                      alt={step.name}
-                      className={stepIconClass}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </nav>
-        </div>
+                {/* --- REFACTORED SIDEBAR --- */}
+                <EventSidebar
+    darkMode={darkMode}
+    onBackClick={handleBack}
+    formProgress={{}} // Pass an empty object since progress hasn't started
+    groupId={{}} // Pass the groupId from useParams
+/>
 
         <div className="flex-1 transition-colors duration-300" style={{ backgroundColor: darkMode ? '#212426' : '#F9FAFB' }}>
-          <div className={`lg:hidden sticky top-0 z-30 flex items-center justify-between p-4 border-b ${darkMode ? 'bg-[#212426] border-gray-700' : 'bg-[#F9FAFB] border-gray-200'}`}>
-              <BackButton onClick={handleBack} isDarkMode={darkMode} />
-              <h1 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Create Group</h1>
-                <div
-                  onClick={() => setDarkMode(!darkMode)}
-                  className="w-[70px] h-[36px] rounded-full cursor-pointer relative px-[3px] flex items-center justify-between transition-all duration-300"
-                  style={{
-                    background: darkMode ? '#212426' : '#E5E7EB',
-                    boxShadow: darkMode 
-                      ? 'inset -1px -1px 2px rgba(255, 255, 255, 0.06), inset 1px 1px 3px rgba(0, 0, 0, 0.4)'
-                      : 'inset 2px 2px 4px #cdd3da, inset -2px -2px 4px #fdffff'
-                  }}
-                >
-                  <div
-                    className="absolute top-[3px] left-[3px] w-[30px] h-[30px] rounded-full transition-all duration-300 z-10"
-                    style={{
-                      transform: darkMode ? 'translateX(34px)' : 'translateX(0)',
-                      backgroundColor: darkMode ? '#2E2E2E' : '#FFFFFF',
-                        boxShadow: darkMode 
-                        ? 'inset -1px -1px 1px rgba(255, 255, 255, 0.05), inset 1px 1px 2px rgba(0, 0, 0, 0.3)'
-                        : '2px 2px 4px #cdd3da, -2px -2px 4px #fdffff'
-                    }}
-                  />
-                  <div className="w-[30px] h-[30px] flex items-center justify-center z-20">
-                    <img src={LightIcon} alt="Light Mode" className={`w-4 h-4 ${!darkMode ? 'filter brightness-0' : ''}`} />
-                  </div>
-                  <div className="w-[30px] h-[30px] flex items-center justify-center z-20">
-                    <img src={DarkIcon} alt="Dark Mode" className={`w-4 h-4 ${!darkMode ? 'filter brightness-0' : ''}`} />
-                  </div>
-                </div>
-          </div>
+                    <div className="absolute top-6 right-6 z-10">
+                        <ThemeToggle isDark={darkMode} onToggle={() => setDarkMode(!darkMode)} />
+                    </div>
           <div className="hidden lg:flex justify-end p-6">
             <div
               onClick={() => setDarkMode(!darkMode)}
@@ -889,33 +862,23 @@ const validateForm = () => {
                           {errors.contact_no && <p className="text-red-500 text-sm mt-1">{errors.contact_no}</p>}
                         </div>
                       </div>
-                      <div>
-                        <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Type of organization <span className="text-red-400 mx-1">*</span>
-                          <InfoTooltip note="Select the legal structure of your organization." />
-                        </label>
-                        <div className="relative">
-                          <select name="organisation_type" value={formData.organisation_type} onChange={handleInputChange}
-                            className={`appearance-none w-full pr-10 pl-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12
-                              ${darkMode ? 'text-white border-gray-600' : 'text-gray-900 border-gray-300'}
-                              ${errors.organisation_type ? 'border-red-500' : ''}
-                              ${!formData.organisation_type ? (darkMode ? 'font-thin text-white opacity-80' : 'font-thin text-gray-500') : 'font-normal'}`
-                            }
-                            style={{ backgroundColor: darkMode ? '#212426' : 'white' }}
-                          >
-                            <option value="" disabled>Select your organization type</option>
-                            {['Private Limited', 'Public Limited', 'Partnership', 'Proprietorship', 'LLP', 'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Trust', 'Society', 'Other'].map(opt => (
-                                <option key={opt} value={opt}>{opt}</option>
-                            ))}
-                          </select>
-                          <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                            <svg className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                        </div>
-                        {errors.organisation_type && <p className="text-red-500 text-sm mt-1">{errors.organisation_type}</p>}
-                      </div>
+<div>
+    <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+        Type of organization <span className="text-red-400 mx-1">*</span>
+        <InfoTooltip note="Select the legal structure of your organization." />
+    </label>
+    <Select
+        name="organisation_type"
+        options={organisationTypeOptions}
+        value={organisationTypeOptions.find(option => option.value === formData.organisation_type)}
+        onChange={handleSelectChange}
+        placeholder="Select your organization type"
+        styles={customSelectStyles(darkMode)}
+        theme={(theme) => themeOverride(theme, darkMode)}
+        required
+    />
+    {errors.organisation_type && <p className="text-red-500 text-sm mt-1">{errors.organisation_type}</p>}
+</div>
                       <div>
                         <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                           Organisation address <span className="text-red-400 mx-1">*</span>
@@ -996,35 +959,22 @@ const validateForm = () => {
 
                                   return (
                                       <>
-                                          <div>
-                                              <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                                  Account type
-                                                  <InfoTooltip note="Select if your account is Savings or Current." />
-                                              </label>
-                                              <div className="relative">
-                                                  <select
-                                                      name="primary_bank_acc_type"
-                                                      value={formData.primary_bank_acc_type}
-                                                      onChange={handleInputChange}
-                                                      className={`appearance-none w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-12 ${darkMode ? 'text-white' : 'text-gray-900'}
-                                                          ${!formData.primary_bank_acc_type ? (darkMode ? 'font-thin text-white opacity-80' : 'font-thin text-gray-500') : 'font-normal'}
-                                                          ${errors.primary_bank_acc_type ? 'ring-2 ring-red-500' : ''}`
-                                                      }
-                                                      style={inputStyle}
-                                                  >
-                                                      <option value="" disabled>Select your account type</option>
-                                                      <option value="Savings">Savings</option>
-                                                      <option value="Current">Current</option>
-                                                      <option value="Merchant">Merchant</option>
-                                                  </select>
-                                                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                                                      <svg className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor">
-                                                          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                                                      </svg>
-                                                  </div>
-                                              </div>
-                                              {errors.primary_bank_acc_type && <p className="text-red-500 text-sm mt-1">{errors.primary_bank_acc_type}</p>}
-                                          </div>
+<div>
+    <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+        Account type
+        <InfoTooltip note="Select if your account is Savings or Current." />
+    </label>
+    <Select
+        name="primary_bank_acc_type"
+        options={accountTypeOptions}
+        value={accountTypeOptions.find(option => option.value === formData.primary_bank_acc_type)}
+        onChange={handleSelectChange}
+        placeholder="Select your account type"
+        styles={customSelectStyles(darkMode)}
+        theme={(theme) => themeOverride(theme, darkMode)}
+    />
+    {errors.primary_bank_acc_type && <p className="text-red-500 text-sm mt-1">{errors.primary_bank_acc_type}</p>}
+</div>
 
                                           <div>
                                               <label className={`flex items-center text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>

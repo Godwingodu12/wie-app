@@ -1,11 +1,16 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
 import SideBar from "../../components/HomePage/SideBar";
 import SearchBar from "../../components/HomePage/SearchBar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
-import { getMyEvents, getGroups, getMyLiveEvents,getGroupStatistics } from "../../services/ticketService";
+import {
+  getMyEvents,
+  getGroups,
+  getMyLiveEvents,
+  getGroupStatistics,
+} from "../../services/ticketService";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
 import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
 import {
@@ -20,18 +25,27 @@ import {
 // --- Start of inlined DoughnutChart.jsx code ---
 
 const LegendItem = ({ color, label, percentage, theme }) => (
-    <div className="w-full flex items-center gap-2">
-        <div className="flex items-center gap-2 w-1/3">
-            <div className={`w-2 h-2 rounded-full ${color}`}></div>
-            <span className={`${theme.text} text-sm truncate`}>{label}</span>
-        </div>
-        <div className="w-2/3 flex items-center gap-2">
-            <div className={`w-full ${theme.cardBg === 'bg-[#232426]' ? 'bg-gray-700' : 'bg-gray-200'} rounded-full h-1.5`}>
-                <div className={`${color} h-1.5 rounded-full`} style={{ width: `${percentage}%` }}></div>
-            </div>
-            <span className={`${theme.text} font-medium text-sm w-10 text-right`}>{percentage}%</span>
-        </div>
+  <div className="w-full flex items-center gap-2">
+    <div className="flex items-center gap-2 w-1/3">
+      <div className={`w-2 h-2 rounded-full ${color}`}></div>
+      <span className={`${theme.text} text-sm truncate`}>{label}</span>
     </div>
+    <div className="w-2/3 flex items-center gap-2">
+      <div
+        className={`w-full ${
+          theme.cardBg === "bg-[#232426]" ? "bg-gray-700" : "bg-gray-200"
+        } rounded-full h-1.5`}
+      >
+        <div
+          className={`${color} h-1.5 rounded-full`}
+          style={{ width: `${percentage}%` }}
+        ></div>
+      </div>
+      <span className={`${theme.text} font-medium text-sm w-10 text-right`}>
+        {percentage}%
+      </span>
+    </div>
+  </div>
 );
 
 const DoughnutChart = ({ stats, theme }) => {
@@ -82,7 +96,7 @@ const DoughnutChart = ({ stats, theme }) => {
                 strokeWidth={strokeWidth}
                 strokeDasharray={`${segmentLength} ${circumference}`}
                 strokeDashoffset={-offset}
-                strokeLinecap="round"
+                strokeLinecap="butt"
               />
             );
           })}
@@ -108,39 +122,32 @@ const GroupStatisticsChart = ({ theme, statsData = [] }) => {
       <h2 className={`text-xl font-bold ${theme.text} mb-4`}>
         Active group statistics
       </h2>
-      <div className="flex flex-col md:flex-row items-center gap-4">
-          <div
-            style={{
-              width: "252px",
-              height: "252px",
-              padding: "53px 51px", 
-              display: "flex",
-              gap: "5px",
-              opacity: 1,
-              transform: "translate(-50px, -10px)",
-              boxSizing: "border-box",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <DoughnutChart stats={statsData} theme={theme} />
+      <div className="flex flex-col items-center justify-center md:justify-start gap-4">
+        <div
+          className="flex justify-center items-center"
+          style={{
+            width: "252px",
+            height: "252px",
+            padding: "53px 51px",
+            gap: "5px",
+            boxSizing: "border-box",
+          }}
+        >
+          <DoughnutChart stats={statsData} theme={theme} />
+        </div>
+        <div className="w-full flex-grow">
+          <div className="flex flex-col space-y-4">
+            {statsData.map((stat, index) => (
+              <LegendItem
+                key={index}
+                color={stat.color}
+                label={stat.label}
+                percentage={stat.percentage}
+                theme={theme}
+              />
+            ))}
           </div>
-          <div
-            className="w-full flex-grow"
-            style={{ transform: "translateX(-40px)" }}
-          >
-            <div className="flex flex-col space-y-4">
-              {statsData.map((stat, index) => (
-                <LegendItem
-                  key={index}
-                  color={stat.color}
-                  label={stat.label}
-                  percentage={stat.percentage}
-                  theme={theme}
-                />
-              ))}
-            </div>
-          </div>
+        </div>
       </div>
     </>
   );
@@ -184,9 +191,9 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
           <div
             className="relative w-[100px] h-[100px] rounded-[58px] overflow-hidden"
             style={{
-              boxShadow: isDark 
-                ? 'inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)'
-                : 'inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)'
+              boxShadow: isDark
+                ? "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)"
+                : "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)",
             }}
           >
             <img
@@ -203,47 +210,52 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
     </div>
   </div>
 );
+// StatsCard.jsx
 const StatsCard = ({ count, title, isDark, theme }) => (
   <div
     style={{
-      width: "119px",
-      height: "160px",
       borderRadius: "40px",
       padding: "15px 27px",
       gap: "10px",
-      background: isDark ? "#2a2d30" : "#FFFFFF",
-      boxShadow: isDark 
+      background: isDark ? "#2a2d30" : "#F1F1F1",
+      boxShadow: isDark
         ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
         : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
     }}
-    className="flex flex-col items-center justify-around"
+    className="flex flex-col items-center justify-around w-full h-full"
   >
     <div className="text-yellow-400">
       <PartyPopper className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
     </div>
-    <p className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}>{count}</p>
+    <p
+      className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}
+    >
+      {count}
+    </p>
     <p className={`text-xs ${theme.subText}`}>{title}</p>
   </div>
 );
 const LiveEventsCard = ({ count, isDark, theme }) => (
   <div
     style={{
-      width: "119px",
-      height: "160px",
       borderRadius: "40px",
       padding: "15px 27px",
       gap: "10px",
-      background: isDark ? "#2a2d30" : "#FFFFFF",
-      boxShadow: isDark 
+      background: isDark ? "#2a2d30" : "#F1F1F1",
+      boxShadow: isDark
         ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
         : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
     }}
-    className="flex flex-col items-center justify-around"
+    className="flex flex-col items-center justify-around w-full h-full"
   >
     <div className="text-red-500 relative">
       <Radio className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
     </div>
-    <p className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}>{count}</p>
+    <p
+      className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}
+    >
+      {count}
+    </p>
     <p className={`text-xs ${theme.subText}`}>Live events</p>
   </div>
 );
@@ -271,9 +283,7 @@ function MonthSelector({
   ];
   return (
     <div
-      className={`absolute z-10 ${
-        theme.cardBg
-      } rounded-xl ${getButtonNeumorphicShadows(
+      className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
         isDark
       )} p-1 flex flex-col gap-1 w-24 shadow-lg`}
       style={style}
@@ -308,12 +318,10 @@ function YearSelector({
   const years = Array.from({ length: 21 }, (_, i) => currentYear - 10 + i);
   return (
     <div
-      className={`absolute z-10 ${
-        theme.cardBg
-      } rounded-xl ${getButtonNeumorphicShadows(
+      className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
         isDark
-      )} p-1 flex flex-col gap-1 w-24 shadow-lg`}
-      style={{ ...style, maxHeight: "13.5rem", overflowY: "auto" }}
+      )} p-1 flex flex-col gap-1 w-24 shadow-lg max-h-[13.5rem] overflow-y-auto`}
+      style={style}
     >
       {years.map((yearNum) => (
         <button
@@ -344,51 +352,38 @@ function CalendarControls({
   currentMonth,
   currentYear,
   months,
+  fullMonths,
   className,
 }) {
   const [showMonthSelector, setShowMonthSelector] = useState(false);
   const [showYearSelector, setShowYearSelector] = useState(false);
   const calendarBg = isDark ? theme.cardBg : "bg-gray-200";
-
   return (
     <div
-      className={`flex flex-row items-center justify-between ${className || ""} ${theme.text}`}
-      style={{
-        width: '411px',
-        height: '42px',
-        opacity: 1,
-      }}
+      className={`flex flex-wrap md:flex-nowrap items-center justify-start max-w-full md:w-auto gap-2 md:gap-1 ${
+        className || ""
+      } ${theme.text}`}
     >
-      <div 
-        className="flex items-center"
-        style={{
-          width: '100px',
-          height: '42px',
-          gap: '16px',
-          opacity: 1,
-        }}
-      >
+      <div className="flex items-center gap-1 md:gap-1 lg:gap-3">
         <button
           onClick={onPrevMonth}
-          className={`p-2 flex items-center justify-center ${calendarBg} rounded-full ${getButtonNeumorphicShadows(
+          className={`p-1 md:p-1.5 flex items-center justify-center ${calendarBg} rounded-full ${getButtonNeumorphicShadows(
             isDark
-          )}`}
-          style={{ width: '42px', height: '42px' }}
+          )} w-7 h-7 md:w-8 md:h-8 lg:w-10 lg:h-10`}
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
         </button>
         <button
           onClick={onNextMonth}
-          className={`p-2 flex items-center justify-center ${calendarBg} rounded-full ${getButtonNeumorphicShadows(
+          className={`p-1 md:p-1.5 flex items-center justify-center ${calendarBg} rounded-full ${getButtonNeumorphicShadows(
             isDark
-          )}`}
-          style={{ width: '42px', height: '42px' }}
+          )} w-7 h-7 md:w-8 md:h-8 lg:w-10 lg:h-10`}
         >
-          <ChevronRight className="w-5 h-5" />
+          <ChevronRight className="w-4 h-4 md:w-5 md:h-5" />
         </button>
       </div>
-      
-      <div className="flex items-center gap-2">
+
+      <div className="flex items-center gap-1 md:gap-2 lg:gap-3 ml-auto">
         <div className="relative">
           <button
             onClick={() => {
@@ -397,25 +392,18 @@ function CalendarControls({
             }}
             className={`flex items-center justify-between ${calendarBg} rounded-full ${getButtonNeumorphicShadows(
               isDark
-            )}`}
-            style={{
-              width: '170px', // Reduced width
-              height: '42px',
-              gap: '10px',
-              paddingTop: '9px',
-              paddingRight: '20px', // Reduced padding
-              paddingBottom: '9px',
-              paddingLeft: '20px', // Reduced padding
-              opacity: 1,
-            }}
+            )} h-7 md:h-8 lg:h-10 gap-1 md:gap-2 px-2 md:px-2`}
           >
-            <span className="text-sm font-semibold">
-              {months[currentMonth]}
+            <span className="text-xs md:text-sm font-semibold whitespace-nowrap">
+              <span className="lg:hidden">{months[currentMonth]}</span>
+              <span className="hidden lg:inline">
+                {fullMonths[currentMonth]}
+              </span>
             </span>
-            <ChevronDown className="w-4 h-4" />
+            <ChevronDown className="w-3 h-3 md:w-4 md:h-4" />
           </button>
           {showMonthSelector && (
-            <div className="absolute z-20 mt-2" style={{ left: '20px' }}>
+            <div className="absolute z-20 mt-2 left-0">
               <MonthSelector
                 currentMonth={currentMonth}
                 onSelectMonth={(m) => {
@@ -429,32 +417,24 @@ function CalendarControls({
             </div>
           )}
         </div>
-        
+
         <div className="relative">
           <button
             onClick={() => {
               setShowYearSelector((s) => !s);
               setShowMonthSelector(false);
             }}
-            className={`flex items-center justify-between ${calendarBg} rounded-full ${getButtonNeumorphicShadows(
+            className={`flex items-center ${calendarBg} rounded-full ${getButtonNeumorphicShadows(
               isDark
-            )}`}
-            style={{
-              width: '95px', // Reduced width to fit better
-              height: '42px',
-              gap: '8px', // Reduced gap
-              paddingTop: '9px',
-              paddingRight: '16px', // Reduced padding
-              paddingBottom: '9px',
-              paddingLeft: '16px', // Reduced padding
-              opacity: 1,
-            }}
+            )} h-7 md:h-8 lg:h-10 gap-1 px-2 md:px-3 md:pr-[13px]`}
           >
-            <span className="text-sm font-semibold">{currentYear}</span>
-            <ChevronDown className="w-4 h-4" />
+            <span className="text-xs md:text-sm font-semibold">
+              {currentYear}
+            </span>
+            <ChevronDown className="w-3 h-3 md:w-4 md:h-4" />
           </button>
           {showYearSelector && (
-            <div className="absolute z-20 mt-2" style={{ right: '0px' }}> {/* Fixed positioning */}
+            <div className="absolute z-20 mt-2 right-0">
               <YearSelector
                 currentYear={currentYear}
                 onSelectYear={(y) => {
@@ -472,35 +452,27 @@ function CalendarControls({
     </div>
   );
 }
-const CalendarGrid = ({
+function CalendarGrid({
   isDark,
   theme,
   dates,
   selectedDate,
   onDateClick,
   className,
-}) => {
+}) {
   const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
   return (
     <div
-      className={`${isDark ? theme.cardBg : 'bg-gray-200'} rounded-[2.5rem] mx-auto ${getOuterDepthShadows(isDark)}`}
-      style={{
-        width: '411px',
-        height: '250px',
-        padding: '20px 16px',
-        gap: '8px',
-        opacity: 1,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
+      className={`${
+        isDark ? theme.cardBg : "bg-gray-200"
+      } rounded-[2.5rem] w-full mt-4 ${getOuterDepthShadows(
+        isDark
+      )} p-3 sm:p-4 md:p-5 lg:p-5 flex flex-col gap-1 sm:gap-2 lg:gap-2`}
     >
-      <div className="grid grid-cols-7 gap-1 text-center mb-2">
+      <div className="grid grid-cols-7 gap-1 lg:gap-2 text-center mb-1 sm:mb-2 lg:mb-2">
         {days.map((day) => (
-          <div
-            key={day}
-            className={`text-xs font-bold ${theme.subText}`}
-          >
+          <div key={day} className={`text-xs font-bold ${theme.subText}`}>
             {day}
           </div>
         ))}
@@ -519,7 +491,9 @@ const CalendarGrid = ({
 
           if (isSelected) {
             textColorClass = isDark ? "text-purple-400" : "text-purple-600";
-            ringClass = isDark ? "ring-2 ring-purple-400" : "ring-2 ring-purple-600";
+            ringClass = isDark
+              ? "ring-2 ring-purple-400"
+              : "ring-2 ring-purple-600";
             fontClass = "font-bold";
             bgColorClass = isDark ? "bg-gray-700" : "bg-white";
           } else if (isToday) {
@@ -531,8 +505,7 @@ const CalendarGrid = ({
           return (
             <div
               key={index}
-              className={`p-1 rounded-xl text-sm flex items-center justify-center cursor-pointer transition-colors duration-200 ${bgColorClass} ${textColorClass} ${fontClass} ${ringClass} ${otherClasses}`}
-              style={{ minHeight: '28px', minWidth: '28px' }}
+              className={`p-1 rounded-xl text-sm flex items-center justify-center cursor-pointer transition-colors duration-200 aspect-square lg:aspect-auto ${bgColorClass} ${textColorClass} ${fontClass} ${ringClass} ${otherClasses} lg:min-h-[30px] lg:min-w-[30px]`}
               onClick={() => onDateClick(dayInfo)}
             >
               {dayInfo.date}
@@ -542,27 +515,41 @@ const CalendarGrid = ({
       </div>
     </div>
   );
-};
+}
 const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const searchInputRef = useRef(null);
   const itemsPerPage = 6;
 
-  const filteredEvents = useMemo(() => {
-    if (activeFilter === "All") {
-      return events;
+  useEffect(() => {
+    if (isSearchActive) {
+      searchInputRef.current?.focus();
     }
+  }, [isSearchActive]);
+
+  const filteredEvents = useMemo(() => {
+    let filtered = events || [];
+
     if (activeFilter === "Paid") {
-      return events.filter(
+      filtered = filtered.filter(
         (event) => event.ticket_types && event.ticket_types.length > 0
       );
-    }
-    if (activeFilter === "Free") {
-      return events.filter(
+    } else if (activeFilter === "Free") {
+      filtered = filtered.filter(
         (event) => !event.ticket_types || event.ticket_types.length === 0
       );
     }
-    return [];
-  }, [events, activeFilter]);
+
+    if (searchTerm) {
+      filtered = filtered.filter((event) =>
+        event.event_name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    return filtered;
+  }, [events, activeFilter, searchTerm]);
 
   const paginatedEvents = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -577,156 +564,53 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
     displayEvents.push(null);
   }
 
- return (
-    <div 
-    style={{
-      width: '717px',
-      height: '362px',
-      borderRadius: '50px',
-      padding: '21px 40px',
-      gap: '10px',
-      background: isDark ? "#2a2d30" : '#F1F1F1',
-      boxShadow: isDark
-        ? 'inset 6px 6px 12px rgba(0,0,0,0.3), inset -6px -6px 12px rgba(255,255,255,0.05)'
-        : 'inset 6px 6px 12px rgba(0,0,0,0.18), inset -6px -6px 12px rgba(255,255,255,0.08)',
-      opacity: 1,
-      transform: 'rotate(0deg)',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden'
-    }}
-    className="mx-auto"
-  >
-    {/* Scrollable content area */}
-    <div className="flex-1 overflow-y-auto">
-      {/* Mobile view */}
-      <div className="flex flex-col md:hidden">
-        {displayEvents.map((event, index) => {
-          if (!event) {
-            return (
-              <div
-                key={`placeholder-${index}`}
-                className="p-4 h-[80px]"
-              >
-                &nbsp;
-              </div>
-            );
-          }
-          return (
-            <div
-              key={event._id || index}
-              className={`border-b ${
-                isDark ? "border-gray-700/50" : "border-gray-200"
-              } p-4`}
-            >
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-8 h-8 rounded-full ${
-                      isDark ? "bg-indigo-500/20" : "bg-indigo-100"
-                    } flex items-center justify-center ${
-                      isDark ? "text-indigo-300" : "text-indigo-500"
-                    }`}
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M13 10V3L4 14h7v7l9-11h-7z"
-                      />
-                    </svg>
-                  </div>
-                  <span className={`${theme.text} truncate`}>{event.event_name}</span>
-                </div>
-                <button
-                  className={`px-8 py-2 border border-[#6549B8] rounded-full text-sm transition-colors ${
-                    isDark
-                      ? "text-white hover:bg-[#6549B8]"
-                      : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
-                  }`}
-                >
-                  View
-                </button>
-              </div>
-              <div
-                className={`mt-2 text-sm ${
-                  isDark ? "text-gray-400" : "text-gray-600"
-                }`}
-              >
-                <p>Event type: {event.event_type}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <table className="hidden md:table w-full table-fixed text-left">
-        <thead>
-            <tr
-              className={`${isDark ? "text-gray-300" : "text-black"} border-b ${
-                isDark ? "border-gray-600" : "border-gray-200"
-              } text-sm sticky top-0`}
-              style={{ 
-                background: isDark ? "#2a2d30" : '#F1F1F1',
-                zIndex: 10 
-              }}
-            >
-              <th className="py-3 px-4 font-bold text-lg w-[45%]">
-                <div className="flex items-center gap-2">
-                  <span>Event</span>
-                  <Search className={`w-4 h-4 ${isDark ? "text-gray-300" : "text-black"}`} />
-                </div>
-              </th>
-              <th className="w-[145px] h-[24px] px-[10px] font-bold text-lg">
-                <div className="flex flex-row items-center gap-[10px]">
-                  <span>Category</span>
-                  <ChevronDown className={`w-4 h-4 ${isDark ? "text-gray-300" : "text-black"}`} />
-                </div>
-              </th>
-              <th className="py-3 px-4 font-bold text-lg w-[20%]">
-                <div className="flex items-center gap-2">
-                  <span>Event type</span>
-                  <ChevronDown className={`w-4 h-4 ${isDark ? "text-gray-300" : "text-black"}`} />
-                </div>
-              </th>
-              <th className="py-3 px-4 font-normal w-[15%]"></th>
-            </tr>
-          </thead>
-        <tbody>
+  return (
+    <div
+      style={{
+        padding: "21px 40px",
+        gap: "10px",
+        opacity: 1,
+        transform: "rotate(0deg)",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+
+        height: "402px",
+      }}
+      className={`w-full rounded-[50px] ${
+        isDark ? theme.cardBg : "bg-[#f1f1f1]"
+      } ${getNeumorphicShadows(isDark)}`}
+    >
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Mobile view */}
+        <div className="flex flex-col md:hidden">
           {displayEvents.map((event, index) => {
             if (!event) {
               return (
-                <tr key={`placeholder-${index}`}>
-                  <td className="py-3 px-4 h-[60px]">&nbsp;</td>
-                  <td className="py-3 px-4">&nbsp;</td>
-                  <td className="py-3 px-4">&nbsp;</td>
-                  <td className="py-3 px-4">&nbsp;</td>
-                </tr>
+                <div key={`placeholder-${index}`} className="p-4 h-[80px]">
+                  &nbsp;
+                </div>
               );
             }
             return (
-              <tr
+              <div
                 key={event._id || index}
                 className={`border-b ${
                   isDark ? "border-gray-700/50" : "border-gray-200"
-                } ${isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"}`}
+                } p-4`}
               >
-                <td className="py-3 px-4">
+                <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <div
-                      className={`w-6 h-6 rounded-full ${
+                      className={`w-8 h-8 rounded-full ${
                         isDark ? "bg-indigo-500/20" : "bg-indigo-100"
                       } flex items-center justify-center ${
                         isDark ? "text-indigo-300" : "text-indigo-500"
                       }`}
                     >
                       <svg
-                        className="w-4 h-4"
+                        className="w-5 h-5"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -739,18 +623,12 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
                         />
                       </svg>
                     </div>
-                    <span className={`${theme.text} text-sm truncate`}>{event.event_name}</span>
+                    <span className={`${theme.text} truncate`}>
+                      {event.event_name}
+                    </span>
                   </div>
-                </td>
-                <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                  {event.event_category ? event.event_category : "N/A"}
-                </td>
-                <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                  {event.event_type ? event.event_type : "N/A"}
-                </td>
-                <td className="py-3 px-4 text-right">
                   <button
-                    className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
+                    className={`px-4 sm:px-8 py-2 border border-[#6549B8] rounded-full text-sm transition-colors ${
                       isDark
                         ? "text-white hover:bg-[#6549B8]"
                         : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
@@ -758,38 +636,172 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
                   >
                     View
                   </button>
-                </td>
-              </tr>
+                </div>
+                <div
+                  className={`mt-2 text-sm ${
+                    isDark ? "text-gray-400" : "text-gray-600"
+                  }`}
+                >
+                  <p>Event type: {event.event_type}</p>
+                </div>
+              </div>
             );
           })}
-        </tbody>
-      </table>
-    </div>
-
-    {/* Pagination */}
-    {totalPages > 1 && (
-      <div className="flex justify-center mt-3 pt-2 border-t border-opacity-20" style={{ borderColor: isDark ? '#4a5568' : '#e2e8f0' }}>
-        <div className="flex items-center gap-2">
-          {pages.map((page) => (
-            <button
-              key={page}
-              onClick={() => setCurrentPage(page)}
-              className={`w-7 h-7 rounded-full text-xs font-medium transition-colors flex items-center justify-center ${
-                currentPage === page
-                  ? "bg-[#6549B8] text-white"
-                  : isDark
-                  ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
-            >
-              {page}
-            </button>
-          ))}
         </div>
+        <table className="hidden md:table w-full table-fixed text-left">
+          <thead>
+            <tr
+              className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
+                isDark ? "border-gray-700" : "border-gray-200"
+              } text-sm sticky top-0`}
+              style={{
+                background: isDark ? "#232426" : "#F1F1F1",
+                zIndex: 10,
+              }}
+            >
+              <th className="py-3 px-4 font-bold text-lg w-[40%]">
+                <div className="flex items-center justify-start gap-2">
+                  {isSearchActive ? (
+                    <div className="flex items-center gap-2 w-full">
+                      <Search className="w-4 h-4" />
+                      <input
+                        ref={searchInputRef}
+                        type="text"
+                        placeholder="Search..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onBlur={() => {
+                          setIsSearchActive(false);
+                          setSearchTerm("");
+                        }}
+                        className="bg-transparent focus:outline-none w-full placeholder-gray-500"
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <span>Event</span>
+                      <Search
+                        className="w-4 h-4 cursor-pointer"
+                        onClick={() => setIsSearchActive(true)}
+                      />
+                    </>
+                  )}
+                </div>
+              </th>
+              <th className="py-3 px-4 font-bold text-lg w-[25%]">
+                <div className="flex flex-row items-center gap-[10px]">
+                  <span>Category</span>
+                  <ChevronDown className="w-4 h-4" />
+                </div>
+              </th>
+              <th className="py-3 px-4 font-bold text-lg w-[20%]">
+                <div className="flex items-center gap-2">
+                  <span>Event type</span>
+                </div>
+              </th>
+              <th className="py-3 px-4 font-normal w-[15%]"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {displayEvents.map((event, index) => {
+              if (!event) {
+                return (
+                  <tr key={`placeholder-${index}`}>
+                    <td className="py-3 px-4 h-[60px]">&nbsp;</td>
+                    <td className="py-3 px-4">&nbsp;</td>
+                    <td className="py-3 px-4">&nbsp;</td>
+                    <td className="py-3 px-4">&nbsp;</td>
+                  </tr>
+                );
+              }
+              return (
+                <tr
+                  key={event._id || index}
+                  className={`border-b ${
+                    isDark ? "border-gray-700/50" : "border-gray-200"
+                  } ${
+                    isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
+                  }`}
+                >
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-6 h-6 rounded-full ${
+                          isDark ? "bg-indigo-500/20" : "bg-indigo-100"
+                        } flex items-center justify-center ${
+                          isDark ? "text-indigo-300" : "text-indigo-500"
+                        }`}
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z"
+                          />
+                        </svg>
+                      </div>
+                      <span className={`${theme.text} text-sm truncate`}>
+                        {event.event_name}
+                      </span>
+                    </div>
+                  </td>
+                  <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
+                    {event.event_category ? event.event_category : "N/A"}
+                  </td>
+                  <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
+                    {event.event_type ? event.event_type : "N/A"}
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <button
+                      className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
+                        isDark
+                          ? "text-white hover:bg-[#6549B8]"
+                          : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
+                      }`}
+                    >
+                      View
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-    )}
-  </div>
-);
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div
+          className="flex justify-center mt-3 pt-2 border-t border-opacity-20"
+          style={{ borderColor: isDark ? "#4a5568" : "#e2e8f0" }}
+        >
+          <div className="flex items-center gap-2">
+            {pages.map((page) => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`w-7 h-7 rounded-full text-xs font-medium transition-colors flex items-center justify-center ${
+                  currentPage === page
+                    ? "bg-[#6549B8] text-white"
+                    : isDark
+                    ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 const ViewEvent = () => {
@@ -811,10 +823,13 @@ const ViewEvent = () => {
     setLoading(true);
     try {
       const groupsResponse = await getGroups();
-      const groupsArray = Array.isArray(groupsResponse) ? groupsResponse : groupsResponse.data || [];
+      const groupsArray = Array.isArray(groupsResponse)
+        ? groupsResponse
+        : groupsResponse.data || [];
       setGroups(groupsArray);
       if (groupsArray.length === 0) navigate("/ticket/create-group");
-      else if (groupsArray.length === 1) navigate(`/ticket/create-event/${groupsArray[0]._id}`);
+      else if (groupsArray.length === 1)
+        navigate(`/ticket/create-event/${groupsArray[0]._id}`);
       else setIsModalOpen(true);
     } catch {
       alert("Error fetching groups. Please try again.");
@@ -826,8 +841,21 @@ const ViewEvent = () => {
     setIsModalOpen(false);
     navigate(`/ticket/create-event/${selectedGroup._id}`);
   };
-  const confirmedEventsCount = events.length;
-  const months = [
+  const shortMonths = [
+    "JAN",
+    "FEB",
+    "MAR",
+    "APR",
+    "MAY",
+    "JUN",
+    "JUL",
+    "AUG",
+    "SEP",
+    "OCT",
+    "NOV",
+    "DEC",
+  ];
+  const fullMonths = [
     "JANUARY",
     "FEBRUARY",
     "MARCH",
@@ -914,33 +942,29 @@ const ViewEvent = () => {
     setCurrentDate(dayInfo.fullDate);
   };
 
-    useEffect(() => {
+  useEffect(() => {
     const fetchData = async () => {
       try {
-        const [eventsRes, groupsRes, liveEventsRes, groupStatsRes] = await Promise.all([
-          getMyEvents(),
-          getGroups(),
-          getMyLiveEvents(),
-          getGroupStatistics()
-        ]);
+        const [eventsRes, groupsRes, liveEventsRes, groupStatsRes] =
+          await Promise.all([
+            getMyEvents(),
+            getGroups(),
+            getMyLiveEvents(),
+            getGroupStatistics(),
+          ]);
 
-        const eventsArray = Array.isArray(eventsRes.tickets)
-          ? eventsRes.tickets
-          : eventsRes.tickets
-          ? [eventsRes.tickets]
+        const eventsArray = eventsRes?.tickets
+          ? [].concat(eventsRes.tickets)
           : [];
-        
-        const groupsArray = Array.isArray(groupsRes) ? groupsRes : groupsRes.data || [];
-        
         setEvents(eventsArray);
-        setGroups(groupsArray);
-        setLiveEventsCount(
-          liveEventsRes.tickets ? liveEventsRes.tickets.length : 0
-        );
 
-        // Process group statistics data
-        if (groupStatsRes && groupStatsRes.data && Array.isArray(groupStatsRes.data)) {
-          const processedStats = groupStatsRes.data.map((stat, index) => {
+        const groupsArray = Array.isArray(groupsRes) ? groupsRes : [];
+        setGroups(groupsArray);
+
+        setLiveEventsCount(liveEventsRes?.tickets?.length || 0);
+
+        if (Array.isArray(groupStatsRes)) {
+          const processedStats = groupStatsRes.map((stat, index) => {
             const colors = [
               { name: "green-500", stroke: "#22c55e" },
               { name: "blue-500", stroke: "#3b82f6" },
@@ -949,7 +973,7 @@ const ViewEvent = () => {
               { name: "purple-500", stroke: "#8b5cf6" },
             ];
             const color = colors[index % colors.length];
-            
+
             return {
               label: stat.groupName || `Group ${index + 1}`,
               percentage: Math.round(stat.percentage || 0),
@@ -972,11 +996,12 @@ const ViewEvent = () => {
     fetchData();
   }, []);
 
-
   useEffect(() => {
     if (events.length > 0 && groups.length > 0) {
       const stats = groups.map((group) => {
-        const groupEvents = events.filter((event) => event.groupId === group._id);
+        const groupEvents = events.filter(
+          (event) => event.groupId === group._id
+        );
         const percentage =
           events.length > 0 ? (groupEvents.length / events.length) * 100 : 0;
         return {
@@ -1033,19 +1058,21 @@ const ViewEvent = () => {
   };
 
   const theme = isDark
-  ? {
-      bg: "bg-[#212426]",
-      text: "text-white",
-      subText: "text-[#c9c9cf]",
-      cardBg: "bg-[#2a2d30]",
-    }
-  : {
-      bg: "bg-slate-100",
-      text: "text-gray-900",
-      subText: "text-gray-600",
-      cardBg: "bg-white",
-    };
+    ? {
+        bg: "bg-[#212426]",
+        text: "text-white",
+        subText: "text-[#c9c9cf]",
+        cardBg: "bg-[#232426]",
+      }
+    : {
+        bg: "bg-slate-100",
+        text: "text-gray-900",
+        subText: "text-gray-600",
+        cardBg: "bg-slate-100",
+      };
+
   const user = { name: "U" };
+  const confirmedEventsCount = events.length;
 
   return (
     <div
@@ -1092,22 +1119,28 @@ const ViewEvent = () => {
               />
             </div>
             <div className="relative">
-  <div 
-    style={{ 
-      boxShadow: isDark 
-        ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' 
-        : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' 
-    }} 
-    className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg}`}
-  >
-    <img 
-      src={NotificationIcon} 
-      alt="Notification" 
-      className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} 
-    />
-  </div>
-  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
-</div>
+              <div
+                style={{
+                  boxShadow: isDark
+                    ? "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)"
+                    : "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
+                }}
+                className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg}`}
+              >
+                <img
+                  src={NotificationIcon}
+                  alt="Notification"
+                  className={`w-4 h-4 ${
+                    isDark
+                      ? "filter brightness-0 invert"
+                      : "filter brightness-0"
+                  }`}
+                />
+              </div>
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
+                12
+              </span>
+            </div>
             <div className="flex items-center gap-4 ml-auto flex-shrink-0">
               <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
             </div>
@@ -1122,45 +1155,63 @@ const ViewEvent = () => {
                 Review and manage everything related to events
               </p>
             </div>
-            <button onClick={handleCreateEvent} disabled={loading} style={{boxShadow: isDark? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)": "-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)", }}
-              className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg} ${theme.text} ${
-                isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"}`}>
-              <span className="w-[38px] h-[38px] flex items-center justify-center rounded-full -ml-2"style={{background: "#3EB489", padding: "7px",boxShadow:"inset 4px 4px 12px #00000052, inset -4px -4px 8px #FFFFFF05", }} >
-                <img src={PlusIcon} alt="Add" className="w-6 h-6" /></span>{loading ? "Checking..." : "Create event"}
+            <button
+              onClick={handleCreateEvent}
+              disabled={loading}
+              style={{
+                boxShadow: isDark
+                  ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
+                  : "-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)",
+              }}
+              className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${
+                theme.bg
+              } ${theme.text} ${
+                isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"
+              }`}
+            >
+              <span
+                className="w-[38px] h-[38px] flex items-center justify-center rounded-full -ml-2"
+                style={{
+                  background: "#3EB489",
+                  padding: "7px",
+                  boxShadow:
+                    "inset 4px 4px 12px #00000052, inset -4px -4px 8px #FFFFFF05",
+                }}
+              >
+                <img src={PlusIcon} alt="Add" className="w-6 h-6" />
+              </span>
+              {loading ? "Checking..." : "Create event"}
             </button>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 xl:gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 xl:gap-8 h-full">
             {/* Left Column (60%) */}
-            <div className="lg:col-span-3 flex flex-col gap-6 xl:gap-8">
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 xl:gap-8">
+            <div className="md:col-span-3 flex flex-col gap-6 xl:gap-8 h-full">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 xl:gap-8">
                 <MyGroupsCard theme={theme} groups={groups} isDark={isDark} />
-               <div
-                style={{
-                  width: "300px",
-                  height: "203px",
-                  borderRadius: "50px",
-                  padding: "21px",
-                  gap: "20px",
-                  background: isDark ? "#2a2d30" : "#F1F1F1",
-                  boxShadow: isDark
-                    ? "inset 6px 6px 12px rgba(0,0,0,0.3), inset -6px -6px 12px rgba(255,255,255,0.05)"
-                    : "inset 6px 6px 12px #0000002E, inset -6px -6px 12px #FFFFFF14",
-                }}
-                className="grid grid-cols-2 items-center"
-              >
-                <StatsCard
-                  isDark={isDark}
-                  theme={theme}
-                  count={confirmedEventsCount}
-                  title="Total events"
-                />
-                <LiveEventsCard
-                  isDark={isDark}
-                  theme={theme}
-                  count={liveEventsCount}
-                />
-              </div>
-
+                <div
+                  style={{
+                    height: "240px",
+                    padding: "21px",
+                    gap: "20px",
+                  }}
+                  className={`w-full max-w-sm mx-auto xl:mr-0 grid grid-cols-2 items-center rounded-[50px] ${
+                    isDark ? theme.cardBg : "bg-[#f1f1f1]"
+                  } ${getNeumorphicShadows(isDark)}`}
+                >
+                  <StatsCard
+                    isDark={isDark}
+                    theme={theme}
+                    className="w-full h-56"
+                    count={confirmedEventsCount}
+                    title="Total events"
+                  />
+                  <LiveEventsCard
+                    isDark={isDark}
+                    theme={theme}
+                    className="w-full h-56"
+                    count={liveEventsCount}
+                  />
+                </div>
               </div>
               <div className="flex justify-end items-center mb-2">
                 <div className="flex items-center gap-2">
@@ -1201,69 +1252,60 @@ const ViewEvent = () => {
                   )}
                 </div>
               </div>
-              <EventsList isDark={isDark} theme={theme} events={events} activeFilter={activeFilter} />
+              <EventsList
+                isDark={isDark}
+                theme={theme}
+                events={events}
+                activeFilter={activeFilter}
+              />
             </div>
             {/* Right Column (40%) */}
-            <div className="lg:col-span-2">
+            <div className="md:col-span-2 h-full">
               <div
                 style={{
-                  width: '459px',
-                  height: '671px',
-                  borderRadius: '50px',
                   opacity: 1,
-                  transform: 'rotate(0deg)',
-                  background: isDark ? "#2a2d30" : '#F1F1F1',
-                  boxShadow: isDark
-                    ? 'inset 6px 6px 12px rgba(0,0,0,0.3), inset -6px -6px 12px rgba(255,255,255,0.05)'
-                    : 'inset 6px 6px 12px rgba(0,0,0,0.18), inset -6px -6px 12px rgba(255,255,255,0.08)',
-                  padding: '24px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '20px',
-                  overflow: 'hidden',
-                  margin: '0 auto'
+                  transform: "rotate(0deg)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "20px",
+                  overflow: "hidden",
                 }}
+                className={`w-full rounded-[50px] ${
+                  isDark ? theme.cardBg : "bg-[#f1f1f1]"
+                } ${getNeumorphicShadows(isDark)} p-4 md:p-4 lg:p-6`}
               >
                 {/* Group Statistics Chart */}
-                <div style={{ flex: '0 0 auto' }}>
+                <div>
                   <GroupStatisticsChart theme={theme} statsData={groupStats} />
                 </div>
-                
+
                 {/* Calendar Section */}
-               <div
-  style={{
-    width: "411px", // Match the reduced width
-    height: "340px", // Increased height for better visibility
-    flex: "1",
-    display: "flex",
-    flexDirection: "column",
-    gap: "16px", // Increased gap between controls and grid
-    margin: "0 auto" // Center the calendar
-  }}
->
-  <CalendarControls
-    isDark={isDark}
-    theme={theme}
-    onPrevMonth={handlePrevMonth}
-    onNextMonth={handleNextMonth}
-    onSelectMonth={handleSelectMonth}
-    onSelectYear={handleSelectYear}
-    currentMonth={month}
-    currentYear={year}
-    months={months}
-  />
-  
-  <div style={{ flex: '1 1 auto', overflow: 'visible' }}> {/* Changed overflow to visible */}
-    <CalendarGrid
-      isDark={isDark}
-      theme={theme}
-      dates={generateCalendarDates}
-      selectedDate={selectedDate}
-      onDateClick={handleDateClick}
-    />
-  </div>
-</div>
-                
+                <div className="w-full max-w-lg lg:max-w-none lg:flex-1 flex flex-col gap-4">
+                  <CalendarControls
+                    isDark={isDark}
+                    theme={theme}
+                    onPrevMonth={handlePrevMonth}
+                    onNextMonth={handleNextMonth}
+                    onSelectMonth={handleSelectMonth}
+                    onSelectYear={handleSelectYear}
+                    currentMonth={month}
+                    currentYear={year}
+                    months={shortMonths}
+                    fullMonths={fullMonths}
+                    className="md:ml-[-9px]"
+                  />
+
+                  <div className="flex-1">
+                    <CalendarGrid
+                      isDark={isDark}
+                      theme={theme}
+                      dates={generateCalendarDates}
+                      selectedDate={selectedDate}
+                      onDateClick={handleDateClick}
+                    />
+                  </div>
+                </div>
+
                 <GroupSelectionModal
                   groups={groups}
                   isOpen={isModalOpen}
