@@ -6,7 +6,6 @@ const guestSchema = new mongoose.Schema({
   guest_profile: { type: String }, // Image URL
   guest_link: { type: String }, // Social media or website link
 });
-
 // Ticket Type Schema
 const ticketTypeSchema = new mongoose.Schema({
   ticket_type: { type: String },
@@ -59,11 +58,11 @@ const subEventSchema = new mongoose.Schema({
   event_subcategory: { type: String, required: true },
   event_type: { type: String, required: true,enum: ['private', 'public']},
   subevent: { type: String, required: true, enum: ['1','2','5']},
-  // FIXED: Changed from String to Array for sub events too
-  event_language: [{ 
-    type: String, 
-    enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other']
-  }],
+  event_language: {
+      type: [String],
+      enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other'],
+      default: []
+  },
   location: { 
     type: String, 
     required: function() { return this.location_type === 'offline'; } 
@@ -96,12 +95,9 @@ const subEventSchema = new mongoose.Schema({
   //for online event
   event_link: { type: String},
   verification_event_code: { type: String},
-  // FIXED: Changed from String to Object for sub events too
   event_rules: fileSchema,
-  
   POCS: [POCSchema],
-  prohibited_items: [{ type: String }], // Array of prohibited items
-  // Description and Media
+  prohibited_items: [{ type: String }],
   event_description: { type: String, required: true },
   event_logo: { type: String, required: false },
   event_banner: { type: String, required: true },
@@ -156,13 +152,11 @@ const ticketSchema = new mongoose.Schema({
   event_category: { type: String, required: false },
   event_subcategory: { type: String, required: false },
   event_type: { type: String, required: false },
-  
-  // FIXED: Changed from String to Array of Strings
-  event_language: [{ 
-    type: String, 
-    enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other']
-  }],
-  
+  event_language: {
+    type: [String],
+    enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other'],
+    default: []
+  },
   min_age_allowed: { type: Number, required: true },
   seating_arrangement: { type: String, default: false, enum: ['seated', 'standing','seated and standing','other']},
   kids_friendly: { type: Boolean, default: false },
@@ -186,12 +180,9 @@ const ticketSchema = new mongoose.Schema({
   //for online event
   event_link: { type: String},
   verification_event_code: { type: String},
-  // FIXED: Changed from String to Object using fileSchema
   event_rules: fileSchema,
   
-  prohibited_items: [{ type: String }], // Array of prohibited items
-  
-  // Description and Media
+  prohibited_items: [{ type: String }],
   college_authorisation: { type: String, required: false },
   event_description: { type: String, required: false },
   event_logo: { type: String, required: false },
