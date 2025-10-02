@@ -231,3 +231,19 @@ export const getGroupStatistics = async () => {
     throw error;
   }
 };
+export const confirmEvent = async (ticketId) => {
+  try {
+    const response = await api.post(`ticket/confirm-event/${ticketId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+export const goLiveEvent = async (ticketId) => {
+  try {
+    const response = await api.post(`ticket/go-live-event/${ticketId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};

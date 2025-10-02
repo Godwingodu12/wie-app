@@ -1,7 +1,8 @@
 import express from 'express';
 import {getUserData,CreateGroup, createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
 getTicketById,deleteTicket,viewTickets } from '../services/ticket.service.js';
-import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getOthersEvents,getOtherLiveEvents,getOthersPastEvents,getGroupStatistics } from '../controller/ticket.controller.js';
+import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getOthersEvents,getOtherLiveEvents,
+getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent } from '../controller/ticket.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);
@@ -34,4 +35,6 @@ router.get('/get-others-events/:otherId',getOthersEvents);
 router.get('/get-others-live-events/:otherId',getOtherLiveEvents);
 router.get('/get-others-past-events/:otherId',getOthersPastEvents);
 router.get('/get-group-statistics', getGroupStatistics);
+router.post('/confirm-event/:ticketId',confirmEvent);
+router.post('/go-live-event/:ticketId',goLiveEvent);
 export default router;
