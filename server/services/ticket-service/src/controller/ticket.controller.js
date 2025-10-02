@@ -868,4 +868,63 @@ export const getGroupStatistics = async (req, res) => {
     });
   }
 };
-
+export const confirmEvent = async(req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const ticketId = req.params.ticketId;
+    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        message: "Invalid ticket ID format"
+      });
+    }
+    const ticket = await Ticket.findOne({ _id: ticketId, userId: userId });
+    if (!ticket) {
+      return res.status(404).json({
+        message: "Ticket not found"
+      });
+    }
+    ticket.event_status = 'confirmed';
+    await ticket.save();
+    res.status(200).json({
+      message: "Event confirmed successfully",
+      ticket: ticket
+    });
+  }
+  catch (error) {
+    console.error("Error confirming event:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+export const goLiveEvent = async(req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const ticketId = req.params.ticketId;
+    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        message: "Invalid ticket ID format"
+      });
+    }
+    const ticket = await Ticket.findOne({ _id: ticketId, userId: userId });
+    if (!ticket) {
+      return res.status(404).json({
+        message: "Ticket not found"
+      });
+    }
+    ticket.event_status = 'live';
+    await ticket.save();
+    res.status(200).json({
+      message: "Event went live successfully",
+      ticket: ticket
+    });
+  }
+  catch (error) {
+    console.error("Error going live event:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
