@@ -5,13 +5,10 @@ import EventSidebar from '../../components/CreateGroup/EventSidebar';
 import ThemeToggle from '../../components/HomePage/ThemeToggle.jsx';
 import { updateTicketTerms } from '../../services/ticketService';
 
+import TcIcon from "../../assets/Event/T&cIcon.svg?react";
+
 // --- Helper Component: Icon ---
-const RulesIcon = () => (
-    <svg className="w-8 h-8 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3.633 2.124a2.25 2.25 0 0 1 2.232-1.124h12.27a2.25 2.25 0 0 1 2.231 1.124l3.58 6.876a2.25 2.25 0 0 1 0 2.25l-3.58-6.876a2.25 2.25 0 0 1-2.232-1.124H5.865a2.25 2.25 0 0 1-2.231 1.124l-3.58 6.876a2.25 2.25 0 0 1 0 2.25L3.633 2.124Z"></path>
-        <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z"></path>
-    </svg>
-);
+
 
 // --- Main Component ---
 const EventTermsAndConditionsPage = () => {
@@ -129,15 +126,23 @@ const handleHostEvent = async (event) => {
     return (
         <div className={darkMode ? "dark" : ""}>
             <div className="bg-white dark:bg-[#111111] text-gray-800 dark:text-white min-h-screen flex">
-                <EventSidebar darkMode={darkMode} progress={100} handleBack={handleGoBack} />
+                <EventSidebar darkMode={darkMode} onBackClick={handleGoBack} // Your existing back function
+    // Pass props from your 'mainEventData' state object
+    formProgress={ticketData?.form_progress || {}}
+    groupId={ticketData?.groupId}
+    ticketId={ticketId} />
                 <main className="flex-1 relative p-4 sm:p-6 md:p-8 overflow-y-auto">
                     <div className="absolute top-6 right-6 z-10">
                         <ThemeToggle isDark={darkMode} onToggle={() => setDarkMode(!darkMode)} />
                     </div>
                     <div className="w-full max-w-5xl mx-auto">
                         <header className="text-center mt-4 mb-12">
-                            <div className="w-16 h-16 mx-auto rounded-xl flex items-center justify-center mb-6 bg-gray-100 dark:bg-[#2B2B2B]">
-                                <RulesIcon />
+                            <div className={`w-20 h-20 rounded-full mx-auto my-4  flex items-center justify-center ${
+                    darkMode
+                      ? "bg-[#1E1242] text-gray-300"
+                      : "bg-[#1E1242] text-gray-300"
+                  }`}>
+                                <img src={TcIcon} alt="" />
                             </div>
                             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">I've reviewed the rules and I'm ready to roll!</h1>
                         </header>
