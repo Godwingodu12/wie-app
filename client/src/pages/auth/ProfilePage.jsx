@@ -29,6 +29,7 @@ import LikeIcon from "../../assets/PROFILEPAGE/LikeIcon.svg";
 import SendIcon from "../../assets/PROFILEPAGE/SendIcon.svg";
 import CameraICon from "../../assets/PROFILEPAGE/CameraIcon.svg";
 import RightArrowIcon from "../../assets/PROFILEPAGE/RightArrowIcon.svg";
+import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
 // Bottom Nav Icons
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
 import TicketIcon from "../../assets/HomePage/TicketIcon.svg";
@@ -36,15 +37,69 @@ import SpeakerIcon from "../../assets/HomePage/SpeakerIcon.svg";
 
 const HEADER_HEIGHT = 72;
 
-// Custom scrollbar styles
 const CustomScrollbarStyles = () => (
   <style>{`
+    /* Hide scrollbar globally */
+    * {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    *::-webkit-scrollbar {
+      display: none;
+    }
+    
     .scrollbar-hide {
       -ms-overflow-style: none;
       scrollbar-width: none;
     }
     .scrollbar-hide::-webkit-scrollbar {
       display: none;
+    }
+    
+    /* Nest Hub (1024x600) specific adjustments */
+    @media (min-width: 1024px) and (max-width: 1024px) and (min-height: 600px) and (max-height: 600px) {
+      html {
+        font-size: 12px;
+      }
+      .nest-hub-sidebar {
+        width: 70px !important;
+      }
+      .nest-hub-content {
+        padding: 0.5rem !important;
+        margin-left: 70px !important;
+      }
+      .nest-hub-card {
+        padding: 0.75rem !important;
+        border-radius: 1.5rem !important;
+      }
+      .nest-hub-spacing {
+        gap: 0.75rem !important;
+      }
+    }
+    
+    /* Nest Hub Max (1280x800) */
+    @media (min-width: 1280px) and (max-width: 1280px) and (min-height: 800px) and (max-height: 800px) {
+      html {
+        font-size: 14px;
+      }
+    }
+    
+    /* Medium devices scaling */
+    @media (min-width: 768px) and (max-width: 1023px) {
+      html {
+        font-size: 13px;
+      }
+      .tablet-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 1rem !important;
+      }
+    }
+    
+    /* Large screens */
+    @media (min-width: 1440px) {
+      html {
+        font-size: 16px;
+      }
     }
   `}</style>
 );
@@ -67,6 +122,9 @@ const ProfilePage = () => {
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  
   
   // Active tab state: 'all', 'live', 'past'
   const [activeTab, setActiveTab] = useState('all');
@@ -76,7 +134,7 @@ const ProfilePage = () => {
   const hamburgerRef = useRef(null);
 
   // Helper function to parse API response and extract tickets/events
-  const parseApiResponse = (response, dataType = 'events') => {    
+  const parseApiResponse = (response= 'events') => {    
     let data = [];
     // Try different response structures
     if (response?.data?.tickets) {
@@ -266,6 +324,8 @@ const ProfilePage = () => {
     }
   }, [liveEvents.length]);
 
+  
+
   // Optional: Fetch past events separately if you have separate endpoints
   useEffect(() => {
     const fetchPastEvents = async () => {
@@ -299,12 +359,49 @@ const ProfilePage = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+  // Update arrow visibility
+    useEffect(() => {
+      const checkScrollArrows = () => {
+        const container = document.getElementById("suggestions-scroll");
+        if (container && users.length > 0) {
+          const { scrollLeft, clientWidth, scrollWidth } = container;
+          setShowLeftArrow(scrollLeft > 0);
+          setShowRightArrow(scrollLeft + clientWidth < scrollWidth);
+        } else {
+          setShowLeftArrow(false);
+          setShowRightArrow(false);
+        }
+      };
+  
+      setTimeout(checkScrollArrows, 100);
+    }, [users]);
 
   const handleThemeToggle = () => {
     const newTheme = !isDark;
     setIsDark(newTheme);
     document.documentElement.classList.toggle("dark", newTheme);
     localStorage.setItem("theme", newTheme ? "dark" : "light");
+  };
+
+   const handleScroll = (e) => {
+    const container = e.target;
+    const { scrollLeft, clientWidth, scrollWidth } = container;
+    setShowLeftArrow(scrollLeft > 0);
+    setShowRightArrow(scrollLeft + clientWidth < scrollWidth);
+  };
+
+  const scrollLeft = () => {
+    const container = document.getElementById("suggestions-scroll");
+    if (container) {
+      container.scrollBy({ left: -250, behavior: "smooth" });
+    }
+  };
+
+  const scrollRight = () => {
+    const container = document.getElementById("suggestions-scroll");
+    if (container) {
+      container.scrollBy({ left: 250, behavior: "smooth" });
+    }
   };
 
   const handleCreateEvent = async () => {
@@ -507,23 +604,35 @@ const ProfilePage = () => {
 
   return (
     <>
-      <CustomScrollbarStyles />
-      <div className={`${theme.bg} ${theme.text} min-h-screen flex overflow-hidden transition-colors duration-300`}>
-        {/* Sidebar */}
-        <div className={`hidden md:flex flex-col flex-shrink-0 ${theme.bg} transition-colors duration-300`}>
-          <div className="flex items-center justify-center" style={{ height: HEADER_HEIGHT }}>
-            <img src={WieLogo} alt="Wie Logo" className="w-10 h-10 lg:w-12 lg:h-12" />
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <SideBar user={user} theme={theme} />
-          </div>
+     <CustomScrollbarStyles />
+    <div className={`${theme.bg} ${theme.text} min-h-screen flex overflow-hidden transition-colors duration-300`}>
+      {/* Sidebar - Fixed like HomePage */}
+      <div 
+  className={`hidden md:flex flex-col flex-shrink-0 ${theme.bg} transition-colors duration-300`}
+  style={{ 
+    position: 'fixed', 
+    left: 0, 
+    top: 0, 
+    bottom: 0, 
+    width: '80px',
+    zIndex: 40,
+    overflowY: 'auto',
+    overflowX: 'hidden'
+  }}
+>
+        <div className="flex items-center justify-center" style={{ height: HEADER_HEIGHT }}>
+          <img src={WieLogo} alt="Wie Logo" className="w-8 h-8 lg:w-10 lg:h-10 xl:w-12 xl:h-12" />
         </div>
+        <div className="flex-1 overflow-y-auto">
+          <SideBar user={user} theme={theme} />
+        </div>
+      </div>
 
         {/* Main Content */}
-        <div className="flex flex-col flex-1">
+<div className="flex flex-col flex-1 md:ml-20 lg:ml-20 overflow-x-hidden">
           {/* Top Header */}
-          <header className="flex items-center justify-between px-4 md:px-6" style={{ height: HEADER_HEIGHT }}>
-            {/* Mobile Header */}
+<header className="flex items-center justify-between px-3 md:px-4 lg:px-6 w-full overflow-hidden" style={{ height: HEADER_HEIGHT }}>
+          {/* Mobile Header */}
             <div className="flex md:hidden items-center justify-between w-full">
               <div className="flex items-center gap-2">
                 <img src={WieLogo} alt="WIE Logo" className="w-8 h-8 object-contain" />
@@ -576,69 +685,81 @@ const ProfilePage = () => {
             </div>
           </header>
 
-          <main className="flex-1 p-6 overflow-y-auto pb-24 md:pb-4">
-            <div className="max-w-6xl mx-auto space-y-6">
+         <main className="flex-1 p-3 md:p-4 lg:p-6 overflow-y-auto overflow-x-hidden pb-24 md:pb-4 nest-hub-content max-w-full">
+  <div className="max-w-7xl mx-auto space-y-3 md:space-y-4 lg:space-y-6 nest-hub-spacing w-full px-0 md:px-2 lg:px-4">
               {user && (
                 <>
-                  {/* Profile Card - Mobile: Stack vertically, Desktop: Keep original */}
-                  <div className={`rounded-[3rem] p-6 mt-8 ${theme.cardBg} transition-all duration-300`} style={{boxShadow: theme.cardShadow}}>
-                    {/* Mobile Layout */}
-                    <div className="flex md:hidden flex-col items-center text-center space-y-4">
-                      <img 
-                        src={`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${user.image}`}
-                        alt="Profile"
-                        className={`w-24 h-24 rounded-full object-cover border-4 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
-                      />   
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-center gap-2">
-                          <h1 className={`text-xl font-bold ${theme.text}`}>{user.name}</h1>
-                          <img src={VerifiedIcon} alt="Verified" className="w-4 h-4" />
+{/* Profile Card */}
+<div className={`rounded-2xl md:rounded-3xl lg:rounded-[3rem] p-3 md:p-4 lg:p-6 mt-2 md:mt-4 lg:mt-8 ${theme.cardBg} nest-hub-card transition-all duration-300 w-full overflow-hidden`} style={{boxShadow: theme.cardShadow}}>
+                    <div className="flex md:hidden flex-col space-y-4">
+                      <div className="flex flex-col gap-4">
+  {/* Top Row: Profile image + Name/Username */}
+  <div className="flex items-center gap-4">
+    {/* Profile Image */}
+    <img 
+      src={user.image ? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${user.image}` : ProfileImage}
+      alt="Profile"
+      className={`w-24 h-24 rounded-full object-cover border-2 flex-shrink-0 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
+    />
+
+    {/* Name + Username */}
+    <div className="flex flex-col justify-center">
+      <div className="flex items-center gap-1.5">
+        <h1 className={`text-lg font-bold ${theme.text}`}>{user.name}</h1>
+        <img src={VerifiedIcon} alt="Verified" className="w-4 h-4" />
+      </div>
+      <p className={`text-sm ${theme.subText}`}>@{user.username}</p>
+    </div>
+  </div>
+
+  {/* Bio Section (full width below image and name) */}
+  <div className="w-full">
+    <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
+      {user.bio || "🌟 Exploring the world, one flight at a time ✈️\n📍 Currently: [Location]\n🎥 Capturing moments that matter"} 
+    </p>
+  </div>
+</div>
+
+                      
+                      {/* Stats */}
+                      <div className="flex justify-start gap-4">
+                        <div className="text-left">
+                          <p className={` ${theme.subText}`}>
+                            <span className="text-md font-semibold text-white">{allEvents.length}</span>
+                            <span className="text-md  ml-1">Event created</span>
+                          </p>
                         </div>
-                        <p className={`text-sm ${theme.subText}`}>@{user.username}</p>
+                        <div className="text-left">
+                          <p className={` ${theme.subText}`}>
+                            <span className="text-md font-semibold text-white">{user.followersCount || 0}</span>
+                            <span className="text-md  ml-1">Followers</span>
+                          </p>
+                        </div>
+                        <div className="text-left">
+                          <p className={` ${theme.subText}`}>
+                             <span className="text-md font-semibold text-white">{user.followingCount || 0}</span>
+                             <span className="text-md  ml-1">Following</span>
+                          </p>
+                        </div>
                       </div>
-                      <p className={`text-sm leading-6 ${theme.subText} px-4 text-center`}>
-                        {user.bio || "🌟 Exploring the world, one flight at a time ✈️\n📍 Currently: [Location]\n🎥 Capturing moments that matter"} 
-                      </p>
-                      {/* Stats for mobile */}
-                      <div className={`rounded-[2rem] px-6 py-4 flex gap-6 transition-all duration-300 ${theme.cardBg}`} style={{boxShadow: theme.smallCardShadow}}>
-                        <div className="text-center flex flex-col items-center gap-1.5">
-                          <img src={EventIcon} alt="Event" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
-                          <p className={`text-2xl font-bold ${theme.text}`}>{allEvents.length}</p>
-                          <p className={`text-xs ${theme.subText}`}>Events</p>
-                        </div>
-                        <div className="text-center flex flex-col items-center gap-1.5">
-                          <img src={FollowersIcon} alt="Followers" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
-                          <p className={`text-2xl font-bold ${theme.text}`}>{user.followersCount || 0}</p>
-                          <p className={`text-xs ${theme.subText}`}>Followers</p>
-                        </div>
-                        <div className="text-center flex flex-col items-center gap-1.5">
-                          <img src={FollowingIcon} alt="Following" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
-                          <p className={`text-2xl font-bold ${theme.text}`}>{user.followingCount || 0}</p>
-                          <p className={`text-xs ${theme.subText}`}>Following</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3 w-full">
-                        <button 
-                          onClick={() => navigate('/settings/editprofile')}
-                          className={`flex-1 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                            isDark 
-                              ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'  
-                              : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
-                          }`}
-                        >
-                          Edit profile
-                        </button>
-                        <button 
-                          className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${ 
-                            isDark 
-                              ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110' 
-                              : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
-                          }`}
-                        > 
-                          Share 
-                        </button>
-                        <HamburgerMenu />
-                      </div>
+                      
+                      {/* Buttons */}
+<div className="flex gap-2 justify-start items-center flex-nowrap">
+  {['Edit profile', 'Share profile', 'Insight profile'].map((label, index) => (
+    <button
+      key={index}
+      onClick={label === 'Edit profile' ? () => navigate('/settings/editprofile') : undefined}
+      className={`whitespace-nowrap flex-shrink-0 px-3 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
+        isDark
+          ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
+          : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
+      }`}
+    >
+      {label}
+    </button>
+  ))}
+</div>
+
                     </div>
 
                     {/* Desktop Layout - Keep original exactly as it was */}
@@ -646,18 +767,16 @@ const ProfilePage = () => {
                       {/* Left side */}
                       <div className="flex items-start gap-6">
                         <img 
-                          src={`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${user.image}`}
+                          src={user.image? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${user.image}`: ProfileImage}
                           alt="Profile"
-                          className={`w-48 h-48 rounded-full object-cover border-4 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
+  className={`w-32 h-32 md:w-36 md:h-36 lg:w-48 lg:h-48 rounded-full object-cover border-4 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
                         />
                         
-                        <div className="space-y-2 flex-1">
-                          <h1 className={`text-2xl font-bold ${theme.text}`}>{user.name}</h1>
-                          <p className={`text-sm ${theme.subText}`}>@{user.username}</p>
-                          <p className={`whitespace-pre-line text-left text-sm leading-6 break-words ${theme.subText}`}>
-                            {user.bio || "🌟 Exploring the world, one flight at a time ✈️\n📍 Currently: [Location]\n🎥 Capturing moments that matter"}
-                          </p>
-                          <div className="flex gap-3 pt-3 flex-wrap">
+                        <div className="space-y-1 md:space-y-2 flex-1">
+  <h1 className={`text-xl md:text-xl lg:text-2xl font-bold ${theme.text}`}>{user.name}</h1>
+  <p className={`text-xs md:text-sm ${theme.subText}`}>{user.username}</p>
+  <p className={`whitespace-pre-line text-left text-xs md:text-sm leading-5 md:leading-6 break-words ${theme.subText}`}>{user.bio}</p>
+<div className="flex gap-2 md:gap-3 pt-2 md:pt-3 flex-wrap">
                             <button 
                               onClick={() => navigate('/settings/editprofile')}
                               className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
@@ -712,545 +831,651 @@ const ProfilePage = () => {
                         </div>
                         
                         {/* Stats */}
-                        <div className={`rounded-[2.5rem] px-10 py-4 flex gap-8 transition-all duration-300 ${theme.cardBg}`} style={{boxShadow: theme.smallCardShadow}}> 
-                          {/* Event Created */}
-                          <div className="text-center flex flex-col items-center gap-1.5">
-                            <img 
-                              src={EventIcon} 
-                              alt="Event"
-                              className={`w-6 h-6 ${!isDark ? "filter brightness-0" : ""}`}
-                            />
-                            <p className={`text-3xl font-bold ${theme.text}`}>{allEvents.length}</p>
-                            <p className={`text-sm ${theme.subText}`}>Event created</p>
-                          </div>
+<div className={`rounded-[2rem] md:rounded-[2.5rem] px-6 md:px-8 lg:px-10 py-3 md:py-3.5 lg:py-4 flex gap-4 md:gap-6 lg:gap-8 transition-all duration-300 ${theme.cardBg}`} style={{boxShadow: theme.smallCardShadow}}> 
+  {/* Event Created */}
+  <div className="text-center flex flex-col items-center gap-1 md:gap-1.5">
+    <img 
+      src={EventIcon} 
+      alt="Event"
+      className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`}
+    />
+    <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{allEvents.length}</p>
+    <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Event created</p>
+  </div>
 
-                          {/* Followers */}
-                          <div className="text-center flex flex-col items-center gap-1.5">
-                            <img 
-                              src={FollowersIcon} 
-                              alt="Followers"
-                              className={`w-6 h-6 ${!isDark ? "filter brightness-0" : ""}`}
-                            />
-                            <p className={`text-3xl font-bold ${theme.text}`}>{user.followersCount || 0}</p>
-                            <p className={`text-sm ${theme.subText}`}>Follower</p>
-                          </div>
+  {/* Followers */}
+  <div className="text-center flex flex-col items-center gap-1 md:gap-1.5">
+    <img 
+      src={FollowersIcon} 
+      alt="Followers"
+      className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`}
+    />
+    <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{user.followersCount || 0}</p>
+    <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Follower</p>
+  </div>
 
-                          {/* Following */}
-                          <div className="text-center flex flex-col items-center gap-1.5">
-                            <img 
-                              src={FollowingIcon} 
-                              alt="Following"
-                              className={`w-6 h-6 ${!isDark ? "filter brightness-0" : ""}`}
-                            />
-                            <p className={`text-3xl font-bold ${theme.text}`}>{user.followingCount || 0}</p>
-                            <p className={`text-sm ${theme.subText}`}>Following</p>
-                          </div>
-                        </div>
+  {/* Following */}
+  <div className="text-center flex flex-col items-center gap-1 md:gap-1.5">
+    <img 
+      src={FollowingIcon} 
+      alt="Following"
+      className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`}
+    />
+    <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{user.followingCount || 0}</p>
+    <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Following</p>
+  </div>
+</div>
                       </div>
                     </div>
                   </div>
 
                   {/* Groups Section */}
-                  <div className={`rounded-3xl p-6 ${theme.cardBg} transition-all duration-300`} style={{ boxShadow: theme.cardShadow}}>
-                    <div className="flex items-center gap-4 mb-4 md:mb-0">
-                      <h2 className={`text-lg font-semibold ${theme.text}`}>My groups</h2>
-                      
-                      {/* Mobile: Horizontal scroll */}
-                      <div className="md:hidden flex gap-3 overflow-x-auto scrollbar-hide pb-2 flex-1">
-                        {groupsLoading ? (
-                          <div className={`text-sm ${theme.subText}`}>Loading groups...</div>
-                        ) : (
-                          <>
-                            {groups.length > 0 && groups.map((group, idx) => (
-                              <div key={group._id || idx} className="flex flex-col items-center flex-shrink-0">
-                                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center" style={{ boxShadow: theme.smallCardShadow }}>
-                                  {group.image ? (
-                                    <img 
-                                      src={group.image}
-                                      alt={group.name || group.groupName}
-                                      className="w-13 h-13 rounded-full object-cover"
-                                    />
-                                  ) : (
-                                    <span className="text-white text-xs font-bold">
-                                      {(group.name || group.groupName || 'G')[0].toUpperCase()}
-                                    </span>
-                                  )}
-                                </div>
-                                <span className={`text-xs mt-1 w-16 text-center truncate ${theme.text}`}>
-                                  {group.name || group.groupName || 'Group'}
-                                </span>
-                              </div>
-                            ))}
-                            <div className="flex flex-col items-center flex-shrink-0">
-                              <button 
-                                onClick={() => navigate("/ticket/create-group")}
-                                className={`w-14 h-14 rounded-full border-2 border-dashed flex items-center justify-center ${
-                                  isDark ? "border-gray-600" : "border-gray-400"
-                                }`} 
-                                style={{ boxShadow: theme.smallCardShadow }}
-                              >
-                                <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
-                              </button>
-                              <span className={`text-xs mt-1 w-16 text-center truncate ${theme.text}`}>New group</span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {/* Desktop: Original layout with real data */}
-                      <div className="hidden md:flex flex-row items-end gap-2 flex-nowrap overflow-x-auto">
-                        {groupsLoading ? (
-                          <div className={`text-sm ${theme.subText}`}>Loading groups...</div>
-                        ) : (
-                          <>
-                            {groups.length > 0 && groups.slice(0, 6).map((group, idx) => (
-                              <div key={group._id || idx} className="flex flex-col items-center">
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center" style={{ boxShadow: theme.smallCardShadow }}>
-                                  {group.image ? (
-                                    <img 
-                                      src={group.image}
-                                      alt={group.name || group.groupName}
-                                      className="w-11 h-11 rounded-full object-cover"
-                                    />
-                                  ) : (
-                                    <span className="text-white text-xs font-bold">
-                                      {(group.name || group.groupName || 'G')[0].toUpperCase()}
-                                    </span>
-                                  )}
-                                </div>
-                                <span className={`text-xs mt-2 w-20 text-center truncate whitespace-nowrap ${theme.text}`}>
-                                  {group.name || group.groupName || 'Group'}
-                                </span>
-                              </div>
-                            ))}
-                            {/* Plus Button */}
-                            <div className="flex flex-col items-center">
-                              <button 
-                                onClick={() => navigate("/ticket/create-group")}
-                                className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
-                                  isDark ? "border-gray-600" : "border-gray-400"
-                                }`} 
-                                style={{ boxShadow: theme.smallCardShadow }}
-                              >
-                                <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
-                              </button>
-                              <span className={`text-xs mt-2 w-20 text-center truncate whitespace-nowrap ${theme.text}`}>New group</span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Suggestions */}
-                  <div className={`rounded-xl p-6 ${theme.cardBg} transition-all duration-300`}>
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className={`text-lg font-semibold ${theme.text}`}>Suggestions</h2>
-                      <button
-                        className={`text-sm px-4 py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${
-                          isDark ? "text-[#FFFFFF]" : "text-[#000000]"
-                        }`}
-                      >
-                        see all
-                      </button>
-                    </div>
-
-                    {/* Scrollable Container with Arrows */}
-                    <div className="relative">
-                      {/* Left Arrow */}
-                      <button
-                        onClick={() => {
-                          document.getElementById("suggestions-scroll").scrollBy({
-                            left: -250,
-                            behavior: "smooth",
-                          });
-                        }}
-                        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full  transition hidden"
-                        id="left-arrow"
-                      >
-                        <img src={RightArrowIcon} alt="Scroll Left" className="w-6 h-6 rotate-180 invert" />
-                      </button>
-
-                      {/* Scrollable Users */}
-                      <div
-                        id="suggestions-scroll"
-                        className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 scroll-smooth"
-                        onScroll={(e) => {
-                          const container = e.target;
-                          const leftArrow = document.getElementById("left-arrow");
-                          const rightArrow = document.getElementById("right-arrow");
-
-                          // Show/hide arrows based on scroll position
-                          if (container.scrollLeft > 0) {
-                            leftArrow.classList.remove("hidden");
-                          } else {
-                            leftArrow.classList.add("hidden");
-                          }
-
-                          if (container.scrollLeft + container.clientWidth < container.scrollWidth) {
-                            rightArrow.classList.remove("hidden");
-                          } else {
-                            rightArrow.classList.add("hidden");
-                          }
-                        }}
-                      >
-                        {users.length > 0 ? (
-                          users.slice(0, 8).map((suggestedUser) => (
-                            <div
-                              key={suggestedUser._id}
-                              className="w-[200px] md:w-[246px] h-[280px] md:h-[363px] flex-shrink-0 rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 hover:scale-105"
-                              style={{
-                                backgroundColor: isDark ? "#212426" : "#ffffff",
-                                boxShadow: theme.smallCardShadow,
-                              }}
-onClick={() => navigate(`/profile/${suggestedUser._id}`)}
-                            >
-                              <div className="flex flex-col">
-                                <div className="relative mb-4">
-                                  <img
-                                    src={`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}`}
-                                    alt={suggestedUser.name}
-                                    className="w-full h-[120px] md:h-[160px] object-cover rounded-2xl"
-                                  />
-                                </div>
-                                <div className="px-1" style={{ marginTop: "2rem" }}>
-                                  <div className="flex items-center gap-2 mb-1 justify-center">
-                                    <h3 className={`text-base font-semibold ${theme.text} truncate`}>
-                                      {suggestedUser.name}
-                                    </h3>
-                                    <img
-                                      src={VerifiedIcon}
-                                      alt="Verified"
-                                      className="w-4 h-4 flex-shrink-0"
-                                    />
-                                  </div>
-                                  <p
-                                    className={`text-sm ${theme.subText} capitalize text-center`}
-                                  >
-                                    {suggestedUser.role || "User"}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div
-                                className="flex justify-between items-center px-1"
-                                style={{ marginBottom: "1rem" }}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="flex items-center gap-1">
-                                    <img
-                                      src={FollowersIcon}
-                                      alt="Followers"
-                                      className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
-                                    />
-                                    <span className={`text-sm font-medium ${theme.text}`}>
-                                      {Math.floor(Math.random() * 500) + 100}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <img
-                                      src={EventIcon}
-                                      alt="Events"
-                                      className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
-                                    />
-                                    <span className={`text-sm font-medium ${theme.text}`}>
-                                      {Math.floor(Math.random() * 500) + 100}
-                                    </span>
-                                  </div>
-                                </div>
-                                <button className="px-4 py-1.5 rounded-full text-white text-sm font-medium bg-blue-500 hover:bg-blue-600 transition-colors duration-200"
-                                onClick={(e) => {
-            e.stopPropagation(); // Prevent card click when clicking follow button
-            // Add your follow logic here
-            console.log('Follow user:', suggestedUser._id);}}
+<div className={`rounded-2xl md:rounded-3xl p-3 md:p-4 lg:p-6 ${theme.cardBg} nest-hub-card transition-all duration-300 w-full overflow-hidden`} style={{ boxShadow: theme.cardShadow }}>
+  <div className="flex items-center gap-4 mb-2 md:mb-0">
+    <h2 className={`text-lg font-semibold ${theme.text}`}>My groups</h2>
+    
+    {/* Mobile: Horizontal scroll */}
+    <div className="md:hidden flex gap-2 overflow-x-auto scrollbar-hide pb-1 flex-1">
+      {groupsLoading ? (
+        <div className={`text-sm ${theme.subText}`}>Loading groups...</div>
+      ) : (
+        <>
+          {groups.length > 0 && groups.map((group, idx) => (
+            <div key={group._id || idx} className="flex flex-col items-center flex-shrink-0">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center" style={{ boxShadow: theme.smallCardShadow }}>
+                {group.image ? (
+                  <img 
+                    src={group.image}
+                    alt={group.name || group.groupName}
+                    className="w-11 h-11 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="text-white text-xs font-bold">
+                    {(group.name || group.groupName || 'G')[0].toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <span className={`text-xs mt-1 w-16 text-center truncate ${theme.text}`}>
+                {group.name || group.groupName || 'Group'}
+              </span>
+            </div>
+          ))}
+          <div className="flex flex-col items-center flex-shrink-0">
+            <button 
+              onClick={() => navigate("/ticket/create-group")}
+              className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
+                isDark ? "border-gray-600" : "border-gray-400"
+              }`} 
+              style={{ boxShadow: theme.smallCardShadow }}
             >
-                                  Follow +
-                                </button>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className={`w-full text-center py-8 ${theme.subText}`}>
-                            <p className="text-sm">No suggestions available</p>
-                          </div>
-                        )}
-                      </div>
+              <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
+            </button>
+            <span className={`text-xs mt-1 w-16 text-center truncate ${theme.text}`}>New group</span>
+          </div>
+        </>
+      )}
+    </div>
 
-                      {/* Right Arrow */}
-                      <button
-                        onClick={() => {
-                          document.getElementById("suggestions-scroll").scrollBy({
-                            left: 250,
-                            behavior: "smooth",
-                          });
-                        }}
-                        className="absolute right-0 top-1/2 -translate-y-1/3 z-10   p-2 rounded-full  transition"
-                        id="right-arrow"
-                      >
-                        <img src={RightArrowIcon} alt="Scroll Right" className="w-6 h-6 invert" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Events Section with Tabs */}
-                  <div
-                    className={`rounded-[2.5rem] p-6 ${theme.cardBg} transition-all duration-300`}
-                    style={{ boxShadow: theme.cardShadow }}
-                  >
-                    {/* Tabs */}
-                    <div className="flex items-center justify-between mb-6 px-4">
-                      {/* Mobile Tabs */}
-                      <div className="flex md:hidden items-center justify-center w-full gap-8 relative">
-                        <div 
-                          className={`flex flex-col items-center gap-2 cursor-pointer ${activeTab === 'all' ? '' : 'opacity-60'}`}
-                          onClick={() => setActiveTab('all')}
-                        >
-                          <img
-                            src={AllEventsIcon}
-                            alt="My events"
-                            className={`w-6 h-6 ${!isDark ? "filter brightness-0" : ""}`}
-                          />
-                          <span className={`text-sm font-medium ${theme.text}`}>
-                            All Events
-                          </span>
-                          {activeTab === 'all' && <div className="w-full h-0.5 bg-blue-500"></div>}
-                        </div>
-                        <div 
-                          className={`flex flex-col items-center gap-2 cursor-pointer ${activeTab === 'live' ? '' : 'opacity-60'}`}
-                          onClick={() => setActiveTab('live')}
-                        >
-                          <img
-                            src={LiveEventIcon}
-                            alt="Live events"
-                            className={`w-6 h-6 ${!isDark ? "filter brightness-0" : ""}`}
-                          />
-                          <span className={`text-sm font-medium ${theme.text}`}>
-                            Live Events
-                          </span>
-                          {activeTab === 'live' && <div className="w-full h-0.5 bg-blue-500"></div>}
-                        </div>
-                        <div 
-                          className={`flex flex-col items-center gap-2 cursor-pointer ${activeTab === 'past' ? '' : 'opacity-60'}`}
-                          onClick={() => setActiveTab('past')}
-                        >
-                          <img
-                            src={PastEventIcon}
-                            alt="Past events"
-                            className={`w-6 h-6 ${!isDark ? "filter brightness-0" : ""}`}
-                          />
-                          <span className={`text-sm font-medium ${theme.text}`}>
-                            Past Events
-                          </span>
-                          {activeTab === 'past' && <div className="w-full h-0.5 bg-blue-500"></div>}
-                        </div>
-                      </div>
-
-                      {/* Desktop Tabs */}
-                      <div className="hidden md:flex items-center justify-between w-full">
-                        <div
-                          className={`flex items-center gap-2 cursor-pointer p-3 rounded-xl transition-all duration-200 ${
-                            activeTab === 'all' ? '' : 'opacity-60'
-                          }`}
-                          style={{
-                            boxShadow: activeTab === 'all' ? (isDark
-                              ? "inset -17px -17px 34px #1c1f20,inset 17px 17px 34px #26292c"
-                              : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
-                            backgroundColor: activeTab === 'all' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
-                          }}
-                          onClick={() => setActiveTab('all')}
-                        >
-                          <img
-                            src={AllEventsIcon}
-                            alt="My events"
-                            className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
-                          />
-                          <span className={`text-sm font-medium ${theme.text}`}>
-                            All Events
-                          </span>
-                        </div>
-
-                        <div 
-                          className={`flex items-center gap-2 cursor-pointer mx-auto p-3 rounded-xl transition-all duration-200 ${
-                            activeTab === 'live' ? '' : 'opacity-60'
-                          }`}
-                          style={{
-                            boxShadow: activeTab === 'live' ? (isDark
-                              ? "inset 2px 2px 4px rgba(0,0,0,0.3), inset -2px -2px 4px rgba(255,255,255,0.1)"
-                              : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
-                            backgroundColor: activeTab === 'live' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
-                          }}
-                          onClick={() => setActiveTab('live')}
-                        >
-                          <img
-                            src={LiveEventIcon}
-                            alt="Live events"
-                            className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
-                          />
-                          <span className={`text-sm font-medium ${theme.text}`}>
-                            Live Events
-                          </span>
-                        </div>
-
-                        <div 
-                          className={`flex items-center gap-2 cursor-pointer -mr-2 p-4 rounded-xl transition-all duration-200 ${
-                            activeTab === 'past' ? '' : 'opacity-60'
-                          }`}
-                          style={{
-                            boxShadow: activeTab === 'past' ? (isDark
-                              ? "inset 2px 2px 4px rgba(0,0,0,0.3), inset -2px -2px 4px rgba(255,255,255,0.1)"
-                              : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
-                            backgroundColor: activeTab === 'past' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
-                          }}
-                          onClick={() => setActiveTab('past')}
-                        >
-                          <img
-                            src={PastEventIcon}
-                            alt="PastEvent"
-                            className={`w-7 h-7 ${!isDark ? "filter brightness-0" : ""}`}
-                          />
-                          <span className={`text-sm font-medium ${theme.text}`}>
-                            Past Events
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Events Content */}
-                    {eventsLoading ? (
-                      <div className="flex justify-center items-center py-16">
-                        <div className={`text-lg ${theme.subText}`}>Loading events...</div>
-                      </div>
-                    ) : getCurrentEvents().length === 0 ? (
-                      /* Empty State */
-                      <div className="flex flex-col items-center justify-center py-16 md:py-24">
-                        <h3 className={`text-xl font-medium ${theme.text} mb-4`}>
-                          {activeTab === 'all' ? 'Create your first Event' : 
-                           activeTab === 'live' ? 'No live events yet' : 
-                           'No past events yet'}
-                        </h3>
-                        {activeTab === 'all' && (
-                          <button
-                            onClick={handleCreateEvent}
-                            disabled={loading}
-                            className="px-8 md:px-14 py-2.5 rounded-full text-white text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90 transition-opacity duration-200"
-                          >
-                            {loading ? "Loading..." : "Create"}
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      /* Events Grid */
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-14">
-                        {getCurrentEvents().map((event, index) => (
-                          <div
-                            key={event._id || `event-${index}`}
-                            className="rounded-3xl overflow-hidden flex flex-col "
-                            style={{
-                              backgroundColor: isDark ? "#212426" : "#ffffff",
-                              boxShadow: theme.smallCardShadow,
-                            }}
-                          >
-                            {/* Event Image */}
-                            <div className="p-4">
-
-                            <img
-                              src={
-                                event.event_banner ||
-                                event.event_logo ||
-                                event.event_image ||
-                                "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
-                              }
-                              alt={event.event_name || "Event"}
-    className="rounded-[1rem] h-70 w-full object-cover border-2 border-white border-opacity-50"
-                              onError={(e) => {
-                                e.target.src =
-                                  "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
-                              }}
-                            />
-                            </div>
-
-
-                            {/* Event Info */}
-                            <div className="flex flex-col flex-1 p-4">
-                              <div className="text-center mb-6">
-                                <h3 className={`font-bold text-base ${theme.text}`}>
-                                  {event.event_name ||"Event"}
-                                </h3>
-                                <p className={`text-sm ${theme.subText} mt-1`}>
-                                  {event.event_category ||
-                                   "Event Type"}
-                                </p>
-                              </div>
-
-                              {/* Stats */}
-<div className="flex justify-center items-center gap-20 text-sm mb-3">
-  <div className="flex flex-col items-center">
-    <img
-      src={LikeIcon}
-      alt="Likes"
-      className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}
-    />
-    <span className={theme.subText}>
-      {event.likes || event.likesCount || "0"}
-    </span>
-  </div>
-
-  <div className="flex flex-col items-center">
-    <img
-      src={TicketIcon}
-      alt="Tickets"
-      className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}
-    />
-    <span className={theme.subText}>
-      {event.ticketsSold ||
-        event.registrations ||
-        event.attendeesCount ||
-        event.ticket_count ||
-        event.ticketCount ||
-        "0"}
-    </span>
-  </div>
-
-  <div className="flex flex-col items-center">
-    <img
-      src={SendIcon}
-      alt="Shares"
-      className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}
-    />
-    <span className={theme.subText}>
-      {event.shares || event.sharesCount || "0"}
-    </span>
+    {/* Desktop: Original layout with real data */}
+    <div className="hidden md:flex flex-row items-end gap-2 flex-nowrap overflow-x-auto">
+      {groupsLoading ? (
+        <div className={`text-sm ${theme.subText}`}>Loading groups...</div>
+      ) : (
+        <>
+          {groups.length > 0 && groups.slice(0, 6).map((group, idx) => (
+            <div key={group._id || idx} className="flex flex-col items-center">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center" style={{ boxShadow: theme.smallCardShadow }}>
+                {group.image ? (
+                  <img 
+                    src={group.image}
+                    alt={group.name || group.groupName}
+                    className="w-11 h-11 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="text-white text-xs font-bold">
+                    {(group.name || group.groupName || 'G')[0].toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <span className={`text-xs mt-2 w-20 text-center truncate whitespace-nowrap ${theme.text}`}>
+                {group.name || group.groupName || 'Group'}
+              </span>
+            </div>
+          ))}
+          {/* Plus Button */}
+          <div className="flex flex-col items-center">
+            <button 
+              onClick={() => navigate("/ticket/create-group")}
+              className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
+                isDark ? "border-gray-600" : "border-gray-400"
+              }`} 
+              style={{ boxShadow: theme.smallCardShadow }}
+            >
+              <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
+            </button>
+            <span className={`text-xs mt-2 w-20 text-center truncate whitespace-nowrap ${theme.text}`}>New group</span>
+          </div>
+        </>
+      )}
+    </div>
   </div>
 </div>
 
 
-                              {/* View button */}
-                              <div className="flex justify-center pt-4 "
-                              >
-                                <button
-                                  onClick={() => {
-                                    const eventId = event._id || event.id;
-                                    if (eventId) {
-                                      navigate(`/ticket/event/${eventId}`);
-                                    } else {
-                                      console.warn("No event ID found for navigation");
-                                    }
-                                  }}
-                                  className="px-10 py-2 rounded-full text-white text-sm font-medium  ml-4"
-                                  style={{
-  background: "linear-gradient(180deg, #2e1745 0%, #7f53e7 100%)"
-}}
+{/* Suggestions */}
+<div className={`rounded-xl md:rounded-2xl p-3 md:p-4 lg:p-6 nest-hub-card transition-all duration-300 w-full overflow-hidden`}>
+   <div className="flex justify-between items-center mb-4 md:mb-6">
+                                    <h2 className={`text-base md:text-lg font-semibold ${theme.text}`}>Suggestions</h2>
+                                    <button
+                                      className={`text-xs md:text-sm px-3 md:px-4 py-1 md:py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${
+                                        isDark ? "text-[#FFFFFF]" : "text-[#000000]"
+                                      }`}
+                                    >
+                                      see all
+                                    </button>
+                                  </div>
+                  
+                                  {/* Desktop: Scrollable Container with Arrows */}
+                                  <div className="hidden md:block relative">
+                                    {showLeftArrow && users.length > 0 && (
+                                      <button
+                                        onClick={scrollLeft}
+                                        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2"
+                                      >
+                                        <img src={RightArrowIcon} alt="Scroll Left" className="w-6 h-6 rotate-180 invert" />
+                                      </button>
+                                    )}
+                  
+                                    <div
+                                      id="suggestions-scroll"
+                                      className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 scroll-smooth"
+                                      onScroll={handleScroll}
+                                    >
+                                      {users.length > 0 ? (
+                                        users.slice(0, 8).map((suggestedUser) => (
+                                          <div
+                                            key={suggestedUser._id}
+                                            className="w-[246px] h-[363px] flex-shrink-0 rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 hover:scale-105 cursor-pointer"
+                                            style={{
+                                              backgroundColor: isDark ? "#212426" : "#ffffff",
+                                              boxShadow: theme.smallCardShadow,
+                                            }}
+                                            onClick={() => navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)}
+                                          >
+                                            <div className="flex flex-col">
+                                              <div className="relative mb-4">
+                                                <img
+                                                  src={suggestedUser.image? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}`: ProfileImage}
+                                                  alt={suggestedUser.name}
+                                                  className="w-full h-[160px] object-cover rounded-2xl"
+                                                />
+                                              </div>
+                                              <div className="px-1" style={{ marginTop: "2rem" }}>
+                                                <div className="flex items-center gap-2 mb-1 justify-center">
+                                                  <h3 className={`text-base font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
+                                                  <img src={VerifiedIcon} alt="Verified" className="w-4 h-4 flex-shrink-0"/>
+                                                </div>
+                                                <p className={`text-sm ${theme.subText} capitalize text-center`}>{suggestedUser.role || "User"}</p>
+                                              </div>
+                                            </div>
+                  
+                                            <div className="flex justify-between items-center px-1" style={{ marginBottom: "1rem" }}>
+                                              <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-1">
+                                                  <img src={FollowersIcon} alt="Followers" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}/>
+                                                  <span className={`text-sm font-medium ${theme.text}`}>
+                                                    {suggestedUser.followersCount || suggestedUser.followers || 0}
+                                                  </span>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                  <img src={EventIcon} alt="Events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}/>
+                                                  <span className={`text-sm font-medium ${theme.text}`}>{suggestedUser.eventsCount || 0}</span>
+                                                </div>
+                                              </div>
+                                              <button className="px-4 py-1.5 rounded-full text-white text-sm font-medium bg-blue-500 hover:bg-blue-600 transition-colors duration-200" onClick={(e) => {e.stopPropagation();console.log(`Following user: ${suggestedUser.name}`);}}>
+                                                Follow +
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <div className={`w-full text-center py-8 ${theme.subText}`}>
+                                          <p className="text-sm">No suggestions available</p>
+                                        </div>
+                                      )}
+                                    </div>
+                  
+                                    {showRightArrow && users.length > 0 && (
+                                      <button
+                                        onClick={scrollRight}
+                                        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full"
+                                      >
+                                        <img src={RightArrowIcon} alt="Scroll Right" className="w-6 h-6 invert" />
+                                      </button>
+                                    )}
+                                  </div>
 
-                                >
-                                  View
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                                  {/* Mobile: Grid of 2 Cards */}
+                                  <div className="md:hidden grid grid-cols-2 gap-3">
+                                    {users.length > 0 ? (
+                                      users.slice(0, 2).map((suggestedUser) => (
+                                        <div
+                                          key={suggestedUser._id}
+                                          className="rounded-2xl p-3 flex flex-col justify-between transition-all duration-300 cursor-pointer"
+                                          style={{
+                                            backgroundColor: isDark ? "#212426" : "#ffffff",
+                                            boxShadow: theme.smallCardShadow,
+                                          }}
+                                          onClick={() => navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)}
+                                        >
+                                          <div className="flex flex-col">
+                                            <div className="relative mb-3">
+                                              <img
+                                                src={suggestedUser.image? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}`: ProfileImage}
+                                                alt={suggestedUser.name}
+                                                className="w-full h-[100px] object-cover rounded-xl"
+                                              />
+                                            </div>
+                                            <div className="px-1 mb-3">
+                                              <div className="flex items-center gap-1 mb-1 justify-center">
+                                                <h3 className={`text-sm font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
+                                                <img src={VerifiedIcon} alt="Verified" className="w-3 h-3 flex-shrink-0"/>
+                                              </div>
+                                              <p className={`text-xs ${theme.subText} capitalize text-center`}>{suggestedUser.role || "User"}</p>
+                                            </div>
+                                          </div>
+                
+                                          <div className="flex flex-col gap-2">
+                                            <div className="flex justify-center items-center gap-3">
+                                              <div className="flex items-center gap-1">
+                                                <img src={FollowersIcon} alt="Followers" className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}/>
+                                                <span className={`text-xs font-medium ${theme.text}`}>
+                                                  {suggestedUser.followersCount || suggestedUser.followers || 0}
+                                                </span>
+                                              </div>
+                                              <div className="flex items-center gap-1">
+                                                <img src={EventIcon} alt="Events" className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}/>
+                                                <span className={`text-xs font-medium ${theme.text}`}>{suggestedUser.eventsCount || 0}</span>
+                                              </div>
+                                            </div>
+                                            <button className="w-full px-3 py-1.5 rounded-full text-white text-xs font-medium bg-blue-500 hover:bg-blue-600 transition-colors duration-200" onClick={(e) => {e.stopPropagation();console.log(`Following user: ${suggestedUser.name}`);}}>
+                                              Follow +
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <div className={`col-span-2 text-center py-8 ${theme.subText}`}>
+                                        <p className="text-sm">No suggestions available</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                  {/* Events Section with Tabs */}
+<div
+  className={`rounded-2xl md:rounded-[2.5rem] p-3 md:p-4 lg:p-6 ${theme.cardBg} md:bg-transparent nest-hub-card transition-all duration-300 w-full overflow-hidden`}
+  style={{ boxShadow: window.innerWidth >= 768 ? theme.cardShadow : 'none' }}
+>
+  {/* Tabs */}
+  <div className="flex items-center justify-between mb-4 md:mb-6 px-2 md:px-4">
+   {/* Mobile Tabs */}
+<div 
+  className="flex md:hidden items-center rounded-2xl transition-shadow duration-200"
+  style={{
+    backgroundColor: isDark ? "#212426" : "#ffffff",
+    boxShadow: theme.smallCardShadow,
+    padding: "16px 8px",
+    width: "calc(100% + 16px)", // Increased width
+    marginLeft: "-8px", // Center the wider container
+  }}
+>
+  <div className="flex items-center w-full relative gap-2" style={{ minHeight: '44px' }}>
+    {/* My Events - Left */}
+    <div
+      className="flex items-center gap-1 cursor-pointer rounded-xl transition-all duration-200 z-10"
+      style={{
+        boxShadow: activeTab === 'all'
+          ? isDark
+            ? "inset -17px -17px 34px #1c1f20, inset 17px 17px 34px #26292c"
+            : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)"
+          : 'none',
+        backgroundColor: activeTab === 'all' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+        padding: "8px 10px",
+      }}
+      onClick={() => setActiveTab('all')}
+    >
+      <img src={AllEventsIcon} alt="My events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`} />
+      <span className={`text-xs font-medium ${theme.text} whitespace-nowrap`}>My events</span>
+    </div>
+
+    {/* Live Events - Absolutely centered */}
+    <div
+      className="flex items-center gap-1 cursor-pointer rounded-xl transition-all duration-200 absolute left-1/2 z-20"
+      style={{
+        boxShadow: activeTab === 'live'
+          ? isDark
+            ? "inset -17px -17px 34px #1c1f20, inset 17px 17px 34px #26292c"
+            : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)"
+          : 'none',
+        backgroundColor: activeTab === 'live' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+        padding: "8px 10px",
+        transform: 'translateX(-50%)',
+      }}
+      onClick={() => setActiveTab('live')}
+    >
+      <img src={LiveEventIcon} alt="Live events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`} />
+      <span className={`text-xs font-medium ${theme.text} whitespace-nowrap`}>Live events</span>
+    </div>
+
+    {/* Past Events - Right */}
+    <div
+      className="flex items-center gap-1 cursor-pointer rounded-xl transition-all duration-200 ml-auto z-10"
+      style={{
+        boxShadow: activeTab === 'past'
+          ? isDark
+            ? "inset -17px -17px 34px #1c1f20, inset 17px 17px 34px #26292c"
+            : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)"
+          : 'none',
+        backgroundColor: activeTab === 'past' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+        padding: "8px 10px",
+      }}
+      onClick={() => setActiveTab('past')}
+    >
+      <img src={PastEventIcon} alt="Past events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`} />
+      <span className={`text-xs font-medium ${theme.text} whitespace-nowrap`}>Past events</span>
+    </div>
+  </div>
+</div>
+
+    {/* Desktop Tabs */}
+    <div className="hidden md:flex items-center justify-between w-full">
+      <div
+        className={`flex items-center gap-2 cursor-pointer p-3 rounded-xl transition-all duration-200 ${
+          activeTab === 'all' ? '' : 'opacity-60'
+        }`}
+        style={{
+          boxShadow: activeTab === 'all' ? (isDark
+            ? "inset -17px -17px 34px #1c1f20,inset 17px 17px 34px #26292c"
+            : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
+          backgroundColor: activeTab === 'all' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+        }}
+        onClick={() => setActiveTab('all')}
+      >
+        <img
+          src={AllEventsIcon}
+          alt="My events"
+          className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
+        />
+        <span className={`text-sm font-medium ${theme.text}`}>
+          All Events
+        </span>
+      </div>
+
+      <div 
+        className={`flex items-center gap-2 cursor-pointer mx-auto p-3 rounded-xl transition-all duration-200 ${
+          activeTab === 'live' ? '' : 'opacity-60'
+        }`}
+        style={{
+          boxShadow: activeTab === 'live' ? (isDark
+            ? "inset -17px -17px 34px #1c1f20,inset 17px 17px 34px #26292c"
+            : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
+          backgroundColor: activeTab === 'live' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+        }}
+        onClick={() => setActiveTab('live')}
+      >
+        <img
+          src={LiveEventIcon}
+          alt="Live events"
+          className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
+        />
+        <span className={`text-sm font-medium ${theme.text}`}>
+          Live Events
+        </span>
+      </div>
+
+      <div 
+        className={`flex items-center gap-2 cursor-pointer -mr-2 p-4 rounded-xl transition-all duration-200 ${
+          activeTab === 'past' ? '' : 'opacity-60'
+        }`}
+        style={{
+          boxShadow: activeTab === 'past' ? (isDark
+            ? "inset -17px -17px 34px #1c1f20,inset 17px 17px 34px #26292c"
+            : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
+          backgroundColor: activeTab === 'past' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+        }}
+        onClick={() => setActiveTab('past')}
+      >
+        <img
+          src={PastEventIcon}
+          alt="PastEvent"
+          className={`w-7 h-7 ${!isDark ? "filter brightness-0" : ""}`}
+        />
+        <span className={`text-sm font-medium ${theme.text}`}>
+          Past Events
+        </span>
+      </div>
+    </div>
+  </div>
+
+  {/* Events Content */}
+  {eventsLoading ? (
+    <div className="flex justify-center items-center py-16">
+      <div className={`text-lg ${theme.subText}`}>Loading events...</div>
+    </div>
+  ) : getCurrentEvents().length === 0 ? (
+    /* Empty State */
+    <div className="flex flex-col items-center justify-center py-16 md:py-24">
+      <h3 className={`text-xl font-medium ${theme.text} mb-4`}>
+        {activeTab === 'all' ? 'Create your first Event' : 
+         activeTab === 'live' ? 'No live events yet' : 
+         'No past events yet'}
+      </h3>
+      {activeTab === 'all' && (
+        <button
+          onClick={handleCreateEvent}
+          disabled={loading}
+          className="px-8 md:px-14 py-2.5 rounded-full text-white text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90 transition-opacity duration-200"
+        >
+          {loading ? "Loading..." : "Create"}
+        </button>
+      )}
+    </div>
+  ) : (
+    /* Events Grid */
+    <div>
+      {/* Desktop: 3 column grid */}
+<div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-10 xl:gap-14 tablet-grid w-full">
+        {getCurrentEvents().map((event, index) => (
+          <div
+            key={event._id || `event-${index}`}
+            className="rounded-3xl overflow-hidden flex flex-col"
+            style={{
+              backgroundColor: isDark ? "#212426" : "#ffffff",
+              boxShadow: theme.smallCardShadow,
+            }}
+          >
+            {/* Event Image */}
+            <div className="p-4">
+              <img
+                src={
+                  event.event_banner ||
+                  event.event_logo ||
+                  event.event_image ||
+                  "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
+                }
+                alt={event.event_name || "Event"}
+                className="rounded-[1rem] h-70 w-full object-cover border-2 border-white border-opacity-50"
+                onError={(e) => {
+                  e.target.src =
+                    "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
+                }}
+              />
+            </div>
+
+            {/* Event Info */}
+            <div className="flex flex-col flex-1 p-4">
+              <div className="text-center mb-6">
+                <h3 className={`font-bold text-base ${theme.text}`}>
+                  {event.event_name ||"Event"}
+                </h3>
+                <p className={`text-sm ${theme.subText} mt-1`}>
+                  {event.event_category || "Event Type"}
+                </p>
+              </div>
+
+              {/* Stats */}
+              <div className="flex justify-center items-center gap-20 text-sm mb-3">
+                <div className="flex flex-col items-center">
+                  <img
+                    src={LikeIcon}
+                    alt="Likes"
+                    className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}
+                  />
+                  <span className={theme.subText}>
+                    {event.likes || event.likesCount || "0"}
+                  </span>
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <img
+                    src={TicketIcon}
+                    alt="Tickets"
+                    className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}
+                  />
+                  <span className={theme.subText}>
+                    {event.ticketsSold ||
+                      event.registrations ||
+                      event.attendeesCount ||
+                      event.ticket_count ||
+                      event.ticketCount ||
+                      "0"}
+                  </span>
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <img
+                    src={SendIcon}
+                    alt="Shares"
+                    className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}
+                  />
+                  <span className={theme.subText}>
+                    {event.shares || event.sharesCount || "0"}
+                  </span>
+                </div>
+              </div>
+
+              {/* View button */}
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={() => {
+                    const eventId = event._id || event.id;
+                    if (eventId) {
+                      navigate(`/ticket/event/${eventId}`);
+                    } else {
+                      console.warn("No event ID found for navigation");
+                    }
+                  }}
+                  className="px-10 py-2 rounded-full text-white text-sm font-medium ml-4"
+                  style={{
+                    background: "linear-gradient(180deg, #2e1745 0%, #7f53e7 100%)"
+                  }}
+                >
+                  View
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Mobile: 2 column grid */}
+      <div className="md:hidden grid grid-cols-2 gap-3">
+        {getCurrentEvents().map((event, index) => (
+          <div
+            key={event._id || `event-${index}`}
+            className="rounded-2xl overflow-hidden flex flex-col h-[240px]"
+            style={{
+              backgroundColor: isDark ? "#212426" : "#ffffff",
+              boxShadow: theme.smallCardShadow,
+            }}
+          >
+            {/* Event Image */}
+            <div className="p-2">
+              <img
+                src={
+                  event.event_banner ||
+                  event.event_logo ||
+                  event.event_image ||
+                  "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
+                }
+                alt={event.event_name || "Event"}
+                className="rounded-xl h-[100px] w-full object-cover"
+                onError={(e) => {
+                  e.target.src =
+                    "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
+                }}
+              />
+            </div>
+
+            {/* Event Info */}
+            <div className="flex flex-col flex-1 p-2 justify-between">
+              <div className="text-center mb-2">
+                <h3 className={`font-bold text-sm ${theme.text} truncate`}>
+                  {event.event_name ||"Event"}
+                </h3>
+                <p className={`text-xs ${theme.subText} mt-1 truncate`}>
+                  {event.event_category || "Event Type"}
+                </p>
+              </div>
+
+              {/* Stats */}
+              <div className="flex justify-center items-center gap-3 text-xs">
+                <div className="flex flex-col items-center">
+                  <img
+                    src={LikeIcon}
+                    alt="Likes"
+                    className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}
+                  />
+                  <span className={theme.subText}>
+                    {event.likes || event.likesCount || "0"}
+                  </span>
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <img
+                    src={TicketIcon}
+                    alt="Tickets"
+                    className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}
+                  />
+                  <span className={theme.subText}>
+                    {event.ticketsSold ||
+                      event.registrations ||
+                      event.attendeesCount ||
+                      event.ticket_count ||
+                      event.ticketCount ||
+                      "0"}
+                  </span>
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <img
+                    src={SendIcon}
+                    alt="Shares"
+                    className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}
+                  />
+                  <span className={theme.subText}>
+                    {event.shares || event.sharesCount || "0"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+</div>
                 </>
               )}
             </div>
