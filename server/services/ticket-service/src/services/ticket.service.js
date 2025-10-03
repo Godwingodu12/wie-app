@@ -2612,15 +2612,6 @@ export const updateTicketDetails = async (req, res) => {
     if (booking_end_date) {
       updateData.booking_end_date = new Date(booking_end_date);
     }
-
-    console.log('=== TICKET DETAILS UPDATE ===');
-    console.log('Payment type:', payment_type);
-    console.log('Using group bank account:', use_group_bank_account === 'true');
-    console.log('Banking details count:', finalBankingDetails.length);
-    console.log('Ticket types count:', processedTicketTypes.length);
-    console.log('Uploaded ticket photos:', Object.keys(ticketPhotoFiles).length);
-
-    // Update the ticket
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
       updateData,
@@ -2630,7 +2621,6 @@ export const updateTicketDetails = async (req, res) => {
         upsert: false
       }
     );
-
     if (!updatedTicket) {
       return res.status(404).json({ 
         message: "Failed to update ticket details",
@@ -2662,7 +2652,8 @@ export const updateTicketDetails = async (req, res) => {
       responseData.group_bank_info = {
         account_holder: GroupBank.primary_bank_acc_holder,
         account_type: GroupBank.primary_bank_acc_type,
-        bank_name: GroupBank.bank_name || 'Not specified'
+        bank_name: GroupBank.bank_name || 'Not specified',
+        bank_ifsc: GroupBank.primary_bank_ifsc
       };
     } else {
       responseData.custom_bank_accounts = finalBankingDetails.map(bank => ({

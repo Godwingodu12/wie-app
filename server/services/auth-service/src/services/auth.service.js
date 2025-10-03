@@ -985,19 +985,31 @@ export const viewAllUsers = async (req, res) => {
     });
   }
 };
-export const getOtherProfile = async(req,res)=>{
-  try{
-    const other = req.params.otherId;
-    const user = await User.find({_id: other,status: 'active',});
+export const getOtherProfile = async (req, res) => {
+  try {
+    const otherId = req.params.otherId;
+    const currentUserId = req.user._id || req.user.id;
+    const user = await User.findOne({ _id: otherId, status: 'active' });
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const isFollowing = user.followersList && user.followersList.some(
+      followerId => followerId.toString() === currentUserId.toString()
+    );
+    const userObject = user.toObject();
+    userObject.isFollowing = isFollowing;
+    userObject.followersCount = user.followersList ? user.followersList.length : 0;
+    userObject.followingCount = user.followingList ? user.followingList.length : 0;
     res.status(200).json({
-            message: "Other User Profile fetched successfully",
-            user: user
+      message: "Other User Profile fetched successfully",
+      user: userObject
     });
-  }catch(error){
+  } catch (error) {
     console.error("Error fetching Other User Profile:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
   }
 };

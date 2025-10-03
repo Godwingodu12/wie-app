@@ -1,17 +1,21 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { format } from "date-fns";
-import Select from 'react-select';
+import Select from "react-select";
 import {
   createTicketBasicInfo,
   getGroups,
   getTicketById,
 } from "../../services/ticketService";
+// CORRECT for Vite
+import Event_Form_Icon from "../../assets/Event/Event_Form_Icon.svg?react";
+import Date_Form_Icon from "../../assets/Event/Date_Form_Icon.svg?react";
+import Guest_Form_Icon from "../../assets/Event/Guest_Form_Icon.svg?react";
+import Prohibited_Form_Icon from "../../assets/Event/Prohibited_Form_Icon.svg?react";
 
 // Import shared components
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
-
 
 // --- Reusable UI Components ---
 const CustomScrollbarStyles = ({ isDark }) => {
@@ -19,7 +23,7 @@ const CustomScrollbarStyles = ({ isDark }) => {
   const mainThumbColor = isDark ? "#4f4f4f" : "#cbd5e1";
   const widgetThumbColor = isDark ? "#818cf8" : "#6366f1";
 
-  const autofillTextColor = isDark ? '#FFFFFF' : '#1F2937';
+  const autofillTextColor = isDark ? "#FFFFFF" : "#1F2937";
 
   return (
     <style>{`
@@ -201,7 +205,7 @@ const DatePickerModal = ({
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState(initialDates || []);
   const [useSameTime, setUseSameTime] = useState(true);
-  
+
   useEffect(() => {
     setSelectedDates(initialDates || []);
   }, [initialDates]);
@@ -215,58 +219,60 @@ const DatePickerModal = ({
 
   // Helper function to convert 12-hour time to 24-hour format
   const convertTo24Hour = (time12h, ampm) => {
-    if (!time12h || !ampm) return '';
-    
-    const [hours, minutes] = time12h.split(':');
+    if (!time12h || !ampm) return "";
+
+    const [hours, minutes] = time12h.split(":");
     let hour24 = parseInt(hours);
-    
-    if (ampm === 'AM' && hour24 === 12) {
+
+    if (ampm === "AM" && hour24 === 12) {
       hour24 = 0;
-    } else if (ampm === 'PM' && hour24 !== 12) {
+    } else if (ampm === "PM" && hour24 !== 12) {
       hour24 += 12;
     }
-    
-    return `${hour24.toString().padStart(2, '0')}:${minutes}`;
+
+    return `${hour24.toString().padStart(2, "0")}:${minutes}`;
   };
 
   // Helper function to convert 24-hour time to 12-hour format
   const convertTo12Hour = (time24h) => {
-    if (!time24h) return { time: '', ampm: '' };
-    
-    const [hours, minutes] = time24h.split(':');
+    if (!time24h) return { time: "", ampm: "" };
+
+    const [hours, minutes] = time24h.split(":");
     let hour12 = parseInt(hours);
-    const ampm = hour12 >= 12 ? 'PM' : 'AM';
-    
+    const ampm = hour12 >= 12 ? "PM" : "AM";
+
     if (hour12 === 0) {
       hour12 = 12;
     } else if (hour12 > 12) {
       hour12 -= 12;
     }
-    
+
     return {
-      time: `${hour12.toString().padStart(2, '0')}:${minutes}`,
-      ampm: ampm
+      time: `${hour12.toString().padStart(2, "0")}:${minutes}`,
+      ampm: ampm,
     };
   };
 
   // Helper function to validate time
   const validateTime = (startTime, endTime, startAmPm, endAmPm) => {
     if (!startTime || !endTime || !startAmPm || !endAmPm) return true; // Allow incomplete times
-    
+
     const start24 = convertTo24Hour(startTime, startAmPm);
     const end24 = convertTo24Hour(endTime, endAmPm);
-    
+
     if (!start24 || !end24) return true;
-    
+
     const start = new Date(`1970-01-01T${start24}:00`);
     const end = new Date(`1970-01-01T${end24}:00`);
-    
+
     return end > start;
   };
 
   // Helper function to show time validation error
   const showTimeValidationError = () => {
-    alert("Error: End time must be after start time for same-day events. Please select a valid time range.");
+    alert(
+      "Error: End time must be after start time for same-day events. Please select a valid time range."
+    );
   };
 
   const generateCalendarDays = () => {
@@ -338,11 +344,13 @@ const DatePickerModal = ({
           setSelectedDates([]);
         } else {
           // For single day events, both start_date and end_date should be the same
-          setSelectedDates([{ 
-            date: dateStr, 
-            endDate: dateStr, // Set end_date to same as start_date
-            ...commonTime 
-          }]);
+          setSelectedDates([
+            {
+              date: dateStr,
+              endDate: dateStr, // Set end_date to same as start_date
+              ...commonTime,
+            },
+          ]);
         }
         break;
       }
@@ -353,11 +361,14 @@ const DatePickerModal = ({
           newDates = selectedDates.filter((d) => d.date !== dateStr);
         } else {
           // For multi-day events, each day is independent
-          newDates = [...selectedDates, { 
-            date: dateStr, 
-            endDate: dateStr, // Each day has same start and end date
-            ...commonTime 
-          }];
+          newDates = [
+            ...selectedDates,
+            {
+              date: dateStr,
+              endDate: dateStr, // Each day has same start and end date
+              ...commonTime,
+            },
+          ];
         }
         setSelectedDates(
           newDates.sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -398,49 +409,65 @@ const DatePickerModal = ({
     if (useSameTime) {
       // When "Use same time" is enabled, update all dates
       const updatedDates = selectedDates.map((d) => ({ ...d, [field]: value }));
-      
+
       // Only validate when both time and ampm are set for both start and end
-      if (field === 'endAmPm' || (field === 'endTime' && updatedDates[0].endAmPm) ||
-          field === 'startAmPm' || (field === 'startTime' && updatedDates[0].startAmPm)) {
-        
+      if (
+        field === "endAmPm" ||
+        (field === "endTime" && updatedDates[0].endAmPm) ||
+        field === "startAmPm" ||
+        (field === "startTime" && updatedDates[0].startAmPm)
+      ) {
         const currentDate = updatedDates[0];
-        const startTime = field === 'startTime' ? value : currentDate.startTime;
-        const endTime = field === 'endTime' ? value : currentDate.endTime;
-        const startAmPm = field === 'startAmPm' ? value : currentDate.startAmPm;
-        const endAmPm = field === 'endAmPm' ? value : currentDate.endAmPm;
-        
+        const startTime = field === "startTime" ? value : currentDate.startTime;
+        const endTime = field === "endTime" ? value : currentDate.endTime;
+        const startAmPm = field === "startAmPm" ? value : currentDate.startAmPm;
+        const endAmPm = field === "endAmPm" ? value : currentDate.endAmPm;
+
         // Only validate if we have complete time information
-        if (startTime && endTime && startAmPm && endAmPm && 
-            !validateTime(startTime, endTime, startAmPm, endAmPm)) {
+        if (
+          startTime &&
+          endTime &&
+          startAmPm &&
+          endAmPm &&
+          !validateTime(startTime, endTime, startAmPm, endAmPm)
+        ) {
           showTimeValidationError();
           return; // Don't update if validation fails
         }
       }
-      
+
       setSelectedDates(updatedDates);
     } else {
       // When disabled, update only the specific date
       const updatedDates = [...selectedDates];
       updatedDates[index][field] = value;
-      
+
       // Only validate when both time and ampm are set for both start and end
-      if (field === 'endAmPm' || (field === 'endTime' && updatedDates[index].endAmPm) ||
-          field === 'startAmPm' || (field === 'startTime' && updatedDates[index].startAmPm)) {
-        
+      if (
+        field === "endAmPm" ||
+        (field === "endTime" && updatedDates[index].endAmPm) ||
+        field === "startAmPm" ||
+        (field === "startTime" && updatedDates[index].startAmPm)
+      ) {
         const currentDate = updatedDates[index];
-        const startTime = field === 'startTime' ? value : currentDate.startTime;
-        const endTime = field === 'endTime' ? value : currentDate.endTime;
-        const startAmPm = field === 'startAmPm' ? value : currentDate.startAmPm;
-        const endAmPm = field === 'endAmPm' ? value : currentDate.endAmPm;
-        
+        const startTime = field === "startTime" ? value : currentDate.startTime;
+        const endTime = field === "endTime" ? value : currentDate.endTime;
+        const startAmPm = field === "startAmPm" ? value : currentDate.startAmPm;
+        const endAmPm = field === "endAmPm" ? value : currentDate.endAmPm;
+
         // Only validate if we have complete time information
-        if (startTime && endTime && startAmPm && endAmPm && 
-            !validateTime(startTime, endTime, startAmPm, endAmPm)) {
+        if (
+          startTime &&
+          endTime &&
+          startAmPm &&
+          endAmPm &&
+          !validateTime(startTime, endTime, startAmPm, endAmPm)
+        ) {
           showTimeValidationError();
           return; // Don't update if validation fails
         }
       }
-      
+
       setSelectedDates(updatedDates);
     }
   };
@@ -449,22 +476,30 @@ const DatePickerModal = ({
   const handleUseSameTimeChange = (e) => {
     const isEnabled = e.target.checked;
     setUseSameTime(isEnabled);
-    
+
     if (isEnabled && selectedDates.length > 0) {
       // Auto-fill all dates with the first date's time
       const firstDateTime = selectedDates[0];
       if (firstDateTime.startTime || firstDateTime.endTime) {
         // Only validate if we have complete time information
-        if (firstDateTime.startTime && firstDateTime.endTime && 
-            firstDateTime.startAmPm && firstDateTime.endAmPm &&
-            !validateTime(firstDateTime.startTime, firstDateTime.endTime, 
-                           firstDateTime.startAmPm, firstDateTime.endAmPm)) {
+        if (
+          firstDateTime.startTime &&
+          firstDateTime.endTime &&
+          firstDateTime.startAmPm &&
+          firstDateTime.endAmPm &&
+          !validateTime(
+            firstDateTime.startTime,
+            firstDateTime.endTime,
+            firstDateTime.startAmPm,
+            firstDateTime.endAmPm
+          )
+        ) {
           showTimeValidationError();
           return;
         }
-        
-        setSelectedDates(currentDates =>
-          currentDates.map(d => ({
+
+        setSelectedDates((currentDates) =>
+          currentDates.map((d) => ({
             ...d,
             startTime: firstDateTime.startTime || d.startTime,
             endTime: firstDateTime.endTime || d.endTime,
@@ -481,27 +516,39 @@ const DatePickerModal = ({
     for (let i = 0; i < selectedDates.length; i++) {
       const dateEntry = selectedDates[i];
       // Only validate if we have complete time information
-      if (dateEntry.startTime && dateEntry.endTime && 
-          dateEntry.startAmPm && dateEntry.endAmPm &&
-          !validateTime(dateEntry.startTime, dateEntry.endTime, 
-                         dateEntry.startAmPm, dateEntry.endAmPm)) {
+      if (
+        dateEntry.startTime &&
+        dateEntry.endTime &&
+        dateEntry.startAmPm &&
+        dateEntry.endAmPm &&
+        !validateTime(
+          dateEntry.startTime,
+          dateEntry.endTime,
+          dateEntry.startAmPm,
+          dateEntry.endAmPm
+        )
+      ) {
         showTimeValidationError();
         return; // Don't save if validation fails
       }
     }
 
     // Convert 12-hour format to 24-hour format for backend
-    const convertedDates = selectedDates.map(dateEntry => ({
+    const convertedDates = selectedDates.map((dateEntry) => ({
       ...dateEntry,
-      startTime: dateEntry.startTime && dateEntry.startAmPm ? 
-                 convertTo24Hour(dateEntry.startTime, dateEntry.startAmPm) : dateEntry.startTime,
-      endTime: dateEntry.endTime && dateEntry.endAmPm ? 
-               convertTo24Hour(dateEntry.endTime, dateEntry.endAmPm) : dateEntry.endTime,
+      startTime:
+        dateEntry.startTime && dateEntry.startAmPm
+          ? convertTo24Hour(dateEntry.startTime, dateEntry.startAmPm)
+          : dateEntry.startTime,
+      endTime:
+        dateEntry.endTime && dateEntry.endAmPm
+          ? convertTo24Hour(dateEntry.endTime, dateEntry.endAmPm)
+          : dateEntry.endTime,
       // Keep the original 12-hour format for display purposes
       startTime12h: dateEntry.startTime,
       endTime12h: dateEntry.endTime,
       startAmPm: dateEntry.startAmPm,
-      endAmPm: dateEntry.endAmPm
+      endAmPm: dateEntry.endAmPm,
     }));
 
     onSave(convertedDates, dateType);
@@ -698,14 +745,18 @@ const DatePickerModal = ({
                     >
                       {formattedDate}
                     </span>
-                    
+
                     {/* Start Time Fields */}
                     <div className="flex gap-1 w-full">
                       <input
                         type="time"
                         value={item.startTime || ""}
                         onChange={(e) =>
-                          handleIndividualTimeChange(index, "startTime", e.target.value)
+                          handleIndividualTimeChange(
+                            index,
+                            "startTime",
+                            e.target.value
+                          )
                         }
                         className={`border rounded-lg p-2 text-sm flex-1 ${
                           darkMode
@@ -716,7 +767,11 @@ const DatePickerModal = ({
                       <select
                         value={item.startAmPm || ""}
                         onChange={(e) =>
-                          handleIndividualTimeChange(index, "startAmPm", e.target.value)
+                          handleIndividualTimeChange(
+                            index,
+                            "startAmPm",
+                            e.target.value
+                          )
                         }
                         className={`border rounded-lg p-2 text-sm w-16 ${
                           darkMode
@@ -738,7 +793,11 @@ const DatePickerModal = ({
                         type="time"
                         value={item.endTime || ""}
                         onChange={(e) =>
-                          handleIndividualTimeChange(index, "endTime", e.target.value)
+                          handleIndividualTimeChange(
+                            index,
+                            "endTime",
+                            e.target.value
+                          )
                         }
                         className={`border rounded-lg p-2 text-sm flex-1 ${
                           darkMode
@@ -749,7 +808,11 @@ const DatePickerModal = ({
                       <select
                         value={item.endAmPm || ""}
                         onChange={(e) =>
-                          handleIndividualTimeChange(index, "endAmPm", e.target.value)
+                          handleIndividualTimeChange(
+                            index,
+                            "endAmPm",
+                            e.target.value
+                          )
                         }
                         className={`border rounded-lg p-2 text-sm w-16 ${
                           darkMode
@@ -1351,91 +1414,217 @@ const ProhibitedItemsModal = ({
   );
 };
 
-
-
 // --- NEW: Language options array ---
 const eventCategories = {
-    "Arts, Culture, & Literature": [ "Art Exhibitions", "Cultural Festivals", "Theater Performances", "Literature Festivals", "Historical Reenactments", "Art Installations", "Art Workshops & Competitions", "Guided Art Walks", "Printmaking & Conceptual Art", "Residency Showcases", "Art Auctions" ],
-    "Music": [ "Concerts", "Music Festivals", "Live Performances", "Battle of the Bands", "DJ Nights" ],
-    "Entertainment & Performing Arts": [ "Comedy Shows", "Magic Shows", "Circus Performances" ],
-    "Dance": [ "Recitals & Showcases", "Competitions & Galas", "Social Dance Nights", "Dance Workshops", "Themed Dances", "Classical Dance", "Contemporary Dance", "Street & Urban Dance", "Bollywood & Tollywood Dance", "Folk & Traditional Dance", "K-pop Dance" ],
-    "Sports, Fitness, & Adventure": [ "Sporting Competitions", "Marathons & Races", "Fitness Workshops", "Adventure Sports", "Camping & Hiking", "Turf Booking", "Esports" ],
-    "Education & Learning": [ "Workshops & Seminars", "Conferences & Summits", "Academic Competitions & MUNs", "Career Fairs & Counseling", "Public Lectures", "Bootcamps", "Certification Programs", "College Fests", "Webinars", "Startup Competitions", "Quiz Sessions" ],
-    "Business & Innovation": [ "Tech Expos", "Hackathons", "Product Launches", "Robotics Competitions", "Trade Shows", "Networking Events" ],
-    "Food, Lifestyle, & Wellness": [ "Food Festivals", "Wine Tastings", "Cooking Classes", "Yoga & Spiritual Retreats", "Mindfulness Workshops", "Fashion Shows" ],
-    "Film, Media, & Gaming": [ "Film Festivals & Screenings", "Animation Showcases", "Board Game Nights", "Cosplay Conventions" ],
-    "Travel, Holidays, & Tourism": [ "Travel Expos", "Destination Showcases", "Cruise Events", "Holiday Events (e.g., Halloween, Christmas)" ],
-    "Festivals & Celebrations": [ "National & Regional Festivals", "Harvest Festivals", "Lantern Festivals", "Cultural Parades", "Religious Festivals" ],
-    "Environment, Sustainability, & Agriculture": [ "Eco-Festivals", "Sustainable Living Workshops", "Tree-Planting & Clean Energy Campaigns", "Agricultural Fairs & Farmers' Markets", "Green Hackathons", "Cyclothons", "Eco-Tourism Trails", "Green Tech Conferences" ],
-    "Religious & Spiritual Events": [ "Pilgrimages", "Spiritual Retreats", "Meditation Camps" ]
+  "Arts, Culture, & Literature": [
+    "Art Exhibitions",
+    "Cultural Festivals",
+    "Theater Performances",
+    "Literature Festivals",
+    "Historical Reenactments",
+    "Art Installations",
+    "Art Workshops & Competitions",
+    "Guided Art Walks",
+    "Printmaking & Conceptual Art",
+    "Residency Showcases",
+    "Art Auctions",
+  ],
+  Music: [
+    "Concerts",
+    "Music Festivals",
+    "Live Performances",
+    "Battle of the Bands",
+    "DJ Nights",
+  ],
+  "Entertainment & Performing Arts": [
+    "Comedy Shows",
+    "Magic Shows",
+    "Circus Performances",
+  ],
+  Dance: [
+    "Recitals & Showcases",
+    "Competitions & Galas",
+    "Social Dance Nights",
+    "Dance Workshops",
+    "Themed Dances",
+    "Classical Dance",
+    "Contemporary Dance",
+    "Street & Urban Dance",
+    "Bollywood & Tollywood Dance",
+    "Folk & Traditional Dance",
+    "K-pop Dance",
+  ],
+  "Sports, Fitness, & Adventure": [
+    "Sporting Competitions",
+    "Marathons & Races",
+    "Fitness Workshops",
+    "Adventure Sports",
+    "Camping & Hiking",
+    "Turf Booking",
+    "Esports",
+  ],
+  "Education & Learning": [
+    "Workshops & Seminars",
+    "Conferences & Summits",
+    "Academic Competitions & MUNs",
+    "Career Fairs & Counseling",
+    "Public Lectures",
+    "Bootcamps",
+    "Certification Programs",
+    "College Fests",
+    "Webinars",
+    "Startup Competitions",
+    "Quiz Sessions",
+  ],
+  "Business & Innovation": [
+    "Tech Expos",
+    "Hackathons",
+    "Product Launches",
+    "Robotics Competitions",
+    "Trade Shows",
+    "Networking Events",
+  ],
+  "Food, Lifestyle, & Wellness": [
+    "Food Festivals",
+    "Wine Tastings",
+    "Cooking Classes",
+    "Yoga & Spiritual Retreats",
+    "Mindfulness Workshops",
+    "Fashion Shows",
+  ],
+  "Film, Media, & Gaming": [
+    "Film Festivals & Screenings",
+    "Animation Showcases",
+    "Board Game Nights",
+    "Cosplay Conventions",
+  ],
+  "Travel, Holidays, & Tourism": [
+    "Travel Expos",
+    "Destination Showcases",
+    "Cruise Events",
+    "Holiday Events (e.g., Halloween, Christmas)",
+  ],
+  "Festivals & Celebrations": [
+    "National & Regional Festivals",
+    "Harvest Festivals",
+    "Lantern Festivals",
+    "Cultural Parades",
+    "Religious Festivals",
+  ],
+  "Environment, Sustainability, & Agriculture": [
+    "Eco-Festivals",
+    "Sustainable Living Workshops",
+    "Tree-Planting & Clean Energy Campaigns",
+    "Agricultural Fairs & Farmers' Markets",
+    "Green Hackathons",
+    "Cyclothons",
+    "Eco-Tourism Trails",
+    "Green Tech Conferences",
+  ],
+  "Religious & Spiritual Events": [
+    "Pilgrimages",
+    "Spiritual Retreats",
+    "Meditation Camps",
+  ],
 };
 
-const languageOptions = ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other'].map(lang => ({ value: lang, label: lang }));
+const languageOptions = [
+  "English",
+  "Hindi",
+  "Malayalam",
+  "Tamil",
+  "Kannada",
+  "Telugu",
+  "Marathi",
+  "Gujarati",
+  "Punjabi",
+  "Urdu",
+  "Bengali",
+  "Spanish",
+  "French",
+  "German",
+  "Chinese",
+  "Japanese",
+  "Russian",
+  "Turkish",
+  "Korean",
+  "Portuguese",
+  "Arabic",
+  "Indonesian",
+  "Vietnamese",
+  "Other",
+].map((lang) => ({ value: lang, label: lang }));
 // Add these constants near your other dropdown data arrays
 const ageOptions = [
-    { value: "0", label: "All ages" },
-    { value: "13", label: "13+" },
-    { value: "16", label: "16+" },
-    { value: "18", label: "18+" },
-    { value: "21", label: "21+" }
+  { value: "0", label: "All ages" },
+  { value: "13", label: "13+" },
+  { value: "16", label: "16+" },
+  { value: "18", label: "18+" },
+  { value: "21", label: "21+" },
 ];
 
 const seatingOptions = [
-    { value: "seated", label: "Seated" },
-    { value: "standing", label: "Standing" },
-    { value: "seated and standing", label: "Seated and Standing" },
-    { value: "other", label: "Other" }
+  { value: "seated", label: "Seated" },
+  { value: "standing", label: "Standing" },
+  { value: "seated and standing", label: "Seated and Standing" },
+  { value: "other", label: "Other" },
 ];
 const customSelectStyles = (isDark) => ({
   control: (provided, state) => ({
     ...provided,
-    backgroundColor: 'transparent',
-    borderColor: state.isFocused ? '#6366F1' : (isDark ? '#4A4A4A' : '#D1D5DB'),
-    padding: '0.5rem',
-    borderRadius: '0.5rem',
-    boxShadow: 'none',
-    '&:hover': {
-      borderColor: '#6366F1',
+    backgroundColor: "transparent",
+    borderColor: state.isFocused ? "#6366F1" : isDark ? "#4A4A4A" : "#D1D5DB",
+    padding: "0.5rem",
+    borderRadius: "0.5rem",
+    boxShadow: "none",
+    "&:hover": {
+      borderColor: "#6366F1",
     },
   }),
   valueContainer: (provided) => ({
     ...provided,
-    padding: '0 2px',
+    padding: "0 2px",
   }),
   input: (provided) => ({
     ...provided,
-    color: isDark ? '#FFFFFF' : '#1F2937',
+    color: isDark ? "#FFFFFF" : "#1F2937",
   }),
   singleValue: (provided) => ({
     ...provided,
-    color: isDark ? '#FFFFFF' : '#1F2937',
+    color: isDark ? "#FFFFFF" : "#1F2937",
   }),
   placeholder: (provided) => ({
     ...provided,
-    color: isDark ? '#6B7280' : '#9CA3AF',
+    color: isDark ? "#6B7280" : "#9CA3AF",
   }),
   menu: (provided) => ({
     ...provided,
-    backgroundColor: isDark ? '#2B2B2B' : '#FFFFFF',
-    borderRadius: '0.5rem',
+    backgroundColor: isDark ? "#2B2B2B" : "#FFFFFF",
+    borderRadius: "0.5rem",
     zIndex: 50,
   }),
   option: (provided, state) => ({
     ...provided,
-    backgroundColor: state.isSelected ? '#4F46E5' : state.isFocused ? (isDark ? '#374151' : '#E5E7EB') : 'transparent',
-    color: isDark ? '#FFFFFF' : '#1F2937',
-    '&:active': {
-      backgroundColor: '#4338CA',
+    backgroundColor: state.isSelected
+      ? "#4F46E5"
+      : state.isFocused
+      ? isDark
+        ? "#374151"
+        : "#1b1d20ff"
+      : "transparent",
+    color: isDark ? "#ffffffff" : "#1F2937",
+    "&:active": {
+      backgroundColor: "#4338CA",
     },
   }),
   menuList: (provided) => ({
     ...provided,
-    '::-webkit-scrollbar': { width: '8px' },
-    '::-webkit-scrollbar-track': { background: isDark ? '#232426' : '#f1f5f9' },
-    '::-webkit-scrollbar-thumb': {
-      backgroundColor: isDark ? '#4f4f4f' : '#cbd5e1',
-      borderRadius: '10px',
-      border: `2px solid ${isDark ? '#232426' : '#f1f5f9'}`,
+    "::-webkit-scrollbar": { width: "8px" },
+    "::-webkit-scrollbar-track": { background: isDark ? "#232426" : "#4a4e52ff" },
+    "::-webkit-scrollbar-thumb": {
+      backgroundColor: isDark ? "#4f4f4f" : "#3a4450ff",
+      borderRadius: "10px",
+      border: `2px solid ${isDark ? "#232426" : "#143453ff"}`,
     },
   }),
 });
@@ -1466,12 +1655,11 @@ const CreateTicket = () => {
 
   // --- NEW: Data structure for event categories and subcategories ---
 
-
   // Set initial map location (Thrissur, Kerala, India)
   const INITIAL_MAP_LOCATION = {
     lat: 10.5276,
     lng: 76.2144,
-    address: "Thrissur, Kerala, India"
+    address: "Thrissur, Kerala, India",
   };
 
   const [formData, setFormData] = useState({
@@ -1485,7 +1673,7 @@ const CreateTicket = () => {
     location: "",
     venue: "",
     event_language: [],
-    min_age_allowed: "0",
+    min_age_allowed: "",
     seating_arrangement: "",
     kids_friendly: false,
     pet_friendly: false,
@@ -1505,27 +1693,29 @@ const CreateTicket = () => {
     prohibited_items: [],
     POCS: [],
     event_description: "",
-    exact_map_location: { 
-      latitude: INITIAL_MAP_LOCATION.lat.toString(), 
-      longitude: INITIAL_MAP_LOCATION.lng.toString(), 
-      address: INITIAL_MAP_LOCATION.address 
+    exact_map_location: {
+      latitude: INITIAL_MAP_LOCATION.lat.toString(),
+      longitude: INITIAL_MAP_LOCATION.lng.toString(),
+      address: INITIAL_MAP_LOCATION.address,
     },
     groupId: groupId || "",
   });
-
 
   const [poc, setPoc] = useState({
     POC_name: "",
     POC_email: "",
     POC_contact: "",
   });
-          const categoryOptions = Object.keys(eventCategories).map(category => ({
-        value: category,
-        label: category
-    }));
-    const subCategoryOptions = formData.event_category 
-        ? eventCategories[formData.event_category].map(sub => ({ value: sub, label: sub }))
-        : [];
+  const categoryOptions = Object.keys(eventCategories).map((category) => ({
+    value: category,
+    label: category,
+  }));
+  const subCategoryOptions = formData.event_category
+    ? eventCategories[formData.event_category].map((sub) => ({
+        value: sub,
+        label: sub,
+      }))
+    : [];
 
   const saveFormDataToStorage = (data) => {
     try {
@@ -1581,17 +1771,17 @@ const CreateTicket = () => {
         if (savedFormData) setFormData(savedFormData);
         return savedFormData || null;
       }
-      
+
       // Helper function to format date for input (ISO to YYYY-MM-DD)
       const formatDateForInput = (isoDate) => {
-        if (!isoDate) return '';
+        if (!isoDate) return "";
         const date = new Date(isoDate);
-        return date.toISOString().split('T')[0]; // This gives YYYY-MM-DD format
+        return date.toISOString().split("T")[0]; // This gives YYYY-MM-DD format
       };
 
       // Helper function to format time for input
       const formatTimeForInput = (timeString) => {
-        if (!timeString) return '';
+        if (!timeString) return "";
         return timeString;
       };
 
@@ -1602,7 +1792,8 @@ const CreateTicket = () => {
             endDate: formatDateForInput(d.end_date), // Add end_date support
             startTime: formatTimeForInput(d.start_time),
             endTime: formatTimeForInput(d.end_time),
-          })) : [];
+          }))
+        : [];
 
       let eventLanguage = "";
       if (Array.isArray(ticketData.event_language)) {
@@ -1638,30 +1829,43 @@ const CreateTicket = () => {
         gate_open_time: formatTimeForInput(ticketData.gate_open_time) || "",
         gatesOpenEarly: !!ticketData.gate_open_time,
         // Parse gate opening time into separate fields
-        gate_open_hour: ticketData.gate_open_time ? (() => {
-          const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
-          let hour = time.getHours();
-          return hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-        })() : "",
-        gate_open_minute: ticketData.gate_open_time ? (() => {
-          const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
-          return time.getMinutes().toString().padStart(2, "0");
-        })() : "",
-        gate_open_ampm: ticketData.gate_open_time ? (() => {
-          const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
-          return time.getHours() >= 12 ? "PM" : "AM";
-        })() : "",
+        gate_open_hour: ticketData.gate_open_time
+          ? (() => {
+              const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
+              let hour = time.getHours();
+              return hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+            })()
+          : "",
+        gate_open_minute: ticketData.gate_open_time
+          ? (() => {
+              const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
+              return time.getMinutes().toString().padStart(2, "0");
+            })()
+          : "",
+        gate_open_ampm: ticketData.gate_open_time
+          ? (() => {
+              const time = new Date(`1970-01-01T${ticketData.gate_open_time}`);
+              return time.getHours() >= 12 ? "PM" : "AM";
+            })()
+          : "",
         guests: ticketData.guests || [],
         event_rules: ticketData.event_rules || { type: "text", content: "" },
         prohibited_items: ticketData.prohibited_items || [],
         POCS: ticketData.POCS || [],
         event_description: ticketData.event_description || "",
         exact_map_location: {
-          latitude: ticketData.exact_map_location?.latitude?.toString() || INITIAL_MAP_LOCATION.lat.toString(),
-          longitude: ticketData.exact_map_location?.longitude?.toString() || INITIAL_MAP_LOCATION.lng.toString(),
-          address: ticketData.exact_map_location?.address || INITIAL_MAP_LOCATION.address,
+          latitude:
+            ticketData.exact_map_location?.latitude?.toString() ||
+            INITIAL_MAP_LOCATION.lat.toString(),
+          longitude:
+            ticketData.exact_map_location?.longitude?.toString() ||
+            INITIAL_MAP_LOCATION.lng.toString(),
+          address:
+            ticketData.exact_map_location?.address ||
+            INITIAL_MAP_LOCATION.address,
         },
         groupId: ticketData.groupId || groupId || "",
+        form_progress: ticketData.form_progress || {},
       };
 
       setFormData(loadedData);
@@ -1681,7 +1885,7 @@ const CreateTicket = () => {
       saveFormDataToStorage(formData);
     }
   }, [formData]);
-  
+
   useEffect(() => {
     const initializeComponent = async () => {
       setPageLoading(true);
@@ -1725,7 +1929,7 @@ const CreateTicket = () => {
     };
     initializeComponent();
   }, [groupId, urlTicketId, navigate, location.state]);
-  
+
   useEffect(() => {
     if (!pageLoading && !isEditMode) {
       saveFormDataToStorage(formData);
@@ -1736,7 +1940,7 @@ const CreateTicket = () => {
     const callbackName = "initMapCallback";
     window[callbackName] = () => setIsApiReady(true);
     const scriptId = "google-maps-script";
-    
+
     if (!document.getElementById(scriptId)) {
       const script = document.createElement("script");
       script.id = scriptId;
@@ -1747,7 +1951,7 @@ const CreateTicket = () => {
     } else if (window.google) {
       setIsApiReady(true);
     }
-    
+
     return () => {
       delete window[callbackName];
     };
@@ -1758,7 +1962,7 @@ const CreateTicket = () => {
     if (!isApiReady || !mapRef.current || !dataLoaded) return;
 
     // If location type is not offline, cleanup and return
-    if (formData.location_type !== 'offline') {
+    if (formData.location_type !== "offline") {
       if (map) {
         setMap(null);
         markerRef.current = null;
@@ -1768,12 +1972,14 @@ const CreateTicket = () => {
 
     const initializeMap = () => {
       // Use form data coordinates if available, otherwise use initial location
-      const initialCenter = formData.exact_map_location.latitude && formData.exact_map_location.longitude
-        ? {
-            lat: parseFloat(formData.exact_map_location.latitude),
-            lng: parseFloat(formData.exact_map_location.longitude),
-          }
-        : INITIAL_MAP_LOCATION;
+      const initialCenter =
+        formData.exact_map_location.latitude &&
+        formData.exact_map_location.longitude
+          ? {
+              lat: parseFloat(formData.exact_map_location.latitude),
+              lng: parseFloat(formData.exact_map_location.longitude),
+            }
+          : INITIAL_MAP_LOCATION;
 
       // Clean up existing map first
       if (map) {
@@ -1786,15 +1992,15 @@ const CreateTicket = () => {
       const mapInstance = new window.google.maps.Map(mapRef.current, {
         center: initialCenter,
         zoom: 15,
-        mapTypeId: 'roadmap',
-        gestureHandling: 'cooperative',
+        mapTypeId: "roadmap",
+        gestureHandling: "cooperative",
       });
 
       const markerInstance = new window.google.maps.Marker({
         position: initialCenter,
         map: mapInstance,
         draggable: true,
-        title: 'Event Location'
+        title: "Event Location",
       });
 
       const updateStateFromCoords = (lat, lng) => {
@@ -1829,19 +2035,19 @@ const CreateTicket = () => {
       if (autocompleteRef.current) {
         const autocompleteInstance = new window.google.maps.places.Autocomplete(
           autocompleteRef.current,
-          { 
+          {
             fields: ["geometry", "name", "formatted_address"],
-            types: ["establishment", "geocode"]
+            types: ["establishment", "geocode"],
           }
         );
 
         autocompleteInstance.addListener("place_changed", () => {
           const place = autocompleteInstance.getPlace();
           if (!place.geometry?.location) return;
-          
+
           const { lat, lng } = place.geometry.location;
           const newPosition = { lat: lat(), lng: lng() };
-          
+
           setFormData((prev) => ({
             ...prev,
             location: place.formatted_address || "",
@@ -1852,20 +2058,20 @@ const CreateTicket = () => {
               address: place.formatted_address || "",
             },
           }));
-          
+
           mapInstance.setCenter(newPosition);
           mapInstance.setZoom(15);
           markerInstance.setPosition(newPosition);
         });
       }
-      
+
       setMap(mapInstance);
       markerRef.current = markerInstance;
-      
+
       // Ensure map renders properly with multiple resize triggers
       const triggerResize = () => {
         if (mapInstance && mapRef.current) {
-          window.google.maps.event.trigger(mapInstance, 'resize');
+          window.google.maps.event.trigger(mapInstance, "resize");
           mapInstance.setCenter(initialCenter);
           mapInstance.setZoom(15);
         }
@@ -1876,130 +2082,144 @@ const CreateTicket = () => {
       setTimeout(triggerResize, 300);
       setTimeout(triggerResize, 500);
     };
-    
+
     initializeMap();
   }, [isApiReady, formData.location_type, dataLoaded]);
   useEffect(() => {
-  const initializeComponent = async () => {
-    setPageLoading(true);
-    setDataLoaded(false); // Reset data loaded state
-    
-    if (!groupId) {
-      navigate("/select-group");
-      return;
-    }
+    const initializeComponent = async () => {
+      setPageLoading(true);
+      setDataLoaded(false); // Reset data loaded state
 
-    try {
-      const groupsResponse = await getGroups();
-      const groupsArray = Array.isArray(groupsResponse)
-        ? groupsResponse
-        : groupsResponse.data || [];
-      const groupData = groupsArray.find((g) => g._id === groupId);
-      if (!groupData) {
-        alert("Group not found.");
+      if (!groupId) {
         navigate("/select-group");
         return;
       }
-      setSelectedGroup(groupData);
 
-      if (urlTicketId) {
-        setIsEditMode(true);
-        await loadExistingTicketData(urlTicketId);
-      } else {
-        if (location.state?.formData) {
-          setFormData(location.state.formData);
-          saveFormDataToStorage(location.state.formData);
+      try {
+        const groupsResponse = await getGroups();
+        const groupsArray = Array.isArray(groupsResponse)
+          ? groupsResponse
+          : groupsResponse.data || [];
+        const groupData = groupsArray.find((g) => g._id === groupId);
+        if (!groupData) {
+          alert("Group not found.");
+          navigate("/select-group");
+          return;
+        }
+        setSelectedGroup(groupData);
+
+        if (urlTicketId) {
+          setIsEditMode(true);
+          await loadExistingTicketData(urlTicketId);
         } else {
-          const savedData = loadFormDataFromStorage();
-          if (savedData) {
-            setFormData(savedData);
+          if (location.state?.formData) {
+            setFormData(location.state.formData);
+            saveFormDataToStorage(location.state.formData);
+          } else {
+            const savedData = loadFormDataFromStorage();
+            if (savedData) {
+              setFormData(savedData);
+            }
           }
         }
+
+        // Set data loaded to true after all data operations are complete
+        setDataLoaded(true);
+      } catch (error) {
+        console.error("Initialization error:", error);
+        setDataLoaded(true); // Set to true even on error to allow map initialization
+      } finally {
+        setPageLoading(false);
       }
-      
-      // Set data loaded to true after all data operations are complete
-      setDataLoaded(true);
-      
-    } catch (error) {
-      console.error("Initialization error:", error);
-      setDataLoaded(true); // Set to true even on error to allow map initialization
-    } finally {
-      setPageLoading(false);
-    }
-  };
-  initializeComponent();
-}, [groupId, urlTicketId, navigate, location.state]);
+    };
+    initializeComponent();
+  }, [groupId, urlTicketId, navigate, location.state]);
   // Update map position when coordinates change
   useEffect(() => {
-    if (!map || !markerRef.current || formData.location_type !== 'offline') return;
-    
-    if (formData.exact_map_location.latitude && formData.exact_map_location.longitude) {
+    if (!map || !markerRef.current || formData.location_type !== "offline")
+      return;
+
+    if (
+      formData.exact_map_location.latitude &&
+      formData.exact_map_location.longitude
+    ) {
       const newPosition = {
         lat: parseFloat(formData.exact_map_location.latitude),
         lng: parseFloat(formData.exact_map_location.longitude),
       };
-      
+
       // Use setTimeout to ensure the map container is visible
       setTimeout(() => {
         map.setCenter(newPosition);
         map.setZoom(15);
         markerRef.current.setPosition(newPosition);
-        window.google.maps.event.trigger(map, 'resize');
+        window.google.maps.event.trigger(map, "resize");
       }, 50);
     }
-  }, [formData.exact_map_location.latitude, formData.exact_map_location.longitude, map, formData.location_type]);
+  }, [
+    formData.exact_map_location.latitude,
+    formData.exact_map_location.longitude,
+    map,
+    formData.location_type,
+  ]);
 
   // Add this effect to handle visibility changes
   useEffect(() => {
-  if (map && formData.location_type === 'offline' && dataLoaded) {
-    // Small delay to ensure DOM is updated
-    setTimeout(() => {
-      window.google.maps.event.trigger(map, 'resize');
-      
-      if (formData.exact_map_location.latitude && formData.exact_map_location.longitude) {
-        const center = {
-          lat: parseFloat(formData.exact_map_location.latitude),
-          lng: parseFloat(formData.exact_map_location.longitude),
-        };
-        map.setCenter(center);
-        map.setZoom(15);
-        if (markerRef.current) {
-          markerRef.current.setPosition(center);
-        }
-      }
-    }, 100);
-  }
-}, [map, formData.location_type, dataLoaded]);
-  useEffect(() => {
-  if (!mapRef.current || !map) return;
-  const observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting && map) {
-          setTimeout(() => {
-            window.google.maps.event.trigger(map, 'resize');
-            if (formData.exact_map_location.latitude && formData.exact_map_location.longitude) {
-              const center = {
-                lat: parseFloat(formData.exact_map_location.latitude),
-                lng: parseFloat(formData.exact_map_location.longitude),
-              };
-              map.setCenter(center);
-            }
-          }, 100);
-        }
-      });
-    },
-    { threshold: 0.1 }
-  );
+    if (map && formData.location_type === "offline" && dataLoaded) {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        window.google.maps.event.trigger(map, "resize");
 
-  observer.observe(mapRef.current);
-
-  return () => {
-    if (mapRef.current) {
-      observer.unobserve(mapRef.current);
+        if (
+          formData.exact_map_location.latitude &&
+          formData.exact_map_location.longitude
+        ) {
+          const center = {
+            lat: parseFloat(formData.exact_map_location.latitude),
+            lng: parseFloat(formData.exact_map_location.longitude),
+          };
+          map.setCenter(center);
+          map.setZoom(15);
+          if (markerRef.current) {
+            markerRef.current.setPosition(center);
+          }
+        }
+      }, 100);
     }
-  };
-}, [map, formData.exact_map_location]);
+  }, [map, formData.location_type, dataLoaded]);
+  useEffect(() => {
+    if (!mapRef.current || !map) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && map) {
+            setTimeout(() => {
+              window.google.maps.event.trigger(map, "resize");
+              if (
+                formData.exact_map_location.latitude &&
+                formData.exact_map_location.longitude
+              ) {
+                const center = {
+                  lat: parseFloat(formData.exact_map_location.latitude),
+                  lng: parseFloat(formData.exact_map_location.longitude),
+                };
+                map.setCenter(center);
+              }
+            }, 100);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(mapRef.current);
+
+    return () => {
+      if (mapRef.current) {
+        observer.unobserve(mapRef.current);
+      }
+    };
+  }, [map, formData.exact_map_location]);
 
   useEffect(() => {
     if (formData.event_name || formData.location) {
@@ -2020,230 +2240,240 @@ const CreateTicket = () => {
     });
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!formData.groupId) {
-    alert("Group ID is missing. Please select a group first.");
-    navigate("/select-group");
-    return;
-  }
-  const youtubeRegex = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
-  if (formData.event_youtube_link && !youtubeRegex.test(formData.event_youtube_link)) {
-    alert("Invalid YouTube URL. Please use a valid format like 'youtube.com/watch?v=VIDEO_ID'");
-    return;
-  }
-  const instagramRegex = /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
-  if (formData.event_instagram_link && !instagramRegex.test(formData.event_instagram_link)) {
-    alert("Invalid Instagram URL. Please enter a valid profile link, like 'instagram.com/username'");
-    return;
-  }
-  const tempDiv = document.createElement("div");
-  tempDiv.innerHTML = formData.event_description || "";
-  const descriptionText = (tempDiv.textContent || tempDiv.innerText).trim();
-  const requiredFields = {
-    event_name: formData.event_name?.trim(),
-    event_category: formData.event_category?.trim(),
-    event_subcategory: formData.event_subcategory?.trim(),
-    event_type: formData.event_type?.trim(),
-    event_language: formData.event_language||[],
-    location_type: formData.location_type?.trim(),
-    event_dates: formData.event_dates,
-    event_description: descriptionText,
-    min_age_allowed: formData.min_age_allowed?.trim(),
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.groupId) {
+      alert("Group ID is missing. Please select a group first.");
+      navigate("/select-group");
+      return;
+    }
+    const youtubeRegex =
+      /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
+    if (
+      formData.event_youtube_link &&
+      !youtubeRegex.test(formData.event_youtube_link)
+    ) {
+      alert(
+        "Invalid YouTube URL. Please use a valid format like 'youtube.com/watch?v=VIDEO_ID'"
+      );
+      return;
+    }
+    const instagramRegex =
+      /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
+    if (
+      formData.event_instagram_link &&
+      !instagramRegex.test(formData.event_instagram_link)
+    ) {
+      alert(
+        "Invalid Instagram URL. Please enter a valid profile link, like 'instagram.com/username'"
+      );
+      return;
+    }
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = formData.event_description || "";
+    const descriptionText = (tempDiv.textContent || tempDiv.innerText).trim();
+    const requiredFields = {
+      event_name: formData.event_name?.trim(),
+      event_category: formData.event_category?.trim(),
+      event_subcategory: formData.event_subcategory?.trim(),
+      event_type: formData.event_type?.trim(),
+      event_language: formData.event_language || [],
+      location_type: formData.location_type?.trim(),
+      event_dates: formData.event_dates,
+      event_description: descriptionText,
+      min_age_allowed: formData.min_age_allowed?.trim(),
+    };
+    const missingFields = Object.entries(requiredFields)
+      .filter(
+        ([_, value]) => !value || (Array.isArray(value) && value.length === 0)
+      )
+      .map(([key, _]) => key.replace(/_/g, " "));
+    if (missingFields.length > 0) {
+      alert(
+        `Please fill in the following required fields: ${missingFields.join(
+          ", "
+        )}`
+      );
+      return;
+    }
+    setLoading(true);
+    try {
+      const parseDate = (dateValue) => {
+        if (!dateValue) return null;
+        if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return dateValue;
+        }
+        const date = new Date(dateValue);
+        return date.toISOString().split("T")[0];
+      };
+      const transformedDates = formData.event_dates.map((d) => ({
+        start_date: parseDate(d.date),
+        end_date: parseDate(d.endDate),
+        start_time: d.startTime,
+        end_time: d.endTime,
+      }));
+      const eventDateTypeMap = {
+        "Single day": "one-day",
+        "Multi days": "multi-day",
+        Weekly: "weekly",
+      };
+      const submitData = {
+        ...formData,
+        event_name: formData.event_name.trim(),
+        event_category: formData.event_category.trim(),
+        event_subcategory: formData.event_subcategory.trim(),
+        event_type: formData.event_type.trim(),
+        event_description: formData.event_description.trim(),
+        userId: "user_12345",
+        location_type: formData.location_type.trim(),
+        event_link: formData.event_link?.trim() || "",
+        location: formData.location?.trim() || "",
+        venue: formData.venue?.trim() || "",
+        event_language: formData.event_language,
+        min_age_allowed: parseInt(formData.min_age_allowed.trim()),
+        event_dates: transformedDates,
+        event_date_type:
+          eventDateTypeMap[formData.event_date_type] || "one-day",
+        gate_open_time: formData.gatesOpenEarly
+          ? formData.gate_open_time?.trim() || ""
+          : "",
+        exact_map_location:
+          formData.exact_map_location?.latitude &&
+          formData.exact_map_location?.longitude
+            ? {
+                latitude: parseFloat(formData.exact_map_location.latitude),
+                longitude: parseFloat(formData.exact_map_location.longitude),
+                address: formData.exact_map_location.address,
+              }
+            : undefined,
+      };
+      // Pass the ticketId if in edit mode (from urlTicketId)
+      const response = await createTicketBasicInfo(
+        submitData,
+        urlTicketId || null
+      );
+      const newTicketId =
+        response.ticketId ||
+        response.data?.ticketId ||
+        response.data?._id ||
+        urlTicketId;
+      console.log(
+        "Navigating with groupId:",
+        groupId,
+        "and ticketId:",
+        newTicketId
+      );
+      // Clear storage only after successful save
+      clearFormDataFromStorage();
+      navigate(`/ticket/update-ticket-media/${newTicketId}`, {
+        state: {
+          message: `${
+            isEditMode ? "Event updated" : "Event created"
+          } successfully!`,
+          newEvent: response.data,
+          ticketId: newTicketId,
+          formData: formData,
+        },
+      });
+    } catch (error) {
+      console.error("Error creating event:", error);
+      alert(
+        error.response?.data?.message ||
+          "Error creating event. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
-  const missingFields = Object.entries(requiredFields)
-    .filter(([_, value]) => !value || (Array.isArray(value) && value.length === 0))
-    .map(([key, _]) => key.replace(/_/g, " "));
-  if (missingFields.length > 0) {
-    alert(`Please fill in the following required fields: ${missingFields.join(", ")}`);
-    return;
-  }
-  setLoading(true);
-  try {
-    const parseDate = (dateValue) => {
-      if (!dateValue) return null;
-      if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        return dateValue;
-      }
-      const date = new Date(dateValue);
-      return date.toISOString().split('T')[0];
-    };
-    const transformedDates = formData.event_dates.map((d) => ({
-      start_date: parseDate(d.date),
-      end_date: parseDate(d.endDate),
-      start_time: d.startTime,
-      end_time: d.endTime,
-    }));
-    const eventDateTypeMap = {
-      "Single day": "one-day",
-      "Multi days": "multi-day",
-      Weekly: "weekly",
-    };
-    const submitData = {
-      ...formData,
-      event_name: formData.event_name.trim(),
-      event_category: formData.event_category.trim(),
-      event_subcategory: formData.event_subcategory.trim(),
-      event_type: formData.event_type.trim(),
-      event_description: formData.event_description.trim(),
-      userId: "user_12345",
-      location_type: formData.location_type.trim(),
-      event_link: formData.event_link?.trim() || "",
-      location: formData.location?.trim() || "",
-      venue: formData.venue?.trim() || "",
-      event_language: formData.event_language,
-      min_age_allowed: parseInt(formData.min_age_allowed.trim()),
-      event_dates: transformedDates,
-      event_date_type: eventDateTypeMap[formData.event_date_type] || "one-day",
-      gate_open_time: formData.gatesOpenEarly ? formData.gate_open_time?.trim() || "" : "",
-      exact_map_location: formData.exact_map_location?.latitude && formData.exact_map_location?.longitude
-        ? {
-            latitude: parseFloat(formData.exact_map_location.latitude),
-            longitude: parseFloat(formData.exact_map_location.longitude),
-            address: formData.exact_map_location.address,
-          }
-        : undefined,
-    };
-    // Pass the ticketId if in edit mode (from urlTicketId)
-    const response = await createTicketBasicInfo(submitData, urlTicketId || null);
-    const newTicketId = response.ticketId || response.data?.ticketId || response.data?._id || urlTicketId;
-    console.log("Navigating with groupId:", groupId, "and ticketId:", newTicketId);
-    // Clear storage only after successful save
-    clearFormDataFromStorage();
-    navigate(`/ticket/update-ticket-media/${newTicketId}`, {
-      state: {
-        message: `${isEditMode ? "Event updated" : "Event created"} successfully!`,
-        newEvent: response.data,
-        ticketId: newTicketId,
-        formData: formData,
-      },
-    });
-  } catch (error) {
-    console.error("Error creating event:", error);
-    alert(error.response?.data?.message || "Error creating event. Please try again.");
-  } finally {
-    setLoading(false);
-  }
-};
   const handleBack = () => {
     clearFormDataFromStorage();
     navigate("/select-group");
   };
   const handleLocationInputChange = (e) => handleInputChange(e);
   const handleToggleChange = (name) =>
-  setFormData((prev) => ({ ...prev, [name]: !prev[name] }));
+    setFormData((prev) => ({ ...prev, [name]: !prev[name] }));
   const handleTagChange = (name, newTags) =>
     setFormData((prev) => ({ ...prev, [name]: newTags }));
-    const handleSelectChange = (selectedOption, { name }) => {
-        const value = selectedOption ? selectedOption.value : "";
-        setFormData((prev) => {
-            const newData = { ...prev, [name]: value };
-            if (name === "event_category") {
-                newData.event_subcategory = "";
-            }
-            return newData;
-        });
-    };
-    const handleLanguageChange = (selectedOptions) => {
-    const values = selectedOptions ? selectedOptions.map(opt => opt.value) : [];
-      setFormData((prev) => ({
-            ...prev,
-            event_language: values
-        }));
-    };
-    const customSelectStyles = (darkMode) => ({
+  const handleSelectChange = (selectedOption, { name }) => {
+    const value = selectedOption ? selectedOption.value : "";
+    setFormData((prev) => {
+      const newData = { ...prev, [name]: value };
+      if (name === "event_category") {
+        newData.event_subcategory = "";
+      }
+      return newData;
+    });
+  };
+  const handleLanguageChange = (selectedOptions) => {
+    const values = selectedOptions
+      ? selectedOptions.map((opt) => opt.value)
+      : [];
+    setFormData((prev) => ({
+      ...prev,
+      event_language: values,
+    }));
+  };
+  const customSelectStyles = (isDark) => ({
     control: (provided, state) => ({
-        ...provided,
-        background: darkMode 
-            ? 'rgba(255, 255, 255, 0.08)' // Subtle white glass in dark mode
-            : 'rgba(255, 255, 255, 0.7)', // Medium white glass in light mode
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)', // For Safari support
-        border: darkMode
-            ? '1px solid rgba(255, 255, 255, 0.15)'
-            : '1px solid rgba(255, 255, 255, 0.3)',
-        boxShadow: state.isFocused 
-            ? (darkMode 
-                ? '0 0 0 1px rgba(255, 255, 255, 0.2)' 
-                : '0 0 0 1px rgba(0, 0, 0, 0.1)')
-            : 'none',
-        borderRadius: '8px',
-        minHeight: '42px',
-        '&:hover': {
-            border: darkMode
-                ? '1px solid rgba(255, 255, 255, 0.25)'
-                : '1px solid rgba(0, 0, 0, 0.2)',
-        }
+      ...provided,
+      backgroundColor: "transparent",
+      borderColor: state.isFocused ? "#6366F1" : isDark ? "#4A4A4A" : "#D1D5DB",
+      padding: "0.5rem",
+      borderRadius: "0.5rem",
+      boxShadow: "none",
+      "&:hover": {
+        borderColor: "#6366F1",
+      },
     }),
-    menu: (provided) => ({
-        ...provided,
-        background: darkMode 
-            ? 'rgba(30, 30, 30, 0.95)' 
-            : 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: darkMode
-            ? '1px solid rgba(255, 255, 255, 0.1)'
-            : '1px solid rgba(0, 0, 0, 0.1)',
-        borderRadius: '8px',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
-        overflow: 'hidden',
-    }),
-    option: (provided, state) => ({
-        ...provided,
-        background: state.isSelected 
-            ? (darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)')
-            : state.isFocused 
-            ? (darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)')
-            : 'transparent',
-        color: darkMode ? '#ffffff' : '#1f2937',
-        cursor: 'pointer',
-        '&:active': {
-            background: darkMode 
-                ? 'rgba(255, 255, 255, 0.2)' 
-                : 'rgba(0, 0, 0, 0.1)',
-        }
-    }),
-    multiValue: (provided) => ({
-        ...provided,
-        background: darkMode 
-            ? 'rgba(255, 255, 255, 0.15)' 
-            : 'rgba(0, 0, 0, 0.08)',
-        backdropFilter: 'blur(8px)',
-        borderRadius: '6px',
-        border: darkMode
-            ? '1px solid rgba(255, 255, 255, 0.2)'
-            : '1px solid rgba(0, 0, 0, 0.1)',
-    }),
-    multiValueLabel: (provided) => ({
-        ...provided,
-        color: darkMode ? '#ffffff' : '#1f2937',
-        padding: '2px 6px',
-    }),
-    multiValueRemove: (provided) => ({
-        ...provided,
-        color: darkMode ? '#ffffff' : '#6b7280',
-        ':hover': {
-            background: darkMode 
-                ? 'rgba(255, 255, 255, 0.25)' 
-                : 'rgba(0, 0, 0, 0.15)',
-            color: darkMode ? '#ffffff' : '#1f2937',
-        },
-        borderRadius: '0 4px 4px 0',
-    }),
-    placeholder: (provided) => ({
-        ...provided,
-        color: darkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)',
-    }),
-    singleValue: (provided) => ({
-        ...provided,
-        color: darkMode ? '#ffffff' : '#1f2937',
+    valueContainer: (provided) => ({
+      ...provided,
+      padding: "0 2px",
     }),
     input: (provided) => ({
-        ...provided,
-        color: darkMode ? '#ffffff' : '#1f2937',
+      ...provided,
+      color: isDark ? "#FFFFFF" : "#1F2937",
     }),
-});
+    singleValue: (provided) => ({
+      ...provided,
+      color: isDark ? "#FFFFFF" : "#1F2937",
+    }),
+    placeholder: (provided) => ({
+      ...provided,
+      color: isDark ? "#6B7280" : "#9CA3AF",
+    }),
+    menu: (provided) => ({
+      ...provided,
+      backgroundColor: isDark ? "#2B2B2B" : "#FFFFFF",
+      borderRadius: "0.5rem",
+      zIndex: 50,
+    }),
+    option: (provided, state) => ({
+      ...provided,
+      backgroundColor: state.isSelected
+        ? "#4F46E5"
+        : state.isFocused
+        ? isDark
+          ? "#374151"
+          : "#E5E7EB"
+        : "transparent",
+      color: isDark ? "#FFFFFF" : "#1F2937",
+      "&:active": {
+        backgroundColor: "#4338CA",
+      },
+    }),
+    menuList: (provided) => ({
+      ...provided,
+      "::-webkit-scrollbar": { width: "8px" },
+      "::-webkit-scrollbar-track": {
+        background: isDark ? "#232426" : "#f1f5f9",
+      },
+      "::-webkit-scrollbar-thumb": {
+        backgroundColor: isDark ? "#4f4f4f" : "#cbd5e1",
+        borderRadius: "10px",
+        border: `2px solid ${isDark ? "#232426" : "#f1f5f9"}`,
+      },
+    }),
+  });
   const handleLocationTypeChange = (type) =>
     setFormData((prev) => ({ ...prev, location_type: type.toLowerCase() }));
   const handleDatesSave = (newDates, dateType) =>
@@ -2274,39 +2504,49 @@ const handleSubmit = async (e) => {
     }));
   const handlePocChange = (e) =>
     setPoc({ ...poc, [e.target.name]: e.target.value });
-    const handleAddPoc = () => {
-      // Trim input values once for consistency
-      const trimmedName = poc.POC_name.trim();
-      const trimmedEmail = poc.POC_email.trim();
-      const trimmedContact = poc.POC_contact.trim();
-  
-      // 1. Check for empty fields first
-      if (!trimmedName || !trimmedEmail || !trimmedContact) {
-        alert("Please fill in all Point of Contact fields: Name, Email, and Contact Number.");
-        return;
-      }
-  
-      // 2. Check for duplicate email
-      const isDuplicateEmail = formData.POCS.some(p => p.POC_email === trimmedEmail);
-      if (isDuplicateEmail) {
-        alert("This email address is already in use by another POC. Please use a different email.");
-        return;
-      }
-      // 3. Check for duplicate contact number
-      const isDuplicateContact = formData.POCS.some(p => p.POC_contact === trimmedContact);
-      if (isDuplicateContact) {
-        alert("This contact number is already in use by another POC. Please use a different number.");
-        return;
-      }
-      // If all checks pass, add the new POC
-      const newPoc = {
-        POC_name: trimmedName,
-        POC_email: trimmedEmail,
-        POC_contact: trimmedContact,
-      };
-      setFormData((prev) => ({ ...prev, POCS: [...prev.POCS, newPoc] }));
-      setPoc({ POC_name: "", POC_email: "", POC_contact: "" }); // Reset form
+  const handleAddPoc = () => {
+    // Trim input values once for consistency
+    const trimmedName = poc.POC_name.trim();
+    const trimmedEmail = poc.POC_email.trim();
+    const trimmedContact = poc.POC_contact.trim();
+
+    // 1. Check for empty fields first
+    if (!trimmedName || !trimmedEmail || !trimmedContact) {
+      alert(
+        "Please fill in all Point of Contact fields: Name, Email, and Contact Number."
+      );
+      return;
+    }
+
+    // 2. Check for duplicate email
+    const isDuplicateEmail = formData.POCS.some(
+      (p) => p.POC_email === trimmedEmail
+    );
+    if (isDuplicateEmail) {
+      alert(
+        "This email address is already in use by another POC. Please use a different email."
+      );
+      return;
+    }
+    // 3. Check for duplicate contact number
+    const isDuplicateContact = formData.POCS.some(
+      (p) => p.POC_contact === trimmedContact
+    );
+    if (isDuplicateContact) {
+      alert(
+        "This contact number is already in use by another POC. Please use a different number."
+      );
+      return;
+    }
+    // If all checks pass, add the new POC
+    const newPoc = {
+      POC_name: trimmedName,
+      POC_email: trimmedEmail,
+      POC_contact: trimmedContact,
     };
+    setFormData((prev) => ({ ...prev, POCS: [...prev.POCS, newPoc] }));
+    setPoc({ POC_name: "", POC_email: "", POC_contact: "" }); // Reset form
+  };
   const handleRemovePoc = (indexToRemove) => {
     setFormData((prev) => ({
       ...prev,
@@ -2396,10 +2636,13 @@ const handleSubmit = async (e) => {
       <div className={`${darkMode ? "dark" : ""}`}>
         <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
           <EventSidebar
-  darkMode={darkMode}         // dark theme boolean from your app state
-  currentStep={2}     // current step index (1-based)
-  isAddShowFlow={false} // true if Add Show path, else Banking & Tickets
-/>
+            darkMode={darkMode} // dark theme boolean from your app state
+            onBackClick={handleBack} // Your existing back function
+            // Pass props from your 'mainEventData' state object
+            formProgress={formData?.form_progress || {}}
+            groupId={formData?.groupId}
+            ticketId={urlTicketId} // true if Add Show path, else Banking & Tickets
+          />
 
           <main className="flex-1 relative p-4 sm:p-6 md:p-8 overflow-y-auto main-scrollbar">
             <div className="absolute top-6 right-6 z-10">
@@ -2411,25 +2654,18 @@ const handleSubmit = async (e) => {
             <div className="w-full max-w-5xl mx-auto">
               <div className="text-center mt-4 mb-12">
                 <div
-                  className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6 border ${
+                  className={`w-20 h-20 rounded-full mx-auto my-4  flex items-center justify-center ${
                     darkMode
-                      ? "bg-[#2B2B2B] border-gray-700"
-                      : "bg-gray-100 border-gray-200"
+                      ? "bg-[#1E1242] text-gray-300"
+                      : "bg-[#1E1242] text-gray-300"
                   }`}
                 >
-                  <svg
-                    className="w-10 h-10 text-indigo-500 animate-pulse"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="1.5"
-                      d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.539 1.118l-3.975-2.888a1 1 0 00-1.176 0l-3.975 2.888c-.783.57-1.838-.196-1.539-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-                    ></path>
-                  </svg>
+                  {/* --- FIX: Replaced Emoji with Icon --- */}
+                  <img
+                    src={Event_Form_Icon}
+                    alt="Wie Logo"
+                    className="w-10 h-10 items-center"
+                  />
                 </div>
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
                   {isEditMode
@@ -2478,20 +2714,19 @@ const handleSubmit = async (e) => {
                         Event category<span className="text-red-400">*</span>
                         <InfoTooltip note="Helps attendees find your event." />
                       </label>
-                                        <div className="relative">
-                                            <Select
-                                                name="event_category"
-                                                options={categoryOptions}
-                                                value={categoryOptions.find(option => option.value === formData.event_category)}
-                                                onChange={handleSelectChange}
-                                                placeholder="Select category"
-                                                styles={customSelectStyles(darkMode)}
-                                                required
-                                            />
-                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                                            </div>
-                                        </div>
+                      <div className="relative">
+                        <Select
+                          name="event_category"
+                          options={categoryOptions}
+                          value={categoryOptions.find(
+                            (option) => option.value === formData.event_category
+                          )}
+                          onChange={handleSelectChange}
+                          placeholder="Select category"
+                          styles={customSelectStyles(darkMode)}
+                          required
+                        />
+                      </div>
                     </div>
                     <div>
                       <label
@@ -2503,16 +2738,19 @@ const handleSubmit = async (e) => {
                         <InfoTooltip note="Get more specific with your category." />
                       </label>
                       {/* --- MODIFIED: Event Subcategory Dropdown --- */}
-                                            <Select
-                                                name="event_subcategory"
-                                                options={subCategoryOptions}
-                                                value={subCategoryOptions.find(option => option.value === formData.event_subcategory)}
-                                                onChange={handleSelectChange}
-                                                placeholder="Select subcategory"
-                                                styles={customSelectStyles(darkMode)}
-                                                isDisabled={!formData.event_category}
-                                                required
-                                            />   
+                      <Select
+                        name="event_subcategory"
+                        options={subCategoryOptions}
+                        value={subCategoryOptions.find(
+                          (option) =>
+                            option.value === formData.event_subcategory
+                        )}
+                        onChange={handleSelectChange}
+                        placeholder="Select subcategory"
+                        styles={customSelectStyles(darkMode)}
+                        isDisabled={!formData.event_category}
+                        required
+                      />
                     </div>
                   </div>
                   <div>
@@ -2634,11 +2872,14 @@ const handleSubmit = async (e) => {
                         <div
                           ref={mapRef}
                           className="w-full h-64 rounded-lg border bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-[#4A4A4A]"
-                          style={{ 
-                            minHeight: "300px", 
-                            display: formData.location_type === 'offline' ? 'block' : 'none',
-                            position: 'relative',
-                            overflow: 'hidden'
+                          style={{
+                            minHeight: "300px",
+                            display:
+                              formData.location_type === "offline"
+                                ? "block"
+                                : "none",
+                            position: "relative",
+                            overflow: "hidden",
                           }}
                         ></div>
                         <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
@@ -2691,28 +2932,28 @@ const handleSubmit = async (e) => {
                 {/* Additional Fields */}
                 <div className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-<div>
-  <label
-    htmlFor="event_language"
-    className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-  >
-    Which language will your event be performed in?
-    <span className="text-red-400">*</span>{" "}
-    <InfoTooltip note="Select one or more languages." />
-  </label>
-  <Select
-    name="event_language"
-    options={languageOptions}
-    isMulti
-    value={languageOptions.filter(option =>
-        (formData.event_language || []).includes(option.value)
-    )}
-    onChange={handleLanguageChange}  // Use the new handler
-    placeholder="Select language(s)"
-    styles={customSelectStyles(darkMode)}
-    classNamePrefix="react-select"
-/>
-</div>
+                    <div>
+                      <label
+                        htmlFor="event_language"
+                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                      >
+                        Which language will your event be performed in?
+                        <span className="text-red-400">*</span>{" "}
+                        <InfoTooltip note="Select one or more languages." />
+                      </label>
+                      <Select
+                        name="event_language"
+                        options={languageOptions}
+                        isMulti
+                        value={languageOptions.filter((option) =>
+                          (formData.event_language || []).includes(option.value)
+                        )}
+                        onChange={handleLanguageChange} // Use the new handler
+                        placeholder="Select language(s)"
+                        styles={customSelectStyles(darkMode)}
+                        classNamePrefix="react-select"
+                      />
+                    </div>
 
                     <div>
                       <label
@@ -2724,31 +2965,15 @@ const handleSubmit = async (e) => {
                         <InfoTooltip note="Select an age limit if applicable." />
                       </label>
                       <div className="relative">
-                            <Select
-        name="min_age_allowed"
-        options={ageOptions}
-        value={ageOptions.find(option => option.value === formData.min_age_allowed)}
-        onChange={handleSelectChange}
-        placeholder="Select minimum age"
-        styles={customSelectStyles(darkMode)}
-        
-        required
-    />
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M19 9l-7 7-7-7"
-                            ></path>
-                          </svg>
-                        </div>
+                        <input
+                          id="min_age_allowed"
+                          name="min_age_allowed"
+                          type="number"
+                          value={formData.min_age_allowed}
+                          onChange={handleInputChange}
+                          placeholder="Enter Min Age"
+                          className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
+                        />
                       </div>
                     </div>
                   </div>
@@ -2763,31 +2988,18 @@ const handleSubmit = async (e) => {
                         <InfoTooltip note="Specify the audience arrangement." />
                       </label>
                       <div className="relative">
-    <Select
-        name="seating_arrangement"
-        options={seatingOptions}
-        value={seatingOptions.find(option => option.value === formData.seating_arrangement)}
-        onChange={handleSelectChange}
-        placeholder="Select a type"
-        styles={customSelectStyles(darkMode)}
-        
-        required={formData.location_type === 'offline'}
-    />
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M19 9l-7 7-7-7"
-                            ></path>
-                          </svg>
-                        </div>
+                        <Select
+                          name="seating_arrangement"
+                          options={seatingOptions}
+                          value={seatingOptions.find(
+                            (option) =>
+                              option.value === formData.seating_arrangement
+                          )}
+                          onChange={handleSelectChange}
+                          placeholder="Select a type"
+                          styles={customSelectStyles(darkMode)}
+                          required={formData.location_type === "offline"}
+                        />
                       </div>
                     </div>
                   )}
@@ -2857,12 +3069,15 @@ const handleSubmit = async (e) => {
                 </div>
                 {/* --- DATES AND TIMES --- */}
                 <div className="space-y-6">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Dates and times
-                  </h2>
-                  <p className="text-gray-500 dark:text-gray-400">
-                    Choose when your event will take place
-                  </p>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                      Dates and time
+                    </h2>
+                    <p className="text-gray-500 dark:text-gray-400">
+                      Choose when your event will take place
+                    </p>
+                  </div>
+
                   <div>
                     <button
                       type="button"
@@ -2870,19 +3085,7 @@ const handleSubmit = async (e) => {
                       className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold flex items-center gap-2"
                     >
                       Add dates and time{" "}
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        ></path>
-                      </svg>
+                      <img src={Date_Form_Icon} alt="" className="pl-2" />
                     </button>
                   </div>
                   {formData.event_dates.length > 0 && (
@@ -2916,109 +3119,132 @@ const handleSubmit = async (e) => {
                     </div>
                   )}
                   {formData.location_type === "offline" && (
-                          <div className="animate-fade-in">
-                            <div className="flex items-center justify-between pt-4">
-                              <span className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Does the gates open before event starting time?
-                              </span>
-                              <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  className="sr-only peer"
-                                  checked={formData.gatesOpenEarly}
-                                  onChange={() => handleToggleChange("gatesOpenEarly")}
-                                />
-                                <div
-                                  className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${
-                                    darkMode
-                                      ? "bg-gray-600 after:border-gray-500 peer-checked:bg-indigo-600"
-                                      : "bg-gray-200 after:border-gray-300 peer-checked:bg-indigo-500"
-                                  }`}
-                                ></div>
-                              </label>
-                            </div>
+                    <div className="animate-fade-in">
+                      <div className="flex items-center justify-between pt-4">
+                        <span className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Does the gates open before event starting time?
+                        </span>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={formData.gatesOpenEarly}
+                            onChange={() =>
+                              handleToggleChange("gatesOpenEarly")
+                            }
+                          />
+                          <div
+                            className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${
+                              darkMode
+                                ? "bg-gray-600 after:border-gray-500 peer-checked:bg-indigo-600"
+                                : "bg-gray-200 after:border-gray-300 peer-checked:bg-indigo-500"
+                            }`}
+                          ></div>
+                        </label>
+                      </div>
 
-                            {formData.gatesOpenEarly && (
-                              <div>
-                                <label
-                                  htmlFor="gate_open_time"
-                                  className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                                >
-                                  Time of gate opening?
-                                  <span className="text-red-400">*</span>{" "}
-                                  <InfoTooltip note="Set the time when gates will open." />
-                                </label>
+                      {formData.gatesOpenEarly && (
+                        <div>
+                          <label
+                            htmlFor="gate_open_time"
+                            className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                          >
+                            Time of gate opening?
+                            <span className="text-red-400">*</span>{" "}
+                            <InfoTooltip note="Set the time when gates will open." />
+                          </label>
 
-                                {/* Custom 12-hour time picker with placeholders */}
-                                <div className="flex gap-2">
-                                  {/* Hour */}
-                                  <select
-                                    id="gate_open_hour"
-                                    name="gate_open_hour"
-                                    value={formData.gate_open_hour || ""}
-                                    onChange={handleInputChange}
-                                    className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                                      ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
-                                  >
-                                    <option value="" disabled>Hour</option>
-                                    {[...Array(12)].map((_, i) => {
-                                      const hour = i + 1;
-                                      return (
-                                        <option key={hour} value={hour}>
-                                          {hour}
-                                        </option>
-                                      );
-                                    })}
-                                  </select>
+                          {/* Custom 12-hour time picker with placeholders */}
+                          <div className="flex gap-2">
+                            {/* Hour */}
+                            <select
+                              id="gate_open_hour"
+                              name="gate_open_hour"
+                              value={formData.gate_open_hour || ""}
+                              onChange={handleInputChange}
+                              className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
+                                      ${
+                                        darkMode
+                                          ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
+                                          : "bg-white text-black border-gray-300"
+                                      }`}
+                            >
+                              <option value="" disabled>
+                                Hour
+                              </option>
+                              {[...Array(12)].map((_, i) => {
+                                const hour = i + 1;
+                                return (
+                                  <option key={hour} value={hour}>
+                                    {hour}
+                                  </option>
+                                );
+                              })}
+                            </select>
 
-                                  {/* Minute */}
-                                  <select
-                                    id="gate_open_minute"
-                                    name="gate_open_minute"
-                                    value={formData.gate_open_minute || ""}
-                                    onChange={handleInputChange}
-                                    className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                                      ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
-                                  >
-                                    <option value="" disabled>Minute</option>
-                                    {[...Array(60)].map((_, i) => {
-                                      const minute = i.toString().padStart(2, "0");
-                                      return (
-                                        <option key={minute} value={minute}>
-                                          {minute}
-                                        </option>
-                                      );
-                                    })}
-                                  </select>
+                            {/* Minute */}
+                            <select
+                              id="gate_open_minute"
+                              name="gate_open_minute"
+                              value={formData.gate_open_minute || ""}
+                              onChange={handleInputChange}
+                              className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
+                                      ${
+                                        darkMode
+                                          ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
+                                          : "bg-white text-black border-gray-300"
+                                      }`}
+                            >
+                              <option value="" disabled>
+                                Minute
+                              </option>
+                              {[...Array(60)].map((_, i) => {
+                                const minute = i.toString().padStart(2, "0");
+                                return (
+                                  <option key={minute} value={minute}>
+                                    {minute}
+                                  </option>
+                                );
+                              })}
+                            </select>
 
-                                  {/* AM/PM */}
-                                  <select
-                                    id="gate_open_ampm"
-                                    name="gate_open_ampm"
-                                    value={formData.gate_open_ampm || ""}
-                                    onChange={handleInputChange}
-                                    className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
-                                      ${darkMode ? "bg-[#1E1E1E] text-white border-[#4A4A4A]" : "bg-white text-black border-gray-300"}`}
-                                  >
-                                    <option value="" disabled>AM/PM</option>
-                                    <option value="AM">AM</option>
-                                    <option value="PM">PM</option>
-                                  </select>
-                                </div>
-                              </div>
-                            )}
+                            {/* AM/PM */}
+                            <select
+                              id="gate_open_ampm"
+                              name="gate_open_ampm"
+                              value={formData.gate_open_ampm || ""}
+                              onChange={handleInputChange}
+                              className={`w-1/3 px-3 py-2 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300
+                                      ${
+                                        darkMode
+                                          ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
+                                          : "bg-white text-black border-gray-300"
+                                      }`}
+                            >
+                              <option value="" disabled>
+                                AM/PM
+                              </option>
+                              <option value="AM">AM</option>
+                              <option value="PM">PM</option>
+                            </select>
                           </div>
-                        )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {/* --- GUESTS, RULES, ETC. --- */}
-                <div className="space-y-12">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                <div className="space-y-6">
+                  <div className="space-y-6">
+                    <div>
+<h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Guest/Guide/Artists details
                     </h2>
                     <p className="text-gray-500 dark:text-gray-400 text-sm">
                       Enter details of the person guiding or managing the event.
                     </p>
+                    </div>
+                    
                     <button
                       type="button"
                       onClick={() => {
@@ -3027,20 +3253,7 @@ const handleSubmit = async (e) => {
                       }}
                       className="mt-4 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold text-white flex items-center gap-2"
                     >
-                      Add guest/guides{" "}
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
-                        ></path>
-                      </svg>
+                      Add guest/guides <img src={Guest_Form_Icon} alt="" />
                     </button>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                       {formData.guests.map((guest) => (
@@ -3085,7 +3298,7 @@ const handleSubmit = async (e) => {
                       ))}
                     </div>
                   </div>
-                  <div className="space-y-4">
+                  <div className="space-y-6 ">
                     <div>
                       <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                         Event rules and regulations
@@ -3158,7 +3371,7 @@ const handleSubmit = async (e) => {
                         className="w-full min-h-[120px] p-3 focus:outline-none resize-none text-left [direction:ltr]"
                       ></div>
                     </div>
-                    <p className="px-4">  or</p>
+                    <p className="px-4"> or</p>
                     <div>
                       <label
                         htmlFor="rule-file-upload"
@@ -3212,7 +3425,8 @@ const handleSubmit = async (e) => {
                       onClick={() => setIsProhibitedModalOpen(true)}
                       className="mt-4 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold flex items-center gap-2"
                     >
-                      Add Prohibited Items
+                     <span>Add Prohibited Items</span> 
+                     <img src={Prohibited_Form_Icon} alt=""  />
                     </button>
                     <div className="mt-4 flex flex-wrap gap-2">
                       {formData.prohibited_items.map((item) => (

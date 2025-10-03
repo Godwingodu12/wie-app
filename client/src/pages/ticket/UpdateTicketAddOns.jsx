@@ -10,6 +10,12 @@ import { format } from "date-fns";
 import Select from "react-select";
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
+
+import Addon_Form_Icon from "../../assets/Event/Addon_Form_Icon.svg?react";
+import Date_Form_Icon from "../../assets/Event/Date_Form_Icon.svg?react";
+import Guest_Form_Icon from "../../assets/Event/Guest_Form_Icon.svg?react";
+import Prohibited_Form_Icon from "../../assets/Event/Prohibited_Form_Icon.svg?react";
+
 const InfoTooltip = ({ note }) => (
   <div className="relative flex items-center group ml-1.5">
     <svg
@@ -3286,6 +3292,7 @@ const handleSelectChange = (selectedOptions, { name }) => {
     }
   };
   const mainEventStartDate = mainEventData?.event_dates?.[0]?.start_date;
+  
 
  
 const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.length - 1]?.end_date;
@@ -3345,7 +3352,8 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
     // Pass props from your 'mainEventData' state object
     formProgress={mainEventData?.form_progress || {}}
     groupId={mainEventData?.groupId}
-    ticketId={ticketId} // 
+    ticketId={ticketId}
+    check={true} // 
           />
           <main className="flex-1 relative p-4 sm:p-6 md:p-8 overflow-y-auto">
             <div className="absolute top-6 right-6 z-10">
@@ -3357,6 +3365,13 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
 
             <div className="w-full max-w-5xl mx-auto">
               <header className="text-center mt-4 mb-12">
+                <div className={`w-20 h-20 rounded-full mx-auto my-4  flex items-center justify-center ${
+                                    darkMode
+                                      ? "bg-[#1E1242] text-gray-300"
+                                      : "bg-[#1E1242] text-gray-300"
+                                  }`}>
+                                               <img src={Addon_Form_Icon} alt="h-15 w-15" />
+                                            </div>
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
                   Add Extra Shows / Add Multiples Events
                 </h1>
@@ -3898,19 +3913,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                       className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold flex items-center gap-2"
                     >
                       Add dates and time
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        ></path>
-                      </svg>
+                      <img src={Date_Form_Icon} alt="" />
                     </button>
                   </div>
 
@@ -4079,19 +4082,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                       className="mt-4 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold text-white flex items-center gap-2"
                     >
                       Add guest/guides
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
-                        ></path>
-                      </svg>
+                      <img src={Guest_Form_Icon} alt="" />
                     </button>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
@@ -4246,6 +4237,8 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                       className="mt-4 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold flex items-center gap-2"
                     >
                       Add Prohibited Items
+
+                      <img src={Prohibited_Form_Icon} alt="" />
                     </button>
                     <div className="mt-4 flex flex-wrap gap-2">
                       {formData.prohibited_items.map((item) => (
@@ -5115,13 +5108,13 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                     ? "Save changes & add new event +"
                     : "Add more sub events +"}
                 </button>
-                <div className="pt-8 flex justify-between items-center">
+                <div className="pt-8 flex justify-end gap-4">
                   <div className="flex gap-4">
                     <button
                       type="button"
                       onClick={handleBack
                       }
-                      className="px-8 py-3 rounded-lg font-semibold bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+                                    className="px-8 py-3 rounded-lg font-semibold bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
                     >
                       Go back
                     </button>
@@ -5129,7 +5122,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                       onClick={handleSubmit}
                       type="submit"
                       disabled={isSubmitting}
-                      className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold text-white disabled:opacity-50 disabled:cursor-wait"
+                                    className="px-8 py-3 rounded-lg font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSubmitting ? "Saving..." : "Save and continue"}
                     </button>
