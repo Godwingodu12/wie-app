@@ -4,14 +4,14 @@ import fs from 'fs';
 
 const createDirectories = () => {
   const dirs = [
-    'uploads/guest_profiles',
-    'uploads/event_rules',
-    'uploads/college_authorisations',
-    'uploads/event_images',
-    'uploads/event_logos',
-    'uploads/event_banners',
-    'uploads/ticket_photos',
-    'uploads/ticket_layouts'
+    'src/uploads/guest_profiles',
+    'src/uploads/event_rules',
+    'src/uploads/college_authorisations',
+    'src/uploads/event_images',
+    'src/uploads/event_logos',
+    'src/uploads/event_banners',
+    'src/uploads/ticket_photos',
+    'src/uploads/ticket_layouts'
   ];
   
   dirs.forEach(dir => {
@@ -27,25 +27,25 @@ createDirectories();
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (file.fieldname.startsWith('guest_profile')) {
-      cb(null, 'uploads/guest_profiles/');
+      cb(null, 'src/uploads/guest_profiles/');
     } else if (file.fieldname === 'event_rules') {
-      cb(null, 'uploads/event_rules/');
+      cb(null, 'src/uploads/event_rules/');
     } else if (file.fieldname === 'college_authorisation') {
-      cb(null, 'uploads/college_authorisations/');
+      cb(null, 'src/uploads/college_authorisations/');
     } else if (file.fieldname === 'event_logo') {
-      cb(null, 'uploads/event_logos/');
+      cb(null, 'src/uploads/event_logos/');
     } else if (file.fieldname === 'event_banner') {
-      cb(null, 'uploads/event_banners/');
+      cb(null, 'src/uploads/event_banners/');
     } else if (file.fieldname.startsWith('event_image')) {
-      cb(null, 'uploads/event_images/');
+      cb(null, 'src/uploads/event_images/');
     } else if (file.fieldname === 'event_images') {
-      cb(null, 'uploads/event_images/');
+      cb(null, 'src/uploads/event_images/');
     } else if (file.fieldname.startsWith('ticket_photo')) {
-      cb(null, 'uploads/ticket_photos/');
+      cb(null, 'src/uploads/ticket_photos/');
     } else if (file.fieldname === 'ticket_layout') {
-      cb(null, 'uploads/ticket_layouts/');
+      cb(null, 'src/uploads/ticket_layouts/');
     } else {
-      cb(null, 'uploads/');
+      cb(null, 'src/uploads/');
     }
   },
   filename: (req, file, cb) => {
