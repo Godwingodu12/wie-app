@@ -10,7 +10,7 @@ const guestSchema = new mongoose.Schema({
 const ticketTypeSchema = new mongoose.Schema({
   ticket_type: { type: String },
   ticket_price: { type: Number },
-  ticket_photo: { type: String }, // Image URL
+  ticket_photo: { type: String },
   max_capacity: { type: Number },
 });
 const ticketdateSchema = new mongoose.Schema({
@@ -18,6 +18,11 @@ const ticketdateSchema = new mongoose.Schema({
     end_date: { type: String },
     start_time: { type: String, required: false },
     end_time: { type: String, required: false },
+    event_link: { type: String, required: false },
+    video_name: { type: String, required: false },
+    verification_event_code: { type: String, required: false },
+    video_file_path: { type: String, required: false },
+    preview_image_path: { type: String, required: false },
 });
 // Banking Details Schema
 const bankingDetailsSchema = new mongoose.Schema({
@@ -26,7 +31,6 @@ const bankingDetailsSchema = new mongoose.Schema({
   bank_ifsc: { type: String },
   bank_acc_holder: { type: String },
 });
-
 const offerTicketSchema = new mongoose.Schema({
   offer_ticket_type: { type: String, required: false },
   offer_ticket_price: { type: String, required: false },
@@ -93,7 +97,6 @@ const subEventSchema = new mongoose.Schema({
   event_instagram_link: { type: String, required: false },
   event_youtube_link: { type: String, required: false },
   //for online event
-  event_link: { type: String},
   verification_event_code: { type: String},
   event_rules: fileSchema,
   POCS: [POCSchema],
@@ -178,7 +181,6 @@ const ticketSchema = new mongoose.Schema({
   gate_open_time: { type: String, required: false },
   event_youtube_link: { type: String, required: false },
   //for online event
-  event_link: { type: String},
   verification_event_code: { type: String},
   event_rules: fileSchema,
   
