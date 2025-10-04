@@ -774,8 +774,10 @@ const ProfilePage = () => {
                         
                         <div className="space-y-1 md:space-y-2 flex-1">
   <h1 className={`text-xl md:text-xl lg:text-2xl font-bold ${theme.text}`}>{user.name}</h1>
-  <p className={`text-xs md:text-sm ${theme.subText}`}>{user.username}</p>
-  <p className={`whitespace-pre-line text-left text-xs md:text-sm leading-5 md:leading-6 break-words ${theme.subText}`}>{user.bio}</p>
+  <p className={`text-xs md:text-sm ${theme.subText}`}>@{user.username}</p>
+  <p className={`whitespace-pre-line text-left text-xs md:text-sm leading-5 md:leading-6 break-words ${theme.subText}`}>
+    {user.bio || "🌟 Exploring the world, one flight at a time ✈️\n📍 Currently: [Location]\n🎥 Capturing moments that matter"}
+  </p>
 <div className="flex gap-2 md:gap-3 pt-2 md:pt-3 flex-wrap">
                             <button 
                               onClick={() => navigate('/settings/editprofile')}
@@ -970,6 +972,8 @@ const ProfilePage = () => {
                                       className={`text-xs md:text-sm px-3 md:px-4 py-1 md:py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${
                                         isDark ? "text-[#FFFFFF]" : "text-[#000000]"
                                       }`}
+                                     onClick={() => navigate('/suggestions')}
+
                                     >
                                       see all
                                     </button>
