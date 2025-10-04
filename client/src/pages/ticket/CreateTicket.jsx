@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { format } from "date-fns";
+
 import Select from "react-select";
 import {
   createTicketBasicInfo,
@@ -16,6 +16,13 @@ import Prohibited_Form_Icon from "../../assets/Event/Prohibited_Form_Icon.svg?re
 // Import shared components
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
+import DatePickerModal from "../../components/CreateGroup/DatePickerModal.jsx";
+import GuestModal from "../../components/CreateGroup/GuestModal.jsx";
+import ProhibitedItemsModal from "../../components/CreateGroup/ProhibitedItemsModal.jsx";
+import Alert from "../../components/CreateGroup/Alert";
+import FormInput from "../../components/CreateGroup/FormInput";
+import OnlineDatePickerModal from "../../components/CreateGroup/OnlineDatePickerModal.jsx";
+import RecordedDatePickerModal from "../../components/CreateGroup/RecordedDatePickerModal.jsx";
 
 // --- Reusable UI Components ---
 const CustomScrollbarStyles = ({ isDark }) => {
@@ -153,14 +160,14 @@ const TagInput = ({ label, tags, onTagsChange, placeholder, darkMode }) => {
     <div>
       <label
         className={`flex items-center text-sm font-medium ${
-          darkMode ? "text-gray-400" : "text-gray-500"
+          darkMode ? "text-gray-400" : "text-black"
         } mb-2`}
       >
         {label} <InfoTooltip note="Press Enter to add a tag." />
       </label>
       <div
         className={`flex flex-wrap items-center gap-2 p-2 bg-transparent border rounded-lg ${
-          darkMode ? "border-[#4A4A4A]" : "border-gray-300"
+          darkMode ? "border-[#4A4A4A]" : "border-black"
         }`}
       >
         {tags.map((tag, index) => (
@@ -194,1225 +201,9 @@ const TagInput = ({ label, tags, onTagsChange, placeholder, darkMode }) => {
     </div>
   );
 };
-const DatePickerModal = ({
-  isOpen,
-  onClose,
-  onSave,
-  initialDates,
-  darkMode,
-}) => {
-  const [dateType, setDateType] = useState("Single day");
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDates, setSelectedDates] = useState(initialDates || []);
-  const [useSameTime, setUseSameTime] = useState(true);
 
-  useEffect(() => {
-    setSelectedDates(initialDates || []);
-  }, [initialDates]);
 
-  const handleDateTypeChange = (type) => {
-    setSelectedDates([]);
-    setDateType(type);
-  };
 
-  if (!isOpen) return null;
-
-  // Helper function to convert 12-hour time to 24-hour format
-  const convertTo24Hour = (time12h, ampm) => {
-    if (!time12h || !ampm) return "";
-
-    const [hours, minutes] = time12h.split(":");
-    let hour24 = parseInt(hours);
-
-    if (ampm === "AM" && hour24 === 12) {
-      hour24 = 0;
-    } else if (ampm === "PM" && hour24 !== 12) {
-      hour24 += 12;
-    }
-
-    return `${hour24.toString().padStart(2, "0")}:${minutes}`;
-  };
-
-  // Helper function to convert 24-hour time to 12-hour format
-  const convertTo12Hour = (time24h) => {
-    if (!time24h) return { time: "", ampm: "" };
-
-    const [hours, minutes] = time24h.split(":");
-    let hour12 = parseInt(hours);
-    const ampm = hour12 >= 12 ? "PM" : "AM";
-
-    if (hour12 === 0) {
-      hour12 = 12;
-    } else if (hour12 > 12) {
-      hour12 -= 12;
-    }
-
-    return {
-      time: `${hour12.toString().padStart(2, "0")}:${minutes}`,
-      ampm: ampm,
-    };
-  };
-
-  // Helper function to validate time
-  const validateTime = (startTime, endTime, startAmPm, endAmPm) => {
-    if (!startTime || !endTime || !startAmPm || !endAmPm) return true; // Allow incomplete times
-
-    const start24 = convertTo24Hour(startTime, startAmPm);
-    const end24 = convertTo24Hour(endTime, endAmPm);
-
-    if (!start24 || !end24) return true;
-
-    const start = new Date(`1970-01-01T${start24}:00`);
-    const end = new Date(`1970-01-01T${end24}:00`);
-
-    return end > start;
-  };
-
-  // Helper function to show time validation error
-  const showTimeValidationError = () => {
-    alert(
-      "Error: End time must be after start time for same-day events. Please select a valid time range."
-    );
-  };
-
-  const generateCalendarDays = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDayOfMonth = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    let days = [];
-    for (
-      let i = 0;
-      i < (firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1);
-      i++
-    ) {
-      days.push(<div key={`blank-${i}`} className="h-10 w-10"></div>);
-    }
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      const dateStr = format(date, "yyyy-MM-dd");
-      const isSelected = selectedDates.some((d) => d.date === dateStr);
-      const isToday = date.getTime() === today.getTime();
-      const isPast = date < today;
-
-      days.push(
-        <div
-          key={day}
-          onClick={() => !isPast && handleDateClick(dateStr)}
-          className={`flex items-center justify-center h-10 w-10 rounded-lg transition-colors
-                                ${
-                                  isPast
-                                    ? "text-gray-600 cursor-not-allowed"
-                                    : "cursor-pointer"
-                                }
-                                ${
-                                  isSelected
-                                    ? "bg-emerald-500 text-white"
-                                    : "hover:bg-gray-700"
-                                }
-                                ${
-                                  isToday && !isSelected
-                                    ? "border border-emerald-500"
-                                    : ""
-                                }`}
-        >
-          {day}
-        </div>
-      );
-    }
-    return days;
-  };
-
-  const handleDateClick = (dateStr) => {
-    const commonTime =
-      selectedDates.length > 0 && useSameTime
-        ? {
-            startTime: selectedDates[0].startTime,
-            endTime: selectedDates[0].endTime,
-            startAmPm: selectedDates[0].startAmPm,
-            endAmPm: selectedDates[0].endAmPm,
-          }
-        : { startTime: "", endTime: "", startAmPm: "", endAmPm: "" };
-
-    switch (dateType) {
-      case "Single day": {
-        const isSelected = selectedDates.some((d) => d.date === dateStr);
-        if (isSelected) {
-          setSelectedDates([]);
-        } else {
-          // For single day events, both start_date and end_date should be the same
-          setSelectedDates([
-            {
-              date: dateStr,
-              endDate: dateStr, // Set end_date to same as start_date
-              ...commonTime,
-            },
-          ]);
-        }
-        break;
-      }
-      case "Multi days": {
-        const isSelected = selectedDates.some((d) => d.date === dateStr);
-        let newDates;
-        if (isSelected) {
-          newDates = selectedDates.filter((d) => d.date !== dateStr);
-        } else {
-          // For multi-day events, each day is independent
-          newDates = [
-            ...selectedDates,
-            {
-              date: dateStr,
-              endDate: dateStr, // Each day has same start and end date
-              ...commonTime,
-            },
-          ];
-        }
-        setSelectedDates(
-          newDates.sort((a, b) => new Date(a.date) - new Date(b.date))
-        );
-        break;
-      }
-      case "Weekly": {
-        const clickedDate = new Date(dateStr.replace(/-/g, "/"));
-        const dayOfWeek = clickedDate.getDay();
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const datesForDayOfWeek = [];
-        for (let day = 1; day <= daysInMonth; day++) {
-          const date = new Date(year, month, day);
-          if (date.getDay() === dayOfWeek && date >= today) {
-            const dayDateStr = format(date, "yyyy-MM-dd");
-            datesForDayOfWeek.push({
-              date: dayDateStr,
-              endDate: dayDateStr, // Each day has same start and end date
-              ...commonTime,
-            });
-          }
-        }
-        const isDaySelected = selectedDates.some(
-          (d) => new Date(d.date.replace(/-/g, "/")).getDay() === dayOfWeek
-        );
-        setSelectedDates(isDaySelected ? [] : datesForDayOfWeek);
-        break;
-      }
-    }
-  };
-
-  const handleIndividualTimeChange = (index, field, value) => {
-    if (useSameTime) {
-      // When "Use same time" is enabled, update all dates
-      const updatedDates = selectedDates.map((d) => ({ ...d, [field]: value }));
-
-      // Only validate when both time and ampm are set for both start and end
-      if (
-        field === "endAmPm" ||
-        (field === "endTime" && updatedDates[0].endAmPm) ||
-        field === "startAmPm" ||
-        (field === "startTime" && updatedDates[0].startAmPm)
-      ) {
-        const currentDate = updatedDates[0];
-        const startTime = field === "startTime" ? value : currentDate.startTime;
-        const endTime = field === "endTime" ? value : currentDate.endTime;
-        const startAmPm = field === "startAmPm" ? value : currentDate.startAmPm;
-        const endAmPm = field === "endAmPm" ? value : currentDate.endAmPm;
-
-        // Only validate if we have complete time information
-        if (
-          startTime &&
-          endTime &&
-          startAmPm &&
-          endAmPm &&
-          !validateTime(startTime, endTime, startAmPm, endAmPm)
-        ) {
-          showTimeValidationError();
-          return; // Don't update if validation fails
-        }
-      }
-
-      setSelectedDates(updatedDates);
-    } else {
-      // When disabled, update only the specific date
-      const updatedDates = [...selectedDates];
-      updatedDates[index][field] = value;
-
-      // Only validate when both time and ampm are set for both start and end
-      if (
-        field === "endAmPm" ||
-        (field === "endTime" && updatedDates[index].endAmPm) ||
-        field === "startAmPm" ||
-        (field === "startTime" && updatedDates[index].startAmPm)
-      ) {
-        const currentDate = updatedDates[index];
-        const startTime = field === "startTime" ? value : currentDate.startTime;
-        const endTime = field === "endTime" ? value : currentDate.endTime;
-        const startAmPm = field === "startAmPm" ? value : currentDate.startAmPm;
-        const endAmPm = field === "endAmPm" ? value : currentDate.endAmPm;
-
-        // Only validate if we have complete time information
-        if (
-          startTime &&
-          endTime &&
-          startAmPm &&
-          endAmPm &&
-          !validateTime(startTime, endTime, startAmPm, endAmPm)
-        ) {
-          showTimeValidationError();
-          return; // Don't update if validation fails
-        }
-      }
-
-      setSelectedDates(updatedDates);
-    }
-  };
-
-  // Handle "Use same time" toggle
-  const handleUseSameTimeChange = (e) => {
-    const isEnabled = e.target.checked;
-    setUseSameTime(isEnabled);
-
-    if (isEnabled && selectedDates.length > 0) {
-      // Auto-fill all dates with the first date's time
-      const firstDateTime = selectedDates[0];
-      if (firstDateTime.startTime || firstDateTime.endTime) {
-        // Only validate if we have complete time information
-        if (
-          firstDateTime.startTime &&
-          firstDateTime.endTime &&
-          firstDateTime.startAmPm &&
-          firstDateTime.endAmPm &&
-          !validateTime(
-            firstDateTime.startTime,
-            firstDateTime.endTime,
-            firstDateTime.startAmPm,
-            firstDateTime.endAmPm
-          )
-        ) {
-          showTimeValidationError();
-          return;
-        }
-
-        setSelectedDates((currentDates) =>
-          currentDates.map((d) => ({
-            ...d,
-            startTime: firstDateTime.startTime || d.startTime,
-            endTime: firstDateTime.endTime || d.endTime,
-            startAmPm: firstDateTime.startAmPm || d.startAmPm,
-            endAmPm: firstDateTime.endAmPm || d.endAmPm,
-          }))
-        );
-      }
-    }
-  };
-
-  const handleSave = () => {
-    // Validate all dates before saving
-    for (let i = 0; i < selectedDates.length; i++) {
-      const dateEntry = selectedDates[i];
-      // Only validate if we have complete time information
-      if (
-        dateEntry.startTime &&
-        dateEntry.endTime &&
-        dateEntry.startAmPm &&
-        dateEntry.endAmPm &&
-        !validateTime(
-          dateEntry.startTime,
-          dateEntry.endTime,
-          dateEntry.startAmPm,
-          dateEntry.endAmPm
-        )
-      ) {
-        showTimeValidationError();
-        return; // Don't save if validation fails
-      }
-    }
-
-    // Convert 12-hour format to 24-hour format for backend
-    const convertedDates = selectedDates.map((dateEntry) => ({
-      ...dateEntry,
-      startTime:
-        dateEntry.startTime && dateEntry.startAmPm
-          ? convertTo24Hour(dateEntry.startTime, dateEntry.startAmPm)
-          : dateEntry.startTime,
-      endTime:
-        dateEntry.endTime && dateEntry.endAmPm
-          ? convertTo24Hour(dateEntry.endTime, dateEntry.endAmPm)
-          : dateEntry.endTime,
-      // Keep the original 12-hour format for display purposes
-      startTime12h: dateEntry.startTime,
-      endTime12h: dateEntry.endTime,
-      startAmPm: dateEntry.startAmPm,
-      endAmPm: dateEntry.endAmPm,
-    }));
-
-    onSave(convertedDates, dateType);
-    onClose();
-  };
-
-  const handleReset = () => {
-    setSelectedDates([]);
-    setCurrentMonth(new Date());
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-      <div
-        className={`rounded-2xl w-full max-w-4xl flex flex-col ${
-          darkMode ? "bg-[#2B2B2B] text-gray-200" : "bg-white text-gray-800"
-        }`}
-      >
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                darkMode
-                  ? "bg-gray-700 text-gray-300"
-                  : "bg-gray-200 text-gray-600"
-              }`}
-            >
-              📅
-            </div>
-            <div>
-              <h3
-                className={`font-bold text-lg ${
-                  darkMode ? "text-white" : "text-black"
-                }`}
-              >
-                Event Calendar
-              </h3>
-              <p
-                className={`text-sm ${
-                  darkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                Schedule your events date and time
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center space-x-2">
-              <span
-                className={`text-sm ${
-                  darkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                Date type:
-              </span>
-              {["Single day", "Multi days", "Weekly"].map((type) => (
-                <button
-                  type="button"
-                  key={type}
-                  onClick={() => handleDateTypeChange(type)}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                    dateType === type
-                      ? "bg-emerald-500 text-white"
-                      : `${
-                          darkMode
-                            ? "bg-gray-700 hover:bg-gray-600 text-gray-300"
-                            : "bg-gray-200 hover:bg-gray-300 text-gray-700"
-                        }`
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className={`text-3xl leading-none ${
-                darkMode
-                  ? "text-gray-400 hover:text-white"
-                  : "text-gray-500 hover:text-black"
-              }`}
-            >
-              ×
-            </button>
-          </div>
-        </div>
-        <div
-          className={`border-b ${
-            darkMode ? "border-gray-600" : "border-gray-300"
-          }`}
-        ></div>
-        <div className="flex flex-1 h-[60vh]">
-          <div className="w-1/2 p-4">
-            <div
-              className={`flex items-center justify-between mb-4 p-2 border rounded-lg ${
-                darkMode
-                  ? "text-gray-300 border-gray-600 bg-gray-700/50"
-                  : "text-gray-700 border-gray-300 bg-gray-100/50"
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setCurrentMonth(
-                    new Date(
-                      currentMonth.getFullYear(),
-                      currentMonth.getMonth() - 1,
-                      1
-                    )
-                  )
-                }
-                className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
-                  darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
-                }`}
-              >
-                {"<"}
-              </button>
-              <span className="font-semibold text-lg">
-                {currentMonth.toLocaleString("default", { month: "long" })}{" "}
-                {currentMonth.getFullYear()}
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setCurrentMonth(
-                    new Date(
-                      currentMonth.getFullYear(),
-                      currentMonth.getMonth() + 1,
-                      1
-                    )
-                  )
-                }
-                className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
-                  darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
-                }`}
-              >
-                {">"}
-              </button>
-            </div>
-            <div className="grid grid-cols-7 text-center text-xs uppercase mb-2">
-              {["MO", "TU", "WE", "TH", "FR", "SA", "SU"].map((day) => (
-                <span
-                  key={day}
-                  className={darkMode ? "text-gray-400" : "text-gray-500"}
-                >
-                  {day}
-                </span>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 place-items-center text-center gap-1">
-              {generateCalendarDays()}
-            </div>
-          </div>
-          <div
-            className={`border-l ${
-              darkMode ? "border-gray-600" : "border-gray-300"
-            }`}
-          ></div>
-          <div className="w-1/2 p-4 flex flex-col min-h-0">
-            <div className="flex items-center justify-between mb-4">
-              <label
-                className={`flex items-center text-sm cursor-pointer ${
-                  darkMode ? "text-gray-300" : "text-gray-700"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={useSameTime}
-                  onChange={handleUseSameTimeChange}
-                  className={`form-checkbox h-4 w-4 rounded border-gray-600 focus:ring-emerald-500 ${
-                    darkMode
-                      ? "bg-gray-700 text-emerald-500"
-                      : "bg-gray-200 text-emerald-600"
-                  }`}
-                />
-                <span className="ml-2">Use same time for all dates</span>
-              </label>
-            </div>
-            <div className="h-[40vh] overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-              {selectedDates.map((item, index) => {
-                const formattedDate = format(
-                  new Date(item.date.replace(/-/g, "/")),
-                  "dd/MM/yyyy"
-                );
-                return (
-                  <div key={index} className="flex items-center gap-2">
-                    <span
-                      className={`px-3 py-2 rounded-lg text-sm w-32 flex-shrink-0 text-center ${
-                        darkMode
-                          ? "bg-gray-700 text-gray-200"
-                          : "bg-gray-200 text-gray-800"
-                      }`}
-                    >
-                      {formattedDate}
-                    </span>
-
-                    {/* Start Time Fields */}
-                    <div className="flex gap-1 w-full">
-                      <input
-                        type="time"
-                        value={item.startTime || ""}
-                        onChange={(e) =>
-                          handleIndividualTimeChange(
-                            index,
-                            "startTime",
-                            e.target.value
-                          )
-                        }
-                        className={`border rounded-lg p-2 text-sm flex-1 ${
-                          darkMode
-                            ? "bg-gray-800 border-gray-600 text-white"
-                            : "bg-white border-gray-300 text-black"
-                        }`}
-                      />
-                      <select
-                        value={item.startAmPm || ""}
-                        onChange={(e) =>
-                          handleIndividualTimeChange(
-                            index,
-                            "startAmPm",
-                            e.target.value
-                          )
-                        }
-                        className={`border rounded-lg p-2 text-sm w-16 ${
-                          darkMode
-                            ? "bg-gray-800 border-gray-600 text-white"
-                            : "bg-white border-gray-300 text-black"
-                        }`}
-                      >
-                        <option value="">-</option>
-                        <option value="AM">AM</option>
-                        <option value="PM">PM</option>
-                      </select>
-                    </div>
-
-                    <span className="text-gray-400 text-sm">to</span>
-
-                    {/* End Time Fields */}
-                    <div className="flex gap-1 w-full">
-                      <input
-                        type="time"
-                        value={item.endTime || ""}
-                        onChange={(e) =>
-                          handleIndividualTimeChange(
-                            index,
-                            "endTime",
-                            e.target.value
-                          )
-                        }
-                        className={`border rounded-lg p-2 text-sm flex-1 ${
-                          darkMode
-                            ? "bg-gray-800 border-gray-600 text-white"
-                            : "bg-white border-gray-300 text-black"
-                        }`}
-                      />
-                      <select
-                        value={item.endAmPm || ""}
-                        onChange={(e) =>
-                          handleIndividualTimeChange(
-                            index,
-                            "endAmPm",
-                            e.target.value
-                          )
-                        }
-                        className={`border rounded-lg p-2 text-sm w-16 ${
-                          darkMode
-                            ? "bg-gray-800 border-gray-600 text-white"
-                            : "bg-white border-gray-300 text-black"
-                        }`}
-                      >
-                        <option value="">-</option>
-                        <option value="AM">AM</option>
-                        <option value="PM">PM</option>
-                      </select>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDateClick(item.date)}
-                      className={`p-1 rounded-full ${
-                        darkMode
-                          ? "text-red-500 hover:bg-gray-700"
-                          : "text-red-600 hover:bg-gray-200"
-                      }`}
-                    >
-                      ×
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        <div
-          className={`border-t ${
-            darkMode ? "border-gray-600" : "border-gray-300"
-          }`}
-        ></div>
-        <div className="flex justify-end items-center p-4 space-x-4">
-          <button
-            type="button"
-            onClick={handleReset}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-              darkMode
-                ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
-                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-            }`}
-          >
-            Reset all
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-              darkMode
-                ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
-                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-            }`}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-semibold text-white"
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-const GuestModal = ({
-  isOpen,
-  onClose,
-  onSave,
-  initialGuests,
-  editingGuest: initialEditingGuest,
-  darkMode,
-}) => {
-  const [localGuests, setLocalGuests] = useState(initialGuests || []);
-  const [name, setName] = useState("");
-  const [link, setLink] = useState("");
-  const [photo, setPhoto] = useState(null);
-  const [editingGuest, setEditingGuest] = useState(null);
-
-  useEffect(() => {
-    if (initialEditingGuest) {
-      setEditingGuest(initialEditingGuest);
-      setName(initialEditingGuest.name);
-      setLink(initialEditingGuest.link || "");
-      setPhoto(null);
-    }
-  }, [initialEditingGuest]);
-
-  if (!isOpen) return null;
-
-  const resetForm = () => {
-    setName("");
-    setLink("");
-    setPhoto(null);
-    setEditingGuest(null);
-  };
-
-  const handleFormSubmit = () => {
-    if (!name.trim()) return;
-    if (editingGuest) {
-      setLocalGuests(
-        localGuests.map((g) =>
-          g.id === editingGuest.id
-            ? {
-                ...g,
-                name: name.trim(),
-                link: link.trim(),
-                image: photo ? URL.createObjectURL(photo) : g.image,
-                rawFile: photo || g.rawFile,
-              }
-            : g
-        )
-      );
-    } else {
-      const newGuest = {
-        id: Date.now(),
-        name: name.trim(),
-        link: link.trim(),
-        image: photo
-          ? URL.createObjectURL(photo)
-          : `https://i.pravatar.cc/150?u=${Date.now()}`,
-        rawFile: photo,
-      };
-      setLocalGuests([...localGuests, newGuest]);
-    }
-    resetForm();
-  };
-
-  const handleDeleteGuest = (guestId) => {
-    setLocalGuests((prev) => prev.filter((g) => g.id !== guestId));
-  };
-
-  const startEditing = (guest) => {
-    setEditingGuest(guest);
-    setName(guest.name);
-    setLink(guest.link || "");
-    setPhoto(null);
-  };
-
-  const handleSave = () => {
-    onSave(localGuests);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-      <div
-        className={`rounded-2xl w-full max-w-4xl flex flex-col ${
-          darkMode ? "bg-[#2B2B2B] text-gray-200" : "bg-white text-gray-800"
-        }`}
-      >
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                darkMode ? "bg-gray-700" : "bg-gray-200"
-              }`}
-            >
-              👤
-            </div>
-            <div>
-              <h3
-                className={`font-bold text-lg ${
-                  darkMode ? "text-white" : "text-black"
-                }`}
-              >
-                {editingGuest ? "Edit Guest" : "Add Guest/Guide/Artists"}
-              </h3>
-              <p
-                className={`text-sm ${
-                  darkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                Manage your event's featured people.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`text-3xl leading-none ${
-              darkMode
-                ? "text-gray-400 hover:text-white"
-                : "text-gray-500 hover:text-black"
-            }`}
-          >
-            ×
-          </button>
-        </div>
-        <div
-          className={`border-b ${
-            darkMode ? "border-gray-600" : "border-gray-300"
-          }`}
-        ></div>
-        <div className="flex p-4 h-[500px]">
-          <div className="w-1/2 pr-4 flex flex-col">
-            <div className="space-y-4">
-              <div>
-                <label
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } text-sm`}
-                >
-                  Guest/Guide name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  type="text"
-                  placeholder="Enter name"
-                  className={`w-full mt-1 p-2 border rounded-lg ${
-                    darkMode
-                      ? "bg-gray-700 border-gray-600"
-                      : "bg-gray-100 border-gray-300"
-                  }`}
-                />
-              </div>
-              <div>
-                <label
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } text-sm`}
-                >
-                  Profile link (Optional)
-                </label>
-                <input
-                  value={link}
-                  onChange={(e) => setLink(e.target.value)}
-                  type="text"
-                  placeholder="https://..."
-                  className={`w-full mt-1 p-2 border rounded-lg ${
-                    darkMode
-                      ? "bg-gray-700 border-gray-600"
-                      : "bg-gray-100 border-gray-300"
-                  }`}
-                />
-              </div>
-              <div>
-                <label
-                  className={`block text-sm ${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  }`}
-                >
-                  Guest/Guide Photo
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setPhoto(e.target.files[0])}
-                  className={`w-full text-sm mt-1 p-2 border rounded-lg file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-sm file:font-semibold ${
-                    darkMode
-                      ? "border-gray-600 file:bg-indigo-500/20 file:text-indigo-300"
-                      : "border-gray-300 file:bg-indigo-100 file:text-indigo-700"
-                  }`}
-                />
-              </div>
-            </div>
-            <div className="mt-auto flex justify-end pt-4">
-              <button
-                type="button"
-                onClick={handleFormSubmit}
-                className={`px-6 py-2 font-semibold rounded-lg flex items-center gap-2 ${
-                  editingGuest
-                    ? "bg-amber-500 hover:bg-amber-600 text-white"
-                    : "bg-emerald-500 hover:bg-emerald-600 text-white"
-                }`}
-              >
-                {editingGuest ? "Update Guest" : "Add Guest +"}
-              </button>
-            </div>
-          </div>
-          <div
-            className={`border-l ${
-              darkMode ? "border-gray-600" : "border-gray-300"
-            }`}
-          ></div>
-          <div className="w-1/2 pl-4 flex flex-col min-h-0">
-            <div className="overflow-y-auto space-y-3 pr-2 custom-scrollbar h-full">
-              {localGuests.length > 0 ? (
-                localGuests.map((g) => (
-                  <div
-                    key={g.id}
-                    className={`${
-                      darkMode ? "bg-gray-700/50" : "bg-gray-100"
-                    } rounded-lg p-3 flex items-center justify-between`}
-                  >
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <img
-                        src={g.image}
-                        alt={g.name}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                      />
-                      <div className="truncate">
-                        <p
-                          className={`font-semibold truncate ${
-                            darkMode ? "text-white" : "text-black"
-                          }`}
-                        >
-                          {g.name}
-                        </p>
-                        {g.link && (
-                          <a
-                            href={g.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-indigo-400 truncate block"
-                          >
-                            {g.link}
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => startEditing(g)}
-                        className={`p-2 ${
-                          darkMode
-                            ? "text-gray-400 hover:text-white"
-                            : "text-gray-500 hover:text-black"
-                        }`}
-                        title="Edit"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteGuest(g.id)}
-                        className={`p-2 ${
-                          darkMode
-                            ? "text-red-400 hover:text-red-300"
-                            : "text-red-500 hover:text-red-700"
-                        }`}
-                        title="Delete"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center text-gray-500 pt-16">
-                  No guests added yet.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        <div
-          className={`border-t ${
-            darkMode ? "border-gray-600" : "border-gray-300"
-          }`}
-        ></div>
-        <div className="flex justify-end items-center p-4 space-x-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-              darkMode
-                ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
-                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-            }`}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-semibold text-white"
-          >
-            Save Changes
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ProhibitedItemsModal = ({
-  isOpen,
-  onClose,
-  onSave,
-  initialItems,
-  darkMode,
-}) => {
-  const [selectedItems, setSelectedItems] = useState(initialItems || []);
-  const [customItem, setCustomItem] = useState("");
-  const suggestions = [
-    "Umbrellas",
-    "Wooden sticks",
-    "Power bank",
-    "Helmets",
-    "Glass containers",
-    "Laptops",
-    "Laser pointer/Flashlight",
-    "Outside food",
-    "Alcohol",
-    "Music instrument",
-    "Toxics",
-    "Chemicals",
-    "Camera",
-    "Selfie sticks",
-    "Metal containers",
-    "Bags",
-    "Flammable",
-    "Banners",
-    "Cans",
-    "Tins",
-    "Bottles",
-  ];
-
-  if (!isOpen) return null;
-  const toggleItem = (item) =>
-    setSelectedItems((prev) =>
-      prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
-    );
-  const handleAddCustom = () => {
-    if (customItem.trim() && !selectedItems.includes(customItem.trim())) {
-      setSelectedItems((prev) => [...prev, customItem.trim()]);
-      setCustomItem("");
-    }
-  };
-  const handleSave = () => {
-    onSave(selectedItems);
-    onClose();
-  };
-  const handleReset = () => {
-    setSelectedItems([]);
-    setCustomItem("");
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-      <div
-        className={`rounded-2xl w-full max-w-3xl flex flex-col ${
-          darkMode ? "bg-[#2B2B2B] text-gray-200" : "bg-white text-gray-800"
-        }`}
-      >
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                darkMode
-                  ? "bg-gray-700 text-gray-300"
-                  : "bg-gray-200 text-gray-600"
-              }`}
-            >
-              🚫
-            </div>
-            <div>
-              <h3
-                className={`font-bold text-lg ${
-                  darkMode ? "text-white" : "text-black"
-                }`}
-              >
-                Add prohibited items
-              </h3>
-              <p
-                className={`text-sm ${
-                  darkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                Add items that are not allowed
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`text-3xl leading-none ${
-              darkMode
-                ? "text-gray-400 hover:text-white"
-                : "text-gray-500 hover:text-black"
-            }`}
-          >
-            ×
-          </button>
-        </div>
-        <div className="p-4 space-y-4">
-          <div
-            className={`min-h-[80px] rounded-lg p-3 flex flex-wrap gap-2 border ${
-              darkMode
-                ? "bg-gray-800/50 border-gray-700"
-                : "bg-gray-100/50 border-gray-200"
-            }`}
-          >
-            {selectedItems.map((item) => (
-              <div
-                key={item}
-                className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm h-fit ${
-                  darkMode
-                    ? "bg-gray-600 text-gray-200"
-                    : "bg-gray-200 text-gray-700"
-                }`}
-              >
-                <span>{item}</span>
-                <button
-                  type="button"
-                  onClick={() => toggleItem(item)}
-                  className={`font-bold text-lg leading-none ${
-                    darkMode
-                      ? "text-gray-400 hover:text-white"
-                      : "text-gray-500 hover:text-black"
-                  }`}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <input
-                value={customItem}
-                onChange={(e) => setCustomItem(e.target.value)}
-                type="text"
-                placeholder="Enter the name here..."
-                className={`w-full pl-3 pr-10 py-2 border rounded-lg ${
-                  darkMode
-                    ? "bg-gray-700 border-gray-600"
-                    : "bg-gray-100 border-gray-300"
-                }`}
-              />
-              <div
-                className={`absolute inset-y-0 right-0 flex items-center pr-3 ${
-                  darkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                *
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleAddCustom}
-              className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg flex items-center gap-2"
-            >
-              Add <span className="text-xl">+</span>
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {suggestions.map((item) => (
-              <button
-                type="button"
-                key={item}
-                onClick={() => toggleItem(item)}
-                className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
-                  darkMode
-                    ? "bg-gray-700 hover:bg-gray-600 text-gray-300"
-                    : "bg-gray-200 hover:bg-gray-300 text-gray-700"
-                }`}
-              >
-                {item} <span className="text-lg">+</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div
-          className={`flex justify-end items-center p-4 mt-2 space-x-4 border-t ${
-            darkMode ? "border-gray-700" : "border-gray-200"
-          }`}
-        >
-          <button
-            type="button"
-            onClick={handleReset}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-              darkMode
-                ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
-                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-            }`}
-          >
-            Reset all
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-              darkMode
-                ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
-                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-            }`}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-semibold text-white"
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // --- NEW: Language options array ---
 const eventCategories = {
@@ -1555,13 +346,7 @@ const languageOptions = [
   "Other",
 ].map((lang) => ({ value: lang, label: lang }));
 // Add these constants near your other dropdown data arrays
-const ageOptions = [
-  { value: "0", label: "All ages" },
-  { value: "13", label: "13+" },
-  { value: "16", label: "16+" },
-  { value: "18", label: "18+" },
-  { value: "21", label: "21+" },
-];
+
 
 const seatingOptions = [
   { value: "seated", label: "Seated" },
@@ -1610,9 +395,9 @@ const customSelectStyles = (isDark) => ({
       : state.isFocused
       ? isDark
         ? "#374151"
-        : "#1b1d20ff"
+        : "#E5E7EB"
       : "transparent",
-    color: isDark ? "#ffffffff" : "#1F2937",
+    color: isDark ? "#FFFFFF" : "#1F2937",
     "&:active": {
       backgroundColor: "#4338CA",
     },
@@ -1620,18 +405,18 @@ const customSelectStyles = (isDark) => ({
   menuList: (provided) => ({
     ...provided,
     "::-webkit-scrollbar": { width: "8px" },
-    "::-webkit-scrollbar-track": { background: isDark ? "#232426" : "#4a4e52ff" },
+    "::-webkit-scrollbar-track": { background: isDark ? "#232426" : "#f1f5f9" },
     "::-webkit-scrollbar-thumb": {
-      backgroundColor: isDark ? "#4f4f4f" : "#3a4450ff",
+      backgroundColor: isDark ? "#4f4f4f" : "#cbd5e1",
       borderRadius: "10px",
-      border: `2px solid ${isDark ? "#232426" : "#143453ff"}`,
+      border: `2px solid ${isDark ? "#232426" : "#f1f5f9"}`,
     },
   }),
 });
 const CreateTicket = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { groupId, ticketId: urlTicketId } = useParams();
+  const { groupId, ticketId: urlTicketId} = useParams();
   const queryTicketId = new URLSearchParams(location.search).get("ticketId");
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
@@ -1639,7 +424,11 @@ const CreateTicket = () => {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [isDateModalOpen, setIsDateModalOpen] = useState(false);
+  const [isOfflineDateModalOpen, setIsOfflineDateModalOpen] = useState(false);
+const [isOnlineDateModalOpen, setIsOnlineDateModalOpen] = useState(false);
+const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
+
+
   const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
   const [isProhibitedModalOpen, setIsProhibitedModalOpen] = useState(false);
   const [editingGuest, setEditingGuest] = useState(null);
@@ -1652,7 +441,9 @@ const CreateTicket = () => {
   const storageKey = `ticketFormData_${groupId || "new"}`;
   const rulesEditorRef = useRef(null);
   const descriptionEditorRef = useRef(null);
-
+  const [alert, setAlert] = useState(null); // State to manage the alert
+  const [errors, setErrors] = useState({}); // State to track field errors for highlighting
+  
   // --- NEW: Data structure for event categories and subcategories ---
 
   // Set initial map location (Thrissur, Kerala, India)
@@ -1669,7 +460,7 @@ const CreateTicket = () => {
     event_subcategory: "",
     event_type: "public",
     location_type: "offline",
-    event_link: "",
+    
     location: "",
     venue: "",
     event_language: [],
@@ -1681,7 +472,7 @@ const CreateTicket = () => {
     event_youtube_link: "",
     hashtag: [],
     event_dates: [],
-    event_date_type: "Single day",
+    event_date_type: "one-day",
     gatesOpenEarly: false,
     gate_open_time: "",
     gate_open_hour: "", // Initialize as empty
@@ -1700,6 +491,13 @@ const CreateTicket = () => {
     },
     groupId: groupId || "",
   });
+    const showAlert = (alertData) => {
+    setAlert({ ...alertData, show: true });
+  };
+
+  const hideAlert = () => {
+    setAlert(prev => prev ? { ...prev, show: false } : null);
+  };
 
   const [poc, setPoc] = useState({
     POC_name: "",
@@ -1808,7 +606,7 @@ const CreateTicket = () => {
         event_subcategory: ticketData.event_subcategory || "",
         event_type: ticketData.event_type || "public",
         location_type: ticketData.location_type || "offline",
-        event_link: ticketData.event_link || "",
+        
         location: ticketData.location || "",
         venue: ticketData.venue || "",
         event_language: eventLanguage,
@@ -1822,10 +620,10 @@ const CreateTicket = () => {
         event_dates: event_dates,
         event_date_type:
           ticketData.event_date_type === "one-day"
-            ? "Single day"
+            ? "one-day"
             : ticketData.event_date_type === "weekly"
-            ? "Weekly"
-            : "Multi days",
+            ? "weekly"
+            : "multi-day",
         gate_open_time: formatTimeForInput(ticketData.gate_open_time) || "",
         gatesOpenEarly: !!ticketData.gate_open_time,
         // Parse gate opening time into separate fields
@@ -1901,7 +699,11 @@ const CreateTicket = () => {
           : groupsResponse.data || [];
         const groupData = groupsArray.find((g) => g._id === groupId);
         if (!groupData) {
-          alert("Group not found.");
+          showAlert({
+                type: 'error',
+                message: 'Group Not Found',
+                description: "The selected group could not be found or you don't have access to it."
+            });
           navigate("/select-group");
           return;
         }
@@ -2242,60 +1044,111 @@ const CreateTicket = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const newErrors = {}; // Object to collect errors for highlighting
+    if (!groupId) {
+      showAlert({
+        type: 'error',
+        message: 'Missing Group ID',
+        description: 'Group ID is missing. Please go back and select a group.'
+      });
+      return;
+    }
+    console.log("Checking groupId before submission:", groupId);
+    // Validate groupId
     if (!formData.groupId) {
-      alert("Group ID is missing. Please select a group first.");
-      navigate("/select-group");
+      newErrors.groupId = true;
+      showAlert({
+        type: 'error',
+        message: 'Missing Group ID',
+        description: 'Please select a group first.'
+      });
+      setErrors(newErrors);
       return;
     }
-    const youtubeRegex =
-      /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
-    if (
-      formData.event_youtube_link &&
-      !youtubeRegex.test(formData.event_youtube_link)
-    ) {
-      alert(
-        "Invalid YouTube URL. Please use a valid format like 'youtube.com/watch?v=VIDEO_ID'"
-      );
+
+    // Validate YouTube URL
+    const youtubeRegex = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
+    if (formData.event_youtube_link && !youtubeRegex.test(formData.event_youtube_link)) {
+      newErrors.event_youtube_link = true;
+      showAlert({
+        type: 'error',
+        message: 'Invalid YouTube URL',
+        description: 'Please use a valid format like \'youtube.com/watch?v=VIDEO_ID\'.'
+      });
+      setErrors(newErrors);
       return;
     }
-    const instagramRegex =
-      /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
-    if (
-      formData.event_instagram_link &&
-      !instagramRegex.test(formData.event_instagram_link)
-    ) {
-      alert(
-        "Invalid Instagram URL. Please enter a valid profile link, like 'instagram.com/username'"
-      );
+
+    // Validate Instagram URL
+    const instagramRegex = /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
+    if (formData.event_instagram_link && !instagramRegex.test(formData.event_instagram_link)) {
+      newErrors.event_instagram_link = true;
+      showAlert({
+        type: 'error',
+        message: 'Invalid Instagram URL',
+        description: 'Please enter a valid profile link, like \'instagram.com/username\'.'
+      });
+      setErrors(newErrors);
       return;
     }
+
+    // Prepare description text for validation
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = formData.event_description || "";
     const descriptionText = (tempDiv.textContent || tempDiv.innerText).trim();
+
+    // Define all required fields and check them
     const requiredFields = {
       event_name: formData.event_name?.trim(),
       event_category: formData.event_category?.trim(),
       event_subcategory: formData.event_subcategory?.trim(),
       event_type: formData.event_type?.trim(),
-      event_language: formData.event_language || [],
+      event_language: formData.event_language,
       location_type: formData.location_type?.trim(),
       event_dates: formData.event_dates,
       event_description: descriptionText,
-      min_age_allowed: formData.min_age_allowed?.trim(),
+      min_age_allowed: formData.min_age_allowed?.toString(), // Use toString() for comparison
+      POCS: formData.POCS 
     };
-    const missingFields = Object.entries(requiredFields)
-      .filter(
-        ([_, value]) => !value || (Array.isArray(value) && value.length === 0)
-      )
-      .map(([key, _]) => key.replace(/_/g, " "));
-    if (missingFields.length > 0) {
-      alert(
-        `Please fill in the following required fields: ${missingFields.join(
-          ", "
-        )}`
-      );
-      return;
+    
+
+    // Add location-specific required fields
+    if (formData.location_type === 'offline') {
+        requiredFields.location = formData.location?.trim();
+        requiredFields.venue = formData.venue?.trim();
+        requiredFields.seating_arrangement = formData.seating_arrangement?.trim();
+        // Also check map location, assuming its critical for offline
+        if (!formData.exact_map_location?.latitude || !formData.exact_map_location?.longitude || !formData.exact_map_location?.address) {
+            newErrors.exact_map_location = true; // Highlight map area or address fields
+            // No specific alert here, as missing fields alert below will cover 'location'
+        }
+    } 
+    
+    // Check POC fields only if any POC exists
+    formData.POCS.forEach((pocItem, index) => {
+        if (!pocItem.POC_name?.trim() || !pocItem.POC_email?.trim() || !pocItem.POC_contact?.trim()) {
+            newErrors[`POCS.${index}`] = true; // Highlight individual POC field
+            // Note: This won't highlight the entire POC section, only specific inputs
+        }
+    });
+
+    const missingGeneralFields = Object.entries(requiredFields)
+        .filter(([key, value]) => !value || (Array.isArray(value) && value.length === 0))
+        .map(([key, _]) => key); // Get the actual keys for error state
+
+    if (missingGeneralFields.length > 0) {
+        missingGeneralFields.forEach(field => {
+            newErrors[field] = true; // Mark field as having an error
+        });
+        showAlert({
+            type: 'error',
+            message: 'Missing Required Fields',
+            description: `Please fill in the following: ${missingGeneralFields.map(f => f.replace(/_/g, ' ')).join(', ')}.`,
+        });
+        setErrors(newErrors);
+        return;
     }
+
     setLoading(true);
     try {
       const parseDate = (dateValue) => {
@@ -2319,6 +1172,7 @@ const CreateTicket = () => {
       };
       const submitData = {
         ...formData,
+        groupId: groupId, // Explicitly add groupId from params
         event_name: formData.event_name.trim(),
         event_category: formData.event_category.trim(),
         event_subcategory: formData.event_subcategory.trim(),
@@ -2326,14 +1180,12 @@ const CreateTicket = () => {
         event_description: formData.event_description.trim(),
         userId: "user_12345",
         location_type: formData.location_type.trim(),
-        event_link: formData.event_link?.trim() || "",
         location: formData.location?.trim() || "",
         venue: formData.venue?.trim() || "",
         event_language: formData.event_language,
         min_age_allowed: parseInt(formData.min_age_allowed.trim()),
         event_dates: transformedDates,
-        event_date_type:
-          eventDateTypeMap[formData.event_date_type] || "one-day",
+        event_date_type: eventDateTypeMap[formData.event_date_type] || "one-day",
         gate_open_time: formData.gatesOpenEarly
           ? formData.gate_open_time?.trim() || ""
           : "",
@@ -2347,7 +1199,6 @@ const CreateTicket = () => {
               }
             : undefined,
       };
-      // Pass the ticketId if in edit mode (from urlTicketId)
       const response = await createTicketBasicInfo(
         submitData,
         urlTicketId || null
@@ -2357,37 +1208,141 @@ const CreateTicket = () => {
         response.data?.ticketId ||
         response.data?._id ||
         urlTicketId;
-      console.log(
-        "Navigating with groupId:",
-        groupId,
-        "and ticketId:",
-        newTicketId
-      );
-      // Clear storage only after successful save
+      
       clearFormDataFromStorage();
-      navigate(`/ticket/update-ticket-media/${newTicketId}`, {
-        state: {
-          message: `${
-            isEditMode ? "Event updated" : "Event created"
-          } successfully!`,
-          newEvent: response.data,
-          ticketId: newTicketId,
-          formData: formData,
-        },
+      
+      showAlert({
+        type: 'success',
+        message: isEditMode ? "Event updated successfully!" : "Event created successfully!",
+        description: "Proceeding to media upload..."
       });
+
+      setTimeout(() => {
+        navigate(`/ticket/update-ticket-media/${newTicketId}`, {
+          state: {
+            message: `${
+              isEditMode ? "Event updated" : "Event created"
+            } successfully!`,
+            newEvent: response.data,
+            ticketId: newTicketId,
+            formData: formData,
+          },
+        });
+      }, 1500); // Give user time to see success message
     } catch (error) {
       console.error("Error creating event:", error);
-      alert(
-        error.response?.data?.message ||
-          "Error creating event. Please try again."
-      );
-    } finally {
-      setLoading(false);
+      showAlert({
+        type: 'error',
+        message: 'Submission Failed',
+        description: error.response?.data?.message || "An error occurred during submission. Please try again.",
+      });
+    } setLoading(true);
+    try {
+      const data = new FormData();
+      const convertTo24Hour = (time12h, ampm) => {
+      if (!time12h || !ampm) return "";
+      const [hours, minutes] = time12h.split(":");
+      let hour24 = parseInt(hours, 10);
+      if (ampm === "AM" && hour24 === 12) hour24 = 0;
+      if (ampm === "PM" && hour24 !== 12) hour24 += 12;
+      return `${hour24.toString().padStart(2, "0")}:${minutes}`;
+    };
+
+        // 1. Prepare event_dates for backend, handling files and converting to 24-hour time
+        const processedEventDates = [];
+         (formData.event_dates || []).forEach((item, index) => {
+    const cleanItem = { ...item };
+
+    // Convert times to 24-hour format if they exist
+    if (cleanItem.startTime && cleanItem.startAmPm) {
+      cleanItem.startTime = convertTo24Hour(cleanItem.startTime, cleanItem.startAmPm);
+      delete cleanItem.startAmPm;
+    } else {
+      cleanItem.startTime = '';
+      delete cleanItem.startAmPm;
     }
-  };
+    if (cleanItem.endTime && cleanItem.endAmPm) {
+      cleanItem.endTime = convertTo24Hour(cleanItem.endTime, cleanItem.endAmPm);
+      delete cleanItem.endAmPm;
+    } else {
+      cleanItem.endTime = '';
+      delete cleanItem.endAmPm;
+    }
+
+    // Append videoFile for recorded events, if it's an actual File object
+    if (cleanItem.videoFile instanceof File) {
+      data.append(`video_file_${index}`, cleanItem.videoFile);
+      delete cleanItem.videoFile;
+    } else {
+      cleanItem.video_file_path = cleanItem.videoFile;
+      delete cleanItem.videoFile;
+    }
+
+    // Append previewImage for recorded events, if it's an actual File object
+    if (cleanItem.previewImage instanceof File) {
+      data.append(`preview_image_${index}`, cleanItem.previewImage);
+      delete cleanItem.previewImage;
+    } else {
+      cleanItem.preview_image_path = cleanItem.previewImage;
+      delete cleanItem.previewImage;
+    }
+    
+    // Map 'date' to 'start_date' and 'endDate' to 'end_date' for backend consistency
+    cleanItem.start_date = cleanItem.date;
+    cleanItem.end_date = cleanItem.endDate;
+    delete cleanItem.date;
+    delete cleanItem.endDate;
+
+    processedEventDates.push(cleanItem);
+  });
+  data.append('groupId', groupId);
+        // 2. Append all other formData fields to the FormData object
+        for (const key in formData) {
+          // Skip keys already processed or handled differently
+          if (key === 'event_dates' || key === 'video_file' || key === 'preview_image' || key === 'groupId') continue;
+
+          if (Array.isArray(formData[key]) || (typeof formData[key] === 'object' && formData[key] !== null && !(formData[key] instanceof File))) {
+            // Stringify arrays and complex objects
+            data.append(key, JSON.stringify(formData[key]));
+          } else if (formData[key] !== null && formData[key] !== undefined) {
+            // Append simple primitive values
+            data.append(key, formData[key]);
+          }
+        }
+         data.append('event_dates', JSON.stringify(processedEventDates));
+        if (formData.event_rules_file instanceof File) {
+          data.append('event_rules', formData.event_rules_file);
+        } else if (formData.event_rules?.type === 'file' && formData.event_rules?.path) {
+          data.append('event_rules_text', '');
+        }
+        console.log("Sending groupId:", groupId);
+        console.log("FormData groupId:", data.get('groupId'));
+        const response = await createTicketBasicInfo(data, urlTicketId || null);
+        const newTicketId =
+        response.ticketId || response.data?.ticketId || response.data?._id || urlTicketId;
+        clearFormDataFromStorage();
+        showAlert({
+          type: 'success',
+          message: formData.event_name,
+          description: `Successfully ${isEditMode ? 'updated' : 'added'} your event.`,
+        });
+        setTimeout(() => {
+          navigate(`/ticket/update-ticket-media/${newTicketId}`);
+        }, 1500);
+        } catch (error) {
+          console.error("Error creating event:", error);
+          showAlert({
+            type: 'error',
+                    message: 'Submission Failed',
+                    description: error.response?.data?.message || "An error occurred during submission. Please try again."
+                });
+            } finally {
+                setLoading(false);
+            }
+          };
   const handleBack = () => {
     clearFormDataFromStorage();
-    navigate("/select-group");
+    navigate("/home");
   };
   const handleLocationInputChange = (e) => handleInputChange(e);
   const handleToggleChange = (name) =>
@@ -2414,17 +1369,20 @@ const CreateTicket = () => {
     }));
   };
   const customSelectStyles = (isDark) => ({
-    control: (provided, state) => ({
-      ...provided,
-      backgroundColor: "transparent",
-      borderColor: state.isFocused ? "#6366F1" : isDark ? "#4A4A4A" : "#D1D5DB",
-      padding: "0.5rem",
-      borderRadius: "0.5rem",
-      boxShadow: "none",
-      "&:hover": {
-        borderColor: "#6366F1",
-      },
-    }),
+  control: (provided, state) => ({
+    ...provided,
+    backgroundColor: "transparent",
+    // This 'errors' check will now work correctly
+    borderColor: errors[state.selectProps.name] 
+      ? '#EF4444' // Red-500 for error
+      : state.isFocused ? "#6366F1" : isDark ? "#4A4A4A" : "#000000",
+    padding: "0.5rem",
+    borderRadius: "0.5rem",
+    boxShadow: "none",
+    "&:hover": {
+      borderColor: errors[state.selectProps.name] ? '#EF4444' : '#6366F1',
+    },
+  }),
     valueContainer: (provided) => ({
       ...provided,
       padding: "0 2px",
@@ -2461,6 +1419,26 @@ const CreateTicket = () => {
         backgroundColor: "#4338CA",
       },
     }),
+    multiValue: (provided) => ({
+      ...provided,
+      backgroundColor: isDark ? '#374151' : '#E5E7EB',
+      borderRadius: '0.5rem',
+    }),
+    multiValueLabel: (provided) => ({
+      ...provided,
+      color: isDark ? '#F3F4F6' : '#1F2937',
+      paddingLeft: '0.5rem',
+      paddingRight: '0.25rem',
+    }),
+    multiValueRemove: (provided) => ({
+      ...provided,
+      color: isDark ? '#9CA3AF' : '#6B7280',
+      borderRadius: '0 0.5rem 0.5rem 0',
+      ':hover': {
+        backgroundColor: '#4F46E5',
+        color: 'white',
+      },
+    }),
     menuList: (provided) => ({
       ...provided,
       "::-webkit-scrollbar": { width: "8px" },
@@ -2476,12 +1454,14 @@ const CreateTicket = () => {
   });
   const handleLocationTypeChange = (type) =>
     setFormData((prev) => ({ ...prev, location_type: type.toLowerCase() }));
-  const handleDatesSave = (newDates, dateType) =>
+  const handleDatesSave = (newDates, dateType) => {
+    // This now correctly saves the data structure from any modal (groups or flat list) as is.
     setFormData((prev) => ({
       ...prev,
       event_dates: newDates,
       event_date_type: dateType,
     }));
+  };
   const removeDate = (dateToRemove) =>
     setFormData((prev) => ({
       ...prev,
@@ -2604,17 +1584,51 @@ const CreateTicket = () => {
       </div>
     );
   }
+const handleOpenDateModal = () => {
+    const type = formData.location_type;
+
+    if (type === 'offline') {
+        setIsOfflineDateModalOpen(true);
+    } else if (type === 'online') {
+        setIsOnlineDateModalOpen(true);
+    } else if (type === 'recorded') {
+        setIsRecordedDateModalOpen(true);
+    }else
+      
+      {
+        // This will show your custom alert if no location type is selected
+        showAlert({
+            type: 'error',
+            message: 'Select Location Type',
+            description: 'Please select a location type (Offline, Online, or Recorded) before adding dates.'
+        });
+    }
+};
 
   return (
     <>
       <CustomScrollbarStyles isDark={darkMode} />
       <DatePickerModal
-        isOpen={isDateModalOpen}
-        onClose={() => setIsDateModalOpen(false)}
-        onSave={handleDatesSave}
-        initialDates={formData.event_dates}
-        darkMode={darkMode}
-      />
+    isOpen={isOfflineDateModalOpen}
+    onClose={() => setIsOfflineDateModalOpen(false)}
+    onSave={handleDatesSave}
+    initialDates={formData.event_dates}
+    darkMode={darkMode}
+/>
+<OnlineDatePickerModal
+    isOpen={isOnlineDateModalOpen}
+    onClose={() => setIsOnlineDateModalOpen(false)}
+    onSave={handleDatesSave}
+    initialDates={formData.event_dates}
+    darkMode={darkMode}
+/>
+<RecordedDatePickerModal
+    isOpen={isRecordedDateModalOpen}
+    onClose={() => setIsRecordedDateModalOpen(false)}
+    onSave={handleDatesSave}
+    initialDates={formData.event_dates}
+    darkMode={darkMode}
+/>
       <GuestModal
         isOpen={isGuestModalOpen}
         onClose={() => {
@@ -2633,6 +1647,7 @@ const CreateTicket = () => {
         initialItems={formData.prohibited_items}
         darkMode={darkMode}
       />
+      <Alert alert={alert} onClose={hideAlert} />
       <div className={`${darkMode ? "dark" : ""}`}>
         <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
           <EventSidebar
@@ -2686,30 +1701,24 @@ const CreateTicket = () => {
               <form onSubmit={handleSubmit} className="space-y-12">
                 {/* Event Details */}
                 <div className="space-y-8">
-                  <div>
-                    <label
-                      htmlFor="event_name"
-                      className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                    >
-                      Event name<span className="text-red-400">*</span>
-                      <InfoTooltip note="The public title of your event." />
-                    </label>
-                    <input
-                      id="event_name"
-                      name="event_name"
-                      type="text"
-                      value={formData.event_name}
-                      onChange={handleInputChange}
-                      required
-                      placeholder="Enter your event name here..."
-                      className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
-                    />
-                  </div>
+                  <FormInput
+    label="Event name"
+    id="event_name"
+    name="event_name"
+    type="text"
+    value={formData.event_name}
+    onChange={handleInputChange}
+    placeholder="Enter your event name here..."
+    info="The public title of your event."
+    error={errors.event_name} // Pass the error state
+    required={true}           // This adds the red asterisk
+    darkMode={darkMode}
+/>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
                       <label
                         htmlFor="event_category"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                       >
                         Event category<span className="text-red-400">*</span>
                         <InfoTooltip note="Helps attendees find your event." />
@@ -2723,15 +1732,15 @@ const CreateTicket = () => {
                           )}
                           onChange={handleSelectChange}
                           placeholder="Select category"
-                          styles={customSelectStyles(darkMode)}
-                          required
+                          styles={customSelectStyles(darkMode,errors)}
+                          
                         />
                       </div>
                     </div>
                     <div>
                       <label
                         htmlFor="event_subcategory"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                       >
                         Event subcategory
                         <span className="text-red-400">*</span>
@@ -2747,14 +1756,14 @@ const CreateTicket = () => {
                         )}
                         onChange={handleSelectChange}
                         placeholder="Select subcategory"
-                        styles={customSelectStyles(darkMode)}
+                        styles={customSelectStyles(darkMode,errors  )}
                         isDisabled={!formData.event_category}
-                        required
+                        
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                    <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
                       Event type<span className="text-red-400">*</span>
                       <InfoTooltip note="Public events are visible to everyone." />
                     </label>
@@ -2768,7 +1777,7 @@ const CreateTicket = () => {
                           onChange={handleInputChange}
                           className="hidden peer"
                         />
-                        <span className="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-[#4A4A4A] peer-checked:border-indigo-500 peer-checked:bg-indigo-500 transition-all duration-300 flex items-center justify-center">
+                        <span className="w-4 h-4 rounded-full border-2 border-black dark:border-[#4A4A4A] peer-checked:border-indigo-500 peer-checked:bg-indigo-500 transition-all duration-300 flex items-center justify-center">
                           <span className="w-1.5 h-1.5 rounded-full bg-white opacity-0 peer-checked:opacity-100 transition-opacity duration-300"></span>
                         </span>
                         <span className="ml-2">Public</span>
@@ -2782,7 +1791,7 @@ const CreateTicket = () => {
                           onChange={handleInputChange}
                           className="hidden peer"
                         />
-                        <span className="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-[#4A4A4A] peer-checked:border-indigo-500 peer-checked:bg-indigo-500 transition-all duration-300 flex items-center justify-center">
+                        <span className="w-4 h-4 rounded-full border-2 border-black dark:border-[#4A4A4A] peer-checked:border-indigo-500 peer-checked:bg-indigo-500 transition-all duration-300 flex items-center justify-center">
                           <span className="w-1.5 h-1.5 rounded-full bg-white opacity-0 peer-checked:opacity-100 transition-opacity duration-300"></span>
                         </span>
                         <span className="ml-2">Private</span>
@@ -2796,12 +1805,12 @@ const CreateTicket = () => {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Location
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    <p className="text-black dark:text-gray-400 text-sm">
                       Choose where your event will take place
                     </p>
                   </div>
                   <div>
-                    <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                    <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-3">
                       Event location type<span className="text-red-400">*</span>
                     </label>
                     <div className="flex items-center space-x-4">
@@ -2824,47 +1833,39 @@ const CreateTicket = () => {
                   {formData.location_type === "offline" && (
                     <div className="space-y-8 animate-fade-in">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div>
-                          <label
-                            htmlFor="location"
-                            className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                          >
-                            Event location
-                            <span className="text-red-400">*</span>
-                            <InfoTooltip note="Start typing to search with Google Places." />
-                          </label>
-                          <input
-                            ref={autocompleteRef}
+                                                <FormInput
+                            label="Event location"
                             id="location"
                             name="location"
                             type="text"
                             value={formData.location}
                             onChange={handleLocationInputChange}
                             placeholder="Search for location..."
-                            className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
-                          />
-                        </div>
-                        <div>
-                          <label
-                            htmlFor="venue"
-                            className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                          >
-                            Event venue<span className="text-red-400">*</span>
-                            <InfoTooltip note="e.g., Main Auditorium, Hall B1" />
-                          </label>
-                          <input
+                            info="Start typing to search with Google Places."
+                            error={errors.location}
+                            required={true}
+                            darkMode={darkMode}
+                            ref={autocompleteRef}
+                        />
+                        <FormInput
+                            label="Event venue"
                             id="venue"
                             name="venue"
                             type="text"
                             value={formData.venue}
                             onChange={handleInputChange}
                             placeholder="Enter the event venue"
-                            className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
-                          />
+                            info="e.g., Main Auditorium, Hall B1"
+                            error={errors.venue}
+                            required={true}
+                            darkMode={darkMode}
+                        />
+                        <div>
+                          
                         </div>
                       </div>
                       <div className="relative">
-                        <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                        <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
                           Exact map location
                           <span className="text-red-400">*</span>
                           <InfoTooltip note="Click on the map to set exact location. Drag the marker to adjust." />
@@ -2882,7 +1883,7 @@ const CreateTicket = () => {
                             overflow: "hidden",
                           }}
                         ></div>
-                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        <div className="mt-2 text-xs text-black dark:text-gray-400">
                           Click anywhere on the map or drag the marker to set
                           the exact location
                         </div>
@@ -2890,15 +1891,15 @@ const CreateTicket = () => {
                       {formData.exact_map_location.latitude &&
                         formData.exact_map_location.longitude && (
                           <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                            <div className="text-sm text-gray-600 dark:text-gray-100">
                               <strong>Selected Location:</strong>
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                            <div className="text-xs text-gray-400 dark:text-gray-300 mt-1">
                               Lat: {formData.exact_map_location.latitude}, Lng:{" "}
                               {formData.exact_map_location.longitude}
                             </div>
                             {formData.exact_map_location.address && (
-                              <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                              <div className="text-xs text-gray-400 dark:text-gray-300 mt-1">
                                 Address: {formData.exact_map_location.address}
                               </div>
                             )}
@@ -2906,28 +1907,7 @@ const CreateTicket = () => {
                         )}
                     </div>
                   )}
-                  {(formData.location_type === "online" ||
-                    formData.location_type === "recorded") && (
-                    <div className="space-y-4 animate-fade-in">
-                      <label
-                        htmlFor="event_link"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                      >
-                        Event Link <span className="text-red-400">*</span>
-                        <InfoTooltip note="The URL where the online/recorded event can be accessed." />
-                      </label>
-                      <input
-                        id="event_link"
-                        name="event_link"
-                        type="text"
-                        value={formData.event_link}
-                        onChange={handleInputChange}
-                        required
-                        placeholder="https://zoom.us/j/..."
-                        className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
-                      />
-                    </div>
-                  )}
+                  
                 </div>
                 {/* Additional Fields */}
                 <div className="space-y-8">
@@ -2935,7 +1915,7 @@ const CreateTicket = () => {
                     <div>
                       <label
                         htmlFor="event_language"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                       >
                         Which language will your event be performed in?
                         <span className="text-red-400">*</span>{" "}
@@ -2955,33 +1935,25 @@ const CreateTicket = () => {
                       />
                     </div>
 
-                    <div>
-                      <label
-                        htmlFor="min_age_allowed"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                      >
-                        What is the minimum age allowed for entry?
-                        <span className="text-red-400">*</span>{" "}
-                        <InfoTooltip note="Select an age limit if applicable." />
-                      </label>
-                      <div className="relative">
-                        <input
-                          id="min_age_allowed"
-                          name="min_age_allowed"
-                          type="number"
-                          value={formData.min_age_allowed}
-                          onChange={handleInputChange}
-                          placeholder="Enter Min Age"
-                          className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
-                        />
-                      </div>
-                    </div>
+                    <FormInput
+                        label="What is the minimum age allowed for entry?"
+                        id="min_age_allowed"
+                        name="min_age_allowed"
+                        type="number"
+                        value={formData.min_age_allowed}
+                        onChange={handleInputChange}
+                        placeholder="Enter Min Age"
+                        info="Select an age limit if applicable."
+                        error={errors.min_age_allowed}
+                        required={true}
+                        darkMode={darkMode}
+                    />
                   </div>
                   {formData.location_type === "offline" && (
                     <div className="animate-fade-in">
                       <label
                         htmlFor="seating_arrangement"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                       >
                         Will your audience be seated or standing?
                         <span className="text-red-400">*</span>{" "}
@@ -3021,7 +1993,7 @@ const CreateTicket = () => {
                     <div>
                       <label
                         htmlFor="event_instagram_link"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                       >
                         Instagram link (Optional){" "}
                         <InfoTooltip note="Link to your event's Instagram page." />
@@ -3033,13 +2005,13 @@ const CreateTicket = () => {
                         value={formData.event_instagram_link}
                         onChange={handleInputChange}
                         placeholder="https://instagram.com/..."
-                        className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
+                        className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-black dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
                       />
                     </div>
                     <div>
                       <label
                         htmlFor="event_youtube_link"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                       >
                         Youtube link (Optional){" "}
                         <InfoTooltip note="Link to a YouTube video or channel." />
@@ -3051,7 +2023,7 @@ const CreateTicket = () => {
                         value={formData.event_youtube_link}
                         onChange={handleInputChange}
                         placeholder="https://youtube.com/..."
-                        className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
+                        className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-black dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
                       />
                     </div>
                   </div>
@@ -3073,7 +2045,7 @@ const CreateTicket = () => {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Dates and time
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400">
+                    <p className="text-black dark:text-gray-400">
                       Choose when your event will take place
                     </p>
                   </div>
@@ -3081,8 +2053,8 @@ const CreateTicket = () => {
                   <div>
                     <button
                       type="button"
-                      onClick={() => setIsDateModalOpen(true)}
-                      className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold flex items-center gap-2"
+                      onClick={handleOpenDateModal}
+                      className="px-6 py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-semibold flex items-center gap-2"
                     >
                       Add dates and time{" "}
                       <img src={Date_Form_Icon} alt="" className="pl-2" />
@@ -3090,7 +2062,7 @@ const CreateTicket = () => {
                   </div>
                   {formData.event_dates.length > 0 && (
                     <div>
-                      <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                      <label className="text-sm font-medium text-black dark:text-gray-400">
                         Dates you selected
                       </label>
                       <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -3137,7 +2109,7 @@ const CreateTicket = () => {
                             className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${
                               darkMode
                                 ? "bg-gray-600 after:border-gray-500 peer-checked:bg-indigo-600"
-                                : "bg-gray-200 after:border-gray-300 peer-checked:bg-indigo-500"
+                                : "bg-gray-200 after:border-black peer-checked:bg-indigo-500"
                             }`}
                           ></div>
                         </label>
@@ -3147,7 +2119,7 @@ const CreateTicket = () => {
                         <div>
                           <label
                             htmlFor="gate_open_time"
-                            className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                            className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                           >
                             Time of gate opening?
                             <span className="text-red-400">*</span>{" "}
@@ -3166,7 +2138,7 @@ const CreateTicket = () => {
                                       ${
                                         darkMode
                                           ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
-                                          : "bg-white text-black border-gray-300"
+                                          : "bg-white text-black border-black"
                                       }`}
                             >
                               <option value="" disabled>
@@ -3192,7 +2164,7 @@ const CreateTicket = () => {
                                       ${
                                         darkMode
                                           ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
-                                          : "bg-white text-black border-gray-300"
+                                          : "bg-white text-black border-black"
                                       }`}
                             >
                               <option value="" disabled>
@@ -3218,7 +2190,7 @@ const CreateTicket = () => {
                                       ${
                                         darkMode
                                           ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
-                                          : "bg-white text-black border-gray-300"
+                                          : "bg-white text-black border-black"
                                       }`}
                             >
                               <option value="" disabled>
@@ -3240,7 +2212,7 @@ const CreateTicket = () => {
 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Guest/Guide/Artists details
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    <p className="text-black dark:text-gray-400 text-sm">
                       Enter details of the person guiding or managing the event.
                     </p>
                     </div>
@@ -3277,7 +2249,7 @@ const CreateTicket = () => {
                             className={`p-2 ${
                               darkMode
                                 ? "text-gray-400 hover:text-white"
-                                : "text-gray-500 hover:text-black"
+                                : "text-black hover:text-black"
                             }`}
                           >
                             <svg
@@ -3303,21 +2275,21 @@ const CreateTicket = () => {
                       <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                         Event rules and regulations
                       </h2>
-                      <p className="text-gray-500 dark:text-gray-400 text-sm">
+                      <p className="text-black dark:text-gray-400 text-sm">
                         Describe your event rules and regulations
                       </p>
                     </div>
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                    <label className="text-sm font-medium text-black dark:text-gray-400">
                       Rules and regulations (Optional)
                     </label>
                     <div
                       className={`bg-transparent border rounded-lg ${
-                        darkMode ? "border-[#4A4A4A]" : "border-gray-300"
+                        darkMode ? "border-[#4A4A4A]" : "border-black"
                       }`}
                     >
                       <div
                         className={`p-2 border-b ${
-                          darkMode ? "border-[#4A4A4A]" : "border-gray-300"
+                          darkMode ? "border-[#4A4A4A]" : "border-black"
                         } flex items-center space-x-1`}
                       >
                         <button
@@ -3369,16 +2341,20 @@ const CreateTicket = () => {
                           }
                         }}
                         className="w-full min-h-[120px] p-3 focus:outline-none resize-none text-left [direction:ltr]"
-                      ></div>
+                      >
+                        
+                      </div>
+                      
                     </div>
                     <p className="px-4"> or</p>
+                    
                     <div>
                       <label
                         htmlFor="rule-file-upload"
                         className={`px-4 py-2 border rounded-lg font-semibold flex items-center gap-2 cursor-pointer w-max ${
                           darkMode
                             ? "border-gray-600 hover:bg-gray-700"
-                            : "border-gray-300 hover:bg-gray-100"
+                            : "border-black hover:bg-gray-100"
                         }`}
                       >
                         Attach document{" "}
@@ -3417,13 +2393,13 @@ const CreateTicket = () => {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Prohibited items
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    <p className="text-black dark:text-gray-400 text-sm">
                       Add the things that are not allowed for this event
                     </p>
                     <button
                       type="button"
                       onClick={() => setIsProhibitedModalOpen(true)}
-                      className="mt-4 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold flex items-center gap-2"
+                      className="mt-4 px-6 py-3 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold flex items-center gap-2"
                     >
                      <span>Add Prohibited Items</span> 
                      <img src={Prohibited_Form_Icon} alt=""  />
@@ -3444,7 +2420,7 @@ const CreateTicket = () => {
                             onClick={() => removeProhibitedItem(item)}
                             className={`${
                               darkMode
-                                ? "text-gray-500 hover:text-white"
+                                ? "text-black hover:text-white"
                                 : "text-gray-400 hover:text-black"
                             }`}
                           >
@@ -3458,17 +2434,19 @@ const CreateTicket = () => {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Event description <span className="text-red-400">*</span>
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    <p className="text-black dark:text-gray-400 text-sm">
                       Describe your event how it is
                     </p>
                     <div
-                      className={`mt-4 bg-transparent border rounded-lg ${
-                        darkMode ? "border-[#4A4A4A]" : "border-gray-300"
-                      }`}
-                    >
+  className={`mt-4 bg-transparent border rounded-lg transition-colors duration-300 ${
+    errors.event_description
+      ? 'border-red-500'
+      : (darkMode ? "border-[#4A4A4A]" : "border-black")
+  }`}
+>
                       <div
                         className={`p-2 border-b ${
-                          darkMode ? "border-[#4A4A4A]" : "border-gray-300"
+                          darkMode ? "border-[#4A4A4A]" : "border-black"
                         } flex items-center space-x-1`}
                       >
                         <button
@@ -3527,75 +2505,58 @@ const CreateTicket = () => {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Point of Contact
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    <p className="text-black dark:text-gray-400 text-sm">
                       Please add POCs with whom event feedback will be shared
                     </p>
 
                     {/* POC Input Fields */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
-                      <div>
-                        <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                          Name<span className="text-red-400">*</span>{" "}
-                          <InfoTooltip note="Full name of the contact person." />
-                        </label>
-                        <input
-                          name="POC_name"
-                          value={poc.POC_name}
-                          onChange={handlePocChange}
-                          placeholder="enter the name of person"
-                          className={`w-full px-4 py-3 bg-transparent border rounded-lg ${
-                            darkMode
-                              ? "text-white border-[#4A4A4A]"
-                              : "text-black border-gray-300"
-                          }`}
+                      <FormInput
+                            label="Name"
+                            name="POC_name"
+                            value={poc.POC_name}
+                            onChange={handlePocChange}
+                            placeholder="Enter the name of person"
+                            error={errors.POC_name}
+                            required={true}
+                            darkMode={darkMode}
                         />
-                      </div>
-                      <div>
-                        <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                          Email<span className="text-red-400">*</span>{" "}
-                          <InfoTooltip note="Contact person's email address." />
-                        </label>
-                        <input
-                          name="POC_email"
-                          value={poc.POC_email}
-                          onChange={handlePocChange}
-                          type="email"
-                          placeholder="enter the email id"
-                          className={`w-full px-4 py-3 bg-transparent border rounded-lg ${
-                            darkMode
-                              ? "text-white border-[#4A4A4A]"
-                              : "text-black border-gray-300"
-                          }`}
+                        <FormInput
+                            label="Email"
+                            name="POC_email"
+                            value={poc.POC_email}
+                            onChange={handlePocChange}
+                            type="email"
+                            placeholder="enter the email id"
+                            error={errors.POC_email}
+                            required={true}
+                            darkMode={darkMode}
                         />
-                      </div>
                     </div>
                     <div className="mt-8">
-                      <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                        Contact number<span className="text-red-400">*</span>{" "}
-                        <InfoTooltip note="Contact person's phone number." />
-                      </label>
-                      <input
-                        name="POC_contact"
-                        value={poc.POC_contact}
-                        onChange={handlePocChange}
-                        type="tel"
-                        placeholder="enter contact number"
-                        className={`w-full px-4 py-3 bg-transparent border rounded-lg ${
-                          darkMode
-                            ? "text-white border-[#4A4A4A]"
-                            : "text-black border-gray-300"
-                        }`}
-                      />
+                      <FormInput
+                            label="Contact number"
+                            name="POC_contact"
+                            value={poc.POC_contact}
+                            onChange={handlePocChange}
+                            type="tel"
+                            placeholder="enter contact number"
+                            error={errors.POC_contact}
+                            required={true}
+                            darkMode={darkMode}
+                        />
                     </div>
 
                     {/* Add POC Button */}
                     <button
                       type="button"
                       onClick={handleAddPoc}
-                      className="mt-8 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold"
+                      className="mt-8 px-8 py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-semibold"
                     >
                       Add +
                     </button>
+                    {errors.POCS && <p className="text-red-500 text-xs mt-2">At least one Point of Contact is required.</p>}
+
 
                     {/* UPDATED: Display List of Added POCs in a Grid */}
                     <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -3612,7 +2573,7 @@ const CreateTicket = () => {
                               <p className="font-semibold text-sm text-gray-800 dark:text-white truncate">
                                 {pocItem.POC_name}
                               </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              <p className="text-xs text-black dark:text-gray-400 truncate">
                                 {pocItem.POC_email} | {pocItem.POC_contact}
                               </p>
                             </div>

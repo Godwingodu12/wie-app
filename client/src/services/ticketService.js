@@ -37,12 +37,30 @@ export const getGroups = async () => {
 };
 export const createTicketBasicInfo = async (formData, ticketId = null) => {
   try {
+    // Extract groupId from FormData if it's FormData object
+    let groupId;
+    if (formData instanceof FormData) {
+      groupId = formData.get('groupId');
+    } else {
+      groupId = formData.groupId;
+    }
+
+    // Validate groupId exists
+    if (!groupId || groupId === 'undefined') {
+      throw new Error('Group ID is missing or invalid');
+    }
+
     const url = ticketId 
-      ? `ticket/create-event/${formData.groupId}/${ticketId}`
-      : `ticket/create-event/${formData.groupId}`;
+      ? `ticket/create-event/${groupId}/${ticketId}`
+      : `ticket/create-event/${groupId}`;
+    
+    console.log('API URL:', url); // Debug log
+    console.log('Using groupId:', groupId); // Debug log
+    
     const response = await api.post(url, formData);
     return response.data;
   } catch (error) {
+    console.error('Error in createTicketBasicInfo:', error);
     throw error;
   }
 };

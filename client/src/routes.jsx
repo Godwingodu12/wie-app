@@ -26,6 +26,8 @@ import TicketTerms from './pages/ticket/TicketTerms';
 import UpdateTicketAddOns from './pages/ticket/UpdateTicketAddOns';
 import TicketPreview from './pages/ticket/TicketPreview';
 import OtherProfilePage from './pages/auth/OtherProfilePage';
+import DeletedEvent from './pages/ticket/DeletedEvent';
+import SuggestionsPage from './pages/auth/SuggestionsPage';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
 
@@ -274,6 +276,22 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={["admin", "organisation"]}>
             <EditProfile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/deleted-events"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "organisation"]}>
+            <DeletedEvent/>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/suggestions"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "organisation"]}>
+            <SuggestionsPage/>
           </ProtectedRoute>
         }
       />

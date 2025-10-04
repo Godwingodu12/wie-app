@@ -120,7 +120,7 @@ const DatePickerModal = ({
   minDate,
   maxDate,
 }) => {
-  const [dateType, setDateType] = useState("Single day");
+  const [dateType, setDateType] = useState("one-day"); // "one-day", "multi-day", "weekly"
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState(initialDates || []);
   const [useSameTime, setUseSameTime] = useState(true);

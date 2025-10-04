@@ -11,7 +11,9 @@ const createDirectories = () => {
     'src/uploads/event_logos',
     'src/uploads/event_banners',
     'src/uploads/ticket_photos',
-    'src/uploads/ticket_layouts'
+    'src/uploads/ticket_layouts',
+    'src/uploads/event_videos',
+    'src/uploads/event_previews'
   ];
   
   dirs.forEach(dir => {
@@ -44,6 +46,10 @@ const storage = multer.diskStorage({
       cb(null, 'src/uploads/ticket_photos/');
     } else if (file.fieldname === 'ticket_layout') {
       cb(null, 'src/uploads/ticket_layouts/');
+    } else if (file.fieldname === 'event_video') {
+      cb(null, 'src/uploads/event_videos/');
+    } else if (file.fieldname === 'event_preview') {
+      cb(null, 'src/uploads/event_previews/');
     } else {
       cb(null, 'src/uploads/');
     }
@@ -161,7 +167,16 @@ const ticketMediaFileFilter = (req, file, cb) => {
       event_images: {
         allowed: [...imageTypes, ...videoTypes],
         errorMsg: 'Event images must be image or video files (JPG, JPEG, PNG, GIF, WEBP, MP4, AVI, MOV, WMV, FLV, WEBM)'
-      }
+      },
+      video_file: {
+        allowed: videoTypes,
+        errorMsg: 'Attached video must be a valid video file (MP4, AVI, MOV, etc.)'
+    },
+    preview_image: {
+        allowed: imageTypes,
+        errorMsg: 'Video preview image must be a valid image file (JPG, PNG, etc.)'
+    }
+
     };
     
     // Handle guest profile fields (guest_profile_0, guest_profile_1, etc.)
@@ -282,7 +297,9 @@ export const uploadTicketMedia = ticketMediaUpload.fields([
   { name: 'event_rules', maxCount: 1 },
   
   // College authorization document
-  { name: 'college_authorisation', maxCount: 1 }
+  { name: 'college_authorisation', maxCount: 1 },
+  { name: 'video_file', maxCount: 30 },
+{ name: 'preview_image', maxCount: 30 }
 ]);
 
 // Alternative: Single file upload for ticket media (if needed)

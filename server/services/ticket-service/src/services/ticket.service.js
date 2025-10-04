@@ -399,8 +399,9 @@ export const createTicketBasicInfo = async (req, res) => {
       prohibited_items,
       
       // Online/Recorded specific fields
-      event_link,
+      
       verification_event_code,
+      
       
       // Social Media and Rules
       event_instagram_link,
@@ -414,13 +415,17 @@ export const createTicketBasicInfo = async (req, res) => {
       event_description,
       groupId: bodyGroupId
     } = req.body;
+   
 
-    // Get uploaded files
+    // Get uploaded file
     const uploadedFiles = req.files || {};
     
     // Handle multiple guest profile uploads and event rules
     const guestProfileFiles = {};
     const eventRulesFiles = uploadedFiles.event_rules || [];
+
+    const videoFiles = uploadedFiles.video_file || [];
+    const previewImageFiles = uploadedFiles.preview_image || [];
 
     // Extract guest profile files (guest_profile_0, guest_profile_1, etc.)
     Object.keys(uploadedFiles).forEach(fieldName => {
@@ -430,6 +435,14 @@ export const createTicketBasicInfo = async (req, res) => {
           guestProfileFiles[parseInt(index)] = uploadedFiles[fieldName][0]; // Take first file
         }
       }
+      if (fieldName.startsWith('video_file_')) {
+            const index = fieldName.split('_')[2];
+            videoFiles[index] = uploadedFiles[fieldName][0];
+        }
+        if (fieldName.startsWith('preview_image_')) {
+            const index = fieldName.split('_')[2];
+            previewImageFiles[index] = uploadedFiles[fieldName][0];
+        }
     });
 
     // Get IDs
@@ -540,7 +553,20 @@ export const createTicketBasicInfo = async (req, res) => {
             throw new Error(`Event date entry ${index + 1} must be an object`);
           }
 
-          const { start_date, end_date, start_time, end_time } = eventDate;
+          const { 
+        start_date, 
+        end_date, 
+        start_time, 
+        end_time,
+        eventLink, // From OnlineDatePickerModal
+        videoLink, // From RecoredDatePickerModal
+        videoName, // From RecoredDatePickerModal
+        verificationCode // From both Online and Recored Modals
+    } = eventDate;
+
+    if ((location_type === 'online' || location_type === 'recorded') && !eventLink && !videoLink) {
+    throw new Error(`Event date entry ${index + 1}: event_link is required for online/recorded events`);
+  }
 
           // Validate required start_date
           if (!start_date) {
@@ -580,12 +606,20 @@ export const createTicketBasicInfo = async (req, res) => {
               throw new Error(`Event date entry ${index + 1}: end_time must be after start_time for same-day events`);
             }
           }
+          const correspondingVideoFile = videoFiles[index];
+          const correspondingPreviewImage = previewImageFiles[index];
 
           return {
             start_date: start_date.trim(),
             end_date: validatedEndDate.trim(),
             start_time: start_time ? start_time.trim() : '',
-            end_time: end_time ? end_time.trim() : ''
+            end_time: end_time ? end_time.trim() : '',
+            event_link: eventLink || videoLink || '', // Use eventLink for online, videoLink for recorded
+        video_name: videoName || '',
+        verification_event_code: verificationCode || '',
+        video_file_path: correspondingVideoFile ? correspondingVideoFile.path : '',
+        preview_image_path: correspondingPreviewImage ? correspondingPreviewImage.path : ''
+
           };
         });
       } catch (validationError) {
@@ -622,7 +656,9 @@ export const createTicketBasicInfo = async (req, res) => {
     const normalizedEventName = normalizeString(event_name);
     const normalizedLocation = normalizeString(location);
     const normalizedVenue = normalizeString(venue);
-    const normalizedEventLink = normalizeString(event_link);
+    // Already present - this is correct:
+
+
     const currentEventDateRanges = createDateRanges(totalEventDates);
 
     // Build duplicate check query based on location type
@@ -637,6 +673,16 @@ export const createTicketBasicInfo = async (req, res) => {
         }
       ]
     };
+    const eventLinksFromDates = totalEventDates.map(date => 
+  (date.event_link || date.videoLink || '').toLowerCase().trim()
+).filter(link => !!link);
+
+if (eventLinksFromDates.length > 0) {
+  duplicateCheckQuery.$and.push({
+    location_type: { $in: ['online', 'recorded'] },
+  event_link: { $in: eventLinksFromDates }
+  });
+}
     if (ticketId) {
       duplicateCheckQuery._id = { $ne: ticketId };
     }
@@ -660,14 +706,18 @@ export const createTicketBasicInfo = async (req, res) => {
         ]
       });
     } else if (location_type === 'online' || location_type === 'recorded') {
-      // For online/recorded events: check event link
-      duplicateCheckQuery.$and.push({
-        location_type: { $in: ['online', 'recorded'] },
-        event_link: { 
-          $regex: new RegExp(`^${normalizedEventLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') 
-        }
-      });
-    }
+    // Safely parse the incoming event_link JSON string into an array
+    const eventLinksFromDates = totalEventDates.map(date => 
+    (date.event_link || date.videoLink || '').toLowerCase().trim()
+  ).filter(link => !!link);
+
+  if (eventLinksFromDates.length > 0) {
+    duplicateCheckQuery.$and.push({
+      location_type: { $in: ['online', 'recorded'] },
+      event_link: { $in: eventLinksFromDates }
+    });
+  }
+}
 
     // Find potentially duplicate events
     const existingEvents = await Ticket.find(duplicateCheckQuery).lean();
@@ -698,7 +748,7 @@ export const createTicketBasicInfo = async (req, res) => {
           eventName: existingEvent.event_name,
           location: location_type === 'offline' 
             ? `${existingEvent.location} - ${existingEvent.venue}`
-            : existingEvent.event_link,
+  : existingEvent.event_dates?.map(date => date.event_link).filter(link => !!link).join(', ') || '',
           dates: existingEvent.event_dates,
           createdAt: existingEvent.created_at
         });
@@ -770,22 +820,14 @@ export const createTicketBasicInfo = async (req, res) => {
         { key: 'venue', value: venue },
         { key: 'exact_map_location', value: exact_map_location }
       ];
-    } else if (location_type === 'online') {
-      locationSpecificRequiredFields = [
-        { key: 'event_link', value: event_link }
-      ];
-    } else if (location_type === 'recorded') {
-      locationSpecificRequiredFields = [
-        { key: 'event_link', value: event_link }
-      ];
-    }
+    } 
 
     // Combine all required fields
     const allRequiredFields = [...baseRequiredFields, ...locationSpecificRequiredFields];
 
     const missingFields = allRequiredFields
-      .filter(({ value }) => !value)
-      .map(({ key }) => key);
+    .filter(({ value }) => !value || (Array.isArray(value) && value.length === 0))
+    .map(({ key }) => key);
 
     if (missingFields.length > 0) {
       return res.status(400).json({ 
@@ -1006,9 +1048,11 @@ export const createTicketBasicInfo = async (req, res) => {
       ticketData.gate_open_time = gate_open_time?.trim() || '';
       ticketData.prohibited_items = parseJSONSafely(prohibited_items, []);
     } else if (location_type === 'online' || location_type === 'recorded') {
-      ticketData.event_link = event_link?.trim() || '';
-      ticketData.verification_event_code = verification_event_code?.trim() || '';
-      // For online/recorded events, these fields should not be set or should be null/empty
+    // Parse the JSON string into an array of trimmed, valid links
+    
+    
+
+    // For online/recorded events, these fields should not be set or should be null/empty
       ticketData.seating_arrangement = null;
       ticketData.location = '';
       ticketData.venue = '';
@@ -1089,9 +1133,10 @@ export const createTicketBasicInfo = async (req, res) => {
       };
     } else if (location_type === 'online' || location_type === 'recorded') {
       responseData.online_fields = {
-        event_link: ticket.event_link,
-        verification_code: ticket.verification_event_code || 'Not provided'
-      };
+  event_links: totalEventDates.map(date => date.event_link).filter(link => !!link), // array of links
+  verification_codes: totalEventDates.map(date => date.verification_event_code).filter(code => !!code)
+};
+
     }
     res.status(201).json(responseData);
   } catch (error) {
@@ -2091,9 +2136,7 @@ export const updateTicketAddOns = async (req, res) => {
         max_capacity: Number(ticket.max_capacity),
         ticket_photo: String(ticket.ticket_photo || '')
       }));
-      
       newSubEvent.ticket_layout = String(processedFiles.ticket_layout || '');
-
     } else if (subEventData.location_type === 'online' || subEventData.location_type === 'recorded') {
       // Online/recorded-specific fields
       newSubEvent.event_link = String(subEventData.event_link || '').trim();
@@ -2777,7 +2820,6 @@ export const updateTicketTerms = async (req, res) => {
         required: ["ticketId"]
       });
     }
-    
     if (!terms_accepted) {
       return res.status(400).json({ message: "Company terms and conditions must be accepted" });
     }
