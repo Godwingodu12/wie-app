@@ -1305,22 +1305,62 @@ export const updateTicketMedia = async (req, res) => {
     } else {
       console.log('User role is not organization:', userRole);
     }
-
-    // Check if at least one file is uploaded (excluding college_authorisation for the count)
-    const hasMediaFiles = event_logo.length > 0 || event_banner.length > 0 || event_images.length > 0;
-    if (!hasMediaFiles) {
-      console.error('No media files uploaded');
-      return res.status(400).json({ 
-        message: "At least one media file (logo, banner, or images) must be uploaded",
-        uploaded_files: {
-          event_logo: event_logo.length,
-          event_banner: event_banner.length,
-          event_images: event_images.length
-        }
+    const hasNewMediaFiles = event_logo.length > 0 || event_banner.length > 0 || event_images.length > 0;
+    const hasNewCollegeAuth = college_authorisation.length > 0;
+    if (!hasNewMediaFiles && !hasNewCollegeAuth) {
+      const existingTicket = await Ticket.findById(ticketId);
+      if (!existingTicket) {
+        return res.status(404).json({ 
+          message: "Ticket not found",
+          ticketId: ticketId
+        });
+      }
+      if (!existingTicket.event_banner) {
+        return res.status(400).json({ 
+          message: "Event banner is required to proceed",
+          uploaded_files: {
+            event_logo: event_logo.length,
+            event_banner: event_banner.length,
+            event_images: event_images.length
+          }
+        });
+      }
+      if (organisation_type && organisation_type.toLowerCase() === 'educational' && 
+          !existingTicket.college_authorisation) {
+        console.error('College authorization is required for educational organizations but not found');
+        return res.status(400).json({ 
+          message: "College authorization file is required for educational organizations",
+          required_field: "college_authorisation",
+          organization_type: organisation_type
+        });
+      }
+      
+      console.log('Existing media found and validated, updating progress only');
+      const updateData = {
+        'form_progress.media': true,
+        updated_by: userId,
+        updated_at: new Date()
+      };
+      
+      // If only college auth is being added to existing media
+      if (hasNewCollegeAuth) {
+        updateData.college_authorisation = college_authorisation[0].path;
+        console.log('Adding college authorization to existing media:', college_authorisation[0].path);
+      }
+      
+      const updatedTicket = await Ticket.findOneAndUpdate(
+        { _id: ticketId },
+        updateData,
+        { new: true, runValidators: true }
+      );
+      
+      return res.status(200).json({ 
+        message: hasNewCollegeAuth ? "College authorization added successfully" : "Media step completed (no new files uploaded)", 
+        ticket: updatedTicket,
+        ticketId: ticketId,
+        note: "Existing media retained"
       });
-    }
-
-    // Validate event images count
+    }    
     if (event_images.length > 10) {
       return res.status(400).json({ 
         message: "Maximum 10 files allowed for event images",
