@@ -44,19 +44,13 @@ export const createTicketBasicInfo = async (formData, ticketId = null) => {
     } else {
       groupId = formData.groupId;
     }
-
     // Validate groupId exists
     if (!groupId || groupId === 'undefined') {
       throw new Error('Group ID is missing or invalid');
     }
-
     const url = ticketId 
       ? `ticket/create-event/${groupId}/${ticketId}`
       : `ticket/create-event/${groupId}`;
-    
-    console.log('API URL:', url); // Debug log
-    console.log('Using groupId:', groupId); // Debug log
-    
     const response = await api.post(url, formData);
     return response.data;
   } catch (error) {
@@ -265,3 +259,14 @@ export const goLiveEvent = async (ticketId) => {
     throw error;
   }
 };
+export const getPreviousEvents = async () => {
+  try {
+    const response = await api.get(`ticket/get-previous-events`);
+    return response.data;
+  }
+  catch (error) {
+    throw error;
+  }
+};
+
+
