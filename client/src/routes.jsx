@@ -28,6 +28,7 @@ import TicketPreview from './pages/ticket/TicketPreview';
 import OtherProfilePage from './pages/auth/OtherProfilePage';
 import DeletedEvent from './pages/ticket/DeletedEvent';
 import SuggestionsPage from './pages/auth/SuggestionsPage';
+import ConfirmEvents from './pages/ticket/ConfirmEvents';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
 
@@ -236,6 +237,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <TicketPreview />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/confirm-events"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <ConfirmEvents />
           </ProtectedRoute>
         }
       />
