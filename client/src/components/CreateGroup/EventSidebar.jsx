@@ -30,7 +30,7 @@ const EventSidebar = ({ darkMode = false, formProgress = null, ticketId, groupId
     const navigate = useNavigate();
     const location = useLocation();
 
-    const { isAddShowFlow, navigationSteps } = useMemo(() => {
+    const {  navigationSteps } = useMemo(() => {
         // --- START OF THE FIX ---
         // Check for the explicit TRUE value of each progress key.
         const useBankingFlow = formProgress?.banking_tickets === true;
@@ -56,7 +56,6 @@ const EventSidebar = ({ darkMode = false, formProgress = null, ticketId, groupId
                 ? { id: 4, name: 'Add shows', icon: NoteIcon, route: ticketId ? `/ticket/update-ticket-addons/${ticketId}` : '#' }
                 : { id: 4, name: 'Banking & tickets', icon: BankIcon, route: ticketId ? `/ticket/update-ticket-details/${ticketId}` : '#' },
             { id: 5, name: 'Terms & conditions', icon: TcIcon, route: ticketId ? `/ticket/ticket-terms/${ticketId}` : '#' },
-            { id: 6, name: 'Preview', icon: PreviewIcon, route: ticketId ? `/ticket/ticket-preview/${ticketId}` : '#' }
         ];
         
         return { isAddShowFlow: showAddShows, navigationSteps: steps };
@@ -79,7 +78,7 @@ const EventSidebar = ({ darkMode = false, formProgress = null, ticketId, groupId
             3: formProgress?.media || false,
             4: formProgress?.add_on_events || formProgress?.banking_tickets || false,
             5: formProgress?.terms_conditions || false,
-            6: false
+            
         };
 
         return { currentStep: activeStep, completedSteps: completed };
@@ -89,7 +88,7 @@ const EventSidebar = ({ darkMode = false, formProgress = null, ticketId, groupId
 
     const totalSteps = navigationSteps.length;
     const completedCount = Object.values(completedSteps || {}).filter(Boolean).length;
-    const progress = Math.round((completedCount / (totalSteps - 1)) * 100);
+    const progress = Math.round(((completedCount-1) / (totalSteps - 1)) * 100);
     const circumference = 2 * Math.PI * 50;
     const progressOffset = circumference * (1 - progress / 100);
 
@@ -138,13 +137,13 @@ const EventSidebar = ({ darkMode = false, formProgress = null, ticketId, groupId
                                 isInteractive
                                     ? (darkMode ? 'hover:bg-gray-800 cursor-pointer' : 'hover:bg-gray-100 cursor-pointer')
                                     : 'cursor-not-allowed opacity-60'
-                            } ${isActive ? (darkMode ? 'bg-gray-800' : 'bg-gray-200') : ''}`}
+                            } ${isActive ? (darkMode ? 'bg-gray-800' : 'bg-[#00000033]') : ''}`}
                             onClick={() => {
                                 if (isInteractive) navigate(step.route);
                             }}
                         >
                             <div className="flex items-center space-x-4">
-                                <img src={NoteIcon} alt="Step" className={`w-5 h-5 ${ isActive || isCompleted ? 'text-[#3EB489] filter-green' : (darkMode ? 'opacity-30' : 'opacity-40')}`} />
+                                <img src={NoteIcon} alt="Step" className={`w-5 h-5 ${ isActive || isCompleted ? 'text-[#3EB489] filter-green' : (darkMode ? 'opacity-30' : ' filter-green')}`} />
                                 <span className={`font-medium text-sm ${
                                     isActive || isCompleted ? (darkMode ? 'text-[#3EB489]' : 'text-[#3EB489]') :
                                     (darkMode ? 'text-gray-500' : 'text-gray-400')
@@ -165,7 +164,7 @@ const EventSidebar = ({ darkMode = false, formProgress = null, ticketId, groupId
                                     className={`w-4 h-4 ${
                                         isActive ? 'filter brightness-0 invert' :
                                         isCompleted ? (darkMode ? 'filter-green' : 'filter-green-dark') :
-                                        (darkMode ? 'opacity-40' : 'opacity-50')
+                                        (darkMode ? 'opacity-100' : 'filter-gray-900')
                                     }`}
                                 />
                             </div>
