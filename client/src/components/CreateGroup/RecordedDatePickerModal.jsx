@@ -26,17 +26,29 @@ const RecordedDatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMo
     const [isConfirmOpen, setIsConfirmOpen] = useState(false); 
     const videoInputRef = useRef(null);
     const imageInputRef = useRef(null);
-
     useEffect(() => {
         if (isOpen) {
-            const groups = (initialDates || []).reduce((acc, date) => {
-                const key = `${date.videoName || ""}-${date.videoLink || ""}`;
-                if (key && !acc[key]) {
-                    acc[key] = { id: Date.now() + Math.random(), dates: [], ...date };
+            const groups = (initialDates || []).reduce((acc, dateItem) => {
+                const key = `${dateItem.videoName || ""}-${dateItem.eventLink || dateItem.videoLink || ""}`;
+                if (!acc[key] && key !== "-") {
+                    acc[key] = { 
+                        id: Date.now() + Math.random(), 
+                        dates: [],
+                        videoLink: dateItem.eventLink || dateItem.videoLink || "",
+                        videoName: dateItem.videoName || "",
+                        verificationCode: dateItem.verificationCode || "",
+                        videoFile: dateItem.videoFile || null,
+                        previewImage: dateItem.previewImage || null
+                    };
                 }
-                if(key) acc[key].dates.push(date.date);
+                
+                if (key !== "-") {
+                    acc[key].dates.push(dateItem.date);
+                }
+                
                 return acc;
             }, {});
+            
             setConfiguredGroups(Object.values(groups));
             resetFormAndSelection();
         }
@@ -137,8 +149,7 @@ const RecordedDatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMo
         resetFormAndSelection();
         setIsConfirmOpen(false); // Close the confirm modal
     };
-
-const handleSaveChanges = () => {
+   const handleSaveChanges = () => {
     // Flatten all dates from the configured groups into a single array
     const flattenedDates = configuredGroups.flatMap(group => 
         (group.dates || []).map(dateStr => ({
@@ -146,11 +157,11 @@ const handleSaveChanges = () => {
             endDate: dateStr, // For recorded, start and end are the same
             startTime: "",    // Recorded events don't have start/end times
             endTime: "",
-            eventLink: group.videoLink || "", // Correctly use videoLink from the group
-            videoName: group.videoName || "",
-            verificationCode: group.verificationCode || "",
-            videoFile: group.videoFile || null,
-            previewImage: group.previewImage || null,
+            eventLink: group.videoLink || "", // Maps to event_link in backend
+            videoName: group.videoName || "", // Maps to video_name in backend
+            verificationCode: group.verificationCode || "", // Maps to verification_event_code in backend
+            videoFile: group.videoFile || null, // Will be handled as file upload
+            previewImage: group.previewImage || null, // Will be handled as file upload
         }))
     );
 
@@ -186,76 +197,80 @@ const handleSaveChanges = () => {
          return;
     }
 
-    onSave(flattenedDates, 'recorded'); // The second argument should match the location type
+    // FIX: Determine the correct date type based on the number of dates
+    let actualDateType = 'one-day';
+    if (flattenedDates.length === 1) {
+        actualDateType = 'one-day';
+    } else if (flattenedDates.length > 1) {
+        actualDateType = 'multi-day';
+    }
+
+    // Pass the dates with the correct date type (NOT 'recorded')
+    onSave(flattenedDates, actualDateType);
     onClose();
 };
-    
     const removeDateFromSelection = (dateToRemove) => {
         setCurrentSelection(prev => prev.filter(d => d !== dateToRemove));
     };
 
     const allConfiguredDates = useMemo(() => configuredGroups.flatMap(g => g.dates || []), [configuredGroups]);
+    const generateCalendarDays = () => {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+        const firstDayOfMonth = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const minDateTime = minDate ? new Date(minDate) : null;
+        if (minDateTime) minDateTime.setHours(0, 0, 0, 0);
+        const maxDateTime = maxDate ? new Date(maxDate) : null;
+        if (maxDateTime) maxDateTime.setHours(0, 0, 0, 0);
+        let days = [];
+        for (let i = 0; i < (firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1); i++) {
+        days.push(<div key={`blank-${i}`} className="h-10 w-10"></div>);
+        }
 
-const generateCalendarDays = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDayOfMonth = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+        for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        date.setHours(0, 0, 0, 0);
+        const dateStr = format(date, "yyyy-MM-dd");
+        
+        // Check if date is in current selection
+        const isInCurrentSelection = currentSelection.includes(dateStr);
+        
+        // Check if date is in any configured group
+        const isInConfiguredGroup = allConfiguredDates.includes(dateStr);
+        
+        const isSelected = isInCurrentSelection || isInConfiguredGroup;
+        const isToday = date.getTime() === today.getTime();
+        const isPast = date < today;
+        const isOutOfRange = (minDateTime && date < minDateTime) || (maxDateTime && date > maxDateTime);
+        const isDisabled = isPast || isOutOfRange;
 
-    // Convert min/max date strings to Date objects for comparison, ignoring time
-    const minDateTime = minDate ? new Date(minDate) : null;
-    if (minDateTime) minDateTime.setHours(0, 0, 0, 0);
-    const maxDateTime = maxDate ? new Date(maxDate) : null;
-    if (maxDateTime) maxDateTime.setHours(0, 0, 0, 0);
-
-    let days = [];
-    for (
-      let i = 0;
-      i < (firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1);
-      i++
-    ) {
-      days.push(<div key={`blank-${i}`} className="h-10 w-10"></div>);
-    }
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      date.setHours(0, 0, 0, 0); // Ensure we are comparing dates only
-      const dateStr = format(date, "yyyy-MM-dd");
-      const isSelected = currentSelection.some((d) => d.date === dateStr);
-      const isToday = date.getTime() === today.getTime();
-      const isPast = date < today;
-
-      // Check if the current date is outside the main event's range
-      const isOutOfRange = (minDateTime && date < minDateTime) || (maxDateTime && date > maxDateTime);
-      const isDisabled = isPast || isOutOfRange;
-
-      days.push(
-        <div
-          key={day}
-          onClick={() => !isDisabled && handleDateClick(dateStr)}
-          className={`flex items-center justify-center h-10 w-10 rounded-lg transition-colors ${
-            isDisabled
-              ? "text-gray-600 cursor-not-allowed"
-              : "cursor-pointer"
-          } ${
-            isSelected
-              ? "bg-emerald-500 text-white"
-              : "hover:bg-gray-700"
-          } ${
-            isToday && !isSelected
-              ? "border border-emerald-500"
-              : ""
-          }`}
-        >
-          {day}
-        </div>
-      );
-    }
-    return days;
-  };
-    
+        days.push(
+            <div
+            key={day}
+            onClick={() => !isDisabled && handleDateClick(dateStr)}
+            className={`flex items-center justify-center h-10 w-10 rounded-lg transition-colors ${
+                isDisabled
+                ? "text-gray-600 cursor-not-allowed"
+                : "cursor-pointer"
+            } ${
+                isSelected
+                ? "bg-emerald-500 text-white"
+                : "hover:bg-gray-700"
+            } ${
+                isToday && !isSelected
+                ? "border border-emerald-500"
+                : ""
+            }`}
+            >
+            {day}
+            </div>
+        );
+        }
+        return days;
+    };
     if (!isOpen) return null;
 
     return (
