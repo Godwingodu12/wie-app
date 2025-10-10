@@ -13,8 +13,23 @@ import Logo from "../../assets/wie_logo.svg";
 import bg from "../../assets/background.png";
 import { FaFacebookF, FaXTwitter } from "react-icons/fa6";
 import { RiInstagramFill } from "react-icons/ri";
-import { MdKeyboardArrowDown } from "react-icons/md";
-
+import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles";
+import Alert from '../../components/Alert';
+import Select from "react-select";
+const organisationTypeOptions = [
+  { value: 'Private', label: 'Private Limited' },
+  { value: 'Government', label: 'Public Limited' },
+  { value: 'Partnership', label: 'Partnership' },
+  { value: 'Proprietorship', label: 'Proprietorship' },
+  { value: 'LLP', label: 'LLP' },
+  { value: 'NGO', label: 'NGO' },
+  { value: 'Educational', label: 'Educational' },
+  { value: 'Healthcare', label: 'Healthcare' },
+  { value: 'Non-profit', label: 'Non-profit' },
+  { value: 'Non-profit', label: 'Trust' },
+  { value: 'Non-profit', label: 'Society' },
+  { value: 'Other', label: 'Other' }
+];
 const OrganisationSignup = () => {
   // --- Component State and Logic ---
   const navigate = useNavigate();
@@ -27,9 +42,18 @@ const OrganisationSignup = () => {
     password: "",
     confirm: "",
   });
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [alert, setAlert] = useState(null); // <-- ADD THIS
+const [isLoading, setIsLoading] = useState(false);
+const [errors, setErrors] = useState({});
 
+const showAlert = (data) => setAlert({ ...data, show: true });
+const hideAlert = () => setAlert(null);
+ const handleSelectChange = (selectedOption, { name }) => {
+        setFormData(prev => ({
+            ...prev,
+            [name]: selectedOption ? selectedOption.value : ''
+        }));
+    };
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
@@ -45,37 +69,89 @@ const OrganisationSignup = () => {
       password: "",
       confirm: "",
     });
-    setError("");
-  };
+        setErrors({}); // <-- Update this line
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    if (formData.password !== formData.confirm) {
-      setError("Passwords do not match");
-      return;
+    
+  };
+  const validateForm = () => {
+    const { name, email, contact_no, organisation_type, address, password, confirm } = formData;
+
+    if (!name.trim()) {
+        showAlert({ type: 'error', message: 'Validation Error', description: 'Organisation name is required.' });
+        return false;
     }
+    if (!organisation_type) {
+        showAlert({ type: 'error', message: 'Validation Error', description: 'Please select an organisation type.' });
+        return false;
+    }
+    if (!address.trim()) {
+        showAlert({ type: 'error', message: 'Validation Error', description: 'Official address is required.' });
+        return false;
+    }
+    if (!contact_no.trim()) {
+        showAlert({ type: 'error', message: 'Validation Error', description: 'Contact number is required.' });
+        return false;
+    }
+    if (!email.trim()) {
+        showAlert({ type: 'error', message: 'Validation Error', description: 'Email ID is required.' });
+        return false;
+    }
+    if (!password) {
+        showAlert({ type: 'error', message: 'Validation Error', description: 'Password is required.' });
+        return false;
+    }
+    if (password !== confirm) {
+        showAlert({ type: 'error', message: 'Validation Error', description: 'Passwords do not match.' });
+        return false;
+    }
+
+    return true; // All checks passed
+};
+
+const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // The validation function you added
+    if (!validateForm()) {
+        return;
+    }
+    
     setIsLoading(true);
     const data = {
-      name: formData.name,
-      email: formData.email,
-      contact_no: formData.contact_no,
-      organisation_type: formData.organisation_type,
-      address: formData.address,
-      password: formData.password,
+        name: formData.name,
+        email: formData.email,
+        contact_no: formData.contact_no,
+        organisation_type: formData.organisation_type,
+        address: formData.address,
+        password: formData.password,
     };
 
     try {
-      await registerOrganisation(data);
-      navigate("/otp", {
-        state: { email: formData.email, contact_no: formData.contact_no },
-      });
+        // This is your successful API call
+        await registerOrganisation(data);
+        
+        // --- ADD THIS SUCCESS ALERT ---
+        showAlert({
+            type: 'success',
+            message: 'Registration Successful!',
+            description: 'Redirecting you to the OTP verification page.'
+        });
+
+        // --- ADD A DELAY BEFORE NAVIGATING ---
+        setTimeout(() => {
+            navigate("/otp", {
+                state: { email: formData.email, contact_no: formData.contact_no },
+            });
+        }, 1500); // 1.5-second delay
+
     } catch (err) {
-      setError(err.response?.data?.message || "Registration failed");
-    } finally {
-      setIsLoading(false);
+        const errorMessage = err.response?.data?.message || "Registration failed";
+        showAlert({ type: 'error', message: 'Registration Failed', description: errorMessage });
+        setIsLoading(false); // Stop loading ONLY if there's an error
     }
-  };
+    // Note: We remove setIsLoading(false) from a 'finally' block because
+    // on success, the component will navigate away anyway.
+};
 
   return (
     <div
@@ -83,7 +159,20 @@ const OrganisationSignup = () => {
       style={{
         backgroundImage: `url(${bg})`,
       }}
+      
     >
+          <Alert alert={alert} onClose={hideAlert} /> {/* <-- ADD THIS LINE */}
+
+      <style>{`
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        input:-webkit-autofill:active {
+          -webkit-text-fill-color: #FFFFFF !important; /* Sets the autofilled text color to white */
+          -webkit-box-shadow: 0 0 0 30px #1a1a1a inset !important; /* Creates a dark background */
+          transition: background-color 5000s ease-in-out 0s; /* A trick to delay the browser's style override */
+        }
+      `}</style>
       <div className="min-h-screen w-full flex flex-col justify-center items-center p-4 bg-black/60">
         <header className="absolute top-0 left-0 w-full p-6 flex justify-between items-center md:px-12">
           <img src={Logo} alt="Wie Logo" className="h-8" />
@@ -109,11 +198,7 @@ const OrganisationSignup = () => {
               </p>
             </div>
 
-            {error && (
-              <div className="text-red-300 bg-red-500/20 border border-red-500/30 p-3 rounded-lg mb-4 text-center text-sm">
-                {error}
-              </div>
-            )}
+            
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Organisation Name Input */}
@@ -123,7 +208,6 @@ const OrganisationSignup = () => {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  required
                   placeholder="Organisation Name"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
@@ -135,37 +219,25 @@ const OrganisationSignup = () => {
               </div>
 
               {/* Organisation Type Select */}
-              <div className="relative flex items-center">
-                <select
-                  name="organisation_type"
-                  required
-                  value={formData.organisation_type}
-                  onChange={handleChange}
-                  className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
-                  data-value={formData.organisation_type}
-                >
-                  <option value="" disabled>
-                    Select organization type
-                  </option>
-                  <option value="Private" className="text-black">Private Company</option>
-                  <option value="Government" className="text-black">Government</option>
-                  <option value="NGO" className="text-black">NGO</option>
-                  <option value="Educational" className="text-black">
-                    Educational Institution
-                  </option>
-                  <option value="Healthcare" className="text-black">Healthcare</option>
-                  <option value="Non-profit" className="text-black">Non-profit</option>
-                  <option value="Other" className="text-black">Other</option>
-                </select>
-                <MdKeyboardArrowDown className="w-5 my-auto h-5 absolute right-4 pointer-events-none" />
-              </div>
+              <div>
+
+    <Select
+        name="organisation_type"
+        options={organisationTypeOptions}
+        value={organisationTypeOptions.find(option => option.value === formData.organisation_type)}
+        onChange={handleSelectChange}
+        placeholder="Select your organization type"
+styles={CustomSelectStyles(true, errors)}
+        
+    />
+    {errors.organisation_type && <p className="text-red-500 text-sm mt-1">{errors.organisation_type}</p>}
+</div>
 
               {/* Address Input */}
               <div className="relative flex items-center">
                 <input
                   type="text"
                   name="address"
-                  required
                   value={formData.address}
                   onChange={handleChange}
                   placeholder="Official Address"
@@ -185,7 +257,6 @@ const OrganisationSignup = () => {
                   name="contact_no"
                   value={formData.contact_no}
                   onChange={handleChange}
-                  required
                   placeholder="Contact number"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
@@ -203,7 +274,6 @@ const OrganisationSignup = () => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  required
                   placeholder="Email ID"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
@@ -221,7 +291,6 @@ const OrganisationSignup = () => {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  required
                   placeholder="Password"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
@@ -239,7 +308,6 @@ const OrganisationSignup = () => {
                   name="confirm"
                   value={formData.confirm}
                   onChange={handleChange}
-                  required
                   placeholder="Confirm Password"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
@@ -255,7 +323,6 @@ const OrganisationSignup = () => {
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    required
                     className="h-4 w-4 bg-transparent border-white/30 rounded text-purple-500 focus:ring-purple-500 focus:ring-offset-0"
                   />
                   I agree to the Terms of Services and Privacy Policy
@@ -316,7 +383,7 @@ const OrganisationSignup = () => {
               <FaFacebookF />
             </Link>
             <Link
-              to="#"
+              to="https://www.instagram.com/sqaris.in?igsh=c2d1NTRpamQyYTJ6"
               className="w-8 h-8 flex items-center justify-center rounded-full bg-[#5E5CE6] hover:bg-opacity-80 text-white transition-colors"
             >
               <RiInstagramFill />

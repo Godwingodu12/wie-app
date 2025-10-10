@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 
 const GuestModal = ({
   isOpen,
@@ -24,6 +23,11 @@ const GuestModal = ({
     }
   }, [initialEditingGuest]);
 
+  // Sync localGuests when initialGuests changes
+  useEffect(() => {
+    setLocalGuests(initialGuests || []);
+  }, [initialGuests]);
+
   if (!isOpen) return null;
 
   const resetForm = () => {
@@ -35,7 +39,9 @@ const GuestModal = ({
 
   const handleFormSubmit = () => {
     if (!name.trim()) return;
+    
     if (editingGuest) {
+      // FIXED: When editing, properly preserve or update rawFile
       setLocalGuests(
         localGuests.map((g) =>
           g.id === editingGuest.id
@@ -44,12 +50,13 @@ const GuestModal = ({
                 name: name.trim(),
                 link: link.trim(),
                 image: photo ? URL.createObjectURL(photo) : g.image,
-                rawFile: photo || g.rawFile,
+                rawFile: photo || g.rawFile, // Preserve existing rawFile if no new photo
               }
             : g
         )
       );
     } else {
+      // FIXED: When adding new guest, ensure rawFile is included
       const newGuest = {
         id: Date.now(),
         name: name.trim(),
@@ -57,7 +64,7 @@ const GuestModal = ({
         image: photo
           ? URL.createObjectURL(photo)
           : `https://i.pravatar.cc/150?u=${Date.now()}`,
-        rawFile: photo,
+        rawFile: photo || null, // Include rawFile (File object or null)
       };
       setLocalGuests([...localGuests, newGuest]);
     }
@@ -72,11 +79,18 @@ const GuestModal = ({
     setEditingGuest(guest);
     setName(guest.name);
     setLink(guest.link || "");
-    setPhoto(null);
+    setPhoto(null); // Don't pre-fill photo input
   };
 
   const handleSave = () => {
     onSave(localGuests);
+    resetForm(); // Clear form after save
+    onClose();
+  };
+
+  const handleCancel = () => {
+    resetForm();
+    setLocalGuests(initialGuests || []); // Reset to initial guests
     onClose();
   };
 
@@ -115,7 +129,7 @@ const GuestModal = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCancel}
             className={`text-3xl leading-none ${
               darkMode
                 ? "text-gray-400 hover:text-white"
@@ -130,8 +144,8 @@ const GuestModal = ({
             darkMode ? "border-gray-600" : "border-black"
           }`}
         ></div>
-        <div className="flex p-4 h-[500px]">
-          <div className="w-1/2 pr-4 flex flex-col">
+        <div className="flex md:flex-row flex-col p-4 h-[500px]">
+          <div className="md:w-1/2 md:pr-4 pb-4 flex flex-col">
             <div className="space-y-4">
               <div>
                 <label
@@ -179,7 +193,7 @@ const GuestModal = ({
                     darkMode ? "text-gray-400" : "text-gray-600"
                   }`}
                 >
-                  Guest/Guide Photo
+                  Guest/Guide Photo {editingGuest && "(Upload new to replace)"}
                 </label>
                 <input
                   type="file"
@@ -197,8 +211,11 @@ const GuestModal = ({
               <button
                 type="button"
                 onClick={handleFormSubmit}
+                disabled={!name.trim()}
                 className={`px-6 py-2 font-semibold rounded-lg flex items-center gap-2 ${
-                  editingGuest
+                  !name.trim()
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : editingGuest
                     ? "bg-amber-500 hover:bg-amber-600 text-white"
                     : "bg-emerald-500 hover:bg-emerald-600 text-white"
                 }`}
@@ -208,11 +225,11 @@ const GuestModal = ({
             </div>
           </div>
           <div
-            className={`border-l ${
+            className={`md:border-l border-t ${
               darkMode ? "border-gray-600" : "border-black"
             }`}
           ></div>
-          <div className="w-1/2 pl-4 flex flex-col min-h-0">
+          <div className="md:w-1/2 md:pl-4 pt-4 flex flex-col min-h-0">
             <div className="overflow-y-auto space-y-3 pr-2 custom-scrollbar h-full">
               {localGuests.length > 0 ? (
                 localGuests.map((g) => (
@@ -241,7 +258,7 @@ const GuestModal = ({
                             href={g.link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-indigo-400 truncate block"
+                            className="text-xs text-indigo-400 truncate block hover:underline"
                           >
                             {g.link}
                           </a>
@@ -292,7 +309,7 @@ const GuestModal = ({
         <div className="flex justify-end items-center p-4 space-x-4">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCancel}
             className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
               darkMode
                 ? "bg-gray-700 hover:bg-gray-600 text-gray-200"

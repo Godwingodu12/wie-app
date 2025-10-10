@@ -4,6 +4,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { loginSuccess, setUser } from '../../features/auth/authSlice';
 import { loginUser } from '../../services/authService';
 
+
+import Alert from '../../components/Alert'; // <-- ADD THIS LINE
+
 // --- Icon Imports ---
 import UserTopIcon from '../../assets/auth/user_top.svg';
 import UserInputIcon from '../../assets/auth/user.svg';
@@ -13,43 +16,86 @@ import bg from "../../assets/background.png";
 import { FaFacebookF,FaXTwitter } from "react-icons/fa6";
 import { RiInstagramFill } from "react-icons/ri";
 
+
+
 const LoginPage = () => {
   // --- Component State and Logic ---
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({ identifier: '', password: '' });
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  const [alert, setAlert] = useState(null);
+const [isLoading, setIsLoading] = useState(false);
+const [showPassword, setShowPassword] = useState(false);
+
+const showAlert = (data) => setAlert({ ...data, show: true });
+const hideAlert = () => setAlert(null);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-    try {
-      // This now calls the real loginUser service which makes an API request
-      const res = await loginUser(formData); 
-      dispatch(loginSuccess(res.token));
-      dispatch(setUser(res.user));
-      navigate('/home'); // or wherever you want to redirect after login
-    } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
-    } finally {
-      setIsLoading(false);
+  const validateForm = () => {
+    if (!formData.identifier.trim()) {
+        showAlert({ type: 'error', message: 'Input Required', description: 'Please enter your username, email, or contact number.' });
+        return false;
     }
-  };
+    if (!formData.password) {
+        showAlert({ type: 'error', message: 'Input Required', description: 'Please enter your password.' });
+        return false;
+    }
+    return true;
+};
+
+const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+        return; // Stop if validation fails
+    }
+
+    setIsLoading(true);
+
+    try {
+        const res = await loginUser(formData); 
+          
+
+        showAlert({
+            type: 'success',
+            message: 'Login Successful!',
+            description: 'Redirecting you to your dashboard.'
+        });
+
+        setTimeout(() => {
+            dispatch(loginSuccess(res.token)); // MOVED inside setTimeout
+            dispatch(setUser(res.user));       // MOVED inside setTimeout
+            navigate('/home');                  // Stays inside setTimeout
+        }, 1500);
+
+    } catch (err) {
+        const errorMessage = err.response?.data?.message || 'Login failed. Please check your credentials.';
+        showAlert({ type: 'error', message: 'Login Failed', description: errorMessage });
+        setIsLoading(false); // Stop loading only on error
+    }
+};
 
   const handleClear = () => {
     setFormData({ identifier: '', password: '' });
-    setError('');
   }
 
   return (
     <div className="min-h-screen w-full font-sans text-white bg-cover" style={{ backgroundImage: `url(${bg})` }}>
+          <Alert alert={alert} onClose={hideAlert} /> {/* <-- ADD THIS LINE */}
+
+      <style>{`
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        input:-webkit-autofill:active {
+          -webkit-text-fill-color: #FFFFFF !important; /* Sets the autofilled text color to white */
+          -webkit-box-shadow: 0 0 0 30px #1a1a1a inset !important; /* Creates a dark background */
+          transition: background-color 5000s ease-in-out 0s; /* A trick to delay the browser's style override */
+        }
+      `}</style>
       <div className="min-h-screen w-full flex flex-col justify-center items-center p-2 bg-black/60">
         
         <header className="absolute top-0 left-0 w-full p-4 flex justify-between items-center md:px-8">
@@ -71,11 +117,7 @@ const LoginPage = () => {
               </p>
             </div>
 
-            {error && (
-              <div className="text-red-300 bg-red-500/20 border border-red-500/30 p-3 rounded-lg mb-4 text-center text-sm">
-                {error}
-              </div>
-            )}
+            
 
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Email Input */}
@@ -85,7 +127,7 @@ const LoginPage = () => {
                   name="identifier"
                   value={formData.identifier}
                   onChange={handleChange}
-                  required
+                  
                   placeholder="Username, Email or Contact"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
@@ -99,7 +141,7 @@ const LoginPage = () => {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  required
+                  
                   placeholder="Password"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
@@ -152,7 +194,7 @@ const LoginPage = () => {
             <div className="flex gap-3">
                  <Link to="#" className="w-8 h-8 flex items-center justify-center rounded-full bg-[#5E5CE6] hover:bg-opacity-80 text-white transition-colors"><FaXTwitter/></Link>
                  <Link to="#" className="w-8 h-8 flex items-center justify-center rounded-full bg-[#5E5CE6] hover:bg-opacity-80 text-white transition-colors"><FaFacebookF/></Link>
-                 <Link to="#" className="w-8 h-8 flex items-center justify-center rounded-full bg-[#5E5CE6] hover:bg-opacity-80 text-white transition-colors"><RiInstagramFill/></Link>
+                 <Link to="https://www.instagram.com/sqaris.in?igsh=c2d1NTRpamQyYTJ6" className="w-8 h-8 flex items-center justify-center rounded-full bg-[#5E5CE6] hover:bg-opacity-80 text-white transition-colors"><RiInstagramFill/></Link>
             </div>
         </footer>
       </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect,useContext,useMemo , useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 
 import Select from "react-select";
@@ -12,7 +12,6 @@ import Event_Form_Icon from "../../assets/Event/Event_Form_Icon.svg?react";
 import Date_Form_Icon from "../../assets/Event/Date_Form_Icon.svg?react";
 import Guest_Form_Icon from "../../assets/Event/Guest_Form_Icon.svg?react";
 import Prohibited_Form_Icon from "../../assets/Event/Prohibited_Form_Icon.svg?react";
-
 // Import shared components
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
@@ -24,188 +23,11 @@ import FormInput from "../../components/CreateGroup/FormInput";
 import OnlineDatePickerModal from "../../components/CreateGroup/OnlineDatePickerModal.jsx";
 import RecordedDatePickerModal from "../../components/CreateGroup/RecordedDatePickerModal.jsx";
 
-// --- Reusable UI Components ---
-const CustomScrollbarStyles = ({ isDark }) => {
-  const mainTrackColor = isDark ? "#232426" : "#f1f5f9";
-  const mainThumbColor = isDark ? "#4f4f4f" : "#cbd5e1";
-  const widgetThumbColor = isDark ? "#818cf8" : "#6366f1";
-
-  const autofillTextColor = isDark ? "#FFFFFF" : "#1F2937";
-
-  return (
-    <style>{`
-      /* --- ADD THIS FOR THE MAIN BROWSER SCROLLBAR --- */
-      body::-webkit-scrollbar {
-        width: 12px;
-      }
-      body::-webkit-scrollbar-track {
-        background: #232426;
-      }
-      body::-webkit-scrollbar-thumb {
-        background-color: #4f4f4f;
-        border-radius: 20px;
-        border: 3px solid #232426;
-      }
-      /* --- END OF NEW SCROLLBAR CODE --- */
-
-      .main-scrollbar::-webkit-scrollbar { width: 8px; }
-      .main-scrollbar::-webkit-scrollbar-track { background: ${mainTrackColor}; }
-      .main-scrollbar::-webkit-scrollbar-thumb {
-        background-color: ${mainThumbColor};
-        border-radius: 10px;
-        border: 2px solid ${mainTrackColor};
-      }
-      .main-scrollbar { scrollbar-width: thin; scrollbar-color: ${mainThumbColor} ${mainTrackColor}; }
-      .custom-scrollbar::-webkit-scrollbar { width: 8px; }
-      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-      .custom-scrollbar::-webkit-scrollbar-thumb {
-        background-color: ${widgetThumbColor};
-        border-radius: 10px;
-        border: 2px solid transparent;
-        background-clip: content-box;
-      }
-      .custom-scrollbar { scrollbar-width: thin; scrollbar-color: ${widgetThumbColor} transparent; }
-      
-      input[type="time"]::-webkit-datetime-edit-text,
-      input[type="time"]::-webkit-datetime-edit-hour-field,
-      input[type="time"]::-webkit-datetime-edit-minute-field {
-        color: transparent;
-      }
-      input[type="time"]:focus::-webkit-datetime-edit-text,
-      input[type="time"]:focus::-webkit-datetime-edit-hour-field,
-      input[type="time"]:focus::-webkit-datetime-edit-minute-field,
-      input[type="time"]:not(:placeholder-shown)::-webkit-datetime-edit-text,
-      input[type="time"]:not(:placeholder-shown)::-webkit-datetime-edit-hour-field,
-      input[type="time"]:not(:placeholder-shown)::-webkit-datetime-edit-minute-field {
-        color: inherit;
-      }
-
-      input:-webkit-autofill,
-      input:-webkit-autofill:hover,
-      input:-webkit-autofill:focus,
-      input:-webkit-autofill:active {
-          -webkit-text-fill-color: ${autofillTextColor} !important;
-          background-color: transparent !important;
-          -webkit-box-shadow: none !important;
-          transition: background-color 9999s ease-in-out 0s;
-      }
-
-    `}</style>
-  );
-};
-
-const InfoTooltip = ({ note }) => (
-  <div className="relative flex items-center group ml-1.5">
-    <svg
-      className="w-4 h-4 text-blue-400"
-      fill="currentColor"
-      viewBox="0 0 20 20"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        fillRule="evenodd"
-        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-        clipRule="evenodd"
-      ></path>
-    </svg>
-    <div className="absolute left-full ml-2 w-max max-w-xs p-2 text-xs font-medium text-white bg-gray-900 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
-      {note}
-    </div>
-  </div>
-);
-
-const ToggleSwitch = ({ label, checked, onChange, darkMode }) => (
-  <div className="flex items-center justify-between w-full">
-    <span
-      className={`flex items-center text-sm font-medium ${
-        darkMode ? "text-gray-300" : "text-gray-700"
-      }`}
-    >
-      {label}
-    </span>
-    <label className="relative inline-flex items-center cursor-pointer">
-      <input
-        type="checkbox"
-        className="sr-only peer"
-        checked={checked}
-        onChange={onChange}
-      />
-      <div
-        className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${
-          darkMode
-            ? "bg-gray-600 after:border-gray-500 peer-checked:bg-indigo-600"
-            : "bg-gray-300 after:border-gray-200 peer-checked:bg-indigo-500"
-        }`}
-      ></div>
-    </label>
-  </div>
-);
-
-const TagInput = ({ label, tags, onTagsChange, placeholder, darkMode }) => {
-  const [inputValue, setInputValue] = useState("");
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && inputValue.trim()) {
-      e.preventDefault();
-      if (!tags.includes(inputValue.trim())) {
-        onTagsChange([...tags, inputValue.trim()]);
-      }
-      setInputValue("");
-    }
-  };
-  const removeTag = (tagToRemove) => {
-    onTagsChange(tags.filter((tag) => tag !== tagToRemove));
-  };
-
-  return (
-    <div>
-      <label
-        className={`flex items-center text-sm font-medium ${
-          darkMode ? "text-gray-400" : "text-black"
-        } mb-2`}
-      >
-        {label} <InfoTooltip note="Press Enter to add a tag." />
-      </label>
-      <div
-        className={`flex flex-wrap items-center gap-2 p-2 bg-transparent border rounded-lg ${
-          darkMode ? "border-[#4A4A4A]" : "border-black"
-        }`}
-      >
-        {tags.map((tag, index) => (
-          <div
-            key={index}
-            className="flex items-center gap-2 bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-500 dark:text-indigo-300 px-3 py-1 rounded-full text-sm"
-          >
-            <span>{tag}</span>
-            <button
-              type="button"
-              onClick={() => removeTag(tag)}
-              className="text-indigo-400 dark:text-indigo-300 hover:text-indigo-600 dark:hover:text-white font-bold"
-            >
-              ×
-            </button>
-          </div>
-        ))}
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className={`flex-1 bg-transparent focus:outline-none p-1 ${
-            darkMode
-              ? "text-white placeholder-gray-500"
-              : "text-gray-800 placeholder-gray-400"
-          }`}
-        />
-      </div>
-    </div>
-  );
-};
-
-
-
-
-// --- NEW: Language options array ---
+import ToggleSwitch from "../../components/CreateGroup/ToggleSwitch.jsx";
+import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
+import TagInput from "../../components/CreateGroup/TagInput.jsx";
+import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
+import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.jsx";
 const eventCategories = {
   "Arts, Culture, & Literature": [
     "Art Exhibitions",
@@ -354,71 +176,14 @@ const seatingOptions = [
   { value: "seated and standing", label: "Seated and Standing" },
   { value: "other", label: "Other" },
 ];
-const customSelectStyles = (isDark) => ({
-  control: (provided, state) => ({
-    ...provided,
-    backgroundColor: "transparent",
-    borderColor: state.isFocused ? "#6366F1" : isDark ? "#4A4A4A" : "#D1D5DB",
-    padding: "0.5rem",
-    borderRadius: "0.5rem",
-    boxShadow: "none",
-    "&:hover": {
-      borderColor: "#6366F1",
-    },
-  }),
-  valueContainer: (provided) => ({
-    ...provided,
-    padding: "0 2px",
-  }),
-  input: (provided) => ({
-    ...provided,
-    color: isDark ? "#FFFFFF" : "#1F2937",
-  }),
-  singleValue: (provided) => ({
-    ...provided,
-    color: isDark ? "#FFFFFF" : "#1F2937",
-  }),
-  placeholder: (provided) => ({
-    ...provided,
-    color: isDark ? "#6B7280" : "#9CA3AF",
-  }),
-  menu: (provided) => ({
-    ...provided,
-    backgroundColor: isDark ? "#2B2B2B" : "#FFFFFF",
-    borderRadius: "0.5rem",
-    zIndex: 50,
-  }),
-  option: (provided, state) => ({
-    ...provided,
-    backgroundColor: state.isSelected
-      ? "#4F46E5"
-      : state.isFocused
-      ? isDark
-        ? "#374151"
-        : "#E5E7EB"
-      : "transparent",
-    color: isDark ? "#FFFFFF" : "#1F2937",
-    "&:active": {
-      backgroundColor: "#4338CA",
-    },
-  }),
-  menuList: (provided) => ({
-    ...provided,
-    "::-webkit-scrollbar": { width: "8px" },
-    "::-webkit-scrollbar-track": { background: isDark ? "#232426" : "#f1f5f9" },
-    "::-webkit-scrollbar-thumb": {
-      backgroundColor: isDark ? "#4f4f4f" : "#cbd5e1",
-      borderRadius: "10px",
-      border: `2px solid ${isDark ? "#232426" : "#f1f5f9"}`,
-    },
-  }),
-});
+
 const CreateTicket = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { groupId, ticketId: urlTicketId} = useParams();
   const queryTicketId = new URLSearchParams(location.search).get("ticketId");
   const [loading, setLoading] = useState(false);
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const [darkMode, setDarkMode] = useState(true);
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
@@ -586,10 +351,16 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
       // When loading existing ticket data
       const event_dates = ticketData.event_dates
         ? ticketData.event_dates.map((d) => ({
-            date: formatDateForInput(d.start_date), // This will be in YYYY-MM-DD format
-            endDate: formatDateForInput(d.end_date), // Add end_date support
+            date: formatDateForInput(d.start_date),
+            endDate: formatDateForInput(d.end_date),
             startTime: formatTimeForInput(d.start_time),
             endTime: formatTimeForInput(d.end_time),
+            // Add online/recorded specific fields
+            eventLink: d.event_link || "",
+            videoName: d.video_name || "",
+            verificationCode: d.verification_event_code || "",
+            videoFile: d.video_file_path || null,
+            previewImage: d.preview_image_path || null
           }))
         : [];
 
@@ -679,16 +450,17 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
   };
   const [dataLoaded, setDataLoaded] = useState(false);
   useEffect(() => {
-    if (formData.event_name || formData.location) {
+    if (isEditMode && (formData.event_name || formData.location)) {
       saveFormDataToStorage(formData);
     }
-  }, [formData]);
-
+  }, [formData, isEditMode]);
   useEffect(() => {
     const initializeComponent = async () => {
       setPageLoading(true);
+      setDataLoaded(false);
+
       if (!groupId) {
-        navigate("/select-group");
+        navigate("/home");
         return;
       }
 
@@ -698,39 +470,77 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
           ? groupsResponse
           : groupsResponse.data || [];
         const groupData = groupsArray.find((g) => g._id === groupId);
+        
         if (!groupData) {
           showAlert({
-                type: 'error',
-                message: 'Group Not Found',
-                description: "The selected group could not be found or you don't have access to it."
-            });
+            type: 'error',
+            message: 'Group Not Found',
+            description: "The selected group could not be found or you don't have access to it."
+          });
           navigate("/select-group");
           return;
         }
         setSelectedGroup(groupData);
 
+        // FIX: Only load saved data if editing existing ticket
         if (urlTicketId) {
           setIsEditMode(true);
           await loadExistingTicketData(urlTicketId);
         } else {
-          if (location.state?.formData) {
-            setFormData(location.state.formData);
-            saveFormDataToStorage(location.state.formData);
-          } else {
-            const savedData = loadFormDataFromStorage();
-            if (savedData) {
-              setFormData(savedData);
-            }
-          }
+          // For NEW events: Clear any previously saved form data
+          clearFormDataFromStorage();
+          
+          // Reset to initial form state
+          setFormData({
+            _id: null,
+            event_name: "",
+            event_category: "",
+            event_subcategory: "",
+            event_type: "public",
+            location_type: "offline",
+            location: "",
+            venue: "",
+            event_language: [],
+            min_age_allowed: "",
+            seating_arrangement: "",
+            kids_friendly: false,
+            pet_friendly: false,
+            event_instagram_link: "",
+            event_youtube_link: "",
+            hashtag: [],
+            event_dates: [],
+            event_date_type: "one-day",
+            gatesOpenEarly: false,
+            gate_open_time: "",
+            gate_open_hour: "",
+            gate_open_minute: "",
+            gate_open_ampm: "",
+            guests: [],
+            event_rules: { type: "text", content: "" },
+            event_rules_file: null,
+            prohibited_items: [],
+            POCS: [],
+            event_description: "",
+            exact_map_location: {
+              latitude: INITIAL_MAP_LOCATION.lat.toString(),
+              longitude: INITIAL_MAP_LOCATION.lng.toString(),
+              address: INITIAL_MAP_LOCATION.address,
+            },
+            groupId: groupId || "",
+          });
         }
+
+        setDataLoaded(true);
       } catch (error) {
         console.error("Initialization error:", error);
+        setDataLoaded(true);
       } finally {
         setPageLoading(false);
       }
     };
+    
     initializeComponent();
-  }, [groupId, urlTicketId, navigate, location.state]);
+  }, [groupId, urlTicketId, navigate]);
 
   useEffect(() => {
     if (!pageLoading && !isEditMode) {
@@ -739,25 +549,45 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
   }, [formData, pageLoading, isEditMode]);
 
   useEffect(() => {
-    const callbackName = "initMapCallback";
-    window[callbackName] = () => setIsApiReady(true);
-    const scriptId = "google-maps-script";
+  const callbackName = "initMapCallback";
+  const scriptId = "google-maps-script";
 
-    if (!document.getElementById(scriptId)) {
-      const script = document.createElement("script");
-      script.id = scriptId;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyB5MQdwuxFIG6Msf_At0bV2vPXuFwEkVkI&libraries=places&callback=${callbackName}`;
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    } else if (window.google) {
+  // Check if already loaded
+  if (window.google && window.google.maps) {
+    setIsApiReady(true);
+    return;
+  }
+
+  // Set up callback BEFORE creating the script
+  if (!window[callbackName]) {
+    window[callbackName] = () => {
       setIsApiReady(true);
-    }
-
-    return () => {
-      delete window[callbackName];
     };
-  }, []);
+  }
+
+  // Check if script already exists
+  const existingScript = document.getElementById(scriptId);
+  if (existingScript) {
+    // Script exists but not loaded yet, wait for callback
+    return;
+  }
+
+  // Create and load script
+  const script = document.createElement("script");
+  script.id = scriptId;
+  const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
+  script.async = true;
+  script.defer = true;
+  
+  script.onerror = () => {
+    console.error("Failed to load Google Maps script");
+  };
+  
+  document.head.appendChild(script);
+
+  // NO cleanup - let the callback persist for the script
+}, []);
 
   // Enhanced map initialization with initial location
   useEffect(() => {
@@ -887,55 +717,7 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
 
     initializeMap();
   }, [isApiReady, formData.location_type, dataLoaded]);
-  useEffect(() => {
-    const initializeComponent = async () => {
-      setPageLoading(true);
-      setDataLoaded(false); // Reset data loaded state
 
-      if (!groupId) {
-        navigate("/select-group");
-        return;
-      }
-
-      try {
-        const groupsResponse = await getGroups();
-        const groupsArray = Array.isArray(groupsResponse)
-          ? groupsResponse
-          : groupsResponse.data || [];
-        const groupData = groupsArray.find((g) => g._id === groupId);
-        if (!groupData) {
-          alert("Group not found.");
-          navigate("/select-group");
-          return;
-        }
-        setSelectedGroup(groupData);
-
-        if (urlTicketId) {
-          setIsEditMode(true);
-          await loadExistingTicketData(urlTicketId);
-        } else {
-          if (location.state?.formData) {
-            setFormData(location.state.formData);
-            saveFormDataToStorage(location.state.formData);
-          } else {
-            const savedData = loadFormDataFromStorage();
-            if (savedData) {
-              setFormData(savedData);
-            }
-          }
-        }
-
-        // Set data loaded to true after all data operations are complete
-        setDataLoaded(true);
-      } catch (error) {
-        console.error("Initialization error:", error);
-        setDataLoaded(true); // Set to true even on error to allow map initialization
-      } finally {
-        setPageLoading(false);
-      }
-    };
-    initializeComponent();
-  }, [groupId, urlTicketId, navigate, location.state]);
   // Update map position when coordinates change
   useEffect(() => {
     if (!map || !markerRef.current || formData.location_type !== "offline")
@@ -1042,9 +824,10 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
     });
   };
 
-  const handleSubmit = async (e) => {
+    const handleSubmit = async (e) => {
     e.preventDefault();
-    const newErrors = {}; // Object to collect errors for highlighting
+    const newErrors = {};
+    
     if (!groupId) {
       showAlert({
         type: 'error',
@@ -1053,8 +836,6 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
       });
       return;
     }
-    console.log("Checking groupId before submission:", groupId);
-    // Validate groupId
     if (!formData.groupId) {
       newErrors.groupId = true;
       showAlert({
@@ -1092,254 +873,193 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
       return;
     }
 
-    // Prepare description text for validation
-    const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = formData.event_description || "";
-    const descriptionText = (tempDiv.textContent || tempDiv.innerText).trim();
-
-    // Define all required fields and check them
-    const requiredFields = {
-      event_name: formData.event_name?.trim(),
-      event_category: formData.event_category?.trim(),
-      event_subcategory: formData.event_subcategory?.trim(),
-      event_type: formData.event_type?.trim(),
-      event_language: formData.event_language,
-      location_type: formData.location_type?.trim(),
-      event_dates: formData.event_dates,
-      event_description: descriptionText,
-      min_age_allowed: formData.min_age_allowed?.toString(), // Use toString() for comparison
-      POCS: formData.POCS 
-    };
-    
-
-    // Add location-specific required fields
-    if (formData.location_type === 'offline') {
-        requiredFields.location = formData.location?.trim();
-        requiredFields.venue = formData.venue?.trim();
-        requiredFields.seating_arrangement = formData.seating_arrangement?.trim();
-        // Also check map location, assuming its critical for offline
-        if (!formData.exact_map_location?.latitude || !formData.exact_map_location?.longitude || !formData.exact_map_location?.address) {
-            newErrors.exact_map_location = true; // Highlight map area or address fields
-            // No specific alert here, as missing fields alert below will cover 'location'
-        }
-    } 
-    
-    // Check POC fields only if any POC exists
-    formData.POCS.forEach((pocItem, index) => {
-        if (!pocItem.POC_name?.trim() || !pocItem.POC_email?.trim() || !pocItem.POC_contact?.trim()) {
-            newErrors[`POCS.${index}`] = true; // Highlight individual POC field
-            // Note: This won't highlight the entire POC section, only specific inputs
-        }
-    });
-
-    const missingGeneralFields = Object.entries(requiredFields)
-        .filter(([key, value]) => !value || (Array.isArray(value) && value.length === 0))
-        .map(([key, _]) => key); // Get the actual keys for error state
-
-    if (missingGeneralFields.length > 0) {
-        missingGeneralFields.forEach(field => {
-            newErrors[field] = true; // Mark field as having an error
-        });
-        showAlert({
-            type: 'error',
-            message: 'Missing Required Fields',
-            description: `Please fill in the following: ${missingGeneralFields.map(f => f.replace(/_/g, ' ')).join(', ')}.`,
-        });
-        setErrors(newErrors);
-        return;
-    }
-
     setLoading(true);
     try {
-      const parseDate = (dateValue) => {
-        if (!dateValue) return null;
-        if (dateValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-          return dateValue;
-        }
-        const date = new Date(dateValue);
-        return date.toISOString().split("T")[0];
-      };
-      const transformedDates = formData.event_dates.map((d) => ({
-        start_date: parseDate(d.date),
-        end_date: parseDate(d.endDate),
-        start_time: d.startTime,
-        end_time: d.endTime,
-      }));
-      const eventDateTypeMap = {
-        "Single day": "one-day",
-        "Multi days": "multi-day",
-        Weekly: "weekly",
-      };
-      const submitData = {
-        ...formData,
-        groupId: groupId, // Explicitly add groupId from params
-        event_name: formData.event_name.trim(),
-        event_category: formData.event_category.trim(),
-        event_subcategory: formData.event_subcategory.trim(),
-        event_type: formData.event_type.trim(),
-        event_description: formData.event_description.trim(),
-        userId: "user_12345",
-        location_type: formData.location_type.trim(),
-        location: formData.location?.trim() || "",
-        venue: formData.venue?.trim() || "",
-        event_language: formData.event_language,
-        min_age_allowed: parseInt(formData.min_age_allowed.trim()),
-        event_dates: transformedDates,
-        event_date_type: eventDateTypeMap[formData.event_date_type] || "one-day",
-        gate_open_time: formData.gatesOpenEarly
-          ? formData.gate_open_time?.trim() || ""
-          : "",
-        exact_map_location:
-          formData.exact_map_location?.latitude &&
-          formData.exact_map_location?.longitude
-            ? {
-                latitude: parseFloat(formData.exact_map_location.latitude),
-                longitude: parseFloat(formData.exact_map_location.longitude),
-                address: formData.exact_map_location.address,
-              }
-            : undefined,
-      };
-      const response = await createTicketBasicInfo(
-        submitData,
-        urlTicketId || null
-      );
-      const newTicketId =
-        response.ticketId ||
-        response.data?.ticketId ||
-        response.data?._id ||
-        urlTicketId;
+      const data = new FormData();
       
+      // FIX: Properly handle guest data with files
+      const processedGuests = [];
+      (formData.guests || []).forEach((guest, index) => {
+        const cleanGuest = {
+          guest_name: guest.name || guest.guest_name || '',
+          guest_link: guest.link || guest.guest_link || '',
+        };
+        
+        // Handle new file upload
+        if (guest.rawFile instanceof File) {
+          data.append(`guest_profile_${index}`, guest.rawFile);
+          // Don't include guest_profile in JSON - backend will add the path
+        } else if (guest.image && typeof guest.image === 'string') {
+          // If it's an existing image URL/path, include it
+          cleanGuest.guest_profile = guest.image;
+        } else if (guest.guest_profile && typeof guest.guest_profile === 'string') {
+          // Handle case where guest_profile is already set
+          cleanGuest.guest_profile = guest.guest_profile;
+        }
+
+        processedGuests.push(cleanGuest);
+      });
+      // Append processed guests as JSON string
+      data.append('guests', JSON.stringify(processedGuests));
+      const processedEventDates = [];
+      (formData.event_dates || []).forEach((item, index) => {
+          const cleanItem = { ...item };
+
+          // Convert times to 24-hour format
+          const convertTo24Hour = (time12h, ampm) => {
+            if (!time12h || !ampm) return "";
+            const [hours, minutes] = time12h.split(":");
+            let hour24 = parseInt(hours, 10);
+            if (ampm === "AM" && hour24 === 12) hour24 = 0;
+            if (ampm === "PM" && hour24 !== 12) hour24 += 12;
+            return `${hour24.toString().padStart(2, "0")}:${minutes}`;
+          };
+
+          if (cleanItem.startTime && cleanItem.startAmPm) {
+            cleanItem.startTime = convertTo24Hour(cleanItem.startTime, cleanItem.startAmPm);
+            delete cleanItem.startAmPm;
+          } else {
+            cleanItem.startTime = '';
+            delete cleanItem.startAmPm;
+          }
+          
+          if (cleanItem.endTime && cleanItem.endAmPm) {
+            cleanItem.endTime = convertTo24Hour(cleanItem.endTime, cleanItem.endAmPm);
+            delete cleanItem.endAmPm;
+          } else {
+            cleanItem.endTime = '';
+            delete cleanItem.endAmPm;
+          }
+
+          // Handle video file for recorded events
+          if (cleanItem.videoFile instanceof File) {
+            data.append(`video_file_${index}`, cleanItem.videoFile);
+            delete cleanItem.videoFile;
+          } else if (cleanItem.videoFile && typeof cleanItem.videoFile === 'string') {
+            cleanItem.video_file_path = cleanItem.videoFile;
+            delete cleanItem.videoFile;
+          }
+
+          // Handle preview image for recorded events
+          if (cleanItem.previewImage instanceof File) {
+            data.append(`preview_image_${index}`, cleanItem.previewImage);
+            delete cleanItem.previewImage;
+          } else if (cleanItem.previewImage && typeof cleanItem.previewImage === 'string') {
+            cleanItem.preview_image_path = cleanItem.previewImage;
+            delete cleanItem.previewImage;
+          }
+          
+          // Map field names for backend - IMPORTANT: Add these mappings for recorded events
+          cleanItem.start_date = cleanItem.date;
+          cleanItem.end_date = cleanItem.endDate;
+          delete cleanItem.date;
+          delete cleanItem.endDate;
+          // Map recorded event specific fields
+          if (cleanItem.eventLink) {
+            cleanItem.event_link = cleanItem.eventLink;
+            delete cleanItem.eventLink;
+          }
+          if (cleanItem.videoName) {
+            cleanItem.video_name = cleanItem.videoName;
+            delete cleanItem.videoName;
+          }
+          if (cleanItem.verificationCode) {
+            cleanItem.verification_event_code = cleanItem.verificationCode;
+            delete cleanItem.verificationCode;
+          }
+          processedEventDates.push(cleanItem);
+      });
+      data.append('event_dates', JSON.stringify(processedEventDates));
+      // Append all other form fields
+      data.append('groupId', groupId);
+      data.append('event_name', formData.event_name.trim());
+      data.append('event_category', formData.event_category.trim());
+      data.append('event_subcategory', formData.event_subcategory.trim());
+      data.append('event_type', formData.event_type.trim());
+      data.append('event_description', formData.event_description.trim());
+      data.append('location_type', formData.location_type.trim());
+      data.append('event_language', JSON.stringify(formData.event_language));
+      data.append('min_age_allowed', formData.min_age_allowed);
+      data.append('event_date_type', formData.event_date_type);
+      data.append('kids_friendly', formData.kids_friendly);
+      data.append('pet_friendly', formData.pet_friendly);
+      
+      if (formData.location_type === 'offline') {
+        data.append('location', formData.location.trim());
+        data.append('venue', formData.venue.trim());
+        data.append('seating_arrangement', formData.seating_arrangement);
+        data.append('exact_map_location', JSON.stringify(formData.exact_map_location));
+        data.append('prohibited_items', JSON.stringify(formData.prohibited_items));
+        
+        if (formData.gatesOpenEarly && formData.gate_open_time) {
+          data.append('gate_open_time', formData.gate_open_time.trim());
+        }
+      }
+      
+      if (formData.event_instagram_link) {
+        data.append('event_instagram_link', formData.event_instagram_link.trim());
+      }
+      if (formData.event_youtube_link) {
+        data.append('event_youtube_link', formData.event_youtube_link.trim());
+      }
+      if (formData.hashtag && formData.hashtag.length > 0) {
+        data.append('hashtag', JSON.stringify(formData.hashtag));
+      }
+      
+      // Handle event rules
+      if (formData.event_rules_file instanceof File) {
+        data.append('event_rules', formData.event_rules_file);
+      } else if (formData.event_rules?.type === 'text' && formData.event_rules?.content) {
+        data.append('event_rules_text', formData.event_rules.content);
+      }
+      
+      data.append('POCS', JSON.stringify(formData.POCS));
+
+      const response = await createTicketBasicInfo(data, urlTicketId || null);
+      const newTicketId = response.ticketId || response.data?.ticketId || response.data?._id || urlTicketId;
+      
+      // FIX: Clear localStorage after successful submission
       clearFormDataFromStorage();
       
       showAlert({
         type: 'success',
-        message: isEditMode ? "Event updated successfully!" : "Event created successfully!",
-        description: "Proceeding to media upload..."
+        message: formData.event_name,
+        description: `Successfully ${isEditMode ? 'updated' : 'added'} your event.`,
       });
-
+      
       setTimeout(() => {
         navigate(`/ticket/update-ticket-media/${newTicketId}`, {
           state: {
-            message: `${
-              isEditMode ? "Event updated" : "Event created"
-            } successfully!`,
+            message: `${isEditMode ? "Event updated" : "Event created"} successfully!`,
             newEvent: response.data,
             ticketId: newTicketId,
-            formData: formData,
           },
         });
-      }, 1500); // Give user time to see success message
+      }, 1500);
     } catch (error) {
       console.error("Error creating event:", error);
-      showAlert({
-        type: 'error',
-        message: 'Submission Failed',
-        description: error.response?.data?.message || "An error occurred during submission. Please try again.",
-      });
-    } setLoading(true);
-    try {
-      const data = new FormData();
-      const convertTo24Hour = (time12h, ampm) => {
-      if (!time12h || !ampm) return "";
-      const [hours, minutes] = time12h.split(":");
-      let hour24 = parseInt(hours, 10);
-      if (ampm === "AM" && hour24 === 12) hour24 = 0;
-      if (ampm === "PM" && hour24 !== 12) hour24 += 12;
-      return `${hour24.toString().padStart(2, "0")}:${minutes}`;
-    };
-
-        // 1. Prepare event_dates for backend, handling files and converting to 24-hour time
-        const processedEventDates = [];
-         (formData.event_dates || []).forEach((item, index) => {
-    const cleanItem = { ...item };
-
-    // Convert times to 24-hour format if they exist
-    if (cleanItem.startTime && cleanItem.startAmPm) {
-      cleanItem.startTime = convertTo24Hour(cleanItem.startTime, cleanItem.startAmPm);
-      delete cleanItem.startAmPm;
-    } else {
-      cleanItem.startTime = '';
-      delete cleanItem.startAmPm;
-    }
-    if (cleanItem.endTime && cleanItem.endAmPm) {
-      cleanItem.endTime = convertTo24Hour(cleanItem.endTime, cleanItem.endAmPm);
-      delete cleanItem.endAmPm;
-    } else {
-      cleanItem.endTime = '';
-      delete cleanItem.endAmPm;
-    }
-
-    // Append videoFile for recorded events, if it's an actual File object
-    if (cleanItem.videoFile instanceof File) {
-      data.append(`video_file_${index}`, cleanItem.videoFile);
-      delete cleanItem.videoFile;
-    } else {
-      cleanItem.video_file_path = cleanItem.videoFile;
-      delete cleanItem.videoFile;
-    }
-
-    // Append previewImage for recorded events, if it's an actual File object
-    if (cleanItem.previewImage instanceof File) {
-      data.append(`preview_image_${index}`, cleanItem.previewImage);
-      delete cleanItem.previewImage;
-    } else {
-      cleanItem.preview_image_path = cleanItem.previewImage;
-      delete cleanItem.previewImage;
-    }
-    
-    // Map 'date' to 'start_date' and 'endDate' to 'end_date' for backend consistency
-    cleanItem.start_date = cleanItem.date;
-    cleanItem.end_date = cleanItem.endDate;
-    delete cleanItem.date;
-    delete cleanItem.endDate;
-
-    processedEventDates.push(cleanItem);
-  });
-  data.append('groupId', groupId);
-        // 2. Append all other formData fields to the FormData object
-        for (const key in formData) {
-          // Skip keys already processed or handled differently
-          if (key === 'event_dates' || key === 'video_file' || key === 'preview_image' || key === 'groupId') continue;
-
-          if (Array.isArray(formData[key]) || (typeof formData[key] === 'object' && formData[key] !== null && !(formData[key] instanceof File))) {
-            // Stringify arrays and complex objects
-            data.append(key, JSON.stringify(formData[key]));
-          } else if (formData[key] !== null && formData[key] !== undefined) {
-            // Append simple primitive values
-            data.append(key, formData[key]);
-          }
-        }
-         data.append('event_dates', JSON.stringify(processedEventDates));
-        if (formData.event_rules_file instanceof File) {
-          data.append('event_rules', formData.event_rules_file);
-        } else if (formData.event_rules?.type === 'file' && formData.event_rules?.path) {
-          data.append('event_rules_text', '');
-        }
-        console.log("Sending groupId:", groupId);
-        console.log("FormData groupId:", data.get('groupId'));
-        const response = await createTicketBasicInfo(data, urlTicketId || null);
-        const newTicketId =
-        response.ticketId || response.data?.ticketId || response.data?._id || urlTicketId;
-        clearFormDataFromStorage();
+      
+      // FIX: Handle duplication error specifically
+      if (error.response?.status === 409) {
+        const conflictDetails = error.response?.data?.conflictDetails;
         showAlert({
-          type: 'success',
-          message: formData.event_name,
-          description: `Successfully ${isEditMode ? 'updated' : 'added'} your event.`,
+          type: 'error',
+          message: 'Duplicate Event Detected',
+          description: conflictDetails 
+            ? `An event with similar details already exists. ${conflictDetails.suggestion || ''}`
+            : 'An event with the same name, location, and overlapping dates already exists.'
         });
-        setTimeout(() => {
-          navigate(`/ticket/update-ticket-media/${newTicketId}`);
-        }, 1500);
-        } catch (error) {
-          console.error("Error creating event:", error);
-          showAlert({
-            type: 'error',
-                    message: 'Submission Failed',
-                    description: error.response?.data?.message || "An error occurred during submission. Please try again."
-                });
-            } finally {
-                setLoading(false);
-            }
-          };
+      } else {
+        showAlert({
+          type: 'error',
+          message: 'Submission Failed',
+          description: error.response?.data?.message || "An error occurred during submission. Please try again."
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
   const handleBack = () => {
     clearFormDataFromStorage();
     navigate("/home");
@@ -1368,90 +1088,6 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
       event_language: values,
     }));
   };
-  const customSelectStyles = (isDark) => ({
-  control: (provided, state) => ({
-    ...provided,
-    backgroundColor: "transparent",
-    // This 'errors' check will now work correctly
-    borderColor: errors[state.selectProps.name] 
-      ? '#EF4444' // Red-500 for error
-      : state.isFocused ? "#6366F1" : isDark ? "#4A4A4A" : "#000000",
-    padding: "0.5rem",
-    borderRadius: "0.5rem",
-    boxShadow: "none",
-    "&:hover": {
-      borderColor: errors[state.selectProps.name] ? '#EF4444' : '#6366F1',
-    },
-  }),
-    valueContainer: (provided) => ({
-      ...provided,
-      padding: "0 2px",
-    }),
-    input: (provided) => ({
-      ...provided,
-      color: isDark ? "#FFFFFF" : "#1F2937",
-    }),
-    singleValue: (provided) => ({
-      ...provided,
-      color: isDark ? "#FFFFFF" : "#1F2937",
-    }),
-    placeholder: (provided) => ({
-      ...provided,
-      color: isDark ? "#6B7280" : "#9CA3AF",
-    }),
-    menu: (provided) => ({
-      ...provided,
-      backgroundColor: isDark ? "#2B2B2B" : "#FFFFFF",
-      borderRadius: "0.5rem",
-      zIndex: 50,
-    }),
-    option: (provided, state) => ({
-      ...provided,
-      backgroundColor: state.isSelected
-        ? "#4F46E5"
-        : state.isFocused
-        ? isDark
-          ? "#374151"
-          : "#E5E7EB"
-        : "transparent",
-      color: isDark ? "#FFFFFF" : "#1F2937",
-      "&:active": {
-        backgroundColor: "#4338CA",
-      },
-    }),
-    multiValue: (provided) => ({
-      ...provided,
-      backgroundColor: isDark ? '#374151' : '#E5E7EB',
-      borderRadius: '0.5rem',
-    }),
-    multiValueLabel: (provided) => ({
-      ...provided,
-      color: isDark ? '#F3F4F6' : '#1F2937',
-      paddingLeft: '0.5rem',
-      paddingRight: '0.25rem',
-    }),
-    multiValueRemove: (provided) => ({
-      ...provided,
-      color: isDark ? '#9CA3AF' : '#6B7280',
-      borderRadius: '0 0.5rem 0.5rem 0',
-      ':hover': {
-        backgroundColor: '#4F46E5',
-        color: 'white',
-      },
-    }),
-    menuList: (provided) => ({
-      ...provided,
-      "::-webkit-scrollbar": { width: "8px" },
-      "::-webkit-scrollbar-track": {
-        background: isDark ? "#232426" : "#f1f5f9",
-      },
-      "::-webkit-scrollbar-thumb": {
-        backgroundColor: isDark ? "#4f4f4f" : "#cbd5e1",
-        borderRadius: "10px",
-        border: `2px solid ${isDark ? "#232426" : "#f1f5f9"}`,
-      },
-    }),
-  });
   const handleLocationTypeChange = (type) =>
     setFormData((prev) => ({ ...prev, location_type: type.toLowerCase() }));
   const handleDatesSave = (newDates, dateType) => {
@@ -1614,6 +1250,7 @@ const handleOpenDateModal = () => {
     onSave={handleDatesSave}
     initialDates={formData.event_dates}
     darkMode={darkMode}
+    showAlert={showAlert}
 />
 <OnlineDatePickerModal
     isOpen={isOnlineDateModalOpen}
@@ -1621,6 +1258,8 @@ const handleOpenDateModal = () => {
     onSave={handleDatesSave}
     initialDates={formData.event_dates}
     darkMode={darkMode}
+    showAlert={showAlert} // <-- ADD THIS PROP
+
 />
 <RecordedDatePickerModal
     isOpen={isRecordedDateModalOpen}
@@ -1628,6 +1267,7 @@ const handleOpenDateModal = () => {
     onSave={handleDatesSave}
     initialDates={formData.event_dates}
     darkMode={darkMode}
+    showAlert={showAlert} 
 />
       <GuestModal
         isOpen={isGuestModalOpen}
@@ -1732,7 +1372,7 @@ const handleOpenDateModal = () => {
                           )}
                           onChange={handleSelectChange}
                           placeholder="Select category"
-                          styles={customSelectStyles(darkMode,errors)}
+                          styles={CustomSelectStyles(darkMode,errors)}
                           
                         />
                       </div>
@@ -1756,7 +1396,7 @@ const handleOpenDateModal = () => {
                         )}
                         onChange={handleSelectChange}
                         placeholder="Select subcategory"
-                        styles={customSelectStyles(darkMode,errors  )}
+                        styles={CustomSelectStyles(darkMode,errors  )}
                         isDisabled={!formData.event_category}
                         
                       />
@@ -1930,7 +1570,7 @@ const handleOpenDateModal = () => {
                         )}
                         onChange={handleLanguageChange} // Use the new handler
                         placeholder="Select language(s)"
-                        styles={customSelectStyles(darkMode)}
+                        styles={CustomSelectStyles(darkMode)}
                         classNamePrefix="react-select"
                       />
                     </div>
@@ -1969,8 +1609,8 @@ const handleOpenDateModal = () => {
                           )}
                           onChange={handleSelectChange}
                           placeholder="Select a type"
-                          styles={customSelectStyles(darkMode)}
-                          required={formData.location_type === "offline"}
+                          styles={CustomSelectStyles(darkMode)}
+                          
                         />
                       </div>
                     </div>

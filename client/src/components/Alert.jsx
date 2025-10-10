@@ -56,9 +56,4 @@ const Alert = ({ alert, onClose }) => {
         </div>
     );
 };
-
-
-
 export default Alert;
-
-

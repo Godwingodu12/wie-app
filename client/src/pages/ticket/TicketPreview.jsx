@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { getTicketById } from "../../services/ticketService";
+import { useCallback } from 'react';
 const BackIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>;
 const ChevronLeftIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>;
 const ChevronRightIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>;
@@ -15,6 +16,8 @@ const ShrinkIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 
 const TicketPreview = () => {
     const { ticketId } = useParams();
     const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
+    console.log("API_BASE_URL:", API_BASE_URL);
+const navigate = useNavigate();
 
     const [eventData, setEventData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -23,6 +26,10 @@ const TicketPreview = () => {
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const heroRef = useRef(null);
+
+    const handleGoBack = useCallback(() => {
+        navigate(-1); // This navigates to the previous page in history
+    }, [navigate]);
     
     // --- FULLSCREEN LOGIC ---
     const handleToggleFullscreen = () => {
@@ -51,6 +58,30 @@ const TicketPreview = () => {
             }
         }
     };
+    const minPrice = useMemo(() => {
+    // Only calculate for paid events
+    if (!eventData || eventData.payment_type !== 'paid') {
+        return null;
+    }
+
+    // Combine tickets from the main event and all sub-events
+    const allTicketTypes = [
+        ...(eventData.ticket_types || []),
+        ...(eventData.sub_events || []).flatMap(sub => sub.ticket_types || [])
+    ];
+
+    // Get an array of all positive prices
+    const prices = allTicketTypes
+        .map(ticket => Number(ticket.ticket_price || ticket.price)) // Handles both 'price' and 'ticket_price'
+        .filter(price => price > 0);
+
+    if (prices.length === 0) {
+        return null; // No priced tickets found
+    }
+
+    // Return the lowest price
+    return Math.min(...prices);
+}, [eventData]);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -80,6 +111,9 @@ const TicketPreview = () => {
                 setLoading(true);
                 const response = await getTicketById(ticketId);
                 const ticketInfo = response?.ticket || response?.data?.ticket || response?.data || response;
+
+                            console.log("Fetched Event Data:", ticketInfo);
+
                 
                 if (!ticketInfo || !ticketInfo._id) {
                      throw new Error("Ticket data not found in the API response.");
@@ -234,7 +268,7 @@ const mainEventDateRange = useMemo(() => {
                             <div className="flex flex-wrap justify-center gap-4 md:gap-6">
                                 {eventData.guests.map(guest => (
                                     <div key={guest.guest_name} className="text-center">
-                                        <img src={`${API_BASE_URL}/${guest.guest_profile?.replace(/\\/g, '/')}`} alt={guest.guest_name} className="w-24 h-24 rounded-full object-cover mx-auto mb-2 border-2 border-gray-600"/>
+                                       <img src={`${API_BASE_URL}/${guest.guest_profile?.replace('src\\', '').replace(/\\/g, '/')}`} alt={guest.guest_name} className="w-24 h-24 rounded-full object-cover mx-auto mb-2 border-2 border-gray-600"/>
                                         <p className="font-semibold text-white">{guest.guest_name}</p>
                                         <a href={guest.guest_link} className="text-xs text-blue-400 hover:underline">View Profile</a>
                                     </div>
@@ -252,7 +286,7 @@ const mainEventDateRange = useMemo(() => {
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                 {eventData.event_images.map((image, index) => (
                                     <div key={index} className="aspect-square rounded-lg overflow-hidden">
-                                        <img src={`${API_BASE_URL}/${image.path?.replace(/\\/g, '/')}`} alt={`Event gallery ${index + 1}`}  className="w-full h-full object-cover"/>
+                                      <img src={`${API_BASE_URL}/${image.path?.replace('src\\', '').replace(/\\/g, '/')}`}  alt={`Event gallery ${index + 1}`}  className="w-full h-full object-cover"/>
                                     </div>
                                 ))}
                             </div>
@@ -302,7 +336,8 @@ const mainEventDateRange = useMemo(() => {
     if (loading) return <div className="bg-[#0D0D0D] text-white flex items-center justify-center min-h-screen">Loading event...</div>;
     if (error) return <div className="bg-[#0D0D0D] text-red-400 flex items-center justify-center min-h-screen">Error: {error}</div>;
     if (!eventData) return <div className="bg-[#0D0D0D] text-white flex items-center justify-center min-h-screen">No event data found.</div>;
-
+const finalBannerUrl = `${API_BASE_URL}/${eventData.event_banner}`;
+    console.log("Final Constructed Banner URL:", finalBannerUrl);
     const eventDate = eventData.event_dates?.[0]?.start_date ? new Date(eventData.event_dates[0].start_date) : new Date();
     const formattedDate = eventDate.toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' });
     const formattedTime = eventData.event_dates?.[0]?.start_time ? 
@@ -314,16 +349,15 @@ const mainEventDateRange = useMemo(() => {
             <style>{`.no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
             <div className="bg-[#0D0D0D] text-gray-300 min-h-screen p-4 md:p-8 font-sans">
                 <div className="max-w-7xl mx-auto space-y-8">
-                    <a href="/" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
+                    <button onClick={handleGoBack} className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
                         <BackIcon />
                         Back
-                    </a>
+                    </button>
 
                     <div 
                         ref={heroRef}
                         className="relative rounded-2xl overflow-hidden text-white p-6 md:p-10 min-h-[450px] md:min-h-[550px] flex flex-col justify-between" 
-                        style={{ backgroundImage: `url(${API_BASE_URL}/${(eventData.event_banner || '').replace(/\\/g, '/')})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
-                    >
+style={{ backgroundImage: `url(${API_BASE_URL}/${(eventData.event_banner || '').replace('src\\', '').replace(/\\/g, '/')})`, backgroundSize: 'cover', backgroundPosition: 'center' }}                    >
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
                         <div className="relative z-10">
                             <div className="flex flex-wrap gap-2 mb-4">
@@ -338,10 +372,15 @@ const mainEventDateRange = useMemo(() => {
                             <div className="space-y-2 text-gray-200 text-sm md:text-base">
                                 <p><CalendarIcon />{formattedDate}, {formattedTime}</p>
                                 {eventData.location && <p><LocationIcon />{eventData.location}</p>}
-                                {eventData.payment_type === 'Paid' && subEvents.length > 0 && subEvents[0].ticket_types?.[0]?.ticket_price ? 
-                                    <p><TicketIcon />Tickets starting from ₹{subEvents[0].ticket_types[0].ticket_price}</p> : 
-                                    <p><TicketIcon />Free Entry</p>
-                                }
+                                {eventData.payment_type === 'paid' ? (
+    minPrice ? (
+        <p><TicketIcon />Tickets starting from ₹{minPrice.toLocaleString()}</p>
+    ) : (
+        <p><TicketIcon />Paid Event</p> // Fallback for paid events with no tickets yet
+    )
+) : (
+    <p><TicketIcon />Free Entry</p>
+)}
                             </div>
                         </div>
                         <div className="relative z-10">
@@ -370,8 +409,8 @@ const mainEventDateRange = useMemo(() => {
                         </div>
                     </div>
 
-                    <div className="space-y-4">
-                        <div className="w-full overflow-x-auto no-scrollbar">
+                    <div className="space-y-8 justify-center">
+                        <div className="w-full flex justify-center">
                             <div className="bg-[#1C1C1E] p-1.5 rounded-2xl inline-flex mx-auto">
                                 <nav className="flex items-center gap-1">
                                     {tabs.map(tab => {
@@ -432,7 +471,7 @@ const mainEventDateRange = useMemo(() => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                                 {filteredSubEvents.map(event => (
                                     <div key={event._id} style={boxStyle} className="rounded-xl overflow-hidden group transform hover:-translate-y-2 transition-transform duration-300 shadow-lg">
-                                        <img src={`${API_BASE_URL}/${event.event_banner?.replace(/\\/g, '/')}`} alt={event.event_name} className="w-full h-40 object-cover" />
+                                        <img src={`${API_BASE_URL}/${event.event_banner?.replace('src\\', '').replace(/\\/g, '/')}`} alt={event.event_name} className="w-full h-40 object-cover" />
                                         <div className="p-4">
                                             <h3 className="font-bold text-lg text-white mb-1">{event.event_name}</h3>
                                             <p className="text-sm text-gray-400 mb-3">{event.event_dates?.[0]?.start_date ? new Date(event.event_dates[0].start_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'Date TBA'}</p>
@@ -457,5 +496,4 @@ const mainEventDateRange = useMemo(() => {
         </>
     );
 };
-
 export default TicketPreview;

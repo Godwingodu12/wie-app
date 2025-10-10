@@ -211,10 +211,10 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
   </div>
 );
 // StatsCard.jsx
-const StatsCard = ({ count, title, isDark, theme }) => (
+const StatsCard = ({ count, title, isDark, theme, className, icon }) => (
   <div
     style={{
-      borderRadius: "40px",
+      borderRadius: "24px",
       padding: "15px 27px",
       gap: "10px",
       background: isDark ? "#2a2d30" : "#F1F1F1",
@@ -222,41 +222,15 @@ const StatsCard = ({ count, title, isDark, theme }) => (
         ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
         : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
     }}
-    className="flex flex-col items-center justify-around w-full h-full"
+    className={`flex flex-col items-center justify-around w-full ${className}`}
   >
-    <div className="text-yellow-400">
-      <PartyPopper className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
-    </div>
+    {icon}
     <p
       className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}
     >
       {count}
     </p>
     <p className={`text-xs ${theme.subText}`}>{title}</p>
-  </div>
-);
-const LiveEventsCard = ({ count, isDark, theme }) => (
-  <div
-    style={{
-      borderRadius: "40px",
-      padding: "15px 27px",
-      gap: "10px",
-      background: isDark ? "#2a2d30" : "#F1F1F1",
-      boxShadow: isDark
-        ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
-        : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
-    }}
-    className="flex flex-col items-center justify-around w-full h-full"
-  >
-    <div className="text-red-500 relative">
-      <Radio className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
-    </div>
-    <p
-      className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}
-    >
-      {count}
-    </p>
-    <p className={`text-xs ${theme.subText}`}>Live events</p>
   </div>
 );
 function MonthSelector({
@@ -567,7 +541,6 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
   return (
     <div
       style={{
-        padding: "21px 40px",
         gap: "10px",
         opacity: 1,
         transform: "rotate(0deg)",
@@ -579,12 +552,12 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
       }}
       className={`w-full rounded-[50px] ${
         isDark ? theme.cardBg : "bg-[#f1f1f1]"
-      } ${getNeumorphicShadows(isDark)}`}
+      } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
     >
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-auto">
         {/* Mobile view */}
-        <div className="flex flex-col md:hidden">
+        <div className="flex flex-col lg:hidden">
           {displayEvents.map((event, index) => {
             if (!event) {
               return (
@@ -628,7 +601,7 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
                     </span>
                   </div>
                   <button
-                    className={`px-4 sm:px-8 py-2 border border-[#6549B8] rounded-full text-sm transition-colors ${
+                    className={`px-4 sm:px-6 py-2 border border-[#6549B8] rounded-full text-sm transition-colors ${
                       isDark
                         ? "text-white hover:bg-[#6549B8]"
                         : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
@@ -648,7 +621,7 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
             );
           })}
         </div>
-        <table className="hidden md:table w-full table-fixed text-left">
+        <table className="hidden lg:table w-full table-auto text-left">
           <thead>
             <tr
               className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
@@ -659,7 +632,7 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
                 zIndex: 10,
               }}
             >
-              <th className="py-3 px-4 font-bold text-lg w-[40%]">
+              <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[38%]">
                 <div className="flex items-center justify-start gap-2">
                   {isSearchActive ? (
                     <div className="flex items-center gap-2 w-full">
@@ -688,18 +661,18 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
                   )}
                 </div>
               </th>
-              <th className="py-3 px-4 font-bold text-lg w-[25%]">
+              <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
                 <div className="flex flex-row items-center gap-[10px]">
                   <span>Category</span>
                   <ChevronDown className="w-4 h-4" />
                 </div>
               </th>
-              <th className="py-3 px-4 font-bold text-lg w-[20%]">
+              <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
                 <div className="flex items-center gap-2">
                   <span>Event type</span>
                 </div>
               </th>
-              <th className="py-3 px-4 font-normal w-[15%]"></th>
+              <th className="py-3 px-2 lg:px-4 font-normal w-[18%]"></th>
             </tr>
           </thead>
           <tbody>
@@ -1194,22 +1167,29 @@ const ViewEvent = () => {
                     padding: "21px",
                     gap: "20px",
                   }}
-                  className={`w-full max-w-sm mx-auto xl:mr-0 grid grid-cols-2 items-center rounded-[50px] ${
+                  className={`w-full max-w-xs mx-auto xl:mr-0 grid grid-cols-2 items-center rounded-[50px] ${
                     isDark ? theme.cardBg : "bg-[#f1f1f1]"
                   } ${getNeumorphicShadows(isDark)}`}
                 >
                   <StatsCard
                     isDark={isDark}
                     theme={theme}
-                    className="w-full h-56"
+                    className="w-full h-48"
                     count={confirmedEventsCount}
                     title="Total events"
+                    icon={<div className="text-yellow-400">
+                      <PartyPopper className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
+                    </div>}
                   />
-                  <LiveEventsCard
+                  <StatsCard
                     isDark={isDark}
                     theme={theme}
-                    className="w-full h-56"
+                    className="w-full h-48"
                     count={liveEventsCount}
+                    title="Live events"
+                    icon={<div className="text-red-500 relative">
+                      <Radio className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
+                    </div>}
                   />
                 </div>
               </div>
@@ -1305,7 +1285,6 @@ const ViewEvent = () => {
                     />
                   </div>
                 </div>
-
                 <GroupSelectionModal
                   groups={groups}
                   isOpen={isModalOpen}

@@ -1,5 +1,5 @@
 const TimePicker = ({ time, ampm, onTimeChange, onAmPmChange, darkMode }) => {
-    const [hour, minute] = (time || "12:00").split(":");
+    const [hour, minute] = (time || "").split(":");
 
     const handleHourChange = (e) => onTimeChange(`${e.target.value}:${minute}`);
     const handleMinuteChange = (e) => onTimeChange(`${hour}:${e.target.value}`);

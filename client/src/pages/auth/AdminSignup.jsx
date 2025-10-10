@@ -12,6 +12,7 @@ import Logo from "../../assets/wie_logo.svg";
 import bg from "../../assets/background.png";
 import { FaFacebookF, FaXTwitter } from "react-icons/fa6";
 import { RiInstagramFill } from "react-icons/ri";
+import Alert from '../../components/Alert'; // <-- ADD THIS LINE
 
 const RegisterPage = () => {
   // --- Component State and Logic ---
@@ -24,10 +25,28 @@ const RegisterPage = () => {
     confirm: "",
     image: null,
   });
-  const [preview, setPreview] = useState(null);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+const [preview, setPreview] = useState(null);
+const [alert, setAlert] = useState(null);
+const [isLoading, setIsLoading] = useState(false);
+const [showPassword, setShowPassword] = useState(false);
+
+const showAlert = (data) => setAlert({ ...data, show: true });
+const hideAlert = () => setAlert(null);
+
+
+const validateForm = () => {
+    const { name, email, contact_no, password, confirm } = formData;
+
+    if (!name.trim() || !email.trim() || !contact_no.trim() || !password || !confirm) {
+        showAlert({ type: 'error', message: 'All Fields Required', description: 'Please fill in all the required fields.' });
+        return false;
+    }
+    if (password !== confirm) {
+        showAlert({ type: 'error', message: 'Validation Error', description: 'Passwords do not match.' });
+        return false;
+    }
+    return true; // All checks passed
+};
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
@@ -54,16 +73,15 @@ const RegisterPage = () => {
       image: null,
     });
     setPreview(null);
-    setError("");
   };
 
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-    if (formData.password !== formData.confirm) {
-      setError("Passwords do not match");
-      return;
+
+    if (!validateForm()) {
+        return; // Stop if validation fails
     }
+
     setIsLoading(true);
 
     const data = new FormData();
@@ -72,20 +90,30 @@ const RegisterPage = () => {
     data.append("contact_no", formData.contact_no);
     data.append("password", formData.password);
     if (formData.image) {
-      data.append("image", formData.image);
+        data.append("image", formData.image);
     }
 
     try {
-      await registerAdmin(data);
-      navigate("/otp", {
-        state: { email: formData.email, contact_no: formData.contact_no },
-      });
+        await registerAdmin(data);
+
+        showAlert({
+            type: 'success',
+            message: 'Registration Successful!',
+            description: 'Redirecting you to the OTP verification page.'
+        });
+
+        setTimeout(() => {
+            navigate("/otp", {
+                state: { email: formData.email, contact_no: formData.contact_no },
+            });
+        }, 1500); // 1.5-second delay
+
     } catch (err) {
-      setError(err.response?.data?.message || "Registration failed");
-    } finally {
-      setIsLoading(false);
+        const errorMessage = err.response?.data?.message || "Registration failed";
+        showAlert({ type: 'error', message: 'Registration Failed', description: errorMessage });
+        setIsLoading(false); // Stop loading ONLY if there's an error
     }
-  };
+};
 
   return (
     <div
@@ -93,8 +121,20 @@ const RegisterPage = () => {
       style={{
         backgroundImage: `url(${bg})`,
       }}
-    >
+    >    <Alert alert={alert} onClose={hideAlert} /> {/* <-- ADD THIS LINE */}
+
+      <style>{`
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        input:-webkit-autofill:active {
+          -webkit-text-fill-color: #FFFFFF !important; /* Sets the autofilled text color to white */
+          -webkit-box-shadow: 0 0 0 30px #1a1a1a inset !important; /* Creates a dark background */
+          transition: background-color 5000s ease-in-out 0s; /* A trick to delay the browser's style override */
+        }
+      `}</style>
       <div className="min-h-screen w-full flex flex-col justify-center items-center p-4 bg-black/60">
+
         <header className="absolute top-0 left-0 w-full p-6 flex justify-between items-center md:px-12">
           <img src={Logo} alt="Wie Logo" className="h-8" />
           <Link
@@ -119,11 +159,7 @@ const RegisterPage = () => {
               </p>
             </div>
 
-            {error && (
-              <div className="text-red-300 bg-red-500/20 border border-red-500/30 p-3 rounded-lg mb-4 text-center text-sm">
-                {error}
-              </div>
-            )}
+            
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Name Input */}
@@ -133,7 +169,7 @@ const RegisterPage = () => {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  required
+                  
                   placeholder="Full Name"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
@@ -151,7 +187,7 @@ const RegisterPage = () => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  required
+                  
                   placeholder="Email ID"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
@@ -169,7 +205,7 @@ const RegisterPage = () => {
                   name="contact_no"
                   value={formData.contact_no}
                   onChange={handleChange}
-                  required
+                  
                   placeholder="Contact number"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
@@ -187,7 +223,7 @@ const RegisterPage = () => {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  required
+                  
                   placeholder="Password"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
@@ -206,7 +242,7 @@ const RegisterPage = () => {
                   name="confirm"
                   value={formData.confirm}
                   onChange={handleChange}
-                  required
+                  
                   placeholder="Confirm Password"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
@@ -223,7 +259,7 @@ const RegisterPage = () => {
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    required
+                    
                     className="h-4 w-4 bg-transparent border-white/30 rounded text-purple-500 focus:ring-purple-500 focus:ring-offset-0"
                   />
                   I agree to the Terms of Services and Privacy Policy
@@ -284,7 +320,7 @@ const RegisterPage = () => {
               <FaFacebookF />
             </Link>
             <Link
-              to="#"
+              to="https://www.instagram.com/sqaris.in?igsh=c2d1NTRpamQyYTJ6"
               className="w-8 h-8 flex items-center justify-center rounded-full bg-[#5E5CE6] hover:bg-opacity-80 text-white transition-colors"
             >
               <RiInstagramFill />
@@ -295,5 +331,4 @@ const RegisterPage = () => {
     </div>
   );
 };
-
 export default RegisterPage;

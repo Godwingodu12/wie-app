@@ -1,199 +1,228 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { getTicketById } from "../../services/ticketService";
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { getTicketById, goLiveEvent, updateTicketTerms } from '../../services/ticketService';
 import EventSidebar from '../../components/CreateGroup/EventSidebar';
 import ThemeToggle from '../../components/HomePage/ThemeToggle.jsx';
-import { updateTicketTerms } from '../../services/ticketService';
-
+import Alert from '../../components/CreateGroup/Alert';
 import TcIcon from "../../assets/Event/T&cIcon.svg?react";
+import CustomScrollbarStyles from '../../components/CreateGroup/CustomScrollbarStyles.jsx';
 
-// --- Helper Component: Icon ---
-
-
-// --- Main Component ---
 const EventTermsAndConditionsPage = () => {
-    // Hooks for routing and form state
     const { ticketId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // --- State Management ---
     const [isChecked, setIsChecked] = useState(false);
+    const [isPreviewChecked, setIsPreviewChecked] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState('');
     const [ticketData, setTicketData] = useState(null);
     const [dataLoading, setDataLoading] = useState(true);
     const [darkMode, setDarkMode] = useState(true);
+    const [alert, setAlert] = useState(null);
+
+    // --- Alert System ---
+    const showAlert = (data) => setAlert({ ...data, show: true });
+    const hideAlert = () => setAlert(null);
+
     useEffect(() => {
         const fetchTicketData = async () => {
             try {
-                setDataLoading(true);                
-                const response = await getTicketById(ticketId);        
-                let ticketInfo = response;
-                if (response.data) {
-                    ticketInfo = response.data;
-                }
-                if (response.ticket) {
-                    ticketInfo = response.ticket;
-                }
+                setDataLoading(true);
+                const response = await getTicketById(ticketId);
+                let ticketInfo = response?.ticket || response?.data || response;
                 setTicketData(ticketInfo);
             } catch (err) {
                 console.error('Error fetching ticket data:', err);
-                setError('Failed to load ticket data');
+                showAlert({type: 'error', message: 'Load Failed', description: 'Failed to load event data.'});
             } finally {
                 setDataLoading(false);
             }
         };
-
         if (ticketId) {
             fetchTicketData();
         }
     }, [ticketId]);
-const handleGoBack = () => {
-    if (dataLoading) {
-        console.log('Data still loading, please wait...'); // Debug log
-        return;
-    }
-    if (!ticketData) {
-        console.warn('No ticket data available'); // Debug log
-        navigate(`/ticket/update-ticket-details/${ticketId}`);
-        return;
-    }
-    const hasSubEvents = ticketData.sub_events && 
-                        Array.isArray(ticketData.sub_events) && 
-                        ticketData.sub_events.length > 0;
-    // Navigate based on conditions
-    if (hasSubEvents) {
-        console.log('Navigating to update-ticket-addons'); // Debug log
-        navigate(`/ticket/update-ticket-addons/${ticketId}`);
-    } else {
-        console.log('Navigating to update-ticket-details'); // Debug log
-        navigate(`/ticket/update-ticket-details/${ticketId}`);
-    }
-};
-const handleHostEvent = async (event) => {
-    event.preventDefault(); // Prevents the page from reloading on form submission
 
-    if (!isChecked) {
-        setError('You must agree to the terms and conditions to host the event.');
-        return;
-    }
-    
-    if (!ticketId) {
-        setError('Ticket ID is missing.');
-        return;
-    }
-
-    setIsLoading(true);
-    setError('');
-    
-    try {
-        console.log('Submitting terms for ticket:', ticketId); // Debug log
+    const handleGoBack = useCallback(async () => {
+        if (dataLoading) return;
         
-        const updateData = {
-            terms_accepted: true,
-            company_terms_version: '2.0',
-        };
-        
-        console.log('Update data:', updateData); // Debug log
-        
-        const response = await updateTicketTerms(ticketId, updateData);
-        
-        console.log('Terms update successful:', response); // Debug log
-        
-        // Navigate to preview page
-        navigate(`/ticket/ticket-preview/${ticketId}`);
-        
-    } catch (err) {
-        console.error('Terms update failed:', err); // Debug log
-        
-        // Better error handling
-        let errorMessage = 'An unexpected error occurred.';
-        
-        if (err.response) {
-            // Server responded with error status
-            errorMessage = err.response.data?.message || `Server error: ${err.response.status}`;
-        } else if (err.request) {
-            // Network error
-            errorMessage = 'Network error. Please check your connection.';
-        } else if (err.message) {
-            // Other error
-            errorMessage = err.message;
+        try {
+            // Re-fetch ticket data to ensure we have the latest form_progress
+            const response = await getTicketById(ticketId);
+            const latestTicket = response?.ticket || response?.data || response;
+            
+            // Determine the previous step based on form_progress
+            const previousStep = latestTicket?.form_progress?.add_on_events 
+                ? `/ticket/update-ticket-addons/${ticketId}` 
+                : `/ticket/update-ticket-details/${ticketId}`;
+            
+            console.log('Navigating back to:', previousStep);
+            navigate(previousStep);
+            
+        } catch (err) {
+            console.error('Error fetching ticket data for navigation:', err);
+            // Fallback navigation if API call fails
+            const fallbackStep = ticketData?.form_progress?.add_on_events 
+                ? `/ticket/update-ticket-addons/${ticketId}` 
+                : `/ticket/update-ticket-details/${ticketId}`;
+            navigate(fallbackStep);
         }
+    }, [navigate, ticketId, ticketData, dataLoading]);
+
+    const handleSaveForLater = useCallback(() => {
+        navigate('/ticket/view-events');
+    }, [navigate]);
+
+    const handlePreview = useCallback(() => {
+        // Opens the preview page in a new tab
+        window.open(`/ticket/ticket-preview/${ticketId}`, '_blank');
+    }, [ticketId]);
+
+    const handleHostEvent = async (event) => {
+        event.preventDefault();
+
+        if (!isChecked) {
+            showAlert({type: 'error', message: 'Agreement Required', description: 'You must agree to the terms and conditions to host the event.'});
+            return;
+        }
+
+        if (!isPreviewChecked) {
+            showAlert({type: 'error', message: 'Preview Required', description: 'You must preview the event page and confirm before creating the event.'});
+            return;
+        }
+
+        if (!ticketId) {
+            showAlert({type: 'error', message: 'Error', description: 'Ticket ID is missing.'});
+            return;
+        }
+
+        setIsLoading(true);
         
-        setError(errorMessage);
-    } finally {
-        setIsLoading(false);
+        try {
+            const updateData = {
+                terms_accepted: true,
+                company_terms_version: '2.0', // This can be dynamic in the future
+            };
+            await updateTicketTerms(ticketId, updateData);
+            await goLiveEvent(ticketId);
+            
+            showAlert({type: 'success', message: 'Event Created!', description: 'Your event is now successfully hosted.'});
+            
+            setTimeout(() => {
+                navigate('/ticket/confirm-events');
+            }, 1500);
+
+        } catch (err) {
+            const errorMessage = err.response?.data?.message || 'An unexpected error occurred.';
+            showAlert({type: 'error', message: 'Submission Failed', description: errorMessage});
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (dataLoading) {
+        return (
+            <div className="dark bg-[#111111] min-h-screen flex items-center justify-center text-white">
+                Loading Terms...
+            </div>
+        );
     }
-};
+
     return (
         <div className={darkMode ? "dark" : ""}>
-            <div className="bg-white dark:bg-[#111111] text-gray-800 dark:text-white min-h-screen flex">
-                <EventSidebar darkMode={darkMode} onBackClick={handleGoBack} // Your existing back function
-    // Pass props from your 'mainEventData' state object
-    formProgress={ticketData?.form_progress || {}}
-    groupId={ticketData?.groupId}
-    ticketId={ticketId} />
+            <CustomScrollbarStyles isDark={darkMode} />
+            <Alert alert={alert} onClose={hideAlert} />
+            <div className="bg-white dark:bg-[#111111] text-gray-800 dark:text-white min-h-screen flex flex-col md:flex-row">
+                <EventSidebar 
+                    darkMode={darkMode} 
+                    onBackClick={handleGoBack} 
+                    formProgress={ticketData?.form_progress || {}} 
+                    groupId={ticketData?.groupId} 
+                    ticketId={ticketId} 
+                />
                 <main className="flex-1 relative p-4 sm:p-6 md:p-8 overflow-y-auto">
                     <div className="absolute top-6 right-6 z-10">
                         <ThemeToggle isDark={darkMode} onToggle={() => setDarkMode(!darkMode)} />
                     </div>
                     <div className="w-full max-w-5xl mx-auto">
                         <header className="text-center mt-4 mb-12">
-                            <div className={`w-20 h-20 rounded-full mx-auto my-4  flex items-center justify-center ${
-                    darkMode
-                      ? "bg-[#1E1242] text-gray-300"
-                      : "bg-[#1E1242] text-gray-300"
-                  }`}>
-                                <img src={TcIcon} alt="" />
+                            <div className={`w-20 h-20 rounded-full mx-auto my-4 flex items-center justify-center ${darkMode ? "bg-[#1E1242]" : "bg-indigo-100"}`}>
+                                <img src={TcIcon} alt="" className="w-10 h-10 text-indigo-500" />
                             </div>
-                            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">I've reviewed the rules and I'm ready to roll!</h1>
+                            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
+                                I've reviewed the rules and I'm ready to roll!
+                            </h1>
                         </header>
                         <form onSubmit={handleHostEvent} className="space-y-8">
                             <div>
-                                <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Terms and conditions</label>
+                                <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
+                                    Terms and conditions
+                                </label>
                                 <div className="h-96 flex flex-col bg-gray-50 dark:bg-[#1C1C1C] rounded-lg border border-gray-300 dark:border-gray-700">
-                                    
-                                    <div className="flex-1 overflow-y-auto p-6 space-y-4 text-sm text-gray-600 dark:text-gray-300 scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
+                                    <div className="flex-1 overflow-y-auto p-6 space-y-4 text-sm text-gray-600 dark:text-gray-300 custom-scrollbar">
                                         <p className="font-semibold text-base text-gray-800 dark:text-white">Welcome!</p>
-                                        <p>
-                                            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam cursus a quis tincidunt. Volutpat vitae diam sed nisl bibendum leo senectus donec auctor. Dictumst varius feugiat eu elit. Placerat viverra vitae ligula nunc. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Imperdiet accumsan vitae ut nisl vel dolor. Scelerisque vitae quam justo pellentesque cursus justo porttitor bibendum.
-                                        </p>
-                                        <p>
-                                            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam cursus a quis tincidunt. Volutpat vitae diam sed nisl bibendum leo senectus donec auctor. Dictumst varius feugiat eu elit. Placerat viverra vitae ligula nunc.
-                                        </p>
-                                        <p>
-                                            Nullam cursus a quis tincidunt. Volutpat vitae diam sed nisl bibendum leo senectus donec auctor. Dictumst varius feugiat eu elit. Placerat viverra vitae ligula nunc. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Imperdiet accumsan vitae ut nisl vel dolor.
-                                        </p>
+                                        
+                                        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam cursus a quis tincidunt. Volutpat vitae diam sed nisl bibendum leo senectus donec auctor. Dictumst varius feugiat eu elit. Placerat viverra vitae ligula nunc. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Imperdiet accumsan vitae ut nisl vel dolor. Scelerisque vitae quam justo pellentesque cursus justo porttitor bibendum.</p>
+                                        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam cursus a quis tincidunt. Volutpat vitae diam sed nisl bibendum leo senectus donec auctor. Dictumst varius feugiat eu elit. Placerat viverra vitae ligula nunc.</p>
+                                        <p>Nullam cursus a quis tincidunt. Volutpat vitae diam sed nisl bibendum leo senectus donec auctor. Dictumst varius feugiat eu elit. Placerat viverra vitae ligula nunc. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Imperdiet accumsan vitae ut nisl vel dolor.</p>
                                     </div>
+                                    <button
+                                        type="button"
+                                        onClick={handlePreview}
+                                        className="my-4 w-48 mx-4 px-4 py-2 rounded-lg font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                                    >
+                                        Preview Event Page
+                                    </button>
                                     <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700/50">
+                                        <div className="flex items-center mb-4">
+                                            <input
+                                                type="checkbox"
+                                                id="details-confirm"
+                                                checked={isPreviewChecked}
+                                                onChange={(e) => setIsPreviewChecked(e.target.checked)}
+                                                className="w-4 h-4 mr-3 bg-gray-100 border-gray-400 rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-indigo-600 ring-offset-gray-800 focus:ring-2 accent-indigo-600"
+                                            />
+                                            <label htmlFor="details-confirm" className="text-base text-gray-700 dark:text-gray-300">
+                                                I have previewed the Event Page and confirmed.
+                                            </label>
+                                        </div>
                                         <div className="flex items-center">
                                             <input
                                                 type="checkbox"
                                                 id="terms-agree"
                                                 checked={isChecked}
                                                 onChange={(e) => setIsChecked(e.target.checked)}
-                                                className="w-5 h-5 mr-3 bg-gray-100 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-indigo-600 ring-offset-gray-800 focus:ring-2 accent-indigo-600"
+                                                className="w-4 h-4 mr-3 bg-gray-100 border-gray-400 rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-indigo-600 ring-offset-gray-800 focus:ring-2 accent-indigo-600"
                                             />
-                                            <label htmlFor="terms-agree" className="text-base text-gray-700 dark:text-gray-300">Agree terms and conditions</label>
+                                            <label htmlFor="terms-agree" className="text-base text-gray-700 dark:text-gray-300">
+                                                Agree to terms and conditions
+                                            </label>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            {error && <p className="text-red-500 text-center">{error}</p>}
-                            <div className="pt-6 flex justify-end gap-4">
+                            <div className="pt-6 flex flex-col sm:flex-row justify-end gap-4">
                                 <button 
                                     type="button" 
                                     onClick={handleGoBack} 
-                                    disabled={dataLoading}
+                                    disabled={dataLoading || isLoading}
                                     className="px-6 py-2.5 rounded-lg font-medium bg-gray-200 dark:bg-[#2B2B2B] text-gray-800 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     {dataLoading ? 'Loading...' : 'Go back'}
                                 </button>
-                                <button type="button" className="px-6 py-2.5 rounded-lg font-medium bg-gray-200 dark:bg-[#2B2B2B] text-gray-800 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                                <button 
+                                    type="button" 
+                                    onClick={handleSaveForLater}
+                                    disabled={isLoading}
+                                    className="px-6 py-2.5 rounded-lg font-medium bg-gray-200 dark:bg-[#2B2B2B] text-gray-800 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
                                     Save for later
                                 </button>
                                 <button 
                                     type="submit" 
-                                    disabled={isLoading || !isChecked}
-                                    className="px-6 py-2.5 rounded-lg font-medium bg-indigo-700 text-white hover:bg-indigo-800 disabled:bg-[#2B2B2B] disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+                                    disabled={isLoading || !isChecked || !isPreviewChecked}
+                                    className="px-6 py-2.5 rounded-lg font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-[#2B2B2B] disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                                 >
                                     {isLoading ? "Creating event..." : "Create event"}
                                 </button>

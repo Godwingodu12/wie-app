@@ -46,6 +46,10 @@ const storage = multer.diskStorage({
       cb(null, 'src/uploads/ticket_photos/');
     } else if (file.fieldname === 'ticket_layout') {
       cb(null, 'src/uploads/ticket_layouts/');
+    } else if (file.fieldname.startsWith('video_file')) {
+      cb(null, 'src/uploads/event_videos/');
+    } else if (file.fieldname.startsWith('preview_image')) {
+      cb(null, 'src/uploads/event_previews/');
     } else if (file.fieldname === 'event_video') {
       cb(null, 'src/uploads/event_videos/');
     } else if (file.fieldname === 'event_preview') {
@@ -61,38 +65,49 @@ const storage = multer.diskStorage({
   }
 });
 
-// General file filter (your original) - for PDF, doc, and images
+// General file filter - for PDF, doc, images, and videos
 const generalFileFilter = (req, file, cb) => {
-  const allowed = ['.jpg', '.jpeg', '.pdf', '.doc', '.docx', '.png', '.gif', '.webp'];
+  const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+  const videoTypes = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv'];
+  const docTypes = ['.pdf', '.doc', '.docx'];
+  const allowed = [...imageTypes, ...videoTypes, ...docTypes];
   const ext = path.extname(file.originalname).toLowerCase();
   
   // Enhanced validation for different field types
   if (file.fieldname.startsWith('guest_profile')) {
     // Guest profiles must be images only
-    const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     if (!imageTypes.includes(ext)) {
       return cb(new Error('Guest profile must be an image file (JPG, JPEG, PNG, GIF, WEBP)'));
     }
   } else if (file.fieldname === 'event_rules') {
     // Event rules must be documents only
-    const docTypes = ['.pdf', '.doc', '.docx'];
     if (!docTypes.includes(ext)) {
       return cb(new Error('Event rules file must be a document (PDF, DOC, DOCX)'));
     }
+  } else if (file.fieldname.startsWith('video_file')) {
+    // Video files must be video formats
+    if (!videoTypes.includes(ext)) {
+      return cb(new Error('Video file must be a valid video format (MP4, AVI, MOV, WMV, FLV, WEBM, MKV)'));
+    }
+  } else if (file.fieldname.startsWith('preview_image')) {
+    // Preview images must be images only
+    if (!imageTypes.includes(ext)) {
+      return cb(new Error('Preview image must be an image file (JPG, JPEG, PNG, GIF, WEBP)'));
+    }
   } else if (!allowed.includes(ext)) {
-    return cb(new Error('Only PDF, DOC, DOCX, and image files are allowed'));
+    return cb(new Error('Only PDF, DOC, DOCX, image, and video files are allowed'));
   }
   
   cb(null, true);
 };
-
-// General upload middleware
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  limits: { 
+    fileSize: 100 * 1024 * 1024, // 100MB max for video files
+    files: 100
+  },
   fileFilter: generalFileFilter,
 });
-
 // FIXED: Enhanced Ticket Media specific file filter - for images, videos and documents
 const ticketMediaFileFilter = (req, file, cb) => {
   try {
@@ -245,7 +260,68 @@ const uploadFields = upload.fields([
   { name: 'guest_profile_7', maxCount: 1 },
   { name: 'guest_profile_8', maxCount: 1 },
   { name: 'guest_profile_9', maxCount: 1 },
+  { name: 'video_file_0', maxCount: 1 },
+  { name: 'video_file_1', maxCount: 1 },
+  { name: 'video_file_2', maxCount: 1 },
+  { name: 'video_file_3', maxCount: 1 },
+  { name: 'video_file_4', maxCount: 1 },
+  { name: 'video_file_5', maxCount: 1 },
+  { name: 'video_file_6', maxCount: 1 },
+  { name: 'video_file_7', maxCount: 1 },
+  { name: 'video_file_8', maxCount: 1 },
+  { name: 'video_file_9', maxCount: 1 },
+  { name: 'video_file_10', maxCount: 1 },
+  { name: 'video_file_11', maxCount: 1 },
+  { name: 'video_file_12', maxCount: 1 },
+  { name: 'video_file_13', maxCount: 1 },
+  { name: 'video_file_14', maxCount: 1 },
+  { name: 'video_file_15', maxCount: 1 },
+  { name: 'video_file_16', maxCount: 1 },
+  { name: 'video_file_17', maxCount: 1 },
+  { name: 'video_file_18', maxCount: 1 },
+  { name: 'video_file_19', maxCount: 1 },
+  { name: 'video_file_20', maxCount: 1 },
+  { name: 'video_file_21', maxCount: 1 },
+  { name: 'video_file_22', maxCount: 1 },
+  { name: 'video_file_23', maxCount: 1 },
+  { name: 'video_file_24', maxCount: 1 },
+  { name: 'video_file_25', maxCount: 1 },
+  { name: 'video_file_26', maxCount: 1 },
+  { name: 'video_file_27', maxCount: 1 },
+  { name: 'video_file_28', maxCount: 1 },
+  { name: 'video_file_29', maxCount: 1 },
   
+  // Preview images for recorded events - supports up to 30 dates
+  { name: 'preview_image_0', maxCount: 1 },
+  { name: 'preview_image_1', maxCount: 1 },
+  { name: 'preview_image_2', maxCount: 1 },
+  { name: 'preview_image_3', maxCount: 1 },
+  { name: 'preview_image_4', maxCount: 1 },
+  { name: 'preview_image_5', maxCount: 1 },
+  { name: 'preview_image_6', maxCount: 1 },
+  { name: 'preview_image_7', maxCount: 1 },
+  { name: 'preview_image_8', maxCount: 1 },
+  { name: 'preview_image_9', maxCount: 1 },
+  { name: 'preview_image_10', maxCount: 1 },
+  { name: 'preview_image_11', maxCount: 1 },
+  { name: 'preview_image_12', maxCount: 1 },
+  { name: 'preview_image_13', maxCount: 1 },
+  { name: 'preview_image_14', maxCount: 1 },
+  { name: 'preview_image_15', maxCount: 1 },
+  { name: 'preview_image_16', maxCount: 1 },
+  { name: 'preview_image_17', maxCount: 1 },
+  { name: 'preview_image_18', maxCount: 1 },
+  { name: 'preview_image_19', maxCount: 1 },
+  { name: 'preview_image_20', maxCount: 1 },
+  { name: 'preview_image_21', maxCount: 1 },
+  { name: 'preview_image_22', maxCount: 1 },
+  { name: 'preview_image_23', maxCount: 1 },
+  { name: 'preview_image_24', maxCount: 1 },
+  { name: 'preview_image_25', maxCount: 1 },
+  { name: 'preview_image_26', maxCount: 1 },
+  { name: 'preview_image_27', maxCount: 1 },
+  { name: 'preview_image_28', maxCount: 1 },
+  { name: 'preview_image_29', maxCount: 1 },
   // Event rules document
   { name: 'event_rules', maxCount: 1 },
   

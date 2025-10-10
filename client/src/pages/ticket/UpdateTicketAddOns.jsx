@@ -6,7 +6,7 @@ import {
   getGroupView,
   updateSubEvent,
 } from "../../services/ticketService";
-import { format } from "date-fns";
+
 import Select from "react-select";
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
@@ -16,1493 +16,23 @@ import Date_Form_Icon from "../../assets/Event/Date_Form_Icon.svg?react";
 import Guest_Form_Icon from "../../assets/Event/Guest_Form_Icon.svg?react";
 import Prohibited_Form_Icon from "../../assets/Event/Prohibited_Form_Icon.svg?react";
 
-const InfoTooltip = ({ note }) => (
-  <div className="relative flex items-center group ml-1.5">
-    <svg
-      className="w-4 h-4 text-blue-400"
-      fill="currentColor"
-      viewBox="0 0 20 20"
-    >
-      <path
-        fillRule="evenodd"
-        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-        clipRule="evenodd"
-      ></path>
-    </svg>
-    <div className="absolute left-full ml-2 w-max max-w-xs p-2 text-xs font-medium text-white bg-gray-900 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
-      {note}
-    </div>
-  </div>
-);
-const ToggleSwitch = ({ checked, onChange, disabled = false }) => (
-  <label
-    className={`relative inline-flex items-center ${
-      disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
-    }`}
-  >
-    <input
-      type="checkbox"
-      className="sr-only peer"
-      checked={checked}
-      onChange={onChange}
-      disabled={disabled}
-    />
-    <div className="w-11 h-6 bg-gray-200 dark:bg-[#363A3F] rounded-full peer peer-checked:bg-indigo-600 shadow-inner-dark after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-  </label>
-);
-const TagInput = ({ label, tags, onTagsChange, placeholder, darkMode }) => {
-  const [inputValue, setInputValue] = useState("");
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && inputValue.trim()) {
-      e.preventDefault();
-      if (!tags.includes(inputValue.trim())) {
-        onTagsChange([...tags, inputValue.trim()]);
-      }
-      setInputValue("");
-    }
-  };
-  const removeTag = (tagToRemove) => {
-    onTagsChange(tags.filter((tag) => tag !== tagToRemove));
-  };
+import ToggleSwitch from "../../components/CreateGroup/ToggleSwitch.jsx";
+import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
+import FormInput from "../../components/CreateGroup/FormInput.jsx";
+import TagInput from "../../components/CreateGroup/TagInput.jsx";
 
-  return (
-    <div>
-      <label
-        className={`flex items-center text-sm font-medium ${
-          darkMode ? "text-gray-400" : "text-gray-500"
-        } mb-2`}
-      >
-        {label} <InfoTooltip note="Press Enter to add a tag." />
-      </label>
-      <div
-        className={`flex flex-wrap items-center gap-2 p-2 bg-transparent border rounded-lg ${
-          darkMode ? "border-[#4A4A4A]" : "border-gray-300"
-        }`}
-      >
-        {Array.isArray(tags) &&
-          tags.map((tag, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-2 bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-500 dark:text-indigo-300 px-3 py-1 rounded-full text-sm"
-            >
-              <span>{tag}</span>
-              <button
-                type="button"
-                onClick={() => removeTag(tag)}
-                className="text-indigo-400 dark:text-indigo-300 hover:text-indigo-600 dark:hover:text-white font-bold"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className={`flex-1 bg-transparent focus:outline-none p-1 ${
-            darkMode
-              ? "text-white placeholder-gray-500"
-              : "text-gray-800 placeholder-gray-400"
-          }`}
-        />
-      </div>
-    </div>
-  );
-};
-const DatePickerModal = ({
-  isOpen,
-  onClose,
-  onSave,
-  initialDates,
-  darkMode,
-  minDate,
-  maxDate,
-}) => {
-  const [dateType, setDateType] = useState("one-day"); // "one-day", "multi-day", "weekly"
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDates, setSelectedDates] = useState(initialDates || []);
-  const [useSameTime, setUseSameTime] = useState(true);
+import OnlineDatePickerModal from "../../components/CreateGroup/OnlineDatePickerModal.jsx";
+import RecordedDatePickerModal from "../../components/CreateGroup/RecordedDatePickerModal.jsx";
+import DatePickerModal from "../../components/CreateGroup/DatePickerModal.jsx";
+import GuestModal from "../../components/CreateGroup/GuestModal.jsx";
+import ProhibitedItemsModal from "../../components/CreateGroup/ProhibitedItemsModal.jsx";
+import Alert from "../../components/CreateGroup/Alert";
+import CreateTicketModal from "../../components/CreateGroup/CreateTicketModal.jsx";
+import ConfirmModal from "../../components/CreateGroup/ConfirmModal.jsx";
+import FileInput from "../../components/CreateGroup/FileInput.jsx";
+import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
+import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.jsx";
 
-  useEffect(() => {
-    setSelectedDates(initialDates || []);
-  }, [initialDates]);
-
-  const handleDateTypeChange = (type) => {
-    setSelectedDates([]);
-    setDateType(type);
-  };
-
-  if (!isOpen) return null;
-
-  // Helper function to convert 12-hour time to 24-hour format
-  const convertTo24Hour = (time12h, ampm) => {
-    if (!time12h || !ampm) return "";
-    const [hours, minutes] = time12h.split(":");
-    let hour24 = parseInt(hours);
-    if (ampm === "AM" && hour24 === 12) {
-      hour24 = 0;
-    } else if (ampm === "PM" && hour24 !== 12) {
-      hour24 += 12;
-    }
-    return `${hour24.toString().padStart(2, "0")}:${minutes}`;
-  };
-
-  // Helper function to validate time
-  const validateTime = (startTime, endTime, startAmPm, endAmPm) => {
-    if (!startTime || !endTime || !startAmPm || !endAmPm) return true;
-    const start24 = convertTo24Hour(startTime, startAmPm);
-    const end24 = convertTo24Hour(endTime, endAmPm);
-    if (!start24 || !end24) return true;
-    const start = new Date(`1970-01-01T${start24}:00`);
-    const end = new Date(`1970-01-01T${end24}:00`);
-    return end > start;
-  };
-
-  // Helper function to show time validation error
-  const showTimeValidationError = () => {
-    alert(
-      "Error: End time must be after start time for same-day events. Please select a valid time range."
-    );
-  };
-
-  const generateCalendarDays = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDayOfMonth = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Convert min/max date strings to Date objects for comparison, ignoring time
-    const minDateTime = minDate ? new Date(minDate) : null;
-    if (minDateTime) minDateTime.setHours(0, 0, 0, 0);
-    const maxDateTime = maxDate ? new Date(maxDate) : null;
-    if (maxDateTime) maxDateTime.setHours(0, 0, 0, 0);
-
-    let days = [];
-    for (
-      let i = 0;
-      i < (firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1);
-      i++
-    ) {
-      days.push(<div key={`blank-${i}`} className="h-10 w-10"></div>);
-    }
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      date.setHours(0, 0, 0, 0); // Ensure we are comparing dates only
-      const dateStr = format(date, "yyyy-MM-dd");
-      const isSelected = selectedDates.some((d) => d.date === dateStr);
-      const isToday = date.getTime() === today.getTime();
-      const isPast = date < today;
-
-      // Check if the current date is outside the main event's range
-      const isOutOfRange = (minDateTime && date < minDateTime) || (maxDateTime && date > maxDateTime);
-      const isDisabled = isPast || isOutOfRange;
-
-      days.push(
-        <div
-          key={day}
-          onClick={() => !isDisabled && handleDateClick(dateStr)}
-          className={`flex items-center justify-center h-10 w-10 rounded-lg transition-colors ${
-            isDisabled
-              ? "text-gray-600 cursor-not-allowed"
-              : "cursor-pointer"
-          } ${
-            isSelected
-              ? "bg-emerald-500 text-white"
-              : "hover:bg-gray-700"
-          } ${
-            isToday && !isSelected
-              ? "border border-emerald-500"
-              : ""
-          }`}
-        >
-          {day}
-        </div>
-      );
-    }
-    return days;
-  };
-
-  const handleDateClick = (dateStr) => {
-    const commonTime =
-      selectedDates.length > 0 && useSameTime
-        ? {
-            startTime: selectedDates[0].startTime,
-            endTime: selectedDates[0].endTime,
-            startAmPm: selectedDates[0].startAmPm,
-            endAmPm: selectedDates[0].endAmPm,
-          }
-        : { startTime: "", endTime: "", startAmPm: "", endAmPm: "" };
-
-    switch (dateType) {
-      case "Single day": {
-        const isSelected = selectedDates.some((d) => d.date === dateStr);
-        if (isSelected) {
-          setSelectedDates([]);
-        } else {
-          setSelectedDates([
-            {
-              date: dateStr,
-              endDate: dateStr,
-              ...commonTime,
-            },
-          ]);
-        }
-        break;
-      }
-      case "Multi days": {
-        const isSelected = selectedDates.some((d) => d.date === dateStr);
-        let newDates;
-        if (isSelected) {
-          newDates = selectedDates.filter((d) => d.date !== dateStr);
-        } else {
-          newDates = [
-            ...selectedDates,
-            {
-              date: dateStr,
-              endDate: dateStr,
-              ...commonTime,
-            },
-          ];
-        }
-        setSelectedDates(
-          newDates.sort((a, b) => new Date(a.date) - new Date(b.date))
-        );
-        break;
-      }
-      case "Weekly": {
-        const clickedDate = new Date(dateStr.replace(/-/g, "/"));
-        const dayOfWeek = clickedDate.getDay();
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const datesForDayOfWeek = [];
-        for (let day = 1; day <= daysInMonth; day++) {
-          const date = new Date(year, month, day);
-          if (date.getDay() === dayOfWeek && date >= today) {
-            const dayDateStr = format(date, "yyyy-MM-dd");
-            datesForDayOfWeek.push({
-              date: dayDateStr,
-              endDate: dayDateStr,
-              ...commonTime,
-            });
-          }
-        }
-        const isDaySelected = selectedDates.some(
-          (d) => new Date(d.date.replace(/-/g, "/")).getDay() === dayOfWeek
-        );
-        setSelectedDates(isDaySelected ? [] : datesForDayOfWeek);
-        break;
-      }
-      default:
-        break;
-    }
-  };
-
-  const handleIndividualTimeChange = (index, field, value) => {
-    if (useSameTime) {
-      const updatedDates = selectedDates.map((d) => ({ ...d, [field]: value }));
-      const currentDate = updatedDates[0];
-      if (currentDate.startTime && currentDate.endTime && currentDate.startAmPm && currentDate.endAmPm && !validateTime(currentDate.startTime, currentDate.endTime, currentDate.startAmPm, currentDate.endAmPm)) {
-        showTimeValidationError();
-        return;
-      }
-      setSelectedDates(updatedDates);
-    } else {
-      const updatedDates = [...selectedDates];
-      updatedDates[index][field] = value;
-      const currentDate = updatedDates[index];
-      if (currentDate.startTime && currentDate.endTime && currentDate.startAmPm && currentDate.endAmPm && !validateTime(currentDate.startTime, currentDate.endTime, currentDate.startAmPm, currentDate.endAmPm)) {
-        showTimeValidationError();
-        return;
-      }
-      setSelectedDates(updatedDates);
-    }
-  };
-
-  const handleUseSameTimeChange = (e) => {
-    const isEnabled = e.target.checked;
-    setUseSameTime(isEnabled);
-
-    if (isEnabled && selectedDates.length > 0) {
-      const firstDateTime = selectedDates[0];
-      if (firstDateTime.startTime || firstDateTime.endTime) {
-        if (firstDateTime.startTime && firstDateTime.endTime && firstDateTime.startAmPm && firstDateTime.endAmPm && !validateTime(firstDateTime.startTime, firstDateTime.endTime, firstDateTime.startAmPm, firstDateTime.endAmPm)) {
-          showTimeValidationError();
-          return;
-        }
-        setSelectedDates((currentDates) =>
-          currentDates.map((d) => ({
-            ...d,
-            startTime: firstDateTime.startTime || d.startTime,
-            endTime: firstDateTime.endTime || d.endTime,
-            startAmPm: firstDateTime.startAmPm || d.startAmPm,
-            endAmPm: firstDateTime.endAmPm || d.endAmPm,
-          }))
-        );
-      }
-    }
-  };
-
-  const handleSave = () => {
-    for (let i = 0; i < selectedDates.length; i++) {
-      const dateEntry = selectedDates[i];
-      if (dateEntry.startTime && dateEntry.endTime && dateEntry.startAmPm && dateEntry.endAmPm && !validateTime(dateEntry.startTime, dateEntry.endTime, dateEntry.startAmPm, dateEntry.endAmPm)) {
-        showTimeValidationError();
-        return;
-      }
-    }
-
-    const convertedDates = selectedDates.map((dateEntry) => ({
-      ...dateEntry,
-      startTime: dateEntry.startTime && dateEntry.startAmPm ? convertTo24Hour(dateEntry.startTime, dateEntry.startAmPm) : dateEntry.startTime,
-      endTime: dateEntry.endTime && dateEntry.endAmPm ? convertTo24Hour(dateEntry.endTime, dateEntry.endAmPm) : dateEntry.endTime,
-      startTime12h: dateEntry.startTime,
-      endTime12h: dateEntry.endTime,
-      startAmPm: dateEntry.startAmPm,
-      endAmPm: dateEntry.endAmPm,
-    }));
-
-    onSave(convertedDates, dateType);
-    onClose();
-  };
-
-  const handleReset = () => {
-    setSelectedDates([]);
-    setCurrentMonth(new Date());
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-      <div className={`rounded-2xl w-full max-w-4xl flex flex-col ${darkMode ? "bg-[#2B2B2B] text-gray-200" : "bg-white text-gray-800"}`}>
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? "bg-gray-700 text-gray-300" : "bg-gray-200 text-gray-600"}`}>
-              📅
-            </div>
-            <div>
-              <h3 className={`font-bold text-lg ${darkMode ? "text-white" : "text-black"}`}>
-                Event Calendar
-              </h3>
-              <p className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-                Schedule your events date and time
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center space-x-2">
-              <span className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-                Date type:
-              </span>
-              {["Single day", "Multi days", "Weekly"].map((type) => (
-                <button
-                  type="button"
-                  key={type}
-                  onClick={() => handleDateTypeChange(type)}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                    dateType === type
-                      ? "bg-emerald-500 text-white"
-                      : `${
-                          darkMode
-                            ? "bg-gray-700 hover:bg-gray-600 text-gray-300"
-                            : "bg-gray-200 hover:bg-gray-300 text-gray-700"
-                        }`
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className={`text-3xl leading-none ${darkMode ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-black"}`}
-            >
-              ×
-            </button>
-          </div>
-        </div>
-        <div className={`border-b ${darkMode ? "border-gray-600" : "border-gray-300"}`}></div>
-        <div className="flex flex-1 h-[60vh]">
-          <div className="w-1/2 p-4">
-            <div className={`flex items-center justify-between mb-4 p-2 border rounded-lg ${darkMode ? "text-gray-300 border-gray-600 bg-gray-700/50" : "text-gray-700 border-gray-300 bg-gray-100/50"}`}>
-              <button
-                type="button"
-                onClick={() =>
-                  setCurrentMonth(
-                    new Date(
-                      currentMonth.getFullYear(),
-                      currentMonth.getMonth() - 1,
-                      1
-                    )
-                  )
-                }
-                className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"}`}
-              >
-                {"<"}
-              </button>
-              <span className="font-semibold text-lg">
-                {currentMonth.toLocaleString("default", { month: "long" })}{" "}
-                {currentMonth.getFullYear()}
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setCurrentMonth(
-                    new Date(
-                      currentMonth.getFullYear(),
-                      currentMonth.getMonth() + 1,
-                      1
-                    )
-                  )
-                }
-                className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"}`}
-              >
-                {">"}
-              </button>
-            </div>
-            <div className="grid grid-cols-7 text-center text-xs uppercase mb-2">
-              {["MO", "TU", "WE", "TH", "FR", "SA", "SU"].map((day) => (
-                <span key={day} className={darkMode ? "text-gray-400" : "text-gray-500"}>
-                  {day}
-                </span>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 place-items-center text-center gap-1">
-              {generateCalendarDays()}
-            </div>
-          </div>
-          <div className={`border-l ${darkMode ? "border-gray-600" : "border-gray-300"}`}></div>
-          <div className="w-1/2 p-4 flex flex-col min-h-0">
-            <div className="flex items-center justify-between mb-4">
-              <label className={`flex items-center text-sm cursor-pointer ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
-                <input
-                  type="checkbox"
-                  checked={useSameTime}
-                  onChange={handleUseSameTimeChange}
-                  className={`form-checkbox h-4 w-4 rounded border-gray-600 focus:ring-emerald-500 ${darkMode ? "bg-gray-700 text-emerald-500" : "bg-gray-200 text-emerald-600"}`}
-                />
-                <span className="ml-2">Use same time for all dates</span>
-              </label>
-            </div>
-            <div className="h-[40vh] overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-              {selectedDates.map((item, index) => {
-                if (!item?.date) {
-                  return null;
-                }
-                const formattedDate = format(
-                  new Date(item.date.replace(/-/g, "/")),
-                  "dd/MM/yyyy"
-                );
-                return (
-                  <div key={index} className="flex items-center gap-2">
-                    <span className={`px-3 py-2 rounded-lg text-sm w-32 flex-shrink-0 text-center ${darkMode ? "bg-gray-700 text-gray-200" : "bg-gray-200 text-gray-800"}`}>
-                      {formattedDate}
-                    </span>
-                    <div className="flex gap-1 w-full">
-                      <input
-                        type="time"
-                        value={item.startTime || ""}
-                        onChange={(e) =>
-                          handleIndividualTimeChange(index, "startTime", e.target.value)
-                        }
-                        className={`border rounded-lg p-2 text-sm flex-1 ${darkMode ? "bg-gray-800 border-gray-600 text-white" : "bg-white border-gray-300 text-black"}`}
-                      />
-                      <select
-                        value={item.startAmPm || ""}
-                        onChange={(e) =>
-                          handleIndividualTimeChange(index, "startAmPm", e.target.value)
-                        }
-                        className={`border rounded-lg p-2 text-sm w-16 ${darkMode ? "bg-gray-800 border-gray-600 text-white" : "bg-white border-gray-300 text-black"}`}
-                      >
-                        <option value="">-</option>
-                        <option value="AM">AM</option>
-                        <option value="PM">PM</option>
-                      </select>
-                    </div>
-                    <span className="text-gray-400 text-sm">to</span>
-                    <div className="flex gap-1 w-full">
-                      <input
-                        type="time"
-                        value={item.endTime || ""}
-                        onChange={(e) =>
-                          handleIndividualTimeChange(index, "endTime", e.target.value)
-                        }
-                        className={`border rounded-lg p-2 text-sm flex-1 ${darkMode ? "bg-gray-800 border-gray-600 text-white" : "bg-white border-gray-300 text-black"}`}
-                      />
-                      <select
-                        value={item.endAmPm || ""}
-                        onChange={(e) =>
-                          handleIndividualTimeChange(index, "endAmPm", e.target.value)
-                        }
-                        className={`border rounded-lg p-2 text-sm w-16 ${darkMode ? "bg-gray-800 border-gray-600 text-white" : "bg-white border-gray-300 text-black"}`}
-                      >
-                        <option value="">-</option>
-                        <option value="AM">AM</option>
-                        <option value="PM">PM</option>
-                      </select>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDateClick(item.date)}
-                      className={`p-1 rounded-full ${darkMode ? "text-red-500 hover:bg-gray-700" : "text-red-600 hover:bg-gray-200"}`}
-                    >
-                      ×
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        <div className={`border-t ${darkMode ? "border-gray-600" : "border-gray-300"}`}></div>
-        <div className="flex justify-end items-center p-4 space-x-4">
-          <button
-            type="button"
-            onClick={handleReset}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${darkMode ? "bg-gray-700 hover:bg-gray-600 text-gray-200" : "bg-gray-200 hover:bg-gray-300 text-gray-800"}`}
-          >
-            Reset all
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${darkMode ? "bg-gray-700 hover:bg-gray-600 text-gray-200" : "bg-gray-200 hover:bg-gray-300 text-gray-800"}`}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-semibold text-white"
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-const GuestModal = ({
-  isOpen,
-  onClose,
-  onSave,
-  initialGuests,
-  editingGuest: initialEditingGuest,
-  darkMode,
-}) => {
-  const [localGuests, setLocalGuests] = useState(initialGuests || []);
-  const [name, setName] = useState("");
-  const [link, setLink] = useState("");
-  const [photo, setPhoto] = useState(null);
-  const [editingGuest, setEditingGuest] = useState(null);
-
-  useEffect(() => {
-    if (initialEditingGuest) {
-      setEditingGuest(initialEditingGuest);
-      setName(initialEditingGuest.name);
-      setLink(initialEditingGuest.link || "");
-      setPhoto(null);
-    }
-  }, [initialEditingGuest]);
-
-  if (!isOpen) return null;
-
-  const resetForm = () => {
-    setName("");
-    setLink("");
-    setPhoto(null);
-    setEditingGuest(null);
-  };
-
-  const handleFormSubmit = () => {
-    if (!name.trim()) return;
-    if (editingGuest) {
-      setLocalGuests(
-        localGuests.map((g) =>
-          g.id === editingGuest.id
-            ? {
-                ...g,
-                name: name.trim(),
-                link: link.trim(),
-                image: photo ? URL.createObjectURL(photo) : g.image,
-                rawFile: photo || g.rawFile,
-              }
-            : g
-        )
-      );
-    } else {
-      const newGuest = {
-        id: Date.now(),
-        name: name.trim(),
-        link: link.trim(),
-        image: photo
-          ? URL.createObjectURL(photo)
-          : `https://i.pravatar.cc/150?u=${Date.now()}`,
-        rawFile: photo,
-      };
-      setLocalGuests([...localGuests, newGuest]);
-    }
-    resetForm();
-  };
-
-  const handleDeleteGuest = (guestId) => {
-    setLocalGuests((prev) => prev.filter((g) => g.id !== guestId));
-  };
-
-  const startEditing = (guest) => {
-    setEditingGuest(guest);
-    setName(guest.name);
-    setLink(guest.link || "");
-    setPhoto(null);
-  };
-
-  const handleSave = () => {
-    onSave(localGuests);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-      <div
-        className={`rounded-2xl w-full max-w-4xl flex flex-col ${
-          darkMode ? "bg-[#2B2B2B] text-gray-200" : "bg-white text-gray-800"
-        }`}
-      >
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                darkMode ? "bg-gray-700" : "bg-gray-200"
-              }`}
-            >
-              👤
-            </div>
-            <div>
-              <h3
-                className={`font-bold text-lg ${
-                  darkMode ? "text-white" : "text-black"
-                }`}
-              >
-                {editingGuest ? "Edit Guest" : "Add Guest/Guide/Artists"}
-              </h3>
-              <p
-                className={`text-sm ${
-                  darkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                Manage your event's featured people.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`text-3xl leading-none ${
-              darkMode
-                ? "text-gray-400 hover:text-white"
-                : "text-gray-500 hover:text-black"
-            }`}
-          >
-            ×
-          </button>
-        </div>
-        <div
-          className={`border-b ${
-            darkMode ? "border-gray-600" : "border-gray-300"
-          }`}
-        ></div>
-        <div className="flex p-4 h-[500px]">
-          <div className="w-1/2 pr-4 flex flex-col">
-            <div className="space-y-4">
-              <div>
-                <label
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } text-sm`}
-                >
-                  Guest/Guide name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  type="text"
-                  placeholder="Enter name"
-                  className={`w-full mt-1 p-2 border rounded-lg ${
-                    darkMode
-                      ? "bg-gray-700 border-gray-600"
-                      : "bg-gray-100 border-gray-300"
-                  }`}
-                />
-              </div>
-              <div>
-                <label
-                  className={`${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } text-sm`}
-                >
-                  Profile link (Optional)
-                </label>
-                <input
-                  value={link}
-                  onChange={(e) => setLink(e.target.value)}
-                  type="text"
-                  placeholder="https://..."
-                  className={`w-full mt-1 p-2 border rounded-lg ${
-                    darkMode
-                      ? "bg-gray-700 border-gray-600"
-                      : "bg-gray-100 border-gray-300"
-                  }`}
-                />
-              </div>
-              <div>
-                <label
-                  className={`block text-sm ${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  }`}
-                >
-                  Guest/Guide Photo
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setPhoto(e.target.files[0])}
-                  className={`w-full text-sm mt-1 p-2 border rounded-lg file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-sm file:font-semibold ${
-                    darkMode
-                      ? "border-gray-600 file:bg-indigo-500/20 file:text-indigo-300"
-                      : "border-gray-300 file:bg-indigo-100 file:text-indigo-700"
-                  }`}
-                />
-              </div>
-            </div>
-            <div className="mt-auto flex justify-end pt-4">
-              <button
-                type="button"
-                onClick={handleFormSubmit}
-                className={`px-6 py-2 font-semibold rounded-lg flex items-center gap-2 ${
-                  editingGuest
-                    ? "bg-amber-500 hover:bg-amber-600 text-white"
-                    : "bg-emerald-500 hover:bg-emerald-600 text-white"
-                }`}
-              >
-                {editingGuest ? "Update Guest" : "Add Guest +"}
-              </button>
-            </div>
-          </div>
-          <div
-            className={`border-l ${
-              darkMode ? "border-gray-600" : "border-gray-300"
-            }`}
-          ></div>
-          <div className="w-1/2 pl-4 flex flex-col min-h-0">
-            <div className="overflow-y-auto space-y-3 pr-2 custom-scrollbar h-full">
-              {localGuests.length > 0 ? (
-                localGuests.map((g) => (
-                  <div
-                    key={g.id}
-                    className={`${
-                      darkMode ? "bg-gray-700/50" : "bg-gray-100"
-                    } rounded-lg p-3 flex items-center justify-between`}
-                  >
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <img
-                        src={g.image}
-                        alt={g.name}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                      />
-                      <div className="truncate">
-                        <p
-                          className={`font-semibold truncate ${
-                            darkMode ? "text-white" : "text-black"
-                          }`}
-                        >
-                          {g.name}
-                        </p>
-                        {g.link && (
-                          <a
-                            href={g.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-indigo-400 truncate block"
-                          >
-                            {g.link}
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => startEditing(g)}
-                        className={`p-2 ${
-                          darkMode
-                            ? "text-gray-400 hover:text-white"
-                            : "text-gray-500 hover:text-black"
-                        }`}
-                        title="Edit"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteGuest(g.id)}
-                        className={`p-2 ${
-                          darkMode
-                            ? "text-red-400 hover:text-red-300"
-                            : "text-red-500 hover:text-red-700"
-                        }`}
-                        title="Delete"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center text-gray-500 pt-16">
-                  No guests added yet.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        <div
-          className={`border-t ${
-            darkMode ? "border-gray-600" : "border-gray-300"
-          }`}
-        ></div>
-        <div className="flex justify-end items-center p-4 space-x-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-              darkMode
-                ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
-                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-            }`}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-semibold text-white"
-          >
-            Save Changes
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-const ProhibitedItemsModal = ({
-  isOpen,
-  onClose,
-  onSave,
-  initialItems,
-  darkMode,
-}) => {
-  const [selectedItems, setSelectedItems] = useState(initialItems || []);
-  const [customItem, setCustomItem] = useState("");
-  const suggestions = [
-    "Umbrellas",
-    "Wooden sticks",
-    "Power bank",
-    "Helmets",
-    "Glass containers",
-    "Laptops",
-    "Laser pointer/Flashlight",
-    "Outside food",
-    "Alcohol",
-    "Music instrument",
-    "Toxics",
-    "Chemicals",
-    "Camera",
-    "Selfie sticks",
-    "Metal containers",
-    "Bags",
-    "Flammable",
-    "Banners",
-    "Cans",
-    "Tins",
-    "Bottles",
-  ];
-
-  if (!isOpen) return null;
-  const toggleItem = (item) =>
-    setSelectedItems((prev) =>
-      prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
-    );
-  const handleAddCustom = () => {
-    if (customItem.trim() && !selectedItems.includes(customItem.trim())) {
-      setSelectedItems((prev) => [...prev, customItem.trim()]);
-      setCustomItem("");
-    }
-  };
-  const handleSave = () => {
-    onSave(selectedItems);
-    onClose();
-  };
-  const handleReset = () => {
-    setSelectedItems([]);
-    setCustomItem("");
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-      <div
-        className={`rounded-2xl w-full max-w-3xl flex flex-col ${
-          darkMode ? "bg-[#2B2B2B] text-gray-200" : "bg-white text-gray-800"
-        }`}
-      >
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                darkMode
-                  ? "bg-gray-700 text-gray-300"
-                  : "bg-gray-200 text-gray-600"
-              }`}
-            >
-              🚫
-            </div>
-            <div>
-              <h3
-                className={`font-bold text-lg ${
-                  darkMode ? "text-white" : "text-black"
-                }`}
-              >
-                Add prohibited items
-              </h3>
-              <p
-                className={`text-sm ${
-                  darkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                Add items that are not allowed
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`text-3xl leading-none ${
-              darkMode
-                ? "text-gray-400 hover:text-white"
-                : "text-gray-500 hover:text-black"
-            }`}
-          >
-            ×
-          </button>
-        </div>
-        <div className="p-4 space-y-4">
-          <div
-            className={`min-h-[80px] rounded-lg p-3 flex flex-wrap gap-2 border ${
-              darkMode
-                ? "bg-gray-800/50 border-gray-700"
-                : "bg-gray-100/50 border-gray-200"
-            }`}
-          >
-            {selectedItems.map((item) => (
-              <div
-                key={item}
-                className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm h-fit ${
-                  darkMode
-                    ? "bg-gray-600 text-gray-200"
-                    : "bg-gray-200 text-gray-700"
-                }`}
-              >
-                <span>{item}</span>
-                <button
-                  type="button"
-                  onClick={() => toggleItem(item)}
-                  className={`font-bold text-lg leading-none ${
-                    darkMode
-                      ? "text-gray-400 hover:text-white"
-                      : "text-gray-500 hover:text-black"
-                  }`}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <input
-                value={customItem}
-                onChange={(e) => setCustomItem(e.target.value)}
-                type="text"
-                placeholder="Enter the name here..."
-                className={`w-full pl-3 pr-10 py-2 border rounded-lg ${
-                  darkMode
-                    ? "bg-gray-700 border-gray-600"
-                    : "bg-gray-100 border-gray-300"
-                }`}
-              />
-              <div
-                className={`absolute inset-y-0 right-0 flex items-center pr-3 ${
-                  darkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                *
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleAddCustom}
-              className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg flex items-center gap-2"
-            >
-              Add <span className="text-xl">+</span>
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {suggestions.map((item) => (
-              <button
-                type="button"
-                key={item}
-                onClick={() => toggleItem(item)}
-                className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
-                  darkMode
-                    ? "bg-gray-700 hover:bg-gray-600 text-gray-300"
-                    : "bg-gray-200 hover:bg-gray-300 text-gray-700"
-                }`}
-              >
-                {item} <span className="text-lg">+</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div
-          className={`flex justify-end items-center p-4 mt-2 space-x-4 border-t ${
-            darkMode ? "border-gray-700" : "border-gray-200"
-          }`}
-        >
-          <button
-            type="button"
-            onClick={handleReset}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-              darkMode
-                ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
-                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-            }`}
-          >
-            Reset all
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-              darkMode
-                ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
-                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-            }`}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-semibold text-white"
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-const CreateTicketModal = ({
-  isOpen,
-  onClose,
-  onSave,
-  editingTicket,
-  existingTickets,
-}) => {
-  const [localTickets, setLocalTickets] = useState([]);
-  const [ticketType, setTicketType] = useState("");
-  const [ticketPrice, setTicketPrice] = useState("");
-  const [totalTickets, setTotalTickets] = useState("");
-  const [ticketPhoto, setTicketPhoto] = useState(null);
-  const [ticketPhotoPreview, setTicketPhotoPreview] = useState("");
-  const [currentEditId, setCurrentEditId] = useState(null);
-  useEffect(() => {
-    if (isOpen) {
-      setLocalTickets(existingTickets || []);
-      if (editingTicket) {
-        setTicketType(editingTicket.name);
-        setTicketPrice(editingTicket.price);
-        setTotalTickets(editingTicket.capacity);
-        setTicketPhotoPreview(editingTicket.image);
-        setTicketPhoto(editingTicket.photoFile || null);
-        setCurrentEditId(editingTicket.id);
-      } else {
-        setCurrentEditId(null);
-        setTicketType("");
-        setTicketPrice("");
-        setTotalTickets("");
-        setTicketPhoto(null);
-        setTicketPhotoPreview("");
-      }
-    }
-  }, [editingTicket, existingTickets, isOpen]);
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith("image/")) {
-      setTicketPhoto(file);
-      setTicketPhotoPreview(URL.createObjectURL(file));
-    }
-  };
-
-  const handleAddOrUpdateTicket = () => {
-    if (!ticketType || !ticketPrice || !totalTickets) {
-      alert(
-        "Please fill in all ticket details: Type, Price, and Total Tickets."
-      );
-      return;
-    }
-
-    const ticketData = {
-      name: ticketType,
-      price: ticketPrice,
-      capacity: totalTickets,
-      image: ticketPhotoPreview || `https://i.pravatar.cc/150?u=${Date.now()}`,
-      photoFile: ticketPhoto,
-    };
-
-    if (currentEditId) {
-      const updatedList = localTickets.map((t) =>
-        t.id === currentEditId ? { ...ticketData, id: currentEditId } : t
-      );
-      setLocalTickets(updatedList);
-    } else {
-      setLocalTickets([...localTickets, { ...ticketData, id: Date.now() }]);
-    }
-
-    setCurrentEditId(null);
-    setTicketType("");
-    setTicketPrice("");
-    setTotalTickets("");
-    setTicketPhoto(null);
-    setTicketPhotoPreview("");
-  };
-
-  const handleDeleteTicket = (ticketIdToDelete) =>
-    setLocalTickets(localTickets.filter((t) => t.id !== ticketIdToDelete));
-  const startEditing = (ticket) => {
-    setCurrentEditId(ticket.id);
-    setTicketType(ticket.name);
-    setTicketPrice(ticket.price);
-    setTotalTickets(ticket.capacity);
-    setTicketPhotoPreview(ticket.image);
-    setTicketPhoto(ticket.photoFile || null);
-  };
-
-  const handleSave = () => {
-    onSave(localTickets);
-    onClose();
-  };
-
-  const handleResetAll = () => {
-    setLocalTickets([]);
-    setCurrentEditId(null);
-    setTicketType("");
-    setTicketPrice("");
-    setTotalTickets("");
-    setTicketPhoto(null);
-    setTicketPhotoPreview("");
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-[#2B2B2B] rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="p-6 flex justify-between items-center flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            {currentEditId ? "Edit Ticket" : "Create Ticket"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 text-3xl hover:text-gray-800 dark:hover:text-white transition"
-          >
-            &times;
-          </button>
-        </div>
-        <hr className="border-gray-200 dark:border-gray-700" />
-
-        {/* Scrollable Content */}
-        <div className="flex-grow overflow-y-auto p-6">
-          <div className="flex gap-6">
-            {/* Left Side */}
-            <div className="w-1/2 space-y-5 flex flex-col">
-              <input
-                type="text"
-                value={ticketType}
-                onChange={(e) => setTicketType(e.target.value)}
-                placeholder="e.g. VIP, General Admission"
-                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3"
-              />
-
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                  Ticket price
-                </label>
-                <div className="flex items-center bg-gray-100 dark:bg-[#1c1c1f] border border-gray-300 dark:border-gray-700 rounded-md">
-                  <span className="text-gray-500 dark:text-gray-400 pl-3">
-                    INR
-                  </span>
-                  <input
-                    type="number"
-                    value={ticketPrice}
-                    onChange={(e) => setTicketPrice(e.target.value)}
-                    placeholder="Ticket price"
-                    className="w-full bg-transparent p-3 text-gray-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                  Total tickets
-                </label>
-                <input
-                  type="number"
-                  value={totalTickets}
-                  onChange={(e) => setTotalTickets(e.target.value)}
-                  placeholder="Total tickets available"
-                  className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3"
-                />
-              </div>
-
-              <div className="flex-grow flex flex-col">
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                  Upload ticket photo
-                </label>
-                <div className="flex-grow mt-2 flex justify-center items-center rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-6 py-10 text-center">
-                  <label
-                    htmlFor="ticket-photo-upload"
-                    className="cursor-pointer"
-                  >
-                    <svg
-                      className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                      />
-                    </svg>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                      browse your files
-                    </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                      Max 10 MB files are allowed
-                    </p>
-                    <span className="mt-4 inline-block rounded-md font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm">
-                      Browse file
-                    </span>
-                    <input
-                      id="ticket-photo-upload"
-                      type="file"
-                      className="sr-only"
-                      onChange={handleFileChange}
-                      accept="image/*"
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div className="pt-2 flex-shrink-0">
-                <button
-                  onClick={handleAddOrUpdateTicket}
-                  className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition w-full"
-                >
-                  {currentEditId ? "Update Ticket" : "+ Add Ticket"}
-                </button>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="w-px bg-gray-200 dark:bg-gray-700 flex-shrink-0"></div>
-
-            {/* Right Side */}
-            <div className="w-1/2 space-y-3">
-              {localTickets.length === 0 ? (
-                <div className="text-center text-gray-500 pt-16">
-                  No tickets added yet.
-                </div>
-              ) : (
-                localTickets.map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    className="bg-gray-100 dark:bg-[#363A3F] p-3 rounded-lg flex items-center justify-between"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <img
-                        src={ticket.image}
-                        alt={ticket.name}
-                        className="w-16 h-16 rounded-md object-cover"
-                      />
-                      <div>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {`${ticket.name} - ₹${Number(
-                            ticket.price
-                          ).toLocaleString()}`}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Capacity: {ticket.capacity}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => startEditing(ticket)}
-                        className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTicket(ticket.id)}
-                        className="text-gray-400 hover:text-red-500 transition"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        <hr className="border-gray-200 dark:border-gray-700" />
-
-        {/* Footer */}
-        <div className="p-6 flex justify-end gap-4 flex-shrink-0">
-          <button
-            onClick={handleResetAll}
-            className="px-6 py-2 bg-gray-200 dark:bg-[#363A3F] text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-700 transition"
-          >
-            Reset all
-          </button>
-          <button
-            onClick={onClose}
-            className="px-6 py-2 bg-gray-200 dark:bg-[#363A3F] text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-700 transition"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition"
-          >
-            Save Changes
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const FileInput = ({
-  id,
-  label,
-  info,
-  preview,
-  onFileChange,
-  onRemove,
-  darkMode,
-}) => (
-  <div>
-    <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-      {label}
-      {info && <InfoTooltip note={info} />}
-    </label>
-    <div
-      className={`relative rounded-lg p-5 text-center bg-gray-100 dark:bg-[#2B2B2B] min-h-[180px] flex justify-center items-center border-2 border-dashed ${
-        preview ? "border-indigo-500" : "border-gray-300 dark:border-gray-600"
-      }`}
-    >
-      {preview ? (
-        <>
-          <img
-            src={preview}
-            alt={`${label} preview`}
-            className="max-w-full max-h-[160px] object-contain rounded-lg"
-          />
-          <button
-            type="button"
-            onClick={() => onRemove(id)}
-            className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center"
-          >
-            &times;
-          </button>
-        </>
-      ) : (
-        <label
-          htmlFor={id}
-          className="cursor-pointer flex flex-col items-center gap-2"
-        >
-          <svg
-            className="w-8 h-8 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-          </svg>
-          <span className="text-indigo-500 dark:text-indigo-400 font-semibold">
-            Click to browse
-          </span>
-        </label>
-      )}
-      <input
-        id={id}
-        type="file"
-        className="sr-only"
-        onChange={(e) => onFileChange(e, id)}
-        accept="image/*"
-      />
-    </div>
-  </div>
-);
 const eventCategories = {
   "Arts, Culture, & Literature": [
     "Art Exhibitions",
@@ -1659,144 +189,6 @@ const seatingOptions = [
 ];
 
 // --- STYLES FOR REACT-SELECT (REPLACE THE OLD VERSION WITH THIS) ---
-const customSelectStyles = (isDark) => ({
-  control: (provided, state) => ({
-    ...provided,
-    backgroundColor: "transparent",
-    borderColor: state.isFocused ? "#6366F1" : isDark ? "#4A4A4A" : "#D1D5DB",
-    padding: "0.5rem",
-    borderRadius: "0.5rem",
-    boxShadow: "none",
-    "&:hover": {
-      borderColor: "#6366F1",
-    },
-  }),
-  valueContainer: (provided) => ({
-    ...provided,
-    padding: "0 2px",
-  }),
-  input: (provided) => ({
-    ...provided,
-    color: isDark ? "#FFFFFF" : "#1F2937",
-  }),
-  singleValue: (provided) => ({
-    ...provided,
-    color: isDark ? "#FFFFFF" : "#1F2937",
-  }),
-  placeholder: (provided) => ({
-    ...provided,
-    color: isDark ? "#6B7280" : "#9CA3AF",
-  }),
-  menu: (provided) => ({
-    ...provided,
-    backgroundColor: isDark ? "#2B2B2B" : "#FFFFFF",
-    borderRadius: "0.5rem",
-    zIndex: 50,
-  }),
-  option: (provided, state) => ({
-    ...provided,
-    backgroundColor: state.isSelected
-      ? "#4F46E5"
-      : state.isFocused
-      ? isDark
-        ? "#374151"
-        : "#E5E7EB"
-      : "transparent",
-    color: isDark ? "#FFFFFF" : "#1F2937",
-    "&:active": {
-      backgroundColor: "#4338CA",
-    },
-  }),
-  menuList: (provided) => ({
-    ...provided,
-    "::-webkit-scrollbar": { width: "8px" },
-    "::-webkit-scrollbar-track": { background: isDark ? "#232426" : "#f1f5f9" },
-    "::-webkit-scrollbar-thumb": {
-      backgroundColor: isDark ? "#4f4f4f" : "#cbd5e1",
-      borderRadius: "10px",
-      border: `2px solid ${isDark ? "#232426" : "#f1f5f9"}`,
-    },
-  }),
-});
-const CustomScrollbarStyles = ({ isDark }) => {
-  const mainTrackColor = isDark ? "#232426" : "#f1f5f9";
-  const mainThumbColor = isDark ? "#4f4f4f" : "#cbd5e1";
-  const autofillTextColor = isDark ? "#FFFFFF" : "#1F2937";
-
-  return (
-    <style>{`
-      /* --- Main Browser Scrollbar (No Change) --- */
-      body::-webkit-scrollbar {
-        width: 12px;
-      }
-      body::-webkit-scrollbar-track {
-        background: #232426;
-      }
-      body::-webkit-scrollbar-thumb {
-        background-color: #4f4f4f;
-        border-radius: 20px;
-        border: 3px solid #232426;
-      }
-
-      /* --- Main Scrollbar for Sidebars, etc. (No Change) --- */
-      .main-scrollbar::-webkit-scrollbar { width: 8px; }
-      .main-scrollbar::-webkit-scrollbar-track { background: ${mainTrackColor}; }
-      .main-scrollbar::-webkit-scrollbar-thumb {
-        background-color: ${mainThumbColor};
-        border-radius: 10px;
-        border: 2px solid ${mainTrackColor};
-      }
-      .main-scrollbar { scrollbar-width: thin; scrollbar-color: ${mainThumbColor} ${mainTrackColor}; }
-
-      /* --- UPDATED: Green Scrollbar for Widgets --- */
-      .custom-scrollbar::-webkit-scrollbar {
-        width: 8px;
-      }
-      .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb {
-        background-color: #4ADE80; /* Light green color */
-        border-radius: 10px;
-        border: 2px solid transparent;
-        background-clip: content-box;
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        background-color: #34D399; /* Darker green on hover */
-      }
-      /* Firefox support */
-      .custom-scrollbar {
-        scrollbar-width: thin;
-        scrollbar-color: #4ADE80 transparent;
-      }
-      
-      /* --- Other styles remain the same --- */
-      input[type="time"]::-webkit-datetime-edit-text,
-      input[type="time"]::-webkit-datetime-edit-hour-field,
-      input[type="time"]::-webkit-datetime-edit-minute-field {
-        color: transparent;
-      }
-      input[type="time"]:focus::-webkit-datetime-edit-text,
-      input[type="time"]:focus::-webkit-datetime-edit-hour-field,
-      input[type="time"]:focus::-webkit-datetime-edit-minute-field,
-      input[type="time"]:not(:placeholder-shown)::-webkit-datetime-edit-text,
-      input[type="time"]:not(:placeholder-shown)::-webkit-datetime-edit-hour-field,
-      input[type="time"]:not(:placeholder-shown)::-webkit-datetime-edit-minute-field {
-        color: inherit;
-      }
-
-      input:-webkit-autofill,
-      input:-webkit-autofill:hover,
-      input:-webkit-autofill:focus,
-      input:-webkit-autofill:active {
-          -webkit-text-fill-color: ${autofillTextColor} !important;
-          background-color: transparent !important;
-          -webkit-box-shadow: none !important;
-          transition: background-color 9999s ease-in-out 0s;
-      }
-    `}</style>
-  );
-};
 
 // --- Main Component ---
 const UpdateTicketAddOns = () => {
@@ -1827,6 +219,15 @@ const UpdateTicketAddOns = () => {
   const [editingTicket, setEditingTicket] = useState(null);
 
   const [mainEventData, setMainEventData] = useState(null);
+  const [videoFiles, setVideoFiles] = useState({});
+  const [previewImageFiles, setPreviewImageFiles] = useState({});
+  const [alert, setAlert] = useState(null);
+  const [confirmState, setConfirmState] = useState({
+    isOpen: false,
+    onConfirm: null,
+    message: "",
+  });
+  const [errors, setErrors] = useState({});
 
   // --- State for Banking Details ---
   const [useGroupBankAccount, setUseGroupBankAccount] = useState(false);
@@ -1836,6 +237,13 @@ const UpdateTicketAddOns = () => {
 
   // --- State for Seating Details ---
   const [hasSeatingLayout, setHasSeatingLayout] = useState(false);
+
+  const [isOfflineDateModalOpen, setIsOfflineDateModalOpen] = useState(false);
+  const [isOnlineDateModalOpen, setIsOnlineDateModalOpen] = useState(false);
+  const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
+
+  const showAlert = (data) => setAlert({ ...data, show: true });
+  const hideAlert = () => setAlert(null);
 
   // --- State for multi-media preview ---
   const [showExtraMedia, setShowExtraMedia] = useState(false);
@@ -1863,7 +271,7 @@ const UpdateTicketAddOns = () => {
     event_subcategory: "",
     event_type: "public",
     location_type: "offline",
-    event_link: "",
+
     location: "",
     venue: "",
     event_language: [],
@@ -1926,69 +334,38 @@ const UpdateTicketAddOns = () => {
       setPageLoading(false);
       return;
     }
-
-    console.log("Starting fetchData with ticketId:", ticketId);
     setPageLoading(true);
-
+    if (!ticketId) {
+      console.error("No ticketId available for API fetch.");
+      setPageLoading(false);
+      return;
+    }
     try {
-      // Fetch ticket data first
-      console.log("Fetching ticket data...");
       const ticketData = await getTicketById(ticketId);
-      console.log("Ticket data response:", ticketData);
       setExistingSubEvents(ticketData?.ticket?.sub_events || []);
       setMainEventData(ticketData?.ticket || null);
-
-      // Enhanced group data fetching with better error handling
-      console.log("Fetching group data...");
       try {
         // Add validation to ensure ticketId is properly formatted
         const cleanTicketId = ticketId.toString().trim();
-        console.log("Clean ticketId being sent:", cleanTicketId);
-
         // Call the API with proper error handling
         const groupResponse = await getGroupView(cleanTicketId);
-        console.log("Raw group response:", groupResponse);
-
         // Check if we got a valid response
         if (!groupResponse) {
           console.warn("Empty response from getGroupView API");
           setGroupDefaults();
           return;
         }
-
-        // Log the response structure to understand what we're getting
-        console.log("Group response structure:", {
-          type: typeof groupResponse,
-          keys: Object.keys(groupResponse || {}),
-          hasData: Boolean(groupResponse.data),
-          hasGroup: Boolean(groupResponse.group),
-          directBankingDetails: Boolean(groupResponse.banking_details),
-        });
-
-        // Try to extract group data from various possible response structures
         let groupData = null;
-
-        // Common response patterns from different APIs
         if (groupResponse.data && groupResponse.data.group) {
           groupData = groupResponse.data.group;
-          console.log("Found group data in response.data.group");
         } else if (groupResponse.group) {
           groupData = groupResponse.group;
-          console.log("Found group data in response.group");
         } else if (groupResponse.data) {
           groupData = groupResponse.data;
-          console.log("Using response.data as group data");
         } else {
           groupData = groupResponse;
-          console.log("Using entire response as group data");
         }
-
-        console.log("Extracted group data:", groupData);
-
-        // Extract banking details from the group data
         let bankInfo = null;
-
-        // First check for primary bank account fields directly in groupData
         if (
           groupData?.primary_bank_acc_holder ||
           groupData?.primary_bank_acc_no ||
@@ -2001,10 +378,6 @@ const UpdateTicketAddOns = () => {
             bank_ifsc: groupData.primary_bank_ifsc,
             bank_acc_type: groupData.primary_bank_acc_type,
           };
-          console.log(
-            "Found primary bank info directly in groupData:",
-            bankInfo
-          );
         }
 
         // If not found, check in groupResponse directly
@@ -2080,10 +453,6 @@ const UpdateTicketAddOns = () => {
           setGroupDefaults();
           return;
         }
-
-        console.log("Processing bank info:", bankInfo);
-
-        // Clean and validate bank details with multiple field name variations including primary bank fields
         const cleanBankInfo = {
           bank_acc_type: String(
             bankInfo.bank_acc_type ||
@@ -2120,10 +489,6 @@ const UpdateTicketAddOns = () => {
               ""
           ).trim(),
         };
-
-        console.log("Cleaned bank info:", cleanBankInfo);
-
-        // Validate that we have meaningful data
         const hasAnyBankData = Object.values(cleanBankInfo).some(
           (value) => value.length > 0
         );
@@ -2142,21 +507,11 @@ const UpdateTicketAddOns = () => {
           cleanBankInfo.bank_acc_no &&
           cleanBankInfo.bank_ifsc &&
           cleanBankInfo.bank_acc_type;
-
-        console.log("All required fields present:", hasAllFields);
-        console.log("Individual field check:", {
-          holder: Boolean(cleanBankInfo.bank_acc_holder),
-          number: Boolean(cleanBankInfo.bank_acc_no),
-          ifsc: Boolean(cleanBankInfo.bank_ifsc),
-          type: Boolean(cleanBankInfo.bank_acc_type),
-        });
-
         setGroupHasBankAccount(true);
         setGroupBankDetailsIncomplete(!hasAllFields);
 
         // If bank details are complete, set toggle to ON by default
         if (hasAllFields) {
-          console.log("Setting toggle to ON and populating form data");
           setUseGroupBankAccount(true);
           // Immediately set the form data with group bank details
           setFormData((prev) => ({
@@ -2215,7 +570,6 @@ const UpdateTicketAddOns = () => {
     } finally {
       setPageLoading(false);
       setDataLoaded(true);
-      console.log("fetchData completed");
     }
   };
   const setGroupDefaults = () => {
@@ -2276,7 +630,7 @@ const UpdateTicketAddOns = () => {
                 className={`font-medium text-md ${
                   groupHasBankAccount && !groupBankDetailsIncomplete
                     ? "text-gray-900 dark:text-white"
-                    : "text-gray-500 dark:text-gray-400"
+                    : "text-black dark:text-gray-400"
                 }`}
               >
                 Do you want to use the bank account used for group creation?
@@ -2302,24 +656,43 @@ const UpdateTicketAddOns = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === "total_capacity" || name === "min_age_allowed") {
+      console.log(`Input changed: ${name}, Raw value from input: '${value}'`);
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-const handleSelectChange = (selectedOptions, { name }) => {
+  const handleSelectChange = (selectedOptions, { name }) => {
     // For multi-select, selectedOptions is an array of objects. Map over it to get values.
     // For single-select, it's a single object.
     const value = Array.isArray(selectedOptions)
-      ? selectedOptions.map(option => option.value)
-      : (selectedOptions ? selectedOptions.value : "");
+      ? selectedOptions.map((option) => option.value)
+      : selectedOptions
+      ? selectedOptions.value
+      : "";
 
     setFormData((prev) => {
-        const newData = { ...prev, [name]: value };
-        if (name === "event_category") {
-            newData.event_subcategory = "";
-        }
-        return newData;
+      const newData = { ...prev, [name]: value };
+      if (name === "event_category") {
+        newData.event_subcategory = "";
+      }
+      return newData;
     });
-};
+  };
+  const handleOpenDateModal = () => {
+    const type = formData.location_type;
+    if (type === "offline") setIsOfflineDateModalOpen(true);
+    else if (type === "online") setIsOnlineDateModalOpen(true);
+    else if (type === "recorded") setIsRecordedDateModalOpen(true);
+    else {
+      showAlert({
+        type: "error",
+        message: "Select Location Type",
+        description: "Please select a location type before adding dates.",
+      });
+    }
+  };
 
   const handleLocationTypeChange = (type) => {
     setFormData((prev) => ({ ...prev, location_type: type.toLowerCase() }));
@@ -2504,84 +877,76 @@ const handleSelectChange = (selectedOptions, { name }) => {
     });
   };
   const validateForm = () => {
-    if (formData.booking_start_date) {
-      const today = new Date();
-      const selectedDate = new Date(formData.booking_start_date);
+    const newErrors = {};
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-      // Reset hours to compare dates only, ignoring time
-      today.setHours(0, 0, 0, 0);
+    // --- Basic Info ---
+    if (!formData.event_name.trim())
+      newErrors.event_name = "Event name is required.";
+    if (!formData.event_category)
+      newErrors.event_category = "Event category is required.";
+    if (!formData.event_subcategory)
+      newErrors.event_subcategory = "Event subcategory is required.";
 
-      if (selectedDate < today) {
-        alert({
-          general:
-            "Validation Error: Booking start date cannot be in the past.",
-        });
-        setLoading(false);
-        return; // Stop the submission
-      }
+    // --- Date Validations ---
+    if (formData.event_dates.length === 0) {
+      newErrors.event_dates = "At least one event date is required.";
     }
-    if (formData.event_dates.length > 0 && formData.booking_end_date) {
-      // Find the earliest start date from all selected event dates
-      const earliestEventDate = formData.event_dates.reduce(
-        (earliest, current) => {
-          return new Date(current.date) < new Date(earliest.date)
-            ? current
-            : earliest;
-        }
-      );
 
-      const bookingEndDate = new Date(formData.booking_end_date);
-      const eventStartDate = new Date(earliestEventDate.date);
-
-      // Set hours to 0 to compare dates only, not times
-      bookingEndDate.setHours(0, 0, 0, 0);
-      eventStartDate.setHours(0, 0, 0, 0);
-
-      if (bookingEndDate > eventStartDate) {
-        alert(
-          "Validation Error: The booking end date cannot be after the event start date."
-        );
-        return false; // Stop the submission
-      }
-    }
-    if (!formData.booking_start_date || !formData.booking_end_date) {
-      alert("Please select both a booking start and end date.");
-      return false;
-    }
+    // --- Location Specific Validations ---
     if (formData.location_type === "offline") {
-      if (!formData.location.trim()) {
-        alert("For offline events, please provide a location.");
-        return false;
-      }
-      if (!formData.venue.trim()) {
-        alert("For offline events, please provide a venue.");
-        return false;
-      }
-      if (!formData.seating_arrangement) {
-        alert("For offline events, please select a seating arrangement.");
-        return false;
-      }
+      if (!formData.location.trim())
+        newErrors.location = "Location is required for offline events.";
+      if (!formData.venue.trim())
+        newErrors.venue = "Venue is required for offline events.";
+      if (!formData.seating_arrangement)
+        newErrors.seating_arrangement =
+          "Seating arrangement is required for offline events.";
     } else {
-      // For Online or Recorded events
-      if (!formData.event_link.trim()) {
-        alert("Please enter an event link for online/recorded events.");
-        return false;
+      // Online or Recorded
+
+      if (!formData.total_capacity)
+        newErrors.total_capacity =
+          "Maximum capacity is required for online/recorded events.";
+    }
+
+    // --- Ticketing (if applicable) ---
+    if (formData.payment_type === "paid") {
+      if (!formData.booking_start_date)
+        newErrors.booking_start_date = "Booking start date is required.";
+      if (!formData.booking_end_date)
+        newErrors.booking_end_date = "Booking end date is required.";
+
+      if (
+        formData.booking_start_date &&
+        new Date(formData.booking_start_date) < today
+      ) {
+        newErrors.booking_start_date =
+          "Booking start date cannot be in the past.";
       }
-      if (!formData.total_capacity) {
-        alert("Please enter the maximum capacity for online/recorded events.");
-        return false;
+      if (formData.event_dates.length > 0 && formData.booking_end_date) {
+        const sortedDates = [...formData.event_dates].sort(
+          (a, b) => new Date(a.date) - new Date(b.date)
+        );
+
+        const earliestEventDate = new Date(sortedDates[0].date);
+        earliestEventDate.setHours(0, 0, 0, 0);
+        if (new Date(formData.booking_end_date) > earliestEventDate) {
+          newErrors.booking_end_date =
+            "Booking end date cannot be after the event starts.";
+        }
       }
     }
+
+    // --- URL Validations ---
     const youtubeRegex =
       /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
     if (
       formData.event_youtube_link &&
       !youtubeRegex.test(formData.event_youtube_link)
     ) {
-      alert(
-        "Invalid YouTube URL. Please use a valid format like 'youtube.com/watch?v=VIDEO_ID'"
-      );
-      return false;
+      newErrors.event_youtube_link = "Invalid YouTube URL format.";
     }
     const instagramRegex =
       /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
@@ -2589,36 +954,83 @@ const handleSelectChange = (selectedOptions, { name }) => {
       formData.event_instagram_link &&
       !instagramRegex.test(formData.event_instagram_link)
     ) {
-      alert(
-        "Invalid Instagram URL. Please enter a valid profile link, like 'instagram.com/username'"
-      );
+      newErrors.event_instagram_link = "Invalid Instagram URL format.";
+    }
+
+    setErrors(newErrors);
+
+    if (Object.keys(newErrors).length > 0) {
+      // Show an alert with the first error found
+      showAlert({
+        type: "error",
+        message: "Validation Failed",
+        description: Object.values(newErrors)[0],
+      });
       return false;
     }
+
     return true;
   };
+  const convertTo24Hour = (time12h, ampm) => {
+    if (!time12h || !ampm) return "";
+    const [hours, minutes] = time12h.split(":");
+    let hour24 = parseInt(hours, 10);
+    if (ampm === "AM" && hour24 === 12) hour24 = 0;
+    if (ampm === "PM" && hour24 !== 12) hour24 += 12;
+    return `${hour24.toString().padStart(2, "0")}:${minutes}`;
+  };
   const buildPayload = () => {
+    if (formData.location_type === "online" || formData.location_type === "recorded") {
+      for (const date of formData.event_dates) {
+        if (!date.eventLink || date.eventLink.trim() === "") {
+          showAlert({
+            type: "error",
+            message: "Event Link Missing",
+            description: `An event link is required for the date: ${new Date(
+              date.date + "T00:00:00"
+            ).toLocaleDateString()}. Please edit the date to add a link.`,
+          });
+          return null;
+        }
+      }
+    }
+
     const eventDateTypeMap = {
       "Single day": "one-day",
       "Multi days": "multi-day",
       Weekly: "weekly",
     };
+
     const payload = {
       event_name: formData.event_name,
       event_category: formData.event_category,
       event_subcategory: formData.event_subcategory,
       event_type: formData.event_type,
       event_language: formData.event_language,
-      min_age_allowed: Number(formData.min_age_allowed),
+      min_age_allowed: parseInt(formData.min_age_allowed, 10) || 0,
       kids_friendly: formData.kids_friendly,
       pet_friendly: formData.pet_friendly,
       location_type: formData.location_type,
       event_date_type: eventDateTypeMap[formData.event_date_type] || "one-day",
-      event_dates: formData.event_dates.map((d) => ({
-        start_date: d.date,
-        end_date: d.endDate || d.date,
-        start_time: d.startTime,
-        end_time: d.endTime,
-      })),
+      event_dates: formData.event_dates.map((d) => {
+        // Ensure event_link has proper protocol for online/recorded events
+        let eventLink = d.eventLink || "";
+        if (eventLink && !eventLink.startsWith('http://') && !eventLink.startsWith('https://')) {
+          eventLink = 'https://' + eventLink;
+        }
+        
+        return {
+          start_date: d.date,
+          end_date: d.endDate || d.date,
+          start_time: convertTo24Hour(d.startTime, d.startAmPm),
+          end_time: convertTo24Hour(d.endTime, d.endAmPm),
+          event_link: eventLink,
+          video_name: d.videoName || "",
+          verification_event_code: d.verificationCode || "",
+          // Note: video_file_path and preview_image_path will be added by the backend
+          // from the uploaded files, so we don't include them here
+        };
+      }),
       event_instagram_link: formData.event_instagram_link,
       event_youtube_link: formData.event_youtube_link,
       event_description: descriptionEditorRef.current?.innerHTML || "",
@@ -2634,6 +1046,7 @@ const handleSelectChange = (selectedOptions, { name }) => {
       booking_start_date: formData.booking_start_date,
       booking_end_date: formData.booking_end_date,
     };
+
     if (formData.payment_type === "paid") {
       payload.banking_details = formData.banking_details;
       payload.ticket_types = formData.ticket_types.map((t) => ({
@@ -2651,68 +1064,129 @@ const handleSelectChange = (selectedOptions, { name }) => {
       payload.gate_open_time = formData.gate_open_time;
       payload.total_capacity = formData.total_capacity;
     } else {
-      payload.event_link = formData.event_link;
-      payload.total_capacity = Number(formData.total_capacity);
+      payload.total_capacity = parseInt(formData.total_capacity, 10) || 0;
     }
+
+    console.log('=== Generated Payload ===');
+    console.log(JSON.stringify(payload, null, 2));
 
     return payload;
   };
   const buildFormData = (payload) => {
     const submissionForm = new FormData();
     submissionForm.append("sub_event", JSON.stringify(payload));
-    if (formData.event_banner)
+    if (formData.event_banner) {
       submissionForm.append("event_banner", formData.event_banner);
-    if (formData.event_logo)
+    }
+    if (formData.event_logo) {
       submissionForm.append("event_logo", formData.event_logo);
-    if (formData.event_rules_file)
+    }
+    if (formData.event_rules_file) {
       submissionForm.append("event_rules", formData.event_rules_file);
-    if (formData.ticket_layout)
+    }
+    if (formData.ticket_layout) {
       submissionForm.append("ticket_layout", formData.ticket_layout);
-    formData.event_images.forEach((file) =>
-      submissionForm.append("event_images", file)
-    );
-    formData.guests.forEach((guest, index) => {
-      if (guest.rawFile)
-        submissionForm.append(`guest_profile_${index}`, guest.rawFile);
+    }
+    formData.event_images.forEach((file) => {
+      submissionForm.append("event_images", file);
     });
-    if (
-      formData.location_type === "offline" &&
-      formData.payment_type === "paid"
-    ) {
-      formData.ticket_types.forEach((ticket, index) => {
-        if (ticket.photoFile)
-          submissionForm.append(`ticket_photo_${index}`, ticket.photoFile);
+    formData.guests.forEach((guest, index) => {
+      if (guest.rawFile) {
+        submissionForm.append(`guest_profile_${index}`, guest.rawFile);
+      }
+    });
+    // Add video files for recorded events
+    if (formData.location_type === "recorded" && formData.event_dates) {
+      formData.event_dates.forEach((date, index) => {
+        // Add video file if it exists
+        if (date.videoFile) {
+          submissionForm.append(`video_file_${index}`, date.videoFile);
+          console.log(`Adding video file ${index}:`, date.videoFile.name);
+        }
+        
+        // Add preview image if it exists
+        if (date.previewImageFile) {
+          submissionForm.append(`preview_image_${index}`, date.previewImageFile);
+          console.log(`Adding preview image ${index}:`, date.previewImageFile.name);
+        }
       });
     }
+    
+    // Add ticket photos for offline paid events
+    if (formData.location_type === "offline" && formData.payment_type === "paid") {
+      formData.ticket_types.forEach((ticket, index) => {
+        if (ticket.photoFile) {
+          submissionForm.append(`ticket_photo_${index}`, ticket.photoFile);
+        }
+      });
+    }
+    
+    // Log FormData for debugging (optional, remove in production)
+    console.log('=== FormData Contents ===');
+    for (let pair of submissionForm.entries()) {
+      if (pair[1] instanceof File) {
+        console.log(pair[0], ':', pair[1].name, `(${pair[1].size} bytes)`);
+      } else {
+        console.log(pair[0], ':', typeof pair[1] === 'string' ? pair[1].substring(0, 100) + '...' : pair[1]);
+      }
+    }
+    
     return submissionForm;
   };
-  const handleSubmit = (e) => {
-    e.preventDefault(); // Prevent the form from submitting its default way
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-    // Check if there is at least one sub-event in the list
-    if (existingSubEvents.length > 0) {
-      // Confirm with the user that they want to proceed without saving any current form changes
-      if (
-        window.confirm(
-          "You have existing sub-events. Are you sure you want to continue without saving the current form? Any unsaved changes will be lost."
-        )
-      ) {
-        // If they confirm, navigate to the next page
-        navigate(`/ticket/ticket-terms/${ticketId}`);
+    // First, check if there is anything in the form. If not, and no events exist, show error.
+    if (formData.event_name.trim() === "" && existingSubEvents.length === 0) {
+      showAlert({
+        type: "error",
+        message: "No Sub-Events",
+        description:
+          "Please fill out the form to add at least one sub-event before continuing.",
+      });
+      return;
+    }
+
+    // If the form has data, validate and save it first.
+    if (formData.event_name.trim() !== "") {
+      if (!validateForm()) {
+        return; // Stop if validation fails
       }
-    } else {
-      // If no sub-events have been created, show an error
-      alert(
-        "Error: Please add at least one sub-event using the 'Add more sub events' button before continuing."
-      );
+
+      setIsSubmitting(true);
+      try {
+        const payload = buildPayload();
+        const submissionForm = buildFormData(payload);
+
+        if (isEditingSubEvent && editingSubEventId) {
+          await updateSubEvent(ticketId, editingSubEventId, submissionForm);
+        } else {
+          await updateTicketAddOns(ticketId, submissionForm);
+        }
+
+        // Only if save is successful, then navigate
+        navigate(`/ticket/ticket-terms/${ticketId}`);
+      } catch (error) {
+        const errorDesc =
+          error.response?.data?.message || "An error occurred while saving.";
+        showAlert({
+          type: "error",
+          message: "Save Failed",
+          description: errorDesc,
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else if (existingSubEvents.length > 0) {
+      // If the form is empty but events already exist, just navigate
+      navigate(`/ticket/ticket-terms/${ticketId}`);
     }
   };
-  const handleBack =(e)=>{
+  const handleBack = (e) => {
     e.preventDefault();
-    
-    navigate(`/ticket/update-ticket-media/${ticketId}`)
-                      
-  }
+
+    navigate(`/ticket/update-ticket-media/${ticketId}`);
+  };
   const currentBankDetail = formData.banking_details[0] || {};
   const [dataLoaded, setDataLoaded] = useState(false);
   const saveFormDataToStorage = (data) => {
@@ -2741,7 +1215,8 @@ const handleSelectChange = (selectedOptions, { name }) => {
     if (!document.getElementById(scriptId)) {
       const script = document.createElement("script");
       script.id = scriptId;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyB5MQdwuxFIG6Msf_At0bV2vPXuFwEkVkI&libraries=places&callback=${callbackName}`;
+      const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
       script.async = true;
       script.defer = true;
       document.head.appendChild(script);
@@ -3070,38 +1545,46 @@ const handleSelectChange = (selectedOptions, { name }) => {
   const handleSaveAndAddMore = async (e) => {
     if (e) e.preventDefault();
     if (!validateForm()) return;
-
     setIsSubmitting(true);
+    // ADD THIS CHECK
+    const payload = buildPayload();
+    if (!payload) {
+      setIsSubmitting(false); // Stop processing if payload validation failed
+      return;
+    }
+
     try {
-      const payload = buildPayload();
+      // REMOVED: const payload = buildPayload();
       const submissionForm = buildFormData(payload);
-      // Use different endpoint based on whether editing or creating
+
+      console.log("Submitting Payload:", JSON.stringify(payload, null, 2));
+
       if (isEditingSubEvent && editingSubEventId) {
         await updateSubEvent(ticketId, editingSubEventId, submissionForm);
-        alert("Sub-event updated successfully!");
       } else {
         await updateTicketAddOns(ticketId, submissionForm);
-        alert("Sub-event added successfully!");
       }
+
+      showAlert({
+        type: "success",
+        message: `Sub-Event ${isEditingSubEvent ? "Updated" : "Added"}`,
+        description: "Your sub-event has been saved successfully.",
+      });
       resetForm();
       await fetchData();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
-      console.error(
-        "Error submitting form:",
-        error.response ? error.response.data : error
-      );
-      alert(
-        `Submission failed: ${
-          error.response?.data?.message || "An error occurred."
-        }`
-      );
+      const errorDesc = error.response?.data?.message || "An error occurred.";
+      showAlert({
+        type: "error",
+        message: "Submission Failed",
+        description: errorDesc,
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
   const handleSubEventClick = async (subEventId) => {
-    console.log("Sub-event ID:", subEventId);
     setEditingSubEventId(subEventId);
     setIsEditingSubEvent(true);
     await populateFormWithSubEventData(subEventId);
@@ -3115,6 +1598,8 @@ const handleSelectChange = (selectedOptions, { name }) => {
       const subEvent = existingSubEvents.find(
         (event) => event._id === subEventId
       );
+      console.log("Loading data for this sub-event:", subEvent);
+
       if (subEvent) {
         // Map event dates with proper format conversion
         const mappedEventDates =
@@ -3146,6 +1631,9 @@ const handleSelectChange = (selectedOptions, { name }) => {
               // Keep original 24-hour format for backend compatibility
               startTime24h: date.start_time,
               endTime24h: date.end_time,
+              eventLink: date.event_link || "",
+              videoName: date.video_name || "",
+              verificationCode: date.verification_event_code || "",
             };
           }) || [];
 
@@ -3163,12 +1651,14 @@ const handleSelectChange = (selectedOptions, { name }) => {
           event_subcategory: subEvent.event_subcategory || "",
           event_type: subEvent.event_type || "public",
           location_type: subEvent.location_type || "offline", // FIX: Ensure location_type is set
-          event_link: subEvent.event_link || "",
+
           location: subEvent.location || "",
           venue: subEvent.venue || "",
-          event_language: Array.isArray(subEvent.event_language) 
-        ? subEvent.event_language 
-        : (subEvent.event_language ? [subEvent.event_language] : []),
+          event_language: Array.isArray(subEvent.event_language)
+            ? subEvent.event_language
+            : subEvent.event_language
+            ? [subEvent.event_language]
+            : [],
           min_age_allowed: subEvent.min_age_allowed || "",
           seating_arrangement: subEvent.seating_arrangement || "none",
           kids_friendly: subEvent.kids_friendly || false,
@@ -3292,31 +1782,63 @@ const handleSelectChange = (selectedOptions, { name }) => {
     }
   };
   const mainEventStartDate = mainEventData?.event_dates?.[0]?.start_date;
-  
 
- 
-const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.length - 1]?.end_date;
+  const mainEventEndDate =
+    mainEventData?.event_dates?.[mainEventData.event_dates.length - 1]
+      ?.end_date;
   return (
     <>
       <CustomScrollbarStyles isDark={darkMode} />
-      <style>{`
-    input:-webkit-autofill,
-    input:-webkit-autofill:hover,
-    input:-webkit-autofill:focus,
-    input:-webkit-autofill:active {
-        -webkit-text-fill-color: #FFFFFF !important;
-        -webkit-box-shadow: 0 0 0 30px #212426 inset !important;
-    }
-`}</style>
       {/* All modals go here */}
+
+      <Alert alert={alert} onClose={hideAlert} />
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={() => setConfirmState({ isOpen: false })}
+        onConfirm={confirmState.onConfirm}
+        title="Confirm Action"
+        message={confirmState.message}
+        darkMode={darkMode}
+      />
+
       <DatePickerModal
         isOpen={isDateModalOpen}
         onClose={() => setIsDateModalOpen(false)}
         onSave={handleDatesSave}
         initialDates={formData.event_dates}
         darkMode={darkMode}
-         minDate={mainEventStartDate} // ADD THIS PROP
-      maxDate={mainEventEndDate} // ADD THIS PROP
+        minDate={mainEventStartDate} // ADD THIS PROP
+        maxDate={mainEventEndDate} // ADD THIS PROP
+        showAlert={showAlert}
+      />
+
+      <OnlineDatePickerModal
+        isOpen={isOnlineDateModalOpen}
+        onClose={() => setIsOnlineDateModalOpen(false)}
+        onSave={handleDatesSave}
+        initialDates={formData.event_dates}
+        darkMode={darkMode}
+        showAlert={showAlert}
+        minDate={mainEventStartDate} // ADD THIS PROP
+        maxDate={mainEventEndDate}
+      />
+      <RecordedDatePickerModal
+        isOpen={isRecordedDateModalOpen}
+        onClose={() => setIsRecordedDateModalOpen(false)}
+        onSave={handleDatesSave}
+        initialDates={formData.event_dates}
+        darkMode={darkMode}
+        showAlert={showAlert}
+        minDate={mainEventStartDate} // ADD THIS PROP
+        maxDate={mainEventEndDate}
+      />
+      <DatePickerModal
+        isOpen={isOfflineDateModalOpen}
+        onClose={() => setIsOfflineDateModalOpen(false)}
+        onSave={handleDatesSave}
+        initialDates={formData.event_dates}
+        darkMode={darkMode}
+        showAlert={showAlert}
       />
       <GuestModal
         isOpen={isGuestModalOpen}
@@ -3328,6 +1850,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
         initialGuests={formData.guests}
         editingGuest={editingGuest}
         darkMode={darkMode}
+        showAlert={showAlert}
       />
       <ProhibitedItemsModal
         isOpen={isProhibitedModalOpen}
@@ -3335,6 +1858,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
         onSave={handleProhibitedItemsSave}
         initialItems={formData.prohibited_items}
         darkMode={darkMode}
+        showAlert={showAlert}
       />
       <CreateTicketModal
         isOpen={isTicketModalOpen}
@@ -3342,18 +1866,19 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
         onSave={handleSaveOrUpdateTickets}
         editingTicket={editingTicket}
         existingTickets={formData.ticket_types}
+        showAlert={showAlert}
       />
 
       <div className={`${darkMode ? "dark" : ""}`}>
         <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
           <EventSidebar
-          darkMode={darkMode}
+            darkMode={darkMode}
             onBackClick={handleBack} // Your existing back function
-    // Pass props from your 'mainEventData' state object
-    formProgress={mainEventData?.form_progress || {}}
-    groupId={mainEventData?.groupId}
-    ticketId={ticketId}
-    check={true} // 
+            // Pass props from your 'mainEventData' state object
+            formProgress={mainEventData?.form_progress || {}}
+            groupId={mainEventData?.groupId}
+            ticketId={ticketId}
+            check={true} //
           />
           <main className="flex-1 relative p-4 sm:p-6 md:p-8 overflow-y-auto">
             <div className="absolute top-6 right-6 z-10">
@@ -3365,17 +1890,19 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
 
             <div className="w-full max-w-5xl mx-auto">
               <header className="text-center mt-4 mb-12">
-                <div className={`w-20 h-20 rounded-full mx-auto my-4  flex items-center justify-center ${
-                                    darkMode
-                                      ? "bg-[#1E1242] text-gray-300"
-                                      : "bg-[#1E1242] text-gray-300"
-                                  }`}>
-                                               <img src={Addon_Form_Icon} alt="h-15 w-15" />
-                                            </div>
+                <div
+                  className={`w-20 h-20 rounded-full mx-auto my-4  flex items-center justify-center ${
+                    darkMode
+                      ? "bg-[#1E1242] text-gray-300"
+                      : "bg-[#1E1242] text-gray-300"
+                  }`}
+                >
+                  <img src={Addon_Form_Icon} alt="h-15 w-15" />
+                </div>
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
                   Add Extra Shows / Add Multiples Events
                 </h1>
-                <p className="text-gray-500 dark:text-gray-400">
+                <p className="text-black dark:text-gray-400">
                   Add and manage all the sub-events associated with your main
                   ticket.
                 </p>
@@ -3458,7 +1985,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                         ))}
                       </div>
                     ) : (
-                      <p className="text-gray-500 dark:text-gray-400">
+                      <p className="text-black dark:text-gray-400">
                         No sub-events have been added yet.
                       </p>
                     )}
@@ -3484,22 +2011,15 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                 <div className="space-y-8">
                   {/*... Other input fields like event_name, category etc. (No changes needed) ...*/}
                   <div>
-                    <label
-                      htmlFor="event_name"
-                      className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                    >
-                      Event name<span className="text-red-400">*</span>
-                      <InfoTooltip note="The public title of your event." />
-                    </label>
-                    <input
-                      id="event_name"
+                    <FormInput
+                      label="Event name"
+                      placeholder="Event name"
                       name="event_name"
-                      type="text"
                       value={formData.event_name}
                       onChange={handleInputChange}
                       required
-                      placeholder="Enter your event name here..."
-                      className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
+                      darkMode={darkMode}
+                      error={errors.event_name}
                     />
                   </div>
 
@@ -3507,7 +2027,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                     <div>
                       <label
                         htmlFor="event_category"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                       >
                         Event category<span className="text-red-400">*</span>
                       </label>
@@ -3520,16 +2040,15 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                           )}
                           onChange={handleSelectChange}
                           placeholder="Select category"
-                          styles={customSelectStyles(darkMode)}
+                          styles={CustomSelectStyles(darkMode, errors)}
                           required
                         />
-
                       </div>
                     </div>
                     <div>
                       <label
                         htmlFor="event_subcategory"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                       >
                         Event subcategory<span className="text-red-400">*</span>
                       </label>
@@ -3542,7 +2061,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                         )}
                         onChange={handleSelectChange}
                         placeholder="Select subcategory"
-                        styles={customSelectStyles(darkMode)}
+                        styles={CustomSelectStyles(darkMode, errors)}
                         isDisabled={!formData.event_category}
                         required
                       />
@@ -3550,7 +2069,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                   </div>
 
                   <div>
-                    <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                    <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
                       Event type<span className="text-red-400">*</span>
                     </label>
                     <div className="flex items-center space-x-6">
@@ -3563,7 +2082,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                           onChange={handleInputChange}
                           className="hidden peer"
                         />
-                        <span className="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-[#4A4A4A] peer-checked:border-indigo-500 peer-checked:bg-indigo-500 transition-all duration-300 flex items-center justify-center">
+                        <span className="w-4 h-4 rounded-full border-2 border-black dark:border-[#4A4A4A] peer-checked:border-indigo-500 peer-checked:bg-indigo-500 transition-all duration-300 flex items-center justify-center">
                           <span className="w-1.5 h-1.5 rounded-full bg-white opacity-0 peer-checked:opacity-100"></span>
                         </span>
                         <span className="ml-2">Public</span>
@@ -3577,7 +2096,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                           onChange={handleInputChange}
                           className="hidden peer"
                         />
-                        <span className="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-[#4A4A4A] peer-checked:border-indigo-500 peer-checked:bg-indigo-500 transition-all duration-300 flex items-center justify-center">
+                        <span className="w-4 h-4 rounded-full border-2 border-black dark:border-[#4A4A4A] peer-checked:border-indigo-500 peer-checked:bg-indigo-500 transition-all duration-300 flex items-center justify-center">
                           <span className="w-1.5 h-1.5 rounded-full bg-white opacity-0 peer-checked:opacity-100"></span>
                         </span>
                         <span className="ml-2">Private</span>
@@ -3592,12 +2111,12 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Location
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    <p className="text-black dark:text-gray-400 text-sm">
                       Choose where your event will take place
                     </p>
                   </div>
                   <div>
-                    <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                    <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-3">
                       Event location type<span className="text-red-400">*</span>
                     </label>
                     <div className="flex items-center space-x-4">
@@ -3623,7 +2142,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                         <div>
                           <label
                             htmlFor="location"
-                            className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                            className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                           >
                             Event location
                             <span className="text-red-400">*</span>
@@ -3636,37 +2155,31 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                             value={formData.location}
                             onChange={handleLocationInputChange}
                             placeholder="Search for location..."
-                            className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
+                            className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white border-black dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
                           />
                         </div>
-                        <div>
-                          <label
-                            htmlFor="venue"
-                            className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                          >
-                            Event venue<span className="text-red-400">*</span>
-                          </label>
-                          <input
-                            id="venue"
-                            name="venue"
-                            type="text"
-                            value={formData.venue}
-                            onChange={handleInputChange}
-                            placeholder="Enter the event venue"
-                            className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
-                          />
-                        </div>
+                        <FormInput
+                          label="Event venue"
+                          id="venue"
+                          name="venue"
+                          value={formData.venue}
+                          onChange={handleInputChange}
+                          placeholder="Enter the event venue"
+                          error={errors.venue}
+                          required
+                          darkMode={darkMode}
+                        />
                       </div>
 
                       <div className="relative">
-                        <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                        <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
                           Exact map location
                           <span className="text-red-400">*</span>
                           <InfoTooltip note="Click on the map to set exact location. Drag the marker to adjust." />
                         </label>
                         <div
                           ref={mapRef}
-                          className="w-full h-80 rounded-lg border bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-[#4A4A4A]"
+                          className="w-full h-80 rounded-lg border bg-gray-200 dark:bg-gray-800 border-black dark:border-[#4A4A4A]"
                           style={{
                             minHeight: "320px",
                             position: "relative",
@@ -3675,13 +2188,13 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                         >
                           {!isApiReady && (
                             <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                              <div className="text-gray-500 dark:text-gray-400">
+                              <div className="text-black dark:text-gray-400">
                                 Loading map...
                               </div>
                             </div>
                           )}
                         </div>
-                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        <div className="mt-2 text-xs text-black dark:text-gray-400">
                           Click anywhere on the map or drag the marker to set
                           the exact location. You can also search in the
                           location field above.
@@ -3694,12 +2207,12 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                             <div className="text-sm text-gray-600 dark:text-gray-400">
                               <strong>Selected Location:</strong>
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                            <div className="text-xs text-black dark:text-gray-500 mt-1">
                               Lat: {formData.exact_map_location.latitude}, Lng:{" "}
                               {formData.exact_map_location.longitude}
                             </div>
                             {formData.exact_map_location.address && (
-                              <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                              <div className="text-xs text-black dark:text-gray-500 mt-1">
                                 Address: {formData.exact_map_location.address}
                               </div>
                             )}
@@ -3712,46 +2225,19 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                     formData.location_type === "recorded") && (
                     <div className="space-y-8 animate-fade-in">
                       {/* Event Link Input (remains the same) */}
-                      <div>
-                        <label
-                          htmlFor="event_link"
-                          className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                        >
-                          Event Link<span className="text-red-400">*</span>
-                        </label>
-                        <input
-                          id="event_link"
-                          name="event_link"
-                          type="text"
-                          value={formData.event_link}
-                          onChange={handleInputChange}
-                          required
-                          placeholder="https://zoom.us/j/..."
-                          className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
-                        />
-                      </div>
 
-                      {/* --- MODIFIED: This now uses `total_capacity` --- */}
-                      <div>
-                        <label
-                          htmlFor="total_capacity"
-                          className="flex items-center text-base font-medium text-gray-800 dark:text-gray-300 mb-2"
-                        >
-                          Maximum number of people allowed (capacity)?{" "}
-                          <span className="text-red-500 ml-1">*</span>
-                          <InfoTooltip note="Set the total number of attendees for your online event." />
-                        </label>
-                        <input
-                          type="number"
-                          id="total_capacity"
-                          name="total_capacity"
-                          value={formData.total_capacity}
-                          onChange={handleInputChange}
-                          placeholder="Enter capacity"
-                          className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
-                          required
-                        />
-                      </div>
+                      <FormInput
+                        label="Maximum number of people allowed (capacity)?"
+                        id="total_capacity"
+                        name="total_capacity"
+                        type="number"
+                        value={formData.total_capacity}
+                        onChange={handleInputChange}
+                        placeholder="Enter capacity"
+                        error={errors.total_capacity}
+                        required
+                        darkMode={darkMode}
+                      />
                     </div>
                   )}
                 </div>
@@ -3762,51 +2248,45 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                     <div>
                       <label
                         htmlFor="event_language"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                       >
                         Event language<span className="text-red-400">*</span>
                       </label>
                       <div className="relative">
                         <Select
-    isMulti // <-- Add this prop
-    name="event_language"
-    options={languageOptions}
-    // Filter options based on the array of values in formData
-    value={languageOptions.filter(option => formData.event_language.includes(option.value))}
-    onChange={handleSelectChange}
-    placeholder="Select language(s)"
-    styles={customSelectStyles(darkMode)}
-    required
-/>
-
+                          isMulti // <-- Add this prop
+                          name="event_language"
+                          options={languageOptions}
+                          // Filter options based on the array of values in formData
+                          value={languageOptions.filter((option) =>
+                            formData.event_language.includes(option.value)
+                          )}
+                          onChange={handleSelectChange}
+                          placeholder="Select language(s)"
+                          styles={CustomSelectStyles(darkMode, errors)}
+                          required
+                        />
                       </div>
                     </div>
-                    <div>
-                      <label
-                        htmlFor="min_age_allowed"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                      >
-                        Minimum age allowed
-                        <span className="text-red-400">*</span>
-                      </label>
-                      
-                      <input
-                        id="min_age_allowed"
-                        name="min_age_allowed"
-                        type="number"
-                        value={formData.min_age_allowed}
-                        onChange={handleInputChange}
-                        placeholder="Enter Min Age Allowed"
-                        className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
-                      />
-                    </div>
+                    <FormInput
+                      label="Minimum age allowed"
+                      id="min_age_allowed"
+                      name="min_age_allowed"
+                      type="number"
+                      value={formData.min_age_allowed}
+                      onChange={handleInputChange}
+                      placeholder="Enter Min Age Allowed"
+                      error={errors.min_age_allowed}
+                      required
+                      darkMode={darkMode}
+                    />
                   </div>
 
                   {formData.location_type === "offline" && (
                     <div className="animate-fade-in">
                       <label
                         htmlFor="seating_arrangement"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                       >
                         Seating arrangement
                         <span className="text-red-400">*</span>
@@ -3820,68 +2300,50 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                         )}
                         onChange={handleSelectChange}
                         placeholder="Select a type"
-                        styles={customSelectStyles(darkMode)}
+                        styles={CustomSelectStyles(darkMode, errors)}
                         required={formData.location_type === "offline"}
                       />
                     </div>
                   )}
 
                   <div className="space-y-4 pt-4">
-                    <div className="flex items-center justify-between">
-                      <label className="font-medium text-gray-900 dark:text-white text-md">
-                        Is this event kid friendly?
-                      </label>
-                      <ToggleSwitch
-                        checked={formData.kids_friendly}
-                        onChange={() => handleToggleChange("kids_friendly")}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <label className="font-medium text-gray-900 dark:text-white text-md">
-                        Is this event pet friendly?
-                      </label>
-                      <ToggleSwitch
-                        checked={formData.pet_friendly}
-                        onChange={() => handleToggleChange("pet_friendly")}
-                      />
-                    </div>
+                    <ToggleSwitch
+                      label="Is this event kid friendly?"
+                      checked={formData.kids_friendly}
+                      onChange={() => handleToggleChange("kids_friendly")}
+                      darkMode={darkMode}
+                    />
+                    <ToggleSwitch
+                      label="Is this event pet friendly?"
+                      checked={formData.pet_friendly}
+                      onChange={() => handleToggleChange("pet_friendly")}
+                      darkMode={darkMode}
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                      <label
-                        htmlFor="event_instagram_link"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                      >
-                        Instagram link (Optional)
-                      </label>
-                      <input
-                        id="event_instagram_link"
-                        name="event_instagram_link"
-                        type="text"
-                        value={formData.event_instagram_link}
-                        onChange={handleInputChange}
-                        placeholder="https://instagram.com/..."
-                        className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="event_youtube_link"
-                        className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
-                      >
-                        Youtube link (Optional)
-                      </label>
-                      <input
-                        id="event_youtube_link"
-                        name="event_youtube_link"
-                        type="text"
-                        value={formData.event_youtube_link}
-                        onChange={handleInputChange}
-                        placeholder="https://youtube.com/..."
-                        className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-gray-300 dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
-                      />
-                    </div>
+                    <FormInput
+                      label="Instagram link (Optional)"
+                      id="event_instagram_link"
+                      name="event_instagram_link"
+                      type="text"
+                      value={formData.event_instagram_link}
+                      onChange={handleInputChange}
+                      placeholder="https://instagram.com/..."
+                      error={errors.event_instagram_link}
+                      darkMode={darkMode}
+                    />
+                    <FormInput
+                      label="Youtube link (Optional)"
+                      id="event_youtube_link"
+                      name="event_youtube_link"
+                      type="text"
+                      value={formData.event_youtube_link}
+                      onChange={handleInputChange}
+                      placeholder="https://youtube.com/..."
+                      error={errors.event_youtube_link}
+                      darkMode={darkMode}
+                    />
                   </div>
 
                   <div>
@@ -3902,14 +2364,14 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                     Dates and times
                   </h2>
-                  <p className="text-gray-500 dark:text-gray-400">
+                  <p className="text-black dark:text-gray-400">
                     Choose when your sub-event will take place.
                   </p>
 
                   <div>
                     <button
                       type="button"
-                      onClick={() => setIsDateModalOpen(true)}
+                      onClick={handleOpenDateModal}
                       className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold flex items-center gap-2"
                     >
                       Add dates and time
@@ -3919,7 +2381,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
 
                   {formData.event_dates.length > 0 && (
                     <div>
-                      <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                      <label className="text-sm font-medium text-black dark:text-gray-400">
                         Dates you selected
                       </label>
                       <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -3966,7 +2428,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                             className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${
                               darkMode
                                 ? "bg-gray-600 after:border-gray-500 peer-checked:bg-indigo-600"
-                                : "bg-gray-200 after:border-gray-300 peer-checked:bg-indigo-500"
+                                : "bg-gray-200 after:border-black peer-checked:bg-indigo-500"
                             }`}
                           ></div>
                         </label>
@@ -3976,7 +2438,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                         <div>
                           <label
                             htmlFor="gate_open_time"
-                            className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2"
+                            className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                           >
                             Time of gate opening?
                             <span className="text-red-400">*</span>{" "}
@@ -3995,7 +2457,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                                                     ${
                                                       darkMode
                                                         ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
-                                                        : "bg-white text-black border-gray-300"
+                                                        : "bg-white text-black border-black"
                                                     }`}
                             >
                               <option value="" disabled>
@@ -4021,7 +2483,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                                                     ${
                                                       darkMode
                                                         ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
-                                                        : "bg-white text-black border-gray-300"
+                                                        : "bg-white text-black border-black"
                                                     }`}
                             >
                               <option value="" disabled>
@@ -4047,7 +2509,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                                                     ${
                                                       darkMode
                                                         ? "bg-[#1E1E1E] text-white border-[#4A4A4A]"
-                                                        : "bg-white text-black border-gray-300"
+                                                        : "bg-white text-black border-black"
                                                     }`}
                             >
                               <option value="" disabled>
@@ -4069,7 +2531,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Guest/Guide/Artists details
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    <p className="text-black dark:text-gray-400 text-sm">
                       Enter details of the person guiding or managing the event.
                     </p>
 
@@ -4122,7 +2584,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                               className={`p-2 ${
                                 darkMode
                                   ? "text-gray-400 hover:text-white"
-                                  : "text-gray-500 hover:text-black"
+                                  : "text-black hover:text-black"
                               }`}
                               title="Edit"
                             >
@@ -4139,18 +2601,18 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                       <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                         Event rules and regulations
                       </h2>
-                      <p className="text-gray-500 dark:text-gray-400 text-sm">
+                      <p className="text-black dark:text-gray-400 text-sm">
                         Describe your event rules and regulations
                       </p>
                     </div>
                     <div
                       className={`bg-transparent border rounded-lg ${
-                        darkMode ? "border-[#4A4A4A]" : "border-gray-300"
+                        darkMode ? "border-[#4A4A4A]" : "border-black"
                       }`}
                     >
                       <div
                         className={`p-2 border-b ${
-                          darkMode ? "border-[#4A4A4A]" : "border-gray-300"
+                          darkMode ? "border-[#4A4A4A]" : "border-black"
                         } flex items-center space-x-1`}
                       >
                         <button
@@ -4195,7 +2657,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                         className={`px-4 py-2 border rounded-lg font-semibold flex items-center gap-2 cursor-pointer w-max ${
                           darkMode
                             ? "border-gray-600 hover:bg-gray-700"
-                            : "border-gray-300 hover:bg-gray-100"
+                            : "border-black hover:bg-gray-100"
                         }`}
                       >
                         Attach document
@@ -4228,7 +2690,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Prohibited items
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    <p className="text-black dark:text-gray-400 text-sm">
                       Add items that are not allowed for this event
                     </p>
                     <button
@@ -4237,7 +2699,6 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                       className="mt-4 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold flex items-center gap-2"
                     >
                       Add Prohibited Items
-
                       <img src={Prohibited_Form_Icon} alt="" />
                     </button>
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -4256,7 +2717,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                             onClick={() => removeProhibitedItem(item)}
                             className={`${
                               darkMode
-                                ? "text-gray-500 hover:text-white"
+                                ? "text-black hover:text-white"
                                 : "text-gray-400 hover:text-black"
                             }`}
                           >
@@ -4271,17 +2732,17 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Event description <span className="text-red-400">*</span>
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    <p className="text-black dark:text-gray-400 text-sm">
                       Describe your event.
                     </p>
                     <div
                       className={`mt-4 bg-transparent border rounded-lg ${
-                        darkMode ? "border-[#4A4A4A]" : "border-gray-300"
+                        darkMode ? "border-[#4A4A4A]" : "border-black"
                       }`}
                     >
                       <div
                         className={`p-2 border-b ${
-                          darkMode ? "border-[#4A4A4A]" : "border-gray-300"
+                          darkMode ? "border-[#4A4A4A]" : "border-black"
                         } flex items-center space-x-1`}
                       >
                         <button
@@ -4333,46 +2794,40 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Point of Contact
                     </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    <p className="text-black dark:text-gray-400 text-sm">
                       Add POCs with whom event feedback will be shared.
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
-                      <input
+                      <FormInput
+                        label="POC Name"
                         name="POC_name"
                         value={poc.POC_name}
                         onChange={handlePocChange}
-                        placeholder="Enter the name of person"
-                        className={`w-full px-4 py-3 bg-transparent border rounded-lg ${
-                          darkMode
-                            ? "text-white border-[#4A4A4A]"
-                            : "text-black border-gray-300"
-                        }`}
+                        placeholder="Enter the name of the person"
+                        required
+                        darkMode={darkMode}
                       />
-                      <input
+                      <FormInput
+                        label="POC Email"
                         name="POC_email"
+                        type="email"
                         value={poc.POC_email}
                         onChange={handlePocChange}
-                        type="email"
-                        placeholder="Enter the email id"
-                        className={`w-full px-4 py-3 bg-transparent border rounded-lg ${
-                          darkMode
-                            ? "text-white border-[#4A4A4A]"
-                            : "text-black border-gray-300"
-                        }`}
+                        placeholder="Enter the email ID"
+                        required
+                        darkMode={darkMode}
                       />
                     </div>
                     <div className="mt-8">
-                      <input
+                      <FormInput
+                        label="POC Contact Number"
                         name="POC_contact"
+                        type="tel"
                         value={poc.POC_contact}
                         onChange={handlePocChange}
-                        type="tel"
                         placeholder="Enter contact number"
-                        className={`w-full px-4 py-3 bg-transparent border rounded-lg ${
-                          darkMode
-                            ? "text-white border-[#4A4A4A]"
-                            : "text-black border-gray-300"
-                        }`}
+                        required
+                        darkMode={darkMode}
                       />
                     </div>
                     <button
@@ -4393,7 +2848,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                             <p className="font-semibold text-sm text-gray-800 dark:text-white truncate">
                               {pocItem.POC_name}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            <p className="text-xs text-black dark:text-gray-400 truncate">
                               {pocItem.POC_email} | {pocItem.POC_contact}
                             </p>
                           </div>
@@ -4436,6 +2891,8 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                         onFileChange={handleMediaFileChange}
                         onRemove={removeMediaFile}
                         darkMode={darkMode}
+                        acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
+                        maxSizeMB={50}
                       />
                       <FileInput
                         id="event_logo"
@@ -4445,16 +2902,18 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                         onFileChange={handleMediaFileChange}
                         onRemove={removeMediaFile}
                         darkMode={darkMode}
+                        acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
+                        maxSizeMB={50}
                       />
                       <div>
-                        <label className="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                        <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
                           Images and videos
                         </label>
                         <div
                           className={`relative rounded-lg text-center bg-gray-100 dark:bg-[#2B2B2B] min-h-[180px] flex justify-center items-center border-2 border-dashed ${
                             formData.event_images.length > 0
                               ? "border-indigo-500"
-                              : "border-gray-300 dark:border-gray-600"
+                              : "border-black dark:border-gray-600"
                           } overflow-hidden`}
                         >
                           {formData.event_images.length > 0 ? (
@@ -4539,7 +2998,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                     </div>
                     {showExtraMedia && formData.event_images.length > 1 && (
                       <div className="animate-fade-in">
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                        <p className="text-sm font-medium text-black dark:text-gray-400 mb-2">
                           Additional Media
                         </p>
                         <div className="flex overflow-x-auto space-x-4 p-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg">
@@ -4573,7 +3032,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                           onChange={handleInputChange}
                           className="hidden peer"
                         />
-                        <span className="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-[#4A4A4A] peer-checked:border-indigo-500 peer-checked:bg-indigo-500"></span>
+                        <span className="w-4 h-4 rounded-full border-2 border-black dark:border-[#4A4A4A] peer-checked:border-indigo-500 peer-checked:bg-indigo-500"></span>
                         <span className="ml-2">Free</span>
                       </label>
                       <label className="flex items-center cursor-pointer text-gray-600 dark:text-gray-300">
@@ -4585,7 +3044,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                           onChange={handleInputChange}
                           className="hidden peer"
                         />
-                        <span className="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-[#4A4A4A] peer-checked:border-indigo-500 peer-checked:bg-indigo-500"></span>
+                        <span className="w-4 h-4 rounded-full border-2 border-black dark:border-[#4A4A4A] peer-checked:border-indigo-500 peer-checked:bg-indigo-500"></span>
                         <span className="ml-2">Paid</span>
                       </label>
                     </div>
@@ -4603,7 +3062,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                                   groupHasBankAccount &&
                                   !groupBankDetailsIncomplete
                                     ? "text-gray-900 dark:text-white"
-                                    : "text-gray-500 dark:text-gray-400"
+                                    : "text-black dark:text-gray-400"
                                 }`}
                               >
                                 Do you want to use the bank account used for
@@ -4640,7 +3099,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                                   </div>
                                 )}
                               {!groupHasBankAccount && (
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                <p className="text-sm text-black dark:text-gray-400 mt-1">
                                   No bank account found for this group.
                                 </p>
                               )}
@@ -4680,7 +3139,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                             )}
                           </div>
 
-                          <p className="text-gray-500 dark:text-gray-400 text-sm">
+                          <p className="text-black dark:text-gray-400 text-sm">
                             {useGroupBankAccount && groupBankDetails
                               ? "Using the primary bank account associated with your group."
                               : "Provide bank account details for payment processing, settlements, or refunds."}
@@ -4706,7 +3165,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                                     handleBankingDetailChange(0, e)
                                   }
                                   disabled={useGroupBankAccount}
-                                  className="w-full appearance-none bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="w-full appearance-none bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <option value="">Select account type</option>
                                   <option value="current">Current</option>
@@ -4714,7 +3173,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                                 </select>
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3">
                                   <svg
-                                    className="w-5 h-5 text-gray-500"
+                                    className="w-5 h-5 text-black"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -4750,7 +3209,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                                 }
                                 disabled={useGroupBankAccount}
                                 placeholder="eg. John Doe"
-                                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                               />
                             </div>
 
@@ -4772,7 +3231,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                                 }
                                 disabled={useGroupBankAccount}
                                 placeholder="xxxx-xxxx-xxxx-xxxx"
-                                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                               />
                             </div>
 
@@ -4794,7 +3253,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                                 }
                                 disabled={useGroupBankAccount}
                                 placeholder="xxxxxxxxxxx"
-                                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                               />
                             </div>
                           </div>
@@ -4808,7 +3267,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                       <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                         Ticketing details
                       </h2>
-                      <p className="text-gray-500 dark:text-gray-400 text-sm">
+                      <p className="text-black dark:text-gray-400 text-sm">
                         Add ticket types, set prices, and control how attendees
                         book their spot.
                       </p>
@@ -4828,11 +3287,11 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                               name="booking_start_date"
                               value={formData.booking_start_date}
                               onChange={handleInputChange}
-                              className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 appearance-none"
+                              className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 appearance-none"
                             />
                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3">
                               <svg
-                                className="w-5 h-5 text-gray-500"
+                                className="w-5 h-5 text-black"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -4862,11 +3321,11 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                               name="booking_end_date"
                               value={formData.booking_end_date}
                               onChange={handleInputChange}
-                              className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 appearance-none"
+                              className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 appearance-none"
                             />
                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3">
                               <svg
-                                className="w-5 h-5 text-gray-500"
+                                className="w-5 h-5 text-black"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -4925,7 +3384,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                                     } - ₹${Number(
                                       ticket.price
                                     ).toLocaleString()}`}</p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    <p className="text-xs text-black dark:text-gray-400">
                                       Capacity: {ticket.capacity}
                                     </p>
                                   </div>
@@ -4989,28 +3448,22 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                       <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                         Seating details
                       </h2>
-                      <p className="text-gray-500 dark:text-gray-400 text-sm">
+                      <p className="text-black dark:text-gray-400 text-sm">
                         Add event seating capacity and its layout
                       </p>
-                      <div>
-                        <label
-                          htmlFor="total_capacity"
-                          className="flex items-center text-base font-medium text-gray-800 dark:text-gray-300 mb-2"
-                        >
-                          Maximum number of people allowed(capacity)?{" "}
-                          <span className="text-red-500 ml-1">*</span>{" "}
-                          <InfoTooltip note="Set the total number of attendees for your event." />
-                        </label>
-                        <input
-                          type="number"
-                          id="total_capacity"
-                          name="total_capacity"
-                          value={formData.total_capacity}
-                          onChange={handleInputChange}
-                          placeholder="event capacity"
-                          className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3"
-                        />
-                      </div>
+                      <FormInput
+                        label="Maximum number of people allowed (capacity)?"
+                        id="total_capacity"
+                        name="total_capacity"
+                        type="number"
+                        value={formData.total_capacity}
+                        onChange={handleInputChange}
+                        placeholder="Enter event capacity"
+                        error={errors.total_capacity}
+                        required
+                        darkMode={darkMode}
+                        info="Set the total number of attendees for your event."
+                      />
                       <div className="flex items-center justify-between">
                         <label className="font-medium text-gray-900 dark:text-white text-md">
                           Do you have seating layout?
@@ -5025,48 +3478,17 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                       {hasSeatingLayout && (
                         <div className="animate-fade-in grid grid-cols-2 gap-8 items-start">
                           <div className="col-span-1 space-y-2">
-                            <label className="flex items-center text-base font-medium text-gray-800 dark:text-gray-300">
-                              Upload seating layout{" "}
-                              <InfoTooltip note="Upload an image of your event's seating arrangement." />
-                            </label>
-                            <div className="flex justify-center rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-6 py-10 text-center">
-                              <label
-                                htmlFor="seating-layout-upload"
-                                className="cursor-pointer"
-                              >
-                                <svg
-                                  className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                                  />
-                                </svg>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                  Drag your file(s) or browse
-                                </p>
-                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                                  Max 10 MB files are allowed
-                                </p>
-                                <span className="mt-4 inline-block rounded-md font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm">
-                                  Browse file
-                                </span>
-                                <input
-                                  id="seating-layout-upload"
-                                  type="file"
-                                  className="sr-only"
-                                  onChange={(e) =>
-                                    handleMediaFileChange(e, "ticket_layout")
-                                  }
-                                  accept="image/*"
-                                />
-                              </label>
-                            </div>
+                            <FileInput
+                              id="seating-layout-upload"
+                              label="Upload seating layout "
+                              info="Optional. 1:1 ratio recommended."
+                              preview={previews.ticket_layout}
+                              onFileChange={handleMediaFileChange}
+                              onRemove={removeMediaFile}
+                              darkMode={darkMode}
+                              acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
+                              maxSizeMB={50}
+                            />
                           </div>
                           <div className="col-span-1">
                             {previews.ticket_layout && (
@@ -5112,9 +3534,8 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                   <div className="flex gap-4">
                     <button
                       type="button"
-                      onClick={handleBack
-                      }
-                                    className="px-8 py-3 rounded-lg font-semibold bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
+                      onClick={handleBack}
+                      className="px-8 py-3 rounded-lg font-semibold bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
                     >
                       Go back
                     </button>
@@ -5122,7 +3543,7 @@ const mainEventEndDate = mainEventData?.event_dates?.[mainEventData.event_dates.
                       onClick={handleSubmit}
                       type="submit"
                       disabled={isSubmitting}
-                                    className="px-8 py-3 rounded-lg font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-8 py-3 rounded-lg font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSubmitting ? "Saving..." : "Save and continue"}
                     </button>

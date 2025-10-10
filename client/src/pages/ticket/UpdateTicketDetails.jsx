@@ -8,364 +8,20 @@ import {
   getGroupView,
 } from "../../services/ticketService";
 
+import Select from "react-select";
+
 import Ticket_Form_Icon from "../../assets/Event/Ticket_Form_Icon.svg?react";
 import Calender_Icon from "../../assets/Event/Calender_Icon.svg?react";
+import CreateTicketModal from "../../components/CreateGroup/CreateTicketModal.jsx";
+import Alert from "../../components/CreateGroup/Alert.jsx";
+import ConfirmModal from "../../components/CreateGroup/ConfirmModal.jsx";
+import ToggleSwitch from "../../components/CreateGroup/ToggleSwitch.jsx";
+import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
+import FormInput from "../../components/CreateGroup/FormInput.jsx";
+import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
 
-const InfoTooltip = ({ note }) => (
-  <div className="relative flex items-center group ml-1.5">
-    <svg
-      className="w-4 h-4 text-gray-500"
-      fill="currentColor"
-      viewBox="0 0 20 20"
-    >
-      <path
-        fillRule="evenodd"
-        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-        clipRule="evenodd"
-      ></path>
-    </svg>
-    <div className="absolute bottom-full mb-2 w-max max-w-xs p-2 text-xs font-medium text-white bg-gray-900 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20">
-      {note}
-    </div>
-  </div>
-);
-const ToggleSwitch = ({ checked, onChange, disabled = false }) => (
-  <label
-    className={`relative inline-flex items-center ${
-      disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
-    }`}
-  >
-    <input
-      type="checkbox"
-      className="sr-only peer"
-      checked={checked}
-      onChange={onChange}
-      disabled={disabled}
-    />
-    <div className="w-11 h-6 bg-gray-200 dark:bg-[#363A3F] rounded-full peer peer-checked:bg-indigo-600 shadow-inner-dark after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-  </label>
-);
-const CreateTicketModal = ({
-  isOpen,
-  onClose,
-  onSave,
-  onResetAll,
-  editingTicket,
-  existingTickets,
-}) => {
-  const [localTickets, setLocalTickets] = useState([]);
-  const [ticketType, setTicketType] = useState("");
-  const [ticketPrice, setTicketPrice] = useState("");
-  const [totalTickets, setTotalTickets] = useState("");
-  const [ticketPhoto, setTicketPhoto] = useState(null);
-  const [ticketPhotoPreview, setTicketPhotoPreview] = useState("");
-  const [currentEditId, setCurrentEditId] = useState(null);
-  useEffect(() => {
-    if (isOpen) {
-      setLocalTickets(existingTickets || []);
-      if (editingTicket) {
-        setTicketType(editingTicket.name);
-        setTicketPrice(editingTicket.price);
-        setTotalTickets(editingTicket.capacity);
-        setTicketPhotoPreview(editingTicket.image);
-        setTicketPhoto(editingTicket.photoFile || null);
-        setCurrentEditId(editingTicket.id);
-      } else {
-        setCurrentEditId(null);
-        setTicketType("");
-        setTicketPrice("");
-        setTotalTickets("");
-        setTicketPhoto(null);
-        setTicketPhotoPreview("");
-      }
-    }
-  }, [editingTicket, existingTickets, isOpen]);
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith("image/")) {
-      setTicketPhoto(file);
-      setTicketPhotoPreview(URL.createObjectURL(file));
-    }
-  };
 
-  const handleAddOrUpdateTicket = () => {
-    if (!ticketType || !ticketPrice || !totalTickets) {
-      alert(
-        "Please fill in all ticket details: Type, Price, and Total Tickets."
-      );
-      return;
-    }
-
-    const ticketData = {
-      name: ticketType,
-      price: ticketPrice,
-      capacity: totalTickets,
-      image: ticketPhotoPreview || `https://i.pravatar.cc/150?u=${Date.now()}`,
-      photoFile: ticketPhoto,
-    };
-
-    if (currentEditId) {
-      const updatedList = localTickets.map((t) =>
-        t.id === currentEditId ? { ...ticketData, id: currentEditId } : t
-      );
-      setLocalTickets(updatedList);
-    } else {
-      setLocalTickets([...localTickets, { ...ticketData, id: Date.now() }]);
-    }
-
-    setCurrentEditId(null);
-    setTicketType("");
-    setTicketPrice("");
-    setTotalTickets("");
-    setTicketPhoto(null);
-    setTicketPhotoPreview("");
-  };
-
-  const handleDeleteTicket = (ticketIdToDelete) =>
-    setLocalTickets(localTickets.filter((t) => t.id !== ticketIdToDelete));
-  const startEditing = (ticket) => {
-    setCurrentEditId(ticket.id);
-    setTicketType(ticket.name);
-    setTicketPrice(ticket.price);
-    setTotalTickets(ticket.capacity);
-    setTicketPhotoPreview(ticket.image);
-    setTicketPhoto(ticket.photoFile || null);
-  };
-
-  const handleSave = () => {
-    onSave(localTickets);
-    onClose();
-  };
-  const handleResetAll = () => {
-    setLocalTickets([]);
-    setCurrentEditId(null);
-    setTicketType("");
-    setTicketPrice("");
-    setTotalTickets("");
-    setTicketPhoto(null);
-    setTicketPhotoPreview("");
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-[#2B2B2B] rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="p-6 flex justify-between items-center flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            {currentEditId ? "Edit Ticket" : "Create Ticket"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 text-3xl hover:text-gray-800 dark:hover:text-white transition"
-          >
-            &times;
-          </button>
-        </div>
-        <hr className="border-gray-200 dark:border-gray-700" />
-
-        {/* Scrollable Content */}
-        <div className="flex-grow overflow-y-auto p-6">
-          <div className="flex gap-6">
-            {/* Left Side */}
-            <div className="w-1/2 space-y-5 flex flex-col">
-              <input
-                type="text"
-                value={ticketType}
-                onChange={(e) => setTicketType(e.target.value)}
-                placeholder="e.g. VIP, General Admission"
-                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3"
-              />
-
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                  Ticket price
-                </label>
-                <div className="flex items-center bg-gray-100 dark:bg-[#1c1c1f] border border-gray-300 dark:border-gray-700 rounded-md">
-                  <span className="text-gray-500 dark:text-gray-400 pl-3">
-                    INR
-                  </span>
-                  <input
-                    type="number"
-                    value={ticketPrice}
-                    onChange={(e) => setTicketPrice(e.target.value)}
-                    placeholder="Ticket price"
-                    className="w-full bg-transparent p-3 text-gray-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                  Total tickets
-                </label>
-                <input
-                  type="number"
-                  value={totalTickets}
-                  onChange={(e) => setTotalTickets(e.target.value)}
-                  placeholder="Total tickets available"
-                  className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3"
-                />
-              </div>
-
-              <div className="flex-grow flex flex-col">
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                  Upload ticket photo
-                </label>
-                <div className="flex-grow mt-2 flex justify-center items-center rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-6 py-10 text-center">
-                  <label
-                    htmlFor="ticket-photo-upload"
-                    className="cursor-pointer"
-                  >
-                    <svg
-                      className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                      />
-                    </svg>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                      browse your files
-                    </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                      Max 10 MB files are allowed
-                    </p>
-                    <span className="mt-4 inline-block rounded-md font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm">
-                      Browse file
-                    </span>
-                    <input
-                      id="ticket-photo-upload"
-                      type="file"
-                      className="sr-only"
-                      onChange={handleFileChange}
-                      accept="image/*"
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div className="pt-2 flex-shrink-0">
-                <button
-                  onClick={handleAddOrUpdateTicket}
-                  className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition w-full"
-                >
-                  {currentEditId ? "Update Ticket" : "+ Add Ticket"}
-                </button>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="w-px bg-gray-200 dark:bg-gray-700 flex-shrink-0"></div>
-
-            {/* Right Side */}
-            <div className="w-1/2 space-y-3">
-              {localTickets.length === 0 ? (
-                <div className="text-center text-gray-500 pt-16">
-                  No tickets added yet.
-                </div>
-              ) : (
-                localTickets.map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    className="bg-gray-100 dark:bg-[#363A3F] p-3 rounded-lg flex items-center justify-between"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <img
-                        src={ticket.image}
-                        alt={ticket.name}
-                        className="w-16 h-16 rounded-md object-cover"
-                      />
-                      <div>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {`${ticket.name} - ₹${Number(
-                            ticket.price
-                          ).toLocaleString()}`}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Capacity: {ticket.capacity}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => startEditing(ticket)}
-                        className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTicket(ticket.id)}
-                        className="text-gray-400 hover:text-red-500 transition"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        <hr className="border-gray-200 dark:border-gray-700" />
-
-        {/* Footer */}
-        <div className="p-6 flex justify-end gap-4 flex-shrink-0">
-          <button
-            onClick={handleResetAll}
-            className="px-6 py-2 bg-gray-200 dark:bg-[#363A3F] text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-700 transition"
-          >
-            Reset all
-          </button>
-          <button
-            onClick={onClose}
-            className="px-6 py-2 bg-gray-200 dark:bg-[#363A3F] text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-700 transition"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition"
-          >
-            Save Changes
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // --- Main Page Component ---
 const UpdateTicketDetails = () => {
@@ -375,6 +31,13 @@ const UpdateTicketDetails = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [errors, setErrors] = useState({});
+      const [alert, setAlert] = useState(null);
+          const [confirmState, setConfirmState] = useState({ isOpen: false, onConfirm: null, message: '' });
+
+    const showAlert = (data) => setAlert({ ...data, show: true });
+    const hideAlert = () => setAlert(null);
+
+    
 
   // Define a unique key for localStorage based on the ticketId
   const storageKey = `bankingAndTicketsDraft_${ticketId}`;
@@ -428,6 +91,13 @@ const UpdateTicketDetails = () => {
           groupResponse.group || groupResponse.data || groupResponse;
 
         setMainEventData(ticketData);
+
+        if (ticketData && ticketData.event_dates && ticketData.event_dates.length > 0) {
+            // Sort dates to find the latest one reliably
+            const sortedDates = [...ticketData.event_dates].sort((a, b) => new Date(a.end_date) - new Date(b.end_date));
+            const lastDate = sortedDates[sortedDates.length - 1];
+            setEventEndDate(lastDate.end_date ? new Date(lastDate.end_date).toISOString().split("T")[0] : "");
+        }
         // Load saved draft from localStorage
         const savedDraftRaw = localStorage.getItem(storageKey);
         const savedDraft = savedDraftRaw ? JSON.parse(savedDraftRaw) : null;
@@ -469,28 +139,17 @@ const UpdateTicketDetails = () => {
               })) ??
               []
           );
-          setEventEndDate(
-            ticketData.end_date
-              ? new Date(ticketData.end_date).toISOString().split("T")[0]
-              : ""
-          );
+          
+         
         }
         if (groupData && groupData.primary_bank_acc_no) {
           setGroupHasBankAccount(true);
-
-          // Add console.log to see what value is actually coming from API
-          console.log(
-            "Group bank account type from API:",
-            groupData.primary_bank_acc_type
-          );
-
           const {
             primary_bank_acc_type,
             primary_bank_acc_holder,
             primary_bank_acc_no,
             primary_bank_ifsc,
           } = groupData;
-
           // Normalize the account type to match your select options
           const normalizedAccType = primary_bank_acc_type?.toLowerCase();
 
@@ -565,6 +224,18 @@ const UpdateTicketDetails = () => {
     storageKey,
   ]);
 
+    const handleBookingEndDateChange = (e) => {
+        const newEndDate = e.target.value;
+        setBookingEndDate(newEndDate);
+        setErrors(prev => ({ ...prev, booking_end_date: null, general: null }));
+
+        if (newEndDate && eventEndDate && new Date(newEndDate) > new Date(eventEndDate)) {
+            const errorMsg = `Booking end date cannot be after the event's end date. : ${eventEndDate}`;
+            showAlert({ type: 'error', message: 'Invalid Date', description: errorMsg });
+            setErrors(prev => ({ ...prev, booking_end_date: errorMsg }));
+        }
+    };
+
   const handleBankingDetailChange = (index, event) => {
     const { name, value } = event.target;
     const list = [...bankingDetails];
@@ -589,24 +260,30 @@ const UpdateTicketDetails = () => {
     setEditingTicket(ticketToEdit);
     setIsTicketModalOpen(true);
   };
-  const handleOpenModalForAdd = () => {
-    setEditingTicket(null);
-    setIsTicketModalOpen(true);
-  };
+    const handleOpenModalForAdd = () => { setEditingTicket(null); setIsTicketModalOpen(true); };
+
   const handleSaveOrUpdateTickets = (updatedTickets) =>
     setTickets(updatedTickets);
-  const handleDeleteTicket = (ticketIdToDelete) => {
-    if (window.confirm("Are you sure you want to delete this ticket type?")) {
-      setTickets(tickets.filter((t) => t.id !== ticketIdToDelete));
-    }
-  };
-  const handleResetAllTickets = () => {
-    if (
-      window.confirm("Are you sure? This will remove all added ticket types.")
-    ) {
-      setTickets([]);
-    }
-  };
+    const handleDeleteTicket = (ticketIdToDelete) => {
+        setConfirmState({
+            isOpen: true,
+            message: 'Are you sure you want to delete this ticket type?',
+            onConfirm: () => {
+                setTickets(tickets.filter((t) => t.id !== ticketIdToDelete));
+                setConfirmState({ isOpen: false });
+            }
+        });
+    };
+    const handleResetAllTickets = () => {
+        setConfirmState({
+            isOpen: true,
+            message: 'Are you sure? This will remove all added ticket types.',
+            onConfirm: () => {
+                setTickets([]);
+                setConfirmState({ isOpen: false });
+            }
+        });
+    };
 
   const handleGoBack = () => {
     localStorage.removeItem(storageKey);
@@ -624,25 +301,34 @@ const UpdateTicketDetails = () => {
     apiFormData.append("booking_start_date", bookingStartDate);
     apiFormData.append("booking_end_date", bookingEndDate);
 
-    if (paymentType === "paid" && !useGroupBankAccount) {
-      const cleanBankingDetails = bankingDetails.map(({ id, ...rest }) => rest);
-      apiFormData.append(
-        "banking_details",
-        JSON.stringify(cleanBankingDetails)
-      );
-    }
+
+
+
+        if (bookingEndDate && bookingStartDate && new Date(bookingEndDate) < new Date(bookingStartDate)) {
+            const errorMsg = "Invalid Date Range.";
+            showAlert({ type: 'error', message: 'Validation Error', description: errorMsg });
+            setErrors({ general: errorMsg, booking_end_date: errorMsg });
+            setLoading(false);
+            return;
+        }
+    // --- END OF DEBUGGING ---
+
     if (
       paymentType === "paid" &&
       bookingEndDate &&
       eventEndDate &&
-      bookingEndDate > eventEndDate
+      new Date(bookingEndDate) > new Date(eventEndDate)
     ) {
-      setErrors({
-        general: "Booking end date cannot be after the event end date.",
-      });
+      console.log("!!! VALIDATION FAILED. Showing alert.");
+      const errorMsg = "Booking end date cannot be after the event has finished.";
+      showAlert({ type: 'error', message: 'Invalid Date Range', description: errorMsg });
+      setErrors({ general: errorMsg });
       setLoading(false);
       return;
     }
+
+    console.log("Validation PASSED. Proceeding with submission.");
+    
     const cleanTicketTypes = tickets.map(
       ({ id, image, photoFile, name, price, capacity }) => ({
         ticket_type: name,
@@ -665,16 +351,23 @@ const UpdateTicketDetails = () => {
       await updateTicketDetails(ticketId, apiFormData);
       localStorage.removeItem(storageKey);
       navigate(`/ticket/ticket-terms/${ticketId}`);
+                  showAlert({ type: 'success', message: 'Details Saved!', description: 'Banking and ticket info has been updated.' });
+
     } catch (error) {
       console.error("Submission failed:", error);
+                  const errorDesc = error.response?.data?.message || "An error occurred while saving.";
+
+                  showAlert({ type: 'error', message: 'Submission Failed', description: errorDesc });
+
       setErrors({
         general:
-          error.response?.data?.message || "An error occurred while saving.",
+          errorDesc,
       });
     } finally {
       setLoading(false);
     }
   };
+
 
   if (initialLoading) {
     return (
@@ -684,10 +377,16 @@ const UpdateTicketDetails = () => {
     );
   }
 
+
   const currentBankDetail = bankingDetails[0] || {};
 
   return (
     <div className={darkMode ? "dark" : ""}>
+      <CustomScrollbarStyles isDark={darkMode} />
+                  <Alert alert={alert} onClose={hideAlert} />
+                              <ConfirmModal isOpen={confirmState.isOpen} onClose={() => setConfirmState({isOpen: false})} onConfirm={confirmState.onConfirm} title="Confirm Action" message={confirmState.message} darkMode={darkMode} />
+
+
       <div className="bg-[#FEFEFE] dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
         <EventSidebar
           darkMode={darkMode}
@@ -737,7 +436,7 @@ const UpdateTicketDetails = () => {
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   Payment type
                 </h2>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                <p className="text-black dark:text-gray-400 text-sm">
                   Select if your event is free to attend or requires a ticket
                   purchase.
                 </p>
@@ -755,7 +454,7 @@ const UpdateTicketDetails = () => {
                         onChange={() => setPaymentType("free")}
                         className="hidden peer"
                       />
-                      <span className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full flex items-center justify-center peer-checked:border-indigo-600 dark:peer-checked:border-indigo-500">
+                      <span className="w-5 h-5 border-2 border-black dark:border-gray-600 rounded-full flex items-center justify-center peer-checked:border-indigo-600 dark:peer-checked:border-indigo-500">
                         <span className="w-2.5 h-2.5 bg-indigo-600 dark:bg-indigo-500 rounded-full hidden peer-checked:block"></span>
                       </span>
                       <span className="text-gray-700 dark:text-gray-300">
@@ -771,7 +470,7 @@ const UpdateTicketDetails = () => {
                         onChange={() => setPaymentType("paid")}
                         className="hidden peer"
                       />
-                      <span className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full flex items-center justify-center peer-checked:border-indigo-600 dark:peer-checked:border-indigo-500">
+                      <span className="w-5 h-5 border-2 border-black dark:border-gray-600 rounded-full flex items-center justify-center peer-checked:border-indigo-600 dark:peer-checked:border-indigo-500">
                         <span className="w-2.5 h-2.5 bg-indigo-600 dark:bg-indigo-500 rounded-full hidden peer-checked:block"></span>
                       </span>
                       <span className="text-gray-700 dark:text-gray-300">
@@ -805,7 +504,7 @@ const UpdateTicketDetails = () => {
                                 groupHasBankAccount &&
                                 !groupBankDetailsIncomplete
                                   ? "text-gray-900 dark:text-white"
-                                  : "text-gray-500 dark:text-gray-400"
+                                  : "text-black dark:text-gray-400"
                               }`}
                             >
                               Do you want to use the bank account used for group
@@ -840,7 +539,7 @@ const UpdateTicketDetails = () => {
                                 </div>
                               )}
                             {!groupHasBankAccount && (
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                              <p className="text-sm text-black dark:text-gray-400 mt-1">
                                 No bank account found for this group.
                               </p>
                             )}
@@ -886,7 +585,7 @@ const UpdateTicketDetails = () => {
                       </div>
                     )}
                   </div>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  <p className="text-black dark:text-gray-400 text-sm">
                     {useGroupBankAccount
                       ? "This is the primary bank account associated with your group."
                       : "Provide bank account details for payment processing, settlements, or refunds."}
@@ -907,7 +606,7 @@ const UpdateTicketDetails = () => {
                           value={currentBankDetail.bank_acc_type || ""}
                           onChange={(e) => handleBankingDetailChange(0, e)}
                           disabled={useGroupBankAccount}
-                          className="w-full appearance-none bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full appearance-none bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <option
                             value=""
@@ -928,9 +627,10 @@ const UpdateTicketDetails = () => {
                             Merchant
                           </option>
                         </select>
+                        
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3">
                           <svg
-                            className="w-5 h-5 text-gray-500"
+                            className="w-5 h-5 text-black"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -961,7 +661,7 @@ const UpdateTicketDetails = () => {
                         onChange={(e) => handleBankingDetailChange(0, e)}
                         disabled={useGroupBankAccount}
                         placeholder="eg. John Doe"
-                        className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div>
@@ -980,7 +680,7 @@ const UpdateTicketDetails = () => {
                         onChange={(e) => handleBankingDetailChange(0, e)}
                         disabled={useGroupBankAccount}
                         placeholder="xxxx-xxxx-xxxx-xxxx"
-                        className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div>
@@ -998,7 +698,7 @@ const UpdateTicketDetails = () => {
                         onChange={(e) => handleBankingDetailChange(0, e)}
                         disabled={useGroupBankAccount}
                         placeholder="xxxxxxxxxxx"
-                        className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </div>
                   </div>
@@ -1009,7 +709,7 @@ const UpdateTicketDetails = () => {
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   Seating details
                 </h2>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                <p className="text-black dark:text-gray-400 text-sm">
                   Add event seating capacity and its layout
                 </p>
                 <div>
@@ -1027,7 +727,7 @@ const UpdateTicketDetails = () => {
                     value={totalCapacity}
                     onChange={(e) => setTotalCapacity(e.target.value)}
                     placeholder="event capacity"
-                    className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3"
+                    className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3"
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -1046,13 +746,13 @@ const UpdateTicketDetails = () => {
                         Upload seating layout{" "}
                         <InfoTooltip note="Upload an image of your event's seating arrangement." />
                       </label>
-                      <div className="flex justify-center rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-6 py-10 text-center">
+                      <div className="flex justify-center rounded-lg border border-dashed border-black dark:border-gray-700 px-6 py-10 text-center">
                         <label
                           htmlFor="seating-layout-upload"
                           className="cursor-pointer"
                         >
                           <svg
-                            className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500"
+                            className="mx-auto h-12 w-12 text-gray-400 dark:text-black"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -1064,10 +764,10 @@ const UpdateTicketDetails = () => {
                               d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
                             />
                           </svg>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <p className="text-sm text-black dark:text-gray-400">
                             Drag your file(s) or browse
                           </p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                          <p className="text-xs text-gray-400 dark:text-black mt-1">
                             Max 10 MB files are allowed
                           </p>
                           <span className="mt-4 inline-block rounded-md font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm">
@@ -1110,62 +810,35 @@ const UpdateTicketDetails = () => {
                   Ticketing details
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 pt-2">
-                  <div>
-                    <label
-                      htmlFor="booking_start_date"
-                      className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 mb-2"
-                    >
-                      Booking start date?{" "}
-                      <span className="text-red-500 ml-1">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        id="booking_start_date"
-                        name="booking_start_date"
-                        value={bookingStartDate}
-                        onChange={(e) => setBookingStartDate(e.target.value)}
-                        className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 appearance-none"
-                      />
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3">
-                        <img src={Calender_Icon} alt="" />
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="booking_end_date"
-                      className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 mb-2"
-                    >
-                      Booking end date?{" "}
-                      <span className="text-red-500 ml-1">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        id="booking_end_date"
-                        name="booking_end_date"
-                        value={bookingEndDate}
-                        onChange={(e) => setBookingEndDate(e.target.value)}
-                        max={eventEndDate}
-                        className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-md p-3 appearance-none"
-                      />
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3">
-                        <img src={Calender_Icon} alt="" />
-                      </div>
-                    </div>
-                    {eventEndDate && bookingEndDate > eventEndDate && (
-                      <p className="text-xs text-red-500 mt-1">
-                        Booking end date cannot be after event end date (
-                        {new Date(eventEndDate).toLocaleDateString()})
-                      </p>
-                    )}
-                  </div>
+                                <FormInput
+                                    id="booking_start_date"
+                                    label="Booking start date?"
+                                    type="date"
+                                    name="booking_start_date"
+                                    value={bookingStartDate}
+                                    onChange={(e) => setBookingStartDate(e.target.value)}
+                                    error={errors.booking_start_date}
+                                    required
+                                    darkMode={darkMode}
+                                />
+                                
+                                <FormInput
+                                    id="booking_end_date"
+                                    label="Booking end date?"
+                                    type="date"
+                                    name="booking_end_date"
+                                    value={bookingEndDate}
+                                    onChange={handleBookingEndDateChange} // Use the new handler
+                                    max={eventEndDate} // Keeps the calendar from showing invalid dates
+                                    error={errors.booking_end_date} // Connects to errors state for highlighting
+                                    required
+                                    darkMode={darkMode}
+                                />
                 </div>
               </section>
               {paymentType === "paid" && (
                 <section className="space-y-6">
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  <p className="text-black dark:text-gray-400 text-sm">
                     Add ticket types, set prices, and control how attendees book
                     their spot.
                   </p>
@@ -1193,7 +866,7 @@ const UpdateTicketDetails = () => {
                             <p className="font-semibold text-gray-900 dark:text-white">{`${
                               ticket.name
                             } - ₹${Number(ticket.price).toLocaleString()}`}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <p className="text-xs text-black dark:text-gray-400">
                               Capacity: {ticket.capacity}
                             </p>
                           </div>
@@ -1265,13 +938,15 @@ const UpdateTicketDetails = () => {
       </div>
 
       <CreateTicketModal
-        isOpen={isTicketModalOpen}
-        onClose={() => setIsTicketModalOpen(false)}
-        onSave={handleSaveOrUpdateTickets}
-        onResetAll={handleResetAllTickets}
-        editingTicket={editingTicket}
-        existingTickets={tickets}
-      />
+                isOpen={isTicketModalOpen}
+                onClose={() => setIsTicketModalOpen(false)}
+                onSave={setTickets}
+                onResetAll={handleResetAllTickets}
+                editingTicket={editingTicket}
+                existingTickets={tickets}
+                darkMode={darkMode}
+                showAlert={showAlert}
+            />
     </div>
   );
 };
