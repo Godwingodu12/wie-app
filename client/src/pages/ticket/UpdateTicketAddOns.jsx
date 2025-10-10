@@ -219,7 +219,8 @@ const UpdateTicketAddOns = () => {
   const [editingTicket, setEditingTicket] = useState(null);
 
   const [mainEventData, setMainEventData] = useState(null);
-
+  const [videoFiles, setVideoFiles] = useState({});
+  const [previewImageFiles, setPreviewImageFiles] = useState({});
   const [alert, setAlert] = useState(null);
   const [confirmState, setConfirmState] = useState({
     isOpen: false,
@@ -333,75 +334,38 @@ const UpdateTicketAddOns = () => {
       setPageLoading(false);
       return;
     }
-
-    console.log("Starting fetchData with ticketId:", ticketId);
     setPageLoading(true);
-
     if (!ticketId) {
       console.error("No ticketId available for API fetch.");
       setPageLoading(false);
       return;
     }
-
     try {
-      // Fetch ticket data first
-      console.log("Fetching ticket data...");
       const ticketData = await getTicketById(ticketId);
-      console.log("Ticket data response:", ticketData);
       setExistingSubEvents(ticketData?.ticket?.sub_events || []);
       setMainEventData(ticketData?.ticket || null);
-
-      // Enhanced group data fetching with better error handling
-      console.log("Fetching group data...");
       try {
         // Add validation to ensure ticketId is properly formatted
         const cleanTicketId = ticketId.toString().trim();
-        console.log("Clean ticketId being sent:", cleanTicketId);
-
         // Call the API with proper error handling
         const groupResponse = await getGroupView(cleanTicketId);
-        console.log("Raw group response:", groupResponse);
-
         // Check if we got a valid response
         if (!groupResponse) {
           console.warn("Empty response from getGroupView API");
           setGroupDefaults();
           return;
         }
-
-        // Log the response structure to understand what we're getting
-        console.log("Group response structure:", {
-          type: typeof groupResponse,
-          keys: Object.keys(groupResponse || {}),
-          hasData: Boolean(groupResponse.data),
-          hasGroup: Boolean(groupResponse.group),
-          directBankingDetails: Boolean(groupResponse.banking_details),
-        });
-
-        // Try to extract group data from various possible response structures
         let groupData = null;
-
-        // Common response patterns from different APIs
         if (groupResponse.data && groupResponse.data.group) {
           groupData = groupResponse.data.group;
-          console.log("Found group data in response.data.group");
         } else if (groupResponse.group) {
           groupData = groupResponse.group;
-          console.log("Found group data in response.group");
         } else if (groupResponse.data) {
           groupData = groupResponse.data;
-          console.log("Using response.data as group data");
         } else {
           groupData = groupResponse;
-          console.log("Using entire response as group data");
         }
-
-        console.log("Extracted group data:", groupData);
-
-        // Extract banking details from the group data
         let bankInfo = null;
-
-        // First check for primary bank account fields directly in groupData
         if (
           groupData?.primary_bank_acc_holder ||
           groupData?.primary_bank_acc_no ||
@@ -414,10 +378,6 @@ const UpdateTicketAddOns = () => {
             bank_ifsc: groupData.primary_bank_ifsc,
             bank_acc_type: groupData.primary_bank_acc_type,
           };
-          console.log(
-            "Found primary bank info directly in groupData:",
-            bankInfo
-          );
         }
 
         // If not found, check in groupResponse directly
@@ -493,10 +453,6 @@ const UpdateTicketAddOns = () => {
           setGroupDefaults();
           return;
         }
-
-        console.log("Processing bank info:", bankInfo);
-
-        // Clean and validate bank details with multiple field name variations including primary bank fields
         const cleanBankInfo = {
           bank_acc_type: String(
             bankInfo.bank_acc_type ||
@@ -533,10 +489,6 @@ const UpdateTicketAddOns = () => {
               ""
           ).trim(),
         };
-
-        console.log("Cleaned bank info:", cleanBankInfo);
-
-        // Validate that we have meaningful data
         const hasAnyBankData = Object.values(cleanBankInfo).some(
           (value) => value.length > 0
         );
@@ -555,21 +507,11 @@ const UpdateTicketAddOns = () => {
           cleanBankInfo.bank_acc_no &&
           cleanBankInfo.bank_ifsc &&
           cleanBankInfo.bank_acc_type;
-
-        console.log("All required fields present:", hasAllFields);
-        console.log("Individual field check:", {
-          holder: Boolean(cleanBankInfo.bank_acc_holder),
-          number: Boolean(cleanBankInfo.bank_acc_no),
-          ifsc: Boolean(cleanBankInfo.bank_ifsc),
-          type: Boolean(cleanBankInfo.bank_acc_type),
-        });
-
         setGroupHasBankAccount(true);
         setGroupBankDetailsIncomplete(!hasAllFields);
 
         // If bank details are complete, set toggle to ON by default
         if (hasAllFields) {
-          console.log("Setting toggle to ON and populating form data");
           setUseGroupBankAccount(true);
           // Immediately set the form data with group bank details
           setFormData((prev) => ({
@@ -628,7 +570,6 @@ const UpdateTicketAddOns = () => {
     } finally {
       setPageLoading(false);
       setDataLoaded(true);
-      console.log("fetchData completed");
     }
   };
   const setGroupDefaults = () => {
@@ -1039,11 +980,7 @@ const UpdateTicketAddOns = () => {
     return `${hour24.toString().padStart(2, "0")}:${minutes}`;
   };
   const buildPayload = () => {
-    // First, validate the dates for online/recorded events
-    if (
-      formData.location_type === "online" ||
-      formData.location_type === "recorded"
-    ) {
+    if (formData.location_type === "online" || formData.location_type === "recorded") {
       for (const date of formData.event_dates) {
         if (!date.eventLink || date.eventLink.trim() === "") {
           showAlert({
@@ -1053,7 +990,7 @@ const UpdateTicketAddOns = () => {
               date.date + "T00:00:00"
             ).toLocaleDateString()}. Please edit the date to add a link.`,
           });
-          return null; // Stop the payload creation
+          return null;
         }
       }
     }
@@ -1075,15 +1012,25 @@ const UpdateTicketAddOns = () => {
       pet_friendly: formData.pet_friendly,
       location_type: formData.location_type,
       event_date_type: eventDateTypeMap[formData.event_date_type] || "one-day",
-      event_dates: formData.event_dates.map((d) => ({
-        start_date: d.date,
-        end_date: d.endDate || d.date,
-        start_time: convertTo24Hour(d.startTime, d.startAmPm),
-        end_time: convertTo24Hour(d.endTime, d.endAmPm),
-        event_link: d.eventLink || "",
-        video_name: d.videoName || "",
-        verification_event_code: d.verificationCode || "",
-      })),
+      event_dates: formData.event_dates.map((d) => {
+        // Ensure event_link has proper protocol for online/recorded events
+        let eventLink = d.eventLink || "";
+        if (eventLink && !eventLink.startsWith('http://') && !eventLink.startsWith('https://')) {
+          eventLink = 'https://' + eventLink;
+        }
+        
+        return {
+          start_date: d.date,
+          end_date: d.endDate || d.date,
+          start_time: convertTo24Hour(d.startTime, d.startAmPm),
+          end_time: convertTo24Hour(d.endTime, d.endAmPm),
+          event_link: eventLink,
+          video_name: d.videoName || "",
+          verification_event_code: d.verificationCode || "",
+          // Note: video_file_path and preview_image_path will be added by the backend
+          // from the uploaded files, so we don't include them here
+        };
+      }),
       event_instagram_link: formData.event_instagram_link,
       event_youtube_link: formData.event_youtube_link,
       event_description: descriptionEditorRef.current?.innerHTML || "",
@@ -1120,35 +1067,70 @@ const UpdateTicketAddOns = () => {
       payload.total_capacity = parseInt(formData.total_capacity, 10) || 0;
     }
 
+    console.log('=== Generated Payload ===');
+    console.log(JSON.stringify(payload, null, 2));
+
     return payload;
   };
   const buildFormData = (payload) => {
     const submissionForm = new FormData();
     submissionForm.append("sub_event", JSON.stringify(payload));
-    if (formData.event_banner)
+    if (formData.event_banner) {
       submissionForm.append("event_banner", formData.event_banner);
-    if (formData.event_logo)
+    }
+    if (formData.event_logo) {
       submissionForm.append("event_logo", formData.event_logo);
-    if (formData.event_rules_file)
+    }
+    if (formData.event_rules_file) {
       submissionForm.append("event_rules", formData.event_rules_file);
-    if (formData.ticket_layout)
+    }
+    if (formData.ticket_layout) {
       submissionForm.append("ticket_layout", formData.ticket_layout);
-    formData.event_images.forEach((file) =>
-      submissionForm.append("event_images", file)
-    );
-    formData.guests.forEach((guest, index) => {
-      if (guest.rawFile)
-        submissionForm.append(`guest_profile_${index}`, guest.rawFile);
+    }
+    formData.event_images.forEach((file) => {
+      submissionForm.append("event_images", file);
     });
-    if (
-      formData.location_type === "offline" &&
-      formData.payment_type === "paid"
-    ) {
-      formData.ticket_types.forEach((ticket, index) => {
-        if (ticket.photoFile)
-          submissionForm.append(`ticket_photo_${index}`, ticket.photoFile);
+    formData.guests.forEach((guest, index) => {
+      if (guest.rawFile) {
+        submissionForm.append(`guest_profile_${index}`, guest.rawFile);
+      }
+    });
+    // Add video files for recorded events
+    if (formData.location_type === "recorded" && formData.event_dates) {
+      formData.event_dates.forEach((date, index) => {
+        // Add video file if it exists
+        if (date.videoFile) {
+          submissionForm.append(`video_file_${index}`, date.videoFile);
+          console.log(`Adding video file ${index}:`, date.videoFile.name);
+        }
+        
+        // Add preview image if it exists
+        if (date.previewImageFile) {
+          submissionForm.append(`preview_image_${index}`, date.previewImageFile);
+          console.log(`Adding preview image ${index}:`, date.previewImageFile.name);
+        }
       });
     }
+    
+    // Add ticket photos for offline paid events
+    if (formData.location_type === "offline" && formData.payment_type === "paid") {
+      formData.ticket_types.forEach((ticket, index) => {
+        if (ticket.photoFile) {
+          submissionForm.append(`ticket_photo_${index}`, ticket.photoFile);
+        }
+      });
+    }
+    
+    // Log FormData for debugging (optional, remove in production)
+    console.log('=== FormData Contents ===');
+    for (let pair of submissionForm.entries()) {
+      if (pair[1] instanceof File) {
+        console.log(pair[0], ':', pair[1].name, `(${pair[1].size} bytes)`);
+      } else {
+        console.log(pair[0], ':', typeof pair[1] === 'string' ? pair[1].substring(0, 100) + '...' : pair[1]);
+      }
+    }
+    
     return submissionForm;
   };
   const handleSubmit = async (e) => {
@@ -1563,9 +1545,7 @@ const UpdateTicketAddOns = () => {
   const handleSaveAndAddMore = async (e) => {
     if (e) e.preventDefault();
     if (!validateForm()) return;
-
     setIsSubmitting(true);
-
     // ADD THIS CHECK
     const payload = buildPayload();
     if (!payload) {
