@@ -73,6 +73,43 @@ const userSchema = new mongoose.Schema(
       google: { type: String, default: '' },
       whatsapp: { type: String, default: '' }
     },
+    social_profiles: {
+      google: {
+        profileId: String,
+        displayName: String,
+        email: String,
+        photo: String,
+        linkedAt: Date
+      },
+      facebook: {
+        profileId: String,
+        displayName: String,
+        email: String,
+        photo: String,
+        linkedAt: Date
+      },
+      x: {
+        profileId: String,
+        displayName: String,
+        username: String,
+        photo: String,
+        linkedAt: Date
+      },
+      instagram: {
+        profileId: String,
+        displayName: String,
+        username: String,
+        photo: String,
+        linkedAt: Date
+      },
+      linkedin: {
+        profileId: String,
+        displayName: String,
+        email: String,
+        photo: String,
+        linkedAt: Date
+      }
+    },
     website: {
       type: String,
       default: '',
