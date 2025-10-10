@@ -142,7 +142,26 @@ const UpdateTicketMedia = () => {
                             dataToSave.college_authorisation || dataToSave.event_images.length > 0;
             
             if (hasNewData) {
-                sessionStorage.setItem(storageKey, JSON.stringify(dataToSave));
+                try {
+                    sessionStorage.setItem(storageKey, JSON.stringify(dataToSave));
+                } catch (e) {
+                    if (e.name === 'QuotaExceededError') {
+                        const reducedData = {
+                            event_logo: dataToSave.event_logo,
+                            event_banner: dataToSave.event_banner,
+                            college_authorisation: dataToSave.college_authorisation,
+                            event_images: [] // Don't save images if quota exceeded
+                        };
+                        try {
+                            sessionStorage.setItem(storageKey, JSON.stringify(reducedData));
+                        } catch (err) {
+                            console.error('Could not save to session storage even after reducing data:', err);
+                            sessionStorage.removeItem(storageKey);
+                        }
+                    } else {
+                        console.error('Error saving to session storage:', e);
+                    }
+                }
             }
         }
     }, [previews, storageKey, initialLoading]);
@@ -389,8 +408,6 @@ const UpdateTicketMedia = () => {
             return false;
         }).length;
 
-        console.log('Existing videos:', existingVideoCount, 'New videos:', newVideoCount);
-
         if (existingVideoCount + newVideoCount > 1) {
             setErrors(prev => ({ 
                 ...prev, 
@@ -450,7 +467,6 @@ const UpdateTicketMedia = () => {
             setFormData(prev => {
                 const existingFiles = prev.event_images || [];
                 const newFiles = validItems.map(item => item.originalFile);
-                console.log('Updating formData - existing:', existingFiles.length, 'new:', newFiles.length);
                 return {
                     ...prev, 
                     event_images: [...existingFiles, ...newFiles]
