@@ -268,5 +268,13 @@ export const getPreviousEvents = async () => {
     throw error;
   }
 };
-
+export const showEventBankDetails = async () => {
+  try {
+    const response = await api.get(`ticket/show-event-bank-details`);
+    return response.data;
+  }
+  catch (error) {
+    throw error;
+  }
+};
 

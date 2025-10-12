@@ -10,11 +10,12 @@ import {
   getMyEvents,
   getGroups,
   getMyLiveEvents,
+  showEventBankDetails
 } from "../../services/ticketService";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
 import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
-import ContactIcon from '../../assets/Event/ContactIcon.svg';
-import FileIcon from '../../assets/Event/FileIcon.svg';
+import ViewConfirm from '../../assets/Event/ViewConfirm.png';
+import  EditIcon  from '../../assets/Event/EditIcon.png';
 import {
   ChevronDown,
   PartyPopper,
@@ -73,34 +74,95 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
 const StatsCard = ({ count, title, isDark, theme, className, icon }) => (
   <div
     style={{
+      width: "119px",
+      height: "160px",
       borderRadius: "24px",
       padding: "15px 27px",
       gap: "10px",
+      opacity: 1,
+      transform: "rotate(0deg)",
       background: isDark ? "#2a2d30" : "#F1F1F1",
       boxShadow: isDark
         ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
         : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
     }}
-    className={`flex flex-col items-center justify-around w-full ${className}`}
+    className={`flex flex-col items-center justify-around ${className}`}
   >
-    {icon}
-    <p
-      className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}
-    >
-      {count}
-    </p>
-    <p className={`text-xs ${theme.subText}`}>{title}</p>
+    <div className="flex flex-col items-center gap-[10px]">
+      {icon}
+      <p
+        className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}
+      >
+        {count}
+      </p>
+      <p className={`text-xs ${theme.subText}`}>{title}</p>
+    </div>
   </div>
 );
-
 function BankAccountDetailsCard({ isDark, theme }) {
-  const accountDetails = {
-    eventName: "Coldplay concert",
-    accountHolder: "Sangeeth Palliyal",
-    bankName: "Union bank of India",
-    ifscCode: "UBISBII2345",
-    accountNumber: "1212121222143242",
+  const [bankDetails, setBankDetails] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBankDetails = async () => {
+      try {
+        setLoading(true);
+        const response = await showEventBankDetails();
+        if (response?.bankDetails && response.bankDetails.length > 0) {
+          setBankDetails(response.bankDetails);
+        }
+      } catch (error) {
+        console.error("Error fetching bank details:", error);
+        setBankDetails([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBankDetails();
+  }, []);
+
+  const currentAccount = bankDetails[currentIndex];
+
+  const handleSeeAll = () => {
+    // Navigate to a page showing all bank details or open a modal
+    console.log("See all bank details");
   };
+
+  const handleNext = () => {
+    if (currentIndex < bankDetails.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div
+        className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${theme.cardBg} ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
+        style={{ minHeight: "200px" }}
+      >
+        <p className={`${theme.subText}`}>Loading bank details...</p>
+      </div>
+    );
+  }
+
+  if (!currentAccount || bankDetails.length === 0) {
+    return (
+      <div
+        className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${theme.cardBg} ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
+        style={{ minHeight: "200px" }}
+      >
+        <p className={`${theme.subText}`}>No bank account details available</p>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -121,13 +183,18 @@ function BankAccountDetailsCard({ isDark, theme }) {
           >
             BANK ACCOUNT DETAILS
             <span className={`ml-2 font-normal ${theme.subText}`}>
-              ({accountDetails.eventName})
+              ({currentAccount.event_name})
             </span>
           </h1>
         </div>
-        <button className="whitespace-nowrap text-xs sm:text-sm font-semibold text-purple-600 border border-purple-300 rounded-full px-4 py-1.5 sm:px-5 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors duration-300">
-          see all
-        </button>
+        {bankDetails.length > 1 && (
+          <button
+            onClick={handleSeeAll}
+            className="whitespace-nowrap text-xs sm:text-sm font-semibold text-purple-600 border border-purple-300 rounded-full px-4 py-1.5 sm:px-5 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors duration-300"
+          >
+            see all
+          </button>
+        )}
       </header>
 
       {/* Card Body with Details */}
@@ -136,68 +203,104 @@ function BankAccountDetailsCard({ isDark, theme }) {
           <p className={`text-sm font-medium ${theme.subText}`}>
             Account holder :
           </p>
-          {accountDetails.accountHolder && (
-            <p
-              className={`text-sm ${theme.text} ${
-                isDark ? "bg-gray-700" : "bg-gray-500"
-              } text-white rounded-md px-3 py-1 shadow-sm truncate`}
-            >
-              {accountDetails.accountHolder}
-            </p>
-          )}
+          <p
+            className={`text-sm ${theme.text} ${
+              isDark ? "bg-gray-700" : "bg-gray-500"
+            } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[200px]`}
+          >
+            {currentAccount.bank_acc_holder || "N/A"}
+          </p>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <p className={`text-sm font-medium ${theme.subText}`}>Bank name :</p>
-          {accountDetails.bankName && (
-            <p
-              className={`text-sm ${theme.text} ${
-                isDark ? "bg-gray-700" : "bg-gray-500"
-              } text-white rounded-md px-3 py-1 shadow-sm truncate`}
-            >
-              {accountDetails.bankName}
-            </p>
-          )}
+          <p className={`text-sm font-medium ${theme.subText}`}>Account type :</p>
+          <p
+            className={`text-sm ${theme.text} ${
+              isDark ? "bg-gray-700" : "bg-gray-500"
+            } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[200px]`}
+          >
+            {currentAccount.bank_acc_type || "N/A"}
+          </p>
         </div>
         <div className="flex items-center justify-between gap-2">
           <p className={`text-sm font-medium ${theme.subText}`}>IFSC code :</p>
-          {accountDetails.ifscCode && (
-            <p
-              className={`text-sm ${theme.text} ${
-                isDark ? "bg-gray-700" : "bg-gray-500"
-              } text-white rounded-md px-3 py-1 shadow-sm truncate`}
-            >
-              {accountDetails.ifscCode}
-            </p>
-          )}
+          <p
+            className={`text-sm ${theme.text} ${
+              isDark ? "bg-gray-700" : "bg-gray-500"
+            } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[200px]`}
+          >
+            {currentAccount.bank_ifsc || "N/A"}
+          </p>
         </div>
         <div className="flex items-center justify-between gap-2">
           <p className={`text-sm font-medium ${theme.subText}`}>
             Account number :
           </p>
-          {accountDetails.accountNumber && (
-            <p
-              className={`text-sm ${theme.text} ${
-                isDark ? "bg-gray-700" : "bg-gray-500"
-              } text-white rounded-md px-3 py-1 shadow-sm truncate`}
-            >
-              {accountDetails.accountNumber}
-            </p>
-          )}
+          <p
+            className={`text-sm ${theme.text} ${
+              isDark ? "bg-gray-700" : "bg-gray-500"
+            } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[200px]`}
+          >
+            {currentAccount.bank_acc_no || "N/A"}
+          </p>
         </div>
       </main>
 
       {/* Card Footer/Pagination indicator */}
-      <footer className="flex justify-center mt-6">
-        <div
-          className={`w-2.5 h-2.5 ${
-            isDark ? "bg-gray-600" : "bg-gray-400"
-          } rounded-full`}
-        ></div>
+      <footer className="flex justify-center items-center gap-3 mt-6">
+        {bankDetails.length > 1 && (
+          <>
+            <button
+              onClick={handlePrevious}
+              disabled={currentIndex === 0}
+              className={`text-xs ${
+                currentIndex === 0
+                  ? "opacity-30 cursor-not-allowed"
+                  : "hover:opacity-80 cursor-pointer"
+              } ${theme.text}`}
+            >
+              ←
+            </button>
+            <div className="flex gap-2">
+              {bankDetails.map((_, index) => (
+                <div
+                  key={index}
+                  onClick={() => setCurrentIndex(index)}
+                  className={`w-2.5 h-2.5 rounded-full cursor-pointer transition-colors ${
+                    index === currentIndex
+                      ? isDark
+                        ? "bg-purple-500"
+                        : "bg-purple-600"
+                      : isDark
+                      ? "bg-gray-600"
+                      : "bg-gray-400"
+                  }`}
+                ></div>
+              ))}
+            </div>
+            <button
+              onClick={handleNext}
+              disabled={currentIndex === bankDetails.length - 1}
+              className={`text-xs ${
+                currentIndex === bankDetails.length - 1
+                  ? "opacity-30 cursor-not-allowed"
+                  : "hover:opacity-80 cursor-pointer"
+              } ${theme.text}`}
+            >
+              →
+            </button>
+          </>
+        )}
+        {bankDetails.length === 1 && (
+          <div
+            className={`w-2.5 h-2.5 ${
+              isDark ? "bg-purple-500" : "bg-purple-600"
+            } rounded-full`}
+          ></div>
+        )}
       </footer>
     </div>
   );
 }
-
 const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
@@ -236,15 +339,24 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
     displayEvents.push(null);
   }
 
-  const formatDate = (event) => {
-    const dateString = event.event_start_date ?? event.start_date;
-    if (!dateString) return "N/A";
-    const date = new Date(dateString);
-    if (isNaN(date)) {
-      return "Invalid Date";
-    }
-    return date.toLocaleDateString();
-  };
+const formatDate = (event) => {
+  if (!event?.event_dates?.[0]?.start_date) {
+    return ""; // empty string if no date available
+  }
+
+  const dateString = event.event_dates[0].start_date;
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) {
+    return "Invalid Date";
+  }
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
+
 
   return (
     <div
@@ -264,6 +376,18 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
       <div className="flex-1 overflow-y-auto">
         {/* Mobile view */}
         <div className="flex flex-col lg:hidden">
+          <div className="relative w-full flex items-center justify-center gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-base font-medium">Event</span>
+              <Search
+                className="w-4 h-4 cursor-pointer"
+                onClick={() => setIsSearchActive(true)}
+              />
+            </div>
+            <div className="absolute right-0 mr-4">
+              <span className="text-base font-medium">Action</span>
+            </div>
+          </div>
           {displayEvents.map((event, index) => {
             if (!event) {
               return (
@@ -273,7 +397,7 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
               );
             }
             const group = groups.find((g) => g._id === event.groupId);
-            const groupName = group ? group.name : "N/A";
+            const groupName = group?.name;
             return (
               <div
                 key={event._id || index}
@@ -312,16 +436,16 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-2">
+               <div className="flex flex-col items-end gap-2">
                   <button className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50">
                     Run
                   </button>
                   <div className="flex items-center gap-2">
-                    <button className="bg-gray-500 w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
-                        <img src={ContactIcon} alt="Contact" className="w-6 h-6" />
+                    <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
+                      <img src={ViewConfirm} alt="ViewConfirm" className="w-4 h-4 object-contain" />
                     </button>
-                    <button className="bg-gray-500 w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
-                        <img src={FileIcon} alt="File" className="w-6 h-6" />
+                    <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
+                      <img src={EditIcon} alt="EditIcon" className="w-4 h-4 object-contain" />
                     </button>
                   </div>
                 </div>
@@ -329,60 +453,54 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
             );
           })}
         </div>
-        <table className="hidden lg:table w-full table-fixed text-left">
-          <thead>
-            <tr
-              className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
-                isDark ? "border-gray-700" : "border-gray-200"
-              } text-sm sticky top-0`}
-              style={{
-                background: isDark ? "#232426" : "#F1F1F1",
-                zIndex: 10,
+        <table className="hidden lg:table w-full text-left">
+<thead>
+  <tr
+    className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
+      isDark ? "border-gray-700" : "border-gray-200"
+    } text-sm sticky top-0`}
+    style={{
+      background: isDark ? "#232426" : "#F1F1F1",
+      zIndex: 10,
+    }}
+  >
+    <th className="py-3 px-8 font-bold text-lg w-[20%]">
+      <div className="flex items-center justify-start gap-2">
+        {isSearchActive ? (
+          <div className="flex items-center gap-2 w-full">
+            <Search className="w-4 h-4" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onBlur={() => {
+                setIsSearchActive(false);
+                setSearchTerm("");
               }}
-            >
-              <th className="py-3 px-4 font-bold text-lg">
-                <div className="flex items-center justify-start gap-2">
-                  {isSearchActive ? (
-                    <div className="flex items-center gap-2 w-full">
-                      <Search className="w-4 h-4" />
-                      <input
-                        ref={searchInputRef}
-                        type="text"
-                        placeholder="Search..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onBlur={() => {
-                          setIsSearchActive(false);
-                          setSearchTerm("");
-                        }}
-                        className="bg-transparent focus:outline-none w-full placeholder-gray-500"
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <span>Events</span>
-                      <Search
-                        className="w-4 h-4 cursor-pointer"
-                        onClick={() => setIsSearchActive(true)}
-                      />
-                    </>
-                  )}
-                </div>
-              </th>
-              <th className="py-3 px-4 font-bold text-lg">
-                Group name
-              </th>
-              <th className="py-3 px-4 font-bold text-lg">
-                Sub category
-              </th>
-              <th className="py-3 px-4 font-bold text-lg">
-                Starting date
-              </th>
-              <th className="py-3 px-4 font-bold text-lg">Location</th>
-              <th className="py-3 px-4 font-bold text-lg">Type</th>
-              <th className="py-3 px-4 font-bold text-lg">Actions</th>
-            </tr>
-          </thead>
+              className="bg-transparent focus:outline-none w-full placeholder-gray-500"
+            />
+          </div>
+        ) : (
+          <>
+            <span>Event</span>
+            <Search
+              className="w-4 h-4 cursor-pointer"
+              onClick={() => setIsSearchActive(true)}
+            />
+          </>
+        )}
+      </div>
+    </th>
+    <th className="py-3 px-8 font-bold text-lg w-[18%]">Group</th>
+    <th className="py-3 px-8 font-bold text-lg w-[15%]">Sub category</th>
+    <th className="py-3 px-8 font-bold text-lg w-[18%]">Start date</th>
+    <th className="py-3 px-8 font-bold text-lg w-[15%]">Location</th>
+    <th className="py-3 px-8 font-bold text-lg w-[8%]">Type</th>
+    <th className="py-3 px-8 pr-4 font-bold text-lg w-[22%]">Actions</th>
+  </tr>
+</thead>
           <tbody>
             {displayEvents.map((event, index) => {
               if (!event) {
@@ -399,48 +517,54 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
                 );
               }
               const group = groups.find((g) => g._id === event.groupId);
-              const groupName = group ? group.name : "N/A";
+              const groupName = group?.name;
               return (
-                <tr
-                  key={event._id || index}
-                  className={`border-b ${
-                    isDark ? "border-gray-700/50" : "border-gray-200"
-                  } ${
-                    isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
-                  }`}
-                >
-                  <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                    {event.event_name || "N/A"}
-                  </td>
-                  <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                    {groupName}
-                  </td>
-                  <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                    {event.event_subcategory || "N/A"}
-                  </td>
-                  <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                    {formatDate(event)}
-                  </td>
-                  <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                    {event.location || "N/A"}
-                  </td>
-                  <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                    {event.event_type || "N/A"}
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2">
-                      <button className="bg-[#00DEA3] text-black font-semibold text-sm px-8 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50">
-                        Run
-                      </button>
-                      <button className="bg-gray-500 w-12 h-12 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
-                        <img src={ContactIcon} alt="Contact" className="w-8 h-8" />
-                      </button>
-                      <button className="bg-gray-500 w-12 h-12 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
-                        <img src={FileIcon} alt="File" className="w-8 h-8" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+<tr
+  key={event._id || index}
+  className={`border-b ${
+    isDark ? "border-gray-700/50" : "border-gray-200"
+  } ${
+    isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
+  }`}
+>
+  <td className={`py-3 px-8 ${theme.text} text-sm truncate w-[20%]`}>
+    {event.event_name}
+  </td>
+  <td className={`py-3 px-8 ${theme.text} text-sm truncate w-[18%]`}>
+    {groupName}
+  </td>
+  <td className={`py-3 px-8 ${theme.text} text-sm truncate w-[15%]`}>
+    {event.event_subcategory}
+  </td>
+  <td className={`py-3 px-8 ${theme.text} text-sm truncate w-[18%]`}>
+    {event.event_dates[0].start_date && 
+      new Date(event.event_dates[0].start_date).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    }
+  </td>
+  <td className={`py-3 px-8 ${theme.text} text-sm truncate w-[15%]`}>
+    {event.venue || event.location_type}
+  </td>
+  <td className={`py-3 px-8 ${theme.text} text-sm truncate w-[8%]`}>
+    {event.event_type}
+  </td>
+  <td className="py-3 px-8 pr-4 w-[22%]">
+    <div className="flex items-center gap-2">
+      <button className="bg-[#00DEA3] text-black font-semibold text-sm px-5 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50 whitespace-nowrap">
+        Run
+      </button>
+      <button className="bg-[#7D7D7D] w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex-shrink-0">
+        <img src={ViewConfirm} alt="ViewConfirm" className="w-3 h-3.5 object-contain" />
+      </button>
+      <button className="bg-[#7D7D7D] w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex-shrink-0">
+        <img src={EditIcon} alt="EditIcon" className="w-3 h-3.5 object-contain" />
+      </button>
+    </div>
+  </td>
+</tr>
               );
             })}
           </tbody>
@@ -647,7 +771,7 @@ const ConfirmEvents = () => {
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
             <div>
               <h1 className={`text-3xl sm:text-4xl font-bold ${theme.text}`}>
-                Confirm Events
+                Saved Events
               </h1>
               <p className={`${theme.subText} mt-2 text-base sm:text-lg`}>
                 Review and manage everything related to events.
