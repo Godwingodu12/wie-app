@@ -946,3 +946,62 @@ export const getPreviousEvents = async (req, res) => {
         });
     }
 };
+export const showEventBankDetails = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const tickets = await Ticket.find({ 
+      userId: userId, 
+      event_status: { $in: ['pending', 'confirmed'] }
+    })
+    .sort({ createdAt: -1 })
+    .exec();
+    const allBankDetails = [];
+    tickets.forEach(ticket => {
+      const hasSubEvents = ticket.sub_events && ticket.sub_events.length > 0;
+      // Only show main event bank details if there are NO sub-events
+      if (!hasSubEvents && ticket.banking_details && ticket.banking_details.length > 0) {
+        ticket.banking_details.forEach(bank => {
+          allBankDetails.push({
+            event_id: ticket._id,
+            event_name: ticket.event_name || "N/A",
+            bank_acc_type: bank.bank_acc_type || "N/A",
+            bank_acc_no: bank.bank_acc_no || "N/A",
+            bank_ifsc: bank.bank_ifsc || "N/A",
+            bank_acc_holder: bank.bank_acc_holder || "N/A",
+            bank_detail_id: bank._id
+          });
+        });
+      }
+      // Show sub-events bank details
+      if (hasSubEvents) {
+        ticket.sub_events.forEach(subEvent => {
+          if (subEvent.banking_details && subEvent.banking_details.length > 0) {
+            subEvent.banking_details.forEach(bank => {
+              allBankDetails.push({
+                event_id: subEvent._id,
+                event_name: subEvent.event_name || "N/A",
+                bank_acc_type: bank.bank_acc_type || "N/A",
+                bank_acc_no: bank.bank_acc_no || "N/A",
+                bank_ifsc: bank.bank_ifsc || "N/A",
+                bank_acc_holder: bank.bank_acc_holder || "N/A",
+                bank_detail_id: bank._id
+              });
+            });
+          }
+        });
+      }
+    });
+    res.status(200).json({
+      success: true,
+      count: allBankDetails.length,
+      bankDetails: allBankDetails
+    });
+  } catch (error) {
+    console.error("Error fetching bank details:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
