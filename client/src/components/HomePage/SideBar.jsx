@@ -23,9 +23,8 @@ const SIDEBAR_WIDTH = 80;
 const Sidebar = ({ user, theme }) => {
   const location = useLocation();
   const currentPath = location.pathname;
-  const [setUserImage] = useState(null);
+  const [userImage, setUserImage] = useState(null);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
-
   useEffect(() => {
     const fetchUser = async () => {
       try {
