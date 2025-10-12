@@ -6,21 +6,17 @@ import {
   getGroupView,
   updateSubEvent,
 } from "../../services/ticketService";
-
 import Select from "react-select";
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
-
 import Addon_Form_Icon from "../../assets/Event/Addon_Form_Icon.svg?react";
 import Date_Form_Icon from "../../assets/Event/Date_Form_Icon.svg?react";
 import Guest_Form_Icon from "../../assets/Event/Guest_Form_Icon.svg?react";
 import Prohibited_Form_Icon from "../../assets/Event/Prohibited_Form_Icon.svg?react";
-
 import ToggleSwitch from "../../components/CreateGroup/ToggleSwitch.jsx";
 import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
 import FormInput from "../../components/CreateGroup/FormInput.jsx";
 import TagInput from "../../components/CreateGroup/TagInput.jsx";
-
 import OnlineDatePickerModal from "../../components/CreateGroup/OnlineDatePickerModal.jsx";
 import RecordedDatePickerModal from "../../components/CreateGroup/RecordedDatePickerModal.jsx";
 import DatePickerModal from "../../components/CreateGroup/DatePickerModal.jsx";
@@ -807,19 +803,25 @@ const UpdateTicketAddOns = () => {
     }));
   };
 
-  const handleMediaFileChange = (e, type) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFormData((prev) => ({ ...prev, [type]: file }));
-      setPreviews((prev) => ({ ...prev, [type]: URL.createObjectURL(file) }));
+  const handleMediaFileChange = (file, type) => {
+    const fileToProcess = file instanceof File ? file : file?.target?.files?.[0];
+    if (fileToProcess) {
+      setFormData((prev) => ({ ...prev, [type]: fileToProcess }));
+      const previewUrl = URL.createObjectURL(fileToProcess);
+      setPreviews((prev) => ({ ...prev, [type]: previewUrl }));
     }
   };
 
   const removeMediaFile = (type) => {
+    if (previews[type] && previews[type].startsWith('blob:')) {
+      URL.revokeObjectURL(previews[type]);
+    }
     setFormData((prev) => ({ ...prev, [type]: null }));
     setPreviews((prev) => ({ ...prev, [type]: null }));
+    if (type === 'ticket_layout') {
+      setHasSeatingLayout(false);
+    }
   };
-
   const handleMultiMediaChange = (e) => {
     const newFiles = Array.from(e.target.files);
     if (newFiles.length === 0) return;
@@ -1095,24 +1097,16 @@ const UpdateTicketAddOns = () => {
         submissionForm.append(`guest_profile_${index}`, guest.rawFile);
       }
     });
-    // Add video files for recorded events
     if (formData.location_type === "recorded" && formData.event_dates) {
       formData.event_dates.forEach((date, index) => {
-        // Add video file if it exists
         if (date.videoFile) {
           submissionForm.append(`video_file_${index}`, date.videoFile);
-          console.log(`Adding video file ${index}:`, date.videoFile.name);
         }
-        
-        // Add preview image if it exists
         if (date.previewImageFile) {
           submissionForm.append(`preview_image_${index}`, date.previewImageFile);
-          console.log(`Adding preview image ${index}:`, date.previewImageFile.name);
         }
       });
     }
-    
-    // Add ticket photos for offline paid events
     if (formData.location_type === "offline" && formData.payment_type === "paid") {
       formData.ticket_types.forEach((ticket, index) => {
         if (ticket.photoFile) {
@@ -1120,17 +1114,6 @@ const UpdateTicketAddOns = () => {
         }
       });
     }
-    
-    // Log FormData for debugging (optional, remove in production)
-    console.log('=== FormData Contents ===');
-    for (let pair of submissionForm.entries()) {
-      if (pair[1] instanceof File) {
-        console.log(pair[0], ':', pair[1].name, `(${pair[1].size} bytes)`);
-      } else {
-        console.log(pair[0], ':', typeof pair[1] === 'string' ? pair[1].substring(0, 100) + '...' : pair[1]);
-      }
-    }
-    
     return submissionForm;
   };
   const handleSubmit = async (e) => {
@@ -1598,8 +1581,6 @@ const UpdateTicketAddOns = () => {
       const subEvent = existingSubEvents.find(
         (event) => event._id === subEventId
       );
-      console.log("Loading data for this sub-event:", subEvent);
-
       if (subEvent) {
         // Map event dates with proper format conversion
         const mappedEventDates =
@@ -1717,15 +1698,12 @@ const UpdateTicketAddOns = () => {
             address: INITIAL_MAP_LOCATION.address,
           },
         }));
-
-        // FIX: Set media previews - use URLs from backend
         setPreviews((prev) => ({
           ...prev,
           event_banner: subEvent.event_banner || null,
           event_logo: subEvent.event_logo || null,
-          ticket_layout: subEvent.ticket_layout || null,
+          ticket_layout: subEvent.ticket_layout || null, // ADD THIS
         }));
-
         // Handle multiple event images
         if (subEvent.event_images && subEvent.event_images.length > 0) {
           setFormData((prev) => ({
@@ -1746,13 +1724,9 @@ const UpdateTicketAddOns = () => {
         if (rulesEditorRef.current) {
           rulesEditorRef.current.innerHTML = subEvent.event_rules_text || "";
         }
-
-        // Set seating layout toggle if ticket_layout exists
         if (subEvent.ticket_layout) {
           setHasSeatingLayout(true);
         }
-
-        // Handle gate opening time
         if (subEvent.gate_open_time) {
           const gateTimeParts = subEvent.gate_open_time.split(":");
           if (gateTimeParts.length >= 2) {
@@ -1771,8 +1745,6 @@ const UpdateTicketAddOns = () => {
             }));
           }
         }
-
-        console.log("Sub-event data loaded successfully:", subEvent);
       }
     } catch (error) {
       console.error("Error loading sub-event data:", error);
@@ -1781,6 +1753,16 @@ const UpdateTicketAddOns = () => {
       setSubEventLoading(false);
     }
   };
+  useEffect(() => {
+    return () => {
+      Object.values(previews).forEach(preview => {
+        if (preview && typeof preview === 'string' && preview.startsWith('blob:')) {
+          URL.revokeObjectURL(preview);
+        }
+      });
+    };
+  }, []);
+
   const mainEventStartDate = mainEventData?.event_dates?.[0]?.start_date;
 
   const mainEventEndDate =
@@ -3441,80 +3423,88 @@ const UpdateTicketAddOns = () => {
                       )}
                     </section>
                   </div>
-
-                  {/* FIX: Seating details now only shows for offline events */}
-                  {formData.location_type === "offline" && (
-                    <section className="space-y-6 max-w-2xl animate-fade-in">
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        Seating details
-                      </h2>
-                      <p className="text-black dark:text-gray-400 text-sm">
-                        Add event seating capacity and its layout
-                      </p>
-                      <FormInput
-                        label="Maximum number of people allowed (capacity)?"
-                        id="total_capacity"
-                        name="total_capacity"
-                        type="number"
-                        value={formData.total_capacity}
-                        onChange={handleInputChange}
-                        placeholder="Enter event capacity"
-                        error={errors.total_capacity}
-                        required
-                        darkMode={darkMode}
-                        info="Set the total number of attendees for your event."
+                {formData.location_type === "offline" && (
+                  <section className="space-y-6 max-w-2xl animate-fade-in">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      Seating details
+                    </h2>
+                    <p className="text-black dark:text-gray-400 text-sm">
+                      Add event seating capacity and its layout
+                    </p>
+                    <FormInput
+                      label="Maximum number of people allowed (capacity)?"
+                      id="total_capacity"
+                      name="total_capacity"
+                      type="number"
+                      value={formData.total_capacity}
+                      onChange={handleInputChange}
+                      placeholder="Enter event capacity"
+                      error={errors.total_capacity}
+                      required
+                      darkMode={darkMode}
+                      info="Set the total number of attendees for your event."
+                    />
+                    
+                    <div className="flex items-center justify-between">
+                      <label className="font-medium text-gray-900 dark:text-white text-md">
+                        Do you have seating layout?
+                      </label>
+                      <ToggleSwitch
+                        checked={hasSeatingLayout}
+                        onChange={() => setHasSeatingLayout(!hasSeatingLayout)}
                       />
-                      <div className="flex items-center justify-between">
-                        <label className="font-medium text-gray-900 dark:text-white text-md">
-                          Do you have seating layout?
-                        </label>
-                        <ToggleSwitch
-                          checked={hasSeatingLayout}
-                          onChange={() =>
-                            setHasSeatingLayout(!hasSeatingLayout)
-                          }
-                        />
-                      </div>
-                      {hasSeatingLayout && (
-                        <div className="animate-fade-in grid grid-cols-2 gap-8 items-start">
-                          <div className="col-span-1 space-y-2">
-                            <FileInput
-                              id="seating-layout-upload"
-                              label="Upload seating layout "
-                              info="Optional. 1:1 ratio recommended."
-                              preview={previews.ticket_layout}
-                              onFileChange={handleMediaFileChange}
-                              onRemove={removeMediaFile}
-                              darkMode={darkMode}
-                              acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
-                              maxSizeMB={50}
-                            />
-                          </div>
-                          <div className="col-span-1">
-                            {previews.ticket_layout && (
-                              <div className="relative group w-full">
+                    </div>
+                    
+                    {hasSeatingLayout && (
+                      <div className="animate-fade-in grid grid-cols-2 gap-8 items-start">
+                        {/* Upload Section */}
+                        <div className="col-span-1 space-y-2">
+                          <FileInput
+                            id="ticket_layout"
+                            label="Upload seating layout"
+                            info="Optional. 1:1 ratio recommended."
+                            preview={previews.ticket_layout}
+                            onFileChange={(file) => handleMediaFileChange(file, 'ticket_layout')}
+                            onRemove={() => removeMediaFile('ticket_layout')}
+                            darkMode={darkMode}
+                            acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
+                            maxSizeMB={50}
+                          />
+                        </div>
+
+                        {/* Preview Section */}
+                        <div className="col-span-1">
+                          {previews.ticket_layout ? (
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                Preview
+                              </h3>
+                              <div className="relative group w-full border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
                                 <img
                                   src={previews.ticket_layout}
                                   alt="Seating layout preview"
-                                  className="w-full h-auto rounded-lg object-cover"
+                                  className="w-full h-auto object-cover"
                                 />
                                 <div
-                                  onClick={() =>
-                                    removeMediaFile("ticket_layout")
-                                  }
-                                  className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex items-center justify-center cursor-pointer rounded-lg"
+                                  onClick={() => removeMediaFile('ticket_layout')}
+                                  className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex items-center justify-center cursor-pointer"
                                 >
                                   <span className="text-red-500 text-3xl font-bold">
                                     &times;
                                   </span>
                                 </div>
                               </div>
-                            )}
-                          </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center h-64 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                              <p className="text-gray-500 dark:text-gray-400">No layout selected</p>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </section>
-                  )}
+                      </div>
+                    )}
+                  </section>
+                )}
                 </div>
 
                 {/* --- FINAL ACTION BUTTONS --- */}
