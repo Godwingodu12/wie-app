@@ -44,7 +44,7 @@ export const verifyOtp = async (data) => {
     console.error('verifyOtp error:', err);
     throw err;
   }
-};
+}
 export const logout = () => {
   return api.post('/auth/logout');
 };

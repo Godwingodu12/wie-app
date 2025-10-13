@@ -74,16 +74,12 @@ const validateForm = () => {
     });
     setPreview(null);
   };
-
 const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!validateForm()) {
-        return; // Stop if validation fails
+        return; 
     }
-
     setIsLoading(true);
-
     const data = new FormData();
     data.append("name", formData.name);
     data.append("email", formData.email);
@@ -95,7 +91,10 @@ const handleSubmit = async (e) => {
 
     try {
         await registerAdmin(data);
-
+        localStorage.setItem("userEmail", formData.email);
+        localStorage.setItem("userContact", formData.contact_no);
+        // Also clear any old OTP data
+        localStorage.removeItem("otpTimestamp");
         showAlert({
             type: 'success',
             message: 'Registration Successful!',
@@ -104,17 +103,20 @@ const handleSubmit = async (e) => {
 
         setTimeout(() => {
             navigate("/otp", {
-                state: { email: formData.email, contact_no: formData.contact_no },
+                state: { 
+                    email: formData.email, 
+                    contact_no: formData.contact_no,
+                    timestamp: Date.now() 
+                },
             });
-        }, 1500); // 1.5-second delay
+        }, 1500); 
 
     } catch (err) {
         const errorMessage = err.response?.data?.message || "Registration failed";
         showAlert({ type: 'error', message: 'Registration Failed', description: errorMessage });
-        setIsLoading(false); // Stop loading ONLY if there's an error
+        setIsLoading(false); 
     }
 };
-
   return (
     <div
       className="min-h-screen w-full font-sans text-white bg-cover bg-center"

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux"; 
+import { loginSuccess, setUser } from "../../store/authSlice";
 import { verifyOtp, resendOtp } from "../../services/authService";
 import { toast } from "react-toastify";
 import { FaFacebookF, FaXTwitter } from "react-icons/fa6";
@@ -7,7 +9,6 @@ import { RiInstagramFill } from "react-icons/ri";
 import LightRays from "../../components/auth-model/LightRays";
 import bg1 from "../../assets/auth/img_mob.jpg";
 import bg2 from "../../assets/auth/img_bg.jpeg";
-
 const OtpPage = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [otp, setOtp] = useState(new Array(6).fill(""));
@@ -22,7 +23,7 @@ const OtpPage = () => {
   const intervalRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
-
+  const dispatch = useDispatch();
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 768);
@@ -32,37 +33,46 @@ const OtpPage = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  useEffect(() => {
-    // Multiple ways to get the email - with debugging
-    console.log("Checking for email in various sources...");
+useEffect(() => {
+    console.log("Loading email for OTP verification...");
     
-    // Method 1: From localStorage
-    const storedEmail = localStorage.getItem("userEmail");
-    console.log("Email from localStorage:", storedEmail);
-    
-    // Method 2: From navigation state (if passed from previous page)
+    // PRIORITY 1: Navigation state (most recent/accurate)
     const emailFromState = location.state?.email;
-    console.log("Email from navigation state:", emailFromState);
+    const contactFromState = location.state?.contact_no;
     
-    // Method 3: From URL params (if passed as query param)
-    const urlParams = new URLSearchParams(location.search);
-    const emailFromUrl = urlParams.get('email');
-    console.log("Email from URL params:", emailFromUrl);
+    // PRIORITY 2: localStorage (backup)
+    const storedEmail = localStorage.getItem("userEmail");
+    const storedContact = localStorage.getItem("userContact");
     
-    // Use the first available email source
-    const finalEmail = storedEmail || emailFromState || emailFromUrl;
-    console.log("Final email to use:", finalEmail);
+    console.log("Email sources:", {
+      fromState: emailFromState,
+      fromStorage: storedEmail,
+      contactFromState: contactFromState,
+      contactFromStorage: storedContact
+    });
+    
+    // CRITICAL FIX: Always prefer navigation state over localStorage
+    // This ensures we use the LATEST email/contact from signup
+    const finalEmail = emailFromState || storedEmail;
+    const finalContact = contactFromState || storedContact;
+    
+    console.log("Using email:", finalEmail);
+    console.log("Using contact:", finalContact);
     
     if (finalEmail) {
       setEmail(finalEmail);
       setOtpDestination(finalEmail);
-      // Ensure it's stored in localStorage for future use
+      
+      // Update localStorage with the latest values
       localStorage.setItem("userEmail", finalEmail);
+      if (finalContact) {
+        localStorage.setItem("userContact", finalContact);
+      }
     } else {
-      console.error("No email found from any source!");
-      setError("No email found. Please go back and try again.");
+      console.error("No email found!");
+      setError("No email found. Please go back and complete the signup process.");
     }
-  }, [location]);
+  }, [location.state, location.search]);
 
   useEffect(() => {
     if (timer > 0) {
@@ -79,7 +89,6 @@ const OtpPage = () => {
       setSuccessMessage("");
     }
   }, [otp]);
-
   const handleChange = (element, index) => {
     if (element.value && isNaN(Number(element.value))) return;
     const newOtp = [...otp];
@@ -106,97 +115,113 @@ const OtpPage = () => {
       inputsRef.current[index + 1]?.focus();
     }
   };
-
   const getEmailForRequest = () => {
-    // Try multiple sources for email
-    const storedEmail = localStorage.getItem("userEmail");
-    const stateEmail = location.state?.email;
-    const currentEmail = email;
-    
-    const finalEmail = storedEmail || stateEmail || currentEmail;
-    console.log("Getting email for request:", {
-      storedEmail,
-      stateEmail,
-      currentEmail,
-      finalEmail
-    });
-    
-    return finalEmail;
+
+      const currentEmail = email;
+      const stateEmail = location.state?.email;
+      const storedEmail = localStorage.getItem("userEmail");
+      const finalEmail = currentEmail || stateEmail || storedEmail;
+      console.log("Getting email for request:", {
+        currentEmail,
+        stateEmail,
+        storedEmail,
+        finalEmail
+      });
+      
+      return finalEmail;
   };
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError("");
+  setSuccessMessage("");
+  setIsLoading(true);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSuccessMessage("");
-    setIsLoading(true);
+  const otpCode = otp.join("");
+  if (otpCode.length !== 6) {
+    setError("Please enter a valid 6-digit OTP");
+    setIsLoading(false);
+    return;
+  }
 
-    const otpCode = otp.join("");
-    if (otpCode.length !== 6) {
-      setError("Please enter a valid 6-digit OTP");
+  try {
+    const emailToUse = getEmailForRequest();
+    
+    if (!emailToUse) {
+      setError("Email not found. Please go back and try the signup process again.");
       setIsLoading(false);
       return;
     }
 
-    try {
-      const emailToUse = getEmailForRequest();
+    console.log("Sending verification request:", { email: emailToUse, otp: otpCode });
+    
+    // verifyOtp returns { message, token, user }
+    const data = await verifyOtp({ 
+      email: emailToUse, 
+      otp: otpCode 
+    });
+    
+    console.log("Verification response data:", data);
+    
+    const token = data.token;
+    const user = data.user;
+    
+    console.log("Extracted token:", token);
+    console.log("Extracted user:", user);
+    
+    if (token && user) {
+      console.log("✅ Token and user found, dispatching to Redux");
       
-      if (!emailToUse) {
-        setError("Email not found. Please go back and try the signup process again.");
-        setIsLoading(false);
-        return;
-      }
-
-      console.log("Sending verification request:", { email: emailToUse, otp: otpCode });
+      // Dispatch like LoginPage does (separate actions)
+      dispatch(loginSuccess(token));  // Pass token string only
+      dispatch(setUser(user));         // Pass user object separately
       
-      // Pass email and otp to verifyOtp
-      await verifyOtp({ 
-        email: emailToUse, 
-        otp: otpCode 
-      });
+      toast.success("OTP verified successfully! Redirecting...");
       
-      toast.success("OTP verified successfully!");
-      // Clear the stored email after successful verification
+      // Clear stored email/contact
       localStorage.removeItem("userEmail");
-      navigate("/login");
-    } catch (err) {
-      console.error("Verification error:", err);
-      setError(err.response?.data?.message || "OTP verification failed");
-    } finally {
+      localStorage.removeItem("userContact");
+      
+      // Small delay to ensure Redux state updates
+      setTimeout(() => {
+        console.log("🚀 Navigating to /home");
+        navigate("/home", { replace: true });
+      }, 500);
+      
+    } else {
+      console.error("❌ Missing token or user");
+      setError("Verification successful but authentication data missing. Please login.");
       setIsLoading(false);
     }
-  };
-
+    
+  } catch (err) {
+    console.error("❌ Verification error:", err);
+    console.error("Error response:", err.response);
+    setError(err.response?.data?.message || "OTP verification failed");
+    setIsLoading(false);
+  }
+};
   const handleResend = async () => {
     if (timer > 0 || isResending) return;
     setIsResending(true);
     setError("");
     setSuccessMessage("");
-
     try {
       const emailToUse = getEmailForRequest();
-      
       if (!emailToUse) {
         setError("Email not found. Please go back and try the signup process again.");
         setIsResending(false);
         return;
       }
-
       const payload = { email: emailToUse };
       console.log("Sending resend request with payload:", payload);
-
       const response = await resendOtp(payload);
       console.log("Resend response:", response);
-
       setOtp(new Array(6).fill(""));
       setTimer(60);
-      
-      // Update destination if backend provides it
       if (response.data?.sentTo) {
         setOtpDestination(response.data.sentTo);
       }
-      
       setSuccessMessage(response.data?.message || "New OTP sent successfully to your email!");
-      
     } catch (err) {
       console.error("Resend error:", err);
       setError(err?.response?.data?.message || "Failed to resend OTP. Please try again.");
@@ -204,8 +229,6 @@ const OtpPage = () => {
       setIsResending(false);
     }
   };
-
-  // Show a loading state while we're trying to get the email
   if (!email && !error) {
     return (
       <main className="relative w-screen h-screen overflow-hidden bg-black text-white font-sans flex items-center justify-center">

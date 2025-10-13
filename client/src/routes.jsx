@@ -29,13 +29,12 @@ import OtherProfilePage from './pages/auth/OtherProfilePage';
 import DeletedEvent from './pages/ticket/DeletedEvent';
 import SuggestionsPage from './pages/auth/SuggestionsPage';
 import ConfirmEvents from './pages/ticket/ConfirmEvents';
+import PreviousEvent from './pages/ticket/PreviousEvent';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
-
   if (!token || !user) {
     return <Navigate to="/login" replace />;
   }
-
   if (user?.isBlocked) {
     return <Navigate to="/blocked" replace />;
   }
@@ -121,9 +120,9 @@ const AppRoutes = () => {
       <Route 
         path="/otp" 
         element={
-            <PublicRoute allowedRoles={['admin', 'organisation']}>
+          <MixedRoute>
             <OtpPage />
-          </PublicRoute>
+          </MixedRoute>
         } 
       />
       <Route 
@@ -261,6 +260,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <ViewEvents />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/previous-events"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <PreviousEvent />
           </ProtectedRoute>
         }
       />

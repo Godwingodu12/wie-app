@@ -22,7 +22,10 @@ const userSchema = new mongoose.Schema(
       required: function() {
         return this.role === 'organisation';
       },
-      enum: ['Private', 'Government', 'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Other']
+      enum: [
+          'Private Limited', 'Public Limited', 'Partnership', 'Proprietorship', 'LLP', 
+          'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Trust', 'Society','Government', 'Other'
+      ]
     },
     status: {
       type: String,
