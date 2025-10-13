@@ -301,6 +301,54 @@ function BankAccountDetailsCard({ isDark, theme }) {
     </div>
   );
 }
+const tableStyles = `
+  .table-container {
+    overflow-x: auto;
+  }
+  
+  .fixed-table {
+    table-layout: fixed;
+  }
+  
+  .truncate-cell {
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    position: relative;
+  }
+  
+  .truncate-cell:hover::after {
+    content: attr(data-full-text);
+    position: absolute;
+    left: 0;
+    top: 100%;
+    background: #1f2937;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    white-space: normal;
+    word-wrap: break-word;
+    z-index: 1000;
+    min-width: 200px;
+    max-width: 400px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-top: 4px;
+  }
+  
+  .truncate-cell:hover::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 100%;
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid #1f2937;
+    z-index: 1001;
+  }
+`;
 const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
@@ -518,53 +566,73 @@ const formatDate = (event) => {
               }
               const group = groups.find((g) => g._id === event.groupId);
               const groupName = group?.name;
+              const startDate = event.event_dates[0].start_date && 
+                new Date(event.event_dates[0].start_date).toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                });
+              const location = event.venue || event.location_type;
+              
               return (
-<tr
-  key={event._id || index}
-  className={`border-b ${
-    isDark ? "border-gray-700/50" : "border-gray-200"
-  } ${
-    isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
-  }`}
->
-  <td className={`py-3 px-8 ${theme.text} text-sm truncate w-[20%]`}>
-    {event.event_name}
-  </td>
-  <td className={`py-3 px-8 ${theme.text} text-sm truncate w-[18%]`}>
-    {groupName}
-  </td>
-  <td className={`py-3 px-8 ${theme.text} text-sm truncate w-[15%]`}>
-    {event.event_subcategory}
-  </td>
-  <td className={`py-3 px-8 ${theme.text} text-sm truncate w-[18%]`}>
-    {event.event_dates[0].start_date && 
-      new Date(event.event_dates[0].start_date).toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      })
-    }
-  </td>
-  <td className={`py-3 px-8 ${theme.text} text-sm truncate w-[15%]`}>
-    {event.venue || event.location_type}
-  </td>
-  <td className={`py-3 px-8 ${theme.text} text-sm truncate w-[8%]`}>
-    {event.event_type}
-  </td>
-  <td className="py-3 px-8 pr-4 w-[22%]">
-    <div className="flex items-center gap-2">
-      <button className="bg-[#00DEA3] text-black font-semibold text-sm px-5 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50 whitespace-nowrap">
-        Run
-      </button>
-      <button className="bg-[#7D7D7D] w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex-shrink-0">
-        <img src={ViewConfirm} alt="ViewConfirm" className="w-3 h-3.5 object-contain" />
-      </button>
-      <button className="bg-[#7D7D7D] w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex-shrink-0">
-        <img src={EditIcon} alt="EditIcon" className="w-3 h-3.5 object-contain" />
-      </button>
-    </div>
-  </td>
-</tr>
+                <tr
+                  key={event._id || index}
+                  className={`border-b ${
+                    isDark ? "border-gray-700/50" : "border-gray-200"
+                  } ${
+                    isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
+                  }`}
+                >
+                  <td 
+                    className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[20%]`}
+                    data-full-text={event.event_name}
+                  >
+                    {event.event_name}
+                  </td>
+                  <td 
+                    className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[18%]`}
+                    data-full-text={groupName}
+                  >
+                    {groupName}
+                  </td>
+                  <td 
+                    className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[15%]`}
+                    data-full-text={event.event_subcategory}
+                  >
+                    {event.event_subcategory}
+                  </td>
+                  <td 
+                    className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[18%]`}
+                    data-full-text={startDate}
+                  >
+                    {startDate}
+                  </td>
+                  <td 
+                    className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[15%]`}
+                    data-full-text={location}
+                  >
+                    {location}
+                  </td>
+                  <td 
+                    className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[8%]`}
+                    data-full-text={event.event_type}
+                  >
+                    {event.event_type}
+                  </td>
+                  <td className="py-3 px-8 pr-4 w-[22%]">
+                    <div className="flex items-center gap-2">
+                      <button className="bg-[#00DEA3] text-black font-semibold text-sm px-5 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50 whitespace-nowrap">
+                        Run
+                      </button>
+                      <button className="bg-[#7D7D7D] w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex-shrink-0">
+                        <img src={ViewConfirm} alt="ViewConfirm" className="w-3 h-3.5 object-contain" />
+                      </button>
+                      <button className="bg-[#7D7D7D] w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex-shrink-0">
+                        <img src={EditIcon} alt="EditIcon" className="w-3 h-3.5 object-contain" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               );
             })}
           </tbody>
@@ -641,12 +709,10 @@ const ConfirmEvents = () => {
           getGroups(),
           getMyLiveEvents(),
         ]);
-
         const eventsArray = eventsData?.tickets
           ? [].concat(eventsData.tickets)
           : [];
         setEvents(eventsArray);
-
         const groupsArray = Array.isArray(groupsData) ? groupsData : [];
         setGroups(groupsArray);
 
@@ -658,7 +724,6 @@ const ConfirmEvents = () => {
         setLiveEventsCount(0);
       }
     };
-
     fetchData();
   }, []);
 
@@ -691,9 +756,8 @@ const ConfirmEvents = () => {
         subText: "text-gray-600",
         cardBg: "bg-slate-100",
       };
-
   const confirmedEventsCount = events.length;
-
+  const totalLiveEvents = events.filter(event => event.event_status === "live").length;
   return (
     <div
       className={`${theme.bg} ${theme.text} h-screen flex overflow-hidden transition-colors duration-300 max-w-full`}
@@ -833,7 +897,7 @@ const ConfirmEvents = () => {
                 isDark={isDark}
                 theme={theme}
                 className="w-full h-48"
-                count={liveEventsCount}
+                count={totalLiveEvents}
                 title="Live events"
                 icon={<div className="text-red-500 relative">
                   <Radio className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
