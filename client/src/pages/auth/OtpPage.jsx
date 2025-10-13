@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux"; 
+import { loginSuccess, setUser } from "../../store/authSlice";
 import { verifyOtp, resendOtp } from "../../services/authService";
 import { toast } from "react-toastify";
 import { FaFacebookF, FaXTwitter } from "react-icons/fa6";
@@ -7,7 +9,6 @@ import { RiInstagramFill } from "react-icons/ri";
 import LightRays from "../../components/auth-model/LightRays";
 import bg1 from "../../assets/auth/img_mob.jpg";
 import bg2 from "../../assets/auth/img_bg.jpeg";
-
 const OtpPage = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [otp, setOtp] = useState(new Array(6).fill(""));
@@ -22,7 +23,7 @@ const OtpPage = () => {
   const intervalRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
-
+  const dispatch = useDispatch();
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 768);
@@ -88,7 +89,6 @@ useEffect(() => {
       setSuccessMessage("");
     }
   }, [otp]);
-
   const handleChange = (element, index) => {
     if (element.value && isNaN(Number(element.value))) return;
     const newOtp = [...otp];
@@ -130,39 +130,76 @@ useEffect(() => {
       
       return finalEmail;
   };
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSuccessMessage("");
-    setIsLoading(true);
-    const otpCode = otp.join("");
-    if (otpCode.length !== 6) {
-      setError("Please enter a valid 6-digit OTP");
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError("");
+  setSuccessMessage("");
+  setIsLoading(true);
+
+  const otpCode = otp.join("");
+  if (otpCode.length !== 6) {
+    setError("Please enter a valid 6-digit OTP");
+    setIsLoading(false);
+    return;
+  }
+
+  try {
+    const emailToUse = getEmailForRequest();
+    
+    if (!emailToUse) {
+      setError("Email not found. Please go back and try the signup process again.");
       setIsLoading(false);
       return;
     }
-    try {
-      const emailToUse = getEmailForRequest();
-      if (!emailToUse) {
-        setError("Email not found. Please go back and try the signup process again.");
-        setIsLoading(false);
-        return;
-      }
-      console.log("Sending verification request:", { email: emailToUse, otp: otpCode });
-      await verifyOtp({ 
-        email: emailToUse, 
-        otp: otpCode 
-      });
-      toast.success("OTP verified successfully!");
+
+    console.log("Sending verification request:", { email: emailToUse, otp: otpCode });
+    
+    // verifyOtp returns { message, token, user }
+    const data = await verifyOtp({ 
+      email: emailToUse, 
+      otp: otpCode 
+    });
+    
+    console.log("Verification response data:", data);
+    
+    const token = data.token;
+    const user = data.user;
+    
+    console.log("Extracted token:", token);
+    console.log("Extracted user:", user);
+    
+    if (token && user) {
+      console.log("✅ Token and user found, dispatching to Redux");
+      
+      // Dispatch like LoginPage does (separate actions)
+      dispatch(loginSuccess(token));  // Pass token string only
+      dispatch(setUser(user));         // Pass user object separately
+      
+      toast.success("OTP verified successfully! Redirecting...");
+      
+      // Clear stored email/contact
       localStorage.removeItem("userEmail");
-      navigate("/home");
-    } catch (err) {
-      console.error("Verification error:", err);
-      setError(err.response?.data?.message || "OTP verification failed");
-    } finally {
+      localStorage.removeItem("userContact");
+      
+      // Small delay to ensure Redux state updates
+      setTimeout(() => {
+        console.log("🚀 Navigating to /home");
+        navigate("/home", { replace: true });
+      }, 500);
+      
+    } else {
+      console.error("❌ Missing token or user");
+      setError("Verification successful but authentication data missing. Please login.");
       setIsLoading(false);
     }
-  };
+    
+  } catch (err) {
+    console.error("❌ Verification error:", err);
+    console.error("Error response:", err.response);
+    setError(err.response?.data?.message || "OTP verification failed");
+    setIsLoading(false);
+  }
+};
   const handleResend = async () => {
     if (timer > 0 || isResending) return;
     setIsResending(true);
