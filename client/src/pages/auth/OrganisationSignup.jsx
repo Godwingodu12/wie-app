@@ -17,8 +17,8 @@ import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles"
 import Alert from '../../components/Alert';
 import Select from "react-select";
 const organisationTypeOptions = [
-  { value: 'Private', label: 'Private Limited' },
-  { value: 'Government', label: 'Public Limited' },
+  { value: 'Private Limited', label: 'Private Limited' },
+  { value: 'Public Limited', label: 'Public Limited' },
   { value: 'Partnership', label: 'Partnership' },
   { value: 'Proprietorship', label: 'Proprietorship' },
   { value: 'LLP', label: 'LLP' },
@@ -26,8 +26,9 @@ const organisationTypeOptions = [
   { value: 'Educational', label: 'Educational' },
   { value: 'Healthcare', label: 'Healthcare' },
   { value: 'Non-profit', label: 'Non-profit' },
-  { value: 'Non-profit', label: 'Trust' },
-  { value: 'Non-profit', label: 'Society' },
+  { value: 'Trust', label: 'Trust' },
+  { value: 'Government', label: 'Government' },
+  { value: 'Society', label: 'Society' },
   { value: 'Other', label: 'Other' }
 ];
 const OrganisationSignup = () => {
@@ -107,15 +108,11 @@ const hideAlert = () => setAlert(null);
 
     return true; // All checks passed
 };
-
 const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // The validation function you added
     if (!validateForm()) {
         return;
     }
-    
     setIsLoading(true);
     const data = {
         name: formData.name,
@@ -130,29 +127,35 @@ const handleSubmit = async (e) => {
         // This is your successful API call
         await registerOrganisation(data);
         
-        // --- ADD THIS SUCCESS ALERT ---
+        // CRITICAL FIX: Store the CURRENT email and contact in localStorage
+        // This ensures OTP page always has the latest values
+        localStorage.setItem("userEmail", formData.email);
+        localStorage.setItem("userContact", formData.contact_no);
+        
+        // Also clear any old OTP data
+        localStorage.removeItem("otpTimestamp");
+        
+        // --- SUCCESS ALERT ---
         showAlert({
             type: 'success',
             message: 'Registration Successful!',
             description: 'Redirecting you to the OTP verification page.'
         });
-
-        // --- ADD A DELAY BEFORE NAVIGATING ---
         setTimeout(() => {
             navigate("/otp", {
-                state: { email: formData.email, contact_no: formData.contact_no },
+                state: { 
+                    email: formData.email, 
+                    contact_no: formData.contact_no,
+                    timestamp: Date.now() // Add timestamp to force state refresh
+                },
             });
         }, 1500); // 1.5-second delay
-
     } catch (err) {
         const errorMessage = err.response?.data?.message || "Registration failed";
         showAlert({ type: 'error', message: 'Registration Failed', description: errorMessage });
-        setIsLoading(false); // Stop loading ONLY if there's an error
+        setIsLoading(false);
     }
-    // Note: We remove setIsLoading(false) from a 'finally' block because
-    // on success, the component will navigate away anyway.
 };
-
   return (
     <div
       className="min-h-screen w-full font-sans text-white bg-cover bg-center"
