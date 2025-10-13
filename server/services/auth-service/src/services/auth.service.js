@@ -444,9 +444,19 @@ export const verifyOTP = async (req, res) => {
     user.status = "active";
     await user.save();
     console.log("User status updated to active for:", user._id);
-
+    const token = generateToken(user);
     res.status(200).json({ 
-      message: "OTP verified successfully"
+      message: "OTP verified successfully",
+      token: token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        image: user.image,
+        contact_no: user.contact_no,
+        isBlocked: user.isBlocked
+      }
     });
   } catch (err) {
     console.error("OTP verification error:", err);
