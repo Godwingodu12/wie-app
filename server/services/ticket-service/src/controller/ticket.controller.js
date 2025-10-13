@@ -1,5 +1,6 @@
 import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
+import TicketLike from '../models/ticketLike.model.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
 export const getGroupsTypes = async (req, res) => {
     try {
@@ -1005,3 +1006,137 @@ export const showEventBankDetails = async (req, res) => {
     });
   }
 };
+export const likeEvent = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const ticketId = req.params.ticketId;
+    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        message: "Invalid ticket ID format"
+      });
+    }
+    const ticket = await Ticket.findById(ticketId);
+    if (!ticket) {
+      return res.status(404).json({
+        message: "Ticket not found"
+      });
+    }
+
+    // Check if user already liked (this will be fast due to compound index)
+    const existingLike = await TicketLike.findOne({
+      ticketId: ticketId,
+      userId: userId.toString()
+    });
+    if (existingLike) {
+      return res.status(400).json({
+        message: "Event already liked by this user"
+      });
+    }
+    await TicketLike.create({
+      ticketId: ticketId,
+      userId: userId.toString()
+    });
+    // Increment like count atomically
+    await Ticket.findByIdAndUpdate(
+      ticketId,
+      { $inc: { like: 1 } },
+      { new: false }
+    );
+    // Get updated like count
+    const updatedTicket = await Ticket.findById(ticketId);
+    res.status(200).json({
+      message: "Event liked successfully",
+      likeCount: updatedTicket.like
+    });
+  } catch (error) {
+    console.error("Error liking event:", error);
+    
+    // Handle duplicate key error (race condition)
+    if (error.code === 11000) {
+      return res.status(400).json({
+        message: "Event already liked by this user"
+      });
+    }
+    res.status(500).json({
+      message: "An error occurred while liking the event",
+      error: error.message
+    });
+  }
+};
+// Unlike an event
+export const unlikeEvent = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const ticketId = req.params.ticketId;
+
+    // Validate ticket ID format
+    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        message: "Invalid ticket ID format"
+      });
+    }
+
+    // Check if ticket exists
+    const ticket = await Ticket.findById(ticketId);
+    if (!ticket) {
+      return res.status(404).json({
+        message: "Ticket not found"
+      });
+    }
+
+    // Delete like record
+    const deletedLike = await TicketLike.findOneAndDelete({
+      ticketId: ticketId,
+      userId: userId.toString()
+    });
+
+    if (!deletedLike) {
+      return res.status(400).json({
+        message: "Event is not liked by this user"
+      });
+    }
+
+    // Decrement like count atomically
+    await Ticket.findByIdAndUpdate(
+      ticketId,
+      { $inc: { like: -1 } },
+      { new: false }
+    );
+
+    // Get updated like count
+    const updatedTicket = await Ticket.findById(ticketId);
+
+    res.status(200).json({
+      message: "Event unliked successfully",
+      likeCount: updatedTicket.like
+    });
+  } catch (error) {
+    console.error("Error unliking event:", error);
+    res.status(500).json({
+      message: "An error occurred while unliking the event",
+      error: error.message
+    });
+  }
+};
+
+// Check if user liked an event (useful for UI)
+export const checkUserLiked = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const ticketId = req.params.ticketId;
+    const liked = await TicketLike.exists({
+      ticketId: ticketId,
+      userId: userId.toString()
+    });
+    res.status(200).json({
+      liked: !!liked
+    });
+  } catch (error) {
+    console.error("Error checking like status:", error);
+    res.status(500).json({
+      message: "An error occurred",
+      error: error.message
+    });
+  }
+};
+

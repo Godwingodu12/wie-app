@@ -141,6 +141,7 @@ const subEventSchema = new mongoose.Schema({
   total_capacity: { type: String, required: false },
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
+  like: {type: Number,required: false,default: 0},
   // Status
   event_status: {
     type: String,
@@ -228,7 +229,7 @@ const ticketSchema = new mongoose.Schema({
   ticket_layout: { type: String, required: false },
   ticket_types: [ticketTypeSchema],
   created_by: { type: String, required: false },
-  
+  like: {type: Number,required: false,default: 0},
   //ticket offer or bulk booking
   event_ticket_offer: { type: Boolean, default: false },
   offerTickets: [offerTicketSchema],

@@ -2,7 +2,7 @@ import express from 'express';
 import {getUserData,CreateGroup, createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
 getTicketById,deleteTicket,viewTickets } from '../services/ticket.service.js';
 import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getOthersEvents,getOtherLiveEvents,
-getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails } from '../controller/ticket.controller.js';
+getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails,likeEvent,unlikeEvent,checkUserLiked } from '../controller/ticket.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);
@@ -39,4 +39,7 @@ router.post('/confirm-event/:ticketId',confirmEvent);
 router.post('/go-live-event/:ticketId',goLiveEvent);
 router.get('/get-previous-events',getPreviousEvents);
 router.get('/show-event-bank-details',showEventBankDetails);
+router.post('/like-event/:ticketId',likeEvent);
+router.post('/unlike-event/:ticketId',unlikeEvent);
+router.get('/check-user-liked/:ticketId',checkUserLiked);
 export default router;
