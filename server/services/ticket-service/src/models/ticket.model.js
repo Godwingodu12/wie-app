@@ -67,6 +67,7 @@ const subEventSchema = new mongoose.Schema({
       enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other'],
       default: []
   },
+  location_type: {type: String, enum: ['offline', 'online', 'recorded'], required: false},
   location: { 
     type: String, 
     required: function() { return this.location_type === 'offline'; } 
