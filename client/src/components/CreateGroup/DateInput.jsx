@@ -86,40 +86,50 @@ export default function DateInput({
   };
 
   const renderDays = () => {
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const startingDay = new Date(year, month, 1).getDay();
-    const daysOfWeek = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-    const calendarDays = Array.from({ length: startingDay }, (_, i) => <div key={`empty-${i}`}></div>);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startingDay = new Date(year, month, 1).getDay();
+  const daysOfWeek = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const calendarDays = Array.from({ length: startingDay }, (_, i) => <div key={`empty-${i}`}></div>);
 
-    for (let day = 1; day <= daysInMonth; day++) {
-      const currentDate = new Date(year, month, day);
-      currentDate.setHours(0, 0, 0, 0);
-      const isSelected = selectedDate && currentDate.getTime() === selectedDate.getTime();
-      const isToday = currentDate.getTime() === today.getTime();
-      
-      // The disabling logic now correctly uses the effective minDate
-      const isPast = minDateObj ? currentDate < minDateObj : false;
-      const isFuture = maxDateObj ? currentDate > maxDateObj : false;
-      const isDisabled = isPast || isFuture;
-
-      calendarDays.push(
-        <div key={day} onClick={() => !isDisabled && handleDateSelect(day)}
-          className={`h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center rounded-full transition-colors ${
-            isDisabled ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed' :
-            `cursor-pointer ${isSelected ? 'bg-blue-600 text-white' : `hover:bg-blue-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 ${isToday ? 'border border-blue-600 dark:border-blue-400' : ''}`}`
-          }`}
-        >{day}</div>
-      );
+  for (let day = 1; day <= daysInMonth; day++) {
+    const currentDate = new Date(year, month, day);
+    currentDate.setHours(0, 0, 0, 0);
+    const isSelected = selectedDate && currentDate.getTime() === selectedDate.getTime();
+    const isToday = currentDate.getTime() === today.getTime();
+    
+    // Updated disabling logic - compare dates at start of day for minDate, end of day for maxDate
+    const isPast = minDateObj ? currentDate < minDateObj : false;
+    
+    // For maxDate comparison, create a date at end of day
+    let isFuture = false;
+    if (maxDateObj) {
+      const maxDateComparison = new Date(maxDateObj);
+      maxDateComparison.setHours(23, 59, 59, 999);
+      const currentDateEndOfDay = new Date(currentDate);
+      currentDateEndOfDay.setHours(23, 59, 59, 999);
+      isFuture = currentDateEndOfDay > maxDateComparison;
     }
-    return (
-      <>
-        <div className="grid grid-cols-7 gap-1 text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-2">
-          {daysOfWeek.map((day, index) => <div key={`weekday-${index}`}>{day}</div>)}
-        </div>
-        <div className="grid grid-cols-7 gap-1 place-items-center">{calendarDays}</div>
-      </>
+    
+    const isDisabled = isPast || isFuture;
+
+    calendarDays.push(
+      <div key={day} onClick={() => !isDisabled && handleDateSelect(day)}
+        className={`h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center rounded-full transition-colors ${
+          isDisabled ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed' :
+          `cursor-pointer ${isSelected ? 'bg-blue-600 text-white' : `hover:bg-blue-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 ${isToday ? 'border border-blue-600 dark:border-blue-400' : ''}`}`
+        }`}
+      >{day}</div>
     );
-  };
+  }
+  return (
+    <>
+      <div className="grid grid-cols-7 gap-1 text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-2">
+        {daysOfWeek.map((day, index) => <div key={`weekday-${index}`}>{day}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1 place-items-center">{calendarDays}</div>
+    </>
+  );
+};
 
   const renderMonths = () => {
     const months = Array.from({ length: 12 }, (_, i) => new Date(0, i).toLocaleString('default', { month: 'short' }));

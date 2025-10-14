@@ -10,12 +10,12 @@ import {
   getMyEvents,
   getGroups,
   getMyLiveEvents,
-  showEventBankDetails
+  showEventBankDetails,
 } from "../../services/ticketService";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
 import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
-import ViewConfirm from '../../assets/Event/ViewConfirm.png';
-import  EditIcon  from '../../assets/Event/EditIcon.png';
+import ViewConfirm from "../../assets/Event/ViewConfirm.png";
+import EditIcon from "../../assets/Event/EditIcon.png";
 import {
   ChevronDown,
   PartyPopper,
@@ -58,7 +58,9 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
             }}
           >
             <img
-              src={`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${group.image}`}
+              src={`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${
+                group.image
+              }`}
               alt={group.name}
               className="w-full h-full object-cover"
             />
@@ -145,7 +147,9 @@ function BankAccountDetailsCard({ isDark, theme }) {
   if (loading) {
     return (
       <div
-        className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${theme.cardBg} ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
+        className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${
+          theme.cardBg
+        } ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
         style={{ minHeight: "200px" }}
       >
         <p className={`${theme.subText}`}>Loading bank details...</p>
@@ -156,7 +160,9 @@ function BankAccountDetailsCard({ isDark, theme }) {
   if (!currentAccount || bankDetails.length === 0) {
     return (
       <div
-        className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${theme.cardBg} ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
+        className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${
+          theme.cardBg
+        } ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
         style={{ minHeight: "200px" }}
       >
         <p className={`${theme.subText}`}>No bank account details available</p>
@@ -212,7 +218,9 @@ function BankAccountDetailsCard({ isDark, theme }) {
           </p>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <p className={`text-sm font-medium ${theme.subText}`}>Account type :</p>
+          <p className={`text-sm font-medium ${theme.subText}`}>
+            Account type :
+          </p>
           <p
             className={`text-sm ${theme.text} ${
               isDark ? "bg-gray-700" : "bg-gray-500"
@@ -305,11 +313,11 @@ const tableStyles = `
   .table-container {
     overflow-x: auto;
   }
-  
+
   .fixed-table {
     table-layout: fixed;
   }
-  
+
   .truncate-cell {
     max-width: 0;
     overflow: hidden;
@@ -317,7 +325,7 @@ const tableStyles = `
     white-space: nowrap;
     position: relative;
   }
-  
+
   .truncate-cell:hover::after {
     content: attr(data-full-text);
     position: absolute;
@@ -335,7 +343,7 @@ const tableStyles = `
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     margin-top: 4px;
   }
-  
+
   .truncate-cell:hover::before {
     content: '';
     position: absolute;
@@ -387,24 +395,23 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
     displayEvents.push(null);
   }
 
-const formatDate = (event) => {
-  if (!event?.event_dates?.[0]?.start_date) {
-    return ""; // empty string if no date available
-  }
+  const formatDate = (event) => {
+    if (!event?.event_dates?.[0]?.start_date) {
+      return ""; // empty string if no date available
+    }
 
-  const dateString = event.event_dates[0].start_date;
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) {
-    return "Invalid Date";
-  }
+    const dateString = event.event_dates[0].start_date;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return "Invalid Date";
+    }
 
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-};
-
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
 
   return (
     <div
@@ -462,38 +469,52 @@ const formatDate = (event) => {
                     }`}
                   >
                     <svg
-                        className="w-6 h-6"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
+                      className="w-6 h-6"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
                     >
-                        <path
+                      <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth="2"
                         d="M13 10V3L4 14h7v7l9-11h-7z"
-                        />
+                      />
                     </svg>
                   </div>
                   <div>
-                    <p className={`${theme.text} font-semibold`}>{event.event_name}</p>
-                    <div className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"} flex items-center gap-2`}>
+                    <p className={`${theme.text} font-semibold`}>
+                      {event.event_name}
+                    </p>
+                    <div
+                      className={`text-sm ${
+                        isDark ? "text-gray-400" : "text-gray-600"
+                      } flex items-center gap-2`}
+                    >
                       <span>{groupName}</span>
                       <span>&bull;</span>
                       <span>{formatDate(event)}</span>
                     </div>
                   </div>
                 </div>
-               <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-col items-end gap-2">
                   <button className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50">
                     Run
                   </button>
                   <div className="flex items-center gap-2">
                     <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
-                      <img src={ViewConfirm} alt="ViewConfirm" className="w-4 h-4 object-contain" />
+                      <img
+                        src={ViewConfirm}
+                        alt="ViewConfirm"
+                        className="w-4 h-4 object-contain"
+                      />
                     </button>
                     <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
-                      <img src={EditIcon} alt="EditIcon" className="w-4 h-4 object-contain" />
+                      <img
+                        src={EditIcon}
+                        alt="EditIcon"
+                        className="w-4 h-4 object-contain"
+                      />
                     </button>
                   </div>
                 </div>
@@ -502,53 +523,59 @@ const formatDate = (event) => {
           })}
         </div>
         <table className="hidden lg:table w-full text-left">
-<thead>
-  <tr
-    className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
-      isDark ? "border-gray-700" : "border-gray-200"
-    } text-sm sticky top-0`}
-    style={{
-      background: isDark ? "#232426" : "#F1F1F1",
-      zIndex: 10,
-    }}
-  >
-    <th className="py-3 px-8 font-bold text-lg w-[20%]">
-      <div className="flex items-center justify-start gap-2">
-        {isSearchActive ? (
-          <div className="flex items-center gap-2 w-full">
-            <Search className="w-4 h-4" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onBlur={() => {
-                setIsSearchActive(false);
-                setSearchTerm("");
+          <thead>
+            <tr
+              className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
+                isDark ? "border-gray-700" : "border-gray-200"
+              } text-sm sticky top-0`}
+              style={{
+                background: isDark ? "#232426" : "#F1F1F1",
+                zIndex: 10,
               }}
-              className="bg-transparent focus:outline-none w-full placeholder-gray-500"
-            />
-          </div>
-        ) : (
-          <>
-            <span>Event</span>
-            <Search
-              className="w-4 h-4 cursor-pointer"
-              onClick={() => setIsSearchActive(true)}
-            />
-          </>
-        )}
-      </div>
-    </th>
-    <th className="py-3 px-8 font-bold text-lg w-[18%]">Group</th>
-    <th className="py-3 px-8 font-bold text-lg w-[15%]">Sub category</th>
-    <th className="py-3 px-8 font-bold text-lg w-[18%]">Start date</th>
-    <th className="py-3 px-8 font-bold text-lg w-[15%]">Location</th>
-    <th className="py-3 px-8 font-bold text-lg w-[8%]">Type</th>
-    <th className="py-3 px-8 pr-4 font-bold text-lg w-[22%]">Actions</th>
-  </tr>
-</thead>
+            >
+              <th className="py-3 px-8 font-bold text-lg w-[20%]">
+                <div className="flex items-center justify-start gap-2">
+                  {isSearchActive ? (
+                    <div className="flex items-center gap-2 w-full">
+                      <Search className="w-4 h-4" />
+                      <input
+                        ref={searchInputRef}
+                        type="text"
+                        placeholder="Search..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onBlur={() => {
+                          setIsSearchActive(false);
+                          setSearchTerm("");
+                        }}
+                        className="bg-transparent focus:outline-none w-full placeholder-gray-500"
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <span>Event</span>
+                      <Search
+                        className="w-4 h-4 cursor-pointer"
+                        onClick={() => setIsSearchActive(true)}
+                      />
+                    </>
+                  )}
+                </div>
+              </th>
+              <th className="py-3 px-8 font-bold text-lg w-[18%]">Group</th>
+              <th className="py-3 px-8 font-bold text-lg w-[15%]">
+                Sub category
+              </th>
+              <th className="py-3 px-8 font-bold text-lg w-[18%]">
+                Start date
+              </th>
+              <th className="py-3 px-8 font-bold text-lg w-[15%]">Location</th>
+              <th className="py-3 px-8 font-bold text-lg w-[8%]">Type</th>
+              <th className="py-3 px-8 pr-4 font-bold text-lg w-[22%]">
+                Actions
+              </th>
+            </tr>
+          </thead>
           <tbody>
             {displayEvents.map((event, index) => {
               if (!event) {
@@ -566,14 +593,19 @@ const formatDate = (event) => {
               }
               const group = groups.find((g) => g._id === event.groupId);
               const groupName = group?.name;
-              const startDate = event.event_dates[0].start_date && 
-                new Date(event.event_dates[0].start_date).toLocaleDateString("en-GB", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                });
+              const startDate =
+                event?.event_dates?.[0]?.start_date
+                  ? new Date(event.event_dates[0].start_date).toLocaleDateString(
+                      "en-GB",
+                      {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      }
+                    )
+                  : "";
               const location = event.venue || event.location_type;
-              
+
               return (
                 <tr
                   key={event._id || index}
@@ -583,37 +615,37 @@ const formatDate = (event) => {
                     isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
                   }`}
                 >
-                  <td 
+                  <td
                     className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[20%]`}
                     data-full-text={event.event_name}
                   >
                     {event.event_name}
                   </td>
-                  <td 
+                  <td
                     className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[18%]`}
                     data-full-text={groupName}
                   >
                     {groupName}
                   </td>
-                  <td 
+                  <td
                     className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[15%]`}
                     data-full-text={event.event_subcategory}
                   >
                     {event.event_subcategory}
                   </td>
-                  <td 
+                  <td
                     className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[18%]`}
                     data-full-text={startDate}
                   >
                     {startDate}
                   </td>
-                  <td 
+                  <td
                     className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[15%]`}
                     data-full-text={location}
                   >
                     {location}
                   </td>
-                  <td 
+                  <td
                     className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[8%]`}
                     data-full-text={event.event_type}
                   >
@@ -625,10 +657,18 @@ const formatDate = (event) => {
                         Run
                       </button>
                       <button className="bg-[#7D7D7D] w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex-shrink-0">
-                        <img src={ViewConfirm} alt="ViewConfirm" className="w-3 h-3.5 object-contain" />
+                        <img
+                          src={ViewConfirm}
+                          alt="ViewConfirm"
+                          className="w-3 h-3.5 object-contain"
+                        />
                       </button>
                       <button className="bg-[#7D7D7D] w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex-shrink-0">
-                        <img src={EditIcon} alt="EditIcon" className="w-3 h-3.5 object-contain" />
+                        <img
+                          src={EditIcon}
+                          alt="EditIcon"
+                          className="w-3 h-3.5 object-contain"
+                        />
                       </button>
                     </div>
                   </td>
@@ -642,6 +682,7 @@ const formatDate = (event) => {
       {/* Pagination */}
       {totalPages > 1 && (
         <div
+          data-testid="pagination-container"
           className="flex justify-center mt-3 pt-2 border-t border-opacity-20"
           style={{ borderColor: isDark ? "#4a5568" : "#e2e8f0" }}
         >
@@ -757,7 +798,9 @@ const ConfirmEvents = () => {
         cardBg: "bg-slate-100",
       };
   const confirmedEventsCount = events.length;
-  const totalLiveEvents = events.filter(event => event.event_status === "live").length;
+  const totalLiveEvents = events.filter(
+    (event) => event.event_status === "live"
+  ).length;
   return (
     <div
       className={`${theme.bg} ${theme.text} h-screen flex overflow-hidden transition-colors duration-300 max-w-full`}
@@ -889,9 +932,11 @@ const ConfirmEvents = () => {
                 className="w-full h-48"
                 count={confirmedEventsCount}
                 title="Total events"
-                icon={<div className="text-yellow-400">
-                  <PartyPopper className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
-                </div>}
+                icon={
+                  <div className="text-yellow-400">
+                    <PartyPopper className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
+                  </div>
+                }
               />
               <StatsCard
                 isDark={isDark}
@@ -899,9 +944,11 @@ const ConfirmEvents = () => {
                 className="w-full h-48"
                 count={totalLiveEvents}
                 title="Live events"
-                icon={<div className="text-red-500 relative">
-                  <Radio className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
-                </div>}
+                icon={
+                  <div className="text-red-500 relative">
+                    <Radio className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
+                  </div>
+                }
               />
             </div>
             <div className="md:col-span-2">
