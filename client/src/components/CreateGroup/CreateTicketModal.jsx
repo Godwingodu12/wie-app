@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-
 const CreateTicketModal = ({
   isOpen,
   onClose,
@@ -7,6 +6,7 @@ const CreateTicketModal = ({
   onResetAll,
   editingTicket,
   existingTickets,
+  darkMode, // ADD THIS PROP
 }) => {
   const [localTickets, setLocalTickets] = useState([]);
   const [ticketType, setTicketType] = useState("");
@@ -15,6 +15,7 @@ const CreateTicketModal = ({
   const [ticketPhoto, setTicketPhoto] = useState(null);
   const [ticketPhotoPreview, setTicketPhotoPreview] = useState("");
   const [currentEditId, setCurrentEditId] = useState(null);
+
   useEffect(() => {
     if (isOpen) {
       setLocalTickets(existingTickets || []);
@@ -56,7 +57,7 @@ const CreateTicketModal = ({
       name: ticketType,
       price: ticketPrice,
       capacity: totalTickets,
-      image: ticketPhotoPreview || `https://i.pravatar.cc/150?u=${Date.now()}`,
+      image: ticketPhotoPreview,
       photoFile: ticketPhoto,
     };
 
@@ -79,6 +80,7 @@ const CreateTicketModal = ({
 
   const handleDeleteTicket = (ticketIdToDelete) =>
     setLocalTickets(localTickets.filter((t) => t.id !== ticketIdToDelete));
+
   const startEditing = (ticket) => {
     setCurrentEditId(ticket.id);
     setTicketType(ticket.name);
@@ -92,6 +94,7 @@ const CreateTicketModal = ({
     onSave(localTickets);
     onClose();
   };
+
   const handleResetAll = () => {
     setLocalTickets([]);
     setCurrentEditId(null);
@@ -106,20 +109,24 @@ const CreateTicketModal = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-[#2B2B2B] rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div className={`rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col ${
+        darkMode ? 'bg-[#2B2B2B]' : 'bg-white'
+      }`}>
         {/* Header */}
         <div className="p-6 flex justify-between items-center flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
             {currentEditId ? "Edit Ticket" : "Create Ticket"}
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 text-3xl hover:text-gray-800 dark:hover:text-white transition"
+            className={`text-3xl transition ${
+              darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-800'
+            }`}
           >
             &times;
           </button>
         </div>
-        <hr className="border-gray-200 dark:border-gray-700" />
+        <hr className={darkMode ? 'border-gray-700' : 'border-gray-200'} />
 
         {/* Scrollable Content */}
         <div className="flex-grow overflow-y-auto p-6">
@@ -131,29 +138,40 @@ const CreateTicketModal = ({
                 value={ticketType}
                 onChange={(e) => setTicketType(e.target.value)}
                 placeholder="e.g. VIP, General Admission"
-                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3"
+                className={`w-full rounded-md p-3 border ${
+                  darkMode 
+                    ? 'bg-[#1c1c1f] text-white border-gray-700' 
+                    : 'bg-gray-100 text-gray-900 border-black'
+                }`}
               />
 
               <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                <label className={`block text-sm font-medium mb-2 ${
+                  darkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>
                   Ticket price
                 </label>
-                <div className="flex items-center bg-gray-100 dark:bg-[#1c1c1f] border border-black dark:border-gray-700 rounded-md">
-                  <span className="text-black dark:text-gray-400 pl-3">
-                    INR
-                  </span>
+                <div className={`flex items-center rounded-md border ${
+                  darkMode 
+                    ? 'bg-[#1c1c1f] border-gray-700' 
+                    : 'bg-gray-100 border-black'
+                }`}>
                   <input
                     type="number"
                     value={ticketPrice}
                     onChange={(e) => setTicketPrice(e.target.value)}
                     placeholder="Ticket price"
-                    className="w-full bg-transparent p-3 text-gray-900 dark:text-white"
+                    className={`w-full bg-transparent p-3 ${
+                      darkMode ? 'text-white' : 'text-gray-900'
+                    }`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                <label className={`block text-sm font-medium mb-2 ${
+                  darkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>
                   Total tickets
                 </label>
                 <input
@@ -161,21 +179,28 @@ const CreateTicketModal = ({
                   value={totalTickets}
                   onChange={(e) => setTotalTickets(e.target.value)}
                   placeholder="Total tickets available"
-                  className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3"
+                  className={`w-full rounded-md p-3 border ${
+                    darkMode 
+                      ? 'bg-[#1c1c1f] text-white border-gray-700' 
+                      : 'bg-gray-100 text-gray-900 border-black'
+                  }`}
                 />
               </div>
 
               <div className="flex-grow flex flex-col">
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                <label className={`block text-sm font-medium mb-2 ${
+                  darkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>
                   Upload ticket photo
                 </label>
-                <div className="flex-grow mt-2 flex justify-center items-center rounded-lg border border-dashed border-black dark:border-gray-700 px-6 py-10 text-center">
-                  <label
-                    htmlFor="ticket-photo-upload"
-                    className="cursor-pointer"
-                  >
+                <div className={`flex-grow mt-2 flex justify-center items-center rounded-lg border border-dashed px-6 py-10 text-center ${
+                  darkMode ? 'border-gray-700' : 'border-black'
+                }`}>
+                  <label htmlFor="ticket-photo-upload" className="cursor-pointer">
                     <svg
-                      className="mx-auto h-12 w-12 text-gray-400 dark:text-black"
+                      className={`mx-auto h-12 w-12 ${
+                        darkMode ? 'text-gray-400' : 'text-gray-400'
+                      }`}
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -187,10 +212,14 @@ const CreateTicketModal = ({
                         d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
                       />
                     </svg>
-                    <p className="text-sm text-black dark:text-gray-400 mt-2">
+                    <p className={`text-sm mt-2 ${
+                      darkMode ? 'text-gray-400' : 'text-black'
+                    }`}>
                       browse your files
                     </p>
-                    <p className="text-xs text-gray-400 dark:text-black mt-1">
+                    <p className={`text-xs mt-1 ${
+                      darkMode ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
                       Max 10 MB files are allowed
                     </p>
                     <span className="mt-4 inline-block rounded-md font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm">
@@ -218,19 +247,25 @@ const CreateTicketModal = ({
             </div>
 
             {/* Divider */}
-            <div className="w-px bg-gray-200 dark:bg-gray-700 flex-shrink-0"></div>
+            <div className={`w-px flex-shrink-0 ${
+              darkMode ? 'bg-gray-700' : 'bg-gray-200'
+            }`}></div>
 
             {/* Right Side */}
             <div className="w-1/2 space-y-3">
               {localTickets.length === 0 ? (
-                <div className="text-center text-black pt-16">
+                <div className={`text-center pt-16 ${
+                  darkMode ? 'text-gray-400' : 'text-black'
+                }`}>
                   No tickets added yet.
                 </div>
               ) : (
                 localTickets.map((ticket) => (
                   <div
                     key={ticket.id}
-                    className="bg-gray-100 dark:bg-[#363A3F] p-3 rounded-lg flex items-center justify-between"
+                    className={`p-3 rounded-lg flex items-center justify-between ${
+                      darkMode ? 'bg-[#363A3F]' : 'bg-gray-100'
+                    }`}
                   >
                     <div className="flex items-center space-x-3">
                       <img
@@ -239,12 +274,14 @@ const CreateTicketModal = ({
                         className="w-16 h-16 rounded-md object-cover"
                       />
                       <div>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {`${ticket.name} - ₹${Number(
-                            ticket.price
-                          ).toLocaleString()}`}
+                        <p className={`font-semibold ${
+                          darkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {`${ticket.name} - ₹${Number(ticket.price).toLocaleString()}`}
                         </p>
-                        <p className="text-xs text-black dark:text-gray-400">
+                        <p className={`text-xs ${
+                          darkMode ? 'text-gray-400' : 'text-black'
+                        }`}>
                           Capacity: {ticket.capacity}
                         </p>
                       </div>
@@ -252,38 +289,22 @@ const CreateTicketModal = ({
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => startEditing(ticket)}
-                        className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
+                        className={`transition ${
+                          darkMode 
+                            ? 'text-gray-400 hover:text-white' 
+                            : 'text-gray-400 hover:text-gray-800'
+                        }`}
                       >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"
-                          />
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" />
                         </svg>
                       </button>
                       <button
                         onClick={() => handleDeleteTicket(ticket.id)}
                         className="text-gray-400 hover:text-red-500 transition"
                       >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                       </button>
                     </div>
@@ -294,19 +315,27 @@ const CreateTicketModal = ({
           </div>
         </div>
 
-        <hr className="border-gray-200 dark:border-gray-700" />
+        <hr className={darkMode ? 'border-gray-700' : 'border-gray-200'} />
 
         {/* Footer */}
         <div className="p-6 flex justify-end gap-4 flex-shrink-0">
           <button
             onClick={handleResetAll}
-            className="px-6 py-2 bg-gray-200 dark:bg-[#363A3F] text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-700 transition"
+            className={`px-6 py-2 rounded-lg font-semibold transition ${
+              darkMode 
+                ? 'bg-[#363A3F] text-white hover:bg-gray-700' 
+                : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+            }`}
           >
             Reset all
           </button>
           <button
             onClick={onClose}
-            className="px-6 py-2 bg-gray-200 dark:bg-[#363A3F] text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-700 transition"
+            className={`px-6 py-2 rounded-lg font-semibold transition ${
+              darkMode 
+                ? 'bg-[#363A3F] text-white hover:bg-gray-700' 
+                : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+            }`}
           >
             Cancel
           </button>
@@ -321,6 +350,5 @@ const CreateTicketModal = ({
     </div>
   );
 };
-
 
 export default CreateTicketModal;
