@@ -87,10 +87,19 @@ const EventSidebar = ({ darkMode = false, formProgress = null, ticketId, groupId
     const handleBack = onBackClick || (() => navigate('/home'));
 
     const totalSteps = navigationSteps.length;
-    const completedCount = Object.values(completedSteps || {}).filter(Boolean).length;
-    const progress = Math.round(((completedCount-1) / (totalSteps - 1)) * 100);
-    const circumference = 2 * Math.PI * 50;
-    const progressOffset = circumference * (1 - progress / 100);
+let progress = 0;
+
+// Check if the final step (Terms & Conditions) is marked as complete
+if (completedSteps[totalSteps]) {
+    progress = 100;
+} else {
+    // Otherwise, progress is based on the step before the current active one.
+    // Example: If you are ON step 2, you have completed 1 of 5 steps (20%).
+    progress = Math.round(((currentStep - 1) / totalSteps) * 100);
+}
+
+const circumference = 2 * Math.PI * 50;
+const progressOffset = circumference * (1 - progress / 100);
 
     return (
         <div className={`hidden lg:flex w-[300px] p-6 flex-col transition-colors duration-300 sticky top-0 h-screen overflow-y-auto main-scrollbar ${darkMode ? 'bg-[#010101]' : 'bg-[F5F5F5]'}`}>
@@ -116,9 +125,14 @@ const EventSidebar = ({ darkMode = false, formProgress = null, ticketId, groupId
                         />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-sm font-semibold">{progress}%</span>
-                        <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>completed</span>
-                    </div>
+    {/* FIX: Added text color and increased font size */}
+    <span className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+        {progress}%
+    </span>
+    <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+        completed
+    </span>
+</div>
                 </div>
             </div>
 

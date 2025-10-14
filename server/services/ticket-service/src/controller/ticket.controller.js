@@ -749,10 +749,7 @@ export const getGroupTicketPercentages = async (req, res) => {
     // First, let's check if there are any tickets at all
     const totalTicketsCheck = await Ticket.countDocuments({
       groupId: { $in: groupIds }
-    });
-    
-    console.log("Total tickets found:", totalTicketsCheck);
-    
+    });    
     // Single aggregation query to get ticket counts per group
     const ticketStats = await Ticket.aggregate([
       {
@@ -952,19 +949,19 @@ export const showEventBankDetails = async (req, res) => {
     const userId = req.user._id || req.user.id;
     const tickets = await Ticket.find({ 
       userId: userId, 
-      event_status: { $in: ['pending', 'confirmed'] }
+      event_status: { $in: ['pending', 'confirmed','live','completed'] }
     })
     .sort({ createdAt: -1 })
     .exec();
     const allBankDetails = [];
     tickets.forEach(ticket => {
       const hasSubEvents = ticket.sub_events && ticket.sub_events.length > 0;
-      // Only show main event bank details if there are NO sub-events
-      if (!hasSubEvents && ticket.banking_details && ticket.banking_details.length > 0) {
+      if (ticket.banking_details && ticket.banking_details.length > 0) {
         ticket.banking_details.forEach(bank => {
           allBankDetails.push({
             event_id: ticket._id,
             event_name: ticket.event_name || "N/A",
+            event_type: "Main Event",
             bank_acc_type: bank.bank_acc_type || "N/A",
             bank_acc_no: bank.bank_acc_no || "N/A",
             bank_ifsc: bank.bank_ifsc || "N/A",
@@ -973,14 +970,15 @@ export const showEventBankDetails = async (req, res) => {
           });
         });
       }
-      // Show sub-events bank details
       if (hasSubEvents) {
-        ticket.sub_events.forEach(subEvent => {
+        ticket.sub_events.forEach((subEvent, index) => {
           if (subEvent.banking_details && subEvent.banking_details.length > 0) {
             subEvent.banking_details.forEach(bank => {
               allBankDetails.push({
                 event_id: subEvent._id,
                 event_name: subEvent.event_name || "N/A",
+                event_type: "Sub Event",
+                parent_event_name: ticket.event_name || "N/A",
                 bank_acc_type: bank.bank_acc_type || "N/A",
                 bank_acc_no: bank.bank_acc_no || "N/A",
                 bank_ifsc: bank.bank_ifsc || "N/A",
@@ -988,6 +986,8 @@ export const showEventBankDetails = async (req, res) => {
                 bank_detail_id: bank._id
               });
             });
+          } else {
+            console.log('No banking details found for sub-event:', subEvent.event_name);
           }
         });
       }
@@ -1021,8 +1021,6 @@ export const likeEvent = async (req, res) => {
         message: "Ticket not found"
       });
     }
-
-    // Check if user already liked (this will be fast due to compound index)
     const existingLike = await TicketLike.findOne({
       ticketId: ticketId,
       userId: userId.toString()
@@ -1036,13 +1034,11 @@ export const likeEvent = async (req, res) => {
       ticketId: ticketId,
       userId: userId.toString()
     });
-    // Increment like count atomically
     await Ticket.findByIdAndUpdate(
       ticketId,
       { $inc: { like: 1 } },
       { new: false }
     );
-    // Get updated like count
     const updatedTicket = await Ticket.findById(ticketId);
     res.status(200).json({
       message: "Event liked successfully",
@@ -1050,8 +1046,6 @@ export const likeEvent = async (req, res) => {
     });
   } catch (error) {
     console.error("Error liking event:", error);
-    
-    // Handle duplicate key error (race condition)
     if (error.code === 11000) {
       return res.status(400).json({
         message: "Event already liked by this user"
@@ -1063,49 +1057,36 @@ export const likeEvent = async (req, res) => {
     });
   }
 };
-// Unlike an event
 export const unlikeEvent = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
     const ticketId = req.params.ticketId;
-
-    // Validate ticket ID format
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
         message: "Invalid ticket ID format"
       });
     }
-
-    // Check if ticket exists
     const ticket = await Ticket.findById(ticketId);
     if (!ticket) {
       return res.status(404).json({
         message: "Ticket not found"
       });
     }
-
-    // Delete like record
     const deletedLike = await TicketLike.findOneAndDelete({
       ticketId: ticketId,
       userId: userId.toString()
     });
-
     if (!deletedLike) {
       return res.status(400).json({
         message: "Event is not liked by this user"
       });
     }
-
-    // Decrement like count atomically
     await Ticket.findByIdAndUpdate(
       ticketId,
       { $inc: { like: -1 } },
       { new: false }
     );
-
-    // Get updated like count
     const updatedTicket = await Ticket.findById(ticketId);
-
     res.status(200).json({
       message: "Event unliked successfully",
       likeCount: updatedTicket.like
