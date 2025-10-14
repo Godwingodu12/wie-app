@@ -210,7 +210,6 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
     </div>
   </div>
 );
-// StatsCard.jsx
 const StatsCard = ({ count, title, isDark, theme, className, icon }) => (
   <div
     style={{
@@ -1043,10 +1042,11 @@ const ViewEvent = () => {
         subText: "text-gray-600",
         cardBg: "bg-slate-100",
       };
-
   const user = { name: "U" };
   const confirmedEventsCount = events.length;
-
+  const totalLiveEvents = events.filter(
+      (event) => event.event_status === "live"
+    ).length;
   return (
     <div
       className={`${theme.bg} ${theme.text} h-screen flex overflow-hidden transition-colors duration-300 max-w-full`}
@@ -1185,7 +1185,7 @@ const ViewEvent = () => {
                     isDark={isDark}
                     theme={theme}
                     className="w-full h-48"
-                    count={liveEventsCount}
+                    count={totalLiveEvents}
                     title="Live events"
                     icon={<div className="text-red-500 relative">
                       <Radio className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
