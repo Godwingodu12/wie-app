@@ -266,9 +266,6 @@ export const CreateGroup = async (req, res) => {
       groupData.contact_no = contact_no;
       groupData.address = address;
       groupData.organisation_type = organisation_type;
-      // For Educational organisations, gst_no and bank_check are optional
-      // For other organisations, they are required (validated above)
-      // Use usertype to determine if Educational
       if (gst_no) {
         groupData.gst_no = gst_no;
       }
@@ -2132,14 +2129,12 @@ export const updateTicketAddOns = async (req, res) => {
         guest_profile: String(guest.guest_profile || ''),
         guest_link: String(guest.guest_link || '')
       })),
-
       banking_details: bankingDetails.map(banking => ({
         bank_acc_type: String(banking.bank_acc_type || ''),
         bank_acc_no: String(banking.bank_acc_no || ''),
         bank_ifsc: String(banking.bank_ifsc || ''),
         bank_acc_holder: String(banking.bank_acc_holder || '')
       })),
-
       POCS: POCS.map(poc => ({
         POC_name: String(poc.POC_name || ''),
         POC_email: String(poc.POC_email || ''),
@@ -2208,8 +2203,6 @@ export const updateTicketAddOns = async (req, res) => {
       newSubEvent.ticket_types = [];
       newSubEvent.ticket_layout = undefined;
     }
-
-    // Handle event_rules
     if (processedFiles.event_rules) {
       newSubEvent.event_rules = {
         type: 'file',
@@ -2247,18 +2240,6 @@ export const updateTicketAddOns = async (req, res) => {
         hint: "Provide POCS as an array with POC_name, POC_email, POC_contact"
       });
     }
-
-    console.log('=== SUB-EVENT VALIDATION ===');
-    console.log('Event name:', newSubEvent.event_name);
-    console.log('Location type:', newSubEvent.location_type);
-    console.log('Event dates count:', newSubEvent.event_dates.length);
-    console.log('Guests count:', newSubEvent.guests.length);
-    console.log('POCS count:', newSubEvent.POCS.length);
-    console.log('Video files count:', Object.keys(videoFiles).length);
-    console.log('Preview images count:', Object.keys(previewImageFiles).length);
-    console.log('=== DUPLICATION CHECK PASSED ===');
-
-    // Now safely update the ticket
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
       {
