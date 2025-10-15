@@ -15,27 +15,30 @@ const CreateTicketModal = ({
   const [ticketPhoto, setTicketPhoto] = useState(null);
   const [ticketPhotoPreview, setTicketPhotoPreview] = useState("");
   const [currentEditId, setCurrentEditId] = useState(null);
+  const [existingPhotoPath, setExistingPhotoPath] = useState("");
 
-  useEffect(() => {
-    if (isOpen) {
-      setLocalTickets(existingTickets || []);
-      if (editingTicket) {
-        setTicketType(editingTicket.name);
-        setTicketPrice(editingTicket.price);
-        setTotalTickets(editingTicket.capacity);
-        setTicketPhotoPreview(editingTicket.image);
-        setTicketPhoto(editingTicket.photoFile || null);
-        setCurrentEditId(editingTicket.id);
-      } else {
-        setCurrentEditId(null);
-        setTicketType("");
-        setTicketPrice("");
-        setTotalTickets("");
-        setTicketPhoto(null);
-        setTicketPhotoPreview("");
-      }
+useEffect(() => {
+  if (isOpen) {
+    setLocalTickets(existingTickets || []);
+    if (editingTicket) {
+      setTicketType(editingTicket.name);
+      setTicketPrice(editingTicket.price);
+      setTotalTickets(editingTicket.capacity);
+      setTicketPhotoPreview(editingTicket.image);
+      setTicketPhoto(editingTicket.photoFile || null);
+      setExistingPhotoPath(editingTicket.existingPhotoPath || ""); // ADD THIS
+      setCurrentEditId(editingTicket.id);
+    } else {
+      setCurrentEditId(null);
+      setTicketType("");
+      setTicketPrice("");
+      setTotalTickets("");
+      setTicketPhoto(null);
+      setTicketPhotoPreview("");
+      setExistingPhotoPath(""); // ADD THIS
     }
-  }, [editingTicket, existingTickets, isOpen]);
+  }
+}, [editingTicket, existingTickets, isOpen]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -46,37 +49,42 @@ const CreateTicketModal = ({
   };
 
   const handleAddOrUpdateTicket = () => {
-    if (!ticketType || !ticketPrice || !totalTickets) {
-      alert(
-        "Please fill in all ticket details: Type, Price, and Total Tickets."
-      );
-      return;
-    }
+  if (!ticketType || !ticketPrice || !totalTickets) {
+    alert(
+      "Please fill in all ticket details: Type, Price, and Total Tickets."
+    );
+    return;
+  }
 
-    const ticketData = {
-      name: ticketType,
-      price: ticketPrice,
-      capacity: totalTickets,
-      image: ticketPhotoPreview,
-      photoFile: ticketPhoto,
-    };
+  // Generate a default image if none provided
+  const defaultImage = ticketPhotoPreview || `https://via.placeholder.com/150?text=${encodeURIComponent(ticketType)}`;
 
-    if (currentEditId) {
-      const updatedList = localTickets.map((t) =>
-        t.id === currentEditId ? { ...ticketData, id: currentEditId } : t
-      );
-      setLocalTickets(updatedList);
-    } else {
-      setLocalTickets([...localTickets, { ...ticketData, id: Date.now() }]);
-    }
-
-    setCurrentEditId(null);
-    setTicketType("");
-    setTicketPrice("");
-    setTotalTickets("");
-    setTicketPhoto(null);
-    setTicketPhotoPreview("");
+  const ticketData = {
+    name: ticketType,
+    price: ticketPrice,
+    capacity: totalTickets,
+    image: defaultImage,
+    photoFile: ticketPhoto, // New file (if uploaded)
+    existingPhotoPath: ticketPhoto ? '' : existingPhotoPath, // Keep existing if no new file
   };
+
+  if (currentEditId) {
+    const updatedList = localTickets.map((t) =>
+      t.id === currentEditId ? { ...ticketData, id: currentEditId } : t
+    );
+    setLocalTickets(updatedList);
+  } else {
+    setLocalTickets([...localTickets, { ...ticketData, id: Date.now() }]);
+  }
+
+  setCurrentEditId(null);
+  setTicketType("");
+  setTicketPrice("");
+  setTotalTickets("");
+  setTicketPhoto(null);
+  setTicketPhotoPreview("");
+  setExistingPhotoPath("");
+};
 
   const handleDeleteTicket = (ticketIdToDelete) =>
     setLocalTickets(localTickets.filter((t) => t.id !== ticketIdToDelete));
@@ -88,6 +96,7 @@ const CreateTicketModal = ({
     setTotalTickets(ticket.capacity);
     setTicketPhotoPreview(ticket.image);
     setTicketPhoto(ticket.photoFile || null);
+    setExistingPhotoPath(ticket.existingPhotoPath || "");
   };
 
   const handleSave = () => {
