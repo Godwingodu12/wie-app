@@ -1,36 +1,64 @@
 import User from "../models/user.model.js";
+import Follow from "../models/follow.model.js";
 export const followUser = async (req, res) => {
   try {
     const userIdToFollow = req.params.otherId;
     const currentUserId = req.user._id || req.user.id || req.user.userId;
+
     if (currentUserId.toString() === userIdToFollow.toString()) {
       return res.status(400).json({ message: 'You cannot follow yourself' });
     }
-    const userToFollow = await User.findOne({ _id: userIdToFollow, status: 'active' });
-    const currentUser = await User.findOne({ _id: currentUserId, status: 'active' });
+
+    // Verify both users exist and are active
+    const [userToFollow, currentUser] = await Promise.all([
+      User.findOne({ _id: userIdToFollow, status: 'active' }).select('_id'),
+      User.findOne({ _id: currentUserId, status: 'active' }).select('_id')
+    ]);
+
     if (!userToFollow) {
       return res.status(404).json({ message: 'User not found' });
     }
+
     if (!currentUser) {
       return res.status(404).json({ message: 'Current user not found' });
     }
-    if (!currentUser.followingList) currentUser.followingList = [];
-    if (!userToFollow.followersList) userToFollow.followersList = [];
-    const isAlreadyFollowing = currentUser.followingList.some(
-      id => id.toString() === userIdToFollow.toString()
-    );
-    if (isAlreadyFollowing) {
+
+    // Check if already following
+    const existingFollow = await Follow.findOne({
+      follower: currentUserId,
+      following: userIdToFollow,
+      status: 'active'
+    });
+
+    if (existingFollow) {
       return res.status(400).json({ message: 'You are already following this user' });
     }
-    currentUser.followingList.push(userIdToFollow);
-    userToFollow.followersList.push(currentUserId);
-    currentUser.following = currentUser.followingList.length.toString();
-    userToFollow.followers = userToFollow.followersList.length.toString();
-    await Promise.all([currentUser.save(), userToFollow.save()]);
-    return res.status(200).json({ 
+
+    // Create follow relationship
+    const followRecord = new Follow({
+      follower: currentUserId,
+      following: userIdToFollow,
+      status: 'active'
+    });
+
+    await followRecord.save();
+
+    // Get updated counts
+    const [followerCount, followingCount] = await Promise.all([
+      Follow.countDocuments({ following: userIdToFollow, status: 'active' }),
+      Follow.countDocuments({ follower: currentUserId, status: 'active' })
+    ]);
+
+    // Update user counts (optional, for faster retrieval)
+    await Promise.all([
+      User.updateOne({ _id: userIdToFollow }, { followers: followerCount.toString() }),
+      User.updateOne({ _id: currentUserId }, { following: followingCount.toString() })
+    ]);
+
+    return res.status(200).json({
       message: 'Successfully followed user',
-      following: currentUser.following,
-      followers: userToFollow.followers
+      following: followingCount.toString(),
+      followers: followerCount.toString()
     });
   } catch (error) {
     console.error('Error following user:', error);
@@ -41,47 +69,134 @@ export const unfollowUser = async (req, res) => {
   try {
     const userIdToUnfollow = req.params.otherId;
     const currentUserId = req.user._id || req.user.id || req.user.userId;
+
     if (currentUserId.toString() === userIdToUnfollow.toString()) {
       return res.status(400).json({ message: 'You cannot unfollow yourself' });
     }
-    const userToUnfollow = await User.findOne({ _id: userIdToUnfollow, status: 'active' });
-    const currentUser = await User.findOne({ _id: currentUserId, status: 'active' });
+
+    // Verify both users exist and are active
+    const [userToUnfollow, currentUser] = await Promise.all([
+      User.findOne({ _id: userIdToUnfollow, status: 'active' }).select('_id'),
+      User.findOne({ _id: currentUserId, status: 'active' }).select('_id')
+    ]);
+
     if (!userToUnfollow) {
       return res.status(404).json({ message: 'User not found' });
     }
+
     if (!currentUser) {
       return res.status(404).json({ message: 'Current user not found' });
     }
-    if (!currentUser.followingList) currentUser.followingList = [];
-    if (!userToUnfollow.followersList) userToUnfollow.followersList = [];
-    const isFollowing = currentUser.followingList.some(
-      id => id.toString() === userIdToUnfollow.toString()
-    );
-    if (!isFollowing) {
+
+    // Find and delete follow relationship
+    const followRecord = await Follow.findOne({
+      follower: currentUserId,
+      following: userIdToUnfollow,
+      status: 'active'
+    });
+
+    if (!followRecord) {
       return res.status(400).json({ message: 'You are not following this user' });
     }
-    currentUser.followingList = currentUser.followingList.filter(
-      id => id.toString() !== userIdToUnfollow.toString()
-    );
-    userToUnfollow.followersList = userToUnfollow.followersList.filter(
-      id => id.toString() !== currentUserId.toString()
-    );
-    currentUser.following = currentUser.followingList.length.toString();
-    userToUnfollow.followers = userToUnfollow.followersList.length.toString();
-    await Promise.all([currentUser.save(), userToUnfollow.save()]);
-    return res.status(200).json({ 
+
+    // Delete the follow relationship
+    await Follow.deleteOne({ _id: followRecord._id });
+
+    // Get updated counts
+    const [followerCount, followingCount] = await Promise.all([
+      Follow.countDocuments({ following: userIdToUnfollow, status: 'active' }),
+      Follow.countDocuments({ follower: currentUserId, status: 'active' })
+    ]);
+
+    // Update user counts
+    await Promise.all([
+      User.updateOne({ _id: userIdToUnfollow }, { followers: followerCount.toString() }),
+      User.updateOne({ _id: currentUserId }, { following: followingCount.toString() })
+    ]);
+
+    return res.status(200).json({
       message: 'Successfully unfollowed user',
-      following: currentUser.following,
-      followers: userToUnfollow.followers
+      following: followingCount.toString(),
+      followers: followerCount.toString()
     });
   } catch (error) {
     console.error('Error unfollowing user:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
-// Google OAuth Controllers
+export const getFollowers = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    const [followers, totalCount] = await Promise.all([
+      Follow.find({ following: userId, status: 'active' })
+        .select('follower')
+        .populate('follower', 'name image email')
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Follow.countDocuments({ following: userId, status: 'active' })
+    ]);
+
+    return res.status(200).json({
+      followers: followers.map(f => f.follower),
+      totalCount,
+      page,
+      pages: Math.ceil(totalCount / limit)
+    });
+  } catch (error) {
+    console.error('Error fetching followers:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+export const getFollowing = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const [following, totalCount] = await Promise.all([
+      Follow.find({ follower: userId, status: 'active' })
+        .select('following')
+        .populate('following', 'name image email')
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Follow.countDocuments({ follower: userId, status: 'active' })
+    ]);
+
+    return res.status(200).json({
+      following: following.map(f => f.following),
+      totalCount,
+      page,
+      pages: Math.ceil(totalCount / limit)
+    });
+  } catch (error) {
+    console.error('Error fetching following:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+export const isFollowing = async (req, res) => {
+  try {
+    const currentUserId = req.user._id || req.user.id || req.user.userId;
+    const targetUserId = req.params.otherId;
+    const follow = await Follow.findOne({
+      follower: currentUserId,
+      following: targetUserId,
+      status: 'active'
+    }).lean();
+    return res.status(200).json({
+      isFollowing: !!follow
+    });
+  } catch (error) {
+    console.error('Error checking follow status:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
 export const googleAuth = (req, res, next) => {
-  // Store user ID in session to link account later
   if (req.user && req.user._id) {
     req.session.userId = req.user._id.toString();
   }
