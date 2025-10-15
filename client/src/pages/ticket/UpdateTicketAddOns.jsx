@@ -7,6 +7,8 @@ import {
   updateSubEvent,
 } from "../../services/ticketService";
 import Select from "react-select";
+import DateInput from "../../components/CreateGroup/DateInput.jsx";
+
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import Addon_Form_Icon from "../../assets/Event/Addon_Form_Icon.svg?react";
@@ -267,7 +269,6 @@ const UpdateTicketAddOns = () => {
     event_subcategory: "",
     event_type: "public",
     location_type: "offline",
-
     location: "",
     venue: "",
     event_language: [],
@@ -280,7 +281,7 @@ const UpdateTicketAddOns = () => {
     event_youtube_link: "",
     hashtag: [],
     event_dates: [],
-    event_date_type: "",
+    event_date_type: "one-day",
     guests: [],
     event_rules_file: null,
     prohibited_items: [],
@@ -302,6 +303,7 @@ const UpdateTicketAddOns = () => {
     event_banner: null,
     event_logo: null,
     event_images: [],
+    existing_event_images: [],
     exact_map_location: {
       latitude: INITIAL_MAP_LOCATION.lat.toString(),
       longitude: INITIAL_MAP_LOCATION.lng.toString(),
@@ -795,7 +797,22 @@ const UpdateTicketAddOns = () => {
     setFormData((prev) => ({ ...prev, POCS: [...prev.POCS, newPoc] }));
     setPoc({ POC_name: "", POC_email: "", POC_contact: "" }); // Reset form
   };
-
+  const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
+  const getImageUrl = (path) => {
+      if (!path) return null;
+      if (typeof path === 'object') {
+        path = path.path || path.url || null;
+      }
+      if (typeof path !== 'string') {
+        console.warn('Invalid path type:', typeof path, path);
+        return null;
+      }
+      let cleanPath = path.replace(/\\/g, '/');
+      cleanPath = cleanPath.replace(/^src\//, '');
+      cleanPath = cleanPath.replace(/^\//, '');
+      const fullUrl = `${API_BASE_URL}/${cleanPath}`;
+      return fullUrl;
+  };
   const handleRemovePoc = (indexToRemove) => {
     setFormData((prev) => ({
       ...prev,
@@ -838,12 +855,24 @@ const UpdateTicketAddOns = () => {
     });
     e.target.value = "";
   };
-
   const handleRemoveLastImage = () => {
-    setFormData((prev) => {
-      const updatedImages = prev.event_images.slice(0, -1);
-      if (updatedImages.length < 2) setShowExtraMedia(false);
-      return { ...prev, event_images: updatedImages };
+      setFormData((prev) => {
+      if (prev.event_images.length > 0) {
+        const updatedImages = prev.event_images.slice(0, -1);
+        if (updatedImages.length + (prev.existing_event_images?.length || 0) < 2) {
+          setShowExtraMedia(false);
+        }
+        return { ...prev, event_images: updatedImages };
+      }
+      // Otherwise remove from existing images
+      else if (prev.existing_event_images?.length > 0) {
+        const updatedExisting = prev.existing_event_images.slice(0, -1);
+        if (updatedExisting.length < 2) {
+          setShowExtraMedia(false);
+        }
+        return { ...prev, existing_event_images: updatedExisting };
+      }
+      return prev;
     });
   };
 
@@ -880,89 +909,78 @@ const UpdateTicketAddOns = () => {
   };
   const validateForm = () => {
     const newErrors = {};
+    const parseDate = (dateString) => {
+      if (!dateString || typeof dateString !== 'string') return null;
+      const parts = dateString.split('-');
+      if (parts.length !== 3) return null;
+      const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+      if (isNaN(dt.getTime())) return null;
+      dt.setHours(0, 0, 0, 0);
+      return dt;
+    };
+    const formatAlertDate = (date) => {
+      if (!date) return 'N/A';
+      return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
-    // --- Basic Info ---
-    if (!formData.event_name.trim())
-      newErrors.event_name = "Event name is required.";
-    if (!formData.event_category)
-      newErrors.event_category = "Event category is required.";
-    if (!formData.event_subcategory)
-      newErrors.event_subcategory = "Event subcategory is required.";
-
-    // --- Date Validations ---
-    if (formData.event_dates.length === 0) {
-      newErrors.event_dates = "At least one event date is required.";
+    if (!formData.event_name.trim()) newErrors.event_name = "Event name is required.";
+    if (!formData.event_category) newErrors.event_category = "Event category is required.";
+    if (!formData.event_subcategory) newErrors.event_subcategory = "Event subcategory is required.";
+    if (formData.event_dates.length === 0) newErrors.event_dates = "At least one event date is required.";
+    if (mainEventStartDate && mainEventEndDate && formData.event_dates.length > 0) {
+  const mainStart = parseDate(mainEventStartDate);
+  const mainEnd = parseDate(mainEventEndDate);
+  if (mainStart) mainStart.setHours(0, 0, 0, 0);
+  if (mainEnd) mainEnd.setHours(23, 59, 59, 999);
+  for (const subEventDate of formData.event_dates) {
+    const subDate = parseDate(subEventDate.date);
+    if (subDate) subDate.setHours(0, 0, 0, 0);
+    if (subDate < mainStart || subDate > mainEnd) {
+      newErrors.event_dates = `The date ${formatAlertDate(subDate)} is outside the main event's range of ${formatAlertDate(mainStart)} to ${formatAlertDate(mainEnd)}.`;
+      break;
     }
-
-    // --- Location Specific Validations ---
+  }
+}
     if (formData.location_type === "offline") {
-      if (!formData.location.trim())
-        newErrors.location = "Location is required for offline events.";
-      if (!formData.venue.trim())
-        newErrors.venue = "Venue is required for offline events.";
-      if (!formData.seating_arrangement)
-        newErrors.seating_arrangement =
-          "Seating arrangement is required for offline events.";
+      if (!formData.location.trim()) newErrors.location = "Location is required.";
+      if (!formData.venue.trim()) newErrors.venue = "Venue is required.";
+      if (!formData.seating_arrangement) newErrors.seating_arrangement = "Seating arrangement is required.";
     } else {
-      // Online or Recorded
-
-      if (!formData.total_capacity)
-        newErrors.total_capacity =
-          "Maximum capacity is required for online/recorded events.";
+      if (!formData.total_capacity) newErrors.total_capacity = "Maximum capacity is required.";
     }
-
-    // --- Ticketing (if applicable) ---
-    if (formData.payment_type === "paid") {
-      if (!formData.booking_start_date)
-        newErrors.booking_start_date = "Booking start date is required.";
-      if (!formData.booking_end_date)
-        newErrors.booking_end_date = "Booking end date is required.";
-
-      if (
-        formData.booking_start_date &&
-        new Date(formData.booking_start_date) < today
-      ) {
-        newErrors.booking_start_date =
-          "Booking start date cannot be in the past.";
-      }
-      if (formData.event_dates.length > 0 && formData.booking_end_date) {
-        const sortedDates = [...formData.event_dates].sort(
-          (a, b) => new Date(a.date) - new Date(b.date)
+    if (formData.payment_type) {
+      if (!formData.booking_start_date) newErrors.booking_start_date = "Booking start date is required.";
+      if (!formData.booking_end_date) newErrors.booking_end_date = "Booking end date is required.";
+      if (formData.booking_start_date && formData.booking_end_date && formData.event_dates.length > 0) {
+        const sortedSubEventDates = [...formData.event_dates].sort((a, b) => 
+          new Date(b.endDate || b.date) - new Date(a.endDate || a.date)
         );
-
-        const earliestEventDate = new Date(sortedDates[0].date);
-        earliestEventDate.setHours(0, 0, 0, 0);
-        if (new Date(formData.booking_end_date) > earliestEventDate) {
-          newErrors.booking_end_date =
-            "Booking end date cannot be after the event starts.";
+        const latestSubEventEndDateString = sortedSubEventDates[0].endDate || sortedSubEventDates[0].date;
+        const startBooking = parseDate(formData.booking_start_date);
+        const endBooking = parseDate(formData.booking_end_date);
+        const latestSubEventEndDate = parseDate(latestSubEventEndDateString);
+        if (latestSubEventEndDate) {
+          latestSubEventEndDate.setHours(23, 59, 59, 999);
+        }
+        if (startBooking && endBooking && endBooking < startBooking) {
+          newErrors.booking_end_date = "Booking end date cannot be before the start date.";
+        }
+        if (latestSubEventEndDate && endBooking && endBooking > latestSubEventEndDate) {
+          newErrors.booking_end_date = `Booking must end on or before the sub-event ends on ${formatAlertDate(latestSubEventEndDate)}.`;
         }
       }
     }
-
-    // --- URL Validations ---
-    const youtubeRegex =
-      /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
-    if (
-      formData.event_youtube_link &&
-      !youtubeRegex.test(formData.event_youtube_link)
-    ) {
+    const youtubeRegex = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
+    if (formData.event_youtube_link && !youtubeRegex.test(formData.event_youtube_link)) {
       newErrors.event_youtube_link = "Invalid YouTube URL format.";
     }
-    const instagramRegex =
-      /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
-    if (
-      formData.event_instagram_link &&
-      !instagramRegex.test(formData.event_instagram_link)
-    ) {
+    const instagramRegex = /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
+    if (formData.event_instagram_link && !instagramRegex.test(formData.event_instagram_link)) {
       newErrors.event_instagram_link = "Invalid Instagram URL format.";
     }
-
     setErrors(newErrors);
-
     if (Object.keys(newErrors).length > 0) {
-      // Show an alert with the first error found
       showAlert({
         type: "error",
         message: "Validation Failed",
@@ -997,10 +1015,83 @@ const UpdateTicketAddOns = () => {
       }
     }
 
-    const eventDateTypeMap = {
-      "Single day": "one-day",
-      "Multi days": "multi-day",
-      Weekly: "weekly",
+    // ENHANCED: Ensure prohibited_items is always an array
+    const ensureProhibitedItemsArray = () => {
+      console.log('=== Frontend: Ensuring prohibited_items is array ===');
+      console.log('Raw formData.prohibited_items:', formData.prohibited_items);
+      console.log('Type:', typeof formData.prohibited_items);
+      console.log('Is Array:', Array.isArray(formData.prohibited_items));
+      
+      if (Array.isArray(formData.prohibited_items)) {
+        const cleaned = formData.prohibited_items
+          .map(item => {
+            if (typeof item === 'string') return item.trim();
+            if (typeof item === 'object' && item !== null) {
+              return item.name || item.item || item.value || String(item);
+            }
+            return String(item);
+          })
+          .filter(item => item && item !== 'undefined' && item !== 'null');
+        console.log('✓ Cleaned prohibited_items:', cleaned);
+        return cleaned;
+      }
+      
+      if (typeof formData.prohibited_items === 'string') {
+        try {
+          const parsed = JSON.parse(formData.prohibited_items);
+          if (Array.isArray(parsed)) {
+            console.log('✓ Parsed string to array:', parsed);
+            return parsed;
+          }
+        } catch (e) {
+          console.warn('Failed to parse prohibited_items string');
+        }
+        // Try splitting by comma
+        const split = formData.prohibited_items.split(',').map(s => s.trim()).filter(s => s);
+        if (split.length > 0) {
+          console.log('✓ Split by comma:', split);
+          return split;
+        }
+      }
+      
+      console.log('⚠ Returning empty array for prohibited_items');
+      return [];
+    };
+
+    // ENHANCED: Ensure ticket_types is always an array with proper structure
+    const ensureTicketTypesArray = () => {
+      console.log('=== Frontend: Ensuring ticket_types is array ===');
+      console.log('Raw formData.ticket_types:', formData.ticket_types);
+      console.log('Type:', typeof formData.ticket_types);
+      console.log('Is Array:', Array.isArray(formData.ticket_types));
+      console.log('Length:', formData.ticket_types?.length);
+      
+      if (!formData.ticket_types) {
+        console.log('⚠ No ticket_types found');
+        return [];
+      }
+      
+      if (Array.isArray(formData.ticket_types)) {
+        const processed = formData.ticket_types.map((t, index) => {
+          console.log(`Processing ticket ${index}:`, t);
+          
+          const ticket = {
+            ticket_type: t.name || t.ticket_type || '',
+            ticket_price: Number(t.price || t.ticket_price || 0),
+            max_capacity: Number(t.capacity || t.max_capacity || 0),
+            ticket_photo: t.existingPhotoPath || t.ticket_photo || '',
+          };
+          
+          console.log(`✓ Processed ticket ${index}:`, ticket);
+          return ticket;
+        });
+        
+        console.log('✓ All processed tickets:', processed);
+        return processed;
+      }
+      
+      console.log('⚠ ticket_types is not an array, returning empty array');
+      return [];
     };
 
     const payload = {
@@ -1013,14 +1104,12 @@ const UpdateTicketAddOns = () => {
       kids_friendly: formData.kids_friendly,
       pet_friendly: formData.pet_friendly,
       location_type: formData.location_type,
-      event_date_type: eventDateTypeMap[formData.event_date_type] || "one-day",
+      event_date_type: formData.event_date_type,
       event_dates: formData.event_dates.map((d) => {
-        // Ensure event_link has proper protocol for online/recorded events
         let eventLink = d.eventLink || "";
         if (eventLink && !eventLink.startsWith('http://') && !eventLink.startsWith('https://')) {
           eventLink = 'https://' + eventLink;
         }
-        
         return {
           start_date: d.date,
           end_date: d.endDate || d.date,
@@ -1029,16 +1118,18 @@ const UpdateTicketAddOns = () => {
           event_link: eventLink,
           video_name: d.videoName || "",
           verification_event_code: d.verificationCode || "",
-          // Note: video_file_path and preview_image_path will be added by the backend
-          // from the uploaded files, so we don't include them here
         };
       }),
       event_instagram_link: formData.event_instagram_link,
       event_youtube_link: formData.event_youtube_link,
       event_description: descriptionEditorRef.current?.innerHTML || "",
       event_rules_text: rulesEditorRef.current?.innerHTML || "",
-      hashtag: JSON.stringify(formData.hashtag),
-      prohibited_items: JSON.stringify(formData.prohibited_items),
+      hashtag: Array.isArray(formData.hashtag) ? formData.hashtag : [],
+      
+      // CRITICAL: ALWAYS include these as arrays, regardless of location_type
+      prohibited_items: ensureProhibitedItemsArray(),
+      ticket_types: ensureTicketTypesArray(),
+      
       payment_type: formData.payment_type,
       POCS: formData.POCS,
       guests: formData.guests.map((g) => ({
@@ -1049,13 +1140,19 @@ const UpdateTicketAddOns = () => {
       booking_end_date: formData.booking_end_date,
     };
 
+    console.log('=== FINAL FRONTEND PAYLOAD ===');
+    console.log('prohibited_items:', JSON.stringify(payload.prohibited_items, null, 2));
+    console.log('prohibited_items type:', typeof payload.prohibited_items);
+    console.log('prohibited_items is array:', Array.isArray(payload.prohibited_items));
+    console.log('prohibited_items length:', payload.prohibited_items.length);
+    console.log('ticket_types:', JSON.stringify(payload.ticket_types, null, 2));
+    console.log('ticket_types type:', typeof payload.ticket_types);
+    console.log('ticket_types is array:', Array.isArray(payload.ticket_types));
+    console.log('ticket_types length:', payload.ticket_types.length);
+    console.log('===============================');
+
     if (formData.payment_type === "paid") {
       payload.banking_details = formData.banking_details;
-      payload.ticket_types = formData.ticket_types.map((t) => ({
-        ticket_type: t.name,
-        ticket_price: Number(t.price),
-        max_capacity: Number(t.capacity),
-      }));
     }
 
     if (formData.location_type === "offline") {
@@ -1069,14 +1166,31 @@ const UpdateTicketAddOns = () => {
       payload.total_capacity = parseInt(formData.total_capacity, 10) || 0;
     }
 
-    console.log('=== Generated Payload ===');
-    console.log(JSON.stringify(payload, null, 2));
-
     return payload;
   };
   const buildFormData = (payload) => {
     const submissionForm = new FormData();
-    submissionForm.append("sub_event", JSON.stringify(payload));
+    
+    if (isEditingSubEvent && editingSubEventId) {
+      submissionForm.append("editing_sub_event_id", editingSubEventId);
+    }
+    
+    // CRITICAL: Ensure arrays are properly stringified
+    const subEventData = {
+      ...payload,
+      // Double-check these are arrays before stringifying
+      prohibited_items: Array.isArray(payload.prohibited_items) ? payload.prohibited_items : [],
+      ticket_types: Array.isArray(payload.ticket_types) ? payload.ticket_types : []
+    };
+    
+    console.log('=== buildFormData: sub_event data ===');
+    console.log('prohibited_items:', subEventData.prohibited_items);
+    console.log('ticket_types:', subEventData.ticket_types);
+    console.log('=====================================');
+    
+    submissionForm.append("sub_event", JSON.stringify(subEventData));
+    
+    // Rest of the file uploads remain the same
     if (formData.event_banner) {
       submissionForm.append("event_banner", formData.event_banner);
     }
@@ -1089,14 +1203,17 @@ const UpdateTicketAddOns = () => {
     if (formData.ticket_layout) {
       submissionForm.append("ticket_layout", formData.ticket_layout);
     }
+    
     formData.event_images.forEach((file) => {
       submissionForm.append("event_images", file);
     });
+    
     formData.guests.forEach((guest, index) => {
       if (guest.rawFile) {
         submissionForm.append(`guest_profile_${index}`, guest.rawFile);
       }
     });
+    
     if (formData.location_type === "recorded" && formData.event_dates) {
       formData.event_dates.forEach((date, index) => {
         if (date.videoFile) {
@@ -1107,51 +1224,77 @@ const UpdateTicketAddOns = () => {
         }
       });
     }
-    if (formData.location_type === "offline" && formData.payment_type === "paid") {
+    
+    if (formData.ticket_types && formData.ticket_types.length > 0) {
       formData.ticket_types.forEach((ticket, index) => {
         if (ticket.photoFile) {
+          console.log(`Appending NEW ticket photo ${index}:`, ticket.photoFile.name);
           submissionForm.append(`ticket_photo_${index}`, ticket.photoFile);
+        } else if (ticket.existingPhotoPath) {
+          console.log(`Ticket ${index} keeping existing photo:`, ticket.existingPhotoPath);
         }
       });
     }
+    
+    // Debug: Log what's in FormData
+    console.log('=== FormData Contents ===');
+    for (let pair of submissionForm.entries()) {
+      if (pair[0] === 'sub_event') {
+        console.log(pair[0], ':', pair[1].substring(0, 200) + '...');
+      } else {
+        console.log(pair[0], ':', typeof pair[1] === 'object' ? pair[1].name || 'File' : pair[1]);
+      }
+    }
+    console.log('========================');
+    
     return submissionForm;
+  };
+  const verifyFormDataArrays = () => {
+    console.log('=== PRE-SUBMIT VERIFICATION ===');
+    console.log('formData.prohibited_items:', formData.prohibited_items);
+    console.log('Type:', typeof formData.prohibited_items);
+    console.log('Is Array:', Array.isArray(formData.prohibited_items));
+    console.log('Length:', formData.prohibited_items?.length);
+    console.log('Contents:', JSON.stringify(formData.prohibited_items, null, 2));
+    
+    console.log('formData.ticket_types:', formData.ticket_types);
+    console.log('Type:', typeof formData.ticket_types);
+    console.log('Is Array:', Array.isArray(formData.ticket_types));
+    console.log('Length:', formData.ticket_types?.length);
+    console.log('Contents:', JSON.stringify(formData.ticket_types, null, 2));
+    console.log('==============================');
   };
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // First, check if there is anything in the form. If not, and no events exist, show error.
     if (formData.event_name.trim() === "" && existingSubEvents.length === 0) {
       showAlert({
         type: "error",
         message: "No Sub-Events",
-        description:
-          "Please fill out the form to add at least one sub-event before continuing.",
+        description: "Please fill out the form to add at least one sub-event before continuing.",
       });
       return;
     }
-
-    // If the form has data, validate and save it first.
     if (formData.event_name.trim() !== "") {
       if (!validateForm()) {
-        return; // Stop if validation fails
+        return;
       }
-
+      verifyFormDataArrays();
       setIsSubmitting(true);
       try {
         const payload = buildPayload();
+        if (!payload) {
+          setIsSubmitting(false);
+          return;
+        }
         const submissionForm = buildFormData(payload);
-
         if (isEditingSubEvent && editingSubEventId) {
           await updateSubEvent(ticketId, editingSubEventId, submissionForm);
         } else {
           await updateTicketAddOns(ticketId, submissionForm);
         }
-
-        // Only if save is successful, then navigate
         navigate(`/ticket/ticket-terms/${ticketId}`);
       } catch (error) {
-        const errorDesc =
-          error.response?.data?.message || "An error occurred while saving.";
+        const errorDesc = error.response?.data?.message || "An error occurred while saving.";
         showAlert({
           type: "error",
           message: "Save Failed",
@@ -1161,7 +1304,6 @@ const UpdateTicketAddOns = () => {
         setIsSubmitting(false);
       }
     } else if (existingSubEvents.length > 0) {
-      // If the form is empty but events already exist, just navigate
       navigate(`/ticket/ticket-terms/${ticketId}`);
     }
   };
@@ -1528,20 +1670,15 @@ const UpdateTicketAddOns = () => {
   const handleSaveAndAddMore = async (e) => {
     if (e) e.preventDefault();
     if (!validateForm()) return;
+    verifyFormDataArrays();
     setIsSubmitting(true);
-    // ADD THIS CHECK
     const payload = buildPayload();
     if (!payload) {
-      setIsSubmitting(false); // Stop processing if payload validation failed
+      setIsSubmitting(false);
       return;
     }
-
     try {
-      // REMOVED: const payload = buildPayload();
       const submissionForm = buildFormData(payload);
-
-      console.log("Submitting Payload:", JSON.stringify(payload, null, 2));
-
       if (isEditingSubEvent && editingSubEventId) {
         await updateSubEvent(ticketId, editingSubEventId, submissionForm);
       } else {
@@ -1582,10 +1719,8 @@ const UpdateTicketAddOns = () => {
         (event) => event._id === subEventId
       );
       if (subEvent) {
-        // Map event dates with proper format conversion
         const mappedEventDates =
           subEvent.event_dates?.map((date) => {
-            // Convert 24-hour format to 12-hour format for display
             const convertTo12Hour = (time24h) => {
               if (!time24h) return { time: "", ampm: "" };
               const [hours, minutes] = time24h.split(":");
@@ -1609,7 +1744,6 @@ const UpdateTicketAddOns = () => {
               endTime: endTime12.time,
               startAmPm: startTime12.ampm,
               endAmPm: endTime12.ampm,
-              // Keep original 24-hour format for backend compatibility
               startTime24h: date.start_time,
               endTime24h: date.end_time,
               eventLink: date.event_link || "",
@@ -1618,21 +1752,13 @@ const UpdateTicketAddOns = () => {
             };
           }) || [];
 
-        // Convert event_date_type from backend format to frontend format
-        const eventDateTypeMap = {
-          "one-day": "Single day",
-          "multi-day": "Multi days",
-          weekly: "Weekly",
-        };
-
         setFormData((prev) => ({
           ...prev,
           event_name: subEvent.event_name || "",
           event_category: subEvent.event_category || "",
           event_subcategory: subEvent.event_subcategory || "",
           event_type: subEvent.event_type || "public",
-          location_type: subEvent.location_type || "offline", // FIX: Ensure location_type is set
-
+          location_type: subEvent.location_type || "offline",
           location: subEvent.location || "",
           venue: subEvent.venue || "",
           event_language: Array.isArray(subEvent.event_language)
@@ -1652,8 +1778,7 @@ const UpdateTicketAddOns = () => {
             ? JSON.parse(subEvent.hashtag || "[]")
             : [],
           event_dates: mappedEventDates,
-          event_date_type:
-            eventDateTypeMap[subEvent.event_date_type] || "Single day",
+          event_date_type: subEvent.event_date_type,
           gate_open_time: Boolean(subEvent.gate_open_time),
           guests:
             subEvent.guests?.map((g) => ({
@@ -1682,15 +1807,15 @@ const UpdateTicketAddOns = () => {
           booking_start_date: subEvent.booking_start_date || "",
           booking_end_date: subEvent.booking_end_date || "",
           ticket_types:
-            subEvent.ticket_types?.map((t) => ({
-              id: Date.now() + Math.random(),
-              name: t.ticket_type,
-              price: t.ticket_price,
-              capacity: t.max_capacity,
-              image:
-                t.ticket_image || `https://i.pravatar.cc/150?u=${Date.now()}`,
-              photoFile: null,
-            })) || [],
+          subEvent.ticket_types?.map((t, index) => ({
+            id: Date.now() + Math.random() + index,
+            name: t.ticket_type,
+            price: t.ticket_price,
+            capacity: t.max_capacity,
+            image: t.ticket_photo ? getImageUrl(t.ticket_photo) : `https://via.placeholder.com/150?text=${encodeURIComponent(t.ticket_type || 'Ticket')}`,
+            photoFile: null,
+            existingPhotoPath: t.ticket_photo || '', // ADD THIS to preserve existing path
+          })) || [],
           total_capacity: subEvent.total_capacity || "",
           exact_map_location: subEvent.exact_map_location || {
             latitude: INITIAL_MAP_LOCATION.lat.toString(),
@@ -1698,34 +1823,49 @@ const UpdateTicketAddOns = () => {
             address: INITIAL_MAP_LOCATION.address,
           },
         }));
+
         setPreviews((prev) => ({
           ...prev,
-          event_banner: subEvent.event_banner || null,
-          event_logo: subEvent.event_logo || null,
-          ticket_layout: subEvent.ticket_layout || null, // ADD THIS
+          event_banner: subEvent.event_banner ? getImageUrl(subEvent.event_banner) : null,
+          event_logo: subEvent.event_logo ? getImageUrl(subEvent.event_logo) : null,
+          ticket_layout: subEvent.ticket_layout ? getImageUrl(subEvent.ticket_layout) : null,
         }));
-        // Handle multiple event images
+        if (subEvent.ticket_layout) {
+          setHasSeatingLayout(true);
+        } else {
+          setHasSeatingLayout(false);
+        }
+        if (subEvent.event_images && subEvent.event_images.length > 0) {
+          const imageUrls = subEvent.event_images.map(img => getImageUrl(img));
+          setFormData((prev) => ({
+            ...prev,
+            event_images: [], 
+            existing_event_images: imageUrls, 
+          }));
+          if (subEvent.event_images.length > 1) {
+            setShowExtraMedia(true);
+          }
+        }
+        if (subEvent.ticket_layout) {
+          setHasSeatingLayout(true);
+        } else {
+          setHasSeatingLayout(false);
+        }
         if (subEvent.event_images && subEvent.event_images.length > 0) {
           setFormData((prev) => ({
             ...prev,
             event_images: [],
           }));
-
           if (subEvent.event_images.length > 1) {
             setShowExtraMedia(true);
           }
         }
-
-        // FIX: Set content for rich text editors
         if (descriptionEditorRef.current) {
           descriptionEditorRef.current.innerHTML =
             subEvent.event_description || "";
         }
         if (rulesEditorRef.current) {
           rulesEditorRef.current.innerHTML = subEvent.event_rules_text || "";
-        }
-        if (subEvent.ticket_layout) {
-          setHasSeatingLayout(true);
         }
         if (subEvent.gate_open_time) {
           const gateTimeParts = subEvent.gate_open_time.split(":");
@@ -1735,7 +1875,6 @@ const UpdateTicketAddOns = () => {
             const ampm = hour >= 12 ? "PM" : "AM";
             if (hour === 0) hour = 12;
             else if (hour > 12) hour -= 12;
-
             setFormData((prev) => ({
               ...prev,
               gate_open_hour: hour.toString(),
@@ -1748,7 +1887,11 @@ const UpdateTicketAddOns = () => {
       }
     } catch (error) {
       console.error("Error loading sub-event data:", error);
-      alert("Failed to load sub-event data");
+      showAlert({
+        type: "error",
+        message: "Load Failed",
+        description: "Failed to load sub-event data. Please try again."
+      });
     } finally {
       setSubEventLoading(false);
     }
@@ -1764,10 +1907,15 @@ const UpdateTicketAddOns = () => {
   }, []);
 
   const mainEventStartDate = mainEventData?.event_dates?.[0]?.start_date;
-
   const mainEventEndDate =
     mainEventData?.event_dates?.[mainEventData.event_dates.length - 1]
       ?.end_date;
+      useEffect(() => {
+  if (mainEventData) {    
+    const startDate = mainEventData?.event_dates?.[0]?.start_date;
+    const endDate = mainEventData?.event_dates?.[mainEventData.event_dates.length - 1]?.end_date;
+  }
+}, [mainEventData]);
   return (
     <>
       <CustomScrollbarStyles isDark={darkMode} />
@@ -1849,6 +1997,7 @@ const UpdateTicketAddOns = () => {
         editingTicket={editingTicket}
         existingTickets={formData.ticket_types}
         showAlert={showAlert}
+        darkMode={darkMode}
       />
 
       <div className={`${darkMode ? "dark" : ""}`}>
@@ -2354,8 +2503,13 @@ const UpdateTicketAddOns = () => {
                     <button
                       type="button"
                       onClick={handleOpenDateModal}
-                      className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold flex items-center gap-2"
-                    >
+                      disabled={pageLoading || !mainEventStartDate} 
+className={`px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center gap-2
+    ${(pageLoading || !mainEventStartDate) 
+      ? "opacity-50 cursor-not-allowed" 
+      : "hover:bg-indigo-700"
+    }`
+  }                    >
                       Add dates and time
                       <img src={Date_Form_Icon} alt="" />
                     </button>
@@ -2888,117 +3042,125 @@ const UpdateTicketAddOns = () => {
                         maxSizeMB={50}
                       />
                       <div>
-                        <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
-                          Images and videos
-                        </label>
-                        <div
-                          className={`relative rounded-lg text-center bg-gray-100 dark:bg-[#2B2B2B] min-h-[180px] flex justify-center items-center border-2 border-dashed ${
-                            formData.event_images.length > 0
-                              ? "border-indigo-500"
-                              : "border-black dark:border-gray-600"
-                          } overflow-hidden`}
-                        >
-                          {formData.event_images.length > 0 ? (
-                            <>
-                              <img
-                                src={URL.createObjectURL(
-                                  formData.event_images[0]
-                                )}
-                                alt="Preview"
-                                className="absolute inset-0 w-full h-full object-cover"
-                              />
-                              <button
-                                type="button"
-                                onClick={handleRemoveLastImage}
-                                className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center z-10"
-                              >
-                                &times;
-                              </button>
-
-                              {formData.event_images.length < 10 && (
-                                <label
-                                  htmlFor="multi-media-upload"
-                                  className="absolute top-1/2 -translate-y-1/2 right-2 bg-indigo-600 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer hover:bg-indigo-700 transition z-10"
-                                  title="Add another image"
-                                >
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-5 w-5"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    strokeWidth={2}
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M12 4v16m8-8H4"
-                                    />
-                                  </svg>
-                                </label>
-                              )}
-
-                              {formData.event_images.length > 1 && (
-                                <div
-                                  onClick={() =>
-                                    setShowExtraMedia(!showExtraMedia)
+                          <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
+                            Images and videos
+                          </label>
+                          <div
+                            className={`relative rounded-lg text-center bg-gray-100 dark:bg-[#2B2B2B] min-h-[180px] flex justify-center items-center border-2 border-dashed ${
+                              (formData.event_images.length > 0 || formData.existing_event_images?.length > 0)
+                                ? "border-indigo-500"
+                                : "border-black dark:border-gray-600"
+                            } overflow-hidden`}
+                          >
+                            {(formData.event_images.length > 0 || formData.existing_event_images?.length > 0) ? (
+                              <>
+                                <img
+                                  src={
+                                    formData.event_images.length > 0 
+                                      ? URL.createObjectURL(formData.event_images[0])
+                                      : formData.existing_event_images[0]
                                   }
-                                  className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-4xl font-bold cursor-pointer"
+                                  alt="Preview"
+                                  className="absolute inset-0 w-full h-full object-cover"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleRemoveLastImage}
+                                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center z-10"
                                 >
-                                  +{formData.event_images.length - 1}
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <label
-                              htmlFor="multi-media-upload"
-                              className="cursor-pointer flex flex-col items-center gap-2"
-                            >
-                              <svg
-                                className="w-8 h-8 text-gray-400"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
+                                  &times;
+                                </button>
+
+                                {(formData.event_images.length + (formData.existing_event_images?.length || 0)) < 10 && (
+                                  <label
+                                    htmlFor="multi-media-upload"
+                                    className="absolute top-1/2 -translate-y-1/2 right-2 bg-indigo-600 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer hover:bg-indigo-700 transition z-10"
+                                    title="Add another image"
+                                  >
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      className="h-5 w-5"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M12 4v16m8-8H4"
+                                      />
+                                    </svg>
+                                  </label>
+                                )}
+
+                                {(formData.event_images.length + (formData.existing_event_images?.length || 0)) > 1 && (
+                                  <div
+                                    onClick={() => setShowExtraMedia(!showExtraMedia)}
+                                    className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-4xl font-bold cursor-pointer"
+                                  >
+                                    +{(formData.event_images.length + (formData.existing_event_images?.length || 0)) - 1}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <label
+                                htmlFor="multi-media-upload"
+                                className="cursor-pointer flex flex-col items-center gap-2"
                               >
-                                <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                              </svg>
-                              <span className="text-indigo-500 dark:text-indigo-400 font-semibold">
-                                Click to browse
-                              </span>
-                            </label>
-                          )}
-                          <input
-                            id="multi-media-upload"
-                            type="file"
-                            multiple
-                            className="sr-only"
-                            onChange={handleMultiMediaChange}
-                            accept="image/*,video/*"
-                          />
+                                <svg
+                                  className="w-8 h-8 text-gray-400"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                                <span className="text-indigo-500 dark:text-indigo-400 font-semibold">
+                                  Click to browse
+                                </span>
+                              </label>
+                            )}
+                            <input
+                              id="multi-media-upload"
+                              type="file"
+                              multiple
+                              className="sr-only"
+                              onChange={handleMultiMediaChange}
+                              accept="image/*,video/*"
+                            />
+                          </div>
                         </div>
-                      </div>
                     </div>
-                    {showExtraMedia && formData.event_images.length > 1 && (
-                      <div className="animate-fade-in">
-                        <p className="text-sm font-medium text-black dark:text-gray-400 mb-2">
-                          Additional Media
-                        </p>
-                        <div className="flex overflow-x-auto space-x-4 p-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg">
-                          {formData.event_images.slice(1).map((file, index) => (
-                            <div key={index} className="flex-shrink-0">
-                              <img
-                                src={URL.createObjectURL(file)}
-                                alt={`Extra media ${index + 1}`}
-                                className="h-24 w-auto aspect-video object-cover rounded-md"
-                              />
-                            </div>
-                          ))}
+                    {showExtraMedia && (formData.event_images.length + (formData.existing_event_images?.length || 0)) > 1 && (
+                        <div className="animate-fade-in">
+                          <p className="text-sm font-medium text-black dark:text-gray-400 mb-2">
+                            Additional Media
+                          </p>
+                          <div className="flex overflow-x-auto space-x-4 p-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg">
+                            {formData.existing_event_images?.slice(1).map((url, index) => (
+                              <div key={`existing-${index}`} className="flex-shrink-0">
+                                <img
+                                  src={url}
+                                  alt={`Existing media ${index + 1}`}
+                                  className="h-24 w-auto aspect-video object-cover rounded-md"
+                                />
+                              </div>
+                            ))}
+                            {formData.event_images.map((file, index) => (
+                              <div key={`new-${index}`} className="flex-shrink-0">
+                                <img
+                                  src={URL.createObjectURL(file)}
+                                  alt={`New media ${index + 1}`}
+                                  className="h-24 w-auto aspect-video object-cover rounded-md"
+                                />
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 </div>
-                {/* --- PAYMENT AND TICKETING --- */}
                 <div className="space-y-12">
                   <div className="space-y-4">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -3254,74 +3416,34 @@ const UpdateTicketAddOns = () => {
                         book their spot.
                       </p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 pt-2">
-                        <div>
-                          <label
-                            htmlFor="booking_start_date"
-                            className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 mb-2"
-                          >
-                            Booking start date?{" "}
-                            <span className="text-red-500 ml-1">*</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="date"
-                              id="booking_start_date"
-                              name="booking_start_date"
-                              value={formData.booking_start_date}
-                              onChange={handleInputChange}
-                              className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 appearance-none"
-                            />
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3">
-                              <svg
-                                className="w-5 h-5 text-black"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <label
-                            htmlFor="booking_end_date"
-                            className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 mb-2"
-                          >
-                            Booking end date?{" "}
-                            <span className="text-red-500 ml-1">*</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="date"
-                              id="booking_end_date"
-                              name="booking_end_date"
-                              value={formData.booking_end_date}
-                              onChange={handleInputChange}
-                              className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 appearance-none"
-                            />
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3">
-                              <svg
-                                className="w-5 h-5 text-black"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
+                        <DateInput
+                          id="booking_start_date"
+                          label="Booking start date?"
+                          name="booking_start_date"
+                          value={formData.booking_start_date}
+                          onChange={handleInputChange}
+                          error={errors.booking_start_date}
+                          darkMode={darkMode}
+                        />
+                        <DateInput
+                          id="booking_end_date"
+                          label="Booking end date?"
+                          name="booking_end_date"
+                          value={formData.booking_end_date}
+                          onChange={handleInputChange}
+                          error={errors.booking_end_date}
+                          darkMode={darkMode}
+                          minDate={formData.booking_start_date}
+                          maxDate={
+                            formData.event_dates.length > 0
+                              ? [...formData.event_dates].sort((a, b) => 
+                                  new Date(b.endDate || b.date) - new Date(a.endDate || a.date)
+                                )[0].endDate || [...formData.event_dates].sort((a, b) => 
+                                  new Date(b.endDate || b.date) - new Date(a.endDate || a.date)
+                                )[0].date
+                              : undefined
+                          }
+                        />
                       </div>
                       {formData.payment_type === "paid" && (
                         <>
@@ -3431,6 +3553,8 @@ const UpdateTicketAddOns = () => {
                     <p className="text-black dark:text-gray-400 text-sm">
                       Add event seating capacity and its layout
                     </p>
+                    
+                    {/* ALWAYS SHOW total_capacity for offline events */}
                     <FormInput
                       label="Maximum number of people allowed (capacity)?"
                       id="total_capacity"
@@ -3452,6 +3576,7 @@ const UpdateTicketAddOns = () => {
                       <ToggleSwitch
                         checked={hasSeatingLayout}
                         onChange={() => setHasSeatingLayout(!hasSeatingLayout)}
+                        darkMode={darkMode}
                       />
                     </div>
                     
