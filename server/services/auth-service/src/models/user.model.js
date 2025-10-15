@@ -1,6 +1,4 @@
-// models/User.js
 import mongoose from 'mongoose';
-
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -54,19 +52,11 @@ const userSchema = new mongoose.Schema(
     },
     followers: {
       type: String,
-      default: 0,
+      default: '0',
     },
     following: {
       type: String,
-      default: 0, 
-    },
-    followersList: {
-      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-      default: []
-    },
-    followingList: {
-      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-      default: []
+      default: '0',
     },
     social_links: {
       facebook: { type: String, default: '' },
@@ -138,7 +128,7 @@ const userSchema = new mongoose.Schema(
     timestamps: true, 
   }
 );
-// Create partial unique indexes - only enforce uniqueness for 'active' users
+
 userSchema.index(
   { email: 1 }, 
   { 
