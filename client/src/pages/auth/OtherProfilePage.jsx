@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getMe } from "../../services/userService";
-import { getOtherProfile, findAllActiveUsers, followUser, unfollowUser } from "../../services/authService";
+import { getOtherProfile, findAllActiveUsers, followUser, unfollowUser, checkIsFollowing} from "../../services/authService";
 import { getOthersEvents } from "../../services/ticketService";
 
 import SideBar from "../../components/HomePage/SideBar.jsx";
@@ -120,7 +120,8 @@ const OtherProfilePage = () => {
   const [showRightArrow, setShowRightArrow] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
-
+  const [followingMap, setFollowingMap] = useState({});
+  const [followingStates, setFollowingStates] = useState({});
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -267,8 +268,41 @@ const OtherProfilePage = () => {
         setShowRightArrow(false);
       }
     };
-
     setTimeout(checkScrollArrows, 100);
+  }, [users]);
+  useEffect(() => {
+    const checkFollowStatuses = async () => {
+      if (!users || !Array.isArray(users) || users.length === 0) {
+        console.log('No users to check follow status for');
+        return;
+      }
+      
+      const statuses = {};
+      
+      for (const suggestUser of users) {
+        try {
+          // Make sure suggestUser has an _id or id
+          const userId = suggestUser._id || suggestUser.id;
+          if (!userId) {
+            console.warn('User without ID found:', suggestUser);
+            continue;
+          }
+          
+          const response = await checkIsFollowing(userId);
+          statuses[userId] = response.isFollowing || false;
+        } catch (err) {
+          console.error(`Error checking follow status:`, err);
+          const userId = suggestUser._id || suggestUser.id;
+          if (userId) {
+            statuses[userId] = false;
+          }
+        }
+      }
+      
+      setFollowingMap(statuses);
+    };
+    
+    checkFollowStatuses();
   }, [users]);
 
   const handleThemeToggle = () => {
@@ -278,96 +312,188 @@ const OtherProfilePage = () => {
     localStorage.setItem("theme", newTheme ? "dark" : "light");
   };
 
-const handleFollowToggle = async () => {
-  if (!currentUser || !profileUser) return;
-  
-  setFollowLoading(true);
-  
-  const originalIsFollowing = isFollowing;
-  const originalCount = parseInt(profileUser.followersCount || profileUser.followers || 0);
-
-  try {
-    if (isFollowing) {
-      // Optimistic update for unfollow
-      setIsFollowing(false);
-      setProfileUser(prev => ({
-        ...prev,
-        followers: Math.max(0, originalCount - 1).toString(),
-        followersCount: Math.max(0, originalCount - 1),
-      }));
-
-      const response = await unfollowUser(userId);
-      console.log("Unfollow response", response);
-    } else {
-      // Optimistic update for follow
-      setIsFollowing(true);
-      setProfileUser(prev => ({
-        ...prev,
-        followers: (originalCount + 1).toString(),
-        followersCount: originalCount + 1,
-      }));
-
-      const response = await followUser(userId);
-      console.log("Follow response", response);
-    }
-
-    // Refresh profile data
-    setTimeout(async () => {
-      try {
-        const refreshed = await getOtherProfile(userId);
-        if (refreshed?.user) {
-          const userData = Array.isArray(refreshed.user) ? refreshed.user[0] : refreshed.user;
-          setProfileUser(userData);
-          setIsFollowing(userData.isFollowing === true);
-          console.log("Refreshed - isFollowing:", userData.isFollowing);
-        }
-      } catch (refreshErr) {
-        console.error("Failed to refresh profile", refreshErr);
-      }
-    }, 500);
-  } catch (err) {
-    console.error("Failed to toggle follow status", err);
+  const handleFollowToggle = async () => {
+    if (!currentUser || !profileUser) return;
     
-    // Handle "already following" error - just sync with server
-    if (err.response?.data?.message?.includes('already following')) {
-      console.log("Already following - syncing state");
-      setIsFollowing(true);
-      // Don't show alert, just refresh
-      setTimeout(async () => {
-        const refreshed = await getOtherProfile(userId);
-        if (refreshed?.user) {
-          const userData = Array.isArray(refreshed.user) ? refreshed.user[0] : refreshed.user;
-          setProfileUser(userData);
-          setIsFollowing(userData.isFollowing === true);
-        }
-      }, 100);
-    } else if (err.response?.data?.message?.includes('not following')) {
-      console.log("Not following - syncing state");
-      setIsFollowing(false);
-      // Refresh without alert
-      setTimeout(async () => {
-        const refreshed = await getOtherProfile(userId);
-        if (refreshed?.user) {
-          const userData = Array.isArray(refreshed.user) ? refreshed.user[0] : refreshed.user;
-          setProfileUser(userData);
-          setIsFollowing(userData.isFollowing === true);
-        }
-      }, 100);
-    } else {
-      // Rollback on other errors
-      setIsFollowing(originalIsFollowing);
-      setProfileUser(prev => ({
-        ...prev,
-        followers: originalCount.toString(),
-        followersCount: originalCount,
-      }));
-      alert(err.response?.data?.message || "Failed to update follow status");
-    }
-  } finally {
-    setFollowLoading(false);
-  }
-};
+    setFollowLoading(true);
+    
+    const originalIsFollowing = isFollowing;
+    const originalCount = parseInt(profileUser.followersCount || profileUser.followers || 0);
 
+    try {
+      if (isFollowing) {
+        // Optimistic update for unfollow
+        setIsFollowing(false);
+        setProfileUser(prev => ({
+          ...prev,
+          followers: Math.max(0, originalCount - 1).toString(),
+          followersCount: Math.max(0, originalCount - 1),
+        }));
+
+        const response = await unfollowUser(userId);
+        console.log("Unfollow response", response);
+      } else {
+        // Optimistic update for follow
+        setIsFollowing(true);
+        setProfileUser(prev => ({
+          ...prev,
+          followers: (originalCount + 1).toString(),
+          followersCount: originalCount + 1,
+        }));
+
+        const response = await followUser(userId);
+        console.log("Follow response", response);
+      }
+
+      // Refresh profile data
+      setTimeout(async () => {
+        try {
+          const refreshed = await getOtherProfile(userId);
+          if (refreshed?.user) {
+            const userData = Array.isArray(refreshed.user) ? refreshed.user[0] : refreshed.user;
+            setProfileUser(userData);
+            setIsFollowing(userData.isFollowing === true);
+            console.log("Refreshed - isFollowing:", userData.isFollowing);
+          }
+        } catch (refreshErr) {
+          console.error("Failed to refresh profile", refreshErr);
+        }
+      }, 500);
+    } catch (err) {
+      console.error("Failed to toggle follow status", err);
+      
+      // Handle "already following" error - just sync with server
+      if (err.response?.data?.message?.includes('already following')) {
+        console.log("Already following - syncing state");
+        setIsFollowing(true);
+        // Don't show alert, just refresh
+        setTimeout(async () => {
+          const refreshed = await getOtherProfile(userId);
+          if (refreshed?.user) {
+            const userData = Array.isArray(refreshed.user) ? refreshed.user[0] : refreshed.user;
+            setProfileUser(userData);
+            setIsFollowing(userData.isFollowing === true);
+          }
+        }, 100);
+      } else if (err.response?.data?.message?.includes('not following')) {
+        console.log("Not following - syncing state");
+        setIsFollowing(false);
+        // Refresh without alert
+        setTimeout(async () => {
+          const refreshed = await getOtherProfile(userId);
+          if (refreshed?.user) {
+            const userData = Array.isArray(refreshed.user) ? refreshed.user[0] : refreshed.user;
+            setProfileUser(userData);
+            setIsFollowing(userData.isFollowing === true);
+          }
+        }, 100);
+      } else {
+        // Rollback on other errors
+        setIsFollowing(originalIsFollowing);
+        setProfileUser(prev => ({
+          ...prev,
+          followers: originalCount.toString(),
+          followersCount: originalCount,
+        }));
+        alert(err.response?.data?.message || "Failed to update follow status");
+      }
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+  const handleSuggestionFollowToggle = async (suggestedUserId) => {
+    if (!suggestedUserId || !users || users.length === 0) return;
+    const key = suggestedUserId;
+    setFollowingStates(prev => ({ ...prev, [key]: true }));
+    const isCurrentlyFollowing = followingMap[key] || false;
+    const originalFollowState = isCurrentlyFollowing;
+    
+    try {
+      if (isCurrentlyFollowing) {
+        // UNFOLLOW FLOW
+        // Optimistic update - update UI immediately
+        setFollowingMap(prev => ({ ...prev, [key]: false }));
+        
+        // Update users list - decrement follower count BUT DON'T REMOVE USER
+        setUsers(prev => prev.map(u => {
+          if ((u._id || u.id) === suggestedUserId) {
+            const currentCount = parseInt(u.followersCount || u.followers || 0);
+            return {
+              ...u,
+              followersCount: Math.max(0, currentCount - 1),
+              followers: Math.max(0, currentCount - 1).toString()
+            };
+          }
+          return u;
+        }));
+        
+        // Make API call
+        const response = await unfollowUser(suggestedUserId);
+        console.log("Unfollow response:", response);
+        
+      } else {
+        // FOLLOW FLOW
+        // Optimistic update - update UI immediately
+        setFollowingMap(prev => ({ ...prev, [key]: true }));
+        
+        // Update users list - increment follower count
+        setUsers(prev => prev.map(u => {
+          if ((u._id || u.id) === suggestedUserId) {
+            const currentCount = parseInt(u.followersCount || u.followers || 0);
+            return {
+              ...u,
+              followersCount: currentCount + 1,
+              followers: (currentCount + 1).toString()
+            };
+          }
+          return u;
+        }));
+        
+        // Make API call
+        const response = await followUser(suggestedUserId);
+        console.log("Follow response:", response);
+      }
+    } catch (err) {
+      console.error('Error toggling follow status:', err);
+      
+      // ROLLBACK on error - revert all changes
+      setFollowingMap(prev => ({ ...prev, [key]: originalFollowState }));
+      
+      if (isCurrentlyFollowing) {
+        // Was unfollowing, revert back to following
+        setUsers(prev => prev.map(u => {
+          if ((u._id || u.id) === suggestedUserId) {
+            const currentCount = parseInt(u.followersCount || u.followers || 0);
+            return {
+              ...u,
+              followersCount: currentCount + 1,
+              followers: (currentCount + 1).toString()
+            };
+          }
+          return u;
+        }));
+      } else {
+        // Was following, revert back to not following
+        setUsers(prev => prev.map(u => {
+          if ((u._id || u.id) === suggestedUserId) {
+            const currentCount = parseInt(u.followersCount || u.followers || 0);
+            return {
+              ...u,
+              followersCount: Math.max(0, currentCount - 1),
+              followers: Math.max(0, currentCount - 1).toString()
+            };
+          }
+          return u;
+        }));
+      }
+      
+      // Show error alert
+      alert(err.response?.data?.message || 'Failed to update follow status');
+    } finally {
+      // Clear loading state for this user
+      setFollowingStates(prev => ({ ...prev, [key]: false }));
+    }
+  };
   const handleHandburgerClick = () => {
     setIsModalOpen(true);
   };
@@ -953,14 +1079,23 @@ const handleFollowToggle = async () => {
                               </div>
                             </div>
                             <button 
-                              className="px-4 py-1.5 rounded-full text-white text-sm font-medium bg-blue-500 hover:bg-blue-600 transition-colors duration-200"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                console.log(`Following user: ${suggestedUser.name}`);
-                              }}
-                            >
-                              Follow +
-                            </button>
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSuggestionFollowToggle(suggestedUser._id || suggestedUser.id);
+              }}
+              disabled={followingStates[suggestedUser._id || suggestedUser.id]}
+              className={`w-full px-3 py-1.5 rounded-full text-white text-xs font-medium transition-all duration-200 ${
+                followingMap[suggestedUser._id || suggestedUser.id]
+                  ? 'bg-[#44444D] shadow-[0px_5px_10px_0px_rgba(0,0,0,0.3)] hover:bg-[#50505A]'
+                  : 'bg-blue-500 hover:bg-blue-600'
+              } ${followingStates[suggestedUser._id || suggestedUser.id] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              {followingStates[suggestedUser._id || suggestedUser.id] ? (
+                followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollowing...' : 'Following...'
+              ) : (
+                followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollow' : 'Follow +'
+              )}
+            </button>
                           </div>
                         </div>
                       ))
