@@ -1015,7 +1015,7 @@ const UpdateTicketAddOns = () => {
       }
     }
 
-    // ENHANCED: Ensure prohibited_items is always an array
+    // CRITICAL: Ensure prohibited_items is always an array
     const ensureProhibitedItemsArray = () => {
       console.log('=== Frontend: Ensuring prohibited_items is array ===');
       console.log('Raw formData.prohibited_items:', formData.prohibited_items);
@@ -1046,7 +1046,6 @@ const UpdateTicketAddOns = () => {
         } catch (e) {
           console.warn('Failed to parse prohibited_items string');
         }
-        // Try splitting by comma
         const split = formData.prohibited_items.split(',').map(s => s.trim()).filter(s => s);
         if (split.length > 0) {
           console.log('✓ Split by comma:', split);
@@ -1058,7 +1057,7 @@ const UpdateTicketAddOns = () => {
       return [];
     };
 
-    // ENHANCED: Ensure ticket_types is always an array with proper structure
+    // CRITICAL: Ensure ticket_types is always an array with proper structure
     const ensureTicketTypesArray = () => {
       console.log('=== Frontend: Ensuring ticket_types is array ===');
       console.log('Raw formData.ticket_types:', formData.ticket_types);
@@ -1170,27 +1169,33 @@ const UpdateTicketAddOns = () => {
   };
   const buildFormData = (payload) => {
     const submissionForm = new FormData();
-    
     if (isEditingSubEvent && editingSubEventId) {
       submissionForm.append("editing_sub_event_id", editingSubEventId);
+      console.log('=== EDIT MODE: Including editing_sub_event_id ===');
+      console.log('editing_sub_event_id:', editingSubEventId);
+      console.log('isEditingSubEvent:', isEditingSubEvent);
     }
-    
-    // CRITICAL: Ensure arrays are properly stringified
     const subEventData = {
       ...payload,
-      // Double-check these are arrays before stringifying
       prohibited_items: Array.isArray(payload.prohibited_items) ? payload.prohibited_items : [],
       ticket_types: Array.isArray(payload.ticket_types) ? payload.ticket_types : []
     };
     
     console.log('=== buildFormData: sub_event data ===');
+    console.log('Operation mode:', isEditingSubEvent ? 'EDIT' : 'CREATE');
     console.log('prohibited_items:', subEventData.prohibited_items);
+    console.log('prohibited_items type:', typeof subEventData.prohibited_items);
+    console.log('prohibited_items is array:', Array.isArray(subEventData.prohibited_items));
+    console.log('prohibited_items length:', subEventData.prohibited_items.length);
     console.log('ticket_types:', subEventData.ticket_types);
+    console.log('ticket_types type:', typeof subEventData.ticket_types);
+    console.log('ticket_types is array:', Array.isArray(subEventData.ticket_types));
+    console.log('ticket_types length:', subEventData.ticket_types.length);
     console.log('=====================================');
     
     submissionForm.append("sub_event", JSON.stringify(subEventData));
     
-    // Rest of the file uploads remain the same
+    // Handle file uploads
     if (formData.event_banner) {
       submissionForm.append("event_banner", formData.event_banner);
     }
@@ -1235,18 +1240,24 @@ const UpdateTicketAddOns = () => {
         }
       });
     }
-    
-    // Debug: Log what's in FormData
     console.log('=== FormData Contents ===');
+    console.log('Operation:', isEditingSubEvent ? 'UPDATE' : 'CREATE');
     for (let pair of submissionForm.entries()) {
       if (pair[0] === 'sub_event') {
-        console.log(pair[0], ':', pair[1].substring(0, 200) + '...');
+        const parsedSubEvent = JSON.parse(pair[1]);
+        console.log('sub_event:', {
+          event_name: parsedSubEvent.event_name,
+          prohibited_items_count: parsedSubEvent.prohibited_items?.length || 0,
+          ticket_types_count: parsedSubEvent.ticket_types?.length || 0,
+          prohibited_items_sample: parsedSubEvent.prohibited_items?.slice(0, 3),
+          ticket_types_sample: parsedSubEvent.ticket_types?.slice(0, 2)
+        });
+      } else if (pair[0] === 'editing_sub_event_id') {
+        console.log(pair[0], ':', pair[1]);
       } else {
         console.log(pair[0], ':', typeof pair[1] === 'object' ? pair[1].name || 'File' : pair[1]);
       }
     }
-    console.log('========================');
-    
     return submissionForm;
   };
   const verifyFormDataArrays = () => {
@@ -1278,7 +1289,22 @@ const UpdateTicketAddOns = () => {
       if (!validateForm()) {
         return;
       }
-      verifyFormDataArrays();
+      
+      // CRITICAL: Verify arrays before submission
+      console.log('=== PRE-SUBMIT VERIFICATION ===');
+      console.log('formData.prohibited_items:', formData.prohibited_items);
+      console.log('Type:', typeof formData.prohibited_items);
+      console.log('Is Array:', Array.isArray(formData.prohibited_items));
+      console.log('Length:', formData.prohibited_items?.length);
+      console.log('Contents:', JSON.stringify(formData.prohibited_items, null, 2));
+      
+      console.log('formData.ticket_types:', formData.ticket_types);
+      console.log('Type:', typeof formData.ticket_types);
+      console.log('Is Array:', Array.isArray(formData.ticket_types));
+      console.log('Length:', formData.ticket_types?.length);
+      console.log('Contents:', JSON.stringify(formData.ticket_types, null, 2));
+      console.log('==============================');
+      
       setIsSubmitting(true);
       try {
         const payload = buildPayload();
@@ -1288,8 +1314,11 @@ const UpdateTicketAddOns = () => {
         }
         const submissionForm = buildFormData(payload);
         if (isEditingSubEvent && editingSubEventId) {
+          console.log('=== SUBMITTING EDIT ===');
+          console.log('Editing sub-event ID:', editingSubEventId);
           await updateSubEvent(ticketId, editingSubEventId, submissionForm);
         } else {
+          console.log('=== SUBMITTING NEW ===');
           await updateTicketAddOns(ticketId, submissionForm);
         }
         navigate(`/ticket/ticket-terms/${ticketId}`);
@@ -1719,21 +1748,21 @@ const UpdateTicketAddOns = () => {
         (event) => event._id === subEventId
       );
       if (subEvent) {
+        const convertTo12Hour = (time24h) => {
+          if (!time24h) return { time: "", ampm: "" };
+          const [hours, minutes] = time24h.split(":");
+          let hour12 = parseInt(hours);
+          const ampm = hour12 >= 12 ? "PM" : "AM";
+          if (hour12 === 0) hour12 = 12;
+          else if (hour12 > 12) hour12 -= 12;
+          return {
+            time: `${hour12.toString().padStart(2, "0")}:${minutes}`,
+            ampm: ampm,
+          };
+        };
+
         const mappedEventDates =
           subEvent.event_dates?.map((date) => {
-            const convertTo12Hour = (time24h) => {
-              if (!time24h) return { time: "", ampm: "" };
-              const [hours, minutes] = time24h.split(":");
-              let hour12 = parseInt(hours);
-              const ampm = hour12 >= 12 ? "PM" : "AM";
-              if (hour12 === 0) hour12 = 12;
-              else if (hour12 > 12) hour12 -= 12;
-              return {
-                time: `${hour12.toString().padStart(2, "0")}:${minutes}`,
-                ampm: ampm,
-              };
-            };
-
             const startTime12 = convertTo12Hour(date.start_time);
             const endTime12 = convertTo12Hour(date.end_time);
 
@@ -1749,9 +1778,146 @@ const UpdateTicketAddOns = () => {
               eventLink: date.event_link || "",
               videoName: date.video_name || "",
               verificationCode: date.verification_event_code || "",
+              videoFile: null, // Don't try to restore file objects
+              previewImageFile: null, // Don't try to restore file objects
+              video_file_path: date.video_file_path || "",
+              preview_image_path: date.preview_image_path || ""
             };
           }) || [];
 
+        // CRITICAL: Robust parsing for prohibited_items
+        const parsedProhibitedItems = (() => {
+          console.log('=== Parsing prohibited_items for editing ===');
+          console.log('Raw prohibited_items:', subEvent.prohibited_items);
+          console.log('Type:', typeof subEvent.prohibited_items);
+          
+          if (!subEvent.prohibited_items) {
+            console.log('No prohibited_items found');
+            return [];
+          }
+          
+          // Already an array - clean and return
+          if (Array.isArray(subEvent.prohibited_items)) {
+            console.log('prohibited_items is already an array with', subEvent.prohibited_items.length, 'items');
+            const cleaned = subEvent.prohibited_items
+              .map(item => {
+                if (typeof item === 'object' && item !== null) {
+                  return item.name || item.item || item.value || String(item);
+                }
+                return String(item);
+              })
+              .map(item => String(item).trim())
+              .filter(item => item && item !== 'undefined' && item !== 'null');
+            console.log('✓ Cleaned prohibited_items:', cleaned);
+            return cleaned;
+          }
+          
+          // String parsing
+          if (typeof subEvent.prohibited_items === 'string') {
+            console.log('prohibited_items is a string, attempting to parse');
+            const trimmed = subEvent.prohibited_items.trim();
+            
+            if (trimmed === '' || trimmed === '[]' || trimmed === '{}') {
+              console.log('Empty string or empty array/object');
+              return [];
+            }
+            
+            try {
+              const parsed = JSON.parse(trimmed);
+              console.log('Successfully parsed JSON:', parsed);
+              if (Array.isArray(parsed)) {
+                const cleaned = parsed.map(item => String(item).trim()).filter(item => item);
+                console.log('✓ Parsed and cleaned:', cleaned);
+                return cleaned;
+              }
+              return [];
+            } catch (e) {
+              console.log('JSON parse failed, trying comma split');
+              const split = trimmed.split(',').map(item => item.trim()).filter(item => item);
+              console.log('Comma split result:', split);
+              return split;
+            }
+          }
+          
+          console.log('Unknown type for prohibited_items');
+          return [];
+        })();
+
+        // CRITICAL: Robust parsing for ticket_types
+        const parsedTicketTypes = (() => {
+          console.log('=== Parsing ticket_types for editing ===');
+          console.log('Raw ticket_types:', subEvent.ticket_types);
+          console.log('Type:', typeof subEvent.ticket_types);
+          
+          if (!subEvent.ticket_types) {
+            console.log('No ticket_types found');
+            return [];
+          }
+          
+          // Already an array
+          if (Array.isArray(subEvent.ticket_types)) {
+            console.log('ticket_types is already an array with', subEvent.ticket_types.length, 'items');
+            return subEvent.ticket_types.map((t, index) => {
+              console.log(`Processing ticket ${index}:`, t);
+              
+              const ticketType = t.ticket_type || t.name || '';
+              const ticketPrice = t.ticket_price !== undefined ? t.ticket_price : (t.price || 0);
+              const maxCapacity = t.max_capacity !== undefined ? t.max_capacity : (t.capacity || 0);
+              const ticketPhoto = t.ticket_photo || '';
+              
+              const processedTicket = {
+                id: Date.now() + Math.random() + index,
+                name: ticketType,
+                price: Number(ticketPrice),
+                capacity: Number(maxCapacity),
+                image: ticketPhoto 
+                  ? getImageUrl(ticketPhoto) 
+                  : `https://via.placeholder.com/150?text=${encodeURIComponent(ticketType || 'Ticket')}`,
+                photoFile: null,
+                existingPhotoPath: ticketPhoto,
+              };
+              
+              console.log('✓ Processed ticket:', processedTicket);
+              return processedTicket;
+            });
+          }
+          
+          // String parsing
+          if (typeof subEvent.ticket_types === 'string') {
+            console.log('ticket_types is a string, attempting to parse');
+            try {
+              const parsed = JSON.parse(subEvent.ticket_types);
+              console.log('Successfully parsed JSON:', parsed);
+              if (Array.isArray(parsed)) {
+                return parsed.map((t, index) => ({
+                  id: Date.now() + Math.random() + index,
+                  name: t.ticket_type || t.name || '',
+                  price: Number(t.ticket_price !== undefined ? t.ticket_price : (t.price || 0)),
+                  capacity: Number(t.max_capacity !== undefined ? t.max_capacity : (t.capacity || 0)),
+                  image: t.ticket_photo 
+                    ? getImageUrl(t.ticket_photo) 
+                    : `https://via.placeholder.com/150?text=${encodeURIComponent(t.ticket_type || t.name || 'Ticket')}`,
+                  photoFile: null,
+                  existingPhotoPath: t.ticket_photo || '',
+                }));
+              }
+            } catch (e) {
+              console.warn('Failed to parse ticket_types string:', e);
+            }
+          }
+          
+          console.log('Unknown type for ticket_types or parse failed');
+          return [];
+        })();
+
+        console.log('=== FINAL PARSED VALUES FOR FORM ===');
+        console.log('Parsed prohibited_items:', parsedProhibitedItems);
+        console.log('Parsed prohibited_items length:', parsedProhibitedItems.length);
+        console.log('Parsed ticket_types:', parsedTicketTypes);
+        console.log('Parsed ticket_types length:', parsedTicketTypes.length);
+        console.log('===========================');
+
+        // Set form data with properly parsed arrays
         setFormData((prev) => ({
           ...prev,
           event_name: subEvent.event_name || "",
@@ -1786,14 +1952,10 @@ const UpdateTicketAddOns = () => {
               name: g.guest_name,
               link: g.guest_link,
               image:
-                g.guest_image || `https://i.pravatar.cc/150?u=${Date.now()}`,
+                g.guest_image || g.guest_profile || `https://i.pravatar.cc/150?u=${Date.now()}`,
               rawFile: null,
             })) || [],
-          prohibited_items: Array.isArray(subEvent.prohibited_items)
-            ? subEvent.prohibited_items
-            : typeof subEvent.prohibited_items === "string"
-            ? JSON.parse(subEvent.prohibited_items || "[]")
-            : [],
+          prohibited_items: parsedProhibitedItems, // CRITICAL: Use parsed array
           POCS: subEvent.POCS || [],
           payment_type: subEvent.payment_type || "free",
           banking_details: subEvent.banking_details || [
@@ -1806,16 +1968,7 @@ const UpdateTicketAddOns = () => {
           ],
           booking_start_date: subEvent.booking_start_date || "",
           booking_end_date: subEvent.booking_end_date || "",
-          ticket_types:
-          subEvent.ticket_types?.map((t, index) => ({
-            id: Date.now() + Math.random() + index,
-            name: t.ticket_type,
-            price: t.ticket_price,
-            capacity: t.max_capacity,
-            image: t.ticket_photo ? getImageUrl(t.ticket_photo) : `https://via.placeholder.com/150?text=${encodeURIComponent(t.ticket_type || 'Ticket')}`,
-            photoFile: null,
-            existingPhotoPath: t.ticket_photo || '', // ADD THIS to preserve existing path
-          })) || [],
+          ticket_types: parsedTicketTypes, // CRITICAL: Use parsed array
           total_capacity: subEvent.total_capacity || "",
           exact_map_location: subEvent.exact_map_location || {
             latitude: INITIAL_MAP_LOCATION.lat.toString(),
@@ -1824,17 +1977,20 @@ const UpdateTicketAddOns = () => {
           },
         }));
 
+        // Set previews
         setPreviews((prev) => ({
           ...prev,
           event_banner: subEvent.event_banner ? getImageUrl(subEvent.event_banner) : null,
           event_logo: subEvent.event_logo ? getImageUrl(subEvent.event_logo) : null,
           ticket_layout: subEvent.ticket_layout ? getImageUrl(subEvent.ticket_layout) : null,
         }));
+
         if (subEvent.ticket_layout) {
           setHasSeatingLayout(true);
         } else {
           setHasSeatingLayout(false);
         }
+
         if (subEvent.event_images && subEvent.event_images.length > 0) {
           const imageUrls = subEvent.event_images.map(img => getImageUrl(img));
           setFormData((prev) => ({
@@ -1846,20 +2002,7 @@ const UpdateTicketAddOns = () => {
             setShowExtraMedia(true);
           }
         }
-        if (subEvent.ticket_layout) {
-          setHasSeatingLayout(true);
-        } else {
-          setHasSeatingLayout(false);
-        }
-        if (subEvent.event_images && subEvent.event_images.length > 0) {
-          setFormData((prev) => ({
-            ...prev,
-            event_images: [],
-          }));
-          if (subEvent.event_images.length > 1) {
-            setShowExtraMedia(true);
-          }
-        }
+
         if (descriptionEditorRef.current) {
           descriptionEditorRef.current.innerHTML =
             subEvent.event_description || "";
@@ -1867,6 +2010,7 @@ const UpdateTicketAddOns = () => {
         if (rulesEditorRef.current) {
           rulesEditorRef.current.innerHTML = subEvent.event_rules_text || "";
         }
+
         if (subEvent.gate_open_time) {
           const gateTimeParts = subEvent.gate_open_time.split(":");
           if (gateTimeParts.length >= 2) {
@@ -1884,6 +2028,12 @@ const UpdateTicketAddOns = () => {
             }));
           }
         }
+        
+        // CRITICAL: Log what was set in formData
+        console.log('=== FORM DATA SET ===');
+        console.log('formData.prohibited_items will be:', parsedProhibitedItems);
+        console.log('formData.ticket_types will be:', parsedTicketTypes);
+        console.log('=====================');
       }
     } catch (error) {
       console.error("Error loading sub-event data:", error);

@@ -1,16 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { getMe } from "../../services/userService";
-import { findAllActiveUsers } from "../../services/authService";
+import { findAllActiveUsers,followUser, unfollowUser,getOtherProfile ,getFollowers,getFollowing,checkIsFollowing } from "../../services/authService";
 import { useNavigate, Link } from 'react-router-dom';
-import { getGroups, getMyEvents, getMyLiveEvents, getMyPastEvents } from "../../services/ticketService";
+import { getGroups, getMyEvents, getMyLiveEvents, getMyPastEvents} from "../../services/ticketService";
 import { useDispatch } from 'react-redux';
 import { logoutSuccess } from '../../features/auth/authSlice'; 
 import { logout } from '../../services/authService';
-
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
-
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import WieText from "../../assets/HomePage/WieText.svg";
 import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
@@ -124,8 +122,13 @@ const ProfilePage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
-  
-  
+  const [followLoading, setFollowLoading] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [followingMap, setFollowingMap] = useState({});
+  const [followingStates, setFollowingStates] = useState({});
+  const [profileUser, setProfileUser] = useState(null);
+  const [userId, setUserId] = useState(null);
   // Active tab state: 'all', 'live', 'past'
   const [activeTab, setActiveTab] = useState('all');
   
@@ -203,7 +206,6 @@ const ProfilePage = () => {
 
     return { all, live, past };
   };
-
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -247,6 +249,25 @@ const ProfilePage = () => {
     };
     fetchActiveUsers();
   }, []);
+  useEffect(() => {
+    const checkFollowStatuses = async () => {
+      if (users.length === 0) return;
+      
+      const statuses = {};
+      for (const suggestUser of users) {
+        try {
+          const response = await checkIsFollowing(suggestUser._id || suggestUser.id);
+          statuses[suggestUser._id || suggestUser.id] = response.isFollowing || false;
+        } catch (err) {
+          console.error(`Error checking follow status for ${suggestUser._id}:`, err);
+          statuses[suggestUser._id || suggestUser.id] = false;
+        }
+      }
+      setFollowingMap(statuses);
+    };
+    
+    checkFollowStatuses();
+  }, [users]);
 
   useEffect(() => {
     const fetchGroups = async () => {
@@ -401,6 +422,129 @@ const ProfilePage = () => {
     const container = document.getElementById("suggestions-scroll");
     if (container) {
       container.scrollBy({ left: 250, behavior: "smooth" });
+    }
+  };
+  const handleSuggestionFollowToggle = async (suggestedUserId) => {
+    if (!suggestedUserId || !user) return;
+    
+    const key = suggestedUserId;
+    
+    // Set loading state for this specific user
+    setFollowingStates(prev => ({ ...prev, [key]: true }));
+    
+    const isCurrentlyFollowing = followingMap[key] || false;
+    const originalFollowState = isCurrentlyFollowing;
+    
+    try {
+      if (isCurrentlyFollowing) {
+        // UNFOLLOW FLOW
+        // Optimistic update - update UI immediately
+        setFollowingMap(prev => ({ ...prev, [key]: false }));
+        
+        // Update users list - decrement follower count
+        setUsers(prev => prev.map(u => {
+          if ((u._id || u.id) === suggestedUserId) {
+            const currentCount = parseInt(u.followersCount || u.followers || 0);
+            return {
+              ...u,
+              followersCount: Math.max(0, currentCount - 1),
+              followers: Math.max(0, currentCount - 1).toString()
+            };
+          }
+          return u;
+        }));
+        
+        // Update current user's following count
+        setUser(prev => ({
+          ...prev,
+          following: Math.max(0, parseInt(prev.following || 0) - 1).toString(),
+          followingCount: Math.max(0, (prev.followingCount || 0) - 1)
+        }));
+        
+        // Make API call
+        const response = await unfollowUser(suggestedUserId);
+        console.log("Unfollow response:", response);
+        
+      } else {
+        // FOLLOW FLOW
+        // Optimistic update - update UI immediately
+        setFollowingMap(prev => ({ ...prev, [key]: true }));
+        
+        // Update users list - increment follower count
+        setUsers(prev => prev.map(u => {
+          if ((u._id || u.id) === suggestedUserId) {
+            const currentCount = parseInt(u.followersCount || u.followers || 0);
+            return {
+              ...u,
+              followersCount: currentCount + 1,
+              followers: (currentCount + 1).toString()
+            };
+          }
+          return u;
+        }));
+        
+        // Update current user's following count
+        setUser(prev => ({
+          ...prev,
+          following: (parseInt(prev.following || 0) + 1).toString(),
+          followingCount: (parseInt(prev.followingCount || 0) + 1)
+        }));
+        
+        // Make API call
+        const response = await followUser(suggestedUserId);
+        console.log("Follow response:", response);
+      }
+    } catch (err) {
+      console.error('Error toggling follow status:', err);
+      
+      // ROLLBACK on error - revert all changes
+      setFollowingMap(prev => ({ ...prev, [key]: originalFollowState }));
+      
+      if (isCurrentlyFollowing) {
+        // Was unfollowing, revert back to following
+        setUsers(prev => prev.map(u => {
+          if ((u._id || u.id) === suggestedUserId) {
+            const currentCount = parseInt(u.followersCount || u.followers || 0);
+            return {
+              ...u,
+              followersCount: currentCount + 1,
+              followers: (currentCount + 1).toString()
+            };
+          }
+          return u;
+        }));
+        
+        setUser(prev => ({
+          ...prev,
+          following: (parseInt(prev.following || 0) + 1).toString(),
+          followingCount: (parseInt(prev.followingCount || 0) + 1)
+        }));
+      } else {
+        // Was following, revert back to not following
+        setUsers(prev => prev.map(u => {
+          if ((u._id || u.id) === suggestedUserId) {
+            const currentCount = parseInt(u.followersCount || u.followers || 0);
+            return {
+              ...u,
+              followersCount: Math.max(0, currentCount - 1),
+              followers: Math.max(0, currentCount - 1).toString()
+            };
+          }
+          return u;
+        }));
+        
+        setUser(prev => ({
+          ...prev,
+          following: Math.max(0, parseInt(prev.following || 0) - 1).toString(),
+          followingCount: Math.max(0, (prev.followingCount || 0) - 1)
+        }));
+      }
+      
+      // Show error alert
+      alert(err.response?.data?.message || 'Failed to update follow status');
+    } finally {
+      // Clear loading state for this user
+      setFollowingStates(prev => ({ ...prev, [key]: false }));
     }
   };
 
@@ -852,7 +996,7 @@ const ProfilePage = () => {
       alt="Followers"
       className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`}
     />
-    <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{user.followersCount || 0}</p>
+    <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{user.followers || 0}</p>
     <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Follower</p>
   </div>
 
@@ -863,7 +1007,7 @@ const ProfilePage = () => {
       alt="Following"
       className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`}
     />
-    <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{user.followingCount || 0}</p>
+    <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{user.following || 0}</p>
     <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Following</p>
   </div>
 </div>
@@ -962,159 +1106,186 @@ const ProfilePage = () => {
     </div>
   </div>
 </div>
-
-
 {/* Suggestions */}
 <div className={`rounded-xl md:rounded-2xl p-3 md:p-4 lg:p-6 nest-hub-card transition-all duration-300 w-full overflow-hidden`}>
    <div className="flex justify-between items-center mb-4 md:mb-6">
-                                    <h2 className={`text-base md:text-lg font-semibold ${theme.text}`}>Suggestions</h2>
-                                    <button
-                                      className={`text-xs md:text-sm px-3 md:px-4 py-1 md:py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${
-                                        isDark ? "text-[#FFFFFF]" : "text-[#000000]"
-                                      }`}
-                                     onClick={() => navigate('/suggestions')}
+     <h2 className={`text-base md:text-lg font-semibold ${theme.text}`}>Suggestions</h2>
+     <button
+       className={`text-xs md:text-sm px-3 md:px-4 py-1 md:py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${
+         isDark ? "text-[#FFFFFF]" : "text-[#000000]"
+       }`}
+       onClick={() => navigate('/suggestions')}
+     >
+       see all
+     </button>
+   </div>
 
-                                    >
-                                      see all
-                                    </button>
-                                  </div>
-                  
-                                  {/* Desktop: Scrollable Container with Arrows */}
-                                  <div className="hidden md:block relative">
-                                    {showLeftArrow && users.length > 0 && (
-                                      <button
-                                        onClick={scrollLeft}
-                                        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2"
-                                      >
-                                        <img src={RightArrowIcon} alt="Scroll Left" className="w-6 h-6 rotate-180 invert" />
-                                      </button>
-                                    )}
-                  
-                                    <div
-                                      id="suggestions-scroll"
-                                      className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 scroll-smooth"
-                                      onScroll={handleScroll}
-                                    >
-                                      {users.length > 0 ? (
-                                        users.slice(0, 8).map((suggestedUser) => (
-                                          <div
-                                            key={suggestedUser._id}
-                                            className="w-[246px] h-[363px] flex-shrink-0 rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 hover:scale-105 cursor-pointer"
-                                            style={{
-                                              backgroundColor: isDark ? "#212426" : "#ffffff",
-                                              boxShadow: theme.smallCardShadow,
-                                            }}
-                                            onClick={() => navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)}
-                                          >
-                                            <div className="flex flex-col">
-                                              <div className="relative mb-4">
-                                                <img
-                                                  src={suggestedUser.image? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}`: ProfileImage}
-                                                  alt={suggestedUser.name}
-                                                  className="w-full h-[160px] object-cover rounded-2xl"
-                                                />
-                                              </div>
-                                              <div className="px-1" style={{ marginTop: "2rem" }}>
-                                                <div className="flex items-center gap-2 mb-1 justify-center">
-                                                  <h3 className={`text-base font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
-                                                  <img src={VerifiedIcon} alt="Verified" className="w-4 h-4 flex-shrink-0"/>
-                                                </div>
-                                                <p className={`text-sm ${theme.subText} capitalize text-center`}>{suggestedUser.role || "User"}</p>
-                                              </div>
-                                            </div>
-                  
-                                            <div className="flex justify-between items-center px-1" style={{ marginBottom: "1rem" }}>
-                                              <div className="flex items-center gap-3">
-                                                <div className="flex items-center gap-1">
-                                                  <img src={FollowersIcon} alt="Followers" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}/>
-                                                  <span className={`text-sm font-medium ${theme.text}`}>
-                                                    {suggestedUser.followersCount || suggestedUser.followers || 0}
-                                                  </span>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                  <img src={EventIcon} alt="Events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}/>
-                                                  <span className={`text-sm font-medium ${theme.text}`}>{suggestedUser.eventsCount || 0}</span>
-                                                </div>
-                                              </div>
-                                              <button className="px-4 py-1.5 rounded-full text-white text-sm font-medium bg-blue-500 hover:bg-blue-600 transition-colors duration-200" onClick={(e) => {e.stopPropagation();console.log(`Following user: ${suggestedUser.name}`);}}>
-                                                Follow +
-                                              </button>
-                                            </div>
-                                          </div>
-                                        ))
-                                      ) : (
-                                        <div className={`w-full text-center py-8 ${theme.subText}`}>
-                                          <p className="text-sm">No suggestions available</p>
-                                        </div>
-                                      )}
-                                    </div>
-                  
-                                    {showRightArrow && users.length > 0 && (
-                                      <button
-                                        onClick={scrollRight}
-                                        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full"
-                                      >
-                                        <img src={RightArrowIcon} alt="Scroll Right" className="w-6 h-6 invert" />
-                                      </button>
-                                    )}
-                                  </div>
+   {/* Desktop: Scrollable Container with Arrows */}
+   <div className="hidden md:block relative">
+     {showLeftArrow && users.length > 0 && (
+       <button
+         onClick={scrollLeft}
+         className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2"
+       >
+         <img src={RightArrowIcon} alt="Scroll Left" className="w-6 h-6 rotate-180 invert" />
+       </button>
+     )}
 
-                                  {/* Mobile: Grid of 2 Cards */}
-                                  <div className="md:hidden grid grid-cols-2 gap-3">
-                                    {users.length > 0 ? (
-                                      users.slice(0, 2).map((suggestedUser) => (
-                                        <div
-                                          key={suggestedUser._id}
-                                          className="rounded-2xl p-3 flex flex-col justify-between transition-all duration-300 cursor-pointer"
-                                          style={{
-                                            backgroundColor: isDark ? "#212426" : "#ffffff",
-                                            boxShadow: theme.smallCardShadow,
-                                          }}
-                                          onClick={() => navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)}
-                                        >
-                                          <div className="flex flex-col">
-                                            <div className="relative mb-3">
-                                              <img
-                                                src={suggestedUser.image? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}`: ProfileImage}
-                                                alt={suggestedUser.name}
-                                                className="w-full h-[100px] object-cover rounded-xl"
-                                              />
-                                            </div>
-                                            <div className="px-1 mb-3">
-                                              <div className="flex items-center gap-1 mb-1 justify-center">
-                                                <h3 className={`text-sm font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
-                                                <img src={VerifiedIcon} alt="Verified" className="w-3 h-3 flex-shrink-0"/>
-                                              </div>
-                                              <p className={`text-xs ${theme.subText} capitalize text-center`}>{suggestedUser.role || "User"}</p>
-                                            </div>
-                                          </div>
-                
-                                          <div className="flex flex-col gap-2">
-                                            <div className="flex justify-center items-center gap-3">
-                                              <div className="flex items-center gap-1">
-                                                <img src={FollowersIcon} alt="Followers" className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}/>
-                                                <span className={`text-xs font-medium ${theme.text}`}>
-                                                  {suggestedUser.followersCount || suggestedUser.followers || 0}
-                                                </span>
-                                              </div>
-                                              <div className="flex items-center gap-1">
-                                                <img src={EventIcon} alt="Events" className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}/>
-                                                <span className={`text-xs font-medium ${theme.text}`}>{suggestedUser.eventsCount || 0}</span>
-                                              </div>
-                                            </div>
-                                            <button className="w-full px-3 py-1.5 rounded-full text-white text-xs font-medium bg-blue-500 hover:bg-blue-600 transition-colors duration-200" onClick={(e) => {e.stopPropagation();console.log(`Following user: ${suggestedUser.name}`);}}>
-                                              Follow +
-                                            </button>
-                                          </div>
-                                        </div>
-                                      ))
-                                    ) : (
-                                      <div className={`col-span-2 text-center py-8 ${theme.subText}`}>
-                                        <p className="text-sm">No suggestions available</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
+     <div
+       id="suggestions-scroll"
+       className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 scroll-smooth"
+       onScroll={handleScroll}
+     >
+       {users.length > 0 ? (
+         users.slice(0, 8).map((suggestedUser) => (
+           <div
+             key={suggestedUser._id}
+             className="w-[246px] h-[363px] flex-shrink-0 rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 hover:scale-105 cursor-pointer"
+             style={{
+               backgroundColor: isDark ? "#212426" : "#ffffff",
+               boxShadow: theme.smallCardShadow,
+             }}
+             onClick={() => navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)}
+           >
+             <div className="flex flex-col">
+               <div className="relative mb-4">
+                 <img
+                   src={suggestedUser.image? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}`: ProfileImage}
+                   alt={suggestedUser.name}
+                   className="w-full h-[160px] object-cover rounded-2xl"
+                 />
+               </div>
+               <div className="px-1" style={{ marginTop: "2rem" }}>
+                 <div className="flex items-center gap-2 mb-1 justify-center">
+                   <h3 className={`text-base font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
+                   <img src={VerifiedIcon} alt="Verified" className="w-4 h-4 flex-shrink-0"/>
+                 </div>
+                 <p className={`text-sm ${theme.subText} capitalize text-center`}>{suggestedUser.role || "User"}</p>
+               </div>
+             </div>
+
+             <div className="flex justify-between items-center px-1" style={{ marginBottom: "1rem" }}>
+               <div className="flex items-center gap-3">
+                 <div className="flex items-center gap-1">
+                   <img src={FollowersIcon} alt="Followers" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}/>
+                   <span className={`text-sm font-medium ${theme.text}`}>
+                     {suggestedUser.followersCount || suggestedUser.followers || 0}
+                   </span>
+                 </div>
+                 <div className="flex items-center gap-1">
+                   <img src={EventIcon} alt="Events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}/>
+                   <span className={`text-sm font-medium ${theme.text}`}>{suggestedUser.eventsCount || 0}</span>
+                 </div>
+               </div>
+                <button 
+                onClick={(e) => {
+                e.stopPropagation();
+                handleSuggestionFollowToggle(suggestedUser._id || suggestedUser.id);
+                }}
+                disabled={followingStates[suggestedUser._id || suggestedUser.id]}
+                className={`px-3 py-1 rounded-full text-white text-xs font-medium transition-all duration-200 ${
+                followingMap[suggestedUser._id || suggestedUser.id]
+                ? 'bg-[#44444D] shadow-[0px_3px_6px_rgba(0,0,0,0.25)] hover:bg-[#50505A]'
+                : 'bg-blue-500 hover:bg-blue-600'
+                } ${followingStates[suggestedUser._id || suggestedUser.id] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                {followingStates[suggestedUser._id || suggestedUser.id] ? (
+                followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollowing...' : 'Following...'
+                ) : (
+                followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollow' : 'Follow +'
+                )}
+                </button>
+             </div>
+           </div>
+         ))
+       ) : (
+         <div className={`w-full text-center py-8 ${theme.subText}`}>
+           <p className="text-sm">No suggestions available</p>
+         </div>
+       )}
+     </div>
+
+     {showRightArrow && users.length > 0 && (
+       <button
+         onClick={scrollRight}
+         className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full"
+       >
+         <img src={RightArrowIcon} alt="Scroll Right" className="w-6 h-6 invert" />
+       </button>
+     )}
+   </div>
+
+   {/* Mobile: Grid of 2 Cards */}
+   <div className="md:hidden grid grid-cols-2 gap-3">
+     {users.length > 0 ? (
+       users.slice(0, 2).map((suggestedUser) => (
+         <div
+           key={suggestedUser._id}
+           className="rounded-2xl p-3 flex flex-col justify-between transition-all duration-300 cursor-pointer"
+           style={{
+             backgroundColor: isDark ? "#212426" : "#ffffff",
+             boxShadow: theme.smallCardShadow,
+           }}
+           onClick={() => navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)}
+         >
+           <div className="flex flex-col">
+             <div className="relative mb-3">
+               <img
+                 src={suggestedUser.image? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}`: ProfileImage}
+                 alt={suggestedUser.name}
+                 className="w-full h-[100px] object-cover rounded-xl"
+               />
+             </div>
+             <div className="px-1 mb-3">
+               <div className="flex items-center gap-1 mb-1 justify-center">
+                 <h3 className={`text-sm font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
+                 <img src={VerifiedIcon} alt="Verified" className="w-3 h-3 flex-shrink-0"/>
+               </div>
+               <p className={`text-xs ${theme.subText} capitalize text-center`}>{suggestedUser.role || "User"}</p>
+             </div>
+           </div>
+
+           <div className="flex flex-col gap-2">
+             <div className="flex justify-center items-center gap-3">
+               <div className="flex items-center gap-1">
+                 <img src={FollowersIcon} alt="Followers" className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}/>
+                 <span className={`text-xs font-medium ${theme.text}`}>
+                   {suggestedUser.followersCount || suggestedUser.followers || 0}
+                 </span>
+               </div>
+               <div className="flex items-center gap-1">
+                 <img src={EventIcon} alt="Events" className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}/>
+                 <span className={`text-xs font-medium ${theme.text}`}>{suggestedUser.eventsCount || 0}</span>
+               </div>
+             </div>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSuggestionFollowToggle(suggestedUser._id || suggestedUser.id);
+              }}
+              disabled={followingStates[suggestedUser._id || suggestedUser.id]}
+              className={`w-full px-3 py-1.5 rounded-full text-white text-xs font-medium transition-all duration-200 ${
+                followingMap[suggestedUser._id || suggestedUser.id]
+                  ? 'bg-[#44444D] shadow-[0px_5px_10px_0px_rgba(0,0,0,0.3)] hover:bg-[#50505A]'
+                  : 'bg-blue-500 hover:bg-blue-600'
+              } ${followingStates[suggestedUser._id || suggestedUser.id] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              {followingStates[suggestedUser._id || suggestedUser.id] ? (
+                followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollowing...' : 'Following...'
+              ) : (
+                followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollow' : 'Follow +'
+              )}
+            </button>
+           </div>
+         </div>
+       ))
+     ) : (
+       <div className={`col-span-2 text-center py-8 ${theme.subText}`}>
+         <p className="text-sm">No suggestions available</p>
+       </div>
+     )}
+   </div>
+ </div>
 
                   {/* Events Section with Tabs */}
 <div
