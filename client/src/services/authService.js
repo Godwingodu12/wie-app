@@ -139,3 +139,30 @@ export const unfollowUser = async (otherId) => {
     throw err;
   }
 };
+export const getFollowers = async (userId) => {
+  try {
+    const res = await api.get(`/auth/get-followers/${userId}`);
+    return res.data;
+  } catch (err) {
+    console.error('getFollowers error:', err);
+    throw err;
+  }
+};
+export const getFollowing = async (userId) => {
+  try {
+    const res = await api.get(`/auth/get-following/${userId}`);
+    return res.data;
+  } catch (err) {
+    console.error('getFollowing error:', err);
+    throw err;
+  }
+};
+export const checkIsFollowing = async (otherId) => {
+  try {
+    const res = await api.get(`/auth/get-is-following/${otherId}`);
+    return res.data
+    } catch (err) {
+    console.error('isFollowing error:', err);
+    throw err;
+  }
+};
