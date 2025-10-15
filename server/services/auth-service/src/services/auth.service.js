@@ -1,4 +1,5 @@
 import User from "../models/user.model.js";
+import Follow from "../models/follow.model.js";
 import { hashPassword, comparePassword } from "../utils/hash.js";
 import { generateToken, verifyResetToken } from "../utils/jwt.js";
 import otpService from "../reposetory/otp.js";
@@ -6,6 +7,7 @@ import upload from "../middlewares/upload.js";
 import { generateOtp } from "../utils/otp.js";
 import { sendEmail } from "../utils/sendMail.js";
 import { sendSMSOTP } from "../utils/sendSMS.js";
+
 export const index = (req, res) => {
   res.json({ message: "Welcome to the authentication service" });
 };
@@ -991,17 +993,33 @@ export const getOtherProfile = async (req, res) => {
     const otherId = req.params.otherId;
     const currentUserId = req.user._id || req.user.id;
     const user = await User.findOne({ _id: otherId, status: 'active' });
-    
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    const isFollowing = user.followersList && user.followersList.some(
-      followerId => followerId.toString() === currentUserId.toString()
-    );
+    const followRecord = await Follow.findOne({
+      follower: currentUserId,
+      following: otherId,
+      status: 'active'
+    }).lean();
+
+    const isFollowing = !!followRecord;
+
+    // Get actual follower and following counts from Follow collection
+    const [followersCount, followingCount] = await Promise.all([
+      Follow.countDocuments({ following: otherId, status: 'active' }),
+      Follow.countDocuments({ follower: otherId, status: 'active' })
+    ]);
+
+    // Build response object
     const userObject = user.toObject();
     userObject.isFollowing = isFollowing;
-    userObject.followersCount = user.followersList ? user.followersList.length : 0;
-    userObject.followingCount = user.followingList ? user.followingList.length : 0;
+    userObject.followersCount = followersCount;
+    userObject.followingCount = followingCount;
+
+    // Remove old array fields if they exist
+    delete userObject.followersList;
+    delete userObject.followingList;
+
     res.status(200).json({
       message: "Other User Profile fetched successfully",
       user: userObject
