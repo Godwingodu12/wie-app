@@ -1,7 +1,9 @@
 // src/components/HomePage/SideBar.jsx
 import React, { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getMe } from "../../services/userService.js";
+import { getGroups } from "../../services/ticketService";
+import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
 // ICONS
 import HomeIcon from "../../assets/HOMEPAGE/HomeIcon.svg";
 import TicketIcon from "../../assets/HOMEPAGE/TicketIcon.svg";
@@ -22,34 +24,68 @@ const SIDEBAR_WIDTH = 80;
 
 const Sidebar = ({ user, theme }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const currentPath = location.pathname;
   const [userImage, setUserImage] = useState(null);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [groups, setGroups] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   useEffect(() => {
     const fetchUser = async () => {
       try {
         const res = await getMe();
-        // Construct the image URL if user has an image
-        if (res.data.image) {
+        // Check if response and data exist before accessing image
+        if (res && res.data && res.data.image) {
           const imageUrl = `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${res.data.image}`;
           setUserImage(imageUrl);
         }
       } catch (err) {
         console.error("Failed to fetch user", err);
+        // Don't throw error, just log it
       }
     };
     fetchUser();
-  }, [setUserImage]);
+  }, []);
 
   // Check if currently on home page
   const isHomePage = currentPath === "/home";
   const isDark = theme.bg === "bg-[#212426]";
+  
+  const handleCreateEvent = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const groupsResponse = await getGroups();
+      const groupsArray = Array.isArray(groupsResponse) ? groupsResponse : groupsResponse.data || [];
+      setGroups(groupsArray);
+      if (groupsArray.length === 0) {
+        navigate("/ticket/create-group");
+      } else if (groupsArray.length === 1) {
+        navigate(`/ticket/create-event/${groupsArray[0]._id}`);
+      } else {
+        setIsModalOpen(true);
+      }
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+      alert("Error fetching groups. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectGroup = (selectedGroup) => {
+    setIsModalOpen(false);
+    navigate(`/ticket/create-event/${selectedGroup._id}`);
+  };
 
   const ticketMenuItems = [
     {
       icon: EmojiIcon,
       label: "Create event",
-      to: "/ticket/create-event",
+      onClick: handleCreateEvent,
+      isButton: true
     },
     {
       icon: EyeIcon,
@@ -184,10 +220,7 @@ const Sidebar = ({ user, theme }) => {
             </div>
           </div>
         </div>
-        {/* FLEXIBLE SPACER - Reduced to move bottom section up */}
         <div className="flex-1 min-h-4 max-h-12 lg:max-h-4"></div>
-
-        {/* BOTTOM SECTION - Settings and Profile */}
         <div className="flex flex-col items-center w-full mb-4">
           <div
             className={`${theme.cardBg} rounded-full flex flex-col items-center py-2 sm:py-3 w-10 sm:w-12 lg:w-14 transition-all duration-300`}
@@ -198,15 +231,18 @@ const Sidebar = ({ user, theme }) => {
                 : "-4px -4px 8px rgba(255,255,255,0.8), 4px 4px 8px rgba(0,0,0,0.15)",
             }}
           >
-            <button className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full hover:opacity-80 transition-opacity">
+            <Link
+              to="/settings/editprofile"
+              className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full hover:opacity-80 transition-opacity"
+            >
               <img
                 src={SettingIcon}
-                alt="Settings"
-                className={`w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 opacity-70 hover:opacity-100 transition-opacity ${
-                  isDark ? "" : "filter brightness-0"
+                alt="settings"
+                className={`w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-4 ${
+                  isDark ? "" : "filter brightness-0 opacity-70"
                 }`}
               />
-            </button>
+            </Link>
             <Link
               to="/profile"
               className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center overflow-hidden hover:opacity-80 transition-opacity"
@@ -224,7 +260,8 @@ const Sidebar = ({ user, theme }) => {
                   className="w-full h-full object-cover rounded-full"
                   onError={(e) => {
                     console.error("Image failed to load:", e.target.src);
-                    e.target.style.display = "none";
+                    e.target.onerror = null;
+                    e.target.src = ProfileImage;
                   }}
                 />
               ) : (
@@ -266,38 +303,61 @@ const Sidebar = ({ user, theme }) => {
           >
             {/* Menu Items */}
             <div className="space-y-1">
-              {ticketMenuItems.map((item, index) => (
-                <Link
-                  key={index}
-                  to={item.to}
-                  onClick={() => setIsTicketModalOpen(false)}
-                  className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${
-                    isDark
-                      ? "hover:bg-[#181818] text-gray-200"
-                      : "hover:bg-white text-gray-800"
-                  }`}
-                >
-                  <div
-                    className={`w-5 h-5 flex items-center justify-center ${
-                      isDark ? "text-gray-300" : "text-gray-700"
+              {ticketMenuItems.map((item, index) => 
+                item.isButton ? (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      handleCreateEvent();
+                      setIsTicketModalOpen(false);
+                    }}
+                    disabled={loading}
+                    className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${
+                      isDark
+                        ? "hover:bg-[#181818] text-gray-200"
+                        : "hover:bg-white text-gray-800"
+                    } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <div className={`w-5 h-5 flex items-center justify-center ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                      <img src={item.icon} alt={item.label} className={`w-full h-full ${isDark ? "" : "filter brightness-0 opacity-70"}`} />
+                    </div>
+                    <span className="text-base font-normal">
+                      {loading ? 'Loading...' : item.label}
+                    </span>
+                  </button>
+                ) : (
+                  <Link
+                    key={index}
+                    to={item.to}
+                    onClick={() => setIsTicketModalOpen(false)}
+                    className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${
+                      isDark
+                        ? "hover:bg-[#181818] text-gray-200"
+                        : "hover:bg-white text-gray-800"
                     }`}
                   >
-                    <img
-                      src={item.icon}
-                      alt={item.label}
-                      className={`w-full h-full ${
-                        isDark ? "" : "filter brightness-0 opacity-70"
-                      }`}
-                    />
-                  </div>
-                  <span className="text-base font-normal">{item.label}</span>
-                </Link>
-              ))}
+                    <div className={`w-5 h-5 flex items-center justify-center ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                      <img src={item.icon} alt={item.label} className={`w-full h-full ${isDark ? "" : "filter brightness-0 opacity-70"}`} />
+                    </div>
+                    <span className="text-base font-normal">{item.label}</span>
+                  </Link>
+                )
+              )}
             </div>
           </div>
         </>
       )}
+
+      {/* GROUP SELECTION MODAL */}
+      <GroupSelectionModal
+        groups={groups}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSelectGroup={handleSelectGroup}
+        isDark={isDark}
+      />
     </>
   );
 };
+
 export default Sidebar;
