@@ -853,6 +853,9 @@ const ProfilePage = () => {
         <img src={VerifiedIcon} alt="Verified" className="w-4 h-4" />
       </div>
       <p className={`text-sm ${theme.subText}`}>{user.username}</p>
+      <p className={`text-base leading-6 font-bold ${theme.subText} whitespace-pre-line`}>
+        {user.role}
+      </p>
     </div>
   </div>
 
@@ -860,6 +863,9 @@ const ProfilePage = () => {
     <div className="w-full">
       <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
         {user.bio} 
+      </p>
+      <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
+        {user.website} 
       </p>
     </div>
   </div>      
@@ -873,13 +879,13 @@ const ProfilePage = () => {
                         </div>
                         <div className="text-left">
                           <p className={` ${theme.subText}`}>
-                            <span className="text-md font-semibold text-white">{user.followersCount || 0}</span>
+                            <span className="text-md font-semibold text-white">{user.followers || 0}</span>
                             <span className="text-md  ml-1">Followers</span>
                           </p>
                         </div>
                         <div className="text-left">
                           <p className={` ${theme.subText}`}>
-                             <span className="text-md font-semibold text-white">{user.followingCount || 0}</span>
+                             <span className="text-md font-semibold text-white">{user.following || 0}</span>
                              <span className="text-md  ml-1">Following</span>
                           </p>
                         </div>
@@ -914,9 +920,15 @@ const ProfilePage = () => {
                         <div className="space-y-1 md:space-y-2 flex-1">
   <h1 className={`text-xl md:text-xl lg:text-2xl font-bold ${theme.text}`}>{user.name}</h1>
   <p className={`text-xs md:text-sm ${theme.subText}`}>{user.username}</p>
+  <p className={`text-base leading-6 font-bold ${theme.subText} whitespace-pre-line`}>
+    {user.role}
+  </p>
   <p className={`whitespace-pre-line text-left text-xs md:text-sm leading-5 md:leading-6 break-words ${theme.subText}`}>
     {user.bio }
   </p>
+  <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
+        {user.website} 
+      </p>
 <div className="flex gap-2 md:gap-3 pt-2 md:pt-3 flex-wrap">
                             <button 
                               onClick={() => navigate('/settings/editprofile')}
