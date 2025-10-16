@@ -1120,4 +1120,48 @@ export const checkUserLiked = async (req, res) => {
     });
   }
 };
+export const groupEventCount = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const groups = await Group.find({ userId: userId });
+    if (!groups || groups.length === 0) {
+      return res.status(200).json({
+        message: "No groups found",
+        groups: [],
+        totalGroups: 0
+      });
+    }
+    const groupsWithEventCount = await Promise.all(
+      groups.map(async (group) => {
+        const eventCount = await Ticket.countDocuments({ groupId: group._id });
+        return {
+          _id: group._id,
+          name: group.name,
+          group_name: group.group_name,
+          company_logo: group.company_logo,
+          events_count: eventCount,
+          createdAt: group.createdAt,
+          updatedAt: group.updatedAt
+        };
+      })
+    );
+    
+    res.status(200).json({
+      message: "Group event count retrieved successfully",
+      groups: groupsWithEventCount,
+      totalGroups: groups.length
+    });
+  } catch (error) {
+    console.error("Error fetching group event count:", error);
+    res.status(500).json({
+      message: "An error occurred while fetching group event count",
+      error: error.message
+    });
+  }
+};
+
+    
+
+   
+
 

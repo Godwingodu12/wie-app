@@ -2,7 +2,7 @@ import express from 'express';
 import {getUserData,CreateGroup, createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
 getTicketById,deleteTicket,viewTickets } from '../services/ticket.service.js';
 import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getOthersEvents,getOtherLiveEvents,
-getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails,likeEvent,unlikeEvent,checkUserLiked } from '../controller/ticket.controller.js';
+getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount } from '../controller/ticket.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);
@@ -42,4 +42,5 @@ router.get('/show-event-bank-details',protect, showEventBankDetails);
 router.post('/like-event/:ticketId',protect, likeEvent);
 router.post('/unlike-event/:ticketId',unlikeEvent);
 router.get('/check-user-liked/:ticketId',checkUserLiked);
+router.get('/group-event-count',protect, groupEventCount);
 export default router;

@@ -268,9 +268,50 @@ export const getPreviousEvents = async () => {
     throw error;
   }
 };
+export const likeEvent = async(ticketId) => {
+  try {
+    const response = await api.post(`/tickets/like-event/${ticketId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+export const unlikeEvent = async(ticketId) => {
+  try {
+    const response = await api.post(`/tickets/unlike-event/${ticketId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+export const checkIfUserLiked = async (ticketId) => {
+  try{
+    const response = await api.get(`/tickets/check-user-liked/${ticketId}`);
+    return response.data;
+  }catch(error){
+    throw error;
+  }
+};
+export const checkUserLiked = async (ticketId) => {
+  try{
+    const response = await api.get(`/tickets/check-user-liked/${ticketId}`);
+    return response.data;
+  }catch(error){
+      throw error;
+    } 
+};
 export const showEventBankDetails = async () => {
   try {
     const response = await api.get(`ticket/show-event-bank-details`);
+    return response.data;
+  }
+  catch (error) {
+    throw error;
+  }
+};
+export const groupEventCount = async () => {
+  try {
+    const response = await api.get(`ticket/group-event-count`);
     return response.data;
   }
   catch (error) {

@@ -1079,23 +1079,23 @@ const OtherProfilePage = () => {
                               </div>
                             </div>
                             <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                handleSuggestionFollowToggle(suggestedUser._id || suggestedUser.id);
-              }}
-              disabled={followingStates[suggestedUser._id || suggestedUser.id]}
-              className={`w-full px-3 py-1.5 rounded-full text-white text-xs font-medium transition-all duration-200 ${
-                followingMap[suggestedUser._id || suggestedUser.id]
-                  ? 'bg-[#44444D] shadow-[0px_5px_10px_0px_rgba(0,0,0,0.3)] hover:bg-[#50505A]'
-                  : 'bg-blue-500 hover:bg-blue-600'
-              } ${followingStates[suggestedUser._id || suggestedUser.id] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              {followingStates[suggestedUser._id || suggestedUser.id] ? (
-                followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollowing...' : 'Following...'
-              ) : (
-                followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollow' : 'Follow +'
-              )}
-            </button>
+                            onClick={(e) => {
+                            e.stopPropagation();
+                            handleSuggestionFollowToggle(suggestedUser._id || suggestedUser.id);
+                            }}
+                            disabled={followingStates[suggestedUser._id || suggestedUser.id]}
+                            className={`px-3 py-1 rounded-full text-white text-xs font-medium transition-all duration-200 ${
+                            followingMap[suggestedUser._id || suggestedUser.id]
+                            ? 'bg-[#44444D] shadow-[0px_3px_6px_rgba(0,0,0,0.25)] hover:bg-[#50505A]'
+                            : 'bg-blue-500 hover:bg-blue-600'
+                            } ${followingStates[suggestedUser._id || suggestedUser.id] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            >
+                            {followingStates[suggestedUser._id || suggestedUser.id] ? (
+                            followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollowing...' : 'Following...'
+                            ) : (
+                            followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollow' : 'Follow +'
+                            )}
+                            </button>
                           </div>
                         </div>
                       ))
