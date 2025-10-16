@@ -814,6 +814,9 @@ const OtherProfilePage = () => {
                         <img src={VerifiedIcon} alt="Verified" className="w-4 h-4 flex-shrink-0" />
                       </div>
                       <p className={`text-sm ${theme.subText} mb-2`}>{profileUser.username}</p>
+                      <p className={`text-base leading-6 font-bold ${theme.subText} whitespace-pre-line`}>
+                        {profileUser.role}
+                      </p>
                     </div>
                   </div>
                   {/* Bio */}
@@ -831,7 +834,7 @@ const OtherProfilePage = () => {
                     </div>
                     <div className="text-left">
                       <p className={`${theme.text}`}>
-                        <span className="text-base font-bold">{profileUser.followersCount || profileUser.followers || 0}</span>
+                        <span className="text-base font-bold">{profileUser.followers || 0}</span>
                         <span className={`text-sm ml-1 ${theme.subText}`}>Followers</span>
                       </p>
                     </div>
@@ -903,6 +906,9 @@ const OtherProfilePage = () => {
                     <div className="space-y-1 md:space-y-2 flex-1">
                       <h1 className={`text-xl md:text-xl lg:text-2xl font-bold ${theme.text}`}>{profileUser.name}</h1>
                       <p className={`text-xs md:text-sm ${theme.subText}`}>{profileUser.username}</p>
+                      <p className={`text-base leading-6 font-bold ${theme.subText} whitespace-pre-line`}>
+                        {profileUser.role}
+                      </p>
                       <p className={`whitespace-pre-line text-left text-xs md:text-sm leading-5 md:leading-6 break-words ${theme.subText}`}>
                         {profileUser.bio}</p>
                       <div className="flex gap-2 md:gap-3 pt-2 md:pt-3 flex-wrap">
@@ -1013,12 +1019,13 @@ const OtherProfilePage = () => {
                 <div className="flex justify-between items-center mb-6">
                   <h2 className={`text-lg font-semibold ${theme.text}`}>Suggestions</h2>
                   <button
-                    className={`text-sm px-4 py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${
-                      isDark ? "text-[#FFFFFF]" : "text-[#000000]"
-                    }`}
-                  >
-                    see all
-                  </button>
+                  className={`text-xs md:text-sm px-3 md:px-4 py-1 md:py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${
+                    isDark ? "text-[#FFFFFF]" : "text-[#000000]"
+                  }`}
+                  onClick={() => navigate('/suggestions')}
+                >
+                  see all
+                </button>
                 </div>
 
                 {/* Scrollable Container with Arrows */}
