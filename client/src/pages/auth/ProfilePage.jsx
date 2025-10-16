@@ -852,19 +852,23 @@ const ProfilePage = () => {
         <h1 className={`text-lg font-bold ${theme.text}`}>{user.name}</h1>
         <img src={VerifiedIcon} alt="Verified" className="w-4 h-4" />
       </div>
-      <p className={`text-sm ${theme.subText}`}>@{user.username}</p>
+      <p className={`text-sm ${theme.subText}`}>{user.username}</p>
+      <p className={`text-base leading-6 font-bold ${theme.subText} whitespace-pre-line`}>
+        {user.role}
+      </p>
     </div>
   </div>
 
-  {/* Bio Section (full width below image and name) */}
-  <div className="w-full">
-    <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
-      {user.bio || "🌟 Exploring the world, one flight at a time ✈️\n📍 Currently: [Location]\n🎥 Capturing moments that matter"} 
-    </p>
-  </div>
-</div>
-
-                      
+    {/* Bio Section (full width below image and name) */}
+    <div className="w-full">
+      <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
+        {user.bio} 
+      </p>
+      <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
+        {user.website} 
+      </p>
+    </div>
+  </div>      
                       {/* Stats */}
                       <div className="flex justify-start gap-4">
                         <div className="text-left">
@@ -875,37 +879,34 @@ const ProfilePage = () => {
                         </div>
                         <div className="text-left">
                           <p className={` ${theme.subText}`}>
-                            <span className="text-md font-semibold text-white">{user.followersCount || 0}</span>
+                            <span className="text-md font-semibold text-white">{user.followers || 0}</span>
                             <span className="text-md  ml-1">Followers</span>
                           </p>
                         </div>
                         <div className="text-left">
                           <p className={` ${theme.subText}`}>
-                             <span className="text-md font-semibold text-white">{user.followingCount || 0}</span>
+                             <span className="text-md font-semibold text-white">{user.following || 0}</span>
                              <span className="text-md  ml-1">Following</span>
                           </p>
                         </div>
                       </div>
-                      
                       {/* Buttons */}
-<div className="flex gap-2 justify-start items-center flex-nowrap">
-  {['Edit profile', 'Share profile', 'Insight profile'].map((label, index) => (
-    <button
-      key={index}
-      onClick={label === 'Edit profile' ? () => navigate('/settings/editprofile') : undefined}
-      className={`whitespace-nowrap flex-shrink-0 px-3 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
-        isDark
-          ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
-          : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
-      }`}
-    >
-      {label}
-    </button>
-  ))}
-</div>
-
+                      <div className="flex gap-2 justify-start items-center flex-nowrap">
+                        {['Edit profile', 'Share profile', 'Insight profile'].map((label, index) => (
+                          <button
+                            key={index}
+                            onClick={label === 'Edit profile' ? () => navigate('/settings/editprofile') : undefined}
+                            className={`whitespace-nowrap flex-shrink-0 px-3 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
+                              isDark
+                                ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
+                                : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-
                     {/* Desktop Layout - Keep original exactly as it was */}
                     <div className="hidden md:flex justify-between items-center gap-6">
                       {/* Left side */}
@@ -918,10 +919,16 @@ const ProfilePage = () => {
                         
                         <div className="space-y-1 md:space-y-2 flex-1">
   <h1 className={`text-xl md:text-xl lg:text-2xl font-bold ${theme.text}`}>{user.name}</h1>
-  <p className={`text-xs md:text-sm ${theme.subText}`}>@{user.username}</p>
-  <p className={`whitespace-pre-line text-left text-xs md:text-sm leading-5 md:leading-6 break-words ${theme.subText}`}>
-    {user.bio || "🌟 Exploring the world, one flight at a time ✈️\n📍 Currently: [Location]\n🎥 Capturing moments that matter"}
+  <p className={`text-xs md:text-sm ${theme.subText}`}>{user.username}</p>
+  <p className={`text-base leading-6 font-bold ${theme.subText} whitespace-pre-line`}>
+    {user.role}
   </p>
+  <p className={`whitespace-pre-line text-left text-xs md:text-sm leading-5 md:leading-6 break-words ${theme.subText}`}>
+    {user.bio }
+  </p>
+  <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
+        {user.website} 
+      </p>
 <div className="flex gap-2 md:gap-3 pt-2 md:pt-3 flex-wrap">
                             <button 
                               onClick={() => navigate('/settings/editprofile')}
@@ -977,38 +984,46 @@ const ProfilePage = () => {
                         </div>
                         
                         {/* Stats */}
-<div className={`rounded-[2rem] md:rounded-[2.5rem] px-6 md:px-8 lg:px-10 py-3 md:py-3.5 lg:py-4 flex gap-4 md:gap-6 lg:gap-8 transition-all duration-300 ${theme.cardBg}`} style={{boxShadow: theme.smallCardShadow}}> 
+<div
+  className={`w-[457px] h-[161px] flex justify-between items-center 
+  rounded-[24px] px-[39px] pr-[42px] py-[25px]
+  transition-all duration-300 ${theme.cardBg}`}
+  style={{
+    boxShadow:
+      "-2px -2px 10px 0px rgba(99,99,99,0.21), 5px 6px 9px 0px rgba(0,0,0,0.46)",
+  }}
+>
   {/* Event Created */}
-  <div className="text-center flex flex-col items-center gap-1 md:gap-1.5">
-    <img 
-      src={EventIcon} 
+  <div className="text-center flex flex-col items-center gap-1">
+    <img
+      src={EventIcon}
       alt="Event"
-      className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`}
+      className={`w-[24px] h-[24px] ${!isDark ? "filter brightness-0" : ""}`}
     />
-    <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{allEvents.length}</p>
-    <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Event created</p>
+    <p className={`text-2xl font-bold ${theme.text}`}>{allEvents.length}</p>
+    <p className={`text-xs ${theme.subText}`}>Event created</p>
   </div>
 
   {/* Followers */}
-  <div className="text-center flex flex-col items-center gap-1 md:gap-1.5">
-    <img 
-      src={FollowersIcon} 
+  <div className="text-center flex flex-col items-center gap-1">
+    <img
+      src={FollowersIcon}
       alt="Followers"
-      className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`}
+      className={`w-[24px] h-[24px] ${!isDark ? "filter brightness-0" : ""}`}
     />
-    <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{user.followers || 0}</p>
-    <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Follower</p>
+    <p className={`text-2xl font-bold ${theme.text}`}>{user.followers || 0}</p>
+    <p className={`text-xs ${theme.subText}`}>Follower</p>
   </div>
 
   {/* Following */}
-  <div className="text-center flex flex-col items-center gap-1 md:gap-1.5">
-    <img 
-      src={FollowingIcon} 
+  <div className="text-center flex flex-col items-center gap-1">
+    <img
+      src={FollowingIcon}
       alt="Following"
-      className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`}
+      className={`w-[24px] h-[24px] ${!isDark ? "filter brightness-0" : ""}`}
     />
-    <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{user.following || 0}</p>
-    <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Following</p>
+    <p className={`text-2xl font-bold ${theme.text}`}>{user.following || 0}</p>
+    <p className={`text-xs ${theme.subText}`}>Following</p>
   </div>
 </div>
                       </div>

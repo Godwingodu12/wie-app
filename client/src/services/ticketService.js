@@ -318,4 +318,12 @@ export const groupEventCount = async () => {
     throw error;
   }
 };
-
+export const totalEventsCreatedCount = async () => {
+  try {
+    const response = await api.get(`ticket/total-events-created-count`);
+    return response.data;
+  }
+  catch (error) {
+    throw error;
+  }
+};

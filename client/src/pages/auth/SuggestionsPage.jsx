@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import { getMe } from "../../services/userService";
-import { findAllActiveUsers } from "../../services/authService";
-
+import { findAllActiveUsers,followUser, unfollowUser,getOtherProfile ,getFollowers,getFollowing,checkIsFollowing } from "../../services/authService";
+import { totalEventsCreatedCount } from "../../services/ticketService";
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
-
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
 import VerifiedIcon from "../../assets/PROFILEPAGE/VerifiedIcon.svg";
@@ -44,6 +43,11 @@ const SuggestionsPage = () => {
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [followingMap, setFollowingMap] = useState({});
+  const [followingStates, setFollowingStates] = useState({});
+  const [eventCountsMap, setEventCountsMap] = useState({});
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -96,20 +100,58 @@ const SuggestionsPage = () => {
     fetchActiveUsers();
   }, []);
 
-  // Filter out current user from suggestions
- useEffect(() => {
-  if (!user || users.length === 0) return;
+  useEffect(() => {
+    const fetchEventCounts = async () => {
+      try {
+        const response = await totalEventsCreatedCount();
+        
+        if (response?.userEventCounts) {
+          const countsMap = {};
+          response.userEventCounts.forEach(item => {
+            countsMap[item.userId] = item.eventsCount;
+          });
+          setEventCountsMap(countsMap);
+        }
+      } catch (err) {
+        console.error("Failed to fetch event counts:", err);
+        setEventCountsMap({});
+      }
+    };
+    
+    fetchEventCounts();
+  }, []);
 
-  const filtered = users.filter((suggestedUser) => {
-    // Ensure IDs are valid and not equal to current user
-    const currentUserId = user._id || user.id;
-    const suggestedId = suggestedUser._id || suggestedUser.id;
-    return suggestedId && suggestedId !== currentUserId;
-  });
+  useEffect(() => {
+    const checkFollowStatuses = async () => {
+      if (users.length === 0) return;
+      
+      const statuses = {};
+      for (const suggestUser of users) {
+        try {
+          const response = await checkIsFollowing(suggestUser._id || suggestUser.id);
+          statuses[suggestUser._id || suggestUser.id] = response.isFollowing || false;
+        } catch (err) {
+          console.error(`Error checking follow status for ${suggestUser._id}:`, err);
+          statuses[suggestUser._id || suggestUser.id] = false;
+        }
+      }
+      setFollowingMap(statuses);
+    };
+    
+    checkFollowStatuses();
+  }, [users]);
 
-  setFilteredUsers(filtered);
-}, [user, users]);
+  useEffect(() => {
+    if (!user || users.length === 0) return;
 
+    const filtered = users.filter((suggestedUser) => {
+      const currentUserId = user._id || user.id;
+      const suggestedId = suggestedUser._id || suggestedUser.id;
+      return suggestedId && suggestedId !== currentUserId;
+    });
+
+    setFilteredUsers(filtered);
+  }, [user, users]);
 
   const handleThemeToggle = () => {
     const newTheme = !isDark;
@@ -118,10 +160,125 @@ const SuggestionsPage = () => {
     localStorage.setItem("theme", newTheme ? "dark" : "light");
   };
 
-  const handleFollowUser = (userId, userName) => {
-    // Implement follow functionality here
-    console.log(`Following user: ${userName} (ID: ${userId})`);
-    // You can add API call here to follow the user
+  const handleSuggestionFollowToggle = async (suggestedUserId) => {
+    if (!suggestedUserId || !user) return;
+    
+    const key = suggestedUserId;
+    
+    setFollowingStates(prev => ({ ...prev, [key]: true }));
+    
+    try {
+      const statusResponse = await checkIsFollowing(suggestedUserId);
+      const isCurrentlyFollowing = statusResponse.isFollowing || false;
+      
+      if (isCurrentlyFollowing) {
+        setFollowingMap(prev => ({ ...prev, [key]: false }));
+        
+        setUsers(prev => prev.map(u => {
+          if ((u._id || u.id) === suggestedUserId) {
+            const currentCount = parseInt(u.followers || u.followersCount || 0);
+            return {
+              ...u,
+              followers: Math.max(0, currentCount - 1).toString(),
+              followersCount: Math.max(0, currentCount - 1)
+            };
+          }
+          return u;
+        }));
+        
+        setFilteredUsers(prev => prev.map(u => {
+          if ((u._id || u.id) === suggestedUserId) {
+            const currentCount = parseInt(u.followers || u.followersCount || 0);
+            return {
+              ...u,
+              followers: Math.max(0, currentCount - 1).toString(),
+              followersCount: Math.max(0, currentCount - 1)
+            };
+          }
+          return u;
+        }));
+        
+        setUser(prev => ({
+          ...prev,
+          following: Math.max(0, parseInt(prev.following || 0) - 1).toString(),
+          followingCount: Math.max(0, parseInt(prev.followingCount || prev.following || 0) - 1)
+        }));
+        
+        const response = await unfollowUser(suggestedUserId);
+        console.log("Unfollow response:", response);
+        
+      } else {
+        setFollowingMap(prev => ({ ...prev, [key]: true }));
+        
+        setUsers(prev => prev.map(u => {
+          if ((u._id || u.id) === suggestedUserId) {
+            const currentCount = parseInt(u.followers || u.followersCount || 0);
+            return {
+              ...u,
+              followers: (currentCount + 1).toString(),
+              followersCount: currentCount + 1
+            };
+          }
+          return u;
+        }));
+        
+        setFilteredUsers(prev => prev.map(u => {
+          if ((u._id || u.id) === suggestedUserId) {
+            const currentCount = parseInt(u.followers || u.followersCount || 0);
+            return {
+              ...u,
+              followers: (currentCount + 1).toString(),
+              followersCount: currentCount + 1
+            };
+          }
+          return u;
+        }));
+        
+        setUser(prev => ({
+          ...prev,
+          following: (parseInt(prev.following || 0) + 1).toString(),
+          followingCount: parseInt(prev.followingCount || prev.following || 0) + 1
+        }));
+        
+        const response = await followUser(suggestedUserId);
+        console.log("Follow response:", response);
+      }
+    } catch (err) {
+      console.error('Error toggling follow status:', err);
+      
+      try {
+        const statusResponse = await checkIsFollowing(suggestedUserId);
+        setFollowingMap(prev => ({ 
+          ...prev, 
+          [key]: statusResponse.isFollowing || false 
+        }));
+        
+        const response = await findAllActiveUsers();
+        let allUsers = [];
+        
+        if (response?.data?.users) {
+          allUsers = response.data.users;
+        } else if (response?.users) {
+          allUsers = response.users;
+        } else if (Array.isArray(response?.data)) {
+          allUsers = response.data;
+        } else if (Array.isArray(response)) {
+          allUsers = response;
+        }
+        
+        setUsers(allUsers);
+        
+        const userResponse = await getMe();
+        setUser(userResponse.data);
+        
+      } catch (rollbackErr) {
+        console.error('Error during rollback:', rollbackErr);
+      }
+      
+      alert(err.response?.data?.message || 'Failed to update follow status');
+    } finally {
+      setFollowingStates(prev => ({ ...prev, [key]: false }));
+    }
   };
 
   const theme = isDark
@@ -150,7 +307,6 @@ const SuggestionsPage = () => {
     <>
       <CustomScrollbarStyles />
       <div className={`${theme.bg} ${theme.text} min-h-screen flex overflow-hidden transition-colors duration-300`}>
-        {/* Sidebar */}
         <div 
           className="hidden md:flex flex-col flex-shrink-0 transition-colors duration-300"
           style={{ 
@@ -173,9 +329,7 @@ const SuggestionsPage = () => {
           </div>
         </div>
 
-        {/* Main Content */}
         <div className="flex flex-col flex-1 md:ml-20 lg:ml-20 overflow-x-hidden">
-          {/* Top Header */}
           <header className="flex items-center justify-between px-3 md:px-4 lg:px-6 w-full overflow-hidden" style={{ height: HEADER_HEIGHT }}>
             <div className="flex items-center gap-4 w-full">
               <div className="flex-1 min-w-0">
@@ -200,21 +354,17 @@ const SuggestionsPage = () => {
             </div>
           </header>
 
-          {/* Main Content Area */}
           <main className="flex-1 p-3 md:p-4 lg:p-6 overflow-y-auto overflow-x-hidden">
             <div className="max-w-7xl mx-auto">
-              {/* Page Title */}
               <h1 className={`text-2xl md:text-3xl font-bold ${theme.text} mb-6 md:mb-8`}>
                 Suggestions
               </h1>
 
-              {/* Suggestions List */}
               {loading || !user ? (
-  <div className="flex justify-center items-center py-16">
-    <div className={`text-lg ${theme.subText}`}>Loading suggestions...</div>
-  </div>
-) : filteredUsers.length === 0 ? (
-
+                <div className="flex justify-center items-center py-16">
+                  <div className={`text-lg ${theme.subText}`}>Loading suggestions...</div>
+                </div>
+              ) : filteredUsers.length === 0 ? (
                 <div className={`rounded-3xl p-8 md:p-12 flex flex-col items-center justify-center min-h-[400px] ${theme.cardBg}`} style={{ boxShadow: theme.smallCardShadow }}>
                   <p className={`text-lg md:text-xl ${theme.text}`}>
                     No suggestions available
@@ -222,82 +372,89 @@ const SuggestionsPage = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {filteredUsers.map((suggestedUser) => (
-                    <div
-                      key={suggestedUser._id || suggestedUser.id}
-                      className={`rounded-2xl md:rounded-3xl p-4 md:p-6 flex items-center justify-between transition-all duration-300 hover:scale-[1.01] cursor-pointer ${theme.cardBg}`}
-                      style={{ boxShadow: theme.smallCardShadow }}
-                      onClick={() => navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)}
-                    >
-                      {/* Left: Profile Info */}
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
-                        {/* Profile Image */}
-                        <img
-                          src={suggestedUser.image ? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}` : ProfileImage}
-                          alt={suggestedUser.name}
-                          className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover flex-shrink-0"
-                        />
+                  {filteredUsers.map((suggestedUser) => {
+                    const userId = suggestedUser._id || suggestedUser.id;
+                    const eventCount = eventCountsMap[userId] || 0;
+                    
+                    return (
+                      <div
+                        key={userId}
+                        className={`rounded-2xl md:rounded-3xl p-4 md:p-6 flex items-center justify-between transition-all duration-300 hover:scale-[1.01] cursor-pointer ${theme.cardBg}`}
+                        style={{ boxShadow: theme.smallCardShadow }}
+                        onClick={() => navigate(`/profile/${userId}`)}
+                      >
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <img
+                            src={suggestedUser.image ? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}` : ProfileImage}
+                            alt={suggestedUser.name}
+                            className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover flex-shrink-0"
+                          />
 
-                        {/* User Details */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className={`text-base md:text-lg font-semibold ${theme.text} truncate`}>
-                              {suggestedUser.name}
-                            </h3>
-                            {suggestedUser.verified && (
-                              <img src={VerifiedIcon} alt="Verified" className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className={`text-base md:text-lg font-semibold ${theme.text} truncate`}>
+                                {suggestedUser.name}
+                              </h3>
+                              {suggestedUser.verified && (
+                                <img src={VerifiedIcon} alt="Verified" className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
+                              )}
+                            </div>
+                            <p className={`text-sm ${theme.subText} capitalize mb-2`}>
+                              {suggestedUser.role || "User"}
+                            </p>
+                            
+                            <div className="hidden md:flex items-center gap-4">
+                              <div className="flex items-center gap-1.5">
+                                <img 
+                                  src={FollowersIcon} 
+                                  alt="Followers" 
+                                  className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
+                                />
+                                <span className={`text-sm ${theme.text}`}>
+                                  {suggestedUser.followers || 0}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <img 
+                                  src={EventIcon} 
+                                  alt="Events" 
+                                  className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
+                                />
+                                <span className={`text-sm ${theme.text}`}>
+                                  {eventCount}
+                                </span>
+                              </div>
+                            </div>
+
+                            {suggestedUser.mutualFollowers && (
+                              <p className={`text-xs ${theme.subText} mt-2`}>
+                                Followed by {suggestedUser.mutualFollowers}
+                              </p>
                             )}
                           </div>
-                          <p className={`text-sm ${theme.subText} capitalize mb-2`}>
-                            {suggestedUser.role || "User"}
-                          </p>
-                          
-                          {/* Stats - Hidden on mobile, shown on tablet+ */}
-                          <div className="hidden md:flex items-center gap-4">
-                            <div className="flex items-center gap-1.5">
-                              <img 
-                                src={FollowersIcon} 
-                                alt="Followers" 
-                                className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
-                              />
-                              <span className={`text-sm ${theme.text}`}>
-                                {suggestedUser.followersCount || suggestedUser.followers || 0}
-                              </span>
-                            </div>
-                            
-                            <div className="flex items-center gap-1.5">
-                              <img 
-                                src={EventIcon} 
-                                alt="Events" 
-                                className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}
-                              />
-                              <span className={`text-sm ${theme.text}`}>
-                                {suggestedUser.eventsCount || 0}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Followed by text */}
-                          {suggestedUser.mutualFollowers && (
-                            <p className={`text-xs ${theme.subText} mt-2`}>
-                              Followed by {suggestedUser.mutualFollowers}
-                            </p>
-                          )}
                         </div>
-                      </div>
 
-                      {/* Right: Follow Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleFollowUser(suggestedUser._id || suggestedUser.id, suggestedUser.name);
-                        }}
-                        className="px-6 md:px-8 py-2 md:py-2.5 rounded-full text-white text-sm md:text-base font-medium bg-blue-500 hover:bg-blue-600 transition-colors duration-200 flex-shrink-0 ml-4"
-                      >
-                        Follow +
-                      </button>
-                    </div>
-                  ))}
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSuggestionFollowToggle(userId);
+                          }}
+                          disabled={followingStates[userId]}
+                          className={`px-3 py-1 rounded-full text-white text-xs font-medium transition-all duration-200 ${
+                            followingMap[userId]
+                              ? 'bg-[#44444D] shadow-[0px_3px_6px_rgba(0,0,0,0.25)] hover:bg-[#50505A]'
+                              : 'bg-blue-500 hover:bg-blue-600'
+                          } ${followingStates[userId] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          {followingStates[userId] ? (
+                            followingMap[userId] ? 'Unfollowing...' : 'Following...'
+                          ) : (
+                            followingMap[userId] ? 'Unfollow' : 'Follow +'
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -307,5 +464,4 @@ const SuggestionsPage = () => {
     </>
   );
 };
-
 export default SuggestionsPage;

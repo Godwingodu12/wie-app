@@ -21,7 +21,8 @@ import GroupSelectionModal from './components/modals/GroupSelectionModal';
 import ViewEvents from './pages/ticket/ViewEvents';
 import UpdateTicketDetails from './pages/ticket/UpdateTicketDetails';
 import IndexMessage from "./pages/message/indexMessage";
-import  EditProfile  from './pages/settings/EditProfile';
+import EditProfile  from './pages/settings/EditProfile';
+import PasswordAndSecurity from "./pages/settings/PasswordAndSecurity";
 import TicketTerms from './pages/ticket/TicketTerms';
 import UpdateTicketAddOns from './pages/ticket/UpdateTicketAddOns';
 import TicketPreview from './pages/ticket/TicketPreview';
@@ -292,6 +293,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={["admin", "organisation"]}>
             <EditProfile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/password-security"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "organisation"]}>
+            <PasswordAndSecurity />
           </ProtectedRoute>
         }
       />
