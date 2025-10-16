@@ -1159,7 +1159,70 @@ export const groupEventCount = async (req, res) => {
     });
   }
 };
+export const totalEventsCreatedCount = async (req, res) => {
+  try {
+    // Aggregate to get all users with their ticket counts
+    const userEventCounts = await Ticket.aggregate([
+      {
+        $match: {
+          event_status: { $in: ['live', 'completed'] }
+        }
+      },
+      {
+        $addFields: {
+          userId: {
+            $ifNull: ['$userId', { $ifNull: ['$user_id', '$createdBy'] }]
+          }
+        }
+      },
+      {
+        $match: {
+          userId: { $exists: true, $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: '$userId',
+          eventsCount: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          userId: '$_id',
+          eventsCount: 1
+        }
+      },
+      {
+        $sort: { eventsCount: -1 }
+      }
+    ]);
 
+    // Calculate total tickets
+    const totalTickets = userEventCounts.reduce((sum, user) => sum + user.eventsCount, 0);
+
+    if (!userEventCounts || userEventCounts.length === 0) {
+      return res.status(200).json({
+        message: "No tickets found",
+        totalTickets: 0,
+        userEventCounts: []
+      });
+    }
+
+    res.status(200).json({
+      message: "User total events created count retrieved successfully",
+      totalTickets: totalTickets,
+      totalUsers: userEventCounts.length,
+      userEventCounts: userEventCounts
+    });
+  } catch (error) {
+    console.error("Error fetching users total events created count:", error);
+    res.status(500).json({
+      message: "An error occurred while fetching user event count",
+      error: error.message
+    });
+  }
+};
     
 
    
