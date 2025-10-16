@@ -121,9 +121,7 @@ const HomePage = () => {
     setIsModalOpen(false);
     navigate(`/ticket/create-event/${selectedGroup._id}`);
   };
-
   const displayName = user?.name || "User";
-
   const theme = isDark ? {
     bg: "bg-[#212426]",
     text: "text-white",
@@ -170,7 +168,7 @@ const HomePage = () => {
             <img src={WieLogo} alt="Wie Logo" className="w-10 h-10 lg:w-12 lg:h-12" />
           </div>
           <div className="flex-1 sidebar-content overflow-y-auto">
-            <SideBar user={user} theme={theme} />
+            <SideBar user={user} theme={theme} isDark={isDark} />
           </div>
         </div>
 
@@ -345,6 +343,7 @@ const HomePage = () => {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           onSelectGroup={handleSelectGroup}
+          isDark={isDark}
         />
       </div>
     </>
