@@ -23,6 +23,7 @@ import UpdateTicketDetails from './pages/ticket/UpdateTicketDetails';
 import IndexMessage from "./pages/message/indexMessage";
 import EditProfile  from './pages/settings/EditProfile';
 import PasswordAndSecurity from "./pages/settings/PasswordAndSecurity";
+import ChangeUserPassword from "./pages/settings/ChangeUserPassword";
 import TicketTerms from './pages/ticket/TicketTerms';
 import UpdateTicketAddOns from './pages/ticket/UpdateTicketAddOns';
 import TicketPreview from './pages/ticket/TicketPreview';
@@ -301,6 +302,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={["admin", "organisation"]}>
             <PasswordAndSecurity />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/change-password"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "organisation"]}>
+            <ChangeUserPassword />
           </ProtectedRoute>
         }
       />
