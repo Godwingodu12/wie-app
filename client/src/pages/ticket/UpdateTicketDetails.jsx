@@ -19,6 +19,7 @@ import ToggleSwitch from "../../components/CreateGroup/ToggleSwitch.jsx";
 import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
 import FormInput from "../../components/CreateGroup/FormInput.jsx";
 import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
+import DateInput from "../../components/CreateGroup/DateInput.jsx";
 
 
 
@@ -66,6 +67,8 @@ const UpdateTicketDetails = () => {
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [tickets, setTickets] = useState([]);
   const [eventEndDate, setEventEndDate] = useState("");
+
+  const [eventStartDate, setEventStartDate] = useState("");
   const [editingTicket, setEditingTicket] = useState(null);
   const [bookingStartDate, setBookingStartDate] = useState("");
   const [bookingEndDate, setBookingEndDate] = useState("");
@@ -93,14 +96,17 @@ const UpdateTicketDetails = () => {
         setMainEventData(ticketData);
 
         if (ticketData && ticketData.event_dates && ticketData.event_dates.length > 0) {
-            // Sort dates to find the latest one reliably
-            const sortedDates = [...ticketData.event_dates].sort((a, b) => new Date(a.end_date) - new Date(b.end_date));
-            const lastDate = sortedDates[sortedDates.length - 1];
-            setEventEndDate(lastDate.end_date ? new Date(lastDate.end_date).toISOString().split("T")[0] : "");
+          const sortedDates = [...ticketData.event_dates].sort((a, b) => new Date(a.end_date) - new Date(b.end_date));
+          const lastDate = sortedDates[sortedDates.length - 1];
+          setEventEndDate(lastDate.end_date ? new Date(lastDate.end_date).toISOString().split("T")[0] : "");
         }
+        const firstDate = ticketData.event_dates[0];
+        setEventStartDate(firstDate.start_date ? new Date(firstDate.start_date).toISOString().split("T")[0] : "");
+
         // Load saved draft from localStorage
         const savedDraftRaw = localStorage.getItem(storageKey);
         const savedDraft = savedDraftRaw ? JSON.parse(savedDraftRaw) : null;
+
         if (ticketData) {
           setPaymentType(
             savedDraft?.paymentType ?? ticketData.payment_type ?? "free"
@@ -139,9 +145,41 @@ const UpdateTicketDetails = () => {
               })) ??
               []
           );
-          
-         
         }
+
+        // Handle banking details
+        let shouldUseGroupBank = true;
+        let bankDetailsToSet = [
+          {
+            id: Date.now(),
+            bank_acc_type: "",
+            bank_acc_holder: "",
+            bank_acc_no: "",
+            bank_ifsc: "",
+          },
+        ];
+
+        // Check if ticket has custom banking details saved
+        if (ticketData.banking_details && ticketData.banking_details.length > 0) {
+          const hasCustomBankDetails = ticketData.banking_details.some(b => !b.is_group_account);
+          
+          if (hasCustomBankDetails) {
+            // Load custom banking details
+            shouldUseGroupBank = false;
+            bankDetailsToSet = ticketData.banking_details.map((b) => ({
+              id: b._id || Date.now(),
+              bank_acc_type: b.bank_acc_type || "",
+              bank_acc_holder: b.bank_acc_holder || "",
+              bank_acc_no: b.bank_acc_no || "",
+              bank_ifsc: b.bank_ifsc || "",
+            }));
+          }
+        }
+
+        // Override with savedDraft if available
+        setUseGroupBankAccount(savedDraft?.useGroupBankAccount ?? shouldUseGroupBank);
+        setBankingDetails(savedDraft?.bankingDetails ?? bankDetailsToSet);
+
         if (groupData && groupData.primary_bank_acc_no) {
           setGroupHasBankAccount(true);
           const {
@@ -150,7 +188,6 @@ const UpdateTicketDetails = () => {
             primary_bank_acc_no,
             primary_bank_ifsc,
           } = groupData;
-          // Normalize the account type to match your select options
           const normalizedAccType = primary_bank_acc_type?.toLowerCase();
 
           const areDetailsComplete =
@@ -169,17 +206,10 @@ const UpdateTicketDetails = () => {
                 bank_ifsc: primary_bank_ifsc,
               },
             ];
-            setUseGroupBankAccount(savedDraft?.useGroupBankAccount ?? true);
-            setBankingDetails(groupBankDetails);
             window.groupBankDetails = groupBankDetails;
           } else {
             setGroupBankDetailsIncomplete(true);
-            setUseGroupBankAccount(false);
           }
-        }
-
-        if (savedDraft?.bankingDetails && !useGroupBankAccount) {
-          setBankingDetails(savedDraft.bankingDetails);
         }
       } catch (error) {
         console.error("Failed to fetch initial data", error);
@@ -193,8 +223,7 @@ const UpdateTicketDetails = () => {
       }
     };
     fetchData();
-  }, [ticketId, storageKey]); // Added storageKey to dependency array
-
+  }, [ticketId, storageKey]);
   // Effect to save form data to localStorage whenever it changes
   useEffect(() => {
     if (initialLoading) return;
@@ -284,7 +313,39 @@ const UpdateTicketDetails = () => {
             }
         });
     };
+  const validateBankingDetails = () => {
+    if (useGroupBankAccount) {
+      return true; // Group bank account doesn't need validation here
+    }
+    const currentBankDetail = bankingDetails[0] || {};
+    const requiredFields = {
+      bank_acc_type: "Account Type",
+      bank_acc_holder: "Account Holder Name",
+      bank_acc_no: "Account Number",
+      bank_ifsc: "IFSC Code",
+    };
 
+    const missingFields = [];
+    Object.keys(requiredFields).forEach((field) => {
+      if (!currentBankDetail[field] || currentBankDetail[field].trim() === "") {
+        missingFields.push(requiredFields[field]);
+      }
+    });
+
+    if (missingFields.length > 0) {
+      const missingText = missingFields.join(", ");
+      const errorMsg = `Please fill in the following banking details: ${missingText}`;
+      showAlert({
+        type: "error",
+        message: "Missing Banking Details",
+        description: errorMsg,
+      });
+      setErrors({ general: errorMsg });
+      return false;
+    }
+
+    return true;
+  };
   const handleGoBack = () => {
     localStorage.removeItem(storageKey);
     navigate(`/ticket/update-ticket-media/${ticketId}`);
@@ -294,6 +355,12 @@ const UpdateTicketDetails = () => {
     setLoading(true);
     setErrors({});
 
+    // Validate banking details for paid events
+    if (paymentType === "paid" && !validateBankingDetails()) {
+      setLoading(false);
+      return;
+    }
+
     const apiFormData = new FormData();
     apiFormData.append("payment_type", paymentType);
     apiFormData.append("total_capacity", totalCapacity || "0");
@@ -301,17 +368,17 @@ const UpdateTicketDetails = () => {
     apiFormData.append("booking_start_date", bookingStartDate);
     apiFormData.append("booking_end_date", bookingEndDate);
 
+    if (!useGroupBankAccount && bankingDetails.length > 0) {
+      apiFormData.append("banking_details", JSON.stringify(bankingDetails));
+    }
 
-
-
-        if (bookingEndDate && bookingStartDate && new Date(bookingEndDate) < new Date(bookingStartDate)) {
-            const errorMsg = "Invalid Date Range.";
-            showAlert({ type: 'error', message: 'Validation Error', description: errorMsg });
-            setErrors({ general: errorMsg, booking_end_date: errorMsg });
-            setLoading(false);
-            return;
-        }
-    // --- END OF DEBUGGING ---
+    if (bookingEndDate && bookingStartDate && new Date(bookingEndDate) < new Date(bookingStartDate)) {
+      const errorMsg = "Invalid Date Range.";
+      showAlert({ type: "error", message: "Validation Error", description: errorMsg });
+      setErrors({ general: errorMsg, booking_end_date: errorMsg });
+      setLoading(false);
+      return;
+    }
 
     if (
       paymentType === "paid" &&
@@ -319,16 +386,13 @@ const UpdateTicketDetails = () => {
       eventEndDate &&
       new Date(bookingEndDate) > new Date(eventEndDate)
     ) {
-      console.log("!!! VALIDATION FAILED. Showing alert.");
       const errorMsg = "Booking end date cannot be after the event has finished.";
-      showAlert({ type: 'error', message: 'Invalid Date Range', description: errorMsg });
+      showAlert({ type: "error", message: "Invalid Date Range", description: errorMsg });
       setErrors({ general: errorMsg });
       setLoading(false);
       return;
     }
 
-    console.log("Validation PASSED. Proceeding with submission.");
-    
     const cleanTicketTypes = tickets.map(
       ({ id, image, photoFile, name, price, capacity }) => ({
         ticket_type: name,
@@ -347,28 +411,25 @@ const UpdateTicketDetails = () => {
     if (hasSeatingLayout && seatingLayoutFile instanceof File) {
       apiFormData.append("ticket_layout", seatingLayoutFile);
     }
+
     try {
       await updateTicketDetails(ticketId, apiFormData);
       localStorage.removeItem(storageKey);
       navigate(`/ticket/ticket-terms/${ticketId}`);
-                  showAlert({ type: 'success', message: 'Details Saved!', description: 'Banking and ticket info has been updated.' });
-
+      showAlert({
+        type: "success",
+        message: "Details Saved!",
+        description: "Banking and ticket info has been updated.",
+      });
     } catch (error) {
       console.error("Submission failed:", error);
-                  const errorDesc = error.response?.data?.message || "An error occurred while saving.";
-
-                  showAlert({ type: 'error', message: 'Submission Failed', description: errorDesc });
-
-      setErrors({
-        general:
-          errorDesc,
-      });
+      const errorDesc = error.response?.data?.message || "An error occurred while saving.";
+      showAlert({ type: "error", message: "Submission Failed", description: errorDesc });
+      setErrors({ general: errorDesc });
     } finally {
       setLoading(false);
     }
   };
-
-
   if (initialLoading) {
     return (
       <div className="dark bg-gray-100 dark:bg-[#111214] min-h-screen flex items-center justify-center text-gray-900 dark:text-white text-lg">
@@ -376,12 +437,9 @@ const UpdateTicketDetails = () => {
       </div>
     );
   }
-
-
   const currentBankDetail = bankingDetails[0] || {};
-
   return (
-    <div className={darkMode ? "dark" : ""}>
+    <div className={darkMode ? "dark " : ""} >
       <CustomScrollbarStyles isDark={darkMode} />
                   <Alert alert={alert} onClose={hideAlert} />
                               <ConfirmModal isOpen={confirmState.isOpen} onClose={() => setConfirmState({isOpen: false})} onConfirm={confirmState.onConfirm} title="Confirm Action" message={confirmState.message} darkMode={darkMode} />
@@ -810,30 +868,34 @@ const UpdateTicketDetails = () => {
                   Ticketing details
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 pt-2">
-                                <FormInput
-                                    id="booking_start_date"
-                                    label="Booking start date?"
-                                    type="date"
-                                    name="booking_start_date"
-                                    value={bookingStartDate}
-                                    onChange={(e) => setBookingStartDate(e.target.value)}
-                                    error={errors.booking_start_date}
-                                    required
-                                    darkMode={darkMode}
-                                />
+
+                                <DateInput
+    id="booking_start_date"
+    label="Booking start date?"
+    name="booking_start_date"
+    value={bookingStartDate} // This is still a string, e.g., "2025-10-13"
+    onChange={(e) => setBookingStartDate(e.target.value)} // This still works perfectly!
+    error={errors.booking_start_date}
+    required
+    darkMode={darkMode} // Pass your dark mode state here
+            maxDate={eventEndDate}
+
+
+/>
+                                <DateInput
+    id="booking_end_date"
+    label="Booking_end_date?"
+    name="booking_end_date"
+    value={bookingEndDate} // This is still a string, e.g., "2025-10-13"
+    onChange={(e) => setBookingEndDate(e.target.value)} // This still works perfectly!
+    error={errors.booking_end_date}
+    required
+    darkMode={darkMode} // Pass your dark mode state here
+    maxDate={eventEndDate}
+    minDate="booking_start_date"
+/>
                                 
-                                <FormInput
-                                    id="booking_end_date"
-                                    label="Booking end date?"
-                                    type="date"
-                                    name="booking_end_date"
-                                    value={bookingEndDate}
-                                    onChange={handleBookingEndDateChange} // Use the new handler
-                                    max={eventEndDate} // Keeps the calendar from showing invalid dates
-                                    error={errors.booking_end_date} // Connects to errors state for highlighting
-                                    required
-                                    darkMode={darkMode}
-                                />
+                                
                 </div>
               </section>
               {paymentType === "paid" && (
