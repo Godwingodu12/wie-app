@@ -249,25 +249,26 @@ const ProfilePage = () => {
     };
     fetchActiveUsers();
   }, []);
-  useEffect(() => {
-    const checkFollowStatuses = async () => {
-      if (users.length === 0) return;
-      
-      const statuses = {};
-      for (const suggestUser of users) {
-        try {
-          const response = await checkIsFollowing(suggestUser._id || suggestUser.id);
-          statuses[suggestUser._id || suggestUser.id] = response.isFollowing || false;
-        } catch (err) {
-          console.error(`Error checking follow status for ${suggestUser._id}:`, err);
-          statuses[suggestUser._id || suggestUser.id] = false;
-        }
-      }
-      setFollowingMap(statuses);
-    };
+useEffect(() => {
+  const checkFollowStatuses = async () => {
+    if (users.length === 0) return;
     
-    checkFollowStatuses();
-  }, [users]);
+    const statuses = {};
+    for (const suggestUser of users) {
+      try {
+        const userId = suggestUser._id || suggestUser.id;
+        const response = await checkIsFollowing(userId);
+        statuses[userId] = response.isFollowing || false;
+      } catch (err) {
+        console.error(`Error checking follow status for ${suggestUser._id}:`, err);
+        statuses[suggestUser._id || suggestUser.id] = false;
+      }
+    }
+    setFollowingMap(statuses);
+  };
+  
+  checkFollowStatuses();
+}, [users]);
 
   useEffect(() => {
     const fetchGroups = async () => {
@@ -424,115 +425,46 @@ const ProfilePage = () => {
       container.scrollBy({ left: 250, behavior: "smooth" });
     }
   };
-  const handleSuggestionFollowToggle = async (suggestedUserId) => {
-    if (!suggestedUserId || !user) return;
-    
-    const key = suggestedUserId;
-    
-    // Set loading state for this specific user
-    setFollowingStates(prev => ({ ...prev, [key]: true }));
-    
-    const isCurrentlyFollowing = followingMap[key] || false;
-    const originalFollowState = isCurrentlyFollowing;
-    
-    try {
-      if (isCurrentlyFollowing) {
-        // UNFOLLOW FLOW
-        // Optimistic update - update UI immediately
-        setFollowingMap(prev => ({ ...prev, [key]: false }));
-        
-        // Update users list - decrement follower count
-        setUsers(prev => prev.map(u => {
-          if ((u._id || u.id) === suggestedUserId) {
-            const currentCount = parseInt(u.followersCount || u.followers || 0);
-            return {
-              ...u,
-              followersCount: Math.max(0, currentCount - 1),
-              followers: Math.max(0, currentCount - 1).toString()
-            };
-          }
-          return u;
-        }));
-        
-        // Update current user's following count
-        setUser(prev => ({
-          ...prev,
-          following: Math.max(0, parseInt(prev.following || 0) - 1).toString(),
-          followingCount: Math.max(0, (prev.followingCount || 0) - 1)
-        }));
-        
-        // Make API call
-        const response = await unfollowUser(suggestedUserId);
-        console.log("Unfollow response:", response);
-        
-      } else {
-        // FOLLOW FLOW
-        // Optimistic update - update UI immediately
-        setFollowingMap(prev => ({ ...prev, [key]: true }));
-        
-        // Update users list - increment follower count
-        setUsers(prev => prev.map(u => {
-          if ((u._id || u.id) === suggestedUserId) {
-            const currentCount = parseInt(u.followersCount || u.followers || 0);
-            return {
-              ...u,
-              followersCount: currentCount + 1,
-              followers: (currentCount + 1).toString()
-            };
-          }
-          return u;
-        }));
-        
-        // Update current user's following count
-        setUser(prev => ({
-          ...prev,
-          following: (parseInt(prev.following || 0) + 1).toString(),
-          followingCount: (parseInt(prev.followingCount || 0) + 1)
-        }));
-        
-        // Make API call
-        const response = await followUser(suggestedUserId);
-        console.log("Follow response:", response);
-      }
-    } catch (err) {
-      console.error('Error toggling follow status:', err);
+const handleSuggestionFollowToggle = async (suggestedUserId) => {
+  if (!suggestedUserId || !user) return;
+  
+  const key = suggestedUserId;
+  
+  // Set loading state for this specific user
+  setFollowingStates(prev => ({ ...prev, [key]: true }));
+  
+  const isCurrentlyFollowing = followingMap[key] || false;
+  
+  try {
+    if (isCurrentlyFollowing) {
+      // UNFOLLOW FLOW
+      const response = await unfollowUser(suggestedUserId);
+      console.log("Unfollow response:", response);
       
-      // ROLLBACK on error - revert all changes
-      setFollowingMap(prev => ({ ...prev, [key]: originalFollowState }));
+      // Update state AFTER successful API call
+      setFollowingMap(prev => ({ ...prev, [key]: false }));
       
-      if (isCurrentlyFollowing) {
-        // Was unfollowing, revert back to following
-        setUsers(prev => prev.map(u => {
-          if ((u._id || u.id) === suggestedUserId) {
-            const currentCount = parseInt(u.followersCount || u.followers || 0);
-            return {
-              ...u,
-              followersCount: currentCount + 1,
-              followers: (currentCount + 1).toString()
-            };
-          }
-          return u;
-        }));
-        
+      // Update users list - decrement follower count
+      setUsers(prev => prev.map(u => {
+        if ((u._id || u.id) === suggestedUserId) {
+          const currentCount = parseInt(u.followers || u.followersCount || 0);
+          return {
+            ...u,
+            followersCount: Math.max(0, currentCount - 1),
+            followers: Math.max(0, currentCount - 1).toString()
+          };
+        }
+        return u;
+      }));
+      
+      // Update current user's following count from API response
+      if (response?.following) {
         setUser(prev => ({
           ...prev,
-          following: (parseInt(prev.following || 0) + 1).toString(),
-          followingCount: (parseInt(prev.followingCount || 0) + 1)
+          following: response.following,
+          followingCount: parseInt(response.following)
         }));
       } else {
-        // Was following, revert back to not following
-        setUsers(prev => prev.map(u => {
-          if ((u._id || u.id) === suggestedUserId) {
-            const currentCount = parseInt(u.followersCount || u.followers || 0);
-            return {
-              ...u,
-              followersCount: Math.max(0, currentCount - 1),
-              followers: Math.max(0, currentCount - 1).toString()
-            };
-          }
-          return u;
-        }));
-        
         setUser(prev => ({
           ...prev,
           following: Math.max(0, parseInt(prev.following || 0) - 1).toString(),
@@ -540,13 +472,52 @@ const ProfilePage = () => {
         }));
       }
       
-      // Show error alert
-      alert(err.response?.data?.message || 'Failed to update follow status');
-    } finally {
-      // Clear loading state for this user
-      setFollowingStates(prev => ({ ...prev, [key]: false }));
+    } else {
+      // FOLLOW FLOW
+      const response = await followUser(suggestedUserId);
+      console.log("Follow response:", response);
+      
+      // Update state AFTER successful API call
+      setFollowingMap(prev => ({ ...prev, [key]: true }));
+      
+      // Update users list - increment follower count
+      setUsers(prev => prev.map(u => {
+        if ((u._id || u.id) === suggestedUserId) {
+          const currentCount = parseInt(u.followers || u.followersCount || 0);
+          return {
+            ...u,
+            followersCount: currentCount + 1,
+            followers: (currentCount + 1).toString()
+          };
+        }
+        return u;
+      }));
+      
+      // Update current user's following count from API response
+      if (response?.following) {
+        setUser(prev => ({
+          ...prev,
+          following: response.following,
+          followingCount: parseInt(response.following)
+        }));
+      } else {
+        setUser(prev => ({
+          ...prev,
+          following: (parseInt(prev.following || 0) + 1).toString(),
+          followingCount: (parseInt(prev.followingCount || 0) + 1)
+        }));
+      }
     }
-  };
+  } catch (err) {
+    console.error('Error toggling follow status:', err);
+    
+    // Show error alert
+    alert(err.response?.data?.message || 'Failed to update follow status');
+  } finally {
+    // Clear loading state for this user
+    setFollowingStates(prev => ({ ...prev, [key]: false }));
+  }
+};
 
   const handleCreateEvent = async () => {
     if (!user) return;
