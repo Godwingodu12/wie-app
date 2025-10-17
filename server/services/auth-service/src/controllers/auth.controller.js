@@ -1,5 +1,9 @@
 import User from "../models/user.model.js";
 import Follow from "../models/follow.model.js";
+import { hashPassword, comparePassword } from "../utils/hash.js";
+const validatePassword = (password) => {
+  return password && password.length >= 6;
+};
 export const followUser = async (req, res) => {
   try {
     const userIdToFollow = req.params.otherId;
@@ -447,3 +451,61 @@ export const getSocialAccounts = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch social accounts' });
   }
 };
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+    const userId = req.user?._id || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ 
+        message: "Authentication required. Please login again." 
+      });
+    }
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ 
+        message: "Current password, new password, and confirmation are required" 
+      });
+    }
+    if (!validatePassword(newPassword)) {
+      return res.status(400).json({
+        message: "New password must be at least 6 characters long"
+      });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        message: "New password and confirmation password do not match"
+      });
+    }
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        message: "New password must be different from current password"
+      });
+    }
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        message: "User not found" 
+      });
+    }
+    const isPasswordCorrect = await comparePassword(currentPassword, user.password);
+    if (!isPasswordCorrect) {
+      return res.status(401).json({ 
+        message: "Current password is incorrect" 
+      });
+    }
+    const hashedPassword = await hashPassword(newPassword);
+    user.password = hashedPassword;
+    user.updated_at = new Date();
+    await user.save();
+    console.log(`Password changed successfully for user: ${userId}`);
+    return res.status(200).json({ 
+      message: "Password changed successfully",
+      userId: userId
+    });
+  } catch (error) {
+    console.error("Change password error:", error);
+    return res.status(500).json({ 
+      message: "Failed to change password. Please try again later." 
+    });
+  }
+};
+    
