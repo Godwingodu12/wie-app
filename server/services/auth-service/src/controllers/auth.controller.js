@@ -15,8 +15,8 @@ export const followUser = async (req, res) => {
 
     // Verify both users exist and are active
     const [userToFollow, currentUser] = await Promise.all([
-      User.findOne({ _id: userIdToFollow, status: 'active' }).select('_id'),
-      User.findOne({ _id: currentUserId, status: 'active' }).select('_id')
+      User.findOne({ _id: userIdToFollow, status: 'active' }).select('_id followers'),
+      User.findOne({ _id: currentUserId, status: 'active' }).select('_id following')
     ]);
 
     if (!userToFollow) {
@@ -53,20 +53,45 @@ export const followUser = async (req, res) => {
       Follow.countDocuments({ follower: currentUserId, status: 'active' })
     ]);
 
-    // Update user counts (optional, for faster retrieval)
+    // Update user counts - ensure string conversion
     await Promise.all([
-      User.updateOne({ _id: userIdToFollow }, { followers: followerCount.toString() }),
-      User.updateOne({ _id: currentUserId }, { following: followingCount.toString() })
+      User.findByIdAndUpdate(
+        userIdToFollow,
+        { 
+          followers: followerCount.toString(),
+          $set: { updatedAt: new Date() }
+        },
+        { new: true }
+      ),
+      User.findByIdAndUpdate(
+        currentUserId,
+        { 
+          following: followingCount.toString(),
+          $set: { updatedAt: new Date() }
+        },
+        { new: true }
+      )
     ]);
 
     return res.status(200).json({
       message: 'Successfully followed user',
+      success: true,
       following: followingCount.toString(),
-      followers: followerCount.toString()
+      followers: followerCount.toString(),
+      isFollowing: true
     });
   } catch (error) {
     console.error('Error following user:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    
+    // Handle duplicate key error (race condition)
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'You are already following this user' });
+    }
+    
+    return res.status(500).json({ 
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 export const unfollowUser = async (req, res) => {
@@ -80,8 +105,8 @@ export const unfollowUser = async (req, res) => {
 
     // Verify both users exist and are active
     const [userToUnfollow, currentUser] = await Promise.all([
-      User.findOne({ _id: userIdToUnfollow, status: 'active' }).select('_id'),
-      User.findOne({ _id: currentUserId, status: 'active' }).select('_id')
+      User.findOne({ _id: userIdToUnfollow, status: 'active' }).select('_id followers'),
+      User.findOne({ _id: currentUserId, status: 'active' }).select('_id following')
     ]);
 
     if (!userToUnfollow) {
@@ -112,20 +137,39 @@ export const unfollowUser = async (req, res) => {
       Follow.countDocuments({ follower: currentUserId, status: 'active' })
     ]);
 
-    // Update user counts
+    // Update user counts - ensure string conversion
     await Promise.all([
-      User.updateOne({ _id: userIdToUnfollow }, { followers: followerCount.toString() }),
-      User.updateOne({ _id: currentUserId }, { following: followingCount.toString() })
+      User.findByIdAndUpdate(
+        userIdToUnfollow,
+        { 
+          followers: followerCount.toString(),
+          $set: { updatedAt: new Date() }
+        },
+        { new: true }
+      ),
+      User.findByIdAndUpdate(
+        currentUserId,
+        { 
+          following: followingCount.toString(),
+          $set: { updatedAt: new Date() }
+        },
+        { new: true }
+      )
     ]);
 
     return res.status(200).json({
       message: 'Successfully unfollowed user',
+      success: true,
       following: followingCount.toString(),
-      followers: followerCount.toString()
+      followers: followerCount.toString(),
+      isFollowing: false
     });
   } catch (error) {
     console.error('Error unfollowing user:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({ 
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 export const getFollowers = async (req, res) => {
