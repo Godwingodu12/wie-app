@@ -166,3 +166,12 @@ export const checkIsFollowing = async (otherId) => {
     throw err;
   }
 };
+export const changePassword = async (data) => {
+  try {
+    const res = await api.post('/auth/change-password', data);
+    return res.data;
+    } catch (err) {
+    console.error('changePassword error:', err);
+    throw err;
+  }
+};
