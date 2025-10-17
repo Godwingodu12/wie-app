@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 
 const HEADER_HEIGHT = 72;
-
 const ContentItem = ({ icon, text, subtext, hasChevron = true, border = true, theme }) => (
   <div className="relative">
     <div className={`flex items-center px-4 py-4 w-full`}>
@@ -44,8 +43,7 @@ const ContentItem = ({ icon, text, subtext, hasChevron = true, border = true, th
     {border && <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-gray-600 to-transparent"></div>}
   </div>
 );
-
-const PasswordAndSecurityContent = ({ theme }) => (
+const PasswordAndSecurityContent = ({ theme,onChangePassword  }) => (
   <>
     <header className="mb-6">
       <h1 className={`mb-1 text-xl sm:text-2xl font-bold ${theme.text}`}>Password and security</h1>
@@ -60,7 +58,16 @@ const PasswordAndSecurityContent = ({ theme }) => (
         Manage your password, login preferences and recovery methods.
       </p>
       <div className="overflow-hidden rounded-lg">
-        <ContentItem theme={theme} icon={<KeyRound className={`h-6 w-6 ${theme.text}`} />} text="Change password" />
+        <div 
+          onClick={onChangePassword} 
+          className="cursor-pointer transition-all duration-200 hover:opacity-90"
+        >
+          <ContentItem 
+            theme={theme} 
+            icon={<KeyRound className={`h-6 w-6 ${theme.text}`} />} 
+            text="Change password" 
+          />
+        </div>
         <ContentItem theme={theme} icon={<ShieldCheck className={`h-6 w-6 ${theme.text}`} />} text="Two-factor authentication" />
         <ContentItem theme={theme} icon={<Smartphone className={`h-6 w-6 ${theme.text}`} />} text="Saved login" border={false} />
       </div>
@@ -81,12 +88,14 @@ const PasswordAndSecurityContent = ({ theme }) => (
 
 const PasswordAndSecurity = () => {
   const navigate = useNavigate();
+  const handleChangePassword = () => {
+    navigate("/settings/change-password");
+  };
   const [user, setUser] = useState(null);
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 1024);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 1024);
@@ -245,7 +254,7 @@ const PasswordAndSecurity = () => {
             />
             
             <div className="flex-1 overflow-y-auto p-6 md:p-8">
-                <PasswordAndSecurityContent theme={theme} />
+                <PasswordAndSecurityContent theme={theme} onChangePassword={handleChangePassword} />
             </div>
             </div>
         </div>
