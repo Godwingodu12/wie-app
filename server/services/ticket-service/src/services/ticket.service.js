@@ -2942,16 +2942,22 @@ export const updateTicketDetails = async (req, res) => {
       use_group_bank_account = 'true' // Default to true for group bank account
     } = req.body;
 
-    // Parse complex nested data structures
     const parseNestedData = (data, fieldName) => {
       if (!data) return [];
       try {
         if (typeof data === 'string') {
-          return JSON.parse(data);
+          const parsed = JSON.parse(data);
+          console.log(`Successfully parsed ${fieldName}:`, parsed);
+          return Array.isArray(parsed) ? parsed : [parsed];
         }
-        return Array.isArray(data) ? data : [data];
+        if (Array.isArray(data)) {
+          return data;
+        }
+        console.warn(`${fieldName} is not a string or array, received type:`, typeof data);
+        return [];
       } catch (error) {
-        console.warn(`Error parsing ${fieldName}:`, error);
+        console.error(`Error parsing ${fieldName}:`, error);
+        console.error(`Attempted to parse: ${data}`);
         return [];
       }
     };
@@ -3057,12 +3063,9 @@ export const updateTicketDetails = async (req, res) => {
         return ticketData;
       });
     }
-
-    // Handle banking details logic
     let finalBankingDetails = [];
-
-    if (use_group_bank_account === 'true') {
-      // Use group bank account - CHECK FOR primary_ PREFIXED FIELDS
+    if (use_group_bank_account === 'true' || use_group_bank_account === true) {
+      // Use group bank account
       if (!GroupBank.primary_bank_acc_no || !GroupBank.primary_bank_ifsc || 
           !GroupBank.primary_bank_acc_holder || !GroupBank.primary_bank_acc_type) {
         return res.status(400).json({ 
@@ -3085,29 +3088,35 @@ export const updateTicketDetails = async (req, res) => {
       }];
     } else {
       // Use custom banking details
-      if (!bankingDetails || bankingDetails.length === 0) {
+      console.log("Using custom banking details. Received data:", req.body.banking_details);
+      
+      const customBankingDetails = parseNestedData(req.body.banking_details, 'banking_details');
+      
+      if (!customBankingDetails || customBankingDetails.length === 0) {
         return res.status(400).json({
-          message: "Custom banking details are required when not using group bank account"
+          message: "Custom banking details are required when not using group bank account",
+          receivedData: req.body.banking_details,
+          hint: "Ensure banking_details is sent as a JSON stringified array"
         });
       }
 
       // Validate custom banking details
-      finalBankingDetails = bankingDetails.map((banking, index) => {
-        const requiredBankFields = ['bank_acc_type', 'bank_acc_no', 'bank_ifsc', 'bank_acc_holder'];
-        const missingBankFields = requiredBankFields.filter(field => !banking[field]);
-        
-        if (missingBankFields.length > 0) {
-          throw new Error(`Missing required banking fields for account ${index + 1}: ${missingBankFields.join(', ')}`);
-        }
+        finalBankingDetails = customBankingDetails.map((banking, index) => {
+            const requiredBankFields = ['bank_acc_type', 'bank_acc_no', 'bank_ifsc', 'bank_acc_holder'];
+            const missingBankFields = requiredBankFields.filter(field => !banking[field]);
+            
+            if (missingBankFields.length > 0) {
+              throw new Error(`Missing required banking fields for account ${index + 1}: ${missingBankFields.join(', ')}`);
+            }
 
-        return {
-          bank_acc_type: String(banking.bank_acc_type).trim(),
-          bank_acc_no: String(banking.bank_acc_no).trim(),
-          bank_ifsc: String(banking.bank_ifsc).trim(),
-          bank_acc_holder: String(banking.bank_acc_holder).trim(),
-          is_group_account: false
-        };
-      });
+            return {
+              bank_acc_type: String(banking.bank_acc_type).trim().toLowerCase(),
+              bank_acc_no: String(banking.bank_acc_no).trim(),
+              bank_ifsc: String(banking.bank_ifsc).trim().toUpperCase(),
+              bank_acc_holder: String(banking.bank_acc_holder).trim(),
+              is_group_account: false
+            };
+          });
     }
 
     // Validate dates if provided
