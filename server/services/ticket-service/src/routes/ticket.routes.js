@@ -1,4 +1,6 @@
 import express from 'express';
+import { uploadFields, uploadTicketMedia } from '../middlewares/upload.js'; 
+import multer from 'multer';
 import {getUserData,CreateGroup, createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
 getTicketById,deleteTicket,viewTickets } from '../services/ticket.service.js';
 import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getOthersEvents,getOtherLiveEvents,
@@ -13,8 +15,8 @@ router.post('/create-event/:groupId', createTicketBasicInfo);
 router.post('/create-event/:groupId/:ticketId', createTicketBasicInfo);
 router.get('/user-group-capabilities', getUserGroupCapabilities);
 router.post('/update-ticket-media/:ticketId', updateTicketMedia);
-router.post('/ticket-addons/:ticketId', updateTicketAddOns);
-router.put('/update-sub-event/:ticketId/:subEventId', updateSubEvent);
+router.post('/ticket-addons/:ticketId',uploadTicketMedia, updateTicketAddOns);
+router.put('/update-sub-event/:ticketId/:subEventId',uploadTicketMedia, updateSubEvent);
 router.post('/update-ticket-details/:ticketId', updateTicketDetails);
 router.post('/ticket-terms/:ticketId', updateTicketTerms);
 router.post('/submit-ticket/:ticketId', submitTicket);

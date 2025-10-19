@@ -1561,7 +1561,6 @@ export const updateTicketAddOns = async (req, res) => {
       ticketId: ticketId
     });
   }
-  
   const parseJSONSafely = (str, defaultValue = []) => {
     try {
       if (typeof str === 'string') {
@@ -1575,34 +1574,15 @@ export const updateTicketAddOns = async (req, res) => {
       return defaultValue;
     }
   };
-
   try {
-    await new Promise((resolve, reject) => {
-      uploadTicketMedia(req, res, (err) => {
-        if (err) {
-          console.error("Multer error:", err);
-          console.error("Error code:", err.code);
-          console.error("Error message:", err.message);
-          console.error("Error field:", err.field);
-          return reject(err);
-        }
-        resolve();
-      });
-    });
-
     const userId = req.user._id || req.user.id;
-    
-    // Check if ticket exists
     const existingTicket = await Ticket.findById(ticketId);
     if (!existingTicket) {
       return res.status(404).json({ message: "Ticket not found" });
     }
-    
-    // Enhanced sub_event data parsing with fallback logic
     let subEventData;
     let editingSubEventId = null;
     let isEditingSubEvent = false;
-
     try {
       if (req.body.sub_event) {
         subEventData = typeof req.body.sub_event === 'string' 
@@ -1611,8 +1591,7 @@ export const updateTicketAddOns = async (req, res) => {
         if (req.body.editing_sub_event_id) {
           editingSubEventId = req.body.editing_sub_event_id;
           isEditingSubEvent = true;
-          console.log('=== EDIT MODE DETECTED ===');
-          console.log('Editing sub-event ID:', editingSubEventId);
+
         }
       } else if (req.body.event_name || req.body.event_category || req.body.location_type) {
         subEventData = req.body;
@@ -1626,7 +1605,6 @@ export const updateTicketAddOns = async (req, res) => {
         subEventData = parsedBody.sub_event || parsedBody;
       }
     } catch (parseError) {
-      console.error("Error parsing sub_event data:", parseError);
       return res.status(400).json({ 
         message: "Invalid sub_event data format",
         error: parseError.message,
@@ -1634,7 +1612,6 @@ export const updateTicketAddOns = async (req, res) => {
         receivedFields: Object.keys(req.body)
       });
     }
-    
     if (!subEventData) {
       return res.status(400).json({ 
         message: "sub_event data is required",
@@ -1716,8 +1693,6 @@ export const updateTicketAddOns = async (req, res) => {
             }
             return Array.isArray(parsed) ? parsed : [parsed];
           } catch (parseError) {
-            console.warn(`Error parsing ${fieldName} JSON:`, parseError.message);
-            console.warn(`Problematic data:`, trimmed.substring(0, 100));
             return [];
           }
         }
@@ -1727,10 +1702,8 @@ export const updateTicketAddOns = async (req, res) => {
         if (typeof data === 'object' && data !== null) {
           return [data];
         }
-        console.warn(`Unexpected type for ${fieldName}:`, typeof data);
         return [];
       } catch (error) {
-        console.error(`Error parsing ${fieldName}:`, error.message);
         return [];
       }
     };
@@ -1857,11 +1830,6 @@ export const updateTicketAddOns = async (req, res) => {
         }
       }
     });
-
-    console.log('=== Uploaded Ticket Photos ===');
-    console.log('ticketPhotoFiles:', ticketPhotoFiles);
-    console.log('==============================');
-    
     if (uploadedFiles) {
       if (uploadedFiles.event_banner && uploadedFiles.event_banner[0]) {
         const bannerFile = uploadedFiles.event_banner[0];
@@ -1954,9 +1922,6 @@ export const updateTicketAddOns = async (req, res) => {
     // Parse ticket types
     const ticketTypes = (() => {
       const rawTickets = subEventData.ticket_types || req.body.ticket_types;
-      console.log('=== Parsing ticket_types ===');
-      console.log('Raw ticket_types:', rawTickets);
-      console.log('Type:', typeof rawTickets);
       if (!rawTickets) {
         console.log('No ticket_types found');
         return [];
@@ -1968,7 +1933,6 @@ export const updateTicketAddOns = async (req, res) => {
       if (typeof rawTickets === 'string') {
         try {
           const parsed = JSON.parse(rawTickets);
-          console.log('Parsed ticket_types from string:', parsed);
           return Array.isArray(parsed) ? parsed : [];
         } catch (e) {
           console.log('Failed to parse ticket_types string:', e);
@@ -1981,15 +1945,10 @@ export const updateTicketAddOns = async (req, res) => {
     
     // Parse prohibited items
     const prohibitedItems = (() => {
-      console.log('\n=== PARSING PROHIBITED ITEMS ===');
       const rawItems = subEventData.prohibited_items 
         || req.body.prohibited_items 
         || subEventData.prohibitedItems 
         || req.body.prohibitedItems;
-      
-      console.log('Raw prohibited_items:', rawItems);
-      console.log('Type:', typeof rawItems);
-      console.log('Is Array:', Array.isArray(rawItems));
       
       if (!rawItems) {
         console.log('❌ No prohibited_items found');
@@ -2003,7 +1962,6 @@ export const updateTicketAddOns = async (req, res) => {
       
       if (typeof rawItems === 'string') {
         const trimmed = rawItems.trim();
-        console.log('Trimmed string:', trimmed);
         
         if (trimmed === '' || trimmed === '[]' || trimmed === '{}') {
           console.log('Empty string or empty array/object');
@@ -2012,16 +1970,12 @@ export const updateTicketAddOns = async (req, res) => {
         
         try {
           const parsed = JSON.parse(trimmed);
-          console.log('✓ Parsed JSON:', parsed);
           
           if (Array.isArray(parsed)) {
-            console.log('✓ Parsed is array');
             return parsed;
           } else if (typeof parsed === 'object' && parsed !== null) {
-            console.log('Parsed is object, converting to array');
             return Object.values(parsed);
           } else {
-            console.log('Wrapping parsed in array');
             return [parsed];
           }
         } catch (e) {
@@ -2043,15 +1997,6 @@ export const updateTicketAddOns = async (req, res) => {
       console.log('❌ Unknown type');
       return [];
     })();
-    
-    console.log('=== FINAL PROHIBITED ITEMS ===');
-    console.log('Type:', typeof prohibitedItems);
-    console.log('Is Array:', Array.isArray(prohibitedItems));
-    console.log('Length:', prohibitedItems.length);
-    console.log('Contents:', prohibitedItems);
-    console.log('==============================\n');
-    
-    // Process guests
     let processedGuests = [];
     if (guests && guests.length > 0) {
       if (guests.length > 10) {
@@ -2084,79 +2029,51 @@ export const updateTicketAddOns = async (req, res) => {
         return guestData;
       });
     }
-    
-    // Process ticket types
     let processedTicketTypes = [];
     if (ticketTypes && ticketTypes.length > 0) {
-      console.log('=== Processing Ticket Types ===');
-      console.log('Number of tickets:', ticketTypes.length);
-      
       processedTicketTypes = ticketTypes.map((ticket, index) => {
-        console.log(`\n--- Ticket ${index + 1} ---`);
-        console.log('Raw:', ticket);
-        
         const ticketType = ticket.ticket_type || ticket.name;
         const ticketPrice = ticket.ticket_price !== undefined ? ticket.ticket_price : ticket.price;
         const maxCapacity = ticket.max_capacity !== undefined ? ticket.max_capacity : ticket.capacity;
         const existingPhoto = ticket.ticket_photo || ticket.existingPhotoPath || '';
-        
-        console.log('Extracted:', { ticketType, ticketPrice, maxCapacity, existingPhoto });
-
         if (!ticketType || ticketType.toString().trim() === '') {
           throw new Error(`Missing ticket_type for ticket ${index + 1}`);
         }
-        
         if (ticketPrice === undefined || ticketPrice === null) {
           throw new Error(`Missing ticket_price for ticket ${index + 1}`);
         }
-        
         if (!maxCapacity) {
           throw new Error(`Missing max_capacity for ticket ${index + 1}`);
         }
-
         const parsedPrice = Number(ticketPrice);
         const parsedCapacity = Number(maxCapacity);
-
         if (isNaN(parsedPrice) || parsedPrice < 0) {
           throw new Error(`Invalid ticket price for ticket ${index + 1}`);
         }
-        
         if (isNaN(parsedCapacity) || parsedCapacity <= 0) {
           throw new Error(`Invalid max capacity for ticket ${index + 1}`);
         }
-
         const ticketData = {
           ticket_type: String(ticketType).trim(),
           ticket_price: parsedPrice,
           max_capacity: parsedCapacity,
           ticket_photo: ''
         };
-
         if (ticketPhotoFiles[index]) {
           ticketData.ticket_photo = ticketPhotoFiles[index].path;
-          console.log(`✓ New photo: ${ticketData.ticket_photo}`);
         } else if (existingPhoto) {
           ticketData.ticket_photo = existingPhoto;
-          console.log(`✓ Existing photo: ${ticketData.ticket_photo}`);
         } else {
           console.log(`⚠ No photo`);
         }
-
         console.log('Final:', ticketData);
         return ticketData;
       });
-
-      console.log('\n=== All Processed Tickets ===');
-      console.log(JSON.stringify(processedTicketTypes, null, 2));
-      console.log('============================\n');
     }
-
-    // Process event dates with video files for recorded events
     if (subEventData.location_type === 'recorded') {
       eventDates = eventDates.map((date, index) => {
         const videoFile = videoFiles[index];
         const previewImage = previewImageFiles[index];
-        
         return {
           ...date,
           video_file_path: videoFile ? videoFile.path : date.video_file_path || '',
@@ -2164,7 +2081,6 @@ export const updateTicketAddOns = async (req, res) => {
         };
       });
     }
-
     let exactMapLocation = {};
     if (subEventData.location_type === 'offline' && subEventData.exact_map_location) {
       try {
@@ -2178,21 +2094,15 @@ export const updateTicketAddOns = async (req, res) => {
     
     // Process and clean prohibited items
     const finalProhibitedItems = (() => {
-      console.log('\n=== CLEANING PROHIBITED ITEMS ===');
-      console.log('Input:', prohibitedItems);
-      
       if (!Array.isArray(prohibitedItems)) {
-        console.log('Not array, converting...');
         if (prohibitedItems && typeof prohibitedItems === 'object') {
           const values = Object.values(prohibitedItems)
             .map(item => String(item).trim())
             .filter(item => item !== '');
-          console.log('Converted:', values);
           return values;
         }
         return [];
       }
-      
       const processed = prohibitedItems
         .map(item => {
           if (typeof item === 'string') {
@@ -2204,14 +2114,8 @@ export const updateTicketAddOns = async (req, res) => {
           }
         })
         .filter(item => item !== '' && item !== 'undefined' && item !== 'null');
-      
-      console.log('✓ Cleaned:', processed);
-      console.log('✓ Count:', processed.length);
-      console.log('================================\n');
       return processed;
     })();
-    
-    // Process and clean ticket types
     const finalTicketTypes = (processedTicketTypes && processedTicketTypes.length > 0)
       ? processedTicketTypes.map(ticket => ({
           ticket_type: String(ticket.ticket_type),
@@ -2220,225 +2124,178 @@ export const updateTicketAddOns = async (req, res) => {
           ticket_photo: String(ticket.ticket_photo || '')
         }))
       : [];
-
-    console.log('\n=== FINAL ARRAYS SUMMARY ===');
-    console.log('finalProhibitedItems:', finalProhibitedItems.length, 'items');
-    console.log('finalTicketTypes:', finalTicketTypes.length, 'items');
-    console.log('============================\n');    
-    if (isEditingSubEvent && editingSubEventId) {
-      console.log('\n=== UPDATING EXISTING SUB-EVENT ===');
-      console.log('Sub-event ID:', editingSubEventId);
-      
-      const ticket = await Ticket.findById(ticketId);
-      if (!ticket) {
-        return res.status(404).json({ message: "Ticket not found" });
-      }
-      
-      const subEventIndex = ticket.sub_events.findIndex(
-        se => se._id.toString() === editingSubEventId
-      );
-
-      if (subEventIndex === -1) {
-        return res.status(404).json({ 
-          message: "Sub-event not found",
-          subEventId: editingSubEventId 
-        });
-      }
-
-      console.log('Found at index:', subEventIndex);
-      console.log('Updating with prohibited_items:', finalProhibitedItems);
-      console.log('Updating with ticket_types:', finalTicketTypes);
-
-      const existingSubEvent = ticket.sub_events[subEventIndex];
-
-      const updatedSubEvent = {
-        event_name: String(subEventData.event_name).trim(),
-        event_category: String(subEventData.event_category).trim(),
-        event_subcategory: subEventData.event_subcategory ? String(subEventData.event_subcategory).trim() : '',
-        event_type: String(subEventData.event_type),
-        location_type: String(subEventData.location_type),
-        min_age_allowed: Number(ageNum),
-        event_description: String(subEventData.event_description).trim(),
-        payment_type: String(subEventData.payment_type),
-        kids_friendly: Boolean(subEventData.kids_friendly === 'true' || subEventData.kids_friendly === true),
-        pet_friendly: Boolean(subEventData.pet_friendly === 'true' || subEventData.pet_friendly === true),
-        event_date_type: subEventData.event_date_type ? String(subEventData.event_date_type) : '',
-        event_instagram_link: subEventData.event_instagram_link ? String(subEventData.event_instagram_link).trim() : '',
-        event_youtube_link: subEventData.event_youtube_link ? String(subEventData.event_youtube_link).trim() : '',
-        event_status: existingSubEvent.event_status || 'pending',
-        subevent: '5',
-        event_language: Array.isArray(languageArray) ? languageArray.map(lang => String(lang)) : [],
-        hashtag: Array.isArray(parseJSONSafely(subEventData.hashtag, [])) ? 
-          parseJSONSafely(subEventData.hashtag, []).map(tag => String(tag)) : [],
-        total_capacity: subEventData.total_capacity ? String(subEventData.total_capacity) : '',
-        booking_start_date: subEventData.booking_start_date ? String(subEventData.booking_start_date).trim() : '',
-        booking_end_date: subEventData.booking_end_date ? String(subEventData.booking_end_date).trim() : '',
-        
-        // CRITICAL: Use the properly parsed and cleaned arrays
-        prohibited_items: finalProhibitedItems,
-        ticket_types: finalTicketTypes,
-        
-        guests: processedGuests.map(guest => ({
-          guest_name: String(guest.guest_name || ''),
-          guest_profile: String(guest.guest_profile || ''),
-          guest_link: String(guest.guest_link || '')
-        })),
-        banking_details: bankingDetails.map(banking => ({
-          bank_acc_type: String(banking.bank_acc_type || ''),
-          bank_acc_no: String(banking.bank_acc_no || ''),
-          bank_ifsc: String(banking.bank_ifsc || ''),
-          bank_acc_holder: String(banking.bank_acc_holder || '')
-        })),
-        POCS: POCS.map(poc => ({
-          POC_name: String(poc.POC_name || ''),
-          POC_email: String(poc.POC_email || ''),
-          POC_contact: String(poc.POC_contact || '')
-        })),
-        event_dates: eventDates.map(date => ({
-          start_date: String(date.start_date || ''),
-          end_date: String(date.end_date || ''),
-          start_time: String(date.start_time || ''),
-          end_time: String(date.end_time || ''),
-          event_link: String(date.event_link || ''),
-          video_name: String(date.video_name || ''),
-          verification_event_code: String(date.verification_event_code || ''),
-          video_file_path: String(date.video_file_path || ''),
-          preview_image_path: String(date.preview_image_path || '')
-        })),
-        event_banner: String(processedFiles.event_banner || existingSubEvent.event_banner || ''),
-        event_logo: String(processedFiles.event_logo || existingSubEvent.event_logo || ''),
-        event_images: processedFiles.event_images && processedFiles.event_images.length > 0 
-          ? processedFiles.event_images.map(img => ({
-              path: String(img.path),
-              originalName: String(img.originalName),
-              mimeType: String(img.mimeType),
-              size: Number(img.size),
-              uploadedAt: new Date(img.uploadedAt)
-            }))
-          : existingSubEvent.event_images || []
-      };
-
-      // Add location-specific fields
-      if (subEventData.location_type === 'offline') {
-        updatedSubEvent.seating_arrangement = String(subEventData.seating_arrangement || 'none');
-        updatedSubEvent.location = String(subEventData.location || '').trim();
-        updatedSubEvent.venue = String(subEventData.venue || '').trim();
-        updatedSubEvent.exact_map_location = {
-          latitude: exactMapLocation.latitude ? Number(exactMapLocation.latitude) : undefined,
-          longitude: exactMapLocation.longitude ? Number(exactMapLocation.longitude) : undefined,
-          address: exactMapLocation.address ? String(exactMapLocation.address) : ''
-        };
-        updatedSubEvent.gate_open_time = String(subEventData.gate_open_time || '').trim();
-        updatedSubEvent.ticket_layout = String(processedFiles.ticket_layout || existingSubEvent.ticket_layout || '');
-      } else if (subEventData.location_type === 'online' || subEventData.location_type === 'recorded') {
-        updatedSubEvent.event_link = String(subEventData.event_link || '').trim();
-        updatedSubEvent.verification_event_code = String(subEventData.verification_event_code || '').trim();
-        // Explicitly set offline-only fields to undefined
-        updatedSubEvent.seating_arrangement = undefined;
-        updatedSubEvent.location = undefined;
-        updatedSubEvent.venue = undefined;
-        updatedSubEvent.exact_map_location = undefined;
-        updatedSubEvent.gate_open_time = undefined;
-        updatedSubEvent.ticket_layout = undefined;
-      }
-
-      // Handle event rules
-      if (processedFiles.event_rules) {
-        updatedSubEvent.event_rules = {
-          type: 'file',
-          path: String(processedFiles.event_rules.path),
-          originalName: String(processedFiles.event_rules.originalName),
-          mimeType: String(processedFiles.event_rules.mimeType),
-          size: Number(processedFiles.event_rules.size),
-          uploadedAt: new Date(processedFiles.event_rules.uploadedAt)
-        };
-      } else if (subEventData.event_rules_text && String(subEventData.event_rules_text).trim()) {
-        updatedSubEvent.event_rules = {
-          type: 'text',
-          content: String(subEventData.event_rules_text).trim(),
-          uploadedAt: new Date()
-        };
-      } else {
-        updatedSubEvent.event_rules = existingSubEvent.event_rules || {
-          type: 'text',
-          content: '',
-          uploadedAt: new Date()
-        };
-      }
-
-      console.log('\n=== FINAL UPDATE VERIFICATION ===');
-      console.log('prohibited_items:', updatedSubEvent.prohibited_items);
-      console.log('prohibited_items type:', typeof updatedSubEvent.prohibited_items);
-      console.log('prohibited_items is array:', Array.isArray(updatedSubEvent.prohibited_items));
-      console.log('prohibited_items length:', updatedSubEvent.prohibited_items?.length);
-      console.log('ticket_types:', updatedSubEvent.ticket_types);
-      console.log('ticket_types type:', typeof updatedSubEvent.ticket_types);
-      console.log('ticket_types is array:', Array.isArray(updatedSubEvent.ticket_types));
-      console.log('ticket_types length:', updatedSubEvent.ticket_types?.length);
-      console.log('=================================\n');
-
-      // Update using findOneAndUpdate with array filters
-      const updatedTicket = await Ticket.findOneAndUpdate(
-        { 
-          _id: ticketId,
-          'sub_events._id': editingSubEventId
-        },
-        {
-          $set: {
-            [`sub_events.${subEventIndex}`]: updatedSubEvent,
-            'form_progress.add_on_events': true,
-            updated_by: userId,
-            updated_at: new Date()
-          }
-        },
-        { 
-          new: true,
-          runValidators: true
-        }
-      );
-
-      if (!updatedTicket) {
-        return res.status(404).json({ 
-          message: "Failed to update sub-event"
-        });
-      }
-
-      const updatedSubEventData = updatedTicket.sub_events.find(
-        se => se._id.toString() === editingSubEventId
-      );
-
-      console.log('\n=== POST-UPDATE VERIFICATION ===');
-      console.log('Updated sub-event ID:', updatedSubEventData._id);
-      console.log('Updated location_type:', updatedSubEventData.location_type);
-      console.log('Updated prohibited_items:', updatedSubEventData.prohibited_items);
-      console.log('Updated prohibited_items length:', updatedSubEventData.prohibited_items?.length);
-      console.log('Updated ticket_types:', updatedSubEventData.ticket_types);
-      console.log('Updated ticket_types length:', updatedSubEventData.ticket_types?.length);
-      console.log('================================\n');
-
-      return res.status(200).json({
-        message: "Sub-event updated successfully",
-        ticket: updatedTicket,
-        updatedSubEvent: updatedSubEventData,
-        operation: 'update',
-        debug: {
-          prohibited_items_count: updatedSubEventData.prohibited_items?.length || 0,
-          ticket_types_count: updatedSubEventData.ticket_types?.length || 0
-        }
+  if (isEditingSubEvent && editingSubEventId) {
+    const ticket = await Ticket.findById(ticketId);
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+    const subEventIndex = ticket.sub_events.findIndex(
+      se => se._id.toString() === editingSubEventId
+    );
+    if (subEventIndex === -1) {
+      return res.status(404).json({ 
+        message: "Sub-event not found",
+        subEventId: editingSubEventId 
       });
     }
-    // Validate required banner for new sub-events
+    const existingSubEvent = ticket.sub_events[subEventIndex];
+    const updatedSubEvent = {
+      event_name: String(subEventData.event_name).trim(),
+      event_category: String(subEventData.event_category).trim(),
+      event_subcategory: subEventData.event_subcategory ? String(subEventData.event_subcategory).trim() : '',
+      event_type: String(subEventData.event_type),
+      location_type: String(subEventData.location_type),
+      min_age_allowed: Number(ageNum),
+      event_description: String(subEventData.event_description).trim(),
+      payment_type: String(subEventData.payment_type),
+      kids_friendly: Boolean(subEventData.kids_friendly === 'true' || subEventData.kids_friendly === true),
+      pet_friendly: Boolean(subEventData.pet_friendly === 'true' || subEventData.pet_friendly === true),
+      event_date_type: subEventData.event_date_type ? String(subEventData.event_date_type) : '',
+      event_instagram_link: subEventData.event_instagram_link ? String(subEventData.event_instagram_link).trim() : '',
+      event_youtube_link: subEventData.event_youtube_link ? String(subEventData.event_youtube_link).trim() : '',
+      event_status: existingSubEvent.event_status || 'pending',
+      subevent: '5',
+      event_language: Array.isArray(languageArray) ? languageArray.map(lang => String(lang)) : [],
+      hashtag: Array.isArray(parseJSONSafely(subEventData.hashtag, [])) ? 
+        parseJSONSafely(subEventData.hashtag, []).map(tag => String(tag)) : [],
+      total_capacity: subEventData.total_capacity ? String(subEventData.total_capacity) : '',
+      booking_start_date: subEventData.booking_start_date ? String(subEventData.booking_start_date).trim() : '',
+      booking_end_date: subEventData.booking_end_date ? String(subEventData.booking_end_date).trim() : '',
+      prohibited_items: finalProhibitedItems.length > 0 
+        ? finalProhibitedItems 
+        : (existingSubEvent.prohibited_items || []),
+      ticket_types: finalTicketTypes.length > 0 
+        ? finalTicketTypes 
+        : (existingSubEvent.ticket_types || []),
+      guests: processedGuests.map(guest => ({
+        guest_name: String(guest.guest_name || ''),
+        guest_profile: String(guest.guest_profile || ''),
+        guest_link: String(guest.guest_link || '')
+      })),
+      banking_details: bankingDetails.map(banking => ({
+        bank_acc_type: String(banking.bank_acc_type || ''),
+        bank_acc_no: String(banking.bank_acc_no || ''),
+        bank_ifsc: String(banking.bank_ifsc || ''),
+        bank_acc_holder: String(banking.bank_acc_holder || '')
+      })),
+      POCS: POCS.map(poc => ({
+        POC_name: String(poc.POC_name || ''),
+        POC_email: String(poc.POC_email || ''),
+        POC_contact: String(poc.POC_contact || '')
+      })),
+      event_dates: eventDates.map(date => ({
+        start_date: String(date.start_date || ''),
+        end_date: String(date.end_date || ''),
+        start_time: String(date.start_time || ''),
+        end_time: String(date.end_time || ''),
+        event_link: String(date.event_link || ''),
+        video_name: String(date.video_name || ''),
+        verification_event_code: String(date.verification_event_code || ''),
+        video_file_path: String(date.video_file_path || ''),
+        preview_image_path: String(date.preview_image_path || '')
+      })),
+      event_banner: String(processedFiles.event_banner || existingSubEvent.event_banner || ''),
+      event_logo: String(processedFiles.event_logo || existingSubEvent.event_logo || ''),
+      event_images: processedFiles.event_images && processedFiles.event_images.length > 0 
+        ? processedFiles.event_images.map(img => ({
+            path: String(img.path),
+            originalName: String(img.originalName),
+            mimeType: String(img.mimeType),
+            size: Number(img.size),
+            uploadedAt: new Date(img.uploadedAt)
+          }))
+        : existingSubEvent.event_images || []
+    };
+    if (subEventData.location_type === 'offline') {
+      updatedSubEvent.seating_arrangement = String(subEventData.seating_arrangement || 'none');
+      updatedSubEvent.location = String(subEventData.location || '').trim();
+      updatedSubEvent.venue = String(subEventData.venue || '').trim();
+      updatedSubEvent.exact_map_location = {
+        latitude: exactMapLocation.latitude ? Number(exactMapLocation.latitude) : undefined,
+        longitude: exactMapLocation.longitude ? Number(exactMapLocation.longitude) : undefined,
+        address: exactMapLocation.address ? String(exactMapLocation.address) : ''
+      };
+      updatedSubEvent.gate_open_time = String(subEventData.gate_open_time || '').trim();
+      updatedSubEvent.ticket_layout = String(processedFiles.ticket_layout || existingSubEvent.ticket_layout || '');
+    } else if (subEventData.location_type === 'online' || subEventData.location_type === 'recorded') {
+      updatedSubEvent.event_link = String(subEventData.event_link || '').trim();
+      updatedSubEvent.verification_event_code = String(subEventData.verification_event_code || '').trim();
+      updatedSubEvent.seating_arrangement = undefined;
+      updatedSubEvent.location = undefined;
+      updatedSubEvent.venue = undefined;
+      updatedSubEvent.exact_map_location = undefined;
+      updatedSubEvent.gate_open_time = undefined;
+      updatedSubEvent.ticket_layout = undefined;
+    }
+    if (processedFiles.event_rules) {
+      updatedSubEvent.event_rules = {
+        type: 'file',
+        path: String(processedFiles.event_rules.path),
+        originalName: String(processedFiles.event_rules.originalName),
+        mimeType: String(processedFiles.event_rules.mimeType),
+        size: Number(processedFiles.event_rules.size),
+        uploadedAt: new Date(processedFiles.event_rules.uploadedAt)
+      };
+    } else if (subEventData.event_rules_text && String(subEventData.event_rules_text).trim()) {
+      updatedSubEvent.event_rules = {
+        type: 'text',
+        content: String(subEventData.event_rules_text).trim(),
+        uploadedAt: new Date()
+      };
+    } else {
+      updatedSubEvent.event_rules = existingSubEvent.event_rules || {
+        type: 'text',
+        content: '',
+        uploadedAt: new Date()
+      };
+    }
+    const updatePayload = {
+      $set: {
+        [`sub_events.${subEventIndex}`]: updatedSubEvent,
+        'form_progress.add_on_events': true,
+        updated_by: userId,
+        updated_at: new Date()
+      }
+    };
+    const updatedTicket = await Ticket.findOneAndUpdate(
+      { 
+        _id: ticketId,
+        'sub_events._id': editingSubEventId
+      },
+      updatePayload,
+      { 
+        new: true,
+        runValidators: true
+      }
+    );
+    if (!updatedTicket) {
+      return res.status(404).json({ 
+        message: "Failed to update sub-event"
+      });
+    }
+    const updatedSubEventData = updatedTicket.sub_events.find(
+      se => se._id.toString() === editingSubEventId
+    );
+    return res.status(200).json({
+      message: "Sub-event updated successfully",
+      ticket: updatedTicket,
+      updatedSubEvent: updatedSubEventData,
+      operation: 'update',
+      debug: {
+        prohibited_items_count: updatedSubEventData.prohibited_items?.length || 0,
+        ticket_types_count: updatedSubEventData.ticket_types?.length || 0,
+        location_type: updatedSubEventData.location_type
+      }
+    });
+  }
     if (!processedFiles.event_banner) {
       return res.status(400).json({
         message: "Event banner is required for sub-events"
       });
     }
-
-    // Duplication check for new sub-events
     if (existingTicket.sub_events && existingTicket.sub_events.length > 0) {
       const newEventName = String(subEventData.event_name).trim().toLowerCase();
       let newLocationIdentifier = '';
-      
       if (subEventData.location_type === 'offline') {
         const location = String(subEventData.location || '').trim().toLowerCase();
         const venue = String(subEventData.venue || '').trim().toLowerCase();
@@ -2458,31 +2315,20 @@ export const updateTicketAddOns = async (req, res) => {
           newLocationIdentifier = 'recorded';
         }
       }
-      
-      console.log('\n=== Duplication Check ===');
-      console.log('New Event Name:', newEventName);
-      console.log('Location Type:', subEventData.location_type);
-      console.log('Location Identifier:', newLocationIdentifier);
-      console.log('=========================\n');
-      
       for (const newEventDate of eventDates) {
         const newStartDate = newEventDate.start_date;
         const newStartTime = newEventDate.start_time;
         const newEndTime = newEventDate.end_time;
         const newVideoName = String(newEventDate.video_name || '').trim().toLowerCase();
-        
         const duplicateSubEvent = existingTicket.sub_events.find(existingSubEvent => {
           const existingEventName = String(existingSubEvent.event_name || '').trim().toLowerCase();
           if (existingEventName !== newEventName) {
             return false;
           }
-
           if (existingSubEvent.location_type !== subEventData.location_type) {
             return false;
           }
-
           let locationMatches = false;
-          
           if (subEventData.location_type === 'offline') {
             const existingLocation = String(existingSubEvent.location || '').trim().toLowerCase();
             const existingVenue = String(existingSubEvent.venue || '').trim().toLowerCase();
@@ -2504,31 +2350,24 @@ export const updateTicketAddOns = async (req, res) => {
               locationMatches = (existingIdentifier === newLocationIdentifier);
             }
           }
-
           if (!locationMatches) {
             return false;
           }
-
           if (existingSubEvent.event_dates && existingSubEvent.event_dates.length > 0) {
             const dateMatch = existingSubEvent.event_dates.some(existingDate => {
               const dateMatches = existingDate.start_date === newStartDate;
-              const timeMatches = existingDate.start_time === newStartTime && existingDate.end_time === newEndTime;
-              
+              const timeMatches = existingDate.start_time === newStartTime && existingDate.end_time === newEndTime;            
               if (subEventData.location_type === 'recorded') {
                 const existingVideoName = String(existingDate.video_name || '').trim().toLowerCase();
                 const videoMatches = existingVideoName === newVideoName;
                 return dateMatches && timeMatches && videoMatches;
-              }
-              
+              }          
               return dateMatches && timeMatches;
             });
-            
             return dateMatch;
           }
-
           return false;
         });
-
         if (duplicateSubEvent) {
           const conflictDetails = {
             event_name: subEventData.event_name,
@@ -2539,7 +2378,6 @@ export const updateTicketAddOns = async (req, res) => {
               end_time: newEndTime
             }
           };
-
           if (subEventData.location_type === 'offline') {
             conflictDetails.location = subEventData.location;
             conflictDetails.venue = subEventData.venue;
@@ -2549,7 +2387,6 @@ export const updateTicketAddOns = async (req, res) => {
             conflictDetails.video_name = newEventDate.video_name;
             conflictDetails.event_link = newEventDate.event_link;
           }
-
           return res.status(409).json({
             message: "Duplicate sub-event detected",
             error: "A sub-event with the same event name, location/video, date, and time already exists",
@@ -2559,7 +2396,6 @@ export const updateTicketAddOns = async (req, res) => {
         }
       }
     }
-    
     const newSubEvent = {
       event_name: String(subEventData.event_name).trim(),
       event_category: String(subEventData.event_category).trim(),
@@ -2582,11 +2418,8 @@ export const updateTicketAddOns = async (req, res) => {
       total_capacity: subEventData.total_capacity ? String(subEventData.total_capacity) : '',
       booking_start_date: subEventData.booking_start_date ? String(subEventData.booking_start_date).trim() : '',
       booking_end_date: subEventData.booking_end_date ? String(subEventData.booking_end_date).trim() : '',
-      
-      // CRITICAL: ALWAYS INCLUDE THESE ARRAYS
       prohibited_items: finalProhibitedItems,
       ticket_types: finalTicketTypes,
-      
       guests: processedGuests.map(guest => ({
         guest_name: String(guest.guest_name || ''),
         guest_profile: String(guest.guest_profile || ''),
@@ -2624,13 +2457,6 @@ export const updateTicketAddOns = async (req, res) => {
         uploadedAt: new Date(img.uploadedAt)
       }))
     };
-    
-    console.log('\n=== NEW SUB-EVENT VERIFICATION ===');
-    console.log('location_type:', newSubEvent.location_type);
-    console.log('prohibited_items:', newSubEvent.prohibited_items);
-    console.log('ticket_types:', newSubEvent.ticket_types);
-    console.log('==================================\n');
-    
     if (subEventData.location_type === 'offline') {
       newSubEvent.seating_arrangement = String(subEventData.seating_arrangement || 'none');
       newSubEvent.location = String(subEventData.location || '').trim();
@@ -2656,7 +2482,6 @@ export const updateTicketAddOns = async (req, res) => {
       newSubEvent.gate_open_time = undefined;
       newSubEvent.ticket_layout = undefined;
     }
-    
     if (processedFiles.event_rules) {
       newSubEvent.event_rules = {
         type: 'file',
@@ -2679,7 +2504,6 @@ export const updateTicketAddOns = async (req, res) => {
         uploadedAt: new Date()
       };
     }
-    
     if (!Array.isArray(newSubEvent.event_dates) || newSubEvent.event_dates.length === 0) {
       return res.status(400).json({
         message: "At least one event date is required",
@@ -2693,12 +2517,6 @@ export const updateTicketAddOns = async (req, res) => {
         hint: "Provide POCS as an array with POC_name, POC_email, POC_contact"
       });
     }
-    
-    console.log('\n=== FINAL CHECK BEFORE SAVING ===');
-    console.log('newSubEvent.prohibited_items:', newSubEvent.prohibited_items);
-    console.log('newSubEvent.ticket_types:', newSubEvent.ticket_types);
-    console.log('=================================\n');
-    
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
       {
@@ -2720,15 +2538,7 @@ export const updateTicketAddOns = async (req, res) => {
         hint: "Ticket not found or update failed"
       });
     }
-    
-    console.log('\n=== POST-SAVE VERIFICATION ===');
     const savedSubEvent = updatedTicket.sub_events[updatedTicket.sub_events.length - 1];
-    console.log('Saved sub-event ID:', savedSubEvent._id);
-    console.log('Saved location_type:', savedSubEvent.location_type);
-    console.log('Saved prohibited_items:', savedSubEvent.prohibited_items);
-    console.log('Saved ticket_types:', savedSubEvent.ticket_types);
-    console.log('==============================\n');
-
     const responseData = {
       message: "Sub-event added successfully to ticket", 
       ticket: updatedTicket,
@@ -2782,24 +2592,19 @@ export const updateTicketAddOns = async (req, res) => {
         };
       }
     }
-
     res.status(200).json(responseData);
-
   } catch (error) {
     console.error("Error updating ticket add-ons:", error);
-    
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ 
         message: "File size too large. Maximum 50MB allowed per file." 
       });
     }
-
     if (error.code === 'LIMIT_FILE_COUNT') {
       return res.status(400).json({ 
         message: "Too many files uploaded. Maximum limits exceeded." 
       });
     }
-
     if (error.code === 'LIMIT_UNEXPECTED_FILE') {
       const allowedFields = [
         'event_banner', 'event_logo', 'event_images',
@@ -2809,7 +2614,6 @@ export const updateTicketAddOns = async (req, res) => {
         ...Array.from({ length: 30 }, (_, i) => `preview_image_${i}`),
         'ticket_layout', 'event_rules'
       ];
-
       return res.status(400).json({ 
         message: "Unexpected file field detected",
         error: error.message,
@@ -2818,7 +2622,6 @@ export const updateTicketAddOns = async (req, res) => {
         hint: "Check your form field names against the allowed fields list"
       });
     }
-
     if (error.message && (
       error.message.includes('Missing required fields for ticket type') ||
       error.message.includes('Invalid ticket price') ||
@@ -2843,19 +2646,16 @@ export const updateTicketAddOns = async (req, res) => {
         error: error.message
       });
     }
-
     if (error.name === 'ValidationError') {
       const validationErrors = Object.keys(error.errors).map(key => ({
         field: key,
         message: error.errors[key].message
       }));
-      
       return res.status(400).json({
         message: "Validation error",
         errors: validationErrors
       });
     }
-
     if (error.name === 'CastError') {
       return res.status(400).json({ 
         message: "Data type casting error. Check your data format.",
@@ -2863,14 +2663,12 @@ export const updateTicketAddOns = async (req, res) => {
         field: error.path
       });
     }
-
     if (error.code === 11000) {
       return res.status(409).json({
         message: "Duplicate entry found",
         error: "Sub-event with similar details already exists"
       });
     }
-    
     res.status(500).json({ 
       message: "Internal server error", 
       error: error.message,

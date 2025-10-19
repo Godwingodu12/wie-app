@@ -328,13 +328,11 @@ const UpdateTicketAddOns = () => {
     : [];
   const fetchData = async () => {
     if (!ticketId) {
-      console.error("No ticketId available");
       setPageLoading(false);
       return;
     }
     setPageLoading(true);
     if (!ticketId) {
-      console.error("No ticketId available for API fetch.");
       setPageLoading(false);
       return;
     }
@@ -349,7 +347,6 @@ const UpdateTicketAddOns = () => {
         const groupResponse = await getGroupView(cleanTicketId);
         // Check if we got a valid response
         if (!groupResponse) {
-          console.warn("Empty response from getGroupView API");
           setGroupDefaults();
           return;
         }
@@ -415,9 +412,6 @@ const UpdateTicketAddOns = () => {
             groupResponse?.bank_details?.[0],
             groupResponse?.bankDetails?.[0],
           ];
-
-          console.log("Searching for bank info in traditional paths...");
-
           for (let i = 0; i < possibleBankPaths.length; i++) {
             const path = possibleBankPaths[i];
             if (path && typeof path === "object") {
@@ -999,346 +993,266 @@ const UpdateTicketAddOns = () => {
     if (ampm === "PM" && hour24 !== 12) hour24 += 12;
     return `${hour24.toString().padStart(2, "0")}:${minutes}`;
   };
-  const buildPayload = () => {
-    if (formData.location_type === "online" || formData.location_type === "recorded") {
-      for (const date of formData.event_dates) {
-        if (!date.eventLink || date.eventLink.trim() === "") {
-          showAlert({
-            type: "error",
-            message: "Event Link Missing",
-            description: `An event link is required for the date: ${new Date(
-              date.date + "T00:00:00"
-            ).toLocaleDateString()}. Please edit the date to add a link.`,
-          });
-          return null;
-        }
-      }
-    }
-
-    // CRITICAL: Ensure prohibited_items is always an array
-    const ensureProhibitedItemsArray = () => {
-      console.log('=== Frontend: Ensuring prohibited_items is array ===');
-      console.log('Raw formData.prohibited_items:', formData.prohibited_items);
-      console.log('Type:', typeof formData.prohibited_items);
-      console.log('Is Array:', Array.isArray(formData.prohibited_items));
-      
-      if (Array.isArray(formData.prohibited_items)) {
-        const cleaned = formData.prohibited_items
-          .map(item => {
-            if (typeof item === 'string') return item.trim();
-            if (typeof item === 'object' && item !== null) {
-              return item.name || item.item || item.value || String(item);
-            }
-            return String(item);
-          })
-          .filter(item => item && item !== 'undefined' && item !== 'null');
-        console.log('✓ Cleaned prohibited_items:', cleaned);
-        return cleaned;
-      }
-      
-      if (typeof formData.prohibited_items === 'string') {
-        try {
-          const parsed = JSON.parse(formData.prohibited_items);
-          if (Array.isArray(parsed)) {
-            console.log('✓ Parsed string to array:', parsed);
-            return parsed;
-          }
-        } catch (e) {
-          console.warn('Failed to parse prohibited_items string');
-        }
-        const split = formData.prohibited_items.split(',').map(s => s.trim()).filter(s => s);
-        if (split.length > 0) {
-          console.log('✓ Split by comma:', split);
-          return split;
-        }
-      }
-      
-      console.log('⚠ Returning empty array for prohibited_items');
-      return [];
-    };
-
-    // CRITICAL: Ensure ticket_types is always an array with proper structure
-    const ensureTicketTypesArray = () => {
-      console.log('=== Frontend: Ensuring ticket_types is array ===');
-      console.log('Raw formData.ticket_types:', formData.ticket_types);
-      console.log('Type:', typeof formData.ticket_types);
-      console.log('Is Array:', Array.isArray(formData.ticket_types));
-      console.log('Length:', formData.ticket_types?.length);
-      
-      if (!formData.ticket_types) {
-        console.log('⚠ No ticket_types found');
-        return [];
-      }
-      
-      if (Array.isArray(formData.ticket_types)) {
-        const processed = formData.ticket_types.map((t, index) => {
-          console.log(`Processing ticket ${index}:`, t);
-          
-          const ticket = {
-            ticket_type: t.name || t.ticket_type || '',
-            ticket_price: Number(t.price || t.ticket_price || 0),
-            max_capacity: Number(t.capacity || t.max_capacity || 0),
-            ticket_photo: t.existingPhotoPath || t.ticket_photo || '',
-          };
-          
-          console.log(`✓ Processed ticket ${index}:`, ticket);
-          return ticket;
+const buildPayload = () => {
+  if (formData.location_type === "online" || formData.location_type === "recorded") {
+    for (const date of formData.event_dates) {
+      if (!date.eventLink || date.eventLink.trim() === "") {
+        showAlert({
+          type: "error",
+          message: "Event Link Missing",
+          description: `An event link is required for the date: ${new Date(
+            date.date + "T00:00:00"
+          ).toLocaleDateString()}. Please edit the date to add a link.`,
         });
-        
-        console.log('✓ All processed tickets:', processed);
-        return processed;
+        return null;
       }
-      
-      console.log('⚠ ticket_types is not an array, returning empty array');
-      return [];
-    };
+    }
+  }
 
-    const payload = {
-      event_name: formData.event_name,
-      event_category: formData.event_category,
-      event_subcategory: formData.event_subcategory,
-      event_type: formData.event_type,
-      event_language: formData.event_language,
-      min_age_allowed: parseInt(formData.min_age_allowed, 10) || 0,
-      kids_friendly: formData.kids_friendly,
-      pet_friendly: formData.pet_friendly,
-      location_type: formData.location_type,
-      event_date_type: formData.event_date_type,
-      event_dates: formData.event_dates.map((d) => {
-        let eventLink = d.eventLink || "";
-        if (eventLink && !eventLink.startsWith('http://') && !eventLink.startsWith('https://')) {
-          eventLink = 'https://' + eventLink;
+  // CRITICAL FIX: Ensure prohibited_items is ALWAYS an array
+  const ensureProhibitedItemsArray = () => {
+    // If it's already an array, clean it
+    if (Array.isArray(formData.prohibited_items)) {
+      const cleaned = formData.prohibited_items
+        .map(item => {
+          if (typeof item === 'string') return item.trim();
+          if (typeof item === 'object' && item !== null) {
+            return item.name || item.item || item.value || String(item);
+          }
+          return String(item);
+        })
+        .filter(item => item && item !== 'undefined' && item !== 'null' && item.trim() !== '');
+      return cleaned;
+    }
+    
+    // If it's a string, try to parse it
+    if (typeof formData.prohibited_items === 'string') {
+      try {
+        const parsed = JSON.parse(formData.prohibited_items);
+        if (Array.isArray(parsed)) {
+          return parsed;
         }
-        return {
-          start_date: d.date,
-          end_date: d.endDate || d.date,
-          start_time: convertTo24Hour(d.startTime, d.startAmPm),
-          end_time: convertTo24Hour(d.endTime, d.endAmPm),
-          event_link: eventLink,
-          video_name: d.videoName || "",
-          verification_event_code: d.verificationCode || "",
-        };
-      }),
-      event_instagram_link: formData.event_instagram_link,
-      event_youtube_link: formData.event_youtube_link,
-      event_description: descriptionEditorRef.current?.innerHTML || "",
-      event_rules_text: rulesEditorRef.current?.innerHTML || "",
-      hashtag: Array.isArray(formData.hashtag) ? formData.hashtag : [],
-      
-      // CRITICAL: ALWAYS include these as arrays, regardless of location_type
-      prohibited_items: ensureProhibitedItemsArray(),
-      ticket_types: ensureTicketTypesArray(),
-      
-      payment_type: formData.payment_type,
-      POCS: formData.POCS,
-      guests: formData.guests.map((g) => ({
-        guest_name: g.name,
-        guest_link: g.link,
-      })),
-      booking_start_date: formData.booking_start_date,
-      booking_end_date: formData.booking_end_date,
-    };
-
-    console.log('=== FINAL FRONTEND PAYLOAD ===');
-    console.log('prohibited_items:', JSON.stringify(payload.prohibited_items, null, 2));
-    console.log('prohibited_items type:', typeof payload.prohibited_items);
-    console.log('prohibited_items is array:', Array.isArray(payload.prohibited_items));
-    console.log('prohibited_items length:', payload.prohibited_items.length);
-    console.log('ticket_types:', JSON.stringify(payload.ticket_types, null, 2));
-    console.log('ticket_types type:', typeof payload.ticket_types);
-    console.log('ticket_types is array:', Array.isArray(payload.ticket_types));
-    console.log('ticket_types length:', payload.ticket_types.length);
-    console.log('===============================');
-
-    if (formData.payment_type === "paid") {
-      payload.banking_details = formData.banking_details;
+      } catch (e) {
+        console.warn('Failed to parse prohibited_items string');
+      }
+      const split = formData.prohibited_items.split(',').map(s => s.trim()).filter(s => s);
+      if (split.length > 0) {
+        return split;
+      }
     }
-
-    if (formData.location_type === "offline") {
-      payload.location = formData.location;
-      payload.venue = formData.venue;
-      payload.seating_arrangement = formData.seating_arrangement;
-      payload.exact_map_location = formData.exact_map_location;
-      payload.gate_open_time = formData.gate_open_time;
-      payload.total_capacity = formData.total_capacity;
-    } else {
-      payload.total_capacity = parseInt(formData.total_capacity, 10) || 0;
-    }
-
-    return payload;
+    return [];
   };
-  const buildFormData = (payload) => {
-    const submissionForm = new FormData();
-    if (isEditingSubEvent && editingSubEventId) {
-      submissionForm.append("editing_sub_event_id", editingSubEventId);
-      console.log('=== EDIT MODE: Including editing_sub_event_id ===');
-      console.log('editing_sub_event_id:', editingSubEventId);
-      console.log('isEditingSubEvent:', isEditingSubEvent);
-    }
-    const subEventData = {
-      ...payload,
-      prohibited_items: Array.isArray(payload.prohibited_items) ? payload.prohibited_items : [],
-      ticket_types: Array.isArray(payload.ticket_types) ? payload.ticket_types : []
-    };
-    
-    console.log('=== buildFormData: sub_event data ===');
-    console.log('Operation mode:', isEditingSubEvent ? 'EDIT' : 'CREATE');
-    console.log('prohibited_items:', subEventData.prohibited_items);
-    console.log('prohibited_items type:', typeof subEventData.prohibited_items);
-    console.log('prohibited_items is array:', Array.isArray(subEventData.prohibited_items));
-    console.log('prohibited_items length:', subEventData.prohibited_items.length);
-    console.log('ticket_types:', subEventData.ticket_types);
-    console.log('ticket_types type:', typeof subEventData.ticket_types);
-    console.log('ticket_types is array:', Array.isArray(subEventData.ticket_types));
-    console.log('ticket_types length:', subEventData.ticket_types.length);
-    console.log('=====================================');
-    
-    submissionForm.append("sub_event", JSON.stringify(subEventData));
-    
-    // Handle file uploads
-    if (formData.event_banner) {
-      submissionForm.append("event_banner", formData.event_banner);
-    }
-    if (formData.event_logo) {
-      submissionForm.append("event_logo", formData.event_logo);
-    }
-    if (formData.event_rules_file) {
-      submissionForm.append("event_rules", formData.event_rules_file);
-    }
-    if (formData.ticket_layout) {
-      submissionForm.append("ticket_layout", formData.ticket_layout);
+  const ensureTicketTypesArray = () => {
+    if (!formData.ticket_types || formData.ticket_types.length === 0) {
+      return [];
     }
     
-    formData.event_images.forEach((file) => {
+    if (Array.isArray(formData.ticket_types)) {
+      const processed = formData.ticket_types.map((t, index) => {        
+        const ticket = {
+          ticket_type: t.name || t.ticket_type || '',
+          ticket_price: Number(t.price || t.ticket_price || 0),
+          max_capacity: Number(t.capacity || t.max_capacity || 0),
+          ticket_photo: t.existingPhotoPath || t.ticket_photo || '',
+        };
+        return ticket;
+      });
+      return processed;
+    }
+    return [];
+  };
+
+  const payload = {
+    event_name: formData.event_name,
+    event_category: formData.event_category,
+    event_subcategory: formData.event_subcategory,
+    event_type: formData.event_type,
+    event_language: formData.event_language,
+    min_age_allowed: parseInt(formData.min_age_allowed, 10) || 0,
+    kids_friendly: formData.kids_friendly,
+    pet_friendly: formData.pet_friendly,
+    location_type: formData.location_type,
+    event_date_type: formData.event_date_type,
+    event_dates: formData.event_dates.map((d) => {
+      let eventLink = d.eventLink || "";
+      if (eventLink && !eventLink.startsWith('http://') && !eventLink.startsWith('https://')) {
+        eventLink = 'https://' + eventLink;
+      }
+      return {
+        start_date: d.date,
+        end_date: d.endDate || d.date,
+        start_time: convertTo24Hour(d.startTime, d.startAmPm),
+        end_time: convertTo24Hour(d.endTime, d.endAmPm),
+        event_link: eventLink,
+        video_name: d.videoName || "",
+        verification_event_code: d.verificationCode || "",
+      };
+    }),
+    event_instagram_link: formData.event_instagram_link,
+    event_youtube_link: formData.event_youtube_link,
+    event_description: descriptionEditorRef.current?.innerHTML || "",
+    event_rules_text: rulesEditorRef.current?.innerHTML || "",
+    hashtag: Array.isArray(formData.hashtag) ? formData.hashtag : [],
+    
+    // CRITICAL: ALWAYS include these arrays, processed with fallbacks
+    prohibited_items: ensureProhibitedItemsArray(),
+    ticket_types: ensureTicketTypesArray(),
+    
+    payment_type: formData.payment_type,
+    POCS: formData.POCS,
+    guests: formData.guests.map((g) => ({
+      guest_name: g.name,
+      guest_link: g.link,
+    })),
+    booking_start_date: formData.booking_start_date,
+    booking_end_date: formData.booking_end_date,
+  };
+  if (formData.payment_type === "paid") {
+    payload.banking_details = formData.banking_details;
+  }
+
+  if (formData.location_type === "offline") {
+    payload.location = formData.location;
+    payload.venue = formData.venue;
+    payload.seating_arrangement = formData.seating_arrangement;
+    payload.exact_map_location = formData.exact_map_location;
+    payload.gate_open_time = formData.gate_open_time;
+    payload.total_capacity = formData.total_capacity;
+  } else {
+    payload.total_capacity = parseInt(formData.total_capacity, 10) || 0;
+  }
+
+  return payload;
+};
+const buildFormData = (payload) => {
+  const submissionForm = new FormData();
+
+  if (isEditingSubEvent && editingSubEventId) {
+    submissionForm.append("editing_sub_event_id", editingSubEventId);
+  }
+  
+  // CRITICAL: Ensure arrays are properly formatted
+  const subEventData = {
+    ...payload,
+    prohibited_items: Array.isArray(payload.prohibited_items) 
+      ? payload.prohibited_items 
+      : [],
+    ticket_types: Array.isArray(payload.ticket_types) 
+      ? payload.ticket_types 
+      : []
+  };
+  const jsonString = JSON.stringify(subEventData);
+  submissionForm.append("sub_event", jsonString);  
+  if (formData.event_banner) {
+    submissionForm.append("event_banner", formData.event_banner);
+  }
+  if (formData.event_logo) {
+    submissionForm.append("event_logo", formData.event_logo);
+  }
+  
+  if (formData.event_rules_file) {
+    submissionForm.append("event_rules", formData.event_rules_file);
+  }
+  
+  if (formData.ticket_layout) {
+    submissionForm.append("ticket_layout", formData.ticket_layout);
+  }
+
+  // Event images
+  if (formData.event_images && formData.event_images.length > 0) {
+    formData.event_images.forEach((file, index) => {
       submissionForm.append("event_images", file);
     });
-    
+  }
+  if (formData.guests && formData.guests.length > 0) {
     formData.guests.forEach((guest, index) => {
       if (guest.rawFile) {
         submissionForm.append(`guest_profile_${index}`, guest.rawFile);
       }
     });
-    
-    if (formData.location_type === "recorded" && formData.event_dates) {
-      formData.event_dates.forEach((date, index) => {
-        if (date.videoFile) {
-          submissionForm.append(`video_file_${index}`, date.videoFile);
-        }
-        if (date.previewImageFile) {
-          submissionForm.append(`preview_image_${index}`, date.previewImageFile);
-        }
-      });
-    }
-    
-    if (formData.ticket_types && formData.ticket_types.length > 0) {
-      formData.ticket_types.forEach((ticket, index) => {
-        if (ticket.photoFile) {
-          console.log(`Appending NEW ticket photo ${index}:`, ticket.photoFile.name);
-          submissionForm.append(`ticket_photo_${index}`, ticket.photoFile);
-        } else if (ticket.existingPhotoPath) {
-          console.log(`Ticket ${index} keeping existing photo:`, ticket.existingPhotoPath);
-        }
-      });
-    }
-    console.log('=== FormData Contents ===');
-    console.log('Operation:', isEditingSubEvent ? 'UPDATE' : 'CREATE');
-    for (let pair of submissionForm.entries()) {
-      if (pair[0] === 'sub_event') {
-        const parsedSubEvent = JSON.parse(pair[1]);
-        console.log('sub_event:', {
-          event_name: parsedSubEvent.event_name,
-          prohibited_items_count: parsedSubEvent.prohibited_items?.length || 0,
-          ticket_types_count: parsedSubEvent.ticket_types?.length || 0,
-          prohibited_items_sample: parsedSubEvent.prohibited_items?.slice(0, 3),
-          ticket_types_sample: parsedSubEvent.ticket_types?.slice(0, 2)
-        });
-      } else if (pair[0] === 'editing_sub_event_id') {
-        console.log(pair[0], ':', pair[1]);
-      } else {
-        console.log(pair[0], ':', typeof pair[1] === 'object' ? pair[1].name || 'File' : pair[1]);
+  }
+  if (formData.ticket_types && formData.ticket_types.length > 0) {
+    formData.ticket_types.forEach((ticket, index) => {
+      if (ticket.photoFile) {
+        submissionForm.append(`ticket_photo_${index}`, ticket.photoFile);
       }
-    }
-    return submissionForm;
-  };
-  const verifyFormDataArrays = () => {
-    console.log('=== PRE-SUBMIT VERIFICATION ===');
-    console.log('formData.prohibited_items:', formData.prohibited_items);
-    console.log('Type:', typeof formData.prohibited_items);
-    console.log('Is Array:', Array.isArray(formData.prohibited_items));
-    console.log('Length:', formData.prohibited_items?.length);
-    console.log('Contents:', JSON.stringify(formData.prohibited_items, null, 2));
-    
-    console.log('formData.ticket_types:', formData.ticket_types);
-    console.log('Type:', typeof formData.ticket_types);
-    console.log('Is Array:', Array.isArray(formData.ticket_types));
-    console.log('Length:', formData.ticket_types?.length);
-    console.log('Contents:', JSON.stringify(formData.ticket_types, null, 2));
-    console.log('==============================');
-  };
+    });
+  }
+  if (formData.location_type === "recorded" && formData.event_dates) {
+    formData.event_dates.forEach((date, index) => {
+      if (date.videoFile) {
+        submissionForm.append(`video_file_${index}`, date.videoFile);
+      }
+      if (date.previewImageFile) {
+        submissionForm.append(`preview_image_${index}`, date.previewImageFile);
+      }
+    });
+  }
+  let entryCount = 0;
+  for (let pair of submissionForm.entries()) {
+    entryCount++;
+  }
+  return submissionForm;
+};
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (formData.event_name.trim() === "" && existingSubEvents.length === 0) {
-      showAlert({
-        type: "error",
-        message: "No Sub-Events",
-        description: "Please fill out the form to add at least one sub-event before continuing.",
-      });
+  e.preventDefault();
+  if (formData.event_name.trim() === "" && existingSubEvents.length === 0) {
+    showAlert({
+      type: "error",
+      message: "No Sub-Events",
+      description: "Please fill out the form to add at least one sub-event before continuing.",
+    });
+    return;
+  }
+  
+  if (formData.event_name.trim() !== "") {
+    if (!validateForm()) {
       return;
     }
-    if (formData.event_name.trim() !== "") {
-      if (!validateForm()) {
+    
+    setIsSubmitting(true);
+    try {
+      const payload = buildPayload();
+      if (!payload) {
+        setIsSubmitting(false);
         return;
       }
-      
-      // CRITICAL: Verify arrays before submission
-      console.log('=== PRE-SUBMIT VERIFICATION ===');
-      console.log('formData.prohibited_items:', formData.prohibited_items);
-      console.log('Type:', typeof formData.prohibited_items);
-      console.log('Is Array:', Array.isArray(formData.prohibited_items));
-      console.log('Length:', formData.prohibited_items?.length);
-      console.log('Contents:', JSON.stringify(formData.prohibited_items, null, 2));
-      
-      console.log('formData.ticket_types:', formData.ticket_types);
-      console.log('Type:', typeof formData.ticket_types);
-      console.log('Is Array:', Array.isArray(formData.ticket_types));
-      console.log('Length:', formData.ticket_types?.length);
-      console.log('Contents:', JSON.stringify(formData.ticket_types, null, 2));
-      console.log('==============================');
-      
-      setIsSubmitting(true);
-      try {
-        const payload = buildPayload();
-        if (!payload) {
-          setIsSubmitting(false);
-          return;
-        }
-        const submissionForm = buildFormData(payload);
-        if (isEditingSubEvent && editingSubEventId) {
-          console.log('=== SUBMITTING EDIT ===');
-          console.log('Editing sub-event ID:', editingSubEventId);
-          await updateSubEvent(ticketId, editingSubEventId, submissionForm);
-        } else {
-          console.log('=== SUBMITTING NEW ===');
-          await updateTicketAddOns(ticketId, submissionForm);
-        }
-        navigate(`/ticket/ticket-terms/${ticketId}`);
-      } catch (error) {
-        const errorDesc = error.response?.data?.message || "An error occurred while saving.";
+      const submissionForm = buildFormData(payload);      
+      if (isEditingSubEvent && editingSubEventId) {
+        await updateSubEvent(ticketId, editingSubEventId, submissionForm); 
         showAlert({
-          type: "error",
-          message: "Save Failed",
-          description: errorDesc,
+          type: "success",
+          message: "Sub-Event Updated",
+          description: "Your sub-event has been updated successfully.",
         });
-      } finally {
-        setIsSubmitting(false);
+      } else {
+        await updateTicketAddOns(ticketId, submissionForm);
+        showAlert({
+          type: "success",
+          message: "Sub-Event Added",
+          description: "Your sub-event has been added successfully.",
+        });
       }
-    } else if (existingSubEvents.length > 0) {
+      
+      // Navigate to next step
       navigate(`/ticket/ticket-terms/${ticketId}`);
+      
+    } catch (error) {
+      const errorDesc = error.response?.data?.message || error.message || "An error occurred while saving.";
+      showAlert({
+        type: "error",
+        message: "Save Failed",
+        description: errorDesc,
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-  };
+  } else if (existingSubEvents.length > 0) {
+    navigate(`/ticket/ticket-terms/${ticketId}`);
+  }
+};
   const handleBack = (e) => {
     e.preventDefault();
-
     navigate(`/ticket/update-ticket-media/${ticketId}`);
   };
   const currentBankDetail = formData.banking_details[0] || {};
@@ -1697,50 +1611,65 @@ const UpdateTicketAddOns = () => {
     }
   };
   const handleSaveAndAddMore = async (e) => {
-    if (e) e.preventDefault();
-    if (!validateForm()) return;
-    verifyFormDataArrays();
-    setIsSubmitting(true);
-    const payload = buildPayload();
-    if (!payload) {
-      setIsSubmitting(false);
-      return;
-    }
-    try {
-      const submissionForm = buildFormData(payload);
-      if (isEditingSubEvent && editingSubEventId) {
-        await updateSubEvent(ticketId, editingSubEventId, submissionForm);
-      } else {
-        await updateTicketAddOns(ticketId, submissionForm);
-      }
-
+  if (e) e.preventDefault();
+  
+  if (!validateForm()) return;
+  
+  setIsSubmitting(true);
+  const payload = buildPayload();
+  if (!payload) {
+    setIsSubmitting(false);
+    return;
+  }
+  
+  try {
+    const submissionForm = buildFormData(payload);
+    
+    console.log('\n=== SAVE AND ADD MORE ===');
+    console.log('isEditingSubEvent:', isEditingSubEvent);
+    
+    if (isEditingSubEvent && editingSubEventId) {
+      console.log('Calling: updateSubEvent (EDIT)');
+      await updateSubEvent(ticketId, editingSubEventId, submissionForm);
+      
       showAlert({
         type: "success",
-        message: `Sub-Event ${isEditingSubEvent ? "Updated" : "Added"}`,
-        description: "Your sub-event has been saved successfully.",
+        message: "Sub-Event Updated",
+        description: "Your changes have been saved.",
       });
-      resetForm();
-      await fetchData();
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (error) {
-      const errorDesc = error.response?.data?.message || "An error occurred.";
+    } else {
+      console.log('Calling: updateTicketAddOns (CREATE)');
+      await updateTicketAddOns(ticketId, submissionForm);
+      
       showAlert({
-        type: "error",
-        message: "Submission Failed",
-        description: errorDesc,
+        type: "success",
+        message: "Sub-Event Added",
+        description: "Your sub-event has been added successfully.",
       });
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+    
+    resetForm();
+    await fetchData();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    
+  } catch (error) {
+    const errorDesc = error.response?.data?.message || error.message || "An error occurred.";
+    
+    showAlert({
+      type: "error",
+      message: "Submission Failed",
+      description: errorDesc,
+    });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
   const handleSubEventClick = async (subEventId) => {
-    setEditingSubEventId(subEventId);
-    setIsEditingSubEvent(true);
-    await populateFormWithSubEventData(subEventId);
-
-    // Scroll to form
-    window.scrollTo({ top: 400, behavior: "smooth" });
-  };
+  setEditingSubEventId(subEventId);
+  setIsEditingSubEvent(true);
+  await populateFormWithSubEventData(subEventId);  
+  window.scrollTo({ top: 400, behavior: "smooth" });
+};
   const populateFormWithSubEventData = async (subEventId) => {
     setSubEventLoading(true);
     try {
@@ -1787,18 +1716,12 @@ const UpdateTicketAddOns = () => {
 
         // CRITICAL: Robust parsing for prohibited_items
         const parsedProhibitedItems = (() => {
-          console.log('=== Parsing prohibited_items for editing ===');
-          console.log('Raw prohibited_items:', subEvent.prohibited_items);
-          console.log('Type:', typeof subEvent.prohibited_items);
           
           if (!subEvent.prohibited_items) {
-            console.log('No prohibited_items found');
             return [];
           }
-          
           // Already an array - clean and return
           if (Array.isArray(subEvent.prohibited_items)) {
-            console.log('prohibited_items is already an array with', subEvent.prohibited_items.length, 'items');
             const cleaned = subEvent.prohibited_items
               .map(item => {
                 if (typeof item === 'object' && item !== null) {
@@ -1808,63 +1731,44 @@ const UpdateTicketAddOns = () => {
               })
               .map(item => String(item).trim())
               .filter(item => item && item !== 'undefined' && item !== 'null');
-            console.log('✓ Cleaned prohibited_items:', cleaned);
             return cleaned;
           }
           
           // String parsing
           if (typeof subEvent.prohibited_items === 'string') {
-            console.log('prohibited_items is a string, attempting to parse');
             const trimmed = subEvent.prohibited_items.trim();
             
             if (trimmed === '' || trimmed === '[]' || trimmed === '{}') {
-              console.log('Empty string or empty array/object');
               return [];
             }
             
             try {
               const parsed = JSON.parse(trimmed);
-              console.log('Successfully parsed JSON:', parsed);
               if (Array.isArray(parsed)) {
                 const cleaned = parsed.map(item => String(item).trim()).filter(item => item);
-                console.log('✓ Parsed and cleaned:', cleaned);
                 return cleaned;
               }
               return [];
             } catch (e) {
-              console.log('JSON parse failed, trying comma split');
               const split = trimmed.split(',').map(item => item.trim()).filter(item => item);
-              console.log('Comma split result:', split);
               return split;
             }
           }
-          
-          console.log('Unknown type for prohibited_items');
           return [];
         })();
 
         // CRITICAL: Robust parsing for ticket_types
         const parsedTicketTypes = (() => {
-          console.log('=== Parsing ticket_types for editing ===');
-          console.log('Raw ticket_types:', subEvent.ticket_types);
-          console.log('Type:', typeof subEvent.ticket_types);
-          
           if (!subEvent.ticket_types) {
-            console.log('No ticket_types found');
             return [];
           }
-          
           // Already an array
           if (Array.isArray(subEvent.ticket_types)) {
-            console.log('ticket_types is already an array with', subEvent.ticket_types.length, 'items');
-            return subEvent.ticket_types.map((t, index) => {
-              console.log(`Processing ticket ${index}:`, t);
-              
+            return subEvent.ticket_types.map((t, index) => {              
               const ticketType = t.ticket_type || t.name || '';
               const ticketPrice = t.ticket_price !== undefined ? t.ticket_price : (t.price || 0);
               const maxCapacity = t.max_capacity !== undefined ? t.max_capacity : (t.capacity || 0);
               const ticketPhoto = t.ticket_photo || '';
-              
               const processedTicket = {
                 id: Date.now() + Math.random() + index,
                 name: ticketType,
@@ -1876,18 +1780,13 @@ const UpdateTicketAddOns = () => {
                 photoFile: null,
                 existingPhotoPath: ticketPhoto,
               };
-              
-              console.log('✓ Processed ticket:', processedTicket);
               return processedTicket;
             });
           }
-          
           // String parsing
           if (typeof subEvent.ticket_types === 'string') {
-            console.log('ticket_types is a string, attempting to parse');
             try {
               const parsed = JSON.parse(subEvent.ticket_types);
-              console.log('Successfully parsed JSON:', parsed);
               if (Array.isArray(parsed)) {
                 return parsed.map((t, index) => ({
                   id: Date.now() + Math.random() + index,
@@ -1909,15 +1808,6 @@ const UpdateTicketAddOns = () => {
           console.log('Unknown type for ticket_types or parse failed');
           return [];
         })();
-
-        console.log('=== FINAL PARSED VALUES FOR FORM ===');
-        console.log('Parsed prohibited_items:', parsedProhibitedItems);
-        console.log('Parsed prohibited_items length:', parsedProhibitedItems.length);
-        console.log('Parsed ticket_types:', parsedTicketTypes);
-        console.log('Parsed ticket_types length:', parsedTicketTypes.length);
-        console.log('===========================');
-
-        // Set form data with properly parsed arrays
         setFormData((prev) => ({
           ...prev,
           event_name: subEvent.event_name || "",
@@ -2028,12 +1918,6 @@ const UpdateTicketAddOns = () => {
             }));
           }
         }
-        
-        // CRITICAL: Log what was set in formData
-        console.log('=== FORM DATA SET ===');
-        console.log('formData.prohibited_items will be:', parsedProhibitedItems);
-        console.log('formData.ticket_types will be:', parsedTicketTypes);
-        console.log('=====================');
       }
     } catch (error) {
       console.error("Error loading sub-event data:", error);
@@ -2069,8 +1953,6 @@ const UpdateTicketAddOns = () => {
   return (
     <>
       <CustomScrollbarStyles isDark={darkMode} />
-      {/* All modals go here */}
-
       <Alert alert={alert} onClose={hideAlert} />
       <ConfirmModal
         isOpen={confirmState.isOpen}
