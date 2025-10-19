@@ -58,29 +58,16 @@ export const getTicketSubEvents = async (req, res) => {
 export const updateSubEvent = async (req, res) => {
   try {
     const { ticketId, subEventId } = req.params;
-
-    // Validate IDs
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({ 
         message: "Invalid ticket ID format" 
       });
     }
-
     if (!subEventId || !subEventId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({ 
         message: "Invalid sub-event ID format" 
       });
     }
-    // Handle file uploads first
-    await new Promise((resolve, reject) => {
-      uploadTicketMedia(req, res, (err) => {
-        if (err) {
-          console.error("Multer error:", err);
-          return reject(err);
-        }
-        resolve();
-      });
-    });
 
     // Parse JSON utility
     const parseJSONSafely = (str, defaultValue = []) => {
@@ -113,13 +100,11 @@ export const updateSubEvent = async (req, res) => {
         error: parseError.message
       });
     }
-
     // Find the ticket
     const ticket = await Ticket.findById(ticketId);
     if (!ticket) {
       return res.status(404).json({ message: 'Ticket not found' });
     }
-
     // Find the sub-event index
     const subEventIndex = ticket.sub_events.findIndex(
       (se) => se._id.toString() === subEventId
@@ -131,16 +116,13 @@ export const updateSubEvent = async (req, res) => {
 
     const existingSubEvent = ticket.sub_events[subEventIndex];
 
-    // Process file uploads
+    // Process file uploads - only if files exist
     const processedFiles = {};
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     const docExtensions = ['.pdf', '.doc', '.docx'];
     const uploadedFiles = req.files || {};
-
-    // Extract guest profile files and ticket photo files
     const guestProfileFiles = {};
     const ticketPhotoFiles = {};
-    
     Object.keys(uploadedFiles).forEach(fieldName => {
       if (fieldName.startsWith('guest_profile_')) {
         const index = fieldName.split('_')[2];
@@ -152,7 +134,6 @@ export const updateSubEvent = async (req, res) => {
           }
         }
       }
-      
       if (fieldName.startsWith('ticket_photo_')) {
         const index = fieldName.split('_')[2];
         if (!isNaN(index) && parseInt(index) >= 0) {
@@ -160,6 +141,7 @@ export const updateSubEvent = async (req, res) => {
           const ext = '.' + ticketPhotoFile.originalname.toLowerCase().split('.').pop();
           if (imageExtensions.includes(ext)) {
             ticketPhotoFiles[parseInt(index)] = ticketPhotoFile;
+            console.log(`✓ Ticket photo ${index}: ${ticketPhotoFile.originalname}`);
           }
         }
       }
@@ -225,8 +207,6 @@ export const updateSubEvent = async (req, res) => {
         processedFiles.ticket_layout = layoutFile.path;
       }
     }
-
-    // Parse nested data
     const parseNestedData = (data, fieldName) => {
       if (!data) return [];
       try {
@@ -239,10 +219,8 @@ export const updateSubEvent = async (req, res) => {
         return [];
       }
     };
-
     const guests = parseNestedData(updateData.guests, 'guests');
     const ticketTypes = parseNestedData(updateData.ticket_types, 'ticket_types');
-
     // Process guests with profile images
     let processedGuests = [];
     if (guests && guests.length > 0) {
@@ -263,7 +241,6 @@ export const updateSubEvent = async (req, res) => {
     } else if (existingSubEvent.guests) {
       processedGuests = existingSubEvent.guests;
     }
-
     // Process ticket types with photos
     let processedTicketTypes = [];
     if (ticketTypes && ticketTypes.length > 0) {
@@ -289,7 +266,7 @@ export const updateSubEvent = async (req, res) => {
     // Build updated sub-event object
     const updatedSubEvent = {
       ...existingSubEvent.toObject(),
-      _id: existingSubEvent._id, // Preserve ID
+      _id: existingSubEvent._id,
       
       // Basic fields
       event_name: updateData.event_name || existingSubEvent.event_name,
@@ -356,7 +333,6 @@ export const updateSubEvent = async (req, res) => {
       updatedSubEvent.location = updateData.location || existingSubEvent.location;
       updatedSubEvent.venue = updateData.venue || existingSubEvent.venue;
       
-      // Parse exact_map_location
       let exactMapLocation = existingSubEvent.exact_map_location || {};
       if (updateData.exact_map_location) {
         try {
@@ -376,10 +352,9 @@ export const updateSubEvent = async (req, res) => {
       
       updatedSubEvent.gate_open_time = updateData.gate_open_time || existingSubEvent.gate_open_time;
       updatedSubEvent.prohibited_items = updateData.prohibited_items ? parseJSONSafely(updateData.prohibited_items, []) : existingSubEvent.prohibited_items || [];
-      updatedSubEvent.ticket_types = processedTicketTypes;
+      updatedSubEvent.ticket_types = processedTicketTypes && processedTicketTypes.length > 0 ? processedTicketTypes : existingSubEvent.ticket_types || [];
       updatedSubEvent.ticket_layout = processedFiles.ticket_layout || existingSubEvent.ticket_layout;
       
-      // Clear online fields
       updatedSubEvent.event_link = undefined;
       updatedSubEvent.verification_event_code = undefined;
       
@@ -387,7 +362,15 @@ export const updateSubEvent = async (req, res) => {
       updatedSubEvent.event_link = updateData.event_link || existingSubEvent.event_link;
       updatedSubEvent.verification_event_code = updateData.verification_event_code || existingSubEvent.verification_event_code;
       
-      // Clear offline fields
+      // CRITICAL: PRESERVE prohibited_items and ticket_types
+      updatedSubEvent.prohibited_items = updateData.prohibited_items 
+        ? parseJSONSafely(updateData.prohibited_items, []) 
+        : (existingSubEvent.prohibited_items || []);
+      
+      updatedSubEvent.ticket_types = processedTicketTypes && processedTicketTypes.length > 0 
+        ? processedTicketTypes 
+        : (existingSubEvent.ticket_types || []);
+      
       updatedSubEvent.seating_arrangement = undefined;
       updatedSubEvent.location = undefined;
       updatedSubEvent.venue = undefined;
@@ -397,17 +380,10 @@ export const updateSubEvent = async (req, res) => {
         address: undefined
       };
       updatedSubEvent.gate_open_time = undefined;
-      updatedSubEvent.prohibited_items = [];
-      updatedSubEvent.ticket_types = [];
       updatedSubEvent.ticket_layout = undefined;
     }
-
-    // Update the sub-event in the array
     ticket.sub_events[subEventIndex] = updatedSubEvent;
-
-    // Save the ticket
     await ticket.save();
-
     res.status(200).json({
       message: 'Sub-event updated successfully',
       sub_event: ticket.sub_events[subEventIndex],
@@ -416,20 +392,18 @@ export const updateSubEvent = async (req, res) => {
         event_banner: processedFiles.event_banner ? 'updated' : 'unchanged',
         event_rules: processedFiles.event_rules ? 'updated' : (updateData.event_rules_text ? 'updated (text)' : 'unchanged'),
         guests: processedGuests.length,
-        ticket_types: processedTicketTypes.length
+        ticket_types: processedTicketTypes.length,
+        prohibited_items: (updatedSubEvent.prohibited_items || []).length
       }
     });
 
   } catch (error) {
     console.error('Error updating sub-event:', error);
-    
-    // Handle specific errors
     if (error.name === 'ValidationError') {
       const validationErrors = Object.keys(error.errors).map(key => ({
         field: key,
         message: error.errors[key].message
       }));
-      
       return res.status(400).json({
         message: "Validation error",
         errors: validationErrors
@@ -1223,8 +1197,3 @@ export const totalEventsCreatedCount = async (req, res) => {
     });
   }
 };
-    
-
-   
-
-
