@@ -108,7 +108,6 @@ const upload = multer({
   },
   fileFilter: generalFileFilter,
 });
-// FIXED: Enhanced Ticket Media specific file filter - for images, videos and documents
 const ticketMediaFileFilter = (req, file, cb) => {
   try {
     // Log the file being processed for debugging
@@ -335,48 +334,152 @@ export default upload;
 // Export the FIXED uploadFields for createTicketBasicInfo API
 export { uploadFields };
 
-// FIXED: Enhanced ticket media upload middleware with ALL required fields
-export const uploadTicketMedia = ticketMediaUpload.fields([
-  // Event media files
-  { name: 'event_logo', maxCount: 1 },
-  { name: 'event_banner', maxCount: 1 },
-  { name: 'event_images', maxCount: 10 },
-  
-  // Guest profile images - supports up to 10 guests
-  { name: 'guest_profile_0', maxCount: 1 },
-  { name: 'guest_profile_1', maxCount: 1 },
-  { name: 'guest_profile_2', maxCount: 1 },
-  { name: 'guest_profile_3', maxCount: 1 },
-  { name: 'guest_profile_4', maxCount: 1 },
-  { name: 'guest_profile_5', maxCount: 1 },
-  { name: 'guest_profile_6', maxCount: 1 },
-  { name: 'guest_profile_7', maxCount: 1 },
-  { name: 'guest_profile_8', maxCount: 1 },
-  { name: 'guest_profile_9', maxCount: 1 },
-  
-  // Ticket photos for different ticket types
-  { name: 'ticket_photo_0', maxCount: 1 },
-  { name: 'ticket_photo_1', maxCount: 1 },
-  { name: 'ticket_photo_2', maxCount: 1 },
-  { name: 'ticket_photo_3', maxCount: 1 },
-  { name: 'ticket_photo_4', maxCount: 1 },
-  { name: 'ticket_photo_5', maxCount: 1 },
-  { name: 'ticket_photo_6', maxCount: 1 },
-  { name: 'ticket_photo_7', maxCount: 1 },
-  { name: 'ticket_photo_8', maxCount: 1 },
-  { name: 'ticket_photo_9', maxCount: 1 },
-  
-  // Additional fields for offline events
-  { name: 'ticket_layout', maxCount: 1 },
-  
-  // Event rules document
-  { name: 'event_rules', maxCount: 1 },
-  
-  // College authorization document
-  { name: 'college_authorisation', maxCount: 1 },
-  { name: 'video_file', maxCount: 30 },
-{ name: 'preview_image', maxCount: 30 }
-]);
+export const uploadTicketMedia = (req, res, next) => {
+  const upload = ticketMediaUpload.fields([
+    // Event media files
+    { name: 'event_logo', maxCount: 1 },
+    { name: 'event_banner', maxCount: 1 },
+    { name: 'event_images', maxCount: 10 },
+    
+    // Guest profile images - supports up to 10 guests
+    { name: 'guest_profile_0', maxCount: 1 },
+    { name: 'guest_profile_1', maxCount: 1 },
+    { name: 'guest_profile_2', maxCount: 1 },
+    { name: 'guest_profile_3', maxCount: 1 },
+    { name: 'guest_profile_4', maxCount: 1 },
+    { name: 'guest_profile_5', maxCount: 1 },
+    { name: 'guest_profile_6', maxCount: 1 },
+    { name: 'guest_profile_7', maxCount: 1 },
+    { name: 'guest_profile_8', maxCount: 1 },
+    { name: 'guest_profile_9', maxCount: 1 },
+    
+    // Ticket photos for different ticket types (up to 20)
+    { name: 'ticket_photo_0', maxCount: 1 },
+    { name: 'ticket_photo_1', maxCount: 1 },
+    { name: 'ticket_photo_2', maxCount: 1 },
+    { name: 'ticket_photo_3', maxCount: 1 },
+    { name: 'ticket_photo_4', maxCount: 1 },
+    { name: 'ticket_photo_5', maxCount: 1 },
+    { name: 'ticket_photo_6', maxCount: 1 },
+    { name: 'ticket_photo_7', maxCount: 1 },
+    { name: 'ticket_photo_8', maxCount: 1 },
+    { name: 'ticket_photo_9', maxCount: 1 },
+    { name: 'ticket_photo_10', maxCount: 1 },
+    { name: 'ticket_photo_11', maxCount: 1 },
+    { name: 'ticket_photo_12', maxCount: 1 },
+    { name: 'ticket_photo_13', maxCount: 1 },
+    { name: 'ticket_photo_14', maxCount: 1 },
+    { name: 'ticket_photo_15', maxCount: 1 },
+    { name: 'ticket_photo_16', maxCount: 1 },
+    { name: 'ticket_photo_17', maxCount: 1 },
+    { name: 'ticket_photo_18', maxCount: 1 },
+    { name: 'ticket_photo_19', maxCount: 1 },
+    
+    // Video files for recorded events (up to 30)
+    { name: 'video_file_0', maxCount: 1 },
+    { name: 'video_file_1', maxCount: 1 },
+    { name: 'video_file_2', maxCount: 1 },
+    { name: 'video_file_3', maxCount: 1 },
+    { name: 'video_file_4', maxCount: 1 },
+    { name: 'video_file_5', maxCount: 1 },
+    { name: 'video_file_6', maxCount: 1 },
+    { name: 'video_file_7', maxCount: 1 },
+    { name: 'video_file_8', maxCount: 1 },
+    { name: 'video_file_9', maxCount: 1 },
+    { name: 'video_file_10', maxCount: 1 },
+    { name: 'video_file_11', maxCount: 1 },
+    { name: 'video_file_12', maxCount: 1 },
+    { name: 'video_file_13', maxCount: 1 },
+    { name: 'video_file_14', maxCount: 1 },
+    { name: 'video_file_15', maxCount: 1 },
+    { name: 'video_file_16', maxCount: 1 },
+    { name: 'video_file_17', maxCount: 1 },
+    { name: 'video_file_18', maxCount: 1 },
+    { name: 'video_file_19', maxCount: 1 },
+    { name: 'video_file_20', maxCount: 1 },
+    { name: 'video_file_21', maxCount: 1 },
+    { name: 'video_file_22', maxCount: 1 },
+    { name: 'video_file_23', maxCount: 1 },
+    { name: 'video_file_24', maxCount: 1 },
+    { name: 'video_file_25', maxCount: 1 },
+    { name: 'video_file_26', maxCount: 1 },
+    { name: 'video_file_27', maxCount: 1 },
+    { name: 'video_file_28', maxCount: 1 },
+    { name: 'video_file_29', maxCount: 1 },
+    
+    // Preview images for recorded events (up to 30)
+    { name: 'preview_image_0', maxCount: 1 },
+    { name: 'preview_image_1', maxCount: 1 },
+    { name: 'preview_image_2', maxCount: 1 },
+    { name: 'preview_image_3', maxCount: 1 },
+    { name: 'preview_image_4', maxCount: 1 },
+    { name: 'preview_image_5', maxCount: 1 },
+    { name: 'preview_image_6', maxCount: 1 },
+    { name: 'preview_image_7', maxCount: 1 },
+    { name: 'preview_image_8', maxCount: 1 },
+    { name: 'preview_image_9', maxCount: 1 },
+    { name: 'preview_image_10', maxCount: 1 },
+    { name: 'preview_image_11', maxCount: 1 },
+    { name: 'preview_image_12', maxCount: 1 },
+    { name: 'preview_image_13', maxCount: 1 },
+    { name: 'preview_image_14', maxCount: 1 },
+    { name: 'preview_image_15', maxCount: 1 },
+    { name: 'preview_image_16', maxCount: 1 },
+    { name: 'preview_image_17', maxCount: 1 },
+    { name: 'preview_image_18', maxCount: 1 },
+    { name: 'preview_image_19', maxCount: 1 },
+    { name: 'preview_image_20', maxCount: 1 },
+    { name: 'preview_image_21', maxCount: 1 },
+    { name: 'preview_image_22', maxCount: 1 },
+    { name: 'preview_image_23', maxCount: 1 },
+    { name: 'preview_image_24', maxCount: 1 },
+    { name: 'preview_image_25', maxCount: 1 },
+    { name: 'preview_image_26', maxCount: 1 },
+    { name: 'preview_image_27', maxCount: 1 },
+    { name: 'preview_image_28', maxCount: 1 },
+    { name: 'preview_image_29', maxCount: 1 },
+    
+    // Event rules document
+    { name: 'event_rules', maxCount: 1 },
+    
+    // College authorization document
+    { name: 'college_authorisation', maxCount: 1 },
+    { name: 'ticket_layout', maxCount: 1 }
+  ]);
+
+  // Call multer
+  upload(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          message: 'File too large',
+          error: err.message
+        });
+      }
+
+      if (err.code === 'LIMIT_FILE_COUNT') {
+        return res.status(400).json({
+          message: 'Too many files',
+          error: err.message
+        });
+      }
+
+      if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+        return res.status(400).json({
+          message: 'Unexpected file field',
+          field: err.field,
+          error: err.message
+        });
+      }
+
+      return res.status(400).json({
+        message: 'File upload error',
+        error: err.message
+      });
+    }
+    next();
+  });
+};
 
 // Alternative: Single file upload for ticket media (if needed)
 export const uploadSingleTicketMedia = ticketMediaUpload.single('file');
