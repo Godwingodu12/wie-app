@@ -83,6 +83,7 @@ const subEventSchema = new mongoose.Schema({
       required: function() { return this.location_type === 'offline'; }
   },
   min_age_allowed: { type: Number, required: true },
+  max_age_allowed: { type: Number, required: false },
   kids_friendly: { type: Boolean, default: false },
   pet_friendly: { type: Boolean, default: false },
   exact_map_location: {
@@ -163,6 +164,7 @@ const ticketSchema = new mongoose.Schema({
     default: []
   },
   min_age_allowed: { type: Number, required: true },
+  max_age_allowed: { type: Number, required: false },
   seating_arrangement: { type: String, default: false, enum: ['seated', 'standing','seated and standing','other']},
   kids_friendly: { type: Boolean, default: false },
   pet_friendly: { type: Boolean, default: false },
