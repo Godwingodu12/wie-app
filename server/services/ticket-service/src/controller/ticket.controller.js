@@ -275,6 +275,7 @@ export const updateSubEvent = async (req, res) => {
       event_type: updateData.event_type || existingSubEvent.event_type,
       location_type: updateData.location_type || existingSubEvent.location_type,
       min_age_allowed: updateData.min_age_allowed !== undefined ? Number(updateData.min_age_allowed) : existingSubEvent.min_age_allowed,
+      max_age_allowed: updateData.max_age_allowed !== undefined ? Number(updateData.max_age_allowed) : existingSubEvent.max_age_allowed,
       event_description: updateData.event_description || existingSubEvent.event_description,
       payment_type: updateData.payment_type || existingSubEvent.payment_type,
       
