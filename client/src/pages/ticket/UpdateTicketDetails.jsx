@@ -74,6 +74,9 @@ const UpdateTicketDetails = () => {
   const [bookingEndDate, setBookingEndDate] = useState("");
   const [mainEventData, setMainEventData] = useState(null); // Changed initial state to null
 
+  const [simpleTicketPrice, setSimpleTicketPrice] = useState("");
+    const [simpleTicketCapacity, setSimpleTicketCapacity] = useState("");
+
   // Effect to load data from API and localStorage on initial mount
   useEffect(() => {
     const fetchData = async () => {
@@ -146,6 +149,17 @@ const UpdateTicketDetails = () => {
               []
           );
         }
+        const loadedTickets = savedDraft?.tickets ?? 
+                    ticketData.ticket_types?.map((t) => ({
+                        // ... (map ticket fields) ...
+                        id: t._id || Date.now(),
+                        name: t.ticket_type,
+                        price: t.ticket_price,
+                        capacity: t.max_capacity,
+                        image: t.ticket_photo,
+                    })) ?? [];
+                
+                setTickets(loadedTickets);
 
         // Handle banking details
         let shouldUseGroupBank = true;
@@ -158,6 +172,17 @@ const UpdateTicketDetails = () => {
             bank_ifsc: "",
           },
         ];
+
+        const locationType = ticketData.location_type;
+                if (ticketData.payment_type !== 'free' && locationType !== 'offline' && loadedTickets.length > 0) {
+                    // For simple tickets, we assume only the first ticket type applies
+                    setSimpleTicketPrice(savedDraft?.simpleTicketPrice ?? loadedTickets[0].price);
+                    setSimpleTicketCapacity(savedDraft?.simpleTicketCapacity ?? loadedTickets[0].capacity);
+                } else if (ticketData.payment_type !== 'free' && locationType !== 'offline' && loadedTickets.length === 0) {
+                     // If paid, non-offline, but no tickets loaded, try to load draft
+                     setSimpleTicketPrice(savedDraft?.simpleTicketPrice ?? "");
+                     setSimpleTicketCapacity(savedDraft?.simpleTicketCapacity ?? "");
+                }
 
         // Check if ticket has custom banking details saved
         if (ticketData.banking_details && ticketData.banking_details.length > 0) {
@@ -237,6 +262,8 @@ const UpdateTicketDetails = () => {
       tickets,
       bookingStartDate,
       bookingEndDate,
+      simpleTicketPrice,
+            simpleTicketCapacity,
     };
 
     localStorage.setItem(storageKey, JSON.stringify(draftData));
@@ -250,7 +277,10 @@ const UpdateTicketDetails = () => {
     bookingStartDate,
     bookingEndDate,
     initialLoading,
-    storageKey,
+    simpleTicketPrice,
+        simpleTicketCapacity,
+        initialLoading,
+        storageKey,
   ]);
 
     const handleBookingEndDateChange = (e) => {
@@ -351,7 +381,6 @@ const UpdateTicketDetails = () => {
     setUseGroupBankAccount(false);
   }
 }, [groupHasBankAccount, groupBankDetailsIncomplete]);
-
   const handleGoBack = () => {
     localStorage.removeItem(storageKey);
     navigate(`/ticket/update-ticket-media/${ticketId}`);
@@ -360,7 +389,38 @@ const UpdateTicketDetails = () => {
     e.preventDefault();
     setLoading(true);
     setErrors({});
+    const locationType = mainEventData?.location_type;
+    const isOnlineOrRecordedPaid = paymentType === 'paid' && (locationType === 'online' || locationType === 'recorded');
 
+
+    let ticketsToSubmit = tickets;
+
+    if (isOnlineOrRecordedPaid) {
+        if (!simpleTicketPrice || simpleTicketPrice <= 0 || !simpleTicketCapacity || simpleTicketCapacity <= 0) {
+             const errorMsg = "Please enter a valid price and total capacity for the ticket.";
+             showAlert({ type: "error", message: "Validation Error", description: errorMsg });
+             setErrors({ general: errorMsg, simpleTicketPrice: !simpleTicketPrice, simpleTicketCapacity: !simpleTicketCapacity });
+             setLoading(false);
+             return;
+        }
+        
+        // Create a single structured ticket object matching the schema
+        ticketsToSubmit = [{
+            // Use defaults for complex fields, map price/capacity
+            ticket_type: 'Standard Ticket', // Default ticket name
+            ticket_price: simpleTicketPrice, // Mapped value
+            max_capacity: simpleTicketCapacity, // Mapped value
+            ticket_photo: mainEventData?.ticket_types?.[0]?.ticket_photo || "", // Preserve existing photo URL if one exists from a previous save
+        }];
+
+    } else if (paymentType === 'paid' && tickets.length === 0) {
+        // Validation for Paid Offline event missing tickets
+         const errorMsg = "Please add at least one ticket type for this paid event.";
+         showAlert({ type: "error", message: "Validation Error", description: errorMsg });
+         setErrors({ general: errorMsg });
+         setLoading(false);
+         return;
+    }
     // Validate banking details for paid events
     if (paymentType === "paid" && !validateBankingDetails()) {
       setLoading(false);
@@ -399,20 +459,25 @@ const UpdateTicketDetails = () => {
       return;
     }
 
-    const cleanTicketTypes = tickets.map(
-      ({ id, image, photoFile, name, price, capacity }) => ({
-        ticket_type: name,
-        ticket_price: price,
-        max_capacity: capacity,
-      })
-    );
+// NEW LINE - Use ticketsToSubmit array
+const cleanTicketTypes = ticketsToSubmit.map(
+(ticket) => ({
+
+ticket_type: ticket.ticket_type || ticket.name,
+ ticket_price: ticket.ticket_price || ticket.price,
+ max_capacity: ticket.max_capacity || ticket.capacity,
+ ticket_photo: ticket.ticket_photo || ticket.image || '', // Ensure photo is included if needed
+})
+);
     apiFormData.append("ticket_types", JSON.stringify(cleanTicketTypes));
 
-    tickets.forEach((ticket, index) => {
-      if (ticket.photoFile instanceof File) {
-        apiFormData.append(`ticket_photo_${index}`, ticket.photoFile);
-      }
+    if (locationType === 'offline') {
+    ticketsToSubmit.forEach((ticket, index) => {
+        if (ticket.photoFile instanceof File) {
+            apiFormData.append(`ticket_photo_${index}`, ticket.photoFile);
+        }
     });
+}
 
     if (hasSeatingLayout && seatingLayoutFile instanceof File) {
       apiFormData.append("ticket_layout", seatingLayoutFile);
@@ -444,6 +509,11 @@ const UpdateTicketDetails = () => {
     );
   }
   const currentBankDetail = bankingDetails[0] || {};
+
+
+  const locationType = mainEventData?.location_type;
+    const isOfflinePaid = paymentType === 'paid' && locationType === 'offline';
+    const isOnlineOrRecordedPaid = paymentType === 'paid' && (locationType === 'online' || locationType === 'recorded');
   return (
     <div className={darkMode ? "dark " : ""} >
       <CustomScrollbarStyles isDark={darkMode} />
@@ -613,28 +683,28 @@ const UpdateTicketDetails = () => {
                               </p>
                             )}
                           </div>
-                          <ToggleSwitch
-                            checked={useGroupBankAccount}
-                            onChange={() => {
-                              const newValue = !useGroupBankAccount;
-                              setUseGroupBankAccount(newValue);
+                         <ToggleSwitch
+                          checked={useGroupBankAccount}
+                          onChange={() => {
+                            const newValue = !useGroupBankAccount;
+                            setUseGroupBankAccount(newValue);
 
-                              if (newValue && window.groupBankDetails) {
-                                setBankingDetails([...window.groupBankDetails]);
-                              } else {
-                                setBankingDetails([
-                                  {
-                                    id: Date.now(),
-                                    bank_acc_type: "",
-                                    bank_acc_holder: "",
-                                    bank_acc_no: "",
-                                    bank_ifsc: "",
-                                  },
-                                ]);
-                              }
-                            }}
-                            disabled={!groupHasBankAccount || groupBankDetailsIncomplete}
-                          />
+                            if (newValue && window.groupBankDetails) {
+                              setBankingDetails([...window.groupBankDetails]);
+                            } else {
+                              setBankingDetails([
+                                {
+                                  id: Date.now(),
+                                  bank_acc_type: "",
+                                  bank_acc_holder: "",
+                                  bank_acc_no: "",
+                                  bank_ifsc: "",
+                                },
+                              ]);
+                            }
+                          }}
+                          disabled={!groupHasBankAccount || groupBankDetailsIncomplete}
+                        />
                         </div>
                         {groupBankDetailsIncomplete && (
                           <p className="text-sm text-yellow-600 dark:text-yellow-500 mt-2">
@@ -902,85 +972,60 @@ const UpdateTicketDetails = () => {
                 </div>
               </section>
               {paymentType === "paid" && (
-                <section className="space-y-6">
-                  <p className="text-black dark:text-gray-400 text-sm">
-                    Add ticket types, set prices, and control how attendees book
-                    their spot.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleOpenModalForAdd}
-                    className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center space-x-2 hover:bg-indigo-700 transition"
-                  >
-                    <span>Add tickets</span>
-                    <img src={Ticket_Form_Icon} alt="" />
-                  </button>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                    {tickets.map((ticket) => (
-                      <div
-                        key={ticket.id}
-                        className="bg-white dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <img
-                            src={ticket.image}
-                            alt={ticket.name}
-                            className="w-16 h-16 rounded-md object-cover"
-                          />
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-white">{`${
-                              ticket.name
-                            } - ₹${Number(ticket.price).toLocaleString()}`}</p>
-                            <p className="text-xs text-black dark:text-gray-400">
-                              Capacity: {ticket.capacity}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenModalForEdit(ticket)}
-                            className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTicket(ticket.id)}
-                            className="text-gray-400 hover:text-red-500 transition"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
+                            <section className="space-y-6">
+                                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                     Ticketing details
+                                </h2>
+                                
+                                {isOfflinePaid && (
+                                    <>
+                                        <p className="text-black dark:text-gray-400 text-sm">
+                                            Add ticket types, set prices, and control how attendees book their spot.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={handleOpenModalForAdd}
+                                            className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center space-x-2 hover:bg-indigo-700 transition"
+                                        >
+                                            <span>Add tickets</span>
+                                            <img src={Ticket_Form_Icon} alt="" />
+                                        </button>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
+                                            {/* ... (Mapping of complex tickets using tickets.map) ... */}
+                                        </div>
+                                    </>
+                                )}
+
+                                {isOnlineOrRecordedPaid && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4   rounded-lg">
+                                        <FormInput
+                                            label="Ticket Price"
+                                            id="simpleTicketPrice"
+                                            name="simpleTicketPrice"
+                                            type="number"
+                                            value={simpleTicketPrice}
+                                            onChange={(e) => setSimpleTicketPrice(e.target.value)}
+                                            placeholder="Enter Price (e.g., 500)"
+                                            info="Base price for the standard ticket type."
+                                            darkMode={darkMode}
+                                            required={false}
+                                        />
+                                        <FormInput
+                                            label="Total Ticket Capacity "
+                                            id="simpleTicketCapacity"
+                                            name="simpleTicketCapacity"
+                                            type="number"
+                                            value={simpleTicketCapacity}
+                                            onChange={(e) => setSimpleTicketCapacity(e.target.value)}
+                                            placeholder="Enter total capacity"
+                                            info="Maximum number of attendees allowed."
+                                            darkMode={darkMode}
+                                            required={false}
+                                        />
+                                    </div>
+                                )}
+                            </section>
+                        )}
               <div className="pt-8 flex justify-end gap-4">
                 <button
                   type="button"
