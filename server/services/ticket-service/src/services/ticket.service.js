@@ -379,6 +379,7 @@ export const createTicketBasicInfo = async (req, res) => {
       event_type,
       event_language,
       min_age_allowed,
+      max_age_allowed,
       seating_arrangement,
       kids_friendly,
       pet_friendly,
@@ -784,6 +785,7 @@ export const createTicketBasicInfo = async (req, res) => {
       { key: 'event_description', value: event_description },
       { key: 'groupId', value: groupId },
       { key: 'min_age_allowed', value: min_age_allowed },
+      { key: 'max_age_allowed', value: max_age_allowed },
       { key: 'userId', value: userId },
     ];
 
@@ -901,6 +903,12 @@ export const createTicketBasicInfo = async (req, res) => {
         message: "Minimum age allowed must be between 0 and 100"
       });
     }
+    const ageMax = Number(max_age_allowed);
+    if (isNaN(ageMax) || ageMax < 0 || ageMax > 100) {
+      return res.status(400).json({
+        message: "Maximum age allowed must be between 0 and 100"
+      });
+    }
 
     // File validation - guest profile files must be images
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
@@ -984,6 +992,7 @@ export const createTicketBasicInfo = async (req, res) => {
       event_type: event_type || 'public',
       event_language: languageArray,
       min_age_allowed: ageNum,
+      max_age_allowed: ageMax,
       kids_friendly: Boolean(kids_friendly === 'true' || kids_friendly === true),
       pet_friendly: Boolean(pet_friendly === 'true' || pet_friendly === true),
       
@@ -1021,29 +1030,61 @@ export const createTicketBasicInfo = async (req, res) => {
         additional_info: false
       }
     };
-    
-    // Add location-type specific fields
-    if (location_type === 'offline') {
+    const processedProhibitedItems = (() => {
+      const rawItems = prohibited_items;
+      
+      if (!rawItems) return [];
+      
+      if (Array.isArray(rawItems)) {
+        return rawItems.map(item => String(item).trim()).filter(item => item !== '');
+      }
+      
+      if (typeof rawItems === 'string') {
+        const trimmed = rawItems.trim();
+        
+        if (trimmed === '' || trimmed === '[]' || trimmed === '{}') {
+          return [];
+        }
+        
+        try {
+          const parsed = JSON.parse(trimmed);
+          
+          if (Array.isArray(parsed)) {
+            return parsed.map(item => String(item).trim()).filter(item => item !== '');
+          } else if (typeof parsed === 'object' && parsed !== null) {
+            return Object.values(parsed).map(item => String(item).trim()).filter(item => item !== '');
+          } else {
+            return [String(parsed).trim()].filter(item => item !== '');
+          }
+        } catch (e) {
+          console.log('Failed to parse prohibited_items:', e.message);
+          if (trimmed.includes(',')) {
+            return trimmed.split(',').map(item => item.trim()).filter(item => item !== '');
+          }
+          return [];
+        }
+      }
+      
+      if (typeof rawItems === 'object' && rawItems !== null) {
+        return Object.values(rawItems).map(item => String(item).trim()).filter(item => item !== '');
+      }
+      return [];
+    })();
+   if (location_type === 'offline') {
       ticketData.seating_arrangement = seating_arrangement || 'other';
       ticketData.location = location.trim();
       ticketData.venue = venue.trim();
       ticketData.exact_map_location = mapLocation;
       ticketData.gate_open_time = gate_open_time?.trim() || '';
-      ticketData.prohibited_items = parseJSONSafely(prohibited_items, []);
+      ticketData.prohibited_items = processedProhibitedItems; 
     } else if (location_type === 'online' || location_type === 'recorded') {
-    // Parse the JSON string into an array of trimmed, valid links
-    
-    
-
-    // For online/recorded events, these fields should not be set or should be null/empty
       ticketData.seating_arrangement = null;
       ticketData.location = '';
       ticketData.venue = '';
       ticketData.exact_map_location = {};
       ticketData.gate_open_time = '';
-      ticketData.prohibited_items = [];
+      ticketData.prohibited_items = processedProhibitedItems; 
     }
-
     // Handle event rules (text or file)
     if (eventRulesFiles.length > 0) {
       ticketData.event_rules = {
@@ -1638,6 +1679,7 @@ export const updateTicketAddOns = async (req, res) => {
       { key: 'location_type', value: subEventData.location_type },
       { key: 'event_dates', value: subEventData.event_dates },
       { key: 'min_age_allowed', value: subEventData.min_age_allowed },
+      { key: 'max_age_allowed', value: subEventData.max_age_allowed },
       { key: 'event_description', value: subEventData.event_description },
       { key: 'payment_type', value: subEventData.payment_type },
       { key: 'POCS', value: subEventData.POCS },
@@ -1785,6 +1827,12 @@ export const updateTicketAddOns = async (req, res) => {
     if (isNaN(ageNum) || ageNum < 0 || ageNum > 100) {
       return res.status(400).json({
         message: "Minimum age allowed must be between 0 and 100"
+      });
+    }
+    const ageMax = Number(subEventData.max_age_allowed);
+    if (isNaN(ageMax) || ageMax < 0 || ageMax > 100) {
+      return res.status(400).json({
+        message: "Maximum age allowed must be between 0 and 100"
       });
     }
     
@@ -2146,6 +2194,7 @@ export const updateTicketAddOns = async (req, res) => {
       event_type: String(subEventData.event_type),
       location_type: String(subEventData.location_type),
       min_age_allowed: Number(ageNum),
+      max_age_allowed: Number(ageMax),
       event_description: String(subEventData.event_description).trim(),
       payment_type: String(subEventData.payment_type),
       kids_friendly: Boolean(subEventData.kids_friendly === 'true' || subEventData.kids_friendly === true),
@@ -2403,6 +2452,7 @@ export const updateTicketAddOns = async (req, res) => {
       event_type: String(subEventData.event_type),
       location_type: String(subEventData.location_type),
       min_age_allowed: Number(ageNum),
+      max_age_allowed: Number(ageMax),
       event_description: String(subEventData.event_description).trim(),
       payment_type: String(subEventData.payment_type),
       kids_friendly: Boolean(subEventData.kids_friendly === 'true' || subEventData.kids_friendly === true),

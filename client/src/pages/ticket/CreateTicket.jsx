@@ -1,4 +1,4 @@
-import React, { useState, useEffect,useContext,useMemo , useRef } from "react";
+import React, { useState, useEffect, useContext, useMemo, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 
 import Select from "react-select";
@@ -169,7 +169,6 @@ const languageOptions = [
 ].map((lang) => ({ value: lang, label: lang }));
 // Add these constants near your other dropdown data arrays
 
-
 const seatingOptions = [
   { value: "seated", label: "Seated" },
   { value: "standing", label: "Standing" },
@@ -180,19 +179,18 @@ const seatingOptions = [
 const CreateTicket = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { groupId, ticketId: urlTicketId} = useParams();
+  const { groupId, ticketId: urlTicketId } = useParams();
   const queryTicketId = new URLSearchParams(location.search).get("ticketId");
   const [loading, setLoading] = useState(false);
-  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const [darkMode, setDarkMode] = useState(true);
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isOfflineDateModalOpen, setIsOfflineDateModalOpen] = useState(false);
-const [isOnlineDateModalOpen, setIsOnlineDateModalOpen] = useState(false);
-const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
-
+  const [isOnlineDateModalOpen, setIsOnlineDateModalOpen] = useState(false);
+  const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
 
   const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
   const [isProhibitedModalOpen, setIsProhibitedModalOpen] = useState(false);
@@ -208,7 +206,7 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
   const descriptionEditorRef = useRef(null);
   const [alert, setAlert] = useState(null); // State to manage the alert
   const [errors, setErrors] = useState({}); // State to track field errors for highlighting
-  
+
   // --- NEW: Data structure for event categories and subcategories ---
 
   // Set initial map location (Thrissur, Kerala, India)
@@ -225,11 +223,12 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
     event_subcategory: "",
     event_type: "public",
     location_type: "offline",
-    
+
     location: "",
     venue: "",
     event_language: [],
     min_age_allowed: "",
+    max_age_allowed: "",
     seating_arrangement: "",
     kids_friendly: false,
     pet_friendly: false,
@@ -256,12 +255,12 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
     },
     groupId: groupId || "",
   });
-    const showAlert = (alertData) => {
+  const showAlert = (alertData) => {
     setAlert({ ...alertData, show: true });
   };
 
   const hideAlert = () => {
-    setAlert(prev => prev ? { ...prev, show: false } : null);
+    setAlert((prev) => (prev ? { ...prev, show: false } : null));
   };
 
   const [poc, setPoc] = useState({
@@ -318,7 +317,32 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
     if (/^\d{2}:\d{2}$/.test(timeString)) return timeString;
     return new Date(timeString).toTimeString().slice(0, 5);
   };
+// Add this helper function near the top of your component, after the imports
+const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
 
+const getImageUrl = (path) => {
+  if (!path) return null;
+  
+  // If it's already a blob URL or full URL, return as is
+  if (typeof path === 'string' && (path.startsWith('blob:') || path.startsWith('http://') || path.startsWith('https://'))) {
+    return path;
+  }
+  
+  if (typeof path === 'object') {
+    path = path.path || path.url || null;
+  }
+  
+  if (typeof path !== 'string') {
+    console.warn('Invalid path type:', typeof path, path);
+    return null;
+  }
+  
+  let cleanPath = path.replace(/\\/g, '/');
+  cleanPath = cleanPath.replace(/^src\//, '');
+  cleanPath = cleanPath.replace(/^\//, '');
+  const fullUrl = `${API_BASE_URL}/${cleanPath}`;
+  return fullUrl;
+};
   const loadExistingTicketData = async (ticketIdParam) => {
     try {
       if (!ticketIdParam) return null;
@@ -360,7 +384,7 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
             videoName: d.video_name || "",
             verificationCode: d.verification_event_code || "",
             videoFile: d.video_file_path || null,
-            previewImage: d.preview_image_path || null
+            previewImage: d.preview_image_path || null,
           }))
         : [];
 
@@ -377,11 +401,12 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
         event_subcategory: ticketData.event_subcategory || "",
         event_type: ticketData.event_type || "public",
         location_type: ticketData.location_type || "offline",
-        
+
         location: ticketData.location || "",
         venue: ticketData.venue || "",
         event_language: eventLanguage,
         min_age_allowed: ticketData.min_age_allowed?.toString() || "",
+        max_age_allowed: ticketData.max_age_allowed?.toString() || "",
         seating_arrangement: ticketData.seating_arrangement || "",
         kids_friendly: ticketData.kids_friendly || false,
         pet_friendly: ticketData.pet_friendly || false,
@@ -417,7 +442,16 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
               return time.getHours() >= 12 ? "PM" : "AM";
             })()
           : "",
-        guests: ticketData.guests || [],
+        guests: ticketData.guests ? ticketData.guests.map(g => ({
+          id: g._id || g.id || Date.now() + Math.random(),
+          name: g.guest_name || g.name || "",
+          guest_name: g.guest_name || g.name || "",
+          link: g.guest_link || g.link || "",
+          guest_link: g.guest_link || g.link || "",
+          image: getImageUrl(g.guest_profile) || g.guest_profile || g.image,
+          guest_profile: g.guest_profile || g.image,
+          rawFile: null, // Existing images don't have rawFile
+        })) : [],
         event_rules: ticketData.event_rules || { type: "text", content: "" },
         prohibited_items: ticketData.prohibited_items || [],
         POCS: ticketData.POCS || [],
@@ -470,12 +504,13 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
           ? groupsResponse
           : groupsResponse.data || [];
         const groupData = groupsArray.find((g) => g._id === groupId);
-        
+
         if (!groupData) {
           showAlert({
-            type: 'error',
-            message: 'Group Not Found',
-            description: "The selected group could not be found or you don't have access to it."
+            type: "error",
+            message: "Group Not Found",
+            description:
+              "The selected group could not be found or you don't have access to it.",
           });
           navigate("/select-group");
           return;
@@ -489,7 +524,7 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
         } else {
           // For NEW events: Clear any previously saved form data
           clearFormDataFromStorage();
-          
+
           // Reset to initial form state
           setFormData({
             _id: null,
@@ -502,6 +537,7 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
             venue: "",
             event_language: [],
             min_age_allowed: "",
+            max_age_allowed: "",
             seating_arrangement: "",
             kids_friendly: false,
             pet_friendly: false,
@@ -538,7 +574,7 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
         setPageLoading(false);
       }
     };
-    
+
     initializeComponent();
   }, [groupId, urlTicketId, navigate]);
 
@@ -547,47 +583,63 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
       saveFormDataToStorage(formData);
     }
   }, [formData, pageLoading, isEditMode]);
+  useEffect(() => {
+    // Populate Event Rules Editor
+    if (rulesEditorRef.current && formData.event_rules?.content) {
+        // Only set the innerHTML if it doesn't already match to prevent cursor jump
+        if (rulesEditorRef.current.innerHTML !== formData.event_rules.content) {
+            rulesEditorRef.current.innerHTML = formData.event_rules.content;
+        }
+    }
+    
+    // Populate Event Description Editor
+    if (descriptionEditorRef.current && formData.event_description) {
+         if (descriptionEditorRef.current.innerHTML !== formData.event_description) {
+            descriptionEditorRef.current.innerHTML = formData.event_description;
+        }
+    }
+}, [formData.event_rules, formData.event_description, dataLoaded]);
 
   useEffect(() => {
-  const callbackName = "initMapCallback";
-  const scriptId = "google-maps-script";
+    const callbackName = "initMapCallback";
+    const scriptId = "google-maps-script";
 
-  // Check if already loaded
-  if (window.google && window.google.maps) {
-    setIsApiReady(true);
-    return;
-  }
-
-  // Set up callback BEFORE creating the script
-  if (!window[callbackName]) {
-    window[callbackName] = () => {
+    // Check if already loaded
+    if (window.google && window.google.maps) {
       setIsApiReady(true);
+      return;
+    }
+
+    // Set up callback BEFORE creating the script
+    if (!window[callbackName]) {
+      window[callbackName] = () => {
+        setIsApiReady(true);
+      };
+    }
+
+    // Check if script already exists
+    const existingScript = document.getElementById(scriptId);
+    if (existingScript) {
+      // Script exists but not loaded yet, wait for callback
+      return;
+    }
+
+    // Create and load script
+    const script = document.createElement("script");
+    script.id = scriptId;
+    const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
+    script.async = true;
+    script.defer = true;
+
+    script.onerror = () => {
+      console.error("Failed to load Google Maps script");
     };
-  }
 
-  // Check if script already exists
-  const existingScript = document.getElementById(scriptId);
-  if (existingScript) {
-    // Script exists but not loaded yet, wait for callback
-    return;
-  }
+    document.head.appendChild(script);
 
-  // Create and load script
-  const script = document.createElement("script");
-  script.id = scriptId;
-  const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
-  script.async = true;
-  script.defer = true;
-  
-  script.onerror = () => {
-    console.error("Failed to load Google Maps script");
-  };
-  
-  document.head.appendChild(script);
-
-  // NO cleanup - let the callback persist for the script
-}, []);
+    // NO cleanup - let the callback persist for the script
+  }, []);
 
   // Enhanced map initialization with initial location
   useEffect(() => {
@@ -810,8 +862,6 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
       saveFormDataToStorage(formData);
     }
   }, [formData]);
-
-  // --- MODIFIED: handleInputChange to reset subcategory ---
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => {
@@ -824,50 +874,74 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
     });
   };
 
-    const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = {};
-    
+
+ const minAge = parseInt(formData.min_age_allowed, 10);
+    const maxAge = formData.max_age_allowed ? parseInt(formData.max_age_allowed, 10) : null;
+
+    if (formData.min_age_allowed && formData.max_age_allowed && maxAge < minAge) {
+        newErrors.max_age_allowed = true;
+        newErrors.min_age_allowed = true; // Highlight both fields
+        showAlert({
+            type: "error",
+            message: "Invalid Age Range",
+            description: `The maximum age (${maxAge}) must be greater than or equal to the minimum age (${minAge}).`,
+        });
+        setErrors(newErrors);
+        return; // Stop submission
+    }
     if (!groupId) {
       showAlert({
-        type: 'error',
-        message: 'Missing Group ID',
-        description: 'Group ID is missing. Please go back and select a group.'
+        type: "error",
+        message: "Missing Group ID",
+        description: "Group ID is missing. Please go back and select a group.",
       });
       return;
     }
     if (!formData.groupId) {
       newErrors.groupId = true;
       showAlert({
-        type: 'error',
-        message: 'Missing Group ID',
-        description: 'Please select a group first.'
+        type: "error",
+        message: "Missing Group ID",
+        description: "Please select a group first.",
       });
       setErrors(newErrors);
       return;
     }
 
     // Validate YouTube URL
-    const youtubeRegex = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
-    if (formData.event_youtube_link && !youtubeRegex.test(formData.event_youtube_link)) {
+    const youtubeRegex =
+      /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
+    if (
+      formData.event_youtube_link &&
+      !youtubeRegex.test(formData.event_youtube_link)
+    ) {
       newErrors.event_youtube_link = true;
       showAlert({
-        type: 'error',
-        message: 'Invalid YouTube URL',
-        description: 'Please use a valid format like \'youtube.com/watch?v=VIDEO_ID\'.'
+        type: "error",
+        message: "Invalid YouTube URL",
+        description:
+          "Please use a valid format like 'youtube.com/watch?v=VIDEO_ID'.",
       });
       setErrors(newErrors);
       return;
     }
 
     // Validate Instagram URL
-    const instagramRegex = /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
-    if (formData.event_instagram_link && !instagramRegex.test(formData.event_instagram_link)) {
+    const instagramRegex =
+      /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
+    if (
+      formData.event_instagram_link &&
+      !instagramRegex.test(formData.event_instagram_link)
+    ) {
       newErrors.event_instagram_link = true;
       showAlert({
-        type: 'error',
-        message: 'Invalid Instagram URL',
-        description: 'Please enter a valid profile link, like \'instagram.com/username\'.'
+        type: "error",
+        message: "Invalid Instagram URL",
+        description:
+          "Please enter a valid profile link, like 'instagram.com/username'.",
       });
       setErrors(newErrors);
       return;
@@ -876,23 +950,26 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
     setLoading(true);
     try {
       const data = new FormData();
-      
+
       // FIX: Properly handle guest data with files
       const processedGuests = [];
       (formData.guests || []).forEach((guest, index) => {
         const cleanGuest = {
-          guest_name: guest.name || guest.guest_name || '',
-          guest_link: guest.link || guest.guest_link || '',
+          guest_name: guest.name || guest.guest_name || "",
+          guest_link: guest.link || guest.guest_link || "",
         };
-        
+
         // Handle new file upload
         if (guest.rawFile instanceof File) {
           data.append(`guest_profile_${index}`, guest.rawFile);
           // Don't include guest_profile in JSON - backend will add the path
-        } else if (guest.image && typeof guest.image === 'string') {
+        } else if (guest.image && typeof guest.image === "string") {
           // If it's an existing image URL/path, include it
           cleanGuest.guest_profile = guest.image;
-        } else if (guest.guest_profile && typeof guest.guest_profile === 'string') {
+        } else if (
+          guest.guest_profile &&
+          typeof guest.guest_profile === "string"
+        ) {
           // Handle case where guest_profile is already set
           cleanGuest.guest_profile = guest.guest_profile;
         }
@@ -900,137 +977,170 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
         processedGuests.push(cleanGuest);
       });
       // Append processed guests as JSON string
-      data.append('guests', JSON.stringify(processedGuests));
+      data.append("guests", JSON.stringify(processedGuests));
       const processedEventDates = [];
       (formData.event_dates || []).forEach((item, index) => {
-          const cleanItem = { ...item };
+        const cleanItem = { ...item };
 
-          // Convert times to 24-hour format
-          const convertTo24Hour = (time12h, ampm) => {
-            if (!time12h || !ampm) return "";
-            const [hours, minutes] = time12h.split(":");
-            let hour24 = parseInt(hours, 10);
-            if (ampm === "AM" && hour24 === 12) hour24 = 0;
-            if (ampm === "PM" && hour24 !== 12) hour24 += 12;
-            return `${hour24.toString().padStart(2, "0")}:${minutes}`;
-          };
+        // Convert times to 24-hour format
+        const convertTo24Hour = (time12h, ampm) => {
+          if (!time12h || !ampm) return "";
+          const [hours, minutes] = time12h.split(":");
+          let hour24 = parseInt(hours, 10);
+          if (ampm === "AM" && hour24 === 12) hour24 = 0;
+          if (ampm === "PM" && hour24 !== 12) hour24 += 12;
+          return `${hour24.toString().padStart(2, "0")}:${minutes}`;
+        };
 
-          if (cleanItem.startTime && cleanItem.startAmPm) {
-            cleanItem.startTime = convertTo24Hour(cleanItem.startTime, cleanItem.startAmPm);
-            delete cleanItem.startAmPm;
-          } else {
-            cleanItem.startTime = '';
-            delete cleanItem.startAmPm;
-          }
-          
-          if (cleanItem.endTime && cleanItem.endAmPm) {
-            cleanItem.endTime = convertTo24Hour(cleanItem.endTime, cleanItem.endAmPm);
-            delete cleanItem.endAmPm;
-          } else {
-            cleanItem.endTime = '';
-            delete cleanItem.endAmPm;
-          }
+        if (cleanItem.startTime && cleanItem.startAmPm) {
+          cleanItem.startTime = convertTo24Hour(
+            cleanItem.startTime,
+            cleanItem.startAmPm
+          );
+          delete cleanItem.startAmPm;
+        } else {
+          cleanItem.startTime = "";
+          delete cleanItem.startAmPm;
+        }
 
-          // Handle video file for recorded events
-          if (cleanItem.videoFile instanceof File) {
-            data.append(`video_file_${index}`, cleanItem.videoFile);
-            delete cleanItem.videoFile;
-          } else if (cleanItem.videoFile && typeof cleanItem.videoFile === 'string') {
-            cleanItem.video_file_path = cleanItem.videoFile;
-            delete cleanItem.videoFile;
-          }
+        if (cleanItem.endTime && cleanItem.endAmPm) {
+          cleanItem.endTime = convertTo24Hour(
+            cleanItem.endTime,
+            cleanItem.endAmPm
+          );
+          delete cleanItem.endAmPm;
+        } else {
+          cleanItem.endTime = "";
+          delete cleanItem.endAmPm;
+        }
 
-          // Handle preview image for recorded events
-          if (cleanItem.previewImage instanceof File) {
-            data.append(`preview_image_${index}`, cleanItem.previewImage);
-            delete cleanItem.previewImage;
-          } else if (cleanItem.previewImage && typeof cleanItem.previewImage === 'string') {
-            cleanItem.preview_image_path = cleanItem.previewImage;
-            delete cleanItem.previewImage;
-          }
-          
-          // Map field names for backend - IMPORTANT: Add these mappings for recorded events
-          cleanItem.start_date = cleanItem.date;
-          cleanItem.end_date = cleanItem.endDate;
-          delete cleanItem.date;
-          delete cleanItem.endDate;
-          // Map recorded event specific fields
-          if (cleanItem.eventLink) {
-            cleanItem.event_link = cleanItem.eventLink;
-            delete cleanItem.eventLink;
-          }
-          if (cleanItem.videoName) {
-            cleanItem.video_name = cleanItem.videoName;
-            delete cleanItem.videoName;
-          }
-          if (cleanItem.verificationCode) {
-            cleanItem.verification_event_code = cleanItem.verificationCode;
-            delete cleanItem.verificationCode;
-          }
-          processedEventDates.push(cleanItem);
+        // Handle video file for recorded events
+        if (cleanItem.videoFile instanceof File) {
+          data.append(`video_file_${index}`, cleanItem.videoFile);
+          delete cleanItem.videoFile;
+        } else if (
+          cleanItem.videoFile &&
+          typeof cleanItem.videoFile === "string"
+        ) {
+          cleanItem.video_file_path = cleanItem.videoFile;
+          delete cleanItem.videoFile;
+        }
+
+        // Handle preview image for recorded events
+        if (cleanItem.previewImage instanceof File) {
+          data.append(`preview_image_${index}`, cleanItem.previewImage);
+          delete cleanItem.previewImage;
+        } else if (
+          cleanItem.previewImage &&
+          typeof cleanItem.previewImage === "string"
+        ) {
+          cleanItem.preview_image_path = cleanItem.previewImage;
+          delete cleanItem.previewImage;
+        }
+
+        // Map field names for backend - IMPORTANT: Add these mappings for recorded events
+        cleanItem.start_date = cleanItem.date;
+        cleanItem.end_date = cleanItem.endDate;
+        delete cleanItem.date;
+        delete cleanItem.endDate;
+        // Map recorded event specific fields
+        if (cleanItem.eventLink) {
+          cleanItem.event_link = cleanItem.eventLink;
+          delete cleanItem.eventLink;
+        }
+        if (cleanItem.videoName) {
+          cleanItem.video_name = cleanItem.videoName;
+          delete cleanItem.videoName;
+        }
+        if (cleanItem.verificationCode) {
+          cleanItem.verification_event_code = cleanItem.verificationCode;
+          delete cleanItem.verificationCode;
+        }
+        processedEventDates.push(cleanItem);
       });
-      data.append('event_dates', JSON.stringify(processedEventDates));
+
+      data.append("event_dates", JSON.stringify(processedEventDates));
       // Append all other form fields
-      data.append('groupId', groupId);
-      data.append('event_name', formData.event_name.trim());
-      data.append('event_category', formData.event_category.trim());
-      data.append('event_subcategory', formData.event_subcategory.trim());
-      data.append('event_type', formData.event_type.trim());
-      data.append('event_description', formData.event_description.trim());
-      data.append('location_type', formData.location_type.trim());
-      data.append('event_language', JSON.stringify(formData.event_language));
-      data.append('min_age_allowed', formData.min_age_allowed);
-      data.append('event_date_type', formData.event_date_type);
-      data.append('kids_friendly', formData.kids_friendly);
-      data.append('pet_friendly', formData.pet_friendly);
-      
-      if (formData.location_type === 'offline') {
-        data.append('location', formData.location.trim());
-        data.append('venue', formData.venue.trim());
-        data.append('seating_arrangement', formData.seating_arrangement);
-        data.append('exact_map_location', JSON.stringify(formData.exact_map_location));
-        data.append('prohibited_items', JSON.stringify(formData.prohibited_items));
-        
+      data.append("groupId", groupId);
+      data.append("event_name", formData.event_name.trim());
+      data.append("event_category", formData.event_category.trim());
+      data.append("event_subcategory", formData.event_subcategory.trim());
+      data.append("event_type", formData.event_type.trim());
+      data.append("event_description", formData.event_description.trim());
+      data.append("location_type", formData.location_type.trim());
+      data.append("event_language", JSON.stringify(formData.event_language));
+      data.append("min_age_allowed", formData.min_age_allowed);
+      data.append("max_age_allowed", formData.max_age_allowed);
+      data.append("event_date_type", formData.event_date_type);
+      data.append("kids_friendly", formData.kids_friendly);
+      data.append("pet_friendly", formData.pet_friendly);
+      if (formData.prohibited_items && formData.prohibited_items.length > 0) {
+        data.append("prohibited_items", JSON.stringify(formData.prohibited_items));
+      } else {
+        data.append("prohibited_items", JSON.stringify([]));
+      }
+      if (formData.location_type === "offline") {
+        data.append("location", formData.location.trim());
+        data.append("venue", formData.venue.trim());
+        data.append("seating_arrangement", formData.seating_arrangement);
+        data.append(
+          "exact_map_location",
+          JSON.stringify(formData.exact_map_location)
+        );
         if (formData.gatesOpenEarly && formData.gate_open_time) {
-          data.append('gate_open_time', formData.gate_open_time.trim());
+          data.append("gate_open_time", formData.gate_open_time.trim());
         }
       }
-      
+
       if (formData.event_instagram_link) {
-        data.append('event_instagram_link', formData.event_instagram_link.trim());
+        data.append(
+          "event_instagram_link",
+          formData.event_instagram_link.trim()
+        );
       }
       if (formData.event_youtube_link) {
-        data.append('event_youtube_link', formData.event_youtube_link.trim());
+        data.append("event_youtube_link", formData.event_youtube_link.trim());
       }
       if (formData.hashtag && formData.hashtag.length > 0) {
-        data.append('hashtag', JSON.stringify(formData.hashtag));
+        data.append("hashtag", JSON.stringify(formData.hashtag));
       }
-      
+
       // Handle event rules
       if (formData.event_rules_file instanceof File) {
-        data.append('event_rules', formData.event_rules_file);
-      } else if (formData.event_rules?.type === 'text' && formData.event_rules?.content) {
-        data.append('event_rules_text', formData.event_rules.content);
+        data.append("event_rules", formData.event_rules_file);
+      } else if (
+        formData.event_rules?.type === "text" &&
+        formData.event_rules?.content
+      ) {
+        data.append("event_rules_text", formData.event_rules.content);
       }
-      
-      data.append('POCS', JSON.stringify(formData.POCS));
+
+      data.append("POCS", JSON.stringify(formData.POCS));
 
       const response = await createTicketBasicInfo(data, urlTicketId || null);
-      const newTicketId = response.ticketId || response.data?.ticketId || response.data?._id || urlTicketId;
-      
+      const newTicketId =
+        response.ticketId ||
+        response.data?.ticketId ||
+        response.data?._id ||
+        urlTicketId;
+
       // FIX: Clear localStorage after successful submission
       clearFormDataFromStorage();
-      
+
       showAlert({
-        type: 'success',
+        type: "success",
         message: formData.event_name,
-        description: `Successfully ${isEditMode ? 'updated' : 'added'} your event.`,
+        description: `Successfully ${
+          isEditMode ? "updated" : "added"
+        } your event.`,
       });
-      
+
       setTimeout(() => {
         navigate(`/ticket/update-ticket-media/${newTicketId}`, {
           state: {
-            message: `${isEditMode ? "Event updated" : "Event created"} successfully!`,
+            message: `${
+              isEditMode ? "Event updated" : "Event created"
+            } successfully!`,
             newEvent: response.data,
             ticketId: newTicketId,
           },
@@ -1038,22 +1148,26 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
       }, 1500);
     } catch (error) {
       console.error("Error creating event:", error);
-      
+
       // FIX: Handle duplication error specifically
       if (error.response?.status === 409) {
         const conflictDetails = error.response?.data?.conflictDetails;
         showAlert({
-          type: 'error',
-          message: 'Duplicate Event Detected',
-          description: conflictDetails 
-            ? `An event with similar details already exists. ${conflictDetails.suggestion || ''}`
-            : 'An event with the same name, location, and overlapping dates already exists.'
+          type: "error",
+          message: "Duplicate Event Detected",
+          description: conflictDetails
+            ? `An event with similar details already exists. ${
+                conflictDetails.suggestion || ""
+              }`
+            : "An event with the same name, location, and overlapping dates already exists.",
         });
       } else {
         showAlert({
-          type: 'error',
-          message: 'Submission Failed',
-          description: error.response?.data?.message || "An error occurred during submission. Please try again."
+          type: "error",
+          message: "Submission Failed",
+          description:
+            error.response?.data?.message ||
+            "An error occurred during submission. Please try again.",
         });
       }
     } finally {
@@ -1220,55 +1334,53 @@ const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
       </div>
     );
   }
-const handleOpenDateModal = () => {
+  const handleOpenDateModal = () => {
     const type = formData.location_type;
 
-    if (type === 'offline') {
-        setIsOfflineDateModalOpen(true);
-    } else if (type === 'online') {
-        setIsOnlineDateModalOpen(true);
-    } else if (type === 'recorded') {
-        setIsRecordedDateModalOpen(true);
-    }else
-      
-      {
-        // This will show your custom alert if no location type is selected
-        showAlert({
-            type: 'error',
-            message: 'Select Location Type',
-            description: 'Please select a location type (Offline, Online, or Recorded) before adding dates.'
-        });
+    if (type === "offline") {
+      setIsOfflineDateModalOpen(true);
+    } else if (type === "online") {
+      setIsOnlineDateModalOpen(true);
+    } else if (type === "recorded") {
+      setIsRecordedDateModalOpen(true);
+    } else {
+      // This will show your custom alert if no location type is selected
+      showAlert({
+        type: "error",
+        message: "Select Location Type",
+        description:
+          "Please select a location type (Offline, Online, or Recorded) before adding dates.",
+      });
     }
-};
+  };
 
   return (
     <>
       <CustomScrollbarStyles isDark={darkMode} />
       <DatePickerModal
-    isOpen={isOfflineDateModalOpen}
-    onClose={() => setIsOfflineDateModalOpen(false)}
-    onSave={handleDatesSave}
-    initialDates={formData.event_dates}
-    darkMode={darkMode}
-    showAlert={showAlert}
-/>
-<OnlineDatePickerModal
-    isOpen={isOnlineDateModalOpen}
-    onClose={() => setIsOnlineDateModalOpen(false)}
-    onSave={handleDatesSave}
-    initialDates={formData.event_dates}
-    darkMode={darkMode}
-    showAlert={showAlert} // <-- ADD THIS PROP
-
-/>
-<RecordedDatePickerModal
-    isOpen={isRecordedDateModalOpen}
-    onClose={() => setIsRecordedDateModalOpen(false)}
-    onSave={handleDatesSave}
-    initialDates={formData.event_dates}
-    darkMode={darkMode}
-    showAlert={showAlert} 
-/>
+        isOpen={isOfflineDateModalOpen}
+        onClose={() => setIsOfflineDateModalOpen(false)}
+        onSave={handleDatesSave}
+        initialDates={formData.event_dates}
+        darkMode={darkMode}
+        showAlert={showAlert}
+      />
+      <OnlineDatePickerModal
+        isOpen={isOnlineDateModalOpen}
+        onClose={() => setIsOnlineDateModalOpen(false)}
+        onSave={handleDatesSave}
+        initialDates={formData.event_dates}
+        darkMode={darkMode}
+        showAlert={showAlert} // <-- ADD THIS PROP
+      />
+      <RecordedDatePickerModal
+        isOpen={isRecordedDateModalOpen}
+        onClose={() => setIsRecordedDateModalOpen(false)}
+        onSave={handleDatesSave}
+        initialDates={formData.event_dates}
+        darkMode={darkMode}
+        showAlert={showAlert}
+      />
       <GuestModal
         isOpen={isGuestModalOpen}
         onClose={() => {
@@ -1342,18 +1454,18 @@ const handleOpenDateModal = () => {
                 {/* Event Details */}
                 <div className="space-y-8">
                   <FormInput
-    label="Event name"
-    id="event_name"
-    name="event_name"
-    type="text"
-    value={formData.event_name}
-    onChange={handleInputChange}
-    placeholder="Enter your event name here..."
-    info="The public title of your event."
-    error={errors.event_name} // Pass the error state
-    required={true}           // This adds the red asterisk
-    darkMode={darkMode}
-/>
+                    label="Event name"
+                    id="event_name"
+                    name="event_name"
+                    type="text"
+                    value={formData.event_name}
+                    onChange={handleInputChange}
+                    placeholder="Enter your event name here..."
+                    info="The public title of your event."
+                    error={errors.event_name} // Pass the error state
+                    required={true} // This adds the red asterisk
+                    darkMode={darkMode}
+                  />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
                       <label
@@ -1372,8 +1484,7 @@ const handleOpenDateModal = () => {
                           )}
                           onChange={handleSelectChange}
                           placeholder="Select category"
-                          styles={CustomSelectStyles(darkMode,errors)}
-                          
+                          styles={CustomSelectStyles(darkMode, errors)}
                         />
                       </div>
                     </div>
@@ -1390,15 +1501,17 @@ const handleOpenDateModal = () => {
                       <Select
                         name="event_subcategory"
                         options={subCategoryOptions}
-                        value={subCategoryOptions.find(
-                          (option) =>
-                            option.value === formData.event_subcategory
-                        )}
+                        value={
+                      formData.event_subcategory // Check if it has a value
+                        ? subCategoryOptions.find( // If yes, find the object
+                            (option) => option.value === formData.event_subcategory
+                          )
+                        : null // If no (it's ""), explicitly pass null
+                    }
                         onChange={handleSelectChange}
                         placeholder="Select subcategory"
-                        styles={CustomSelectStyles(darkMode,errors  )}
+                        styles={CustomSelectStyles(darkMode, errors)}
                         isDisabled={!formData.event_category}
-                        
                       />
                     </div>
                   </div>
@@ -1473,36 +1586,34 @@ const handleOpenDateModal = () => {
                   {formData.location_type === "offline" && (
                     <div className="space-y-8 animate-fade-in">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                <FormInput
-                            label="Event location"
-                            id="location"
-                            name="location"
-                            type="text"
-                            value={formData.location}
-                            onChange={handleLocationInputChange}
-                            placeholder="Search for location..."
-                            info="Start typing to search with Google Places."
-                            error={errors.location}
-                            required={true}
-                            darkMode={darkMode}
-                            ref={autocompleteRef}
+                        <FormInput
+                          label="Event location"
+                          id="location"
+                          name="location"
+                          type="text"
+                          value={formData.location}
+                          onChange={handleLocationInputChange}
+                          placeholder="Search for location..."
+                          info="Start typing to search with Google Places."
+                          error={errors.location}
+                          required={true}
+                          darkMode={darkMode}
+                          ref={autocompleteRef}
                         />
                         <FormInput
-                            label="Event venue"
-                            id="venue"
-                            name="venue"
-                            type="text"
-                            value={formData.venue}
-                            onChange={handleInputChange}
-                            placeholder="Enter the event venue"
-                            info="e.g., Main Auditorium, Hall B1"
-                            error={errors.venue}
-                            required={true}
-                            darkMode={darkMode}
+                          label="Event venue"
+                          id="venue"
+                          name="venue"
+                          type="text"
+                          value={formData.venue}
+                          onChange={handleInputChange}
+                          placeholder="Enter the event venue"
+                          info="e.g., Main Auditorium, Hall B1"
+                          error={errors.venue}
+                          required={true}
+                          darkMode={darkMode}
                         />
-                        <div>
-                          
-                        </div>
+                        <div></div>
                       </div>
                       <div className="relative">
                         <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
@@ -1547,7 +1658,6 @@ const handleOpenDateModal = () => {
                         )}
                     </div>
                   )}
-                  
                 </div>
                 {/* Additional Fields */}
                 <div className="space-y-8">
@@ -1574,21 +1684,33 @@ const handleOpenDateModal = () => {
                         classNamePrefix="react-select"
                       />
                     </div>
-
                     <FormInput
-                        label="What is the minimum age allowed for entry?"
-                        id="min_age_allowed"
-                        name="min_age_allowed"
-                        type="number"
-                        value={formData.min_age_allowed}
-                        onChange={handleInputChange}
-                        placeholder="Enter Min Age"
-                        info="Select an age limit if applicable."
-                        error={errors.min_age_allowed}
-                        required={true}
-                        darkMode={darkMode}
+                      label="What is the minimum age allowed for entry?"
+                      id="min_age_allowed"
+                      name="min_age_allowed"
+                      type="number"
+                      value={formData.min_age_allowed}
+                      onChange={handleInputChange}
+                      placeholder="Enter Min Age"
+                      info="Select an age limit if applicable."
+                      error={errors.min_age_allowed}
+                      required={true}
+                      darkMode={darkMode}
                     />
                   </div>
+                  <FormInput
+                      label="What is the maximum age allowed for entry?(Optional)"
+                      id="max_age_allowed"
+                      name="max_age_allowed"
+                      type="number"
+                      value={formData.max_age_allowed}
+                      onChange={handleInputChange}
+                      placeholder="Enter Max Age"
+                      info="Select an age limit if applicable."
+                      error={errors.max_age_allowed}
+                      required={false}
+                      darkMode={darkMode}
+                    />
                   {formData.location_type === "offline" && (
                     <div className="animate-fade-in">
                       <label
@@ -1610,18 +1732,12 @@ const handleOpenDateModal = () => {
                           onChange={handleSelectChange}
                           placeholder="Select a type"
                           styles={CustomSelectStyles(darkMode)}
-                          
                         />
                       </div>
                     </div>
                   )}
                   <div className="space-y-4 pt-4">
-                    <ToggleSwitch
-                      label="Is this event kid friendly?"
-                      checked={formData.kids_friendly}
-                      onChange={() => handleToggleChange("kids_friendly")}
-                      darkMode={darkMode}
-                    />
+                    
                     <ToggleSwitch
                       label="Is this event pet friendly?"
                       checked={formData.pet_friendly}
@@ -1849,14 +1965,15 @@ const handleOpenDateModal = () => {
                 <div className="space-y-6">
                   <div className="space-y-6">
                     <div>
-<h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                      Guest/Guide/Artists details
-                    </h2>
-                    <p className="text-black dark:text-gray-400 text-sm">
-                      Enter details of the person guiding or managing the event.
-                    </p>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                        Guest/Guide/Artists details
+                      </h2>
+                      <p className="text-black dark:text-gray-400 text-sm">
+                        Enter details of the person guiding or managing the
+                        event.
+                      </p>
                     </div>
-                    
+
                     <button
                       type="button"
                       onClick={() => {
@@ -1868,46 +1985,55 @@ const handleOpenDateModal = () => {
                       Add guest/guides <img src={Guest_Form_Icon} alt="" />
                     </button>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                      {formData.guests.map((guest) => (
-                        <div
-                          key={guest.id}
-                          className={`rounded-lg p-3 flex items-center justify-between ${
-                            darkMode ? "bg-[#2B2B2B]" : "bg-gray-100"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={guest.image}
-                              alt={guest.name}
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
-                            <span className="font-semibold">{guest.name}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleEditGuest(guest)}
-                            className={`p-2 ${
-                              darkMode
-                                ? "text-gray-400 hover:text-white"
-                                : "text-black hover:text-black"
+                      {formData.guests.map((guest) => {
+                        const guestImageUrl = getImageUrl(guest.guest_profile || guest.image) || 
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(guest.name || guest.guest_name || 'Guest')}&background=random`;
+                        
+                        return (
+                          <div
+                            key={guest.id}
+                            className={`rounded-lg p-3 flex items-center justify-between ${
+                              darkMode ? "bg-[#2B2B2B]" : "bg-gray-100"
                             }`}
                           >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={guestImageUrl}
+                                alt={guest.name || guest.guest_name}
+                                className="w-10 h-10 rounded-full object-cover"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(guest.name || guest.guest_name || 'Guest')}&background=random`;
+                                }}
+                              />
+                              <span className="font-semibold">{guest.name || guest.guest_name}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleEditGuest(guest)}
+                              className={`p-2 ${
+                                darkMode
+                                  ? "text-gray-400 hover:text-white"
+                                  : "text-black hover:text-black"
+                              }`}
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"
-                              ></path>
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2"
+                                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"
+                                ></path>
+                              </svg>
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                   <div className="space-y-6 ">
@@ -1966,28 +2092,27 @@ const handleOpenDateModal = () => {
                           U
                         </button>
                       </div>
-                      <div
-                        ref={rulesEditorRef}
-                        contentEditable="true"
-                        onInput={() => {
-                          if (rulesEditorRef.current) {
-                            setFormData((prev) => ({
-                              ...prev,
-                              event_rules: {
-                                ...(prev.event_rules || { type: "text" }),
-                                content: rulesEditorRef.current.innerHTML,
-                              },
-                            }));
-                          }
-                        }}
-                        className="w-full min-h-[120px] p-3 focus:outline-none resize-none text-left [direction:ltr]"
-                      >
-                        
-                      </div>
-                      
+                     <div
+            ref={rulesEditorRef}
+            contentEditable="true"
+            onInput={() => {
+                if (rulesEditorRef.current) {
+                    setFormData((prev) => ({
+                        ...prev,
+                        event_rules: {
+                            ...(prev.event_rules || { type: "text" }),
+                            content: rulesEditorRef.current.innerHTML,
+                        },
+                        // Ensure the type is 'text' if user starts typing
+                        event_rules_file: null 
+                    }));
+                }
+            }}
+            className="w-full min-h-[120px] p-3 focus:outline-none resize-none text-left [direction:ltr]"
+        ></div>
                     </div>
                     <p className="px-4"> or</p>
-                    
+
                     <div>
                       <label
                         htmlFor="rule-file-upload"
@@ -2041,8 +2166,8 @@ const handleOpenDateModal = () => {
                       onClick={() => setIsProhibitedModalOpen(true)}
                       className="mt-4 px-6 py-3 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold flex items-center gap-2"
                     >
-                     <span>Add Prohibited Items</span> 
-                     <img src={Prohibited_Form_Icon} alt=""  />
+                      <span>Add Prohibited Items</span>
+                      <img src={Prohibited_Form_Icon} alt="" />
                     </button>
                     <div className="mt-4 flex flex-wrap gap-2">
                       {formData.prohibited_items.map((item) => (
@@ -2078,12 +2203,14 @@ const handleOpenDateModal = () => {
                       Describe your event how it is
                     </p>
                     <div
-  className={`mt-4 bg-transparent border rounded-lg transition-colors duration-300 ${
-    errors.event_description
-      ? 'border-red-500'
-      : (darkMode ? "border-[#4A4A4A]" : "border-black")
-  }`}
->
+                      className={`mt-4 bg-transparent border rounded-lg transition-colors duration-300 ${
+                        errors.event_description
+                          ? "border-red-500"
+                          : darkMode
+                          ? "border-[#4A4A4A]"
+                          : "border-black"
+                      }`}
+                    >
                       <div
                         className={`p-2 border-b ${
                           darkMode ? "border-[#4A4A4A]" : "border-black"
@@ -2124,20 +2251,20 @@ const handleOpenDateModal = () => {
                         </button>
                       </div>
                       <div
-                        ref={descriptionEditorRef}
-                        contentEditable="true"
-                        onInput={() => {
-                          if (descriptionEditorRef.current) {
-                            handleInputChange({
-                              target: {
-                                name: "event_description",
-                                value: descriptionEditorRef.current.innerHTML,
-                              },
-                            });
-                          }
-                        }}
-                        className="w-full min-h-[120px] p-3 focus:outline-none text-left [direction:ltr]"
-                      ></div>
+            ref={descriptionEditorRef}
+            contentEditable="true"
+            onInput={() => {
+                if (descriptionEditorRef.current) {
+                    handleInputChange({
+                        target: {
+                            name: "event_description",
+                            value: descriptionEditorRef.current.innerHTML,
+                        },
+                    });
+                }
+            }}
+            className="w-full min-h-[120px] p-3 focus:outline-none text-left [direction:ltr]"
+        ></div>
                     </div>
                   </div>
                   {/* Point of Contact Section */}
@@ -2152,39 +2279,39 @@ const handleOpenDateModal = () => {
                     {/* POC Input Fields */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
                       <FormInput
-                            label="Name"
-                            name="POC_name"
-                            value={poc.POC_name}
-                            onChange={handlePocChange}
-                            placeholder="Enter the name of person"
-                            error={errors.POC_name}
-                            required={true}
-                            darkMode={darkMode}
-                        />
-                        <FormInput
-                            label="Email"
-                            name="POC_email"
-                            value={poc.POC_email}
-                            onChange={handlePocChange}
-                            type="email"
-                            placeholder="enter the email id"
-                            error={errors.POC_email}
-                            required={true}
-                            darkMode={darkMode}
-                        />
+                        label="Name"
+                        name="POC_name"
+                        value={poc.POC_name}
+                        onChange={handlePocChange}
+                        placeholder="Enter the name of person"
+                        error={errors.POC_name}
+                        required={true}
+                        darkMode={darkMode}
+                      />
+                      <FormInput
+                        label="Email"
+                        name="POC_email"
+                        value={poc.POC_email}
+                        onChange={handlePocChange}
+                        type="email"
+                        placeholder="enter the email id"
+                        error={errors.POC_email}
+                        required={true}
+                        darkMode={darkMode}
+                      />
                     </div>
                     <div className="mt-8">
                       <FormInput
-                            label="Contact number"
-                            name="POC_contact"
-                            value={poc.POC_contact}
-                            onChange={handlePocChange}
-                            type="tel"
-                            placeholder="enter contact number"
-                            error={errors.POC_contact}
-                            required={true}
-                            darkMode={darkMode}
-                        />
+                        label="Contact number"
+                        name="POC_contact"
+                        value={poc.POC_contact}
+                        onChange={handlePocChange}
+                        type="tel"
+                        placeholder="enter contact number"
+                        error={errors.POC_contact}
+                        required={true}
+                        darkMode={darkMode}
+                      />
                     </div>
 
                     {/* Add POC Button */}
@@ -2195,8 +2322,11 @@ const handleOpenDateModal = () => {
                     >
                       Add +
                     </button>
-                    {errors.POCS && <p className="text-red-500 text-xs mt-2">At least one Point of Contact is required.</p>}
-
+                    {errors.POCS && (
+                      <p className="text-red-500 text-xs mt-2">
+                        At least one Point of Contact is required.
+                      </p>
+                    )}
 
                     {/* UPDATED: Display List of Added POCs in a Grid */}
                     <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
