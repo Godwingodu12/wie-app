@@ -346,6 +346,12 @@ const UpdateTicketDetails = () => {
 
     return true;
   };
+  useEffect(() => {
+  if (!groupHasBankAccount || groupBankDetailsIncomplete) {
+    setUseGroupBankAccount(false);
+  }
+}, [groupHasBankAccount, groupBankDetailsIncomplete]);
+
   const handleGoBack = () => {
     localStorage.removeItem(storageKey);
     navigate(`/ticket/update-ticket-media/${ticketId}`);
@@ -565,8 +571,7 @@ const UpdateTicketDetails = () => {
                                   : "text-black dark:text-gray-400"
                               }`}
                             >
-                              Do you want to use the bank account used for group
-                              creation?
+                              Do you want to use the bank account used for group creation?
                             </label>
                             {groupHasBankAccount &&
                               currentBankDetail &&
@@ -615,7 +620,7 @@ const UpdateTicketDetails = () => {
                               setUseGroupBankAccount(newValue);
 
                               if (newValue && window.groupBankDetails) {
-                                setBankingDetails([...window.groupBankDetails]); // Create new array reference
+                                setBankingDetails([...window.groupBankDetails]);
                               } else {
                                 setBankingDetails([
                                   {
@@ -628,9 +633,7 @@ const UpdateTicketDetails = () => {
                                 ]);
                               }
                             }}
-                            disabled={
-                              !groupHasBankAccount || groupBankDetailsIncomplete
-                            }
+                            disabled={!groupHasBankAccount || groupBankDetailsIncomplete}
                           />
                         </div>
                         {groupBankDetailsIncomplete && (
