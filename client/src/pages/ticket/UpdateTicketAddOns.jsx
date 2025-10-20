@@ -273,6 +273,7 @@ const UpdateTicketAddOns = () => {
     venue: "",
     event_language: [],
     min_age_allowed: "",
+    max_age_allowed: "",
     seating_arrangement: "none",
     kids_friendly: false,
     pet_friendly: false,
@@ -655,15 +656,8 @@ const UpdateTicketAddOns = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSelectChange = (selectedOptions, { name }) => {
-    // For multi-select, selectedOptions is an array of objects. Map over it to get values.
-    // For single-select, it's a single object.
-    const value = Array.isArray(selectedOptions)
-      ? selectedOptions.map((option) => option.value)
-      : selectedOptions
-      ? selectedOptions.value
-      : "";
-
+    const handleSelectChange = (selectedOption, { name }) => {
+    const value = selectedOption ? selectedOption.value : "";
     setFormData((prev) => {
       const newData = { ...prev, [name]: value };
       if (name === "event_category") {
@@ -671,6 +665,15 @@ const UpdateTicketAddOns = () => {
       }
       return newData;
     });
+  };
+    const handleLanguageChange = (selectedOptions) => {
+    const values = selectedOptions
+      ? selectedOptions.map((opt) => opt.value)
+      : [];
+    setFormData((prev) => ({
+      ...prev,
+      event_language: values,
+    }));
   };
   const handleOpenDateModal = () => {
     const type = formData.location_type;
@@ -1043,21 +1046,38 @@ const buildPayload = () => {
     return [];
   };
   const ensureTicketTypesArray = () => {
+    const isSimplePaid = formData.payment_type === 'paid' && formData.location_type !== 'offline';
     if (!formData.ticket_types || formData.ticket_types.length === 0) {
-      return [];
-    }
+             // For paid non-offline events, we might have partial data in the inputs,
+             // so we need a fallback for the very first element if it's missing entirely.
+             if (isSimplePaid) {
+                 // Return an array with a single default ticket if capacity is set
+                 return [{
+                     ticket_type: 'Standard Ticket',
+                     ticket_price: 0,
+                     max_capacity: Number(formData.total_capacity) || 0,
+                     ticket_photo: '',
+                 }];
+             }
+            return [];
+        }
     
     if (Array.isArray(formData.ticket_types)) {
-      const processed = formData.ticket_types.map((t, index) => {        
-        const ticket = {
-          ticket_type: t.name || t.ticket_type || '',
-          ticket_price: Number(t.price || t.ticket_price || 0),
-          max_capacity: Number(t.capacity || t.max_capacity || 0),
-          ticket_photo: t.existingPhotoPath || t.ticket_photo || '',
-        };
-        return ticket;
-      });
-      return processed;
+      const processed = formData.ticket_types.map((t, index) => {
+                const ticket = {
+                    // Map UI fields (name, price, capacity) to Schema fields
+                    ticket_type: t.name || t.ticket_type || 'Standard Ticket', 
+                    ticket_price: Number(t.price || t.ticket_price || 0),
+                    max_capacity: Number(t.capacity || t.max_capacity || 0),
+                    // Preserve existing path or get new file info later in buildFormData
+                    ticket_photo: t.existingPhotoPath || t.ticket_photo || '', 
+                };
+                return ticket;
+            });
+            if (isSimplePaid && processed.length > 0) {
+            processed[0].max_capacity = Number(formData.total_capacity) || 0;
+        }
+            return processed;
     }
     return [];
   };
@@ -1069,6 +1089,7 @@ const buildPayload = () => {
     event_type: formData.event_type,
     event_language: formData.event_language,
     min_age_allowed: parseInt(formData.min_age_allowed, 10) || 0,
+    max_age_allowed: parseInt(formData.max_age_allowed, 10) || 0,
     kids_friendly: formData.kids_friendly,
     pet_friendly: formData.pet_friendly,
     location_type: formData.location_type,
@@ -1209,6 +1230,28 @@ const buildFormData = (payload) => {
     if (!validateForm()) {
       return;
     }
+    const finalTicketTypes = buildPayload()?.ticket_types;
+    if (formData.payment_type === 'paid') {
+            if (!finalTicketTypes || finalTicketTypes.length === 0) {
+                showAlert({
+                    type: "error",
+                    message: "Missing Ticket Information",
+                    description: "Please define at least one ticket type with a price and capacity for this paid event.",
+                });
+                return;
+            }
+            // Basic check on the constructed ticket(s)
+            for (const t of finalTicketTypes) {
+                if (!t.ticket_price || t.ticket_price <= 0) {
+                     showAlert({ type: "error", message: "Invalid Price", description: `Ticket price for '${t.ticket_type}' must be greater than zero.` });
+                     return;
+                }
+                if (!t.max_capacity || t.max_capacity <= 0) {
+                    showAlert({ type: "error", message: "Invalid Capacity", description: `Max capacity for '${t.ticket_type}' must be greater than zero.` });
+                    return;
+                }
+            }
+        }
     
     setIsSubmitting(true);
     try {
@@ -1614,6 +1657,28 @@ const buildFormData = (payload) => {
   if (e) e.preventDefault();
   
   if (!validateForm()) return;
+  const finalTicketTypes = buildPayload()?.ticket_types;
+
+  if (formData.payment_type === 'paid') {
+        if (!finalTicketTypes || finalTicketTypes.length === 0) {
+            showAlert({
+                type: "error",
+                message: "Missing Ticket Information",
+                description: "Please define at least one ticket type with a price and capacity for this paid event.",
+            });
+            return;
+        }
+        for (const t of finalTicketTypes) {
+            if (!t.ticket_price || t.ticket_price <= 0) {
+                 showAlert({ type: "error", message: "Invalid Price", description: `Ticket price for '${t.ticket_type}' must be greater than zero.` });
+                 return;
+            }
+            if (!t.max_capacity || t.max_capacity <= 0) {
+                showAlert({ type: "error", message: "Invalid Capacity", description: `Max capacity for '${t.ticket_type}' must be greater than zero.` });
+                return;
+            }
+        }
+    }
   
   setIsSubmitting(true);
   const payload = buildPayload();
@@ -1823,6 +1888,7 @@ const buildFormData = (payload) => {
             ? [subEvent.event_language]
             : [],
           min_age_allowed: subEvent.min_age_allowed || "",
+          max_age_allowed: subEvent.max_age_allowed || "",
           seating_arrangement: subEvent.seating_arrangement || "none",
           kids_friendly: subEvent.kids_friendly || false,
           pet_friendly: subEvent.pet_friendly || false,
@@ -2023,14 +2089,14 @@ const buildFormData = (payload) => {
         showAlert={showAlert}
       />
       <CreateTicketModal
-        isOpen={isTicketModalOpen}
-        onClose={() => setIsTicketModalOpen(false)}
-        onSave={handleSaveOrUpdateTickets}
-        editingTicket={editingTicket}
-        existingTickets={formData.ticket_types}
-        showAlert={showAlert}
-        darkMode={darkMode}
-      />
+    isOpen={isTicketModalOpen}
+    onClose={() => setIsTicketModalOpen(false)}
+    onSave={handleSaveOrUpdateTickets}
+    editingTicket={editingTicket}
+    existingTickets={formData.ticket_types}
+    showAlert={showAlert}
+    darkMode={darkMode}
+/>
 
       <div className={`${darkMode ? "dark" : ""}`}>
         <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
@@ -2110,7 +2176,7 @@ const buildFormData = (payload) => {
                             className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg overflow-hidden shadow-md cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 text-white"
                           >
                             <div className="p-4 flex items-center">
-                              <div className="flex-1">
+                              <div className="flex-1 w-4/5">
                                 <h3 className="font-semibold text-lg mb-1 truncate">
                                   {event.event_name}
                                 </h3>
@@ -2128,7 +2194,7 @@ const buildFormData = (payload) => {
                                   )}
                               </div>
                               {/* Edit icon */}
-                              <div className="ml-3">
+                              <div className="ml-3 w-1/5">
                                 <svg
                                   className="w-5 h-5"
                                   fill="none"
@@ -2187,49 +2253,54 @@ const buildFormData = (payload) => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                      <label
-                        htmlFor="event_category"
-                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
-                      >
-                        Event category<span className="text-red-400">*</span>
-                      </label>
-                      <div className="relative">
-                        <Select
-                          name="event_category"
-                          options={categoryOptions}
-                          value={categoryOptions.find(
-                            (option) => option.value === formData.event_category
-                          )}
-                          onChange={handleSelectChange}
-                          placeholder="Select category"
-                          styles={CustomSelectStyles(darkMode, errors)}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="event_subcategory"
-                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
-                      >
-                        Event subcategory<span className="text-red-400">*</span>
-                      </label>
-                      <Select
-                        name="event_subcategory"
-                        options={subCategoryOptions}
-                        value={subCategoryOptions.find(
-                          (option) =>
-                            option.value === formData.event_subcategory
-                        )}
-                        onChange={handleSelectChange}
-                        placeholder="Select subcategory"
-                        styles={CustomSelectStyles(darkMode, errors)}
-                        isDisabled={!formData.event_category}
-                        required
-                      />
-                    </div>
-                  </div>
+                                      <div>
+                                        <label
+                                          htmlFor="event_category"
+                                          className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
+                                        >
+                                          Event category<span className="text-red-400">*</span>
+                                          <InfoTooltip note="Helps attendees find your event." />
+                                        </label>
+                                        <div className="relative">
+                                          <Select
+                                            name="event_category"
+                                            options={categoryOptions}
+                                            value={categoryOptions.find(
+                                              (option) => option.value === formData.event_category
+                                            )}
+                                            onChange={handleSelectChange}
+                                            placeholder="Select category"
+                                            styles={CustomSelectStyles(darkMode, errors)}
+                                          />
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <label
+                                          htmlFor="event_subcategory"
+                                          className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
+                                        >
+                                          Event subcategory
+                                          <span className="text-red-400">*</span>
+                                          <InfoTooltip note="Get more specific with your category." />
+                                        </label>
+                                        {/* --- MODIFIED: Event Subcategory Dropdown --- */}
+                                        <Select
+                                          name="event_subcategory"
+                                          options={subCategoryOptions}
+                                          value={
+                                        formData.event_subcategory // Check if it has a value
+                                          ? subCategoryOptions.find( // If yes, find the object
+                                              (option) => option.value === formData.event_subcategory
+                                            )
+                                          : null // If no (it's ""), explicitly pass null
+                                      }
+                                          onChange={handleSelectChange}
+                                          placeholder="Select subcategory"
+                                          styles={CustomSelectStyles(darkMode, errors)}
+                                          isDisabled={!formData.event_category}
+                                        />
+                                      </div>
+                                    </div>
 
                   <div>
                     <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
@@ -2417,17 +2488,16 @@ const buildFormData = (payload) => {
                       </label>
                       <div className="relative">
                         <Select
-                          isMulti // <-- Add this prop
                           name="event_language"
                           options={languageOptions}
-                          // Filter options based on the array of values in formData
+                          isMulti
                           value={languageOptions.filter((option) =>
-                            formData.event_language.includes(option.value)
+                            (formData.event_language || []).includes(option.value)
                           )}
-                          onChange={handleSelectChange}
+                          onChange={handleLanguageChange} // Use the new handler
                           placeholder="Select language(s)"
-                          styles={CustomSelectStyles(darkMode, errors)}
-                          required
+                          styles={CustomSelectStyles(darkMode)}
+                          classNamePrefix="react-select"
                         />
                       </div>
                     </div>
@@ -2444,6 +2514,18 @@ const buildFormData = (payload) => {
                       darkMode={darkMode}
                     />
                   </div>
+                  <FormInput
+                      label="Minimum age allowed"
+                      id="max_age_allowed"
+                      name="max_age_allowed"
+                      type="number"
+                      value={formData.max_age_allowed}
+                      onChange={handleInputChange}
+                      placeholder="Enter Min Age Allowed"
+                      error={errors.max_age_allowed}
+                      
+                      darkMode={darkMode}
+                    />
 
                   {formData.location_type === "offline" && (
                     <div className="animate-fade-in">
@@ -2469,13 +2551,7 @@ const buildFormData = (payload) => {
                     </div>
                   )}
 
-                  <div className="space-y-4 pt-4">
-                    <ToggleSwitch
-                      label="Is this event kid friendly?"
-                      checked={formData.kids_friendly}
-                      onChange={() => handleToggleChange("kids_friendly")}
-                      darkMode={darkMode}
-                    />
+                  <div className="space-y-4 pt-4">                    
                     <ToggleSwitch
                       label="Is this event pet friendly?"
                       checked={formData.pet_friendly}
@@ -2818,6 +2894,9 @@ className={`px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex ite
                         contentEditable="true"
                         className="w-full min-h-[120px] p-3 focus:outline-none"
                       ></div>
+                    </div>
+                    <div className="px-4">
+                      or
                     </div>
                     <div>
                       <label
@@ -3477,104 +3556,81 @@ className={`px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex ite
                           }
                         />
                       </div>
-                      {formData.payment_type === "paid" && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingTicket(null);
-                              setIsTicketModalOpen(true);
-                            }}
-                            className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center space-x-2 hover:bg-indigo-700 transition"
-                          >
-                            <span>Add tickets</span>
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2H5z"
-                              />
-                            </svg>
-                          </button>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                            {formData.ticket_types.map((ticket) => (
-                              <div
-                                key={ticket.id}
-                                className="bg-white dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none"
-                              >
-                                <div className="flex items-center space-x-3">
-                                  <img
-                                    src={ticket.image}
-                                    alt={ticket.name}
-                                    className="w-16 h-16 rounded-md object-cover"
-                                  />
-                                  <div>
-                                    <p className="font-semibold text-gray-900 dark:text-white">{`${
-                                      ticket.name
-                                    } - ₹${Number(
-                                      ticket.price
-                                    ).toLocaleString()}`}</p>
-                                    <p className="text-xs text-black dark:text-gray-400">
-                                      Capacity: {ticket.capacity}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingTicket(ticket);
-                                      setIsTicketModalOpen(true);
-                                    }}
-                                    className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
-                                  >
-                                    <svg
-                                      className="w-5 h-5"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"
-                                      />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleDeleteTicket(ticket.id)
-                                    }
-                                    className="text-gray-400 hover:text-red-500 transition"
-                                  >
-                                    <svg
-                                      className="w-5 h-5"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                      />
-                                    </svg>
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
+                      {formData.location_type === "offline" && (
+        <>
+            <button
+                type="button"
+                onClick={() => {
+                    setEditingTicket(null);
+                    setIsTicketModalOpen(true);
+                }}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center space-x-2 hover:bg-indigo-700 transition"
+            >
+                <span>Add tickets</span>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2H5z" /></svg>
+            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
+                {formData.ticket_types.map((ticket) => (
+                    // ... your ticket mapping JSX here ...
+                    <div key={ticket.id} className="bg-white dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none">
+                         <div className="flex items-center space-x-3">
+                             <img src={ticket.image} alt={ticket.name} className="w-16 h-16 rounded-md object-cover" />
+                             <div>
+                                 <p className="font-semibold text-gray-900 dark:text-white">{`${ticket.name} - ₹${Number(ticket.price).toLocaleString()}`}</p>
+                                 <p className="text-xs text-black dark:text-gray-400">Capacity: {ticket.capacity}</p>
+                             </div>
+                         </div>
+                         {/* Edit/Delete Buttons */}
+                         <div className="flex items-center space-x-2">
+                            <button type="button" onClick={() => { setEditingTicket(ticket); setIsTicketModalOpen(true); }} className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition">✏️</button>
+                            <button type="button" onClick={() => { /* DELETE LOGIC HERE */ }} className="text-gray-400 hover:text-red-500 transition">&times;</button>
+                         </div>
+                    </div>
+                ))}
+            </div>
+        </>
+    )}
+
+    {/* 1B. Simple Ticket Flow (Online/Recorded Paid Events) */}
+    {formData.location_type !== "offline" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
+           
+            <FormInput
+                label="Ticket Price"
+                id="simpleTicketPrice"
+                name="ticket_types[0].price" // Use indexed name if necessary, or just rely on state setter
+                type="number"
+                value={formData.ticket_types[0]?.price || ""}
+                onChange={(e) => {
+                    const newValue = e.target.value;
+                    setFormData(prev => {
+                        const newTickets = prev.ticket_types.length > 0 ? [...prev.ticket_types] : [{ name: 'Standard Ticket', price: '', capacity: '', image: '', existingPhotoPath: '' }];
+                        newTickets[0].price = newValue;
+                        return { ...prev, ticket_types: newTickets };
+                    });
+                }}
+                placeholder="Enter Price (e.g., 500)"
+                darkMode={darkMode}
+            />
+            <FormInput
+                label="Total Ticket Capacity"
+                id="simpleTicketCapacity"
+                name="ticket_types[0].capacity"
+                type="number"
+                value={formData.ticket_types[0]?.capacity || ""}
+                 onChange={(e) => {
+                    const newValue = e.target.value;
+                    setFormData(prev => {
+                        const newTickets = prev.ticket_types.length > 0 ? [...prev.ticket_types] : [{ name: 'Standard Ticket', price: '', capacity: '', image: '', existingPhotoPath: '' }];
+                        newTickets[0].capacity = newValue;
+                        return { ...prev, ticket_types: newTickets };
+                    });
+                }}
+                placeholder="Enter total capacity"
+                darkMode={darkMode}
+            />
+        </div>
+    )}
                     </section>
                   </div>
                 {formData.location_type === "offline" && (
