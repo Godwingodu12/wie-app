@@ -14,15 +14,32 @@ import {
 } from "../../services/ticketService";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
 import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
+import FilterButton from "../../components/HomePage/FilterButton.jsx";
+import ShowArrow from "../../assets/Event/ShowArrow.png";
+import HideArrow from "../../assets/Event/HideArrow.png";
 import ViewConfirm from "../../assets/Event/ViewConfirm.png";
 import EditIcon from "../../assets/Event/EditIcon.png";
-import {
-  ChevronDown,
-  PartyPopper,
-  Radio,
-  Search,
-  Landmark,
-} from "lucide-react";
+import { ChevronDown, PartyPopper, Radio, Search, Landmark } from "lucide-react";
+import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
+// import AdminLogo from "../../assets/auth/admin.webp";
+// import OrgLogo from "../../assets/auth/orgz.webp";
+
+const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
+const getImageUrl = (path) => {
+    if (!path) return null;
+    if (typeof path === 'object') {
+      path = path.path || path.url || null;
+    }
+    if (typeof path !== 'string') {
+      console.warn('Invalid path type:', typeof path, path);
+      return null;
+    }
+    let cleanPath = path.replace(/\\/g, '/');
+    cleanPath = cleanPath.replace(/^src\//, '');
+    cleanPath = cleanPath.replace(/^\//, '');
+    const fullUrl = `${API_BASE_URL}/${cleanPath}`;
+    return fullUrl;
+};
 
 const getNeumorphicShadows = (isDark) =>
   isDark
@@ -47,60 +64,101 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
       )}
     </div>
     <div className="flex flex-row flex-wrap items-center justify-start w-full gap-6 flex-grow">
-      {groups.slice(0, 2).map((group, index) => (
-        <div key={index} className="flex flex-col items-center gap-2">
-          <div
-            className="relative w-[100px] h-[100px] rounded-[58px] overflow-hidden"
-            style={{
-              boxShadow: isDark
-                ? "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)"
-                : "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)",
-            }}
-          >
-            <img
-              src={`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${
-                group.image
-              }`}
-              alt={group.name}
-              className="w-full h-full object-cover"
-            />
+      {groups.slice(0, 2).map((group, index) => {
+        let imageUrl;
+        if (group.grp_type === 'admin') {
+          imageUrl = ProfileImage;
+        } else if (group.grp_type === 'organization') {
+          imageUrl = getImageUrl(group.image) || ProfileImage;
+        } else {
+          imageUrl = getImageUrl(group.image) || ProfileImage;
+        }
+        return (
+          <div key={index} className="flex flex-col items-center gap-2">
+            <div
+              className="relative w-[100px] h-[100px] rounded-[58px] overflow-hidden"
+              style={{
+                boxShadow: isDark
+                  ? "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)"
+                  : "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)",
+              }}
+            >
+              <img
+                src={imageUrl}
+                alt={group.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <p className={`font-medium text-sm ${theme.text} text-center`}>
+              {group.name}
+            </p>
           </div>
-          <p className={`font-medium text-sm ${theme.text} text-center`}>
-            {group.name}
-          </p>
-        </div>
-      ))}
+        );
+      })}
     </div>
   </div>
 );
-const StatsCard = ({ count, title, isDark, theme, className, icon }) => (
-  <div
-    style={{
-      width: "119px",
-      height: "160px",
-      borderRadius: "24px",
-      padding: "15px 27px",
-      gap: "10px",
-      opacity: 1,
-      transform: "rotate(0deg)",
-      background: isDark ? "#2a2d30" : "#F1F1F1",
-      boxShadow: isDark
-        ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
-        : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
-    }}
-    className={`flex flex-col items-center justify-around ${className}`}
-  >
-    <div className="flex flex-col items-center gap-[10px]">
-      {icon}
-      <p
-        className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}
+const StatsCard = ({ count, title, isDark, theme, className, icon, isMobile = false }) => {
+  if (isMobile) {
+    return (
+      <div
+        style={{
+          width: "48%", // Takes 48% of container width
+          height: "160px",
+          padding: "3%",
+          borderRadius: "30px",
+          border: "3px solid transparent",
+          backgroundImage: isDark 
+            ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
+            : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
+          backgroundOrigin: "border-box",
+          backgroundClip: "padding-box, border-box",
+          boxShadow: isDark
+            ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+            : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
+        }}
+        className={`flex flex-col items-center justify-around ${className}`}
       >
+        {icon}
+        <p className={`text-xl sm:text-2xl font-semibold ${theme.text}`}>
+          {count}
+        </p>
+        <p className={`text-[9px] sm:text-[10px] text-center leading-tight px-1 ${theme.subText}`}>
+          {title}
+        </p>
+      </div>
+    );
+  }
+  
+  return (
+    <div
+      style={{
+        width: "48%", // Takes 48% of container width
+        height: "160px",
+        padding: "3%",
+        borderRadius: "30px",
+        border: "3px solid transparent",
+        backgroundImage: isDark 
+          ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
+          : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
+        backgroundOrigin: "border-box",
+        backgroundClip: "padding-box, border-box",
+        boxShadow: isDark
+          ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+          : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
+      }}
+      className={`flex flex-col items-center justify-around ${className}`}
+    >
+      {icon}
+      <p className={`text-2xl lg:text-3xl font-semibold ${theme.text}`}>
         {count}
       </p>
-      <p className={`text-xs ${theme.subText}`}>{title}</p>
+      <p className={`text-[10px] lg:text-xs text-center leading-tight ${theme.subText}`}>
+        {title}
+      </p>
     </div>
-  </div>
-);
+  );
+};
 function BankAccountDetailsCard({ isDark, theme }) {
   const [bankDetails, setBankDetails] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -357,12 +415,39 @@ const tableStyles = `
     z-index: 1001;
   }
 `;
-const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
+// Replace the EventsList component (starting from line ~572)
+
+const EventsList = ({
+  isDark,
+  theme,
+  events = [],
+  activeFilter,
+  searchTerm,
+  onSearchTermChange,
+}) => {
   const [currentPage, setCurrentPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
   const [isSearchActive, setIsSearchActive] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
+  const [expandedRows, setExpandedRows] = useState({});
   const searchInputRef = useRef(null);
   const itemsPerPage = 6;
+  const [isCategoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+
+  const categories = useMemo(() => {
+    if (!events) return ["All"];
+    const allCategories = events
+      .map((event) => event.event_category)
+      .filter(Boolean);
+    const uniqueCategories = [...new Set(allCategories)];
+    return ["All", ...uniqueCategories];
+  }, [events]);
+
+  useEffect(() => {
+    if (!categories.includes(selectedCategory)) {
+      setSelectedCategory("All");
+    }
+  }, [categories, selectedCategory]);
 
   useEffect(() => {
     if (isSearchActive) {
@@ -370,8 +455,35 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
     }
   }, [isSearchActive]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilter, searchTerm, selectedCategory]);
+
+  const toggleRowExpansion = (eventId) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [eventId]: !prev[eventId]
+    }));
+  };
+
   const filteredEvents = useMemo(() => {
     let filtered = events || [];
+
+    if (activeFilter === "Paid") {
+      filtered = filtered.filter(
+        (event) => event.ticket_types && event.ticket_types.length > 0
+      );
+    } else if (activeFilter === "Free") {
+      filtered = filtered.filter(
+        (event) => !event.ticket_types || event.ticket_types.length === 0
+      );
+    }
+
+    if (selectedCategory && selectedCategory !== "All") {
+      filtered = filtered.filter(
+        (event) => event.event_category === selectedCategory
+      );
+    }
 
     if (searchTerm) {
       filtered = filtered.filter((event) =>
@@ -380,7 +492,7 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
     }
 
     return filtered;
-  }, [events, searchTerm]);
+  }, [events, activeFilter, searchTerm, selectedCategory]);
 
   const paginatedEvents = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -397,7 +509,7 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
 
   const formatDate = (event) => {
     if (!event?.event_dates?.[0]?.start_date) {
-      return ""; // empty string if no date available
+      return "N/A";
     }
 
     const dateString = event.event_dates[0].start_date;
@@ -412,7 +524,6 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
       year: "numeric",
     });
   };
-
   return (
     <div
       style={{
@@ -423,266 +534,488 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
         flexDirection: "column",
         overflow: "hidden",
       }}
-      className={`w-full rounded-[50px] p-4 sm:p-8 ${
+      className={`w-full rounded-[50px] ${
         isDark ? theme.cardBg : "bg-[#f1f1f1]"
-      } ${getNeumorphicShadows(isDark)}`}
+      } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
     >
-      {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Mobile view */}
-        <div className="flex flex-col lg:hidden">
-          <div className="relative w-full flex items-center justify-center gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-base font-medium">Event</span>
-              <Search
-                className="w-4 h-4 cursor-pointer"
-                onClick={() => setIsSearchActive(true)}
-              />
-            </div>
-            <div className="absolute right-0 mr-4">
-              <span className="text-base font-medium">Action</span>
-            </div>
-          </div>
-          {displayEvents.map((event, index) => {
-            if (!event) {
-              return (
-                <div key={`placeholder-${index}`} className="p-4 h-[80px]">
-                  &nbsp;
-                </div>
-              );
-            }
-            const group = groups.find((g) => g._id === event.groupId);
-            const groupName = group?.name;
-            return (
-              <div
-                key={event._id || index}
-                className={`border-b ${
-                  isDark ? "border-gray-700/50" : "border-gray-200"
-                } p-4 flex items-center justify-between`}
+      <center>
+        <h1 className="font-urbanist font-normal text-[14px] leading-[100%] align-middle m-0">
+          Events
+        </h1>
+      </center>
+      <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-transparent lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
+        {/* Mobile Only View (below sm breakpoint - phones only) */}
+        <div className="flex flex-col sm:hidden">
+          {/* Search and Filter Section */}
+          <div className="relative mb-6">
+            <div className="flex items-center gap-3">
+              {/* Filter Button */}
+              <button
+                onClick={() => setShowFilter(!showFilter)}
+                className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${
+                  isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
+                }`}
+                style={{
+                  boxShadow: isDark
+                    ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+                    : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+                }}
               >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-12 h-12 rounded-full ${
-                      isDark ? "bg-indigo-500/20" : "bg-indigo-100"
-                    } flex-shrink-0 flex items-center justify-center ${
-                      isDark ? "text-indigo-300" : "text-indigo-500"
-                    }`}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+              </button>
+              {/* Search Bar */}
+              <div
+                className={`flex-1 flex items-center gap-2 ${
+                  isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
+                }`}
+                style={{
+                  maxWidth: '300px',
+                  height: '31px',
+                  borderRadius: '17.1px',
+                  padding: '8.55px',
+                  boxShadow: isDark
+                    ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+                    : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+                }}
+              >
+                <Search className="w-4 h-4 flex-shrink-0" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search events..."
+                  value={searchTerm}
+                  onChange={(e) => onSearchTermChange(e.target.value)}
+                  className={`bg-transparent focus:outline-none w-full text-sm ${
+                    isDark ? 'placeholder-gray-500' : 'placeholder-gray-400'
+                  }`}
+                />
+              </div>
+            </div>
+
+            {/* Filter Dropdown */}
+            {showFilter && (
+              <div className="absolute top-14 left-0 z-50">
+                <FilterButton />
+              </div>
+            )}
+          </div>
+          {/* Events Table */}
+          <div
+            className={`${isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'}`}
+            style={{
+              width: '100%',
+              maxWidth: '344px',
+              minHeight: filteredEvents.length === 0 ? 'auto' : '200px',
+              borderRadius: '24px',
+              padding: '32px 24px',
+              boxShadow: isDark
+                ? '6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset'
+                : '6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset'
+            }}
+          >
+            {filteredEvents.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-4">
+                <div className={`text-center ${theme.subText}`}>
+                  <svg
+                    className="w-16 h-16 mx-auto mb-4 opacity-50"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M13 10V3L4 14h7v7l9-11h-7z"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className={`${theme.text} font-semibold`}>
-                      {event.event_name}
-                    </p>
-                    <div
-                      className={`text-sm ${
-                        isDark ? "text-gray-400" : "text-gray-600"
-                      } flex items-center gap-2`}
-                    >
-                      <span>{groupName}</span>
-                      <span>&bull;</span>
-                      <span>{formatDate(event)}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <button className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50">
-                    Run
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
-                      <img
-                        src={ViewConfirm}
-                        alt="ViewConfirm"
-                        className="w-4 h-4 object-contain"
-                      />
-                    </button>
-                    <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
-                      <img
-                        src={EditIcon}
-                        alt="EditIcon"
-                        className="w-4 h-4 object-contain"
-                      />
-                    </button>
-                  </div>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    />
+                  </svg>
+                  <p className={`text-base font-medium ${theme.text} mb-2`}>
+                    No events found
+                  </p>
+                  <p className="text-sm">Create your first event to get started</p>
                 </div>
               </div>
-            );
-          })}
-        </div>
-        <table className="hidden lg:table w-full text-left">
-          <thead>
-            <tr
-              className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
-                isDark ? "border-gray-700" : "border-gray-200"
-              } text-sm sticky top-0`}
-              style={{
-                background: isDark ? "#232426" : "#F1F1F1",
-                zIndex: 10,
-              }}
-            >
-              <th className="py-3 px-8 font-bold text-lg w-[20%]">
-                <div className="flex items-center justify-start gap-2">
-                  {isSearchActive ? (
-                    <div className="flex items-center gap-2 w-full">
-                      <Search className="w-4 h-4" />
-                      <input
-                        ref={searchInputRef}
-                        type="text"
-                        placeholder="Search..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onBlur={() => {
-                          setIsSearchActive(false);
-                          setSearchTerm("");
+            ) : (
+              <div className="flex flex-col gap-4">
+                {paginatedEvents.map((event, index) => {
+                  const isExpanded = expandedRows[event._id];
+                  
+                  return (
+                    <div key={event._id || index} className="flex flex-col gap-4">
+                      {/* Event Row */}
+                      <div
+                        className="flex items-center justify-between"
+                        style={{
+                          width: '100%',
+                          maxWidth: '294px',
+                          height: '30px'
                         }}
-                        className="bg-transparent focus:outline-none w-full placeholder-gray-500"
-                      />
+                      >
+                        <p className={`${theme.text} font-medium text-sm truncate flex-1`}>
+                          {event.event_name}
+                        </p>
+                        <button
+                          onClick={() => toggleRowExpansion(event._id)}
+                          className="flex-shrink-0 ml-2"
+                        >
+                          <img
+                            src={isExpanded ? HideArrow : ShowArrow}
+                            alt={isExpanded ? "Hide" : "Show"}
+                            className="w-5 h-5"
+                          />
+                        </button>
+                      </div>
+
+                      {/* Expanded Details */}
+                      {isExpanded && (
+                        <div
+                          className="flex flex-col gap-5"
+                          style={{
+                            width: '100%',
+                            maxWidth: '294px',
+                            minHeight: '202px'
+                          }}
+                        >
+                          {/* Event Details */}
+                          <div className="flex flex-col gap-3">
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs ${theme.subText}`}>Category:</span>
+                              <span className={`text-xs ${theme.text} font-medium`}>
+                                {event.event_category || 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs ${theme.subText}`}>Sub Category:</span>
+                              <span className={`text-xs ${theme.text} font-medium`}>
+                                {event.event_subcategory || 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs ${theme.subText}`}>Start Date:</span>
+                              <span className={`text-xs ${theme.text} font-medium`}>
+                                {formatDate(event)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs ${theme.subText}`}>Location:</span>
+                              <span className={`text-xs ${theme.text} font-medium truncate max-w-[150px]`}>
+                                {event.venue || event.location_type || 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs ${theme.subText}`}>Status:</span>
+                              <span className={`text-xs ${theme.text} font-medium`}>
+                                {event.event_status || 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2 justify-start">
+                            <button className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50">
+                              Run
+                            </button>
+                            <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
+                              <img
+                                src={ViewConfirm}
+                                alt="ViewConfirm"
+                                className="w-4 h-4 object-contain"
+                              />
+                            </button>
+                            <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
+                              <img
+                                src={EditIcon}
+                                alt="EditIcon"
+                                className="w-4 h-4 object-contain"
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Divider */}
+                      {index < paginatedEvents.length - 1 && (
+                        <div className={`h-px ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                      )}
                     </div>
-                  ) : (
-                    <>
-                      <span>Event</span>
-                      <Search
-                        className="w-4 h-4 cursor-pointer"
-                        onClick={() => setIsSearchActive(true)}
-                      />
-                    </>
-                  )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tablet/Desktop View (sm breakpoint and above) */}
+        <div className="hidden sm:block">
+          {/* Tablet Search Header */}
+          <div className="flex lg:hidden mb-4">
+            <div className="flex items-center justify-between w-full">
+              {!isSearchActive ? (
+                <button 
+                  className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${
+                    isDark ? theme.cardBg : "bg-[#f1f1f1]"
+                  } ${getNeumorphicShadows(isDark)}`}
+                  onClick={() => setIsSearchActive(true)}
+                >
+                  <Search className={`w-4 h-4 ${theme.subText}`} />
+                  <span className={`text-sm font-bold ${theme.text}`}>Event</span>
+                </button>
+              ) : (
+                <div 
+                  className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${
+                    isDark ? theme.cardBg : "bg-[#f1f1f1]"
+                  } ${getNeumorphicShadows(isDark)}`}
+                >
+                  <Search className={`w-4 h-4 ${theme.subText}`} />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Search..."
+                    value={searchTerm}
+                    onChange={(e) => onSearchTermChange(e.target.value)}
+                    onBlur={() => setIsSearchActive(false)}
+                    className={`bg-transparent focus:outline-none w-20 ${theme.text} placeholder-gray-500`}
+                    autoFocus
+                  />
                 </div>
-              </th>
-              <th className="py-3 px-8 font-bold text-lg w-[18%]">Group</th>
-              <th className="py-3 px-8 font-bold text-lg w-[15%]">
-                Sub category
-              </th>
-              <th className="py-3 px-8 font-bold text-lg w-[18%]">
-                Start date
-              </th>
-              <th className="py-3 px-8 font-bold text-lg w-[15%]">Location</th>
-              <th className="py-3 px-8 font-bold text-lg w-[8%]">Type</th>
-              <th className="py-3 px-8 pr-4 font-bold text-lg w-[22%]">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              )}
+              <span className={`text-sm font-bold ${theme.text} mr-1`}>Actions</span>
+            </div>
+          </div>
+
+          {/* Tablet List View */}
+          <div className="flex flex-col lg:hidden">
             {displayEvents.map((event, index) => {
               if (!event) {
                 return (
-                  <tr key={`placeholder-${index}`}>
-                    <td className="py-3 px-4 h-[60px]">&nbsp;</td>
-                    <td className="py-3 px-4">&nbsp;</td>
-                    <td className="py-3 px-4">&nbsp;</td>
-                    <td className="py-3 px-4">&nbsp;</td>
-                    <td className="py-3 px-4">&nbsp;</td>
-                    <td className="py-3 px-4">&nbsp;</td>
-                    <td className="py-3 px-4">&nbsp;</td>
-                  </tr>
+                  <div key={`placeholder-${index}`} className="p-4 h-[80px]">
+                    &nbsp;
+                  </div>
                 );
               }
-              const group = groups.find((g) => g._id === event.groupId);
-              const groupName = group?.name;
-              const startDate =
-                event?.event_dates?.[0]?.start_date
-                  ? new Date(event.event_dates[0].start_date).toLocaleDateString(
-                      "en-GB",
-                      {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                      }
-                    )
-                  : "";
-              const location = event.venue || event.location_type;
-
               return (
-                <tr
+                <div
                   key={event._id || index}
                   className={`border-b ${
                     isDark ? "border-gray-700/50" : "border-gray-200"
-                  } ${
-                    isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
-                  }`}
+                  } p-4`}
                 >
-                  <td
-                    className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[20%]`}
-                    data-full-text={event.event_name}
-                  >
-                    {event.event_name}
-                  </td>
-                  <td
-                    className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[18%]`}
-                    data-full-text={groupName}
-                  >
-                    {groupName}
-                  </td>
-                  <td
-                    className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[15%]`}
-                    data-full-text={event.event_subcategory}
-                  >
-                    {event.event_subcategory}
-                  </td>
-                  <td
-                    className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[18%]`}
-                    data-full-text={startDate}
-                  >
-                    {startDate}
-                  </td>
-                  <td
-                    className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[15%]`}
-                    data-full-text={location}
-                  >
-                    {location}
-                  </td>
-                  <td
-                    className={`py-3 px-8 ${theme.text} text-sm truncate-cell w-[8%]`}
-                    data-full-text={event.event_type}
-                  >
-                    {event.event_type}
-                  </td>
-                  <td className="py-3 px-8 pr-4 w-[22%]">
-                    <div className="flex items-center gap-2">
-                      <button className="bg-[#00DEA3] text-black font-semibold text-sm px-5 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50 whitespace-nowrap">
-                        Run
-                      </button>
-                      <button className="bg-[#7D7D7D] w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex-shrink-0">
-                        <img
-                          src={ViewConfirm}
-                          alt="ViewConfirm"
-                          className="w-3 h-3.5 object-contain"
-                        />
-                      </button>
-                      <button className="bg-[#7D7D7D] w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex-shrink-0">
-                        <img
-                          src={EditIcon}
-                          alt="EditIcon"
-                          className="w-3 h-3.5 object-contain"
-                        />
-                      </button>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-8 h-8 rounded-full ${
+                          isDark ? "bg-indigo-500/20" : "bg-indigo-100"
+                        } flex items-center justify-center ${
+                          isDark ? "text-indigo-300" : "text-indigo-500"
+                        }`}
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z"
+                          />
+                        </svg>
+                      </div>
+                      <span className={`${theme.text} truncate`}>
+                        {event.event_name}
+                      </span>
                     </div>
-                  </td>
-                </tr>
+                    <button
+                      className={`px-4 sm:px-6 py-2 border border-[#6549B8] rounded-full text-sm transition-colors ${
+                        isDark
+                          ? "text-white hover:bg-[#6549B8]"
+                          : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
+                      }`}
+                    >
+                      View
+                    </button>
+                  </div>
+                  <div
+                    className={`mt-2 text-sm ${
+                      isDark ? "text-gray-400" : "text-gray-600"
+                    }`}
+                  >
+                    <p>Event Status: {event.event_status}</p>
+                  </div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
+          </div>
+
+          {/* Desktop Table View */}
+          <table className="hidden lg:table w-full table-auto text-left">
+            <thead>
+              <tr
+                className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
+                  isDark ? "border-gray-700" : "border-gray-200"
+                } text-sm sticky top-0`}
+                style={{
+                  background: isDark ? "#232426" : "#F1F1F1",
+                  zIndex: 10,
+                }}
+              >
+                <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[38%]">
+                  <div className="flex items-center justify-start gap-2">
+                    {isSearchActive ? (
+                      <div className="flex items-center gap-2 w-full">
+                        <Search className="w-4 h-4" />
+                        <input
+                          ref={searchInputRef}
+                          type="text"
+                          placeholder="Search..."
+                          value={searchTerm}
+                          onChange={(e) => onSearchTermChange(e.target.value)}
+                          onBlur={() => {
+                            setIsSearchActive(false);
+                            onSearchTermChange("");
+                          }}
+                          className="bg-transparent focus:outline-none w-full placeholder-gray-500"
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <span>Event</span>
+                        <Search
+                          className="w-4 h-4 cursor-pointer"
+                          onClick={() => setIsSearchActive(true)}
+                        />
+                      </>
+                    )}
+                  </div>
+                </th>
+                <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
+                  <div className="relative">
+                    <button
+                      onClick={() => setCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                      className="flex items-center justify-between w-full"
+                    >
+                      <span>{selectedCategory === "All" ? "Category" : selectedCategory}</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    {isCategoryDropdownOpen && (
+                      <div className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${
+                        isDark ? "bg-[#232426] ring-gray-600" : "bg-slate-100 ring-gray-400"
+                      }`} style={{
+                        boxShadow: isDark
+                          ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
+                          : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A"
+                      }}>
+                        <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                          {categories.map((category) => (
+                            <button
+                              key={category}
+                              onClick={() => {
+                                setSelectedCategory(category);
+                                setCategoryDropdownOpen(false);
+                              }}
+                              className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${
+                                selectedCategory === category
+                                  ? isDark ? "bg-gray-700 text-white" : "bg-gray-200 text-gray-900"
+                                  : isDark ? "text-gray-300 hover:bg-gray-800" : "text-gray-700 hover:bg-gray-200"
+                              }`}
+                            >
+                              {category}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </th>
+                <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
+                  <div className="flex items-center gap-2">
+                    <span>Event Status</span>
+                  </div>
+                </th>
+                <th className="py-3 px-2 lg:px-4 font-normal w-[18%]"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayEvents.map((event, index) => {
+                if (!event) {
+                  return (
+                    <tr key={`placeholder-${index}`}>
+                      <td className="py-3 px-4 h-[60px]">&nbsp;</td>
+                      <td className="py-3 px-4">&nbsp;</td>
+                      <td className="py-3 px-4">&nbsp;</td>
+                      <td className="py-3 px-4">&nbsp;</td>
+                    </tr>
+                  );
+                }
+                return (
+                  <tr
+                    key={event._id || index}
+                    className={`border-b ${
+                      isDark ? "border-gray-700/50" : "border-gray-200"
+                    } ${
+                      isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
+                    }`}
+                  >
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-6 h-6 rounded-full ${
+                            isDark ? "bg-indigo-500/20" : "bg-indigo-100"
+                          } flex items-center justify-center ${
+                            isDark ? "text-indigo-300" : "text-indigo-500"
+                          }`}
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M13 10V3L4 14h7v7l9-11h-7z"
+                            />
+                          </svg>
+                        </div>
+                        <span className={`${theme.text} text-sm truncate`}>
+                          {event.event_name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
+                      {event.event_category ? event.event_category : "N/A"}
+                    </td>
+                    <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
+                      {event.event_status ? event.event_status : "N/A"}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button
+                        className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
+                          isDark
+                            ? "text-white hover:bg-[#6549B8]"
+                            : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
+                        }`}
+                      >
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Pagination */}
       {totalPages > 1 && (
         <div
-          data-testid="pagination-container"
           className="flex justify-center mt-3 pt-2 border-t border-opacity-20"
           style={{ borderColor: isDark ? "#4a5568" : "#e2e8f0" }}
         >
@@ -708,11 +1041,10 @@ const EventsList = ({ isDark, theme, events = [], groups = [] }) => {
     </div>
   );
 };
-
 const ConfirmEvents = () => {
   const { user } = useSelector((state) => state.auth);
   const [isDark, setIsDark] = useState(true);
-  const [searchValue, setSearchValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [events, setEvents] = useState([]);
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -840,8 +1172,8 @@ const ConfirmEvents = () => {
             <div className="flex-1 min-w-0">
               <SearchBar
                 theme={theme}
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 onTuneClick={() => {}}
               />
             </div>
@@ -916,41 +1248,97 @@ const ConfirmEvents = () => {
             <div className="md:col-span-1 w-full p-4">
               <MyGroupsCard theme={theme} groups={groups} isDark={isDark} />
             </div>
-            <div
-              style={{
-                height: "240px",
-                padding: "21px",
-                gap: "20px",
-              }}
-              className={`w-full max-w-xs mx-auto xl:mr-0 grid grid-cols-2 items-center rounded-[50px] ${
-                isDark ? theme.cardBg : "bg-[#f1f1f1]"
-              } ${getNeumorphicShadows(isDark)}`}
-            >
-              <StatsCard
-                isDark={isDark}
-                theme={theme}
-                className="w-full h-48"
-                count={confirmedEventsCount}
-                title="Total events"
-                icon={
-                  <div className="text-yellow-400">
-                    <PartyPopper className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
+              {/* Stats Cards Container */}
+              <div className="w-full flex items-center justify-center">
+                {/* Mobile/Tablet View */}
+                <div className="lg:hidden w-full flex justify-center px-2">
+                  <div
+                    style={{
+                      width: "100%",
+                      maxWidth: "340px",
+                      minWidth: "280px",
+                      height: "203px",
+                      padding: "21px",
+                      gap: "20px",
+                      borderRadius: "50px",
+                      background: isDark ? "#212426" : "#f1f1f1",
+                      boxShadow: isDark 
+                        ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
+                        : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
+                    }}
+                    className="flex flex-row items-center justify-between"
+                  >
+                    <StatsCard
+                      isDark={isDark}
+                      theme={theme}
+                      count={confirmedEventsCount}
+                      title="Confirmed events"
+                      icon={
+                        <div className="text-yellow-400">
+                          <PartyPopper className="h-6 w-6 sm:h-7 sm:w-7" />
+                        </div>
+                      }
+                      isMobile={true}
+                    />
+                    <StatsCard
+                      isDark={isDark}
+                      theme={theme}
+                      count={totalLiveEvents}
+                      title="Live events"
+                      icon={
+                        <div className="text-red-500 relative">
+                          <Radio className="h-6 w-6 sm:h-7 sm:w-7" />
+                        </div>
+                      }
+                      isMobile={true}
+                    />
                   </div>
-                }
-              />
-              <StatsCard
-                isDark={isDark}
-                theme={theme}
-                className="w-full h-48"
-                count={totalLiveEvents}
-                title="Live events"
-                icon={
-                  <div className="text-red-500 relative">
-                    <Radio className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
+                </div>
+
+                {/* Desktop View */}
+                <div className="hidden lg:flex w-full justify-center">
+                  <div
+                    style={{
+                      width: "min(100%, 300px)",
+                      height: "203px",
+                      padding: "21px",
+                      gap: "20px",
+                      borderRadius: "50px",
+                      background: isDark ? "#212426" : "#f1f1f1",
+                      boxShadow: isDark
+                        ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
+                        : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
+                    }}
+                    className="flex flex-row items-center justify-between transition-all duration-300"
+                  >
+                    <StatsCard
+                      isDark={isDark}
+                      theme={theme}
+                      count={confirmedEventsCount}
+                      title="Total events"
+                      icon={
+                        <div className="text-yellow-400">
+                          <PartyPopper className="h-9 w-9 xl:h-10 xl:w-10" />
+                        </div>
+                      }
+                      isMobile={false}
+                    />
+                    
+                    <StatsCard
+                      isDark={isDark}
+                      theme={theme}
+                      count={totalLiveEvents}
+                      title="Live events"
+                      icon={
+                        <div className="text-red-500 relative">
+                          <Radio className="h-9 w-9 xl:h-10 xl:w-10" />
+                        </div>
+                      }
+                      isMobile={false}
+                    />
                   </div>
-                }
-              />
-            </div>
+                </div>
+              </div>
             <div className="md:col-span-2">
               <BankAccountDetailsCard isDark={isDark} theme={theme} />
             </div>
@@ -961,6 +1349,8 @@ const ConfirmEvents = () => {
             theme={theme}
             events={events}
             groups={groups}
+            searchTerm={searchTerm}
+            onSearchTermChange={setSearchTerm}
           />
         </main>
       </div>

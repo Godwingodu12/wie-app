@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getMe } from "../../services/userService";
 import { getOtherProfile, findAllActiveUsers, followUser, unfollowUser, checkIsFollowing} from "../../services/authService";
 import { getOthersEvents } from "../../services/ticketService";
-
+import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
@@ -659,48 +659,6 @@ const OtherProfilePage = () => {
       };
 
   const displayName = currentUser?.name || "User";
-
-  const BottomNavigation = () => (
-    <nav className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 w-[95%] md:hidden">
-      <div className={`flex justify-around items-center py-3 px-4 rounded-full ${theme.cardBg} ${theme.border} ${isDark ? 'shadow-[6px_6px_12px_rgba(0,0,0,0.6),-6px_-6px_12px_rgba(60,60,60,0.3)]' : 'shadow-[6px_6px_12px_rgba(0,0,0,0.1),-6px_-6px_12px_rgba(255,255,255,0.8)]'}`}>
-        {[
-          { to: "/home", icon: HomeIcon, label: "Home" }, 
-          { to: "/ticket/events", icon: TicketIcon, label: "Tickets" }, 
-          { to: "/ticket/create-event", icon: PlusIcon, label: "Create", special: true }, 
-          { to: "/ticket/live-events", icon: SpeakerIcon, label: "Live Events" }, 
-          { to: "/profile", label: "Profile", profile: true },
-        ].map(({ to, icon, label, special, profile }) => 
-          special ? (
-            <div key={label} className="relative">
-              <Link to={to}>
-                <button 
-                  style={{ 
-                    boxShadow: isDark ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)" : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)", 
-                  }} 
-                  className="w-8 h-8 rounded-full bg-[#21d18b] flex items-center justify-center transition hover:scale-105"
-                >
-                  <img src={icon} alt="Create" className="w-6 h-6 invert brightness-0" />
-                </button>
-              </Link>
-            </div>
-          ) : (
-            <Link key={label} to={to} className="flex items-center justify-center p-2">
-              {profile ? (
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-[#6a47fa] flex items-center justify-center text-white font-bold">
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-              ) : (
-                <div className="w-8 h-8 flex items-center justify-center">
-                  <img src={icon} alt={label} className={`w-5 h-5 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
-                </div>
-              )}
-            </Link>
-          )
-        )}
-      </div>
-    </nav>
-  );
-
   if (loading || !profileUser) {
     return (
       <div className={`${theme.bg} ${theme.text} min-h-screen flex items-center justify-center`}>
@@ -794,8 +752,7 @@ const OtherProfilePage = () => {
               </div>
             </div>
           </header>
-
-          <main className="flex-1 p-3 md:p-4 lg:p-6 overflow-y-auto overflow-x-hidden pb-24 md:pb-4 nest-hub-content max-w-full">
+    <main className="flex-1 p-3 md:p-4 lg:p-6 overflow-y-auto overflow-x-hidden pb-32 md:pb-4 nest-hub-content max-w-full">
             <div className="max-w-7xl mx-auto space-y-3 md:space-y-4 lg:space-y-6 nest-hub-spacing w-full px-0 md:px-2 lg:px-4">
               {/* Profile Card */}
               <div className={`rounded-2xl md:rounded-3xl lg:rounded-[3rem] p-4 md:p-4 lg:p-6 mt-2 md:mt-4 lg:mt-8 ${theme.cardBg} nest-hub-card transition-all duration-300 w-full overflow-hidden`} style={{boxShadow: theme.cardShadow}}>
@@ -1431,7 +1388,12 @@ const OtherProfilePage = () => {
               </div>
             </div>
           </main>
-          <BottomNavigation />
+          <div >
+          <BottomNavigation 
+            theme={theme}
+            user={users}
+          />
+          </div>
         </div>
       </div>
     </>

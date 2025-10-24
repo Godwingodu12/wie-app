@@ -20,6 +20,26 @@ import {
   Search,
   Landmark,
 } from "lucide-react";
+import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
+// import AdminLogo from "../../assets/auth/admin.webp";
+// import OrgLogo from "../../assets/auth/orgz.webp";
+
+const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
+const getImageUrl = (path) => {
+    if (!path) return null;
+    if (typeof path === 'object') {
+      path = path.path || path.url || null;
+    }
+    if (typeof path !== 'string') {
+      console.warn('Invalid path type:', typeof path, path);
+      return null;
+    }
+    let cleanPath = path.replace(/\\/g, '/');
+    cleanPath = cleanPath.replace(/^src\//, '');
+    cleanPath = cleanPath.replace(/^\//, '');
+    const fullUrl = `${API_BASE_URL}/${cleanPath}`;
+    return fullUrl;
+};
 
 const getNeumorphicShadows = (isDark) =>
   isDark
@@ -46,61 +66,101 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
       )}
     </div>
     <div className="flex flex-row flex-wrap items-center justify-start w-full gap-6 flex-grow">
-      {groups.slice(0, 2).map((group, index) => (
-        <div key={index} className="flex flex-col items-center gap-2">
-          <div
-            className="relative w-[100px] h-[100px] rounded-[58px] overflow-hidden"
-            style={{
-              boxShadow: isDark
-                ? "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)"
-                : "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)",
-            }}
-          >
-            <img
-              src={`${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${
-                group.image
-              }`}
-              alt={group.name}
-              className="w-full h-full object-cover"
-            />
+      {groups.slice(0, 2).map((group, index) => {
+        let imageUrl;
+        if (group.grp_type === 'admin') {
+          imageUrl = ProfileImage;
+        } else if (group.grp_type === 'organization') {
+          imageUrl = getImageUrl(group.image) || ProfileImage;
+        } else {
+          imageUrl = getImageUrl(group.image) || ProfileImage;
+        }
+        return (
+          <div key={index} className="flex flex-col items-center gap-2">
+            <div
+              className="relative w-[100px] h-[100px] rounded-[58px] overflow-hidden"
+              style={{
+                boxShadow: isDark
+                  ? "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)"
+                  : "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)",
+              }}
+            >
+              <img
+                src={imageUrl}
+                alt={group.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <p className={`font-medium text-sm ${theme.text} text-center`}>
+              {group.name}
+            </p>
           </div>
-          <p className={`font-medium text-sm ${theme.text} text-center`}>
-            {group.name}
-          </p>
-        </div>
-      ))}
+        );
+      })}
     </div>
   </div>
 );
-const StatsCard = ({ count, title, isDark, theme, className, icon }) => (
-  <div
-    style={{
-      width: "119px",
-      height: "160px",
-      borderRadius: "24px",
-      padding: "15px 27px",
-      gap: "10px",
-      opacity: 1,
-      transform: "rotate(0deg)",
-      background: isDark ? "#2a2d30" : "#F1F1F1",
-      boxShadow: isDark
-        ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
-        : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
-    }}
-    className={`flex flex-col items-center justify-around ${className}`}
-  >
-    <div className="flex flex-col items-center gap-[10px]">
-      {icon}
-      <p
-        className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}
+const StatsCard = ({ count, title, isDark, theme, className, icon, isMobile = false }) => {
+  if (isMobile) {
+    return (
+      <div
+        style={{
+          width: "48%",
+          height: "160px",
+          padding: "3%",
+          borderRadius: "30px",
+          border: "3px solid transparent",
+          backgroundImage: isDark 
+            ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
+            : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
+          backgroundOrigin: "border-box",
+          backgroundClip: "padding-box, border-box",
+          boxShadow: isDark
+            ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+            : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
+        }}
+        className={`flex flex-col items-center justify-around ${className}`}
       >
+        {icon}
+        <p className={`text-xl sm:text-2xl font-semibold ${theme.text}`}>
+          {count}
+        </p>
+        <p className={`text-[9px] sm:text-[10px] text-center leading-tight px-1 ${theme.subText}`}>
+          {title}
+        </p>
+      </div>
+    );
+  }
+  
+  return (
+    <div
+      style={{
+        width: "105px",
+        height: "145px",
+        padding: "12px 10px",
+        borderRadius: "30px",
+        border: "3px solid transparent",
+        backgroundImage: isDark 
+          ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
+          : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
+        backgroundOrigin: "border-box",
+        backgroundClip: "padding-box, border-box",
+        boxShadow: isDark
+          ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+          : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
+      }}
+      className={`flex flex-col items-center justify-around flex-shrink-0 ${className}`}
+    >
+      {icon}
+      <p className={`text-xl lg:text-2xl xl:text-3xl font-semibold ${theme.text}`}>
         {count}
       </p>
-      <p className={`text-xs ${theme.subText}`}>{title}</p>
+      <p className={`text-[9px] lg:text-[10px] xl:text-xs text-center leading-tight ${theme.subText}`}>
+        {title}
+      </p>
     </div>
-  </div>
-);
-
+  );
+};
 function MonthSelector({
   currentMonth,
   onSelectMonth,
@@ -131,8 +191,7 @@ function MonthSelector({
       {months.map((monthName, index) => (
         <button
           key={monthName}
-          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${
-            currentMonth === index
+          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentMonth === index
               ? "bg-blue-600 text-blue-100"
               : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
           }`}
@@ -159,8 +218,7 @@ function YearSelector({ currentYear, onSelectYear, onClose, isDark, theme }) {
       {years.map((yearNum) => (
         <button
           key={yearNum}
-          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${
-            currentYear === yearNum
+          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentYear === yearNum
               ? "bg-blue-600 text-blue-100"
               : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
           }`}
@@ -180,9 +238,7 @@ function OneLinerCalendar({ isDark, theme, dates, selectedDate, onDateClick }) {
   const daysOfWeek = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
   const getDayStyle = (dayInfo) => {
-    const isSelected =
-      selectedDate &&
-      dayInfo.fullDate.toDateString() === selectedDate.toDateString();
+    const isSelected = selectedDate && dayInfo.fullDate.toDateString() === selectedDate.toDateString();
     const isToday = dayInfo.isToday;
 
     if (isToday) {
@@ -208,13 +264,14 @@ function OneLinerCalendar({ isDark, theme, dates, selectedDate, onDateClick }) {
 
   return (
     <div
-      className={`mt-4 p-3 sm:p-4 md:p-5 lg:p-6 rounded-[30px] ${
-        isDark ? theme.cardBg : "bg-[#f1f1f1]"
-      } ${getNeumorphicShadows(isDark)}`}
+      className={`mt-4 p-3 sm:p-4 md:p-5 lg:p-6 rounded-[30px] ${isDark ? theme.cardBg : "bg-[#f1f1f1]"} ${getNeumorphicShadows(isDark)}`}
     >
-      <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 px-2" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-        <style jsx>{`
-          div::-webkit-scrollbar {
+      <div
+        className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 px-2 hide-scrollbar"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        <style>{`
+          .hide-scrollbar::-webkit-scrollbar {
             display: none;
           }
         `}</style>
@@ -224,9 +281,7 @@ function OneLinerCalendar({ isDark, theme, dates, selectedDate, onDateClick }) {
             <div
               key={index}
               onClick={() => onDateClick(dayInfo)}
-              className={`flex-shrink-0 w-12 sm:w-14 md:w-16 h-12 sm:h-14 md:h-16 flex flex-col justify-center items-center space-y-0.5 sm:space-y-1 cursor-pointer transition-all duration-200 ${
-                style.wrapper
-              } ${index >= 5 ? "hidden sm:flex" : ""}`}
+              className={`flex-shrink-0 w-12 sm:w-14 md:w-16 h-12 sm:h-14 md:h-16 flex flex-col justify-center items-center space-y-0.5 sm:space-y-1 cursor-pointer transition-all duration-200 ${style.wrapper} ${index >= 5 ? "hidden sm:flex" : ""}`}
             >
               <span className={`text-xs uppercase ${style.day}`}>
                 {dayInfo.isToday
@@ -278,7 +333,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
     const isLargeDesktop = window.innerWidth >= 1280;
     const totalDays = isLargeDesktop ? 14 : 7;
     const daysBefore = Math.floor(totalDays / 2);
-    
+
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - daysBefore);
 
@@ -314,9 +369,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
   return (
     <>
       <header
-        className={`flex items-center justify-center border-b ${
-          isDark ? "border-gray-700" : "border-gray-200"
-        } pb-3 sm:pb-4 mb-4 sm:mb-6 flex-wrap gap-2 sm:gap-4`}
+        className={`flex items-center justify-center border-b ${isDark ? "border-gray-700" : "border-gray-200"} pb-3 sm:pb-4 mb-4 sm:mb-6 flex-wrap gap-2 sm:gap-4`}
       >
         <div className="flex flex-row items-center justify-center gap-2 sm:gap-4">
           <div className="relative">
@@ -394,14 +447,24 @@ const EventsList = ({
   groups = [],
   activeFilter,
   selectedDate,
+  searchTerm,
+  onSearchTermChange,
 }) => {
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const searchInputRef = useRef(null);
   const itemsPerPage = 6;
   const [isOrganisationDropdownOpen, setOrganisationDropdownOpen] =
     useState(false);
   const [isEventTypeDropdownOpen, setEventTypeDropdownOpen] = useState(false);
+  const [eventTypeFilter, setEventTypeFilter] = useState("All");
+
+  useEffect(() => {
+    if (isSearchActive) {
+      searchInputRef.current?.focus();
+    }
+  }, [isSearchActive]);
 
   const filteredEvents = useMemo(() => {
     let filtered = events || [];
@@ -413,6 +476,14 @@ const EventsList = ({
     } else if (activeFilter === "Free") {
       filtered = filtered.filter(
         (event) => event.event_type && event.event_type.toLowerCase() === "free"
+      );
+    }
+
+    if (eventTypeFilter !== "All") {
+      filtered = filtered.filter(
+        (event) =>
+          event.event_privacy &&
+          event.event_privacy.toLowerCase() === eventTypeFilter.toLowerCase()
       );
     }
 
@@ -431,7 +502,7 @@ const EventsList = ({
     }
 
     return filtered;
-  }, [events, searchTerm, activeFilter, selectedDate]);
+  }, [events, searchTerm, activeFilter, selectedDate, eventTypeFilter]);
 
   const paginatedEvents = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -440,6 +511,11 @@ const EventsList = ({
 
   const totalPages = Math.ceil(filteredEvents.length / itemsPerPage);
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+
+  const displayEvents = [...paginatedEvents];
+  while (displayEvents.length < itemsPerPage) {
+    displayEvents.push(null);
+  }
 
   const formatDate = (event) => {
     const dateString = event.event_start_date ?? event.start_date;
@@ -451,7 +527,16 @@ const EventsList = ({
     return date.toLocaleDateString();
   };
 
-  const Dropdown = ({ title, isOpen, setIsOpen, isDark, theme }) => (
+  const Dropdown = ({
+    title,
+    isOpen,
+    setIsOpen,
+    options,
+    selectedOption,
+    onSelect,
+    isDark,
+    theme,
+  }) => (
     <div className="relative inline-block text-left">
       <div>
         <button
@@ -471,13 +556,15 @@ const EventsList = ({
               className={`h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5 ${theme.text}`}
             />
           </div>
-          {title}
+          {selectedOption === "All" ? title : selectedOption}
         </button>
       </div>
       {isOpen && (
         <div
           className={`origin-top-right absolute right-0 mt-2 w-56 rounded-2xl ring-1 ring-opacity-5 z-50 ${
-            isDark ? "bg-[#232426] ring-gray-600" : "bg-slate-100 ring-gray-400"
+            isDark
+              ? "bg-[#232426] ring-gray-600"
+              : "bg-slate-100 ring-gray-400"
           }`}
           style={{
             boxShadow: isDark
@@ -486,33 +573,35 @@ const EventsList = ({
           }}
         >
           <div className="py-1" role="menu">
-            <a
-              href="#"
-              className={`block px-4 py-2 text-sm rounded-xl mx-2 my-1 transition-colors ${
-                isDark
-                  ? "text-gray-400 hover:bg-gray-800"
-                  : "text-gray-500 hover:bg-gray-200"
-              }`}
-              role="menuitem"
-            >
-              Option 1
-            </a>
-            <a
-              href="#"
-              className={`block px-4 py-2 text-sm rounded-xl mx-2 my-1 transition-colors ${
-                isDark
-                  ? "text-gray-400 hover:bg-gray-800"
-                  : "text-gray-500 hover:bg-gray-200"
-              }`}
-              role="menuitem"
-            >
-              Option 2
-            </a>
+            {options.map((option) => (
+              <button
+                key={option}
+                onClick={() => {
+                  onSelect(option);
+                  setIsOpen(false);
+                }}
+                className={`block w-full text-left px-4 py-2 text-sm rounded-xl mx-2 my-1 transition-colors ${
+                  selectedOption === option
+                    ? isDark
+                      ? "bg-gray-700"
+                      : "bg-gray-200"
+                    : ""
+                } ${
+                  isDark
+                    ? "text-gray-400 hover:bg-gray-800"
+                    : "text-gray-500 hover:bg-gray-200"
+                }`}
+                role="menuitem"
+              >
+                {option}
+              </button>
+            ))}
           </div>
         </div>
       )}
     </div>
-  );
+   );
+
 
   return (
     <div
@@ -523,14 +612,11 @@ const EventsList = ({
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        minHeight: "500px",
-        boxShadow: isDark 
-          ? "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14"
-          : "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14",
+        height: "402px",
       }}
       className={`w-full rounded-[50px] p-4 sm:p-8 ${
         isDark ? theme.cardBg : "bg-[#f1f1f1]"
-      }`}
+      } ${getNeumorphicShadows(isDark)}`}
     >
       {/* Filters for Mobile */}
       <div className="flex gap-2 mb-4 md:hidden">
@@ -551,7 +637,7 @@ const EventsList = ({
               type="text"
               placeholder="Events"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => onSearchTermChange(e.target.value)}
               className={`bg-transparent focus:outline-none placeholder-gray-500 w-full font-bold text-sm ${theme.text}`}
             />
           </div>
@@ -560,6 +646,13 @@ const EventsList = ({
           title="Organisation"
           isOpen={isOrganisationDropdownOpen}
           setIsOpen={setOrganisationDropdownOpen}
+          options={["All"]
+            .concat(
+              [...new Set(groups.map((g) => g.name))].filter(Boolean)
+            )
+            .slice(0, 5)}
+          selectedOption={"All"}
+          onSelect={() => {}}
           isDark={isDark}
           theme={theme}
         />
@@ -567,36 +660,43 @@ const EventsList = ({
           title="Event Type"
           isOpen={isEventTypeDropdownOpen}
           setIsOpen={setEventTypeDropdownOpen}
+          options={["All", "Public", "Private"]}
+          selectedOption={eventTypeFilter}
+          onSelect={setEventTypeFilter}
           isDark={isDark}
           theme={theme}
         />
       </div>
 
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto h-[450px] md:h-[500px]"> 
+      <div className="flex-1 overflow-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
         {/* Mobile view */}
         <div className="flex flex-col md:hidden gap-4">
-          {paginatedEvents.map((event, index) => {
+          {displayEvents.map((event, index) => {
+            if (!event) {
+              return (
+                <div
+                  key={`placeholder-m-${index}`}
+                  className="p-4 sm:p-5 rounded-2xl min-h-[65px]"
+                >
+                  &nbsp;
+                </div>
+              );
+            }
             const group = groups.find((g) => g._id === event.groupId);
             const groupName = group ? group.name : "N/A";
 
             return (
               <div
                 key={event._id || index}
-                className={`p-4 sm:p-5 flex items-center justify-between gap-3 rounded-2xl min-h-[65px] ${
-                  isDark ? "bg-gray-800/50" : "bg-white"
-                } shadow-md`}
+                className={`p-4 sm:p-5 flex items-center justify-between gap-3 rounded-2xl min-h-[65px] ${isDark ? "bg-gray-800/50" : "bg-white"} shadow-md`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div
-                    className={`w-8 sm:w-10 md:w-12 h-8 sm:h-10 md:h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      isDark ? "bg-purple-500/20" : "bg-purple-100"
-                    }`}
+                    className={`w-8 sm:w-10 md:w-12 h-8 sm:h-10 md:h-12 rounded-full flex items-center justify-center flex-shrink-0 ${isDark ? "bg-purple-500/20" : "bg-purple-100"}`}
                   >
                     <PartyPopper
-                      className={`w-6 h-6 ${
-                        isDark ? "text-purple-300" : "text-purple-600"
-                      }`}
+                      className={`w-6 h-6 ${isDark ? "text-purple-300" : "text-purple-600"}`}
                     />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -606,9 +706,7 @@ const EventsList = ({
                       {event.event_name}
                     </p>
                     <div
-                      className={`text-sm ${
-                        isDark ? "text-gray-400" : "text-gray-600"
-                      } flex items-center flex-wrap gap-x-2 gap-y-1 mt-1 text-xs sm:text-sm`}
+                      className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"} flex items-center flex-wrap gap-x-2 gap-y-1 mt-1 text-xs sm:text-sm`}
                     >
                       <span className="truncate">{groupName}</span>
                       <span>•</span>
@@ -639,9 +737,7 @@ const EventsList = ({
         <table className="hidden md:table w-full text-left">
           <thead>
             <tr
-              className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
-                isDark ? "border-gray-700" : "border-gray-200"
-              } text-sm sticky top-0`}
+              className={`${isDark ? "text-gray-400" : "text-black"} border-b ${isDark ? "border-gray-700" : "border-gray-200"} text-sm sticky top-0`}
               style={{
                 background: isDark ? "#232426" : "#F1F1F1",
                 zIndex: 10,
@@ -665,7 +761,7 @@ const EventsList = ({
                       type="text"
                       placeholder="Search..."
                       value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onChange={(e) => onSearchTermChange(e.target.value)}
                       className={`bg-transparent focus:outline-none w-full placeholder-gray-500 font-bold text-sm md:text-base lg:text-lg xl:text-xl ${theme.text}`}
                     />
                   </div>
@@ -677,6 +773,13 @@ const EventsList = ({
                     title="Organisation"
                     isOpen={isOrganisationDropdownOpen}
                     setIsOpen={setOrganisationDropdownOpen}
+                    options={["All"]
+                      .concat(
+                        [...new Set(groups.map((g) => g.name))].filter(Boolean)
+                      )
+                      .slice(0, 5)}
+                    selectedOption={"All"}
+                    onSelect={() => {}}
                     isDark={isDark}
                     theme={theme}
                   />
@@ -688,6 +791,9 @@ const EventsList = ({
                     title="Event Type"
                     isOpen={isEventTypeDropdownOpen}
                     setIsOpen={setEventTypeDropdownOpen}
+                    options={["All", "Public", "Private"]}
+                    selectedOption={eventTypeFilter}
+                    onSelect={setEventTypeFilter}
                     isDark={isDark}
                     theme={theme}
                   />
@@ -699,17 +805,23 @@ const EventsList = ({
             </tr>
           </thead>
           <tbody>
-            {paginatedEvents.map((event, index) => {
+            {displayEvents.map((event, index) => {
+              if (!event) {
+                return (
+                  <tr key={`placeholder-d-${index}`}>
+                    <td className="py-8 px-4 min-h-[78px]">&nbsp;</td>
+                    <td className="py-8 px-4">&nbsp;</td>
+                    <td className="py-8 px-4">&nbsp;</td>
+                    <td className="py-4 px-4">&nbsp;</td>
+                  </tr>
+                );
+              }
               const group = groups.find((g) => g._id === event.groupId);
               const groupName = group ? group.name : "N/A";
               return (
                 <tr
                   key={event._id || index}
-                  className={`border-b ${
-                    isDark ? "border-gray-700/50" : "border-gray-200"
-                  } ${
-                    isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
-                  } transition-colors min-h-[78px]`}
+                  className={`border-b ${isDark ? "border-gray-700/50" : "border-gray-200"} ${isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"} transition-colors min-h-[78px]`}
                 >
                   <td className={`py-8 px-4 ${theme.text} text-sm`}>
                     <div className="truncate pr-4">
@@ -764,13 +876,11 @@ const EventsList = ({
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
-                className={`w-7 h-7 rounded-full text-xs font-medium transition-colors flex items-center justify-center ${
-                  currentPage === page
+                className={`w-7 h-7 rounded-full text-xs font-medium transition-colors flex items-center justify-center ${currentPage === page
                     ? "bg-[#6549B8] text-white"
                     : isDark
                     ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                }`}
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
               >
                 {page}
               </button>
@@ -784,13 +894,12 @@ const EventsList = ({
 const PreviousEvent = () => {
   const { user } = useSelector((state) => state.auth);
   const [isDark, setIsDark] = useState(true);
-  const [searchValue, setSearchValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [events, setEvents] = useState([]);
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const navigate = useNavigate();
-  const [liveEventsCount, setLiveEventsCount] = useState(0);
   const [activeFilter, setActiveFilter] = useState("All");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -800,7 +909,8 @@ const PreviousEvent = () => {
     setLoading(true);
     try {
       const groupsData = await getGroups();
-      const groupsArray = Array.isArray(groupsData) ? groupsData : [];
+      const groupsArray =
+        groupsData?.groups || (Array.isArray(groupsData) ? groupsData : []);
       setGroups(groupsArray);
       if (groupsArray.length === 0) navigate("/ticket/create-group");
       else if (groupsArray.length === 1)
@@ -824,27 +934,25 @@ const PreviousEvent = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [previousEventsData, groupsData, liveEventsData] =
+        const [previousEventsData, groupsData] =
           await Promise.all([
             getPreviousEvents(),
             getGroups(),
-            getMyLiveEvents(),
           ]);
 
-        const eventsArray = previousEventsData?.tickets
-          ? [].concat(previousEventsData.tickets)
-          : [];
+        const eventsArray =
+          previousEventsData?.events ||
+          previousEventsData?.tickets ||
+          (Array.isArray(previousEventsData) ? previousEventsData : []);
         setEvents(eventsArray);
 
-        const groupsArray = Array.isArray(groupsData) ? groupsData : [];
+        const groupsArray =
+          groupsData?.groups || (Array.isArray(groupsData) ? groupsData : []);
         setGroups(groupsArray);
-
-        setLiveEventsCount(liveEventsData?.tickets?.length || 0);
       } catch (e) {
         console.error("Error fetching data:", e);
         setEvents([]);
         setGroups([]);
-        setLiveEventsCount(0);
       }
     };
 
@@ -882,6 +990,9 @@ const PreviousEvent = () => {
       };
 
   const confirmedEventsCount = events.length;
+  const totalLiveEvents = events.filter(
+    (event) => event.event_status === "live"
+  ).length;
 
   return (
     <div
@@ -922,8 +1033,8 @@ const PreviousEvent = () => {
             <div className="flex-1 min-w-0">
               <SearchBar
                 theme={theme}
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 onTuneClick={() => {}}
               />
             </div>
@@ -939,11 +1050,7 @@ const PreviousEvent = () => {
                 <img
                   src={NotificationIcon}
                   alt="Notification"
-                  className={`w-4 h-4 ${
-                    isDark
-                      ? "filter brightness-0 invert"
-                      : "filter brightness-0"
-                  }`}
+                  className={`w-4 h-4 ${isDark ? "filter brightness-0 invert" : "filter brightness-0"}`}
                 />
               </div>
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
@@ -958,7 +1065,7 @@ const PreviousEvent = () => {
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
-            <div className="hidden sm:block">
+            <div className="block">
               <h1
                 className={`text-xl sm:text-2xl lg:text-3xl font-bold ${theme.text}`}
               >
@@ -973,11 +1080,7 @@ const PreviousEvent = () => {
                   ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                   : "-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)",
               }}
-              className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${
-                theme.bg
-              } ${theme.text} ${
-                isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"
-              }`}
+              className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg} ${theme.text} ${isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"}`}
             >
               <span
                 className="w-[38px] h-[38px] flex items-center justify-center rounded-full -ml-2"
@@ -993,53 +1096,114 @@ const PreviousEvent = () => {
               {loading ? "Checking..." : "Create event"}
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 lg:gap-8 mb-8">
-            <div className="lg:col-span-1 w-full p-2 md:p-4">
-              <MyGroupsCard theme={theme} groups={groups} isDark={isDark} />
-            </div>
-            <div className="lg:col-span-1 flex justify-center md:justify-start">
-              <div
-                style={{
-                  height: "240px",
-                  padding: "15px 18px",
-                  gap: "15px",
-                }}
-                className={`w-full max-w-xs grid grid-cols-2 items-center rounded-[50px] ${
-                  isDark ? theme.cardBg : "bg-[#f1f1f1]"
-                } ${getNeumorphicShadows(isDark)}`}
-              >
-              <StatsCard
-                isDark={isDark}
-                theme={theme}
-                className="w-full h-48"
-                count={confirmedEventsCount}
-                title="Total events"
-                icon={<div className="text-yellow-400">
-                  <PartyPopper className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
-                </div>}
-              />
-              <StatsCard
-                isDark={isDark}
-                theme={theme}
-                className="w-full h-48"
-                count={liveEventsCount}
-                title="Live events"
-                icon={<div className="text-red-500 relative">
-                  <Radio className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
-                </div>}
-              />
-              </div>
-            </div>
-            <div className="md:col-span-2 lg:col-span-2 w-full">
-              <YourContentHeader isDark={isDark} theme={theme} onDateChange={handleDateChange} />
-            </div>
-          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6 lg:gap-8 mb-8">
+  {/* My Groups Card */}
+  <div className="lg:col-span-1 w-full p-2 md:p-4">
+    <MyGroupsCard theme={theme} groups={groups} isDark={isDark} />
+  </div>
+        <div className="w-full flex items-center justify-center">
+                        {/* Mobile/Tablet View */}
+                        <div className="lg:hidden w-full flex justify-center px-2">
+                          <div
+                            style={{
+                              width: "100%",
+                              maxWidth: "340px",
+                              minWidth: "280px",
+                              height: "203px",
+                              padding: "21px",
+                              gap: "20px",
+                              borderRadius: "50px",
+                              background: isDark ? "#212426" : "#f1f1f1",
+                              boxShadow: isDark 
+                                ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
+                                : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
+                            }}
+                            className="flex flex-row items-center justify-between"
+                          >
+                            <StatsCard
+                              isDark={isDark}
+                              theme={theme}
+                              count={confirmedEventsCount}
+                              title="Total Completed events"
+                              icon={
+                                <div className="text-yellow-400">
+                                  <PartyPopper className="h-6 w-6 sm:h-7 sm:w-7" />
+                                </div>
+                              }
+                              isMobile={true}
+                            />
+                            <StatsCard
+                              isDark={isDark}
+                              theme={theme}
+                              count={totalLiveEvents}
+                              title="Total created events"
+                              icon={
+                                <div className="text-red-500 relative">
+                                  <Radio className="h-6 w-6 sm:h-7 sm:w-7" />
+                                </div>
+                              }
+                              isMobile={true}
+                            />
+                          </div>
+                        </div>
+                        <div className="hidden lg:flex w-full justify-start [@media(width:1024px)]:-ml-8">
+                          <div
+                            style={{
+                              width: "min(100%, 280px)",
+                              maxWidth: "280px",
+                              height: "203px",
+                              padding: "21px",
+                              gap: "18px",
+                              borderRadius: "50px",
+                              background: isDark ? "#212426" : "#f1f1f1",
+                              boxShadow: isDark
+                                ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
+                                : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
+                            }}
+                            className="flex flex-row items-center justify-center transition-all duration-300 
+                                      [@media(width:1024px)]:!w-[280px] [@media(width:1024px)]:!max-w-[280px]"
+                          >
+                            <StatsCard
+                              isDark={isDark}
+                              theme={theme}
+                              count={confirmedEventsCount}
+                              title="Total Completed events"
+                              icon={
+                                <div className="text-yellow-400">
+                                  <PartyPopper className="h-7 w-7 lg:h-8 lg:w-8 xl:h-9 xl:w-9" />
+                                </div>
+                              }
+                              isMobile={false}
+                            />
+                            
+                            <StatsCard
+                              isDark={isDark}
+                              theme={theme}
+                              count={totalLiveEvents}
+                              title="Total created events"
+                              icon={
+                                <div className="text-red-500 relative">
+                                  <Radio className="h-7 w-7 lg:h-8 lg:w-8 xl:h-9 xl:w-9" />
+                                </div>
+                              }
+                              isMobile={false}
+                            />
+                          </div>
+                        </div>
+                        </div>
+  {/* Calendar Section */}
+<div className="lg:col-span-2 w-full [@media(width:1024px)]:scale-90 [@media(width:1024px)]:origin-right">
+  <YourContentHeader
+    isDark={isDark}
+    theme={theme}
+    onDateChange={handleDateChange}
+  />
+</div>
+</div>
 
           <div className="flex justify-end items-center mb-2">
             <div
-              className={`flex items-center p-1 rounded-full ${
-                theme.cardBg
-              } ${getButtonNeumorphicShadows(isDark)}`}
+              className={`flex items-center p-1 rounded-full ${theme.cardBg} ${getButtonNeumorphicShadows(isDark)}`}
             >
               {["All", "Paid", "Free"].map((filter) => {
                 const isActive = activeFilter === filter;
@@ -1047,8 +1211,7 @@ const PreviousEvent = () => {
                   <button
                     key={filter}
                     onClick={() => setActiveFilter(filter)}
-                    className={`px-5 py-2.5 rounded-full text-sm font-medium transition-colors duration-200 ${
-                      isActive
+                    className={`px-5 py-2.5 rounded-full text-sm font-medium transition-colors duration-200 ${isActive
                         ? "bg-gradient-to-br from-[#1E1242] to-[#6942B8] text-white"
                         : `${theme.text} hover:bg-gray-500/20`
                     }`}
@@ -1067,6 +1230,8 @@ const PreviousEvent = () => {
             groups={groups}
             activeFilter={activeFilter}
             selectedDate={selectedDate}
+            searchTerm={searchTerm}
+            onSearchTermChange={setSearchTerm}
           />
         </main>
       </div>

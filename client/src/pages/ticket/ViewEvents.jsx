@@ -5,6 +5,11 @@ import SideBar from "../../components/HomePage/SideBar";
 import SearchBar from "../../components/HomePage/SearchBar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
+import FilterButton from "../../components/HomePage/FilterButton.jsx";
+import ShowArrow from "../../assets/Event/ShowArrow.png";
+import HideArrow from "../../assets/Event/HideArrow.png";
+import ViewConfirm from "../../assets/Event/ViewConfirm.png";
+import EditIcon from "../../assets/Event/EditIcon.png";
 import {
   getMyEvents,
   getGroups,
@@ -21,6 +26,26 @@ import {
   Radio,
   Search,
 } from "lucide-react";
+import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
+// import AdminLogo from "../../assets/auth/admin.webp";
+// import OrgLogo from "../../assets/auth/orgz.webp";
+
+const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
+const getImageUrl = (path) => {
+  if (!path) return null;
+  if (typeof path === "object") {
+    path = path.path || path.url || null;
+  }
+  if (typeof path !== "string") {
+    console.warn("Invalid path type:", typeof path, path);
+    return null;
+  }
+  let cleanPath = path.replace(/\\/g, "/");
+  cleanPath = cleanPath.replace(/^src\//, "");
+  cleanPath = cleanPath.replace(/^\//, "");
+  const fullUrl = `${API_BASE_URL}/${cleanPath}`;
+  return fullUrl;
+};
 
 // --- Start of inlined DoughnutChart.jsx code ---
 
@@ -91,12 +116,12 @@ const DoughnutChart = ({ stats, theme }) => {
                 className="transition-all duration-500"
                 cx={center}
                 cy={center}
-                r={radius}
+                r={radius} // same radius for perfect curve
                 fill="none"
                 strokeWidth={strokeWidth}
                 strokeDasharray={`${segmentLength} ${circumference}`}
                 strokeDashoffset={-offset}
-                strokeLinecap="butt"
+                strokeLinecap="round" // smooth curved ends for segments
               />
             );
           })}
@@ -105,38 +130,36 @@ const DoughnutChart = ({ stats, theme }) => {
     </div>
   );
 };
-
 const GroupStatisticsChart = ({ theme, statsData = [] }) => {
   if (statsData.length === 0) {
     return (
       <div>
-        <h2 className={`text-xl font-bold ${theme.text} mb-4`}>
+        <h2 className={`text-lg md:text-xl font-bold ${theme.text} mb-4`}>
           Active group statistics
         </h2>
-        <p className={`${theme.subText}`}>Not enough data to display stats.</p>
+        <p className={`${theme.subText} text-sm`}>Not enough data to display stats.</p>
       </div>
     );
   }
   return (
     <>
-      <h2 className={`text-xl font-bold ${theme.text} mb-4`}>
+      <h2 className={`text-lg md:text-xl font-bold ${theme.text} mb-3 md:mb-4`}>
         Active group statistics
       </h2>
-      <div className="flex flex-col items-center justify-center md:justify-start gap-4">
+      <div className="flex flex-col xl:flex-row items-center xl:justify-start gap-3 md:gap-4">
         <div
-          className="flex justify-center items-center"
+          className="flex justify-center items-center flex-shrink-0"
           style={{
-            width: "252px",
-            height: "252px",
-            padding: "53px 51px",
-            gap: "5px",
-            boxSizing: "border-box",
+            width: "180px",
+            height: "180px",
+            padding: "40px",
+            borderRadius: "121.05px",
           }}
         >
           <DoughnutChart stats={statsData} theme={theme} />
         </div>
-        <div className="w-full flex-grow">
-          <div className="flex flex-col space-y-4">
+        <div className="flex-grow w-full xl:w-auto">
+          <div className="flex flex-col space-y-3 md:space-y-4">
             {statsData.map((stat, index) => (
               <LegendItem
                 key={index}
@@ -152,9 +175,7 @@ const GroupStatisticsChart = ({ theme, statsData = [] }) => {
     </>
   );
 };
-
 // --- End of inlined DoughnutChart.jsx code ---
-
 const getNeumorphicShadows = (isDark) =>
   isDark
     ? "shadow-[inset_5px_5px_10px_#1a1b1e,inset_-5px_-5px_10px_#3c3f44]"
@@ -171,67 +192,115 @@ const getNeumorphicCardClass = (isDark, theme) =>
   `${
     isDark ? theme.cardBg : "bg-[#f1f1f1]"
   } rounded-[2.5rem] p-4 ${getNeumorphicShadows(isDark)}`;
-
 const MyGroupsCard = ({ theme, groups, isDark }) => (
-  <div className="h-full flex flex-col">
-    <div className="flex items-center justify-between w-full mb-4">
-      <div className="flex items-center gap-2">
-        <h3 className="text-xl font-semibold">My groups,</h3>
-        <p className={`text-sm ${theme.subText}`}>{groups.length} groups</p>
+  <div className="h-full flex flex-col min-h-[180px]">
+    <div className="flex items-center justify-between w-full mb-3 md:mb-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <h3 className="text-lg md:text-xl font-semibold">My groups,</h3>
+        <p className={`text-xs md:text-sm ${theme.subText}`}>{groups.length} groups</p>
       </div>
       {groups.length > 2 && (
-        <button className={`text-sm ${theme.subText} hover:underline`}>
+        <button className={`text-xs md:text-sm ${theme.subText} hover:underline flex-shrink-0`}>
           See more
         </button>
       )}
     </div>
-    <div className="flex flex-row items-center justify-start w-full gap-6 flex-grow">
-      {groups.slice(0, 2).map((group, index) => (
-        <div key={index} className="flex flex-col items-center gap-2">
-          <div
-            className="relative w-[100px] h-[100px] rounded-[58px] overflow-hidden"
-            style={{
-              boxShadow: isDark
-                ? "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)"
-                : "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)",
-            }}
-          >
-            <img
-              src={group.id_proof}
-              alt={group.name}
-              className="w-full h-full object-cover"
-            />
+    <div className="flex flex-row items-center justify-start w-full gap-4 md:gap-6 flex-grow">
+      {groups.slice(0, 2).map((group, index) => {
+        let imageUrl;
+        if (group.grp_type === "admin") {
+          imageUrl = ProfileImage;
+        } else if (group.grp_type === "organization") {
+          imageUrl = getImageUrl(group.image) || ProfileImage;
+        } else {
+          imageUrl = getImageUrl(group.image) || ProfileImage;
+        }
+        return (
+          <div key={index} className="flex flex-col items-center gap-2">
+            <div
+              className="relative w-[80px] h-[80px] md:w-[100px] md:h-[100px] rounded-[58px] overflow-hidden flex-shrink-0"
+              style={{
+                boxShadow: isDark
+                  ? "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)"
+                  : "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)",
+              }}
+            >
+              <img
+                src={imageUrl}
+                alt={group.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <p className={`font-medium text-xs md:text-sm ${theme.text} text-center max-w-[100px] truncate`}>
+              {group.name}
+            </p>
           </div>
-          <p className={`font-medium text-sm ${theme.text} text-center`}>
-            {group.name}
-          </p>
-        </div>
-      ))}
+        );
+      })}
     </div>
   </div>
 );
-const StatsCard = ({ count, title, isDark, theme, className, icon }) => (
-  <div
-    style={{
-      borderRadius: "24px",
-      padding: "15px 27px",
-      gap: "10px",
-      background: isDark ? "#2a2d30" : "#F1F1F1",
-      boxShadow: isDark
-        ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
-        : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
-    }}
-    className={`flex flex-col items-center justify-around w-full ${className}`}
-  >
-    {icon}
-    <p
-      className={`text-2xl sm:text-3xl md:text-5xl font-semibold ${theme.text}`}
+const StatsCard = ({ count, title, isDark, theme, className, icon, isMobile = false }) => {
+  if (isMobile) {
+    return (
+      <div
+        style={{
+          width: "48%", // Takes 48% of container width
+          height: "160px",
+          padding: "3%",
+          borderRadius: "30px",
+          border: "3px solid transparent",
+          backgroundImage: isDark 
+            ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
+            : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
+          backgroundOrigin: "border-box",
+          backgroundClip: "padding-box, border-box",
+          boxShadow: isDark
+            ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+            : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
+        }}
+        className={`flex flex-col items-center justify-around ${className}`}
+      >
+        {icon}
+        <p className={`text-xl sm:text-2xl font-semibold ${theme.text}`}>
+          {count}
+        </p>
+        <p className={`text-[9px] sm:text-[10px] text-center leading-tight px-1 ${theme.subText}`}>
+          {title}
+        </p>
+      </div>
+    );
+  }
+  
+  return (
+    <div
+      style={{
+        width: "48%", // Takes 48% of container width
+        height: "160px",
+        padding: "3%",
+        borderRadius: "30px",
+        border: "3px solid transparent",
+        backgroundImage: isDark 
+          ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
+          : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
+        backgroundOrigin: "border-box",
+        backgroundClip: "padding-box, border-box",
+        boxShadow: isDark
+          ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+          : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
+      }}
+      className={`flex flex-col items-center justify-around ${className}`}
     >
-      {count}
-    </p>
-    <p className={`text-xs ${theme.subText}`}>{title}</p>
-  </div>
-);
+      {icon}
+      <p className={`text-2xl lg:text-3xl font-semibold ${theme.text}`}>
+        {count}
+      </p>
+      <p className={`text-[10px] lg:text-xs text-center leading-tight ${theme.subText}`}>
+        {title}
+      </p>
+    </div>
+  );
+};
 function MonthSelector({
   currentMonth,
   onSelectMonth,
@@ -439,13 +508,17 @@ function CalendarGrid({
     <div
       className={`${
         isDark ? theme.cardBg : "bg-gray-200"
-      } rounded-[2.5rem] w-full mt-4 ${getOuterDepthShadows(
+      } rounded-[2.5rem] w-full ${getOuterDepthShadows(
         isDark
-      )} p-3 sm:p-4 md:p-5 lg:p-5 flex flex-col gap-1 sm:gap-2 lg:gap-2`}
+      )} flex flex-col`}
+      style={{
+        padding: "16px",
+        gap: "8px",
+      }}
     >
-      <div className="grid grid-cols-7 gap-1 lg:gap-2 text-center mb-1 sm:mb-2 lg:mb-2">
+      <div className="grid grid-cols-7 gap-1 text-center mb-1">
         {days.map((day) => (
-          <div key={day} className={`text-xs font-bold ${theme.subText}`}>
+          <div key={day} className={`text-[10px] md:text-xs font-bold ${theme.subText}`}>
             {day}
           </div>
         ))}
@@ -478,7 +551,7 @@ function CalendarGrid({
           return (
             <div
               key={index}
-              className={`p-1 rounded-xl text-sm flex items-center justify-center cursor-pointer transition-colors duration-200 aspect-square lg:aspect-auto ${bgColorClass} ${textColorClass} ${fontClass} ${ringClass} ${otherClasses} lg:min-h-[30px] lg:min-w-[30px]`}
+              className={`p-1 rounded-xl text-xs md:text-sm flex items-center justify-center cursor-pointer transition-colors duration-200 aspect-square ${bgColorClass} ${textColorClass} ${fontClass} ${ringClass} ${otherClasses}`}
               onClick={() => onDateClick(dayInfo)}
             >
               {dayInfo.date}
@@ -489,18 +562,54 @@ function CalendarGrid({
     </div>
   );
 }
-const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
+const EventsList = ({
+  isDark,
+  theme,
+  events = [],
+  activeFilter,
+  searchTerm,
+  onSearchTermChange,
+}) => {
   const [currentPage, setCurrentPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
   const [isSearchActive, setIsSearchActive] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
+  const [expandedRows, setExpandedRows] = useState({});
   const searchInputRef = useRef(null);
   const itemsPerPage = 6;
+  const [isCategoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+
+  const categories = useMemo(() => {
+    if (!events) return ["All"];
+    const allCategories = events
+      .map((event) => event.event_category)
+      .filter(Boolean);
+    const uniqueCategories = [...new Set(allCategories)];
+    return ["All", ...uniqueCategories];
+  }, [events]);
+
+  useEffect(() => {
+    if (!categories.includes(selectedCategory)) {
+      setSelectedCategory("All");
+    }
+  }, [categories, selectedCategory]);
 
   useEffect(() => {
     if (isSearchActive) {
       searchInputRef.current?.focus();
     }
   }, [isSearchActive]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilter, searchTerm, selectedCategory]);
+
+  const toggleRowExpansion = (eventId) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [eventId]: !prev[eventId]
+    }));
+  };
 
   const filteredEvents = useMemo(() => {
     let filtered = events || [];
@@ -515,6 +624,12 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
       );
     }
 
+    if (selectedCategory && selectedCategory !== "All") {
+      filtered = filtered.filter(
+        (event) => event.event_category === selectedCategory
+      );
+    }
+
     if (searchTerm) {
       filtered = filtered.filter((event) =>
         event.event_name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -522,7 +637,7 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
     }
 
     return filtered;
-  }, [events, activeFilter, searchTerm]);
+  }, [events, activeFilter, searchTerm, selectedCategory]);
 
   const paginatedEvents = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -537,6 +652,24 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
     displayEvents.push(null);
   }
 
+  const formatDate = (event) => {
+    if (!event?.event_dates?.[0]?.start_date) {
+      return "N/A";
+    }
+
+    const dateString = event.event_dates[0].start_date;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return "Invalid Date";
+    }
+
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
   return (
     <div
       style={{
@@ -546,166 +679,278 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-
-        height: "402px",
       }}
       className={`w-full rounded-[50px] ${
         isDark ? theme.cardBg : "bg-[#f1f1f1]"
       } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
     >
-      {/* Scrollable content area */}
-      <div className="flex-1 overflow-auto">
-        {/* Mobile view */}
-        <div className="flex flex-col lg:hidden">
-          {displayEvents.map((event, index) => {
-            if (!event) {
-              return (
-                <div key={`placeholder-${index}`} className="p-4 h-[80px]">
-                  &nbsp;
-                </div>
-              );
-            }
-            return (
-              <div
-                key={event._id || index}
-                className={`border-b ${
-                  isDark ? "border-gray-700/50" : "border-gray-200"
-                } p-4`}
+        <center>
+        <h1 className="font-urbanist font-normal text-[14px] leading-[100%] align-middle m-0">
+          Events
+        </h1>
+      </center>
+        <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-transparent lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
+        {/* Mobile Only View (below sm breakpoint - phones only) */}
+        <div className="flex flex-col sm:hidden">
+          {/* Search and Filter Section */}
+          <div className="relative mb-6">
+            <div className="flex items-center gap-3">
+              {/* Filter Button */}
+              <button
+                onClick={() => setShowFilter(!showFilter)}
+                className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${
+                  isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
+                }`}
+                style={{
+                  boxShadow: isDark
+                    ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+                    : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+                }}
               >
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-8 h-8 rounded-full ${
-                        isDark ? "bg-indigo-500/20" : "bg-indigo-100"
-                      } flex items-center justify-center ${
-                        isDark ? "text-indigo-300" : "text-indigo-500"
-                      }`}
-                    >
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M13 10V3L4 14h7v7l9-11h-7z"
-                        />
-                      </svg>
-                    </div>
-                    <span className={`${theme.text} truncate`}>
-                      {event.event_name}
-                    </span>
-                  </div>
-                  <button
-                    className={`px-4 sm:px-6 py-2 border border-[#6549B8] rounded-full text-sm transition-colors ${
-                      isDark
-                        ? "text-white hover:bg-[#6549B8]"
-                        : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
-                    }`}
-                  >
-                    View
-                  </button>
-                </div>
-                <div
-                  className={`mt-2 text-sm ${
-                    isDark ? "text-gray-400" : "text-gray-600"
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+              </button>
+              {/* Search Bar */}
+              <div
+                className={`flex-1 flex items-center gap-2 ${
+                  isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
+                }`}
+                style={{
+                  maxWidth: '300px',
+                  height: '31px',
+                  borderRadius: '17.1px',
+                  padding: '8.55px',
+                  boxShadow: isDark
+                    ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+                    : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+                }}
+              >
+                <Search className="w-4 h-4 flex-shrink-0" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search events..."
+                  value={searchTerm}
+                  onChange={(e) => onSearchTermChange(e.target.value)}
+                  className={`bg-transparent focus:outline-none w-full text-sm ${
+                    isDark ? 'placeholder-gray-500' : 'placeholder-gray-400'
                   }`}
-                >
-                  <p>Event type: {event.event_type}</p>
+                />
+              </div>
+            </div>
+
+            {/* Filter Dropdown */}
+            {showFilter && (
+              <div className="absolute top-14 left-0 z-50">
+                <FilterButton />
+              </div>
+            )}
+          </div>
+          {/* Events Table */}
+          <div
+            className={`${isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'}`}
+            style={{
+              width: '100%',
+              maxWidth: '344px',
+              minHeight: filteredEvents.length === 0 ? 'auto' : '200px',
+              borderRadius: '24px',
+              padding: '32px 24px',
+              boxShadow: isDark
+                ? '6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset'
+                : '6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset'
+            }}
+          >
+            {filteredEvents.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-4">
+                <div className={`text-center ${theme.subText}`}>
+                  <svg
+                    className="w-16 h-16 mx-auto mb-4 opacity-50"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    />
+                  </svg>
+                  <p className={`text-base font-medium ${theme.text} mb-2`}>
+                    No events found
+                  </p>
+                  <p className="text-sm">Create your first event to get started</p>
                 </div>
               </div>
-            );
-          })}
-        </div>
-        <table className="hidden lg:table w-full table-auto text-left">
-          <thead>
-            <tr
-              className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
-                isDark ? "border-gray-700" : "border-gray-200"
-              } text-sm sticky top-0`}
-              style={{
-                background: isDark ? "#232426" : "#F1F1F1",
-                zIndex: 10,
-              }}
-            >
-              <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[38%]">
-                <div className="flex items-center justify-start gap-2">
-                  {isSearchActive ? (
-                    <div className="flex items-center gap-2 w-full">
-                      <Search className="w-4 h-4" />
-                      <input
-                        ref={searchInputRef}
-                        type="text"
-                        placeholder="Search..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onBlur={() => {
-                          setIsSearchActive(false);
-                          setSearchTerm("");
+            ) : (
+              <div className="flex flex-col gap-4">
+                {paginatedEvents.map((event, index) => {
+                  const isExpanded = expandedRows[event._id];
+                  
+                  return (
+                    <div key={event._id || index} className="flex flex-col gap-4">
+                      {/* Event Row */}
+                      <div
+                        className="flex items-center justify-between"
+                        style={{
+                          width: '100%',
+                          maxWidth: '294px',
+                          height: '30px'
                         }}
-                        className="bg-transparent focus:outline-none w-full placeholder-gray-500"
-                      />
+                      >
+                        <p className={`${theme.text} font-medium text-sm truncate flex-1`}>
+                          {event.event_name}
+                        </p>
+                        <button
+                          onClick={() => toggleRowExpansion(event._id)}
+                          className="flex-shrink-0 ml-2"
+                        >
+                          <img
+                            src={isExpanded ? HideArrow : ShowArrow}
+                            alt={isExpanded ? "Hide" : "Show"}
+                            className="w-5 h-5"
+                          />
+                        </button>
+                      </div>
+
+                      {/* Expanded Details */}
+                      {isExpanded && (
+                        <div
+                          className="flex flex-col gap-5"
+                          style={{
+                            width: '100%',
+                            maxWidth: '294px',
+                            minHeight: '202px'
+                          }}
+                        >
+                          {/* Event Details */}
+                          <div className="flex flex-col gap-3">
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs ${theme.subText}`}>Category:</span>
+                              <span className={`text-xs ${theme.text} font-medium`}>
+                                {event.event_category || 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs ${theme.subText}`}>Sub Category:</span>
+                              <span className={`text-xs ${theme.text} font-medium`}>
+                                {event.event_subcategory || 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs ${theme.subText}`}>Start Date:</span>
+                              <span className={`text-xs ${theme.text} font-medium`}>
+                                {formatDate(event)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs ${theme.subText}`}>Location:</span>
+                              <span className={`text-xs ${theme.text} font-medium truncate max-w-[150px]`}>
+                                {event.venue || event.location_type || 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs ${theme.subText}`}>Status:</span>
+                              <span className={`text-xs ${theme.text} font-medium`}>
+                                {event.event_status || 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2 justify-start">
+                            <button className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50">
+                              View
+                            </button>
+                            <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
+                              <img
+                                src={EditIcon}
+                                alt="EditIcon"
+                                className="w-4 h-4 object-contain"
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Divider */}
+                      {index < paginatedEvents.length - 1 && (
+                        <div className={`h-px ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                      )}
                     </div>
-                  ) : (
-                    <>
-                      <span>Event</span>
-                      <Search
-                        className="w-4 h-4 cursor-pointer"
-                        onClick={() => setIsSearchActive(true)}
-                      />
-                    </>
-                  )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tablet/Desktop View (sm breakpoint and above) */}
+        <div className="hidden sm:block">
+          {/* Tablet Search Header */}
+          <div className="flex lg:hidden mb-4">
+            <div className="flex items-center justify-between w-full">
+              {!isSearchActive ? (
+                <button 
+                  className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${
+                    isDark ? theme.cardBg : "bg-[#f1f1f1]"
+                  } ${getNeumorphicShadows(isDark)}`}
+                  onClick={() => setIsSearchActive(true)}
+                >
+                  <Search className={`w-4 h-4 ${theme.subText}`} />
+                  <span className={`text-sm font-bold ${theme.text}`}>Event</span>
+                </button>
+              ) : (
+                <div 
+                  className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${
+                    isDark ? theme.cardBg : "bg-[#f1f1f1]"
+                  } ${getNeumorphicShadows(isDark)}`}
+                >
+                  <Search className={`w-4 h-4 ${theme.subText}`} />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Search..."
+                    value={searchTerm}
+                    onChange={(e) => onSearchTermChange(e.target.value)}
+                    onBlur={() => setIsSearchActive(false)}
+                    className={`bg-transparent focus:outline-none w-20 ${theme.text} placeholder-gray-500`}
+                    autoFocus
+                  />
                 </div>
-              </th>
-              <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
-                <div className="flex flex-row items-center gap-[10px]">
-                  <span>Category</span>
-                  <ChevronDown className="w-4 h-4" />
-                </div>
-              </th>
-              <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
-                <div className="flex items-center gap-2">
-                  <span>Event type</span>
-                </div>
-              </th>
-              <th className="py-3 px-2 lg:px-4 font-normal w-[18%]"></th>
-            </tr>
-          </thead>
-          <tbody>
+              )}
+              <span className={`text-sm font-bold ${theme.text} mr-1`}>Actions</span>
+            </div>
+          </div>
+
+          {/* Tablet List View */}
+          <div className="flex flex-col lg:hidden">
             {displayEvents.map((event, index) => {
               if (!event) {
                 return (
-                  <tr key={`placeholder-${index}`}>
-                    <td className="py-3 px-4 h-[60px]">&nbsp;</td>
-                    <td className="py-3 px-4">&nbsp;</td>
-                    <td className="py-3 px-4">&nbsp;</td>
-                    <td className="py-3 px-4">&nbsp;</td>
-                  </tr>
+                  <div key={`placeholder-${index}`} className="p-4 h-[80px]">
+                    &nbsp;
+                  </div>
                 );
               }
               return (
-                <tr
+                <div
                   key={event._id || index}
                   className={`border-b ${
                     isDark ? "border-gray-700/50" : "border-gray-200"
-                  } ${
-                    isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
-                  }`}
+                  } p-4`}
                 >
-                  <td className="py-3 px-4">
+                  <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-6 h-6 rounded-full ${
+                        className={`w-8 h-8 rounded-full ${
                           isDark ? "bg-indigo-500/20" : "bg-indigo-100"
                         } flex items-center justify-center ${
                           isDark ? "text-indigo-300" : "text-indigo-500"
                         }`}
                       >
                         <svg
-                          className="w-4 h-4"
+                          className="w-5 h-5"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -718,20 +963,12 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
                           />
                         </svg>
                       </div>
-                      <span className={`${theme.text} text-sm truncate`}>
+                      <span className={`${theme.text} truncate`}>
                         {event.event_name}
                       </span>
                     </div>
-                  </td>
-                  <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                    {event.event_category ? event.event_category : "N/A"}
-                  </td>
-                  <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                    {event.event_type ? event.event_type : "N/A"}
-                  </td>
-                  <td className="py-3 px-4 text-right">
                     <button
-                      className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
+                      className={`px-4 sm:px-6 py-2 border border-[#6549B8] rounded-full text-sm transition-colors ${
                         isDark
                           ? "text-white hover:bg-[#6549B8]"
                           : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
@@ -739,12 +976,179 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
                     >
                       View
                     </button>
-                  </td>
-                </tr>
+                  </div>
+                  <div
+                    className={`mt-2 text-sm ${
+                      isDark ? "text-gray-400" : "text-gray-600"
+                    }`}
+                  >
+                    <p>Event Status: {event.event_status}</p>
+                  </div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
+          </div>
+
+          {/* Desktop Table View */}
+          <table className="hidden lg:table w-full table-auto text-left">
+            <thead>
+              <tr
+                className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
+                  isDark ? "border-gray-700" : "border-gray-200"
+                } text-sm sticky top-0`}
+                style={{
+                  background: isDark ? "#232426" : "#F1F1F1",
+                  zIndex: 10,
+                }}
+              >
+                <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[38%]">
+                  <div className="flex items-center justify-start gap-2">
+                    {isSearchActive ? (
+                      <div className="flex items-center gap-2 w-full">
+                        <Search className="w-4 h-4" />
+                        <input
+                          ref={searchInputRef}
+                          type="text"
+                          placeholder="Search..."
+                          value={searchTerm}
+                          onChange={(e) => onSearchTermChange(e.target.value)}
+                          onBlur={() => {
+                            setIsSearchActive(false);
+                            onSearchTermChange("");
+                          }}
+                          className="bg-transparent focus:outline-none w-full placeholder-gray-500"
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <span>Event</span>
+                        <Search
+                          className="w-4 h-4 cursor-pointer"
+                          onClick={() => setIsSearchActive(true)}
+                        />
+                      </>
+                    )}
+                  </div>
+                </th>
+                <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
+                  <div className="relative">
+                    <button
+                      onClick={() => setCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                      className="flex items-center justify-between w-full"
+                    >
+                      <span>{selectedCategory === "All" ? "Category" : selectedCategory}</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    {isCategoryDropdownOpen && (
+                      <div className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${
+                        isDark ? "bg-[#232426] ring-gray-600" : "bg-slate-100 ring-gray-400"
+                      }`} style={{
+                        boxShadow: isDark
+                          ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
+                          : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A"
+                      }}>
+                        <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                          {categories.map((category) => (
+                            <button
+                              key={category}
+                              onClick={() => {
+                                setSelectedCategory(category);
+                                setCategoryDropdownOpen(false);
+                              }}
+                              className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${
+                                selectedCategory === category
+                                  ? isDark ? "bg-gray-700 text-white" : "bg-gray-200 text-gray-900"
+                                  : isDark ? "text-gray-300 hover:bg-gray-800" : "text-gray-700 hover:bg-gray-200"
+                              }`}
+                            >
+                              {category}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </th>
+                <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
+                  <div className="flex items-center gap-2">
+                    <span>Event Status</span>
+                  </div>
+                </th>
+                <th className="py-3 px-2 lg:px-4 font-normal w-[18%]"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayEvents.map((event, index) => {
+                if (!event) {
+                  return (
+                    <tr key={`placeholder-${index}`}>
+                      <td className="py-3 px-4 h-[60px]">&nbsp;</td>
+                      <td className="py-3 px-4">&nbsp;</td>
+                      <td className="py-3 px-4">&nbsp;</td>
+                      <td className="py-3 px-4">&nbsp;</td>
+                    </tr>
+                  );
+                }
+                return (
+                  <tr
+                    key={event._id || index}
+                    className={`border-b ${
+                      isDark ? "border-gray-700/50" : "border-gray-200"
+                    } ${
+                      isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
+                    }`}
+                  >
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-6 h-6 rounded-full ${
+                            isDark ? "bg-indigo-500/20" : "bg-indigo-100"
+                          } flex items-center justify-center ${
+                            isDark ? "text-indigo-300" : "text-indigo-500"
+                          }`}
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M13 10V3L4 14h7v7l9-11h-7z"
+                            />
+                          </svg>
+                        </div>
+                        <span className={`${theme.text} text-sm truncate`}>
+                          {event.event_name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
+                      {event.event_category ? event.event_category : "N/A"}
+                    </td>
+                    <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
+                      {event.event_status ? event.event_status : "N/A"}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button
+                        className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
+                          isDark
+                            ? "text-white hover:bg-[#6549B8]"
+                            : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
+                        }`}
+                      >
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Pagination */}
@@ -778,7 +1182,7 @@ const EventsList = ({ isDark, theme, events = [], activeFilter }) => {
 
 const ViewEvent = () => {
   const [isDark, setIsDark] = useState(true);
-  const [searchValue, setSearchValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [events, setEvents] = useState([]);
   const [groups, setGroups] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -787,7 +1191,6 @@ const ViewEvent = () => {
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
-  const [liveEventsCount, setLiveEventsCount] = useState(0);
   const [groupStats, setGroupStats] = useState([]);
 
   const handleCreateEvent = async () => {
@@ -933,8 +1336,6 @@ const ViewEvent = () => {
         const groupsArray = Array.isArray(groupsRes) ? groupsRes : [];
         setGroups(groupsArray);
 
-        setLiveEventsCount(liveEventsRes?.tickets?.length || 0);
-
         if (Array.isArray(groupStatsRes)) {
           const processedStats = groupStatsRes.map((stat, index) => {
             const colors = [
@@ -960,7 +1361,7 @@ const ViewEvent = () => {
         console.error("Error fetching data:", e);
         setEvents([]);
         setGroups([]);
-        setLiveEventsCount(0);
+        settotalLiveEvents(0);
         setGroupStats([]);
       }
     };
@@ -1042,11 +1443,12 @@ const ViewEvent = () => {
         subText: "text-gray-600",
         cardBg: "bg-slate-100",
       };
+
   const user = { name: "U" };
   const confirmedEventsCount = events.length;
   const totalLiveEvents = events.filter(
-      (event) => event.event_status === "live"
-    ).length;
+    (event) => event.event_status === "live"
+  ).length;
   return (
     <div
       className={`${theme.bg} ${theme.text} h-screen flex overflow-hidden transition-colors duration-300 max-w-full`}
@@ -1086,8 +1488,8 @@ const ViewEvent = () => {
             <div className="flex-1 min-w-0">
               <SearchBar
                 theme={theme}
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 onTuneClick={() => {}}
               />
             </div>
@@ -1120,11 +1522,11 @@ const ViewEvent = () => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8">
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-6 md:mb-8 gap-4">
             <div>
-              <h1 className={`text-4xl  ${theme.text}`}>View events</h1>
-              <p className={`${theme.subText} mt-2 text-lg`}>
+              <h1 className={`text-3xl md:text-4xl ${theme.text}`}>View events</h1>
+              <p className={`${theme.subText} mt-2 text-base md:text-lg`}>
                 Review and manage everything related to events
               </p>
             </div>
@@ -1156,91 +1558,163 @@ const ViewEvent = () => {
               {loading ? "Checking..." : "Create event"}
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 xl:gap-8 h-full">
-            {/* Left Column (60%) */}
-            <div className="md:col-span-3 flex flex-col gap-6 xl:gap-8 h-full">
+
+          {/* FIXED GRID LAYOUT */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 xl:gap-8">
+            {/* Left Column - Stacks on mobile/tablet, 60% on desktop */}
+            <div className="lg:col-span-3 flex flex-col gap-6 xl:gap-8">
+              {/* My Groups & Stats Cards Row */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 xl:gap-8">
-                <MyGroupsCard theme={theme} groups={groups} isDark={isDark} />
-                <div
-                  style={{
-                    height: "240px",
-                    padding: "21px",
-                    gap: "20px",
-                  }}
-                  className={`w-full max-w-xs mx-auto xl:mr-0 grid grid-cols-2 items-center rounded-[50px] ${
-                    isDark ? theme.cardBg : "bg-[#f1f1f1]"
-                  } ${getNeumorphicShadows(isDark)}`}
-                >
-                  <StatsCard
-                    isDark={isDark}
-                    theme={theme}
-                    className="w-full h-48"
-                    count={confirmedEventsCount}
-                    title="Total events"
-                    icon={<div className="text-yellow-400">
-                      <PartyPopper className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
-                    </div>}
-                  />
-                  <StatsCard
-                    isDark={isDark}
-                    theme={theme}
-                    className="w-full h-48"
-                    count={totalLiveEvents}
-                    title="Live events"
-                    icon={<div className="text-red-500 relative">
-                      <Radio className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10" />
-                    </div>}
-                  />
+                {/* My Groups Card */}
+                <div className="w-full">
+                  <MyGroupsCard theme={theme} groups={groups} isDark={isDark} />
                 </div>
-              </div>
-              <div className="flex justify-end items-center mb-2">
-                <div className="flex items-center gap-2">
-                  {["All events", "Paid events", "Free events"].map(
-                    (filter) => {
-                      const filterName = filter.split(" ")[0];
-                      const isActive = activeFilter === filterName;
 
-                      const activeClass =
-                        "bg-gradient-to-br from-[#6D4DE6] to-[#896CF1] text-white shadow-lg";
-                      const inactiveOutlineClass = `border border-[#6D4DE6] ${
-                        isDark ? "text-white" : "text-[#6D4DE6]"
-                      }`;
-                      const inactiveNeumorphicClass = `${
-                        theme.text
-                      } ${getButtonNeumorphicShadows(isDark)}`;
-
-                      let buttonClass;
-                      if (isActive) {
-                        buttonClass = activeClass;
-                      } else {
-                        if (filterName === "All") {
-                          buttonClass = inactiveNeumorphicClass;
-                        } else {
-                          buttonClass = inactiveOutlineClass;
+                {/* Stats Cards Container */}
+                <div className="w-full flex items-center justify-center">
+                  {/* Mobile/Tablet View */}
+                  <div className="lg:hidden w-full flex justify-center px-2">
+                    <div
+                      style={{
+                        width: "100%",
+                        maxWidth: "340px",
+                        minWidth: "280px",
+                        height: "203px",
+                        padding: "21px",
+                        gap: "20px",
+                        borderRadius: "50px",
+                        background: isDark ? "#212426" : "#f1f1f1",
+                        boxShadow: isDark 
+                          ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
+                          : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
+                      }}
+                      className="flex flex-row items-center justify-between"
+                    >
+                      <StatsCard
+                        isDark={isDark}
+                        theme={theme}
+                        count={confirmedEventsCount}
+                        title="Confirmed events"
+                        icon={
+                          <div className="text-yellow-400">
+                            <PartyPopper className="h-6 w-6 sm:h-7 sm:w-7" />
+                          </div>
                         }
-                      }
-                      return (
-                        <button
-                          key={filter}
-                          onClick={() => setActiveFilter(filterName)}
-                          className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200 ${buttonClass}`}
-                        >
-                          {filter}
-                        </button>
-                      );
-                    }
-                  )}
+                        isMobile={true}
+                      />
+                      <StatsCard
+                        isDark={isDark}
+                        theme={theme}
+                        count={totalLiveEvents}
+                        title="Live events"
+                        icon={
+                          <div className="text-red-500 relative">
+                            <Radio className="h-6 w-6 sm:h-7 sm:w-7" />
+                          </div>
+                        }
+                        isMobile={true}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Desktop View */}
+                  <div className="hidden lg:flex w-full justify-center">
+                    <div
+                      style={{
+                        width: "min(100%, 300px)",
+                        height: "203px",
+                        padding: "21px",
+                        gap: "20px",
+                        borderRadius: "50px",
+                        background: isDark ? "#212426" : "#f1f1f1",
+                        boxShadow: isDark
+                          ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
+                          : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
+                      }}
+                      className="flex flex-row items-center justify-between transition-all duration-300"
+                    >
+                      <StatsCard
+                        isDark={isDark}
+                        theme={theme}
+                        count={confirmedEventsCount}
+                        title="Total events"
+                        icon={
+                          <div className="text-yellow-400">
+                            <PartyPopper className="h-9 w-9 xl:h-10 xl:w-10" />
+                          </div>
+                        }
+                        isMobile={false}
+                      />
+                      
+                      <StatsCard
+                        isDark={isDark}
+                        theme={theme}
+                        count={totalLiveEvents}
+                        title="Live events"
+                        icon={
+                          <div className="text-red-500 relative">
+                            <Radio className="h-9 w-9 xl:h-10 xl:w-10" />
+                          </div>
+                        }
+                        isMobile={false}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              {/* Filter Buttons */}
+              <div className="flex justify-end items-center">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {["All events", "Paid events", "Free events"].map((filter) => {
+                    const filterName = filter.split(" ")[0];
+                    const isActive = activeFilter === filterName;
+
+                    const activeClass =
+                      "bg-gradient-to-br from-[#6D4DE6] to-[#896CF1] text-white shadow-lg";
+                    const inactiveOutlineClass = `border border-[#6D4DE6] ${
+                      isDark ? "text-white" : "text-[#6D4DE6]"
+                    }`;
+                    const inactiveNeumorphicClass = `${
+                      theme.text
+                    } ${getButtonNeumorphicShadows(isDark)}`;
+
+                    let buttonClass;
+                    if (isActive) {
+                      buttonClass = activeClass;
+                    } else {
+                      if (filterName === "All") {
+                        buttonClass = inactiveNeumorphicClass;
+                      } else {
+                        buttonClass = inactiveOutlineClass;
+                      }
+                    }
+                    return (
+                      <button
+                        key={filter}
+                        onClick={() => setActiveFilter(filterName)}
+                        className={`px-4 md:px-5 py-2 md:py-2.5 rounded-full text-xs md:text-sm font-medium transition-all duration-200 ${buttonClass}`}
+                      >
+                        {filter}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Events List */}
               <EventsList
                 isDark={isDark}
                 theme={theme}
                 events={events}
                 activeFilter={activeFilter}
+                searchTerm={searchTerm}
+                onSearchTermChange={setSearchTerm}
               />
             </div>
-            {/* Right Column (40%) */}
-            <div className="md:col-span-2 h-full">
+
+            {/* Right Column - Statistics & Calendar (40%) */}
+            <div className="lg:col-span-2">
               <div
                 style={{
                   opacity: 1,
@@ -1252,15 +1726,15 @@ const ViewEvent = () => {
                 }}
                 className={`w-full rounded-[50px] ${
                   isDark ? theme.cardBg : "bg-[#f1f1f1]"
-                } ${getNeumorphicShadows(isDark)} p-4 md:p-4 lg:p-6`}
+                } ${getNeumorphicShadows(isDark)} p-4 md:p-5 lg:p-6`}
               >
                 {/* Group Statistics Chart */}
-                <div>
+                <div className="w-full">
                   <GroupStatisticsChart theme={theme} statsData={groupStats} />
                 </div>
 
                 {/* Calendar Section */}
-                <div className="w-full max-w-lg lg:max-w-none lg:flex-1 flex flex-col gap-4">
+                <div className="w-full flex flex-col gap-4">
                   <CalendarControls
                     isDark={isDark}
                     theme={theme}
@@ -1272,10 +1746,10 @@ const ViewEvent = () => {
                     currentYear={year}
                     months={shortMonths}
                     fullMonths={fullMonths}
-                    className="md:ml-[-9px]"
+                    className="md:ml-0"
                   />
 
-                  <div className="flex-1">
+                  <div className="w-full">
                     <CalendarGrid
                       isDark={isDark}
                       theme={theme}
@@ -1285,16 +1759,18 @@ const ViewEvent = () => {
                     />
                   </div>
                 </div>
-                <GroupSelectionModal
-                  groups={groups}
-                  isOpen={isModalOpen}
-                  onClose={() => setIsModalOpen(false)}
-                  onSelectGroup={handleSelectGroup}
-                />
               </div>
             </div>
           </div>
-        </main>
+
+          {/* Group Selection Modal */}
+          <GroupSelectionModal
+            groups={groups}
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            onSelectGroup={handleSelectGroup}
+          />
+        </main>     
       </div>
     </div>
   );
