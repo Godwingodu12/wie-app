@@ -94,33 +94,32 @@ const GuestModal = ({
     }
   };
 
- const handleFormSubmit = () => {
+const handleFormSubmit = () => {
   const trimmedName = (name || "").trim();
   const trimmedLink = (link || "").trim();
-  
+
   if (!trimmedName) {
     alert("Guest name is required");
-    return;
+    return localGuests; // Return the list as-is
   }
-  
+
+  let updatedGuests; // This will hold the new list
+
   if (editingGuest) {
-    // When editing: Keep existing server path if no new photo, otherwise use new blob
-    setLocalGuests(
-      localGuests.map((g) =>
-        g.id === editingGuest.id
-          ? {
-              ...g,
-              name: trimmedName,
-              guest_name: trimmedName,
-              link: trimmedLink,
-              guest_link: trimmedLink,
-              // FIXED: Preserve the original server path if no new photo
-              image: photo ? URL.createObjectURL(photo) : g.image,
-              guest_profile: photo ? null : g.guest_profile, // Keep server path
-              rawFile: photo || null, // Only set rawFile if new photo uploaded
-            }
-          : g
-      )
+    // When editing
+    updatedGuests = localGuests.map((g) =>
+      g.id === editingGuest.id
+        ? {
+            ...g,
+            name: trimmedName,
+            guest_name: trimmedName,
+            link: trimmedLink,
+            guest_link: trimmedLink,
+            image: photo ? URL.createObjectURL(photo) : g.image,
+            guest_profile: photo ? null : g.guest_profile, 
+            rawFile: photo ? photo : g.rawFile, 
+          }
+        : g
     );
   } else {
     // When adding new guest
@@ -137,9 +136,12 @@ const GuestModal = ({
       guest_profile: null,
       rawFile: photo || null,
     };
-    setLocalGuests([...localGuests, newGuest]);
+    updatedGuests = [...localGuests, newGuest]; // Create the new list
   }
+
+  setLocalGuests(updatedGuests); // Update state
   resetForm();
+  return updatedGuests; // Return the newly updated list
 };
 
   const handleDeleteGuest = (guestId) => {
@@ -161,11 +163,18 @@ const GuestModal = ({
     setPhotoPreview(getImageUrl(existingImage));
   };
 
-  const handleSave = () => {
-    onSave(localGuests);
-    resetForm();
-    onClose();
-  };
+const handleSave = () => {
+  const trimmedName = (name || "").trim();
+  let guestsToSave = localGuests; 
+
+  if (trimmedName) {
+
+    guestsToSave = handleFormSubmit(); 
+  }
+
+  onSave(guestsToSave); 
+  onClose();
+};
 
   const handleCancel = () => {
     resetForm();
@@ -447,5 +456,4 @@ const GuestModal = ({
     </div>
   );
 };
-
 export default GuestModal;
