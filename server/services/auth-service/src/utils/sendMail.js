@@ -19,7 +19,7 @@ export const sendEmail = async (email, otp) => {
       to: email,
       subject: 'Your Wie Verification Code',
       // Plain text version with Web OTP format
-      text: `Your Wie verification code is: ${otp}\n\n@yourdomain.com #${otp}\n\nThis code will expire in 10 minutes.`,
+      text: `Your Wie verification code is: ${otp}\n\n@yourdomain.com #${otp}\n\nThis code will expire in 1 minutes.`,
       // HTML version for better appearance
       html: `
         <!DOCTYPE html>
@@ -47,7 +47,7 @@ export const sendEmail = async (email, otp) => {
                       <!-- Web OTP API format (hidden but readable by browser) -->
                       <div style="display: none;">@yourdomain.com #${otp}</div>
                       <p style="margin: 0; color: #999999; font-size: 14px;">
-                        This code will expire in 10 minutes.
+                        This code will expire in 1 minutes.
                       </p>
                       <p style="margin: 20px 0 0 0; color: #999999; font-size: 12px;">
                         If you didn't request this code, please ignore this email.
