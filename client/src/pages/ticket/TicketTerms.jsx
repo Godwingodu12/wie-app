@@ -76,7 +76,7 @@ const EventTermsAndConditionsPage = () => {
 
     const handlePreview = useCallback(() => {
         // Opens the preview page in a new tab
-        window.open(`/ticket/ticket-preview/${ticketId}`, '_blank');
+        navigate(`/ticket/ticket-preview/${ticketId}`);
     }, [ticketId]);
 
     const handleHostEvent = async (event) => {
