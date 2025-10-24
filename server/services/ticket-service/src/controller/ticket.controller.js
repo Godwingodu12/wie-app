@@ -901,6 +901,52 @@ export const goLiveEvent = async(req, res) => {
     });
   }
 };
+export const makeEventCompleted = async(req, res) => {
+  try {
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0); // Set to start of day for accurate comparison
+    const liveTickets = await Ticket.find({ event_status: 'live' });
+    let completedCount = 0;
+    let unchangedCount = 0;
+    await Promise.all(
+      liveTickets.map(async (ticket) => {
+        const endDateStr = ticket.event_dates?.[0]?.end_date || ticket.end_date;
+        if (!endDateStr) {
+          console.log(`Ticket ${ticket._id} has no end_date, skipping...`);
+          unchangedCount++;
+          return;
+        }
+        const eventEndDate = new Date(endDateStr);
+        eventEndDate.setHours(23, 59, 59, 999);
+        if (currentDate => eventEndDate) {
+          ticket.event_status = 'completed';
+          await ticket.save();
+          completedCount++;
+          console.log(`Event ${ticket.event_name} (${ticket._id}) marked as completed`);
+        } else {
+          unchangedCount++;
+          console.log(`Event ${ticket.event_name} (${ticket._id}) is still ongoing`);
+        }
+      })
+    );
+    res.status(200).json({
+      success: true,
+      message: "Event status update completed",
+      data: {
+        totalLiveEvents: liveTickets.length,
+        eventsCompleted: completedCount,
+        eventsStillLive: unchangedCount
+      }
+    });
+  } catch (error) {
+    console.error("Error making event completed:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
 export const getPreviousEvents = async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;

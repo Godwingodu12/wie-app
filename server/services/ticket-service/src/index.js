@@ -9,7 +9,7 @@ import { dirname } from 'path';
 import fs from 'fs';
 import { connectRabbitMQ } from './rabbit/connection.js';
 import { startConsumers } from './rabbit/index.js';
-
+import { startEventStatusScheduler } from './jobs/eventStatusScheduler.js';
 // 👇 Needed for __dirname in ES module
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -19,11 +19,8 @@ dotenv.config();
 const app = express();
 app.use(express.json({ limit: '50mb' })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
 // CORS configuration
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
-
-// Set uploads directory path
 const uploadsPath = path.join(__dirname, 'uploads');
 // Serve static files from uploads directory
 app.use('/uploads', express.static(uploadsPath));
@@ -80,6 +77,7 @@ const startServer = async () => {
   try {
     await connectDB();
     await connectRabbitMQ();
+    startEventStatusScheduler();
     await startConsumers();
     app.listen(PORT, () => {
       console.log(`Ticket service running on port ${PORT}`);

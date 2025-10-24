@@ -4,7 +4,7 @@ import multer from 'multer';
 import {getUserData,CreateGroup, createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
 getTicketById,deleteTicket,viewTickets } from '../services/ticket.service.js';
 import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getOthersEvents,getOtherLiveEvents,
-getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount } from '../controller/ticket.controller.js';
+getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted } from '../controller/ticket.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);
@@ -40,6 +40,7 @@ router.get('/get-group-statistics', getGroupStatistics);
 router.post('/confirm-event/:ticketId',confirmEvent);
 router.post('/go-live-event/:ticketId',goLiveEvent);
 router.get('/get-previous-events',protect, getPreviousEvents);
+router.post('/make-event-completed', makeEventCompleted);//it is a manual cron job work to change event status as completed.
 router.get('/show-event-bank-details',protect, showEventBankDetails);
 router.post('/like-event/:ticketId',protect, likeEvent);
 router.post('/unlike-event/:ticketId',unlikeEvent);
