@@ -32,6 +32,39 @@ const OtpPage = () => {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+  // Web OTP API Auto-fill
+useEffect(() => {
+  if ('OTPCredential' in window) {
+    const abortController = new AbortController();
+
+    navigator.credentials
+      .get({
+        otp: { transport: ['sms'] },
+        signal: abortController.signal,
+      })
+      .then((otpCredential) => {
+        if (otpCredential && otpCredential.code) {
+          console.log('Auto-filled OTP:', otpCredential.code);
+          const otpArray = otpCredential.code.split('');
+          setOtp(otpArray);
+          setError('');
+          setSuccessMessage('OTP auto-filled successfully!');
+          
+          // Auto-submit after a brief delay
+          setTimeout(() => {
+            handleSubmit(new Event('submit'));
+          }, 500);
+        }
+      })
+      .catch((err) => {
+        console.log('OTP auto-fill error:', err);
+      });
+
+    return () => {
+      abortController.abort();
+    };
+  }
+}, []);
 
 useEffect(() => {
     console.log("Loading email for OTP verification...");
@@ -89,16 +122,27 @@ useEffect(() => {
       setSuccessMessage("");
     }
   }, [otp]);
-  const handleChange = (element, index) => {
-    if (element.value && isNaN(Number(element.value))) return;
-    const newOtp = [...otp];
-    newOtp[index] = element.value.slice(-1);
-    setOtp(newOtp);
-    if (element.value && index < otp.length - 1) {
-      inputsRef.current[index + 1]?.focus();
-    }
-  };
-
+const handleChange = (element, index) => {
+  if (element.value && isNaN(Number(element.value))) return;
+  const newOtp = [...otp];
+  newOtp[index] = element.value.slice(-1);
+  setOtp(newOtp);
+  if (element.value && index < otp.length - 1) {
+    inputsRef.current[index + 1]?.focus();
+  }
+};
+const handlePaste = (e) => {
+  e.preventDefault();
+  const pastedData = e.clipboardData.getData('text').trim();
+  const numbers = pastedData.replace(/\D/g, '');
+  if (numbers.length === 6) {
+    const otpArray = numbers.split('');
+    setOtp(otpArray);
+    setError('');
+    setSuccessMessage('OTP pasted successfully!');
+    inputsRef.current[5]?.focus();
+  }
+};
   const handleKeyDown = (e, index) => {
     const key = e.key;
     if (key === "Backspace") {
@@ -385,10 +429,11 @@ const handleSubmit = async (e) => {
                 {otp.map((data, index) => {
                   const filled = Boolean(data);
                   return (
-                    <input
+                   <input
                       key={index}
                       type="text"
                       inputMode="numeric"
+                      autoComplete={index === 0 ? "one-time-code" : "off"}
                       aria-label={`OTP digit ${index + 1}`}
                       placeholder={filled ? undefined : "-"}
                       className={
@@ -407,6 +452,7 @@ const handleSubmit = async (e) => {
                       value={data}
                       onChange={(e) => handleChange(e.target, index)}
                       onKeyDown={(e) => handleKeyDown(e, index)}
+                      onPaste={index === 0 ? handlePaste : undefined}
                       onFocus={(e) => e.target.select()}
                       ref={(el) => {
                         inputsRef.current[index] = el;
