@@ -211,9 +211,9 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
         if (group.grp_type === "admin") {
           imageUrl = ProfileImage;
         } else if (group.grp_type === "organization") {
-          imageUrl = getImageUrl(group.image) || ProfileImage;
+          imageUrl = getImageUrl(group.company_logo) || ProfileImage;
         } else {
-          imageUrl = getImageUrl(group.image) || ProfileImage;
+          imageUrl = getImageUrl(group.company_logo) || ProfileImage;
         }
         return (
           <div key={index} className="flex flex-col items-center gap-2">
@@ -569,6 +569,8 @@ const EventsList = ({
   activeFilter,
   searchTerm,
   onSearchTermChange,
+  selectedDate,      // Make sure this is included
+  setSelectedDate,   // Make sure this is included
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -610,35 +612,57 @@ const EventsList = ({
       [eventId]: !prev[eventId]
     }));
   };
+const filteredEvents = useMemo(() => {
+  let filtered = events || [];
 
-  const filteredEvents = useMemo(() => {
-    let filtered = events || [];
-
-    if (activeFilter === "Paid") {
-      filtered = filtered.filter(
-        (event) => event.ticket_types && event.ticket_types.length > 0
+  // Filter by selected calendar date (if passed from parent)
+  if (selectedDate) {
+    filtered = filtered.filter((event) => {
+      if (!event?.event_dates?.[0]?.start_date) return false;
+      
+      const eventStartDate = new Date(event.event_dates[0].start_date);
+      const selectedDateOnly = new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        selectedDate.getDate()
       );
-    } else if (activeFilter === "Free") {
-      filtered = filtered.filter(
-        (event) => !event.ticket_types || event.ticket_types.length === 0
+      const eventDateOnly = new Date(
+        eventStartDate.getFullYear(),
+        eventStartDate.getMonth(),
+        eventStartDate.getDate()
       );
-    }
+      
+      return eventDateOnly.getTime() === selectedDateOnly.getTime();
+    });
+  }
 
-    if (selectedCategory && selectedCategory !== "All") {
-      filtered = filtered.filter(
-        (event) => event.event_category === selectedCategory
-      );
-    }
+  // Filter by Paid/Free
+  if (activeFilter === "Paid") {
+    filtered = filtered.filter(
+      (event) => event.ticket_types && event.ticket_types.length > 0
+    );
+  } else if (activeFilter === "Free") {
+    filtered = filtered.filter(
+      (event) => !event.ticket_types || event.ticket_types.length === 0
+    );
+  }
 
-    if (searchTerm) {
-      filtered = filtered.filter((event) =>
-        event.event_name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
+  // Filter by category
+  if (selectedCategory && selectedCategory !== "All") {
+    filtered = filtered.filter(
+      (event) => event.event_category === selectedCategory
+    );
+  }
 
-    return filtered;
-  }, [events, activeFilter, searchTerm, selectedCategory]);
+  // Filter by search term
+  if (searchTerm) {
+    filtered = filtered.filter((event) =>
+      event.event_name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }
 
+  return filtered;
+}, [events, activeFilter, searchTerm, selectedCategory, selectedDate]);
   const paginatedEvents = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredEvents.slice(startIndex, startIndex + itemsPerPage);
@@ -694,59 +718,84 @@ const EventsList = ({
         <div className="flex flex-col sm:hidden">
           {/* Search and Filter Section */}
           <div className="relative mb-6">
-            <div className="flex items-center gap-3">
-              {/* Filter Button */}
-              <button
-                onClick={() => setShowFilter(!showFilter)}
-                className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${
-                  isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
-                }`}
-                style={{
-                  boxShadow: isDark
-                    ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
-                    : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
-                }}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                </svg>
-              </button>
-              {/* Search Bar */}
-              <div
-                className={`flex-1 flex items-center gap-2 ${
-                  isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
-                }`}
-                style={{
-                  maxWidth: '300px',
-                  height: '31px',
-                  borderRadius: '17.1px',
-                  padding: '8.55px',
-                  boxShadow: isDark
-                    ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
-                    : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
-                }}
-              >
-                <Search className="w-4 h-4 flex-shrink-0" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Search events..."
-                  value={searchTerm}
-                  onChange={(e) => onSearchTermChange(e.target.value)}
-                  className={`bg-transparent focus:outline-none w-full text-sm ${
-                    isDark ? 'placeholder-gray-500' : 'placeholder-gray-400'
-                  }`}
-                />
-              </div>
-            </div>
-
-            {/* Filter Dropdown */}
-            {showFilter && (
-              <div className="absolute top-14 left-0 z-50">
-                <FilterButton />
-              </div>
-            )}
-          </div>
+    <div className="flex items-center gap-3">
+      {/* Filter Button */}
+      <button
+        onClick={() => setShowFilter(!showFilter)}
+        className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${
+          isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
+        }`}
+        style={{
+          boxShadow: isDark
+            ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+            : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+        }}
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+        </svg>
+      </button>
+      {/* Search Bar */}
+      <div
+        className={`flex-1 flex items-center gap-2 ${
+          isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
+        }`}
+        style={{
+          maxWidth: '300px',
+          height: '31px',
+          borderRadius: '17.1px',
+          padding: '8.55px',
+          boxShadow: isDark
+            ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+            : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+        }}
+      >
+        <Search className="w-4 h-4 flex-shrink-0" />
+        <input
+          ref={searchInputRef}
+          type="text"
+          placeholder="Search events..."
+          value={searchTerm}
+          onChange={(e) => onSearchTermChange(e.target.value)}
+          className={`bg-transparent focus:outline-none w-full text-sm ${
+            isDark ? 'placeholder-gray-500' : 'placeholder-gray-400'
+          }`}
+        />
+      </div>
+    </div>
+{selectedDate && (
+    <div className="flex items-center justify-between mb-4 px-2">
+      <div className="flex items-center gap-2">
+        <span className={`text-xs ${theme.subText}`}>
+          Events for:
+        </span>
+        <span className={`text-xs font-semibold ${theme.text}`}>
+          {selectedDate.toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })}
+        </span>
+      </div>
+      <button
+        onClick={() => setSelectedDate(null)}
+        className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${
+          isDark
+            ? "bg-blue-600 hover:bg-blue-500 text-white"
+            : "bg-blue-500 hover:bg-blue-600 text-white"
+        }`}
+      >
+        Clear filter
+      </button>
+    </div>
+  )}
+    {/* Filter Dropdown */}
+    {showFilter && (
+      <div className="absolute top-14 left-0 z-50">
+        <FilterButton />
+      </div>
+    )}
+  </div>
           {/* Events Table */}
           <div
             className={`${isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'}`}
@@ -884,11 +933,10 @@ const EventsList = ({
             )}
           </div>
         </div>
-
         {/* Tablet/Desktop View (sm breakpoint and above) */}
         <div className="hidden sm:block">
-          {/* Tablet Search Header */}
-          <div className="flex lg:hidden mb-4">
+        {/* Tablet Search Header */}
+          <div className="flex lg:hidden mb-4 flex-col gap-3">
             <div className="flex items-center justify-between w-full">
               {!isSearchActive ? (
                 <button 
@@ -921,8 +969,35 @@ const EventsList = ({
               )}
               <span className={`text-sm font-bold ${theme.text} mr-1`}>Actions</span>
             </div>
+            
+            {/* Date Filter Indicator - Tablet */}
+            {selectedDate && (
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${theme.subText}`}>
+                    Events for:
+                  </span>
+                  <span className={`text-sm font-semibold ${theme.text}`}>
+                    {selectedDate.toLocaleDateString("en-GB", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedDate(null)}
+                  className={`text-xs font-bold px-3 py-1 rounded-full transition-colors ${
+                    isDark
+                      ? "bg-blue-600 hover:bg-blue-500 text-white"
+                      : "bg-blue-500 hover:bg-blue-600 text-white"
+                  }`}
+                >
+                  Clear filter
+                </button>
+              </div>
+            )}
           </div>
-
           {/* Tablet List View */}
           <div className="flex flex-col lg:hidden">
             {displayEvents.map((event, index) => {
@@ -1313,7 +1388,11 @@ const ViewEvent = () => {
       return n;
     });
   const handleDateClick = (dayInfo) => {
-    setSelectedDate(dayInfo.fullDate);
+    if (selectedDate && dayInfo.fullDate.toDateString() === selectedDate.toDateString()) {
+      setSelectedDate(null);
+    } else {
+      setSelectedDate(dayInfo.fullDate);
+    }
     setCurrentDate(dayInfo.fullDate);
   };
 
@@ -1710,9 +1789,10 @@ const ViewEvent = () => {
                 activeFilter={activeFilter}
                 searchTerm={searchTerm}
                 onSearchTermChange={setSearchTerm}
+                selectedDate={selectedDate}           
+                setSelectedDate={setSelectedDate}     
               />
             </div>
-
             {/* Right Column - Statistics & Calendar (40%) */}
             <div className="lg:col-span-2">
               <div
