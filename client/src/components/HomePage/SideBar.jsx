@@ -186,7 +186,7 @@ const Sidebar = ({ user, theme }) => {
             </Link>
 
             <Link
-              to="/ticket/speakers"
+              to="/ticket/live-events"
               className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full hover:opacity-80 transition-opacity"
             >
               <img
