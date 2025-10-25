@@ -2,14 +2,17 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
+import HostEventModal from "../../components/Event/HostEventModal";
 import SideBar from "../../components/HomePage/SideBar";
 import SearchBar from "../../components/HomePage/SearchBar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import {
   getMyEvents,
+  getMyUpcomingEvents,
   getGroups,
   getMyLiveEvents,
+  goLiveEvent,
   showEventBankDetails,
 } from "../../services/ticketService";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
@@ -415,8 +418,6 @@ const tableStyles = `
     z-index: 1001;
   }
 `;
-// Replace the EventsList component (starting from line ~572)
-
 const EventsList = ({
   isDark,
   theme,
@@ -424,6 +425,7 @@ const EventsList = ({
   activeFilter,
   searchTerm,
   onSearchTermChange,
+  onHostEvent,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -714,7 +716,10 @@ const EventsList = ({
 
                           {/* Action Buttons */}
                           <div className="flex items-center gap-2 justify-start">
-                            <button className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50">
+                            <button 
+                              onClick={() => onHostEvent(event)}
+                              className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50"
+                            >
                               Run
                             </button>
                             <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
@@ -781,10 +786,50 @@ const EventsList = ({
                   />
                 </div>
               )}
+                <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
+                  <div className="relative">
+                    <button
+                      onClick={() => setCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                      className="flex items-center justify-between w-full"
+                    >
+                      <span>{selectedCategory === "All" ? "Category" : selectedCategory}</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    {isCategoryDropdownOpen && (
+                      <div className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${
+                        isDark ? "bg-[#232426] ring-gray-600" : "bg-slate-100 ring-gray-400"
+                      }`} style={{
+                        boxShadow: isDark
+                          ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
+                          : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A"
+                      }}>
+                        <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                          {categories.map((category) => (
+                            <button
+                              key={category}
+                              onClick={() => {
+                                setSelectedCategory(category);
+                                setCategoryDropdownOpen(false);
+                              }}
+                              className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${
+                                selectedCategory === category
+                                  ? isDark ? "bg-gray-700 text-white" : "bg-gray-200 text-gray-900"
+                                  : isDark ? "text-gray-300 hover:bg-gray-800" : "text-gray-700 hover:bg-gray-200"
+                              }`}
+                            >
+                              {category}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </th>
               <span className={`text-sm font-bold ${theme.text} mr-1`}>Actions</span>
             </div>
           </div>
 
+          {/* Tablet List View */}
           {/* Tablet List View */}
           <div className="flex flex-col lg:hidden">
             {displayEvents.map((event, index) => {
@@ -802,10 +847,11 @@ const EventsList = ({
                     isDark ? "border-gray-700/50" : "border-gray-200"
                   } p-4`}
                 >
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    {/* Event Name and Status Column */}
+                    <div className="flex items-center gap-3 flex-[3] min-w-0">
                       <div
-                        className={`w-8 h-8 rounded-full ${
+                        className={`w-8 h-8 rounded-full flex-shrink-0 ${
                           isDark ? "bg-indigo-500/20" : "bg-indigo-100"
                         } flex items-center justify-center ${
                           isDark ? "text-indigo-300" : "text-indigo-500"
@@ -825,26 +871,44 @@ const EventsList = ({
                           />
                         </svg>
                       </div>
-                      <span className={`${theme.text} truncate`}>
-                        {event.event_name}
+                      <div className="flex flex-col min-w-0">
+                        <span className={`${theme.text} truncate font-semibold text-sm`}>
+                          {event.event_name}
+                        </span>
+                        <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"} truncate`}>
+                          {event.event_status || "N/A"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex-[1.5] min-w-0 flex justify-center">
+                      <span
+                        className={`${theme.text} truncate text-sm block`}
+                        style={{ marginLeft: "-150px" }} 
+                      >
+                        {event.event_category || "N/A"}
                       </span>
                     </div>
-                    <button
-                      className={`px-4 sm:px-6 py-2 border border-[#6549B8] rounded-full text-sm transition-colors ${
-                        isDark
-                          ? "text-white hover:bg-[#6549B8]"
-                          : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
-                      }`}
-                    >
-                      View
-                    </button>
-                  </div>
-                  <div
-                    className={`mt-2 text-sm ${
-                      isDark ? "text-gray-400" : "text-gray-600"
-                    }`}
-                  >
-                    <p>Event Status: {event.event_status}</p>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                      <button
+                        onClick={() => onHostEvent(event)}
+                        className={`px-3 sm:px-4 py-1.5 border border-[#6549B8] rounded-full text-xs sm:text-sm transition-colors whitespace-nowrap ${
+                          isDark
+                            ? "text-white hover:bg-[#6549B8]"
+                            : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
+                        }`}
+                      >
+                        Run
+                      </button>
+                      <button
+                        className={`px-3 sm:px-4 py-1.5 border border-[#6549B8] rounded-full text-xs sm:text-sm transition-colors whitespace-nowrap ${
+                          isDark
+                            ? "text-white hover:bg-[#6549B8]"
+                            : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
+                        }`}
+                      >
+                        View
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -996,6 +1060,18 @@ const EventsList = ({
                     </td>
                     <td className="py-3 px-4 text-right">
                       <button
+                        onClick={() => onHostEvent(event)}
+                        className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
+                          isDark
+                            ? "text-white hover:bg-[#6549B8]"
+                            : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
+                        }`}
+                      >
+                        Run
+                      </button>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button
                         className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
                           isDark
                             ? "text-white hover:bg-[#6549B8]"
@@ -1051,7 +1127,9 @@ const ConfirmEvents = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
   const [liveEventsCount, setLiveEventsCount] = useState(0);
-
+  const [isHostModalOpen, setIsHostModalOpen] = useState(false);
+  const [selectedEventToHost, setSelectedEventToHost] = useState(null);
+  const [isHosting, setIsHosting] = useState(false);
   const handleCreateEvent = async () => {
     if (!user) return;
     setLoading(true);
@@ -1078,7 +1156,7 @@ const ConfirmEvents = () => {
     const fetchData = async () => {
       try {
         const [eventsData, groupsData, liveEventsData] = await Promise.all([
-          getMyEvents(),
+          getMyUpcomingEvents(),
           getGroups(),
           getMyLiveEvents(),
         ]);
@@ -1115,6 +1193,48 @@ const ConfirmEvents = () => {
     document.documentElement.classList.toggle("dark", newDark);
     localStorage.setItem("theme", newDark ? "dark" : "light");
   };
+  const handleHostEvent = async () => {
+    if (!selectedEventToHost) return;
+    
+    setIsHosting(true);
+    try {
+      const response = await goLiveEvent(selectedEventToHost._id);
+      
+      if (response) {
+        // Show success message
+        alert(`"${selectedEventToHost.event_name}" is now live!`);
+        
+        // Close modal
+        setIsHostModalOpen(false);
+        setSelectedEventToHost(null);
+        
+        // Navigate to live events page
+        navigate("/ticket/live-events");
+      }
+    } catch (error) {
+      console.error("Error hosting event:", error);
+      
+      // Check if error has expired dates information
+      if (error.response?.data?.expiredDates) {
+        const expiredDates = error.response.data.expiredDates.join("\n• ");
+        alert(
+          `Cannot host event. The following dates have expired:\n\n• ${expiredDates}\n\nPlease update these dates before hosting the event.`
+        );
+      } else {
+        alert(
+          error.response?.data?.message || 
+          "Failed to host event. Please try again."
+        );
+      }
+    } finally {
+      setIsHosting(false);
+    }
+  };
+
+const openHostModal = (event) => {
+  setSelectedEventToHost(event);
+  setIsHostModalOpen(true);
+};
 
   const theme = isDark
     ? {
@@ -1343,7 +1463,6 @@ const ConfirmEvents = () => {
               <BankAccountDetailsCard isDark={isDark} theme={theme} />
             </div>
           </div>
-
           <EventsList
             isDark={isDark}
             theme={theme}
@@ -1351,8 +1470,21 @@ const ConfirmEvents = () => {
             groups={groups}
             searchTerm={searchTerm}
             onSearchTermChange={setSearchTerm}
+            onHostEvent={openHostModal}
           />
         </main>
+        <HostEventModal
+          isOpen={isHostModalOpen}
+          onClose={() => {
+            setIsHostModalOpen(false);
+            setSelectedEventToHost(null);
+          }}
+          onConfirm={handleHostEvent}
+          eventName={selectedEventToHost?.event_name || ""}
+          isDark={isDark}
+          theme={theme}
+          isLoading={isHosting}
+        />
       </div>
       <GroupSelectionModal
         groups={groups}
