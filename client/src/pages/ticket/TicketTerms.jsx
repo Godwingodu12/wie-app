@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { getTicketById, goLiveEvent, updateTicketTerms } from '../../services/ticketService';
+import { getTicketById, goLiveEvent, updateTicketTerms,confirmEvent } from '../../services/ticketService';
 import EventSidebar from '../../components/CreateGroup/EventSidebar';
 import ThemeToggle from '../../components/HomePage/ThemeToggle.jsx';
 import Alert from '../../components/CreateGroup/Alert';
@@ -70,9 +70,41 @@ const EventTermsAndConditionsPage = () => {
         }
     }, [navigate, ticketId, ticketData, dataLoading]);
 
-    const handleSaveForLater = useCallback(() => {
-        navigate('/ticket/view-events');
-    }, [navigate]);
+    const handleSaveForLater = useCallback(async () => {
+        if (!ticketId) {
+            showAlert({type: 'error', message: 'Error', description: 'Ticket ID is missing.'});
+            return;
+        }
+
+        setIsLoading(true);
+        
+        try {
+            // Call confirmEvent API to save the event
+            await confirmEvent(ticketId);
+            
+            showAlert({
+                type: 'success', 
+                message: 'Event Saved!', 
+                description: 'Your event has been saved successfully.'
+            });
+            
+            // Navigate to confirm events page after a short delay
+            setTimeout(() => {
+                navigate('/ticket/confirm-events');
+            }, 1500);
+
+        } catch (err) {
+            console.error('Error saving event:', err);
+            const errorMessage = err.response?.data?.message || 'Failed to save event. Please try again.';
+            showAlert({
+                type: 'error', 
+                message: 'Save Failed', 
+                description: errorMessage
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [ticketId, navigate]);
 
     const handlePreview = useCallback(() => {
         // Opens the preview page in a new tab
@@ -217,7 +249,7 @@ const EventTermsAndConditionsPage = () => {
                                     disabled={isLoading}
                                     className="px-6 py-2.5 rounded-lg font-medium bg-gray-200 dark:bg-[#2B2B2B] text-gray-800 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
-                                    Save for later
+                                    {isLoading ? "Saving..." : "Save for later"}
                                 </button>
                                 <button 
                                     type="submit" 
