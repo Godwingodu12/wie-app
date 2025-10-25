@@ -886,6 +886,69 @@ export const goLiveEvent = async(req, res) => {
         message: "Ticket not found"
       });
     }
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+    const expiredDates = [];
+    // Check event_dates array for start_date and end_date
+    if (ticket.event_dates && ticket.event_dates.length > 0) {
+      ticket.event_dates.forEach((dateObj, index) => {
+        if (dateObj.start_date) {
+          const startDate = new Date(dateObj.start_date);
+          startDate.setHours(0, 0, 0, 0);
+          if (startDate < currentDate) {
+            expiredDates.push(`Event start date (${startDate.toLocaleDateString()})`);
+          }
+        }
+        if (dateObj.end_date) {
+          const endDate = new Date(dateObj.end_date);
+          endDate.setHours(0, 0, 0, 0);
+          if (endDate < currentDate) {
+            expiredDates.push(`Event end date (${endDate.toLocaleDateString()})`);
+          }
+        }
+      });
+    }
+    // Check booking_start_date
+    if (ticket.booking_start_date) {
+      const bookingStartDate = new Date(ticket.booking_start_date);
+      bookingStartDate.setHours(0, 0, 0, 0);
+      if (bookingStartDate < currentDate) {
+        expiredDates.push(`Booking start date (${bookingStartDate.toLocaleDateString()})`);
+      }
+    }
+    // Check booking_end_date
+    if (ticket.booking_end_date) {
+      const bookingEndDate = new Date(ticket.booking_end_date);
+      bookingEndDate.setHours(0, 0, 0, 0);
+      if (bookingEndDate < currentDate) {
+        expiredDates.push(`Booking end date (${bookingEndDate.toLocaleDateString()})`);
+      }
+    }
+    // Check event_start_date (fallback if not in event_dates array)
+    if (ticket.event_start_date) {
+      const eventStartDate = new Date(ticket.event_start_date);
+      eventStartDate.setHours(0, 0, 0, 0);
+      if (eventStartDate < currentDate) {
+        expiredDates.push(`Event start date (${eventStartDate.toLocaleDateString()})`);
+      }
+    }
+    // Check event_end_date (fallback if not in event_dates array)
+    if (ticket.event_end_date) {
+      const eventEndDate = new Date(ticket.event_end_date);
+      eventEndDate.setHours(0, 0, 0, 0);
+      if (eventEndDate < currentDate) {
+        expiredDates.push(`Event end date (${eventEndDate.toLocaleDateString()})`);
+      }
+    }
+    // If any dates are expired, prevent going live
+    if (expiredDates.length > 0) {
+      return res.status(400).json({
+        message: "Cannot go live with expired dates. Please update the following dates before going live:",
+        expiredDates: expiredDates,
+        currentDate: currentDate.toLocaleDateString()
+      });
+    }
+    // All dates are valid, proceed to go live
     ticket.event_status = 'live';
     await ticket.save();
     res.status(200).json({
