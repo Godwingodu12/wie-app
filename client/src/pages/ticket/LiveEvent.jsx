@@ -2,18 +2,15 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
-import HostEventModal from "../../components/Event/HostEventModal";
 import SideBar from "../../components/HomePage/SideBar";
 import SearchBar from "../../components/HomePage/SearchBar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import {
   getMyEvents,
-  getMyUpcomingEvents,
   getGroups,
   getMyLiveEvents,
-  goLiveEvent,
-  showEventBankDetails,
+  showEventBankDetails
 } from "../../services/ticketService";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
 import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
@@ -21,11 +18,8 @@ import FilterButton from "../../components/HomePage/FilterButton.jsx";
 import ShowArrow from "../../assets/Event/ShowArrow.png";
 import HideArrow from "../../assets/Event/HideArrow.png";
 import ViewConfirm from "../../assets/Event/ViewConfirm.png";
-import EditIcon from "../../assets/Event/EditIcon.png";
 import { ChevronDown, PartyPopper, Radio, Search, Landmark } from "lucide-react";
 import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
-// import AdminLogo from "../../assets/auth/admin.webp";
-// import OrgLogo from "../../assets/auth/orgz.webp";
 
 const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
 const getImageUrl = (path) => {
@@ -48,11 +42,6 @@ const getNeumorphicShadows = (isDark) =>
   isDark
     ? "shadow-[inset_5px_5px_10px_#1a1b1e,inset_-5px_-5px_10px_#3c3f44]"
     : "shadow-[inset_5px_5px_10px_#a4a4a4,inset_-5px_-5px_10px_#ffffff]";
-const getButtonNeumorphicShadows = (isDark) =>
-  isDark
-    ? "shadow-[inset_2px_2px_5px_#1a1b1e,inset_-2px_-2px_5px_#3c3f44]"
-    : "shadow-[inset_-2px_-2px_5px_rgba(0,0,0,0.1),inset_2px_2px_5px_rgba(255,255,255,1)]";
-
 const MyGroupsCard = ({ theme, groups, isDark }) => (
   <div className="h-full flex flex-col">
     <div className="flex items-center justify-between w-full mb-4">
@@ -370,54 +359,6 @@ function BankAccountDetailsCard({ isDark, theme }) {
     </div>
   );
 }
-const tableStyles = `
-  .table-container {
-    overflow-x: auto;
-  }
-
-  .fixed-table {
-    table-layout: fixed;
-  }
-
-  .truncate-cell {
-    max-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    position: relative;
-  }
-
-  .truncate-cell:hover::after {
-    content: attr(data-full-text);
-    position: absolute;
-    left: 0;
-    top: 100%;
-    background: #1f2937;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
-    white-space: normal;
-    word-wrap: break-word;
-    z-index: 1000;
-    min-width: 200px;
-    max-width: 400px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    margin-top: 4px;
-  }
-
-  .truncate-cell:hover::before {
-    content: '';
-    position: absolute;
-    left: 12px;
-    top: 100%;
-    width: 0;
-    height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-bottom: 6px solid #1f2937;
-    z-index: 1001;
-  }
-`;
 const EventsList = ({
   isDark,
   theme,
@@ -425,7 +366,6 @@ const EventsList = ({
   activeFilter,
   searchTerm,
   onSearchTermChange,
-  onHostEvent,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -526,6 +466,7 @@ const EventsList = ({
       year: "numeric",
     });
   };
+
   return (
     <div
       style={{
@@ -542,16 +483,14 @@ const EventsList = ({
     >
       <center>
         <h1 className="font-urbanist font-normal text-[14px] leading-[100%] align-middle m-0">
-          Events
+          Live Events
         </h1>
       </center>
       <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-transparent lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
-        {/* Mobile Only View (below sm breakpoint - phones only) */}
+        {/* Mobile Only View */}
         <div className="flex flex-col sm:hidden">
-          {/* Search and Filter Section */}
           <div className="relative mb-6">
             <div className="flex items-center gap-3">
-              {/* Filter Button */}
               <button
                 onClick={() => setShowFilter(!showFilter)}
                 className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${
@@ -567,7 +506,6 @@ const EventsList = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
               </button>
-              {/* Search Bar */}
               <div
                 className={`flex-1 flex items-center gap-2 ${
                   isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
@@ -596,14 +534,13 @@ const EventsList = ({
               </div>
             </div>
 
-            {/* Filter Dropdown */}
             {showFilter && (
               <div className="absolute top-14 left-0 z-50">
                 <FilterButton />
               </div>
             )}
           </div>
-          {/* Events Table */}
+
           <div
             className={`${isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'}`}
             style={{
@@ -634,9 +571,9 @@ const EventsList = ({
                     />
                   </svg>
                   <p className={`text-base font-medium ${theme.text} mb-2`}>
-                    No events found
+                    No live events found
                   </p>
-                  <p className="text-sm">Create your first event to get started</p>
+                  <p className="text-sm">Your live events will appear here</p>
                 </div>
               </div>
             ) : (
@@ -646,7 +583,6 @@ const EventsList = ({
                   
                   return (
                     <div key={event._id || index} className="flex flex-col gap-4">
-                      {/* Event Row */}
                       <div
                         className="flex items-center justify-between"
                         style={{
@@ -670,7 +606,6 @@ const EventsList = ({
                         </button>
                       </div>
 
-                      {/* Expanded Details */}
                       {isExpanded && (
                         <div
                           className="flex flex-col gap-5"
@@ -680,7 +615,6 @@ const EventsList = ({
                             minHeight: '202px'
                           }}
                         >
-                          {/* Event Details */}
                           <div className="flex flex-col gap-3">
                             <div className="flex justify-between items-center">
                               <span className={`text-xs ${theme.subText}`}>Category:</span>
@@ -708,19 +642,16 @@ const EventsList = ({
                             </div>
                             <div className="flex justify-between items-center">
                               <span className={`text-xs ${theme.subText}`}>Status:</span>
-                              <span className={`text-xs ${theme.text} font-medium`}>
-                                {event.event_status || 'N/A'}
+                              <span className={`text-xs text-red-500 font-medium flex items-center gap-1`}>
+                                <Radio className="w-3 h-3" />
+                                LIVE
                               </span>
                             </div>
                           </div>
 
-                          {/* Action Buttons */}
                           <div className="flex items-center gap-2 justify-start">
-                            <button 
-                              onClick={() => onHostEvent(event)}
-                              className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50"
-                            >
-                              Run
+                            <button className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50">
+                              Manage
                             </button>
                             <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
                               <img
@@ -729,18 +660,10 @@ const EventsList = ({
                                 className="w-4 h-4 object-contain"
                               />
                             </button>
-                            <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
-                              <img
-                                src={EditIcon}
-                                alt="EditIcon"
-                                className="w-4 h-4 object-contain"
-                              />
-                            </button>
                           </div>
                         </div>
                       )}
 
-                      {/* Divider */}
                       {index < paginatedEvents.length - 1 && (
                         <div className={`h-px ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
                       )}
@@ -752,9 +675,8 @@ const EventsList = ({
           </div>
         </div>
 
-        {/* Tablet/Desktop View (sm breakpoint and above) */}
+        {/* Tablet/Desktop View */}
         <div className="hidden sm:block">
-          {/* Tablet Search Header */}
           <div className="flex lg:hidden mb-4">
             <div className="flex items-center justify-between w-full">
               {!isSearchActive ? (
@@ -786,51 +708,10 @@ const EventsList = ({
                   />
                 </div>
               )}
-                <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
-                  <div className="relative">
-                    <button
-                      onClick={() => setCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                      className="flex items-center justify-between w-full"
-                    >
-                      <span>{selectedCategory === "All" ? "Category" : selectedCategory}</span>
-                      <ChevronDown className="w-4 h-4" />
-                    </button>
-                    {isCategoryDropdownOpen && (
-                      <div className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${
-                        isDark ? "bg-[#232426] ring-gray-600" : "bg-slate-100 ring-gray-400"
-                      }`} style={{
-                        boxShadow: isDark
-                          ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
-                          : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A"
-                      }}>
-                        <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                          {categories.map((category) => (
-                            <button
-                              key={category}
-                              onClick={() => {
-                                setSelectedCategory(category);
-                                setCategoryDropdownOpen(false);
-                              }}
-                              className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${
-                                selectedCategory === category
-                                  ? isDark ? "bg-gray-700 text-white" : "bg-gray-200 text-gray-900"
-                                  : isDark ? "text-gray-300 hover:bg-gray-800" : "text-gray-700 hover:bg-gray-200"
-                              }`}
-                            >
-                              {category}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </th>
               <span className={`text-sm font-bold ${theme.text} mr-1`}>Actions</span>
             </div>
           </div>
 
-          {/* Tablet List View */}
-          {/* Tablet List View */}
           <div className="flex flex-col lg:hidden">
             {displayEvents.map((event, index) => {
               if (!event) {
@@ -848,35 +729,19 @@ const EventsList = ({
                   } p-4`}
                 >
                   <div className="flex items-center gap-2">
-                    {/* Event Name and Status Column */}
                     <div className="flex items-center gap-3 flex-[3] min-w-0">
                       <div
-                        className={`w-8 h-8 rounded-full flex-shrink-0 ${
-                          isDark ? "bg-indigo-500/20" : "bg-indigo-100"
-                        } flex items-center justify-center ${
-                          isDark ? "text-indigo-300" : "text-indigo-500"
-                        }`}
+                        className={`w-8 h-8 rounded-full flex-shrink-0 bg-red-500/20 flex items-center justify-center text-red-500`}
                       >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M13 10V3L4 14h7v7l9-11h-7z"
-                          />
-                        </svg>
+                        <Radio className="w-5 h-5" />
                       </div>
                       <div className="flex flex-col min-w-0">
                         <span className={`${theme.text} truncate font-semibold text-sm`}>
                           {event.event_name}
                         </span>
-                        <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"} truncate`}>
-                          {event.event_status || "N/A"}
+                        <span className={`text-xs text-red-500 truncate flex items-center gap-1`}>
+                          <Radio className="w-3 h-3" />
+                          LIVE
                         </span>
                       </div>
                     </div>
@@ -890,14 +755,13 @@ const EventsList = ({
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
                       <button
-                        onClick={() => onHostEvent(event)}
                         className={`px-3 sm:px-4 py-1.5 border border-[#6549B8] rounded-full text-xs sm:text-sm transition-colors whitespace-nowrap ${
                           isDark
                             ? "text-white hover:bg-[#6549B8]"
                             : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
                         }`}
                       >
-                        Run
+                        Manage
                       </button>
                       <button
                         className={`px-3 sm:px-4 py-1.5 border border-[#6549B8] rounded-full text-xs sm:text-sm transition-colors whitespace-nowrap ${
@@ -997,7 +861,8 @@ const EventsList = ({
                 </th>
                 <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
                   <div className="flex items-center gap-2">
-                    <span>Event Status</span>
+                    <span>Live Status</span>
+                    <Radio className="w-4 h-4 text-red-500" />
                   </div>
                 </th>
                 <th className="py-3 px-2 lg:px-4 font-normal w-[18%]"></th>
@@ -1026,26 +891,8 @@ const EventsList = ({
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
-                        <div
-                          className={`w-6 h-6 rounded-full ${
-                            isDark ? "bg-indigo-500/20" : "bg-indigo-100"
-                          } flex items-center justify-center ${
-                            isDark ? "text-indigo-300" : "text-indigo-500"
-                          }`}
-                        >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M13 10V3L4 14h7v7l9-11h-7z"
-                            />
-                          </svg>
+                        <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center text-red-500">
+                          <Radio className="w-4 h-4" />
                         </div>
                         <span className={`${theme.text} text-sm truncate`}>
                           {event.event_name}
@@ -1055,19 +902,21 @@ const EventsList = ({
                     <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
                       {event.event_category ? event.event_category : "N/A"}
                     </td>
-                    <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                      {event.event_status ? event.event_status : "N/A"}
+                    <td className="py-3 px-4">
+                      <span className="text-red-500 text-sm font-medium flex items-center gap-2">
+                        <Radio className="w-4 h-4" />
+                        LIVE
+                      </span>
                     </td>
                     <td className="py-3 px-4 text-right">
                       <button
-                        onClick={() => onHostEvent(event)}
                         className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
                           isDark
                             ? "text-white hover:bg-[#6549B8]"
                             : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
                         }`}
                       >
-                        Run
+                        Manage
                       </button>
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -1117,19 +966,19 @@ const EventsList = ({
     </div>
   );
 };
-const ConfirmEvents = () => {
+
+const LiveEvent = () => {
   const { user } = useSelector((state) => state.auth);
   const [isDark, setIsDark] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [events, setEvents] = useState([]);
+  const [liveEvents, setLiveEvents] = useState([]);
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
-  const [liveEventsCount, setLiveEventsCount] = useState(0);
-  const [isHostModalOpen, setIsHostModalOpen] = useState(false);
-  const [selectedEventToHost, setSelectedEventToHost] = useState(null);
-  const [isHosting, setIsHosting] = useState(false);
+  const [totalEventsCount, setTotalEventsCount] = useState(0);
+  const [confirmedEventsCount, setConfirmedEventsCount] = useState(0);
+
   const handleCreateEvent = async () => {
     if (!user) return;
     setLoading(true);
@@ -1147,6 +996,7 @@ const ConfirmEvents = () => {
       setLoading(false);
     }
   };
+
   const handleSelectGroup = (selectedGroup) => {
     setIsModalOpen(false);
     navigate(`/ticket/create-event/${selectedGroup._id}`);
@@ -1155,28 +1005,38 @@ const ConfirmEvents = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [eventsData, groupsData, liveEventsData] = await Promise.all([
-          getMyUpcomingEvents(),
-          getGroups(),
+        const [liveEventsData, groupsData, allEventsData] = await Promise.all([
           getMyLiveEvents(),
+          getGroups(),
+          getMyEvents(),
         ]);
-        const eventsArray = eventsData?.tickets
-          ? [].concat(eventsData.tickets)
+        
+        const liveEventsArray = liveEventsData?.tickets
+          ? [].concat(liveEventsData.tickets)
           : [];
-        setEvents(eventsArray);
+        setLiveEvents(liveEventsArray);
+        
         const groupsArray = Array.isArray(groupsData) ? groupsData : [];
         setGroups(groupsArray);
 
-        setLiveEventsCount(liveEventsData?.tickets?.length || 0);
+        // Get confirmed events count from getMyEvents
+        const allEventsArray = allEventsData?.tickets
+          ? [].concat(allEventsData.tickets)
+          : [];
+        const confirmedCount = allEventsArray.filter(
+          (event) => event.event_status === "confirmed"
+        ).length;
+        setConfirmedEventsCount(confirmedCount);
       } catch (e) {
         console.error("Error fetching data:", e);
-        setEvents([]);
+        setLiveEvents([]);
         setGroups([]);
-        setLiveEventsCount(0);
+        setConfirmedEventsCount(0);
       }
     };
     fetchData();
   }, []);
+
 
   useEffect(() => {
     const theme = localStorage.getItem("theme");
@@ -1193,48 +1053,6 @@ const ConfirmEvents = () => {
     document.documentElement.classList.toggle("dark", newDark);
     localStorage.setItem("theme", newDark ? "dark" : "light");
   };
-  const handleHostEvent = async () => {
-    if (!selectedEventToHost) return;
-    
-    setIsHosting(true);
-    try {
-      const response = await goLiveEvent(selectedEventToHost._id);
-      
-      if (response) {
-        // Show success message
-        alert(`"${selectedEventToHost.event_name}" is now live!`);
-        
-        // Close modal
-        setIsHostModalOpen(false);
-        setSelectedEventToHost(null);
-        
-        // Navigate to live events page
-        navigate("/ticket/live-events");
-      }
-    } catch (error) {
-      console.error("Error hosting event:", error);
-      
-      // Check if error has expired dates information
-      if (error.response?.data?.expiredDates) {
-        const expiredDates = error.response.data.expiredDates.join("\n• ");
-        alert(
-          `Cannot host event. The following dates have expired:\n\n• ${expiredDates}\n\nPlease update these dates before hosting the event.`
-        );
-      } else {
-        alert(
-          error.response?.data?.message || 
-          "Failed to host event. Please try again."
-        );
-      }
-    } finally {
-      setIsHosting(false);
-    }
-  };
-
-const openHostModal = (event) => {
-  setSelectedEventToHost(event);
-  setIsHostModalOpen(true);
-};
 
   const theme = isDark
     ? {
@@ -1249,10 +1067,9 @@ const openHostModal = (event) => {
         subText: "text-gray-600",
         cardBg: "bg-slate-100",
       };
-  const confirmedEventsCount = events.length;
-  const totalLiveEvents = events.filter(
-    (event) => event.event_status === "live"
-  ).length;
+
+const liveEventsCount = liveEvents.length;
+
   return (
     <div
       className={`${theme.bg} ${theme.text} h-screen flex overflow-hidden transition-colors duration-300 max-w-full`}
@@ -1329,11 +1146,12 @@ const openHostModal = (event) => {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
             <div>
-              <h1 className={`text-3xl sm:text-4xl font-bold ${theme.text}`}>
-                Saved Events
+              <h1 className={`text-3xl sm:text-4xl font-bold ${theme.text} flex items-center gap-3`}>
+                <Radio className="w-8 h-8 text-red-500" />
+                Live Events
               </h1>
               <p className={`${theme.subText} mt-2 text-base sm:text-lg`}>
-                Review and manage everything related to events.
+                Manage and monitor your live events in real-time.
               </p>
             </div>
             <button
@@ -1364,128 +1182,101 @@ const openHostModal = (event) => {
               {loading ? "Checking..." : "Create event"}
             </button>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 md:items-start gap-6 lg:gap-8 mb-8">
             <div className="md:col-span-1 w-full p-4">
               <MyGroupsCard theme={theme} groups={groups} isDark={isDark} />
             </div>
               {/* Stats Cards Container */}
               <div className="w-full flex items-center justify-center">
-                {/* Mobile/Tablet View */}
-                <div className="lg:hidden w-full flex justify-center px-2">
-                  <div
-                    style={{
-                      width: "100%",
-                      maxWidth: "340px",
-                      minWidth: "280px",
-                      height: "203px",
-                      padding: "21px",
-                      gap: "20px",
-                      borderRadius: "50px",
-                      background: isDark ? "#212426" : "#f1f1f1",
-                      boxShadow: isDark 
-                        ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
-                        : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
-                    }}
-                    className="flex flex-row items-center justify-between"
-                  >
-                    <StatsCard
-                      isDark={isDark}
-                      theme={theme}
-                      count={confirmedEventsCount}
-                      title="Confirmed events"
-                      icon={
-                        <div className="text-yellow-400">
-                          <PartyPopper className="h-6 w-6 sm:h-7 sm:w-7" />
-                        </div>
-                      }
-                      isMobile={true}
-                    />
-                    <StatsCard
-                      isDark={isDark}
-                      theme={theme}
-                      count={totalLiveEvents}
-                      title="Live events"
-                      icon={
-                        <div className="text-red-500 relative">
-                          <Radio className="h-6 w-6 sm:h-7 sm:w-7" />
-                        </div>
-                      }
-                      isMobile={true}
-                    />
-                  </div>
+              {/* Mobile/Tablet View */}
+              <div className="lg:hidden w-full flex justify-center px-2">
+                <div
+                  style={{
+                    width: "100%",
+                    maxWidth: "340px",
+                    minWidth: "280px",
+                    height: "203px",
+                    padding: "21px",
+                    gap: "20px",
+                    borderRadius: "50px",
+                    background: isDark ? "#212426" : "#f1f1f1",
+                    boxShadow: isDark 
+                      ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
+                      : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
+                  }}
+                  className="flex flex-row items-center justify-between"
+                >
+                  <StatsCard
+                    isDark={isDark}
+                    theme={theme}
+                    count={confirmedEventsCount}
+                    title="Confirmed events"
+                    icon={
+                      <div className="text-yellow-400">
+                        <PartyPopper className="h-6 w-6 sm:h-7 sm:w-7" />
+                      </div>
+                    }
+                    isMobile={true}
+                  />
+                  <StatsCard
+                    isDark={isDark}
+                    theme={theme}
+                    count={liveEventsCount}
+                    title="Live events"
+                    icon={
+                      <div className="text-red-500 relative">
+                        <Radio className="h-6 w-6 sm:h-7 sm:w-7" />
+                      </div>
+                    }
+                    isMobile={true}
+                  />
                 </div>
-
-                {/* Desktop View */}
-                <div className="hidden lg:flex w-full justify-center">
-                  <div
-                    style={{
-                      width: "min(100%, 300px)",
-                      height: "203px",
-                      padding: "21px",
-                      gap: "20px",
-                      borderRadius: "50px",
-                      background: isDark ? "#212426" : "#f1f1f1",
-                      boxShadow: isDark
-                        ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
-                        : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
-                    }}
-                    className="flex flex-row items-center justify-between transition-all duration-300"
-                  >
-                    <StatsCard
-                      isDark={isDark}
-                      theme={theme}
-                      count={confirmedEventsCount}
-                      title="Total events"
-                      icon={
-                        <div className="text-yellow-400">
-                          <PartyPopper className="h-9 w-9 xl:h-10 xl:w-10" />
-                        </div>
-                      }
-                      isMobile={false}
-                    />
-                    
-                    <StatsCard
-                      isDark={isDark}
-                      theme={theme}
-                      count={totalLiveEvents}
-                      title="Live events"
-                      icon={
-                        <div className="text-red-500 relative">
-                          <Radio className="h-9 w-9 xl:h-10 xl:w-10" />
-                        </div>
-                      }
-                      isMobile={false}
-                    />
-                  </div>
-                </div>
+              </div>
+              {/* Desktop View */}
+              <div className="hidden lg:flex w-full justify-center gap-6">
+                <StatsCard
+                  isDark={isDark}
+                  theme={theme}
+                  count={confirmedEventsCount}
+                  title="Confirmed events"
+                  icon={
+                    <div className="text-yellow-400">
+                      <PartyPopper className="h-9 w-9 xl:h-10 xl:w-10" />
+                    </div>
+                  }
+                  isMobile={false}
+                />
+                <StatsCard
+                  isDark={isDark}
+                  theme={theme}
+                  count={liveEventsCount}
+                  title="Live events"
+                  icon={
+                    <div className="text-red-500 relative">
+                      <Radio className="h-9 w-9 xl:h-10 xl:w-10" />
+                    </div>
+                  }
+                  isMobile={false}
+                />
+              </div>
               </div>
             <div className="md:col-span-2">
               <BankAccountDetailsCard isDark={isDark} theme={theme} />
             </div>
           </div>
+
           <EventsList
             isDark={isDark}
             theme={theme}
-            events={events}
+            events={liveEvents}
             groups={groups}
             searchTerm={searchTerm}
             onSearchTermChange={setSearchTerm}
-            onHostEvent={openHostModal}
           />
         </main>
-        <HostEventModal
-          isOpen={isHostModalOpen}
-          onClose={() => {
-            setIsHostModalOpen(false);
-            setSelectedEventToHost(null);
-          }}
-          onConfirm={handleHostEvent}
-          eventName={selectedEventToHost?.event_name || ""}
-          isDark={isDark}
-          theme={theme}
-          isLoading={isHosting}
-        />
       </div>
+
       <GroupSelectionModal
         groups={groups}
         isOpen={isModalOpen}
@@ -1495,4 +1286,4 @@ const openHostModal = (event) => {
     </div>
   );
 };
-export default ConfirmEvents;
+export default LiveEvent;

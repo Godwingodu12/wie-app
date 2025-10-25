@@ -542,9 +542,7 @@ export const getMyLiveEvents = async (req, res) => {
         const currentDate = new Date();
         const tickets = await Ticket.find({ 
             userId: userId, 
-            status: 'live',
-            event_start_date: { $lte: currentDate },
-            event_end_date: { $gte: currentDate }
+            event_status: 'live',
         });
         res.status(200).json({
             message: "My Live Tickets retrieved successfully",
@@ -573,8 +571,8 @@ export const getMyLiveEventView = async (req, res) => {
             _id: ticketId,
             userId: userId,
             status: 'live',
-            event_start_date: { $lte: currentDate },
-            event_end_date: { $gte: currentDate }
+            start_date: { $lte: currentDate },
+            end_date: { $gte: currentDate }
         });
         if (!ticket) {
             return res.status(404).json({
@@ -619,15 +617,28 @@ export const getMyPastEvents = async (req, res) => {
 export const getMyUpcomingEvents = async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
-        const currentDate = new Date();
+        
+        // Get all confirmed tickets for the user
         const tickets = await Ticket.find({ 
             userId: userId,
-            status: 'pending',
-            event_start_date: { $gt: currentDate }
+            event_status: 'confirmed'
         });
+        
+        // Filter tickets with upcoming start dates
+        const currentDate = new Date();
+        currentDate.setHours(0, 0, 0, 0); // Reset to start of day for accurate comparison
+        
+        const upcomingTickets = tickets.filter(ticket => {
+            if (ticket.event_dates && ticket.event_dates.length > 0 && ticket.event_dates[0].start_date) {
+                const eventStartDate = new Date(ticket.event_dates[0].start_date);
+                return eventStartDate >= currentDate;
+            }
+            return false;
+        });
+        
         res.status(200).json({
             message: "My Upcoming Tickets retrieved successfully",
-            tickets: tickets
+            tickets: upcomingTickets
         });
     } catch (error) {
         console.error("Error fetching upcoming tickets:", error);
@@ -662,9 +673,9 @@ export const getOtherLiveEvents = async(req, res)=>{
       const currentDate = new Date();
       const tickets = await Ticket.find({ 
                 userId: other,
-                status: 'live',
-                event_start_date: { $lte: currentDate },
-                event_end_date: { $gte: currentDate }
+                event_status: 'live',
+                start_date: { $lte: currentDate },
+                end_date: { $gte: currentDate }
             });
       res.status(200).json({
             message: "Other User Live Tickets retrieved successfully",
@@ -886,6 +897,69 @@ export const goLiveEvent = async(req, res) => {
         message: "Ticket not found"
       });
     }
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+    const expiredDates = [];
+    // Check event_dates array for start_date and end_date
+    if (ticket.event_dates && ticket.event_dates.length > 0) {
+      ticket.event_dates.forEach((dateObj, index) => {
+        if (dateObj.start_date) {
+          const startDate = new Date(dateObj.start_date);
+          startDate.setHours(0, 0, 0, 0);
+          if (startDate < currentDate) {
+            expiredDates.push(`Event start date (${startDate.toLocaleDateString()})`);
+          }
+        }
+        if (dateObj.end_date) {
+          const endDate = new Date(dateObj.end_date);
+          endDate.setHours(0, 0, 0, 0);
+          if (endDate < currentDate) {
+            expiredDates.push(`Event end date (${endDate.toLocaleDateString()})`);
+          }
+        }
+      });
+    }
+    // Check booking_start_date
+    if (ticket.booking_start_date) {
+      const bookingStartDate = new Date(ticket.booking_start_date);
+      bookingStartDate.setHours(0, 0, 0, 0);
+      if (bookingStartDate < currentDate) {
+        expiredDates.push(`Booking start date (${bookingStartDate.toLocaleDateString()})`);
+      }
+    }
+    // Check booking_end_date
+    if (ticket.booking_end_date) {
+      const bookingEndDate = new Date(ticket.booking_end_date);
+      bookingEndDate.setHours(0, 0, 0, 0);
+      if (bookingEndDate < currentDate) {
+        expiredDates.push(`Booking end date (${bookingEndDate.toLocaleDateString()})`);
+      }
+    }
+    // Check event_start_date (fallback if not in event_dates array)
+    if (ticket.start_date) {
+      const eventStartDate = new Date(ticket.start_date);
+      eventStartDate.setHours(0, 0, 0, 0);
+      if (eventStartDate < currentDate) {
+        expiredDates.push(`Event start date (${eventStartDate.toLocaleDateString()})`);
+      }
+    }
+    // Check event_end_date (fallback if not in event_dates array)
+    if (ticket.event_end_date) {
+      const eventEndDate = new Date(ticket.event_end_date);
+      eventEndDate.setHours(0, 0, 0, 0);
+      if (eventEndDate < currentDate) {
+        expiredDates.push(`Event end date (${eventEndDate.toLocaleDateString()})`);
+      }
+    }
+    // If any dates are expired, prevent going live
+    if (expiredDates.length > 0) {
+      return res.status(400).json({
+        message: "Cannot go live with expired dates. Please update the following dates before going live:",
+        expiredDates: expiredDates,
+        currentDate: currentDate.toLocaleDateString()
+      });
+    }
+    // All dates are valid, proceed to go live
     ticket.event_status = 'live';
     await ticket.save();
     res.status(200).json({

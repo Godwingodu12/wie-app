@@ -32,6 +32,8 @@ import DeletedEvent from './pages/ticket/DeletedEvent';
 import SuggestionsPage from './pages/auth/SuggestionsPage';
 import ConfirmEvents from './pages/ticket/ConfirmEvents';
 import PreviousEvent from './pages/ticket/PreviousEvent';
+import LiveEvent from './pages/ticket/LiveEvent';
+
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
   if (!token || !user) {
@@ -270,6 +272,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <PreviousEvent />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/live-events"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <LiveEvent />
           </ProtectedRoute>
         }
       />

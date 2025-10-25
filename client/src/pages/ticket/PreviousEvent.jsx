@@ -318,13 +318,14 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
-
   const handleSelectMonth = (month) => {
-    setCurrentDate(new Date(currentYear, month, 1));
+    const newDate = new Date(currentYear, month, selectedDate?.getDate() || 1);
+    setCurrentDate(newDate);
   };
 
   const handleSelectYear = (year) => {
-    setCurrentDate(new Date(year, currentMonth, 1));
+    const newDate = new Date(year, currentMonth, selectedDate?.getDate() || 1);
+    setCurrentDate(newDate);
   };
   const handleDateClick = (dayInfo) => {
     if (selectedDate && dayInfo.fullDate.toDateString() === selectedDate.toDateString()) {
@@ -338,22 +339,26 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
 
   const dates = useMemo(() => {
     const today = new Date();
-    // Get current week centered around today (more days on big desktop)
     const isLargeDesktop = window.innerWidth >= 1280;
     const totalDays = isLargeDesktop ? 14 : 7;
+    
+    // Use currentDate as the center point for the calendar
+    const centerDate = new Date(currentDate);
     const daysBefore = Math.floor(totalDays / 2);
 
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - daysBefore);
+    const startOfWeek = new Date(centerDate);
+    startOfWeek.setDate(centerDate.getDate() - daysBefore);
 
     const days = [];
+    const todayStr = today.toDateString();
+    
     for (let i = 0; i < totalDays; i++) {
       const date = new Date(startOfWeek);
       date.setDate(startOfWeek.getDate() + i);
       days.push({
         fullDate: new Date(date),
         date: date.getDate(),
-        isToday: date.getTime() === today.getTime(),
+        isToday: date.toDateString() === todayStr,
       });
     }
     return days;
@@ -476,59 +481,84 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
       }
     }, [isSearchActive]);
 
-    const filteredEvents = useMemo(() => {
-      let filtered = events || [];
-      // Filter by selected calendar date (using end_date)
-      if (selectedDate) {
-        filtered = filtered.filter((event) => {
-          // Check if event has event_dates array with end_date
-          const endDateStr = event.event_dates?.[0]?.end_date || event.end_date;
-          if (!endDateStr) return false;
-          
+  const filteredEvents = useMemo(() => {
+    let filtered = events || [];
+    
+    // Filter by selected calendar date
+    if (selectedDate) {
+      filtered = filtered.filter((event) => {
+        const endDateStr = event.event_dates?.[0]?.end_date || event.end_date;
+        const startDateStr = event.event_dates?.[0]?.start_date || event.start_date || event.event_start_date;
+        
+        if (!endDateStr && !startDateStr) return false;
+        
+        // Normalize selected date to start of day
+        const selectedDateOnly = new Date(
+          selectedDate.getFullYear(),
+          selectedDate.getMonth(),
+          selectedDate.getDate()
+        );
+        
+        // Check if selected date falls within event date range
+        if (startDateStr && endDateStr) {
+          const eventStartDate = new Date(startDateStr);
           const eventEndDate = new Date(endDateStr);
-          const selectedDateOnly = new Date(
-            selectedDate.getFullYear(),
-            selectedDate.getMonth(),
-            selectedDate.getDate()
+          
+          const eventStartOnly = new Date(
+            eventStartDate.getFullYear(),
+            eventStartDate.getMonth(),
+            eventStartDate.getDate()
           );
-          const eventDateOnly = new Date(
+          const eventEndOnly = new Date(
             eventEndDate.getFullYear(),
             eventEndDate.getMonth(),
             eventEndDate.getDate()
           );
           
-          return eventDateOnly.getTime() === selectedDateOnly.getTime();
-        });
-      }
+          // Check if selected date is within the event's date range
+          return selectedDateOnly.getTime() >= eventStartOnly.getTime() && 
+                selectedDateOnly.getTime() <= eventEndOnly.getTime();
+        }
+        
+        // Fallback to single date check if only one date is available
+        const dateToCheck = new Date(endDateStr || startDateStr);
+        const eventDateOnly = new Date(
+          dateToCheck.getFullYear(),
+          dateToCheck.getMonth(),
+          dateToCheck.getDate()
+        );
+        
+        return eventDateOnly.getTime() === selectedDateOnly.getTime();
+      });
+    }
 
-      // Filter by Paid/Free
-      if (activeFilter === "Paid") {
-        filtered = filtered.filter(
-          (event) => event.ticket_types && event.ticket_types.length > 0
-        );
-      } else if (activeFilter === "Free") {
-        filtered = filtered.filter(
-          (event) => !event.ticket_types || event.ticket_types.length === 0
-        );
-      }
-      // Filter by event type (Public/Private)
-      if (eventTypeFilter !== "All") {
-        filtered = filtered.filter(
-          (event) =>
-            event.event_privacy &&
-            event.event_privacy.toLowerCase() === eventTypeFilter.toLowerCase()
-        );
-      }
+    // Filter by Paid/Free
+    if (activeFilter === "Paid") {
+      filtered = filtered.filter(
+        (event) => event.ticket_types && event.ticket_types.length > 0
+      );
+    } else if (activeFilter === "Free") {
+      filtered = filtered.filter(
+        (event) => !event.ticket_types || event.ticket_types.length === 0
+      );
+    }
+    // Filter by event type (Public/Private)
+    if (eventTypeFilter !== "All") {
+      filtered = filtered.filter(
+        (event) =>
+          event.event_privacy &&
+          event.event_privacy.toLowerCase() === eventTypeFilter.toLowerCase()
+      );
+    }
 
-      // Filter by search term
-      if (searchTerm) {
-        filtered = filtered.filter((event) =>
-          event.event_name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      }
-
-      return filtered;
-    }, [events, searchTerm, activeFilter, selectedDate, eventTypeFilter]);
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter((event) =>
+        event.event_name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    return filtered;
+  }, [events, searchTerm, activeFilter, selectedDate, eventTypeFilter]);
 
     const paginatedEvents = useMemo(() => {
       const startIndex = (currentPage - 1) * itemsPerPage;
@@ -702,33 +732,32 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
             </div>
           </div>
         </div>
-  {/* Date Filter Indicator */}
-  {selectedDate && (
-    <div className="flex items-center justify-between mb-3 px-2">
-      <div className="flex items-center gap-2">
-        <span className={`text-xs sm:text-sm ${theme.subText}`}>
-          Showing events for:
-        </span>
-        <span className={`text-xs sm:text-sm font-semibold ${theme.text}`}>
-          {selectedDate.toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })}
-        </span>
-      </div>
-      <button
-          onClick={() => setSelectedDate(null)}
-          className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${
-            isDark
-              ? "bg-blue-600 hover:bg-blue-500 text-white"
-              : "bg-blue-500 hover:bg-blue-600 text-white"
-          }`}
-        >
-          Clear filter
-        </button>
-    </div>
-  )}
+        {selectedDate && (
+          <div className="flex items-center justify-between mb-3 px-2">
+            <div className="flex items-center gap-2">
+              <span className={`text-xs sm:text-sm ${theme.subText}`}>
+                Showing events for:
+              </span>
+              <span className={`text-xs sm:text-sm font-semibold ${theme.text}`}>
+                {selectedDate.toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </span>
+            </div>
+            <button
+                onClick={() => setSelectedDate(null)}
+                className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${
+                  isDark
+                    ? "bg-blue-600 hover:bg-blue-500 text-white"
+                    : "bg-blue-500 hover:bg-blue-600 text-white"
+                }`}
+              >
+                Clear filter
+              </button>
+          </div>
+        )}
         {/* Scrollable content area */}
           <div
             className="flex-1 overflow-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500"

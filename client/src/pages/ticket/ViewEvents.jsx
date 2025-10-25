@@ -777,16 +777,18 @@ const filteredEvents = useMemo(() => {
           })}
         </span>
       </div>
-      <button
-        onClick={() => setSelectedDate(null)}
-        className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${
-          isDark
-            ? "bg-blue-600 hover:bg-blue-500 text-white"
-            : "bg-blue-500 hover:bg-blue-600 text-white"
-        }`}
-      >
-        Clear filter
-      </button>
+        <div className="mt-2">
+          <button
+            onClick={() => setSelectedDate(null)}
+            className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${
+              isDark
+                ? "bg-blue-600 hover:bg-blue-500 text-white"
+                : "bg-blue-500 hover:bg-blue-600 text-white"
+            }`}
+          >
+            Clear filter
+          </button>
+        </div>
     </div>
   )}
     {/* Filter Dropdown */}
@@ -1063,48 +1065,76 @@ const filteredEvents = useMemo(() => {
               );
             })}
           </div>
-
           {/* Desktop Table View */}
-          <table className="hidden lg:table w-full table-auto text-left">
-            <thead>
-              <tr
-                className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
-                  isDark ? "border-gray-700" : "border-gray-200"
-                } text-sm sticky top-0`}
-                style={{
-                  background: isDark ? "#232426" : "#F1F1F1",
-                  zIndex: 10,
-                }}
-              >
-                <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[38%]">
-                  <div className="flex items-center justify-start gap-2">
-                    {isSearchActive ? (
-                      <div className="flex items-center gap-2 w-full">
-                        <Search className="w-4 h-4" />
-                        <input
-                          ref={searchInputRef}
-                          type="text"
-                          placeholder="Search..."
-                          value={searchTerm}
-                          onChange={(e) => onSearchTermChange(e.target.value)}
-                          onBlur={() => {
-                            setIsSearchActive(false);
-                            onSearchTermChange("");
-                          }}
-                          className="bg-transparent focus:outline-none w-full placeholder-gray-500"
-                        />
-                      </div>
-                    ) : (
-                      <>
-                        <span>Event</span>
-                        <Search
-                          className="w-4 h-4 cursor-pointer"
-                          onClick={() => setIsSearchActive(true)}
-                        />
-                      </>
-                    )}
-                  </div>
-                </th>
+          <div className="hidden lg:block">
+            {/* Date Filter Indicator - Desktop */}
+            {selectedDate && (
+              <div className="flex items-center justify-between mb-4 px-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${theme.subText}`}>
+                    Events for:
+                  </span>
+                  <span className={`text-sm font-semibold ${theme.text}`}>
+                    {selectedDate.toLocaleDateString("en-GB", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedDate(null)}
+                  className={`text-xs font-bold px-4 py-1.5 rounded-full transition-colors ${
+                    isDark
+                      ? "bg-blue-600 hover:bg-blue-500 text-white"
+                      : "bg-blue-500 hover:bg-blue-600 text-white"
+                  }`}
+                >
+                  Clear filter
+                </button>
+              </div>
+            )}
+            
+            <table className="w-full table-auto text-left">
+              <thead>
+                <tr
+                  className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
+                    isDark ? "border-gray-700" : "border-gray-200"
+                  } text-sm sticky top-0`}
+                  style={{
+                    background: isDark ? "#232426" : "#F1F1F1",
+                    zIndex: 10,
+                  }}
+                >
+                  <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[38%]">
+                    <div className="flex items-center justify-start gap-2">
+                      {isSearchActive ? (
+                        <div className="flex items-center gap-2 w-full">
+                          <Search className="w-4 h-4" />
+                          <input
+                            ref={searchInputRef}
+                            type="text"
+                            placeholder="Search..."
+                            value={searchTerm}
+                            onChange={(e) => onSearchTermChange(e.target.value)}
+                            onBlur={() => {
+                              setIsSearchActive(false);
+                              onSearchTermChange("");
+                            }}
+                            className="bg-transparent focus:outline-none w-full placeholder-gray-500"
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <span>Event</span>
+                          <Search
+                            className="w-4 h-4 cursor-pointer"
+                            onClick={() => setIsSearchActive(true)}
+                          />
+                        </>
+                      )}
+                    </div>
+                  </th>
                 <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
                   <div className="relative">
                     <button
@@ -1223,6 +1253,7 @@ const filteredEvents = useMemo(() => {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 
