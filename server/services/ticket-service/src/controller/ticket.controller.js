@@ -542,9 +542,7 @@ export const getMyLiveEvents = async (req, res) => {
         const currentDate = new Date();
         const tickets = await Ticket.find({ 
             userId: userId, 
-            status: 'live',
-            event_start_date: { $lte: currentDate },
-            event_end_date: { $gte: currentDate }
+            event_status: 'live',
         });
         res.status(200).json({
             message: "My Live Tickets retrieved successfully",
@@ -573,8 +571,8 @@ export const getMyLiveEventView = async (req, res) => {
             _id: ticketId,
             userId: userId,
             status: 'live',
-            event_start_date: { $lte: currentDate },
-            event_end_date: { $gte: currentDate }
+            start_date: { $lte: currentDate },
+            end_date: { $gte: currentDate }
         });
         if (!ticket) {
             return res.status(404).json({
@@ -619,15 +617,28 @@ export const getMyPastEvents = async (req, res) => {
 export const getMyUpcomingEvents = async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
-        const currentDate = new Date();
+        
+        // Get all confirmed tickets for the user
         const tickets = await Ticket.find({ 
             userId: userId,
-            status: 'pending',
-            event_start_date: { $gt: currentDate }
+            event_status: 'confirmed'
         });
+        
+        // Filter tickets with upcoming start dates
+        const currentDate = new Date();
+        currentDate.setHours(0, 0, 0, 0); // Reset to start of day for accurate comparison
+        
+        const upcomingTickets = tickets.filter(ticket => {
+            if (ticket.event_dates && ticket.event_dates.length > 0 && ticket.event_dates[0].start_date) {
+                const eventStartDate = new Date(ticket.event_dates[0].start_date);
+                return eventStartDate >= currentDate;
+            }
+            return false;
+        });
+        
         res.status(200).json({
             message: "My Upcoming Tickets retrieved successfully",
-            tickets: tickets
+            tickets: upcomingTickets
         });
     } catch (error) {
         console.error("Error fetching upcoming tickets:", error);
@@ -662,9 +673,9 @@ export const getOtherLiveEvents = async(req, res)=>{
       const currentDate = new Date();
       const tickets = await Ticket.find({ 
                 userId: other,
-                status: 'live',
-                event_start_date: { $lte: currentDate },
-                event_end_date: { $gte: currentDate }
+                event_status: 'live',
+                start_date: { $lte: currentDate },
+                end_date: { $gte: currentDate }
             });
       res.status(200).json({
             message: "Other User Live Tickets retrieved successfully",
@@ -925,8 +936,8 @@ export const goLiveEvent = async(req, res) => {
       }
     }
     // Check event_start_date (fallback if not in event_dates array)
-    if (ticket.event_start_date) {
-      const eventStartDate = new Date(ticket.event_start_date);
+    if (ticket.start_date) {
+      const eventStartDate = new Date(ticket.start_date);
       eventStartDate.setHours(0, 0, 0, 0);
       if (eventStartDate < currentDate) {
         expiredDates.push(`Event start date (${eventStartDate.toLocaleDateString()})`);
