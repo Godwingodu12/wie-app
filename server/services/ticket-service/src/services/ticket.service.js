@@ -3368,6 +3368,7 @@ export const getTicketById = async (req, res) => {
 export const deleteTicket = async (req, res) => {
   try {
     const ticketId = req.params.ticketId;
+    
     // Validate required parameters
     const userId = req.user._id || req.user.id;
     if (!ticketId || !userId) {
@@ -3376,20 +3377,88 @@ export const deleteTicket = async (req, res) => {
         required: ["ticketId", "userId"]
       });
     }
-    const deletedTicket = await Ticket.findOneAndDelete({ 
+    
+    const deletedTicket = await Ticket.findOne({ 
       _id: ticketId, 
       userId: userId
     });
+    
     if (!deletedTicket) {
       return res.status(404).json({ message: "Ticket not found or unauthorized" });
     }
+    
+    deletedTicket.event_status = 'cancelled';
+    await deletedTicket.save({ validateBeforeSave: false });
     res.status(200).json({ 
       message: "Ticket deleted successfully",
+      ticket: deletedTicket,
       ticketId: ticketId,
       userId: userId
     });
   } catch (error) {
     console.error("Error deleting ticket:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+export const deleteSubEvent = async (req, res) => {
+  try {
+    const ticketId = req.params.ticketId;
+    const subEventId = req.params.subEventId;
+    
+    const userId = req.user._id || req.user.id;
+    if (!ticketId || !subEventId || !userId) {
+      return res.status(400).json({ 
+        message: "Missing required parameters",
+        required: ["ticketId", "subEventId", "userId"]
+      });
+    }
+    
+    const updatedTicket = await Ticket.findOneAndUpdate(
+      { _id: ticketId },
+      { $pull: { sub_events: { _id: subEventId } } },
+      { new: true }
+    );
+    
+    if (!updatedTicket) {
+      return res.status(404).json({ message: "Ticket not found or unauthorized" });
+    }
+    
+    // Update fields directly without triggering validation
+    updatedTicket.event_status = 'cancelled';
+    updatedTicket.main_ticket_id = ticketId;
+    await updatedTicket.save({ validateBeforeSave: false });
+    
+    res.status(200).json({ 
+      message: "Sub-event deleted successfully",
+      ticket: updatedTicket,
+      ticketId: ticketId,
+      userId: userId,
+      subEventId: subEventId
+    });
+  } catch (error) {
+    console.error("Error deleting sub-event:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
+export const getAllDeletedEvents = async(req, res)=>{
+  try{
+    const userId = req.user._id || req.user.id;
+    if (!userId) {
+      return res.status(400).json({
+        message: "Missing required parameter: userId"
+      });
+    }
+    const deletedEvents = await Ticket.find({ event_status: 'cancelled', userId: userId}).sort({ createdAt: -1 });
+    if (!deletedEvents || deletedEvents.length === 0) {
+      return res.status(404).json({ message: "No deleted events found" });
+    }
+    res.status(200).json({
+      message: "Deleted events fetched successfully",
+      deletedEvents: deletedEvents,
+      count: deletedEvents.length
+    });
+  }catch(error){
+    console.error("Error fetching deleted events:", error);
     res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
