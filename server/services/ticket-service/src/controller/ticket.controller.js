@@ -494,7 +494,7 @@ export const getGroupView = async (req, res) => {
 export const getMyEvents = async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
-        const tickets = await Ticket.find({ userId: userId })
+        const tickets = await Ticket.find({ userId: userId,event_status: { $in: ['pending', 'confirmed', 'live', 'completed'] } })
         .sort({ createdAt: -1 }) // newest first
         .exec();
         res.status(200).json({
@@ -1044,10 +1044,178 @@ export const showEventBankDetails = async (req, res) => {
     const userId = req.user._id || req.user.id;
     const tickets = await Ticket.find({ 
       userId: userId, 
-      event_status: { $in: ['pending', 'confirmed','live','completed'] }
+      event_status: { $in: ['confirmed','live'] }
     })
     .sort({ createdAt: -1 })
     .exec();
+    const allBankDetails = [];
+    tickets.forEach(ticket => {
+      const hasSubEvents = ticket.sub_events && ticket.sub_events.length > 0;
+      if (ticket.banking_details && ticket.banking_details.length > 0) {
+        ticket.banking_details.forEach(bank => {
+          allBankDetails.push({
+            event_id: ticket._id,
+            event_name: ticket.event_name || "N/A",
+            event_type: "Main Event",
+            bank_acc_type: bank.bank_acc_type || "N/A",
+            bank_acc_no: bank.bank_acc_no || "N/A",
+            bank_ifsc: bank.bank_ifsc || "N/A",
+            bank_acc_holder: bank.bank_acc_holder || "N/A",
+            bank_detail_id: bank._id
+          });
+        });
+      }
+      if (hasSubEvents) {
+        ticket.sub_events.forEach((subEvent, index) => {
+          if (subEvent.banking_details && subEvent.banking_details.length > 0) {
+            subEvent.banking_details.forEach(bank => {
+              allBankDetails.push({
+                event_id: subEvent._id,
+                event_name: subEvent.event_name || "N/A",
+                event_type: "Sub Event",
+                parent_event_name: ticket.event_name || "N/A",
+                bank_acc_type: bank.bank_acc_type || "N/A",
+                bank_acc_no: bank.bank_acc_no || "N/A",
+                bank_ifsc: bank.bank_ifsc || "N/A",
+                bank_acc_holder: bank.bank_acc_holder || "N/A",
+                bank_detail_id: bank._id
+              });
+            });
+          } else {
+            console.log('No banking details found for sub-event:', subEvent.event_name);
+          }
+        });
+      }
+    });
+    res.status(200).json({
+      success: true,
+      count: allBankDetails.length,
+      bankDetails: allBankDetails
+    });
+  } catch (error) {
+    console.error("Error fetching bank details:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+export const showAllBankDetails = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    
+    // Fetch all tickets and groups for the user
+    const tickets = await Ticket.find({ userId: userId })
+      .sort({ createdAt: -1 })
+      .exec();
+    
+    const groups = await Group.find({ userId: userId })
+      .sort({ createdAt: -1 })
+      .exec();
+    
+    console.log("Total tickets found:", tickets.length);
+    console.log("Total groups found:", groups.length);
+    
+    const allBankDetails = [];
+
+    // Process Main Events
+    tickets.forEach(ticket => {
+      const hasSubEvents = ticket.sub_events && ticket.sub_events.length > 0;
+      
+      if (ticket.banking_details && ticket.banking_details.length > 0) {
+        ticket.banking_details.forEach(bank => {
+          allBankDetails.push({
+            source_type: "Event",
+            source_category: "Main Event",
+            source_id: ticket._id,
+            source_name: ticket.event_name || "N/A",
+            parent_name: null,
+            bank_acc_type: bank.bank_acc_type || "N/A",
+            bank_acc_no: bank.bank_acc_no || "N/A",
+            bank_ifsc: bank.bank_ifsc || "N/A",
+            bank_acc_holder: bank.bank_acc_holder || "N/A",
+            bank_detail_id: bank._id
+          });
+        });
+      }
+
+      // Process Sub Events
+      if (hasSubEvents) {
+        ticket.sub_events.forEach((subEvent) => {
+          if (subEvent.banking_details && subEvent.banking_details.length > 0) {
+            subEvent.banking_details.forEach(bank => {
+              allBankDetails.push({
+                source_type: "Event",
+                source_category: "Sub Event",
+                source_id: subEvent._id,
+                source_name: subEvent.event_name || "N/A",
+                parent_name: ticket.event_name || "N/A",
+                bank_acc_type: bank.bank_acc_type || "N/A",
+                bank_acc_no: bank.bank_acc_no || "N/A",
+                bank_ifsc: bank.bank_ifsc || "N/A",
+                bank_acc_holder: bank.bank_acc_holder || "N/A",
+                bank_detail_id: bank._id
+              });
+            });
+          }
+        });
+      }
+    });
+
+    // Process Groups - Bank details are stored as individual fields
+    groups.forEach(group => {
+      console.log("Processing group:", group.name);
+      
+      // Check if group has primary bank account details
+      if (group.primary_bank_acc_no && group.primary_bank_acc_no.trim() !== '') {
+        console.log(`Found bank details for group ${group.name}`);
+        
+        allBankDetails.push({
+          source_type: "Group",
+          source_category: "Group",
+          source_id: group._id,
+          source_name: group.name || "N/A",
+          parent_name: null,
+          bank_acc_type: group.primary_bank_acc_type || "N/A",
+          bank_acc_no: group.primary_bank_acc_no || "N/A",
+          bank_ifsc: group.primary_bank_ifsc || "N/A",
+          bank_acc_holder: group.primary_bank_acc_holder || "N/A",
+          bank_detail_id: group._id // Using group _id as there's no separate bank detail id
+        });
+      } else {
+        console.log(`No banking details found for group ${group.name || group._id}`);
+      }
+    });
+
+    console.log("Total bank details collected:", allBankDetails.length);
+
+    res.status(200).json({
+      success: true,
+      count: allBankDetails.length,
+      bankDetails: allBankDetails,
+      summary: {
+        total: allBankDetails.length,
+        from_main_events: allBankDetails.filter(b => b.source_category === "Main Event").length,
+        from_sub_events: allBankDetails.filter(b => b.source_category === "Sub Event").length,
+        from_groups: allBankDetails.filter(b => b.source_category === "Group").length
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching bank details:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+export const LiveEventBankDetails = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const tickets = await Ticket.find({ 
+      userId: userId, 
+      event_status: 'live' }).sort({ createdAt: -1 }).exec();
     const allBankDetails = [];
     tickets.forEach(ticket => {
       const hasSubEvents = ticket.sub_events && ticket.sub_events.length > 0;
