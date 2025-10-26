@@ -400,7 +400,7 @@ const SuggestionsPage = () => {
                               )}
                             </div>
                             <p className={`text-sm ${theme.subText} capitalize mb-2`}>
-                              {suggestedUser.role || "User"}
+                              {suggestedUser.organisation_type || suggestedUser.role }
                             </p>
                             
                             <div className="hidden md:flex items-center gap-4">
