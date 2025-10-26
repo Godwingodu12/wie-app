@@ -19,9 +19,8 @@ import SideCalenderIcon from "../../assets/HOMEPAGE/SideCalenderIcon.svg";
 import PreviousIcon from "../../assets/HOMEPAGE/PreviousIcon.svg";
 import DeletedIcon from "../../assets/HOMEPAGE/DeletedIcon.svg";
 import BankIcon from "../../assets/HOMEPAGE/BankIcon.svg";
-
+import createTicketicon from "../../assets/HomePage/createTicketicon.svg";
 const SIDEBAR_WIDTH = 80;
-
 const Sidebar = ({ user, theme }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -82,7 +81,7 @@ const Sidebar = ({ user, theme }) => {
 
   const ticketMenuItems = [
     {
-      icon: EmojiIcon,
+      icon: createTicketicon,
       label: "Create event",
       onClick: handleCreateEvent,
       isButton: true
