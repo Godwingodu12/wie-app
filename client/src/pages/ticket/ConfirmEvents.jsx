@@ -166,7 +166,7 @@ function BankAccountDetailsCard({ isDark, theme }) {
   const [bankDetails, setBankDetails] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-
+  const navigate = useNavigate();
   useEffect(() => {
     const fetchBankDetails = async () => {
       try {
@@ -189,8 +189,7 @@ function BankAccountDetailsCard({ isDark, theme }) {
   const currentAccount = bankDetails[currentIndex];
 
   const handleSeeAll = () => {
-    // Navigate to a page showing all bank details or open a modal
-    console.log("See all bank details");
+    navigate(`/ticket/bank-details`);
   };
 
   const handleNext = () => {
@@ -785,45 +784,53 @@ const EventsList = ({
                   />
                 </div>
               )}
-                <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
-                  <div className="relative">
-                    <button
-                      onClick={() => setCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                      className="flex items-center justify-between w-full"
-                    >
-                      <span>{selectedCategory === "All" ? "Category" : selectedCategory}</span>
-                      <ChevronDown className="w-4 h-4" />
-                    </button>
-                    {isCategoryDropdownOpen && (
-                      <div className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${
-                        isDark ? "bg-[#232426] ring-gray-600" : "bg-slate-100 ring-gray-400"
-                      }`} style={{
-                        boxShadow: isDark
-                          ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
-                          : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A"
-                      }}>
-                        <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                          {categories.map((category) => (
-                            <button
-                              key={category}
-                              onClick={() => {
-                                setSelectedCategory(category);
-                                setCategoryDropdownOpen(false);
-                              }}
-                              className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${
-                                selectedCategory === category
-                                  ? isDark ? "bg-gray-700 text-white" : "bg-gray-200 text-gray-900"
-                                  : isDark ? "text-gray-300 hover:bg-gray-800" : "text-gray-700 hover:bg-gray-200"
-                              }`}
-                            >
-                              {category}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+            <div className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
+              <div className="relative">
+                <button
+                  onClick={() => setCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                  className="flex items-center justify-between w-full"
+                >
+                  <span>{selectedCategory === "All" ? "Category" : selectedCategory}</span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+
+                {isCategoryDropdownOpen && (
+                  <div
+                    className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${
+                      isDark ? "bg-[#232426] ring-gray-600" : "bg-slate-100 ring-gray-400"
+                    }`}
+                    style={{
+                      boxShadow: isDark
+                        ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
+                        : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
+                    }}
+                  >
+                    <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                      {categories.map((category) => (
+                        <button
+                          key={category}
+                          onClick={() => {
+                            setSelectedCategory(category);
+                            setCategoryDropdownOpen(false);
+                          }}
+                          className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${
+                            selectedCategory === category
+                              ? isDark
+                                ? "bg-gray-700 text-white"
+                                : "bg-gray-200 text-gray-900"
+                              : isDark
+                              ? "text-gray-300 hover:bg-gray-800"
+                              : "text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </th>
+                )}
+              </div>
+            </div>
               <span className={`text-sm font-bold ${theme.text} mr-1`}>Actions</span>
             </div>
           </div>
