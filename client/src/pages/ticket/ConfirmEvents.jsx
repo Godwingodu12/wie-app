@@ -230,7 +230,6 @@ function BankAccountDetailsCard({ isDark, theme }) {
       </div>
     );
   }
-
   return (
     <div
       className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${
@@ -1126,10 +1125,10 @@ const ConfirmEvents = () => {
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
-  const [liveEventsCount, setLiveEventsCount] = useState(0);
+  const [totalLiveEvents, setTotalLiveEvents] = useState(0);
   const [isHostModalOpen, setIsHostModalOpen] = useState(false);
   const [selectedEventToHost, setSelectedEventToHost] = useState(null);
-  const [isHosting, setIsHosting] = useState(false);
+  const [isHosting, setIsHosting] = useState(false);  
   const handleCreateEvent = async () => {
     if (!user) return;
     setLoading(true);
@@ -1151,7 +1150,6 @@ const ConfirmEvents = () => {
     setIsModalOpen(false);
     navigate(`/ticket/create-event/${selectedGroup._id}`);
   };
-
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -1160,24 +1158,28 @@ const ConfirmEvents = () => {
           getGroups(),
           getMyLiveEvents(),
         ]);
+        
         const eventsArray = eventsData?.tickets
           ? [].concat(eventsData.tickets)
           : [];
         setEvents(eventsArray);
+        
         const groupsArray = Array.isArray(groupsData) ? groupsData : [];
         setGroups(groupsArray);
 
-        setLiveEventsCount(liveEventsData?.tickets?.length || 0);
+        // Use the liveEventsData from the API call
+        const liveCount = liveEventsData?.tickets?.length || 0;
+        setTotalLiveEvents(liveCount);
+        
       } catch (e) {
         console.error("Error fetching data:", e);
         setEvents([]);
         setGroups([]);
-        setLiveEventsCount(0);
+        setTotalLiveEvents(0);
       }
     };
     fetchData();
   }, []);
-
   useEffect(() => {
     const theme = localStorage.getItem("theme");
     const d = theme
@@ -1250,9 +1252,6 @@ const openHostModal = (event) => {
         cardBg: "bg-slate-100",
       };
   const confirmedEventsCount = events.length;
-  const totalLiveEvents = events.filter(
-    (event) => event.event_status === "live"
-  ).length;
   return (
     <div
       className={`${theme.bg} ${theme.text} h-screen flex overflow-hidden transition-colors duration-300 max-w-full`}
