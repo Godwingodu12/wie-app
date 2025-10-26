@@ -256,7 +256,7 @@ const EventTermsAndConditionsPage = () => {
                                     disabled={isLoading || !isChecked || !isPreviewChecked}
                                     className="px-6 py-2.5 rounded-lg font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-[#2B2B2B] disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                                 >
-                                    {isLoading ? "Creating event..." : "Create event"}
+                                    {isLoading ? "Hosting event..." : "Host event"}
                                 </button>
                             </div>
                         </form>

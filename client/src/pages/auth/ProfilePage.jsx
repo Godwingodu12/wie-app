@@ -848,7 +848,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
   <h1 className={`text-xl md:text-xl lg:text-2xl font-bold ${theme.text}`}>{user.name}</h1>
   <p className={`text-xs md:text-sm ${theme.subText}`}>{user.username}</p>
   <p className={`text-base leading-6 font-bold ${theme.subText} whitespace-pre-line`}>
-    {user.role}
+    {user.organisation_type}
   </p>
   <p className={`whitespace-pre-line text-left text-xs md:text-sm leading-5 md:leading-6 break-words ${theme.subText}`}>
     {user.bio }
@@ -1102,7 +1102,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                    <h3 className={`text-base font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
                    <img src={VerifiedIcon} alt="Verified" className="w-4 h-4 flex-shrink-0"/>
                  </div>
-                 <p className={`text-sm ${theme.subText} capitalize text-center`}>{suggestedUser.role || "User"}</p>
+                 <p className={`text-sm ${theme.subText} capitalize text-center`}>{suggestedUser.organisation_type || suggestedUser.role}</p>
                </div>
              </div>
 
@@ -1183,7 +1183,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                  <h3 className={`text-sm font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
                  <img src={VerifiedIcon} alt="Verified" className="w-3 h-3 flex-shrink-0"/>
                </div>
-               <p className={`text-xs ${theme.subText} capitalize text-center`}>{suggestedUser.role || "User"}</p>
+               <p className={`text-xs ${theme.subText} capitalize text-center`}>{suggestedUser.organisation_type || suggestedUser.role}</p>
              </div>
            </div>
 

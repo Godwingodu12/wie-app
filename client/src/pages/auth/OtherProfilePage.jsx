@@ -772,7 +772,7 @@ const OtherProfilePage = () => {
                       </div>
                       <p className={`text-sm ${theme.subText} mb-2`}>{profileUser.username}</p>
                       <p className={`text-base leading-6 font-bold ${theme.subText} whitespace-pre-line`}>
-                        {profileUser.role}
+                        {profileUser.organisation_type}
                       </p>
                     </div>
                   </div>
@@ -864,7 +864,7 @@ const OtherProfilePage = () => {
                       <h1 className={`text-xl md:text-xl lg:text-2xl font-bold ${theme.text}`}>{profileUser.name}</h1>
                       <p className={`text-xs md:text-sm ${theme.subText}`}>{profileUser.username}</p>
                       <p className={`text-base leading-6 font-bold ${theme.subText} whitespace-pre-line`}>
-                        {profileUser.role}
+                        {profileUser.organisation_type}
                       </p>
                       <p className={`whitespace-pre-line text-left text-xs md:text-sm leading-5 md:leading-6 break-words ${theme.subText}`}>
                         {profileUser.bio}</p>
@@ -1025,7 +1025,7 @@ const OtherProfilePage = () => {
                                 <h3 className={`text-base font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
                                 <img src={VerifiedIcon} alt="Verified" className="w-4 h-4 flex-shrink-0"/>
                               </div>
-                              <p className={`text-sm ${theme.subText} capitalize text-center`}>{suggestedUser.role || "User"}</p>
+                              <p className={`text-sm ${theme.subText} capitalize text-center`}>{suggestedUser.organisation_type || "User"}</p>
                             </div>
                           </div>
 

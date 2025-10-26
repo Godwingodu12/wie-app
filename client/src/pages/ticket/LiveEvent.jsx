@@ -10,7 +10,7 @@ import {
   getMyEvents,
   getGroups,
   getMyLiveEvents,
-  showEventBankDetails
+  LiveEventBankDetails
 } from "../../services/ticketService";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
 import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
@@ -160,7 +160,7 @@ function BankAccountDetailsCard({ isDark, theme }) {
     const fetchBankDetails = async () => {
       try {
         setLoading(true);
-        const response = await showEventBankDetails();
+        const response = await LiveEventBankDetails();
         if (response?.bankDetails && response.bankDetails.length > 0) {
           setBankDetails(response.bankDetails);
         }
@@ -215,7 +215,7 @@ function BankAccountDetailsCard({ isDark, theme }) {
         } ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
         style={{ minHeight: "200px" }}
       >
-        <p className={`${theme.subText}`}>No bank account details available</p>
+        <p className={`${theme.subText}`}>No Live Event bank account details available</p>
       </div>
     );
   }
@@ -481,11 +481,6 @@ const EventsList = ({
         isDark ? theme.cardBg : "bg-[#f1f1f1]"
       } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
     >
-      <center>
-        <h1 className="font-urbanist font-normal text-[14px] leading-[100%] align-middle m-0">
-          Live Events
-        </h1>
-      </center>
       <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-transparent lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
         {/* Mobile Only View */}
         <div className="flex flex-col sm:hidden">
@@ -976,7 +971,6 @@ const LiveEvent = () => {
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
-  const [totalEventsCount, setTotalEventsCount] = useState(0);
   const [confirmedEventsCount, setConfirmedEventsCount] = useState(0);
 
   const handleCreateEvent = async () => {
@@ -1010,12 +1004,10 @@ const LiveEvent = () => {
           getGroups(),
           getMyEvents(),
         ]);
-        
         const liveEventsArray = liveEventsData?.tickets
           ? [].concat(liveEventsData.tickets)
           : [];
         setLiveEvents(liveEventsArray);
-        
         const groupsArray = Array.isArray(groupsData) ? groupsData : [];
         setGroups(groupsArray);
 
