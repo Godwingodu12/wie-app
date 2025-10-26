@@ -155,7 +155,7 @@ function BankAccountDetailsCard({ isDark, theme }) {
   const [bankDetails, setBankDetails] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-
+  const navigate = useNavigate();
   useEffect(() => {
     const fetchBankDetails = async () => {
       try {
@@ -176,12 +176,9 @@ function BankAccountDetailsCard({ isDark, theme }) {
   }, []);
 
   const currentAccount = bankDetails[currentIndex];
-
   const handleSeeAll = () => {
-    // Navigate to a page showing all bank details or open a modal
-    console.log("See all bank details");
+    navigate(`/ticket/bank-details`);
   };
-
   const handleNext = () => {
     if (currentIndex < bankDetails.length - 1) {
       setCurrentIndex(currentIndex + 1);

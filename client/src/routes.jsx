@@ -33,7 +33,7 @@ import SuggestionsPage from './pages/auth/SuggestionsPage';
 import ConfirmEvents from './pages/ticket/ConfirmEvents';
 import PreviousEvent from './pages/ticket/PreviousEvent';
 import LiveEvent from './pages/ticket/LiveEvent';
-
+import BankDetails from './pages/ticket/BankDetails';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
   if (!token || !user) {
@@ -280,6 +280,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <LiveEvent />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/bank-details"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <BankDetails />
           </ProtectedRoute>
         }
       />
