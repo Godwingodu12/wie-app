@@ -2,27 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MainImage from '../../assets/Event/main.png';
 import { groupEventCount } from '../../services/ticketService';
+import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
 const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
 const getImageUrl = (path) => {
-  if (!path) return 'https://via.placeholder.com/50';
-  
-  if (typeof path === 'object') {
+  if (!path) return null;
+  if (typeof path === "object") {
     path = path.path || path.url || null;
   }
-  
-  if (typeof path !== 'string') {
-    console.warn('Invalid path type:', typeof path, path);
-    return 'https://via.placeholder.com/50';
+  if (typeof path !== "string") {
+    console.warn("Invalid path type:", typeof path, path);
+    return null;
   }
-  
-  let cleanPath = path.replace(/\\/g, '/');
-  cleanPath = cleanPath.replace(/^src\//, '');
-  cleanPath = cleanPath.replace(/^\//, '');
-  
+  let cleanPath = path.replace(/\\/g, "/");
+  cleanPath = cleanPath.replace(/^src\//, "");
+  cleanPath = cleanPath.replace(/^\//, "");
   const fullUrl = `${API_BASE_URL}/${cleanPath}`;
   return fullUrl;
 };
-
 const GroupSelectionModal = ({ groups, isOpen, onClose, onSelectGroup, isDark = true }) => {
   const navigate = useNavigate();
   const [groupsWithCount, setGroupsWithCount] = useState([]);
@@ -126,7 +122,12 @@ const GroupSelectionModal = ({ groups, isOpen, onClose, onSelectGroup, isDark = 
         </div>
 
         {/* Group List */}
-        <div className="px-3 space-y-2 max-h-[150px] overflow-y-auto">
+        <div className={`px-3 space-y-2 max-h-[150px] overflow-y-auto
+          ${isDark 
+            ? '[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-600 hover:[&::-webkit-scrollbar-thumb]:bg-gray-500' 
+            : '[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400'
+          }`}
+        >
           {loading ? (
             <div className="text-center py-3">
               <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -140,20 +141,24 @@ const GroupSelectionModal = ({ groups, isOpen, onClose, onSelectGroup, isDark = 
                 className={`flex items-center ${isDark ? 'bg-[#464646] hover:bg-[#343437]' : 'bg-gray-100 hover:bg-gray-200'} rounded-lg overflow-hidden transition cursor-pointer p-2`}
                 onClick={() => handleSelectGroup(group)}
               >
-                {/* Group Image */}
-                <div className="flex-shrink-0">
-                  <img
-                    src={getImageUrl(group.company_logo)}
-                    alt={group.name || group.group_name || 'Group'}
-                    className="w-10 h-10 object-cover rounded-md"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = 'https://via.placeholder.com/50';
-                    }}
-                  />
-                </div>
+                {/* Rest of the code remains the same */}
+              {/* Group Image */}
+              <div className="flex-shrink-0">
+                <img
+                  src={
+                    group.grp_type === "admin" 
+                      ? ProfileImage 
+                      : getImageUrl(group.company_logo) || ProfileImage
+                  }
+                  alt={group.name || group.group_name || 'Group'}
+                  className="w-10 h-10 object-cover rounded-md"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = ProfileImage;
+                  }}
+                />
+              </div>
                 
-                {/* Info */}
                 <div className="flex-1 px-2 min-w-0">
                   <h3 className={`font-semibold text-xs truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {group.name || group.group_name}
@@ -163,7 +168,6 @@ const GroupSelectionModal = ({ groups, isOpen, onClose, onSelectGroup, isDark = 
                   </p>
                 </div>
 
-                {/* Down Arrow in Square */}
                 <div className="flex-shrink-0">
                   <div className={`w-5 h-5 flex items-center justify-center rounded-md ${isDark ? 'bg-[#2E2E2E]' : 'bg-gray-300'}`}>
                     <svg 
@@ -184,7 +188,6 @@ const GroupSelectionModal = ({ groups, isOpen, onClose, onSelectGroup, isDark = 
             </div>
           )}
         </div>
-
         {/* Footer Buttons */}
         <div className={`flex flex-col gap-2 p-3 ${isDark ? 'bg-[#1B1B1D]' : 'bg-gray-50'} border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
           <button
