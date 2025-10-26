@@ -132,10 +132,9 @@ const subEventSchema = new mongoose.Schema({
   // Event Details
   hashtag: [{ type: String }], // Array of hashtags
   payment_type: { type: String, enum: ['free', 'paid'], required: true },
-  
+  main_ticket_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
   // Banking Details for sub-events
   banking_details: [bankingDetailsSchema],
-  
   // Multiple Guests, Guides, and Ticket Types for sub-events
   guests: [guestSchema],
   ticket_types: [ticketTypeSchema],
@@ -147,7 +146,7 @@ const subEventSchema = new mongoose.Schema({
   // Status
   event_status: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled', 'live','completed'],
+    enum: ['pending', 'confirmed', 'cancelled', 'live','completed','deleted'],
     default: 'pending'
   },
 }, { timestamps: true });
@@ -244,7 +243,7 @@ const ticketSchema = new mongoose.Schema({
   // Status and Updates
   event_status: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled','live','completed'],
+    enum: ['pending', 'confirmed', 'cancelled','live','completed','deleted'],
     default: 'pending'
   },
   updated_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
