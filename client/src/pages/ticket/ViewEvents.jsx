@@ -72,20 +72,23 @@ const LegendItem = ({ color, label, percentage, theme }) => (
     </div>
   </div>
 );
-
 const DoughnutChart = ({ stats, theme }) => {
-  const radius = 42;
-  const strokeWidth = 12;
-  const viewBoxSize = 100;
+  const radius = 60;
+  const strokeWidth = 16;
+  const viewBoxSize = 152;
   const center = viewBoxSize / 2;
   const circumference = 2 * Math.PI * radius;
-  let accumulatedPercentage = 0;
-
+  const hasMultipleSegments = stats.length > 1;
+  const gapSize = hasMultipleSegments ? 10 : 0;
+  
   const primaryStat =
     stats.find((s) => s.isPrimary) || (stats.length > 0 ? stats[0] : null);
 
   return (
-    <div className="relative w-44 h-44 md:w-48 md:h-48 flex items-center justify-center mx-auto">
+    <div
+      className="relative flex items-center justify-center"
+      style={{ width: "152px", height: "152px" }}
+    >
       <div className="absolute flex flex-col items-center">
         <span className={`text-3xl font-bold ${theme.text}`}>
           {primaryStat ? `${primaryStat.percentage}%` : "0%"}
@@ -94,34 +97,41 @@ const DoughnutChart = ({ stats, theme }) => {
       <svg
         className="w-full h-full"
         viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
+        style={{ width: "152px", height: "152px" }}
       >
         <circle
-          className="stroke-gray-700"
           cx={center}
           cy={center}
           r={radius}
           fill="none"
+          stroke={theme.cardBg === "bg-[#232426]" ? "#232426" : "#f1f1f1"}
           strokeWidth={strokeWidth}
         />
         <g transform={`rotate(-90 ${center} ${center})`}>
           {stats.map((stat, index) => {
-            const segmentLength = (circumference * stat.percentage) / 100;
-            const offset = (circumference * accumulatedPercentage) / 100;
-            accumulatedPercentage += stat.percentage;
-
+            const segmentArcLength = (circumference * stat.percentage) / 100;
+            const visibleArcLength = hasMultipleSegments 
+              ? Math.max(segmentArcLength - (gapSize * 2), 0)
+              : segmentArcLength;
+            
+            let startPosition = 0;
+            for (let i = 0; i < index; i++) {
+              startPosition += (circumference * stats[i].percentage) / 100;
+            }
+            const offset = hasMultipleSegments ? startPosition + gapSize : startPosition;
             return (
               <circle
                 key={index}
-                stroke={stat.strokeColor}
-                className="transition-all duration-500"
                 cx={center}
                 cy={center}
-                r={radius} // same radius for perfect curve
+                r={radius}
                 fill="none"
+                stroke={stat.strokeColor}
                 strokeWidth={strokeWidth}
-                strokeDasharray={`${segmentLength} ${circumference}`}
+                strokeDasharray={`${visibleArcLength} ${circumference}`}
                 strokeDashoffset={-offset}
-                strokeLinecap="round" // smooth curved ends for segments
+                strokeLinecap="round"
+                className="transition-all duration-500"
               />
             );
           })}
@@ -150,10 +160,9 @@ const GroupStatisticsChart = ({ theme, statsData = [] }) => {
         <div
           className="flex justify-center items-center flex-shrink-0"
           style={{
-            width: "180px",
-            height: "180px",
-            padding: "40px",
-            borderRadius: "121.05px",
+            width: "152px",
+            height: "152px",
+            borderRadius: "100px",
           }}
         >
           <DoughnutChart stats={statsData} theme={theme} />
@@ -229,6 +238,10 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
                 src={imageUrl}
                 alt={group.name}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = ProfileImage;
+                }}
               />
             </div>
             <p className={`font-medium text-xs md:text-sm ${theme.text} text-center max-w-[100px] truncate`}>
@@ -708,11 +721,6 @@ const filteredEvents = useMemo(() => {
         isDark ? theme.cardBg : "bg-[#f1f1f1]"
       } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
     >
-        <center>
-        <h1 className="font-urbanist font-normal text-[14px] leading-[100%] align-middle m-0">
-          Events
-        </h1>
-      </center>
         <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-transparent lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
         {/* Mobile Only View (below sm breakpoint - phones only) */}
         <div className="flex flex-col sm:hidden">
@@ -1437,7 +1445,6 @@ const ViewEvent = () => {
             getMyLiveEvents(),
             getGroupStatistics(),
           ]);
-
         const eventsArray = eventsRes?.tickets
           ? [].concat(eventsRes.tickets)
           : [];
@@ -1471,7 +1478,7 @@ const ViewEvent = () => {
         console.error("Error fetching data:", e);
         setEvents([]);
         setGroups([]);
-        settotalLiveEvents(0);
+        setTotalLiveEvents(0);
         setGroupStats([]);
       }
     };
@@ -1873,9 +1880,8 @@ const ViewEvent = () => {
               </div>
             </div>
           </div>
-
-          {/* Group Selection Modal */}
           <GroupSelectionModal
+          isDark={isDark}
             groups={groups}
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
