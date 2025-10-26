@@ -326,6 +326,15 @@ export const showEventBankDetails = async () => {
     throw error;
   }
 };
+export const showAllBankDetails= async () => {
+  try {
+    const response = await api.get(`ticket/show-all-bank-details`);
+    return response.data;
+  }
+  catch (error) {
+    throw error;
+  }
+};
 export const LiveEventBankDetails = async () => {
   try {
     const response = await api.get(`ticket/live-event-bank-details`);
