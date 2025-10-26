@@ -148,12 +148,29 @@ export const getGroupsTypes = async () => {
 }
 export const deleteTicket = async (ticketId) => {
   try {
-    const response = await api.delete("ticket/delete-ticket", { data: { ticketId } });
+    const response = await api.post("ticket/delete-ticket", { data: { ticketId } });
     return response.data;
   } catch (error) {
     throw error;
   }
 }
+export const deleteSubEvent = async (ticketId, subEventId) => {
+  try {
+    const response = await api.post(`ticket/delete-sub-event/${ticketId}/${subEventId}`);
+    return response.data;
+  }
+  catch (error) {
+    throw error;
+  }
+};
+export const getAllDeletedEvents = async () => {
+  try {
+    const response = await api.get("ticket/get-all-deleted-events");
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
 export const getGroupView = async (ticketId) => {
   try {
     const response = await api.get(`ticket/get-group-view/${ticketId}`);
@@ -303,6 +320,15 @@ export const checkUserLiked = async (ticketId) => {
 export const showEventBankDetails = async () => {
   try {
     const response = await api.get(`ticket/show-event-bank-details`);
+    return response.data;
+  }
+  catch (error) {
+    throw error;
+  }
+};
+export const LiveEventBankDetails = async () => {
+  try {
+    const response = await api.get(`ticket/live-event-bank-details`);
     return response.data;
   }
   catch (error) {
