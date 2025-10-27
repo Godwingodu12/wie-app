@@ -22,17 +22,17 @@ class OtpService {
       await otpDocument.save();
       console.log(`OTP created for user ${userId}, expires at: ${expiresAt}`);
       
-      // Schedule immediate cleanup after expiration (as backup to MongoDB TTL)
+      // Schedule immediate cleanup after expiration
       setTimeout(async () => {
         try {
-          const deletedCount = await this.deleteExpiredOtps(userId);
+          const deletedCount = await this.deleteAllOtps(userId);
           if (deletedCount > 0) {
             console.log(`Timeout cleanup: Deleted ${deletedCount} expired OTPs for user: ${userId}`);
           }
         } catch (error) {
           console.error('Error in timeout cleanup:', error);
         }
-      }, expirationMinutes * 60000 + 2000); // Add 2 second buffer
+      }, expirationMinutes * 60000 + 1000); // Add 1 second buffer after expiration
       
       return otp;
     } catch (error) {
@@ -41,18 +41,18 @@ class OtpService {
     }
   }
 
-  // Start periodic cleanup every 15 seconds (more aggressive)
+  // Start periodic cleanup every 10 seconds
   startPeriodicCleanup() {
     const cleanupInterval = setInterval(async () => {
       try {
         const deletedCount = await this.cleanupAllExpiredOtps();
         if (deletedCount > 0) {
-          console.log(`Periodic cleanup: Deleted ${deletedCount} expired OTPs`);
+          console.log(`Periodic cleanup: Deleted ${deletedCount} expired OTPs at ${new Date().toISOString()}`);
         }
       } catch (error) {
         console.error('Periodic cleanup error:', error);
       }
-    }, 15000); // Run every 15 seconds
+    }, 10000); // Run every 10 seconds
 
     // Ensure cleanup doesn't prevent process from exiting
     cleanupInterval.unref();
@@ -64,8 +64,11 @@ class OtpService {
       const now = new Date();
       const result = await OTP.deleteMany({ 
         user_id: userId,
-        expires_at: { $lt: now }
+        expires_at: { $lte: now } // Use $lte (less than or equal) instead of $lt
       });
+      if (result.deletedCount > 0) {
+        console.log(`Deleted ${result.deletedCount} expired OTPs for user: ${userId}`);
+      }
       return result.deletedCount;
     } catch (error) {
       console.error('Error deleting expired OTPs for user:', error);
@@ -77,7 +80,7 @@ class OtpService {
   async cleanupAllExpiredOtps() {
     try {
       const now = new Date();
-      const result = await OTP.deleteMany({ expires_at: { $lt: now } });
+      const result = await OTP.deleteMany({ expires_at: { $lte: now } });
       return result.deletedCount;
     } catch (error) {
       console.error('Error in cleanupAllExpiredOtps:', error);
@@ -88,6 +91,9 @@ class OtpService {
   async deleteAllOtps(userId) {
     try {
       const result = await OTP.deleteMany({ user_id: userId });
+      if (result.deletedCount > 0) {
+        console.log(`Deleted ${result.deletedCount} OTPs for user: ${userId}`);
+      }
       return result.deletedCount;
     } catch (error) {
       console.error('Error deleting all OTPs for user:', error);
@@ -97,22 +103,36 @@ class OtpService {
 
   async verifyOtp(userId, otpValue) {
     try {
-      // First clean up any expired OTPs
+      const now = new Date();
+      
+      // First clean up any expired OTPs for this user
       await this.deleteExpiredOtps(userId);
       
-      // Find the OTP for this user
+      // Find the OTP for this user that hasn't expired
       const otpDocument = await OTP.findOne({ 
         user_id: userId, 
-        otp_value: otpValue 
+        otp_value: otpValue,
+        expires_at: { $gt: now } // Only find non-expired OTPs
       }).sort({ created_at: -1 });
 
       if (!otpDocument) {
+        // Check if there was an expired OTP with this value
+        const expiredOtp = await OTP.findOne({ 
+          user_id: userId, 
+          otp_value: otpValue 
+        });
+        
+        if (expiredOtp) {
+          // Delete the expired OTP
+          await this.deleteAllOtps(userId);
+          return { isValid: false, message: 'OTP has expired. Please request a new one.' };
+        }
+        
         return { isValid: false, message: 'Invalid OTP' };
       }
 
-      const now = new Date();
+      // Double-check expiration (redundant but safe)
       if (now > otpDocument.expires_at) {
-        // Clean up expired OTPs
         await this.deleteAllOtps(userId);
         return { isValid: false, message: 'OTP has expired. Please request a new one.' };
       }
@@ -146,6 +166,16 @@ class OtpService {
       return { success: false, error: error.message };
     }
   }
-}
 
+  // Get all OTPs for debugging (remove in production)
+  async getAllOtps() {
+    try {
+      const otps = await OTP.find({}).sort({ created_at: -1 });
+      return otps;
+    } catch (error) {
+      console.error('Error getting all OTPs:', error);
+      return [];
+    }
+  }
+}
 export default new OtpService();
