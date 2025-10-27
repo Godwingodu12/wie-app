@@ -443,7 +443,7 @@ const BankDetails = () => {
                                   <div className="font-medium truncate pr-4">{detail.source_name || "N/A"}</div>
                                   {detail.parent_name && (
                                     <div className={`text-xs ${theme.subText} truncate pr-4`}>
-                                      Event name: {detail.parent_name}
+                                      Main Event name: {detail.parent_name}
                                     </div>
                                   )}
                                 </div>

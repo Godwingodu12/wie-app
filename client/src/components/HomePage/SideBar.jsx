@@ -1,6 +1,7 @@
 // src/components/HomePage/SideBar.jsx
 import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { getMe } from "../../services/userService.js";
 import { getGroups } from "../../services/ticketService";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
@@ -21,33 +22,48 @@ import DeletedIcon from "../../assets/HOMEPAGE/DeletedIcon.svg";
 import BankIcon from "../../assets/HOMEPAGE/BankIcon.svg";
 import createTicketicon from "../../assets/HomePage/createTicketicon.svg";
 const SIDEBAR_WIDTH = 80;
-const Sidebar = ({ user, theme }) => {
+const Sidebar = ({ theme }) => {
+  const { user } = useSelector((state) => state.auth);
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
-  const [userImage, setUserImage] = useState(null);
+  const [userImage, setUserImage] = useState(() => {
+    return sessionStorage.getItem('userImage') || null;
+  });
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [groups, setGroups] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-
+  const [userData, setUserData] = useState(() => {
+  const cached = sessionStorage.getItem('userData');
+    return cached ? JSON.parse(cached) : null;
+  });
   useEffect(() => {
     const fetchUser = async () => {
       try {
         const res = await getMe();
-        // Check if response and data exist before accessing image
-        if (res && res.data && res.data.image) {
-          const imageUrl = `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${res.data.image}`;
-          setUserImage(imageUrl);
+        if (res && res.data) {
+          setUserData(res.data);
+          // Cache user data in sessionStorage
+          sessionStorage.setItem('userData', JSON.stringify(res.data));
+          if (res.data.image) {
+            const imageUrl = `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${res.data.image}`;
+            setUserImage(imageUrl);
+            sessionStorage.setItem('userImage', imageUrl);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch user", err);
-        // Don't throw error, just log it
       }
     };
-    fetchUser();
-  }, []);
 
+    if (!userData) {
+      fetchUser();
+    } else if (userData.image && !userImage) {
+      const imageUrl = `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${userData.image}`;
+      setUserImage(imageUrl);
+    }
+  }, []);
   // Check if currently on home page
   const isHomePage = currentPath === "/home";
   const isDark = theme.bg === "bg-[#212426]";
@@ -246,30 +262,16 @@ const Sidebar = ({ user, theme }) => {
               to="/profile"
               className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center overflow-hidden hover:opacity-80 transition-opacity"
             >
-              {user?.image ? (
-                <img
-                  src={
-                    user.image
-                      ? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${
-                          user.image
-                        }`
-                      : ProfileImage
-                  }
-                  alt="User profile"
-                  className="w-full h-full object-cover rounded-full"
-                  onError={(e) => {
-                    console.error("Image failed to load:", e.target.src);
-                    e.target.onerror = null;
-                    e.target.src = ProfileImage;
-                  }}
-                />
-              ) : (
-                <div className="w-full h-full bg-[#6a47fa] rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-xs sm:text-sm lg:text-lg">
-                    {user?.name?.[0]?.toUpperCase() || "U"}
-                  </span>
-                </div>
-              )}
+              <img
+                src={userImage || (userData?.image ? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${userData.image}` : ProfileImage)}
+                alt="User profile"
+                className="w-full h-full object-cover rounded-full"
+                onError={(e) => {
+                  console.error("Image failed to load:", e.target.src);
+                  e.target.onerror = null;
+                  e.target.src = ProfileImage;
+                }}
+              />
             </Link>
           </div>
         </div>

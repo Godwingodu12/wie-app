@@ -69,12 +69,12 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
     <div className="flex flex-row flex-wrap items-center justify-start w-full gap-6 flex-grow">
       {groups.slice(0, 2).map((group, index) => {
         let imageUrl;
-        if (group.grp_type === 'admin') {
+        if (group.grp_type === "admin") {
           imageUrl = ProfileImage;
-        } else if (group.grp_type === 'organization') {
-          imageUrl = getImageUrl(group.image) || ProfileImage;
+        } else if (group.grp_type === "organization") {
+          imageUrl = getImageUrl(group.company_logo) || ProfileImage;
         } else {
-          imageUrl = getImageUrl(group.image) || ProfileImage;
+          imageUrl = getImageUrl(group.company_logo) || ProfileImage;
         }
         return (
           <div key={index} className="flex flex-col items-center gap-2">
@@ -538,12 +538,7 @@ const EventsList = ({
         isDark ? theme.cardBg : "bg-[#f1f1f1]"
       } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
     >
-      <center>
-        <h1 className="font-urbanist font-normal text-[14px] leading-[100%] align-middle m-0">
-          Events
-        </h1>
-      </center>
-      <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-transparent lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
+      <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-gray-100 dark:lg:[&::-webkit-scrollbar-track]:bg-gray-800 lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
         {/* Mobile Only View (below sm breakpoint - phones only) */}
         <div className="flex flex-col sm:hidden">
           {/* Search and Filter Section */}
@@ -1260,6 +1255,34 @@ const openHostModal = (event) => {
       };
   const confirmedEventsCount = events.length;
   return (
+    <>
+     <style>{`
+        /* Main page scrollbar */
+        body::-webkit-scrollbar,
+        html::-webkit-scrollbar,
+        .overflow-y-auto::-webkit-scrollbar {
+          width: 8px;
+        }
+        
+        body::-webkit-scrollbar-track,
+        html::-webkit-scrollbar-track,
+        .overflow-y-auto::-webkit-scrollbar-track {
+          background: ${isDark ? '#1f2937' : '#f1f1f1'};
+        }
+        
+        body::-webkit-scrollbar-thumb,
+        html::-webkit-scrollbar-thumb,
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+          background: ${isDark ? '#4b5563' : '#cbd5e1'};
+          border-radius: 10px;
+        }
+        
+        body::-webkit-scrollbar-thumb:hover,
+        html::-webkit-scrollbar-thumb:hover,
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+          background: ${isDark ? '#6b7280' : '#94a3b8'};
+        }
+      `}</style>
     <div
       className={`${theme.bg} ${theme.text} h-screen flex overflow-hidden transition-colors duration-300 max-w-full`}
     >
@@ -1331,8 +1354,7 @@ const openHostModal = (event) => {
             </div>
           </div>
         </header>
-
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
             <div>
               <h1 className={`text-3xl sm:text-4xl font-bold ${theme.text}`}>
@@ -1499,6 +1521,7 @@ const openHostModal = (event) => {
         onSelectGroup={handleSelectGroup}
       />
     </div>
+    </>
   );
 };
 export default ConfirmEvents;

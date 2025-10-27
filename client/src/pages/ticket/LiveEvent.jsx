@@ -58,12 +58,12 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
     <div className="flex flex-row flex-wrap items-center justify-start w-full gap-6 flex-grow">
       {groups.slice(0, 2).map((group, index) => {
         let imageUrl;
-        if (group.grp_type === 'admin') {
+        if (group.grp_type === "admin") {
           imageUrl = ProfileImage;
-        } else if (group.grp_type === 'organization') {
-          imageUrl = getImageUrl(group.image) || ProfileImage;
+        } else if (group.grp_type === "organization") {
+          imageUrl = getImageUrl(group.company_logo) || ProfileImage;
         } else {
-          imageUrl = getImageUrl(group.image) || ProfileImage;
+          imageUrl = getImageUrl(group.company_logo) || ProfileImage;
         }
         return (
           <div key={index} className="flex flex-col items-center gap-2">
@@ -1060,6 +1060,34 @@ const LiveEvent = () => {
 const liveEventsCount = liveEvents.length;
 
   return (
+    <>
+    <style>{`
+        /* Main page scrollbar */
+        body::-webkit-scrollbar,
+        html::-webkit-scrollbar,
+        .overflow-y-auto::-webkit-scrollbar {
+          width: 8px;
+        }
+        
+        body::-webkit-scrollbar-track,
+        html::-webkit-scrollbar-track,
+        .overflow-y-auto::-webkit-scrollbar-track {
+          background: ${isDark ? '#1f2937' : '#f1f1f1'};
+        }
+        
+        body::-webkit-scrollbar-thumb,
+        html::-webkit-scrollbar-thumb,
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+          background: ${isDark ? '#4b5563' : '#cbd5e1'};
+          border-radius: 10px;
+        }
+        
+        body::-webkit-scrollbar-thumb:hover,
+        html::-webkit-scrollbar-thumb:hover,
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+          background: ${isDark ? '#6b7280' : '#94a3b8'};
+        }
+      `}</style>
     <div
       className={`${theme.bg} ${theme.text} h-screen flex overflow-hidden transition-colors duration-300 max-w-full`}
     >
@@ -1223,8 +1251,23 @@ const liveEventsCount = liveEvents.length;
                 </div>
               </div>
               {/* Desktop View */}
-              <div className="hidden lg:flex w-full justify-center gap-6">
-                <StatsCard
+              
+              <div className="hidden lg:flex w-full justify-center">
+                  <div
+                    style={{
+                      width: "min(100%, 300px)",
+                      height: "203px",
+                      padding: "21px",
+                      gap: "20px",
+                      borderRadius: "50px",
+                      background: isDark ? "#212426" : "#f1f1f1",
+                      boxShadow: isDark
+                        ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
+                        : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
+                    }}
+                    className="flex flex-row items-center justify-between transition-all duration-300"
+                  >
+                    <StatsCard
                   isDark={isDark}
                   theme={theme}
                   count={confirmedEventsCount}
@@ -1248,7 +1291,8 @@ const liveEventsCount = liveEvents.length;
                   }
                   isMobile={false}
                 />
-              </div>
+                  </div>
+                </div>
               </div>
             <div className="md:col-span-2">
               <BankAccountDetailsCard isDark={isDark} theme={theme} />
@@ -1273,6 +1317,7 @@ const liveEventsCount = liveEvents.length;
         onSelectGroup={handleSelectGroup}
       />
     </div>
+    </>
   );
 };
 export default LiveEvent;

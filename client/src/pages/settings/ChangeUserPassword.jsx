@@ -324,8 +324,6 @@ const ChangePasswordContent = ({ theme, handleGoBack }) => {
 </button>
 
 </div>
-
-
       {/* New Password */}
       <div className="mt-8 w-full flex flex-col items-center">
         <div
@@ -613,6 +611,34 @@ const ChangeUserPassword = () => {
       };
 
   return (
+    <>
+    <style>{`
+        /* Main page scrollbar */
+        body::-webkit-scrollbar,
+        html::-webkit-scrollbar,
+        .overflow-y-auto::-webkit-scrollbar {
+          width: 8px;
+        }
+        
+        body::-webkit-scrollbar-track,
+        html::-webkit-scrollbar-track,
+        .overflow-y-auto::-webkit-scrollbar-track {
+          background: ${isDark ? '#1f2937' : '#f1f1f1'};
+        }
+        
+        body::-webkit-scrollbar-thumb,
+        html::-webkit-scrollbar-thumb,
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+          background: ${isDark ? '#4b5563' : '#cbd5e1'};
+          border-radius: 10px;
+        }
+        
+        body::-webkit-scrollbar-thumb:hover,
+        html::-webkit-scrollbar-thumb:hover,
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+          background: ${isDark ? '#6b7280' : '#94a3b8'};
+        }
+      `}</style>
     <div
       className={`${theme.bg} ${theme.text} min-h-screen flex overflow-hidden transition-colors duration-300`}
     >
@@ -707,6 +733,7 @@ const ChangeUserPassword = () => {
         </main>
       </div>
     </div>
+    </>
   );
 };
 export default ChangeUserPassword;

@@ -721,7 +721,7 @@ const filteredEvents = useMemo(() => {
         isDark ? theme.cardBg : "bg-[#f1f1f1]"
       } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
     >
-        <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-transparent lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
+    <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-gray-100 dark:lg:[&::-webkit-scrollbar-track]:bg-gray-800 lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
         {/* Mobile Only View (below sm breakpoint - phones only) */}
         <div className="flex flex-col sm:hidden">
           {/* Search and Filter Section */}
@@ -1841,6 +1841,7 @@ const ViewEvent = () => {
                   flexDirection: "column",
                   gap: "20px",
                   overflow: "hidden",
+                  minHeight: "810px", // Added: Increased minimum height
                 }}
                 className={`w-full rounded-[50px] ${
                   isDark ? theme.cardBg : "bg-[#f1f1f1]"
@@ -1850,33 +1851,33 @@ const ViewEvent = () => {
                 <div className="w-full">
                   <GroupStatisticsChart theme={theme} statsData={groupStats} />
                 </div>
-
+                
                 {/* Calendar Section */}
-                <div className="w-full flex flex-col gap-4">
-                  <CalendarControls
+              <div className="w-full flex flex-col gap-4" style={{ marginTop: "80px" }}>
+                <CalendarControls
+                  isDark={isDark}
+                  theme={theme}
+                  onPrevMonth={handlePrevMonth}
+                  onNextMonth={handleNextMonth}
+                  onSelectMonth={handleSelectMonth}
+                  onSelectYear={handleSelectYear}
+                  currentMonth={month}
+                  currentYear={year}
+                  months={shortMonths}
+                  fullMonths={fullMonths}
+                  className="md:ml-0"
+                />
+                
+                <div className="w-full">
+                  <CalendarGrid
                     isDark={isDark}
                     theme={theme}
-                    onPrevMonth={handlePrevMonth}
-                    onNextMonth={handleNextMonth}
-                    onSelectMonth={handleSelectMonth}
-                    onSelectYear={handleSelectYear}
-                    currentMonth={month}
-                    currentYear={year}
-                    months={shortMonths}
-                    fullMonths={fullMonths}
-                    className="md:ml-0"
+                    dates={generateCalendarDates}
+                    selectedDate={selectedDate}
+                    onDateClick={handleDateClick}
                   />
-
-                  <div className="w-full">
-                    <CalendarGrid
-                      isDark={isDark}
-                      theme={theme}
-                      dates={generateCalendarDates}
-                      selectedDate={selectedDate}
-                      onDateClick={handleDateClick}
-                    />
-                  </div>
                 </div>
+              </div>
               </div>
             </div>
           </div>
