@@ -156,7 +156,49 @@ const handleSubmit = async (e) => {
         setIsLoading(false);
     }
 };
+const [isDark, setIsDark] = useState(true);
+const theme = isDark
+      ? {
+          bg: "bg-[#212426]",
+          text: "text-white",
+          subText: "text-[#c9c9cf]",
+          cardBg: "bg-[#232426]",
+        }
+      : {
+          bg: "bg-slate-100",
+          text: "text-gray-900",
+          subText: "text-gray-600",
+          cardBg: "bg-slate-100",
+        };
   return (
+    <>
+     <style>{`
+        /* Main page scrollbar */
+        body::-webkit-scrollbar,
+        html::-webkit-scrollbar,
+        .overflow-y-auto::-webkit-scrollbar {
+          width: 8px;
+        }
+        
+        body::-webkit-scrollbar-track,
+        html::-webkit-scrollbar-track,
+        .overflow-y-auto::-webkit-scrollbar-track {
+          background: ${isDark ? '#1f2937' : '#f1f1f1'};
+        }
+        
+        body::-webkit-scrollbar-thumb,
+        html::-webkit-scrollbar-thumb,
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+          background: ${isDark ? '#4b5563' : '#cbd5e1'};
+          border-radius: 10px;
+        }
+        
+        body::-webkit-scrollbar-thumb:hover,
+        html::-webkit-scrollbar-thumb:hover,
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+          background: ${isDark ? '#6b7280' : '#94a3b8'};
+        }
+      `}</style>
     <div
       className="min-h-screen w-full font-sans text-white bg-cover bg-center"
       style={{
@@ -395,6 +437,7 @@ styles={CustomSelectStyles(true, errors)}
         </footer>
       </div>
     </div>
+    </>
   );
 };
 export default OrganisationSignup;
