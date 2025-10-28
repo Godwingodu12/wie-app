@@ -38,32 +38,44 @@ const Sidebar = ({ theme }) => {
   const cached = sessionStorage.getItem('userData');
     return cached ? JSON.parse(cached) : null;
   });
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const res = await getMe();
-        if (res && res.data) {
-          setUserData(res.data);
-          // Cache user data in sessionStorage
-          sessionStorage.setItem('userData', JSON.stringify(res.data));
-          if (res.data.image) {
-            const imageUrl = `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${res.data.image}`;
-            setUserImage(imageUrl);
-            sessionStorage.setItem('userImage', imageUrl);
-          }
+useEffect(() => {
+  const fetchUser = async () => {
+    try {
+      const res = await getMe();
+      if (res && res.data) {
+        setUserData(res.data);
+        sessionStorage.setItem('userData', JSON.stringify(res.data));
+        if (res.data.image) {
+          const imageUrl = `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${res.data.image}`;
+          setUserImage(imageUrl);
+          sessionStorage.setItem('userImage', imageUrl);
+        } else {
+          // Clear image if user has no image
+          setUserImage(null);
+          sessionStorage.removeItem('userImage');
         }
-      } catch (err) {
-        console.error("Failed to fetch user", err);
       }
-    };
-
-    if (!userData) {
-      fetchUser();
-    } else if (userData.image && !userImage) {
-      const imageUrl = `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${userData.image}`;
-      setUserImage(imageUrl);
+    } catch (err) {
+      console.error("Failed to fetch user", err);
+      // Clear cached data on error (user might be logged out)
+      sessionStorage.removeItem('userData');
+      sessionStorage.removeItem('userImage');
+      setUserData(null);
+      setUserImage(null);
     }
-  }, []);
+  };
+
+  // Always fetch fresh data when user changes
+  if (user) {
+    fetchUser();
+  } else {
+    // Clear data when no user
+    sessionStorage.removeItem('userData');
+    sessionStorage.removeItem('userImage');
+    setUserData(null);
+    setUserImage(null);
+  }
+}, [user]); // Add user as dependency
   // Check if currently on home page
   const isHomePage = currentPath === "/home";
   const isDark = theme.bg === "bg-[#212426]";
