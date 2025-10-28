@@ -539,6 +539,8 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
 
   const handleLogout = async () => {
     try {
+      sessionStorage.removeItem('userData');
+      sessionStorage.removeItem('userImage');
       await logout();
     } catch (err) {
       console.error("Logout failed", err);
