@@ -15,11 +15,6 @@ const ticketLikeSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
-
 // Compound index for faster queries
 ticketLikeSchema.index({ ticketId: 1, userId: 1 }, { unique: true });
-
-// Index for counting likes per ticket
-ticketLikeSchema.index({ ticketId: 1 });
-
 export default mongoose.model('TicketLike', ticketLikeSchema);
