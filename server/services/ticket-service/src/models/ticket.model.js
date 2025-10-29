@@ -265,9 +265,5 @@ const ticketSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
-// Indexes for better performance
-ticketSchema.index({ groupId: 1, userId: 1 });
-ticketSchema.index({ event_status: 1 });
-ticketSchema.index({ event_category: 1, event_subcategory: 1 });
 const Ticket = mongoose.model('Ticket', ticketSchema);
 export default Ticket;

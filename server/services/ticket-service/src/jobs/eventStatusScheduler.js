@@ -37,5 +37,4 @@ export const startEventStatusScheduler = () => {
       console.error('Cron job error:', error);
     }
   });
-  console.log('Event status scheduler initialized - runs daily at midnight');
 };
