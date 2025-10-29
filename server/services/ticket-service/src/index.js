@@ -7,9 +7,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
-import { connectRabbitMQ } from './rabbit/connection.js';
+import { connectRabbitMQ, isChannelAvailable } from './rabbit/connection.js';
 import { startConsumers } from './rabbit/index.js';
 import { startEventStatusScheduler } from './jobs/eventStatusScheduler.js';
+
 // 👇 Needed for __dirname in ES module
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -75,16 +76,38 @@ app.use('/api/ticket', ticketRoutes);
 const PORT = process.env.PORT || 5003;
 const startServer = async () => {
   try {
+    // Connect to MongoDB (critical - must succeed)
     await connectDB();
-    await connectRabbitMQ();
+    
+    // Try to connect to RabbitMQ (non-blocking)
+    try {
+      await connectRabbitMQ();
+      
+      // Only start consumers if RabbitMQ connection is successful
+      if (isChannelAvailable()) {
+        await startConsumers();
+        console.log('✅ RabbitMQ services initialized');
+      } else {
+        console.warn('⚠️ RabbitMQ channel not available, skipping consumer initialization');
+      }
+    } catch (rabbitError) {
+      console.warn('⚠️ RabbitMQ initialization failed:', rabbitError.message);
+      console.log('💡 Server will continue without RabbitMQ. Inter-service communication will be unavailable.');
+      console.log('💡 To fix: Check your RABBITMQ_URL in .env file');
+    }
+    
+    // Start event status scheduler (independent of RabbitMQ)
     startEventStatusScheduler();
-    await startConsumers();
+    
+    // Start HTTP server (regardless of RabbitMQ status)
     app.listen(PORT, () => {
-      console.log(`Ticket service running on port ${PORT}`);
+      console.log(`✅ Ticket service running on port ${PORT}`);
     });
+    
   } catch (err) {
-    console.error('Error starting server:', err);
+    console.error('❌ Fatal error starting server:', err);
     process.exit(1);
   }
 };
+
 startServer();
