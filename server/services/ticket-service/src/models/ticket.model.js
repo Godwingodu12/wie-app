@@ -237,7 +237,7 @@ const ticketSchema = new mongoose.Schema({
   offerTickets: [offerTicketSchema],
   sub_events: [subEventSchema],
   // References
-  groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'CreateGroup', required: true },
+  groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Group', required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   
   // Status and Updates
