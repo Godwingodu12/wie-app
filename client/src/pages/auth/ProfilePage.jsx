@@ -134,7 +134,9 @@ const ProfilePage = () => {
   // State for hamburger menu dropdown
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const hamburgerRef = useRef(null);
-
+  const handleViewEvent = (ticketId) => {
+    navigate(`/ticket/view-single-event/${ticketId}`);
+  };
   // Helper function to parse API response and extract tickets/events
   const parseApiResponse = (response= 'events') => {    
     let data = [];
@@ -1411,7 +1413,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
             </div>
 
             {/* Event Info */}
-            <div className="flex flex-col flex-1 p-4">
+            <div className="flex flex-col flex-1 p-4" onClick={() => handleViewEvent(event._id)}>
               <div className="text-center mb-6">
                 <h3 className={`font-bold text-base ${theme.text}`}>
                   {event.event_name ||"Event"}
@@ -1516,10 +1518,13 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
             </div>
 
             {/* Event Info */}
-            <div className="flex flex-col flex-1 p-2 justify-between">
+            <div 
+              className="flex flex-col flex-1 p-2 justify-between cursor-pointer"
+              onClick={() => handleViewEvent(event._id)}
+            >
               <div className="text-center mb-2">
                 <h3 className={`font-bold text-sm ${theme.text} truncate`}>
-                  {event.event_name ||"Event"}
+                  {event.event_name || "Event"}
                 </h3>
                 <p className={`text-xs ${theme.subText} mt-1 truncate`}>
                   {event.event_category || "Event Type"}
