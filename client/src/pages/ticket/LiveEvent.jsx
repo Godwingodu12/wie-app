@@ -12,6 +12,7 @@ import {
   getMyLiveEvents,
   LiveEventBankDetails
 } from "../../services/ticketService";
+import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
 import FilterButton from "../../components/HomePage/FilterButton.jsx";
 import ShowArrow from "../../assets/Event/ShowArrow.png";
@@ -480,7 +481,7 @@ const EventsList = ({
       <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-transparent lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
         {/* Mobile Only View */}
         <div className="flex flex-col sm:hidden">
-          <div className="relative mb-6">
+          <div className="relative mb-6 mt-4">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowFilter(!showFilter)}
@@ -1058,45 +1059,42 @@ const LiveEvent = () => {
 
 const liveEventsCount = liveEvents.length;
 
-  return (
-    <>
+return (
+  <>
     <style>{`
-        /* Main page scrollbar */
-        body::-webkit-scrollbar,
-        html::-webkit-scrollbar,
-        .overflow-y-auto::-webkit-scrollbar {
-          width: 8px;
-        }
-        
-        body::-webkit-scrollbar-track,
-        html::-webkit-scrollbar-track,
-        .overflow-y-auto::-webkit-scrollbar-track {
-          background: ${isDark ? '#1f2937' : '#f1f1f1'};
-        }
-        
-        body::-webkit-scrollbar-thumb,
-        html::-webkit-scrollbar-thumb,
-        .overflow-y-auto::-webkit-scrollbar-thumb {
-          background: ${isDark ? '#4b5563' : '#cbd5e1'};
-          border-radius: 10px;
-        }
-        
-        body::-webkit-scrollbar-thumb:hover,
-        html::-webkit-scrollbar-thumb:hover,
-        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-          background: ${isDark ? '#6b7280' : '#94a3b8'};
-        }
-      `}</style>
+      /* Scrollbar styling */
+      body::-webkit-scrollbar,
+      html::-webkit-scrollbar,
+      .overflow-y-auto::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      body::-webkit-scrollbar-track,
+      html::-webkit-scrollbar-track,
+      .overflow-y-auto::-webkit-scrollbar-track {
+        background: ${isDark ? '#1f2937' : '#f1f1f1'};
+      }
+
+      body::-webkit-scrollbar-thumb,
+      html::-webkit-scrollbar-thumb,
+      .overflow-y-auto::-webkit-scrollbar-thumb {
+        background: ${isDark ? '#4b5563' : '#cbd5e1'};
+        border-radius: 10px;
+      }
+
+      body::-webkit-scrollbar-thumb:hover,
+      html::-webkit-scrollbar-thumb:hover,
+      .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+        background: ${isDark ? '#6b7280' : '#94a3b8'};
+      }
+    `}</style>
+
     <div
       className={`${theme.bg} ${theme.text} h-screen flex overflow-hidden transition-colors duration-300 max-w-full`}
     >
-      <div
-        className={`hidden md:flex flex-col flex-shrink-0 nest-hub-sidebar ${theme.bg}`}
-      >
-        <div
-          className="flex items-center justify-center"
-          style={{ height: 72 }}
-        >
+      {/* Sidebar (Desktop only) */}
+      <div className={`hidden md:flex flex-col flex-shrink-0 nest-hub-sidebar ${theme.bg}`}>
+        <div className="flex items-center justify-center" style={{ height: 72 }}>
           <img src={WieLogo} alt="Wie Logo" className="w-12 h-12" />
         </div>
         <div className="flex-1 sidebar-content">
@@ -1104,23 +1102,23 @@ const liveEventsCount = liveEvents.length;
         </div>
       </div>
 
+      {/* Main Content */}
       <div className="flex flex-col flex-1 w-full overflow-hidden md:ml-4">
         <header
           className="flex items-center justify-between px-4 md:px-6 flex-shrink-0"
           style={{ height: 72 }}
         >
+          {/* Mobile Header */}
           <div className="flex md:hidden items-center justify-between w-full">
             <div className="flex items-center gap-2">
-              <img
-                src={WieLogo}
-                alt="WIE Logo"
-                className="w-8 h-8 object-contain"
-              />
+              <img src={WieLogo} alt="WIE Logo" className="w-8 h-8 object-contain" />
             </div>
             <div className="flex items-center gap-3">
               <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
             </div>
           </div>
+
+          {/* Desktop Header */}
           <div className="hidden md:flex items-center gap-4 w-full">
             <div className="flex-1 min-w-0">
               <SearchBar
@@ -1135,8 +1133,7 @@ const liveEventsCount = liveEvents.length;
             </div>
           </div>
         </header>
-
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-32 md:pb-8">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
             <div>
               <h1 className={`text-3xl sm:text-4xl font-bold ${theme.text} flex items-center gap-3`}>
@@ -1147,6 +1144,7 @@ const liveEventsCount = liveEvents.length;
                 Manage and monitor your live events in real-time.
               </p>
             </div>
+
             <button
               onClick={handleCreateEvent}
               disabled={loading}
@@ -1155,9 +1153,7 @@ const liveEventsCount = liveEvents.length;
                   ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                   : "-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)",
               }}
-              className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${
-                theme.bg
-              } ${theme.text} ${
+              className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg} ${theme.text} ${
                 isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"
               }`}
             >
@@ -1176,13 +1172,14 @@ const liveEventsCount = liveEvents.length;
             </button>
           </div>
 
+          {/* Stats + Table Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 md:items-start gap-6 lg:gap-8 mb-8">
             <div className="md:col-span-1 w-full p-4">
               <MyGroupsCard theme={theme} groups={groups} isDark={isDark} />
             </div>
-              {/* Stats Cards Container */}
-              <div className="w-full flex items-center justify-center">
-              {/* Mobile/Tablet View */}
+
+            <div className="w-full flex items-center justify-center">
+              {/* Mobile Stats */}
               <div className="lg:hidden w-full flex justify-center px-2">
                 <div
                   style={{
@@ -1194,7 +1191,7 @@ const liveEventsCount = liveEvents.length;
                     gap: "20px",
                     borderRadius: "50px",
                     background: isDark ? "#212426" : "#f1f1f1",
-                    boxShadow: isDark 
+                    boxShadow: isDark
                       ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
                       : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
                   }}
@@ -1226,50 +1223,51 @@ const liveEventsCount = liveEvents.length;
                   />
                 </div>
               </div>
-              {/* Desktop View */}
-              
+
+              {/* Desktop Stats */}
               <div className="hidden lg:flex w-full justify-center">
-                  <div
-                    style={{
-                      width: "min(100%, 300px)",
-                      height: "203px",
-                      padding: "21px",
-                      gap: "20px",
-                      borderRadius: "50px",
-                      background: isDark ? "#212426" : "#f1f1f1",
-                      boxShadow: isDark
-                        ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
-                        : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
-                    }}
-                    className="flex flex-row items-center justify-between transition-all duration-300"
-                  >
-                    <StatsCard
-                  isDark={isDark}
-                  theme={theme}
-                  count={confirmedEventsCount}
-                  title="Confirmed events"
-                  icon={
-                    <div className="text-yellow-400">
-                      <PartyPopper className="h-9 w-9 xl:h-10 xl:w-10" />
-                    </div>
-                  }
-                  isMobile={false}
-                />
-                <StatsCard
-                  isDark={isDark}
-                  theme={theme}
-                  count={liveEventsCount}
-                  title="Live events"
-                  icon={
-                    <div className="text-red-500 relative">
-                      <Radio className="h-9 w-9 xl:h-10 xl:w-10" />
-                    </div>
-                  }
-                  isMobile={false}
-                />
-                  </div>
+                <div
+                  style={{
+                    width: "min(100%, 300px)",
+                    height: "203px",
+                    padding: "21px",
+                    gap: "20px",
+                    borderRadius: "50px",
+                    background: isDark ? "#212426" : "#f1f1f1",
+                    boxShadow: isDark
+                      ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
+                      : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
+                  }}
+                  className="flex flex-row items-center justify-between transition-all duration-300"
+                >
+                  <StatsCard
+                    isDark={isDark}
+                    theme={theme}
+                    count={confirmedEventsCount}
+                    title="Confirmed events"
+                    icon={
+                      <div className="text-yellow-400">
+                        <PartyPopper className="h-9 w-9 xl:h-10 xl:w-10" />
+                      </div>
+                    }
+                    isMobile={false}
+                  />
+                  <StatsCard
+                    isDark={isDark}
+                    theme={theme}
+                    count={liveEventsCount}
+                    title="Live events"
+                    icon={
+                      <div className="text-red-500 relative">
+                        <Radio className="h-9 w-9 xl:h-10 xl:w-10" />
+                      </div>
+                    }
+                    isMobile={false}
+                  />
                 </div>
               </div>
+            </div>
+
             <div className="md:col-span-2">
               <BankAccountDetailsCard isDark={isDark} theme={theme} />
             </div>
@@ -1293,7 +1291,19 @@ const liveEventsCount = liveEvents.length;
         onSelectGroup={handleSelectGroup}
       />
     </div>
-    </>
-  );
+    <nav 
+      className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t"
+      style={{
+        backgroundColor: isDark ? '#212426' : '#f5f5f5',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        boxShadow: isDark 
+          ? '0 -4px 6px -1px rgba(0, 0, 0, 0.3)' 
+          : '0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
+      }}
+    >
+      <BottomNavigation theme={theme} user={user} />
+    </nav>
+  </>
+);
 };
 export default LiveEvent;

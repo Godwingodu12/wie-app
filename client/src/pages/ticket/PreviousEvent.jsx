@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
+import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import SideBar from "../../components/HomePage/SideBar";
 import SearchBar from "../../components/HomePage/SearchBar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle";
@@ -679,28 +680,27 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
           isDark ? theme.cardBg : "bg-[#f1f1f1]"
         } ${getNeumorphicShadows(isDark)}`}>
         {/* Filters for Mobile */}
-        <div className="flex flex-col gap-3 mb-4 md:hidden">
+        <div className="flex flex-col gap-3 mb-4 md:hidden mt-4">
           {/* Search Bar */}
-          <div
+            <div
             className="flex items-center gap-2 rounded-full px-3 py-2"
-            style={{
-              background: isDark ? "#232426" : "#f1f1f1",
-              boxShadow: isDark
-                ? "inset 5px 5px 10px #1a1b1e, inset -5px -5px 10px #3c3f44"
-                : "inset 5px 5px 10px #a4a4a4, inset -5px -5px 10px #ffffff",
-              height: "36px",
-            }}
-          >
-            <Search className={`w-4 h-4 ${theme.text} flex-shrink-0`} />
-            <input
-              type="text"
-              placeholder="Search events..."
-              value={searchTerm}
-              onChange={(e) => onSearchTermChange(e.target.value)}
-              className={`bg-transparent focus:outline-none w-full text-xs font-medium ${theme.text} placeholder-gray-500`}
-            />
-          </div>
-
+              style={{
+                background: isDark ? "#232426" : "#f1f1f1",
+                boxShadow: isDark
+                  ? "inset 5px 5px 10px #1a1b1e, inset -5px -5px 10px #3c3f44"
+                  : "inset 5px 5px 10px #a4a4a4, inset -5px -5px 10px #ffffff",
+                height: "36px",
+              }}
+            >
+              <Search className={`w-4 h-4 ${theme.text} flex-shrink-0`} />
+              <input
+                type="text"
+                placeholder="Search events..."
+                value={searchTerm}
+                onChange={(e) => onSearchTermChange(e.target.value)}
+                className={`bg-transparent focus:outline-none w-full text-xs font-medium ${theme.text} placeholder-gray-500`}
+              />
+            </div>
           {/* Dropdowns Row */}
           <div className="flex gap-2">
             <div className="flex-1">
@@ -1196,7 +1196,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
             </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-32 md:pb-8 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
               <div className="block">
                 <h1
@@ -1234,96 +1234,96 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
     <div className="lg:col-span-1 w-full p-2 md:p-4">
       <MyGroupsCard theme={theme} groups={groups} isDark={isDark} />
     </div>
-          <div className="w-full flex items-center justify-center">
-                          {/* Mobile/Tablet View */}
-                          <div className="lg:hidden w-full flex justify-center px-2">
-                            <div
-                              style={{
-                                width: "100%",
-                                maxWidth: "340px",
-                                minWidth: "280px",
-                                height: "203px",
-                                padding: "21px",
-                                gap: "20px",
-                                borderRadius: "50px",
-                                background: isDark ? "#212426" : "#f1f1f1",
-                                boxShadow: isDark 
-                                  ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
-                                  : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
-                              }}
-                              className="flex flex-row items-center justify-between"
-                            >
-                              <StatsCard
-                                isDark={isDark}
-                                theme={theme}
-                                count={confirmedEventsCount}
-                                title="Total Completed events"
-                                icon={
-                                  <div className="text-yellow-400">
-                                    <PartyPopper className="h-6 w-6 sm:h-7 sm:w-7" />
-                                  </div>
-                                }
-                                isMobile={true}
-                              />
-                              <StatsCard
-                                isDark={isDark}
-                                theme={theme}
-                                count={totalLiveEvents}
-                                title="Total created events"
-                                icon={
-                                  <div className="text-red-500 relative">
-                                    <Radio className="h-6 w-6 sm:h-7 sm:w-7" />
-                                  </div>
-                                }
-                                isMobile={true}
-                              />
-                            </div>
-                          </div>
-                          <div className="hidden lg:flex w-full justify-start [@media(width:1024px)]:-ml-8">
-                            <div
-                              style={{
-                                width: "min(100%, 280px)",
-                                maxWidth: "280px",
-                                height: "203px",
-                                padding: "21px",
-                                gap: "18px",
-                                borderRadius: "50px",
-                                background: isDark ? "#212426" : "#f1f1f1",
-                                boxShadow: isDark
-                                  ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
-                                  : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
-                              }}
-                              className="flex flex-row items-center justify-center transition-all duration-300 
-                                        [@media(width:1024px)]:!w-[280px] [@media(width:1024px)]:!max-w-[280px]"
-                            >
-                              <StatsCard
-                                isDark={isDark}
-                                theme={theme}
-                                count={confirmedEventsCount}
-                                title="Total Completed events"
-                                icon={
-                                  <div className="text-yellow-400">
-                                    <PartyPopper className="h-7 w-7 lg:h-8 lg:w-8 xl:h-9 xl:w-9" />
-                                  </div>
-                                }
-                                isMobile={false}
-                              />
-                              
-                              <StatsCard
-                                isDark={isDark}
-                                theme={theme}
-                                count={totalLiveEvents}
-                                title="Total created events"
-                                icon={
-                                  <div className="text-red-500 relative">
-                                    <Radio className="h-7 w-7 lg:h-8 lg:w-8 xl:h-9 xl:w-9" />
-                                  </div>
-                                }
-                                isMobile={false}
-                              />
-                            </div>
-                          </div>
-                          </div>
+        <div className="w-full flex items-center justify-center">
+          {/* Mobile/Tablet View */}
+          <div className="lg:hidden w-full flex justify-center px-2">
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "340px",
+                minWidth: "280px",
+                height: "203px",
+                padding: "21px",
+                gap: "20px",
+                borderRadius: "50px",
+                background: isDark ? "#212426" : "#f1f1f1",
+                boxShadow: isDark 
+                  ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
+                  : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
+              }}
+              className="flex flex-row items-center justify-between"
+            >
+              <StatsCard
+                isDark={isDark}
+                theme={theme}
+                count={confirmedEventsCount}
+                title="Total Completed events"
+                icon={
+                  <div className="text-yellow-400">
+                    <PartyPopper className="h-6 w-6 sm:h-7 sm:w-7" />
+                  </div>
+                }
+                isMobile={true}
+              />
+              <StatsCard
+                isDark={isDark}
+                theme={theme}
+                count={totalLiveEvents}
+                title="Total created events"
+                icon={
+                  <div className="text-red-500 relative">
+                    <Radio className="h-6 w-6 sm:h-7 sm:w-7" />
+                  </div>
+                }
+                isMobile={true}
+              />
+            </div>
+          </div>
+          <div className="hidden lg:flex w-full justify-start [@media(width:1024px)]:-ml-8">
+            <div
+              style={{
+                width: "min(100%, 280px)",
+                maxWidth: "280px",
+                height: "203px",
+                padding: "21px",
+                gap: "18px",
+                borderRadius: "50px",
+                background: isDark ? "#212426" : "#f1f1f1",
+                boxShadow: isDark
+                  ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
+                  : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
+              }}
+              className="flex flex-row items-center justify-center transition-all duration-300 
+                        [@media(width:1024px)]:!w-[280px] [@media(width:1024px)]:!max-w-[280px]"
+            >
+              <StatsCard
+                isDark={isDark}
+                theme={theme}
+                count={confirmedEventsCount}
+                title="Total Completed events"
+                icon={
+                  <div className="text-yellow-400">
+                    <PartyPopper className="h-7 w-7 lg:h-8 lg:w-8 xl:h-9 xl:w-9" />
+                  </div>
+                }
+                isMobile={false}
+              />
+              
+              <StatsCard
+                isDark={isDark}
+                theme={theme}
+                count={totalLiveEvents}
+                title="Total created events"
+                icon={
+                  <div className="text-red-500 relative">
+                    <Radio className="h-7 w-7 lg:h-8 lg:w-8 xl:h-9 xl:w-9" />
+                  </div>
+                }
+                isMobile={false}
+              />
+            </div>
+          </div>
+          </div>
     {/* Calendar Section */}
   <div className="lg:col-span-2 w-full [@media(width:1024px)]:scale-90 [@media(width:1024px)]:origin-right">
     <YourContentHeader
@@ -1355,17 +1355,19 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                 })}
               </div>
             </div>
-            <EventsList
-              isDark={isDark}
-              theme={theme}
-              events={events}
-              groups={groups}
-              activeFilter={activeFilter}
-              selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
-              searchTerm={searchTerm}
-              onSearchTermChange={setSearchTerm}
-            />
+            <div className="mt-4 sm:mt-0">
+              <EventsList
+                isDark={isDark}
+                theme={theme}
+                events={events}
+                groups={groups}
+                activeFilter={activeFilter}
+                selectedDate={selectedDate}
+                setSelectedDate={setSelectedDate}
+                searchTerm={searchTerm}
+                onSearchTermChange={setSearchTerm}
+              />
+            </div>
           </main>
         </div>
         <GroupSelectionModal
@@ -1375,6 +1377,18 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
           onSelectGroup={handleSelectGroup}
         />
       </div>
+            <nav 
+        className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t"
+        style={{
+          backgroundColor: isDark ? '#212426' : '#f5f5f5',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          boxShadow: isDark 
+            ? '0 -4px 6px -1px rgba(0, 0, 0, 0.3)' 
+            : '0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
+        }}
+      >
+        <BottomNavigation theme={theme} user={user} />
+      </nav>
     </>
     );
   };

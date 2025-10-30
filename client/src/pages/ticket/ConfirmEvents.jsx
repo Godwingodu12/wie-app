@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
+import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import HostEventModal from "../../components/Event/HostEventModal";
 import SideBar from "../../components/HomePage/SideBar";
 import SearchBar from "../../components/HomePage/SearchBar";
@@ -540,8 +541,7 @@ const EventsList = ({
       <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-gray-100 dark:lg:[&::-webkit-scrollbar-track]:bg-gray-800 lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
         {/* Mobile Only View (below sm breakpoint - phones only) */}
         <div className="flex flex-col sm:hidden">
-          {/* Search and Filter Section */}
-          <div className="relative mb-6">
+          <div className="relative mb-6 mt-4">
             <div className="flex items-center gap-3">
               {/* Filter Button */}
               <button
@@ -601,7 +601,7 @@ const EventsList = ({
             style={{
               width: '100%',
               maxWidth: '344px',
-              minHeight: filteredEvents.length === 0 ? 'auto' : '200px',
+              minHeight: 'auto',
               borderRadius: '24px',
               padding: '32px 24px',
               boxShadow: isDark
@@ -1330,7 +1330,7 @@ const openHostModal = (event) => {
             </div>
           </div>
         </header>
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-32 md:pb-8 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
             <div>
               <h1 className={`text-3xl sm:text-4xl font-bold ${theme.text}`}>
@@ -1497,6 +1497,18 @@ const openHostModal = (event) => {
         onSelectGroup={handleSelectGroup}
       />
     </div>
+          <nav 
+            className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t"
+            style={{
+              backgroundColor: isDark ? '#212426' : '#f5f5f5',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+              boxShadow: isDark 
+                ? '0 -4px 6px -1px rgba(0, 0, 0, 0.3)' 
+                : '0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
+            }}
+          >
+            <BottomNavigation theme={theme} user={user} />
+          </nav>
     </>
   );
 };

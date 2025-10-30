@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
+import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import SideBar from "../../components/HomePage/SideBar";
 import SearchBar from "../../components/HomePage/SearchBar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle";
@@ -725,96 +726,95 @@ const filteredEvents = useMemo(() => {
     >
     <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-gray-100 dark:lg:[&::-webkit-scrollbar-track]:bg-gray-800 lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
         {/* Mobile Only View (below sm breakpoint - phones only) */}
-        <div className="flex flex-col sm:hidden">
-          {/* Search and Filter Section */}
-          <div className="relative mb-6">
-    <div className="flex items-center gap-3">
-      {/* Filter Button */}
-      <button
-        onClick={() => setShowFilter(!showFilter)}
-        className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${
-          isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
-        }`}
-        style={{
-          boxShadow: isDark
-            ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
-            : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
-        }}
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-        </svg>
-      </button>
-      {/* Search Bar */}
-      <div
-        className={`flex-1 flex items-center gap-2 ${
-          isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
-        }`}
-        style={{
-          maxWidth: '300px',
-          height: '31px',
-          borderRadius: '17.1px',
-          padding: '8.55px',
-          boxShadow: isDark
-            ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
-            : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
-        }}
-      >
-        <Search className="w-4 h-4 flex-shrink-0" />
-        <input
-          ref={searchInputRef}
-          type="text"
-          placeholder="Search events..."
-          value={searchTerm}
-          onChange={(e) => onSearchTermChange(e.target.value)}
-          className={`bg-transparent focus:outline-none w-full text-sm ${
-            isDark ? 'placeholder-gray-500' : 'placeholder-gray-400'
-          }`}
-        />
-      </div>
-    </div>
-{selectedDate && (
-    <div className="flex items-center justify-between mb-4 px-2">
-      <div className="flex items-center gap-2">
-        <span className={`text-xs ${theme.subText}`}>
-          Events for:
-        </span>
-        <span className={`text-xs font-semibold ${theme.text}`}>
-          {selectedDate.toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })}
-        </span>
-      </div>
-        <div className="mt-2">
-          <button
-            onClick={() => setSelectedDate(null)}
-            className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${
-              isDark
-                ? "bg-blue-600 hover:bg-blue-500 text-white"
-                : "bg-blue-500 hover:bg-blue-600 text-white"
-            }`}
-          >
-            Clear filter
-          </button>
+      <div className="flex flex-col sm:hidden">
+        <div className="relative mb-6 mt-4">
+          <div className="flex items-center gap-3">
+            {/* Filter Button */}
+            <button
+              onClick={() => setShowFilter(!showFilter)}
+              className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${
+                isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
+              }`}
+              style={{
+                boxShadow: isDark
+                  ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+                  : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+              }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+            </button>
+            {/* Search Bar */}
+            <div
+              className={`flex-1 flex items-center gap-2 ${
+                isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
+              }`}
+              style={{
+                maxWidth: '300px',
+                height: '31px',
+                borderRadius: '17.1px',
+                padding: '8.55px',
+                boxShadow: isDark
+                  ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+                  : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
+              }}
+            >
+              <Search className="w-4 h-4 flex-shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search events..."
+                value={searchTerm}
+                onChange={(e) => onSearchTermChange(e.target.value)}
+                className={`bg-transparent focus:outline-none w-full text-sm ${
+                  isDark ? 'placeholder-gray-500' : 'placeholder-gray-400'
+                }`}
+              />
+            </div>
+          </div>
+              {selectedDate && (
+                <div className="flex items-center justify-between mb-4 px-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs ${theme.subText}`}>
+                      Events for:
+                    </span>
+                    <span className={`text-xs font-semibold ${theme.text}`}>
+                      {selectedDate.toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </div>
+                    <div className="mt-2">
+                      <button
+                        onClick={() => setSelectedDate(null)}
+                        className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${
+                          isDark
+                            ? "bg-blue-600 hover:bg-blue-500 text-white"
+                            : "bg-blue-500 hover:bg-blue-600 text-white"
+                        }`}
+                      >
+                        Clear filter
+                      </button>
+                    </div>
+                </div>
+              )}
+              {/* Filter Dropdown */}
+              {showFilter && (
+                <div className="absolute top-14 left-0 z-50">
+                  <FilterButton />
+                </div>
+              )}
         </div>
-    </div>
-  )}
-    {/* Filter Dropdown */}
-    {showFilter && (
-      <div className="absolute top-14 left-0 z-50">
-        <FilterButton />
-      </div>
-    )}
-  </div>
           {/* Events Table */}
           <div
             className={`${isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'}`}
             style={{
               width: '100%',
               maxWidth: '344px',
-              minHeight: filteredEvents.length === 0 ? 'auto' : '200px',
+              minHeight: 'auto',
               borderRadius: '24px',
               padding: '32px 24px',
               boxShadow: isDark
@@ -1622,8 +1622,7 @@ const ViewEvent = () => {
             </div>
           </div>
         </header>
-
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-32 md:pb-8 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-6 md:mb-8 gap-4">
             <div>
               <h1 className={`text-3xl md:text-4xl ${theme.text}`}>View events</h1>
@@ -1825,7 +1824,7 @@ const ViewEvent = () => {
                   flexDirection: "column",
                   gap: "20px",
                   overflow: "hidden",
-                  minHeight: "810px", // Added: Increased minimum height
+                  minHeight: "auto", 
                 }}
                 className={`w-full rounded-[50px] ${
                   isDark ? theme.cardBg : "bg-[#f1f1f1]"
@@ -1835,9 +1834,8 @@ const ViewEvent = () => {
                 <div className="w-full">
                   <GroupStatisticsChart theme={theme} statsData={groupStats} />
                 </div>
-                
                 {/* Calendar Section */}
-              <div className="w-full flex flex-col gap-4" style={{ marginTop: "80px" }}>
+              <div className="w-full flex flex-col gap-4" style={{ marginTop: "103px" }}>
                 <CalendarControls
                   isDark={isDark}
                   theme={theme}
@@ -1859,6 +1857,7 @@ const ViewEvent = () => {
                     dates={generateCalendarDates}
                     selectedDate={selectedDate}
                     onDateClick={handleDateClick}
+                    style={{ minHeight: 'auto', boxShadow: '8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A' }}
                   />
                 </div>
               </div>
@@ -1872,8 +1871,20 @@ const ViewEvent = () => {
             onClose={() => setIsModalOpen(false)}
             onSelectGroup={handleSelectGroup}
           />
-        </main>     
+        </main>  
       </div>
+      <nav 
+        className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t"
+        style={{
+          backgroundColor: isDark ? '#212426' : '#f5f5f5',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          boxShadow: isDark 
+            ? '0 -4px 6px -1px rgba(0, 0, 0, 0.3)' 
+            : '0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
+        }}
+      >
+        <BottomNavigation theme={theme} user={user} />
+      </nav>
     </div>
   );
 };
