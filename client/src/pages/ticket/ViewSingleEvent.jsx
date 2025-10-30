@@ -5,6 +5,8 @@ import { ChevronRight, ChevronLeft, X, Phone, Play } from "lucide-react";
 import SearchBar from "../../components/HomePage/SearchBar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle";
 import LogoIcon from "../../assets/WieLogo.svg";
+import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
+
 import Event_Days from "../../assets/ViewSingleEvent/Event_Days.svg";
 import Globe from "../../assets/ViewSingleEvent/Globe.svg";
 import Private from "../../assets/ViewSingleEvent/Private.svg";
@@ -24,7 +26,7 @@ import GuideVector from "../../assets/ViewSingleEvent/GuideVector.svg";
 import Rules from "../../assets/ViewSingleEvent/Rules.svg";
 
 import { getTicketById, getGroupView } from "../../services/ticketService";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import Card from "../../components/ViewSingleEvent/Card";
 import getFullBankingDetails from "../../components/ViewSingleEvent/getFullBankingDetails";
@@ -39,7 +41,7 @@ import LanguagePopover from "../../components/ViewSingleEvent/LanguagePopover";
 import ProhibitPopover from "../../components/ViewSingleEvent/ProhibitPopover";
 import PreferenceModal from "../../components/ViewSingleEvent/PreferenceModal";
 import ImageModal from "../../components/ViewSingleEvent/ImageModal";
-
+import GuideModal from "../../components/ViewSingleEvent/GuideModal";
 const darkTheme = {
   isDark: true,
   text: "text-white",
@@ -65,8 +67,12 @@ const lightTheme = {
 const ViewSingleEvent = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation(); // <--- New hook usage
+  const initialThemeIsDark = location.state?.initialThemeIsDark ?? true;
 
-  const [theme, setTheme] = useState(darkTheme);
+  const [theme, setTheme] = useState(
+    initialThemeIsDark ? darkTheme : lightTheme
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [currentGuideIndex, setCurrentGuideIndex] = useState(0);
   const [currentBankIndex, setCurrentBankIndex] = useState(0);
@@ -84,8 +90,12 @@ const ViewSingleEvent = () => {
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
+
+  const [showGuideModal, setShowGuideModal] = useState(false);
+const [selectedGuest, setSelectedGuest] = useState(null);
+
   const [currentStatsEventIndex, setCurrentStatsEventIndex] = useState(0);
-  const [activeCarouselIndex, setActiveCarouselIndex] = useState(3);
+  const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
 
   const handleCarouselPrev = () => {
     setActiveCarouselIndex((prev) => Math.max(0, prev - 1));
@@ -105,6 +115,24 @@ const ViewSingleEvent = () => {
     } else {
       alert("No images or video available for preview.");
     }
+  };
+  // Inside ViewEvent component
+
+  useEffect(() => {
+    const theme = localStorage.getItem("theme");
+    const d = theme
+      ? theme === "dark"
+      : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    setTheme(d ? darkTheme : lightTheme);
+    document.documentElement.classList.toggle("dark", d);
+  }, []);
+
+  const handleThemeToggle = () => {
+    const newDark = !theme.isDark;
+
+    setTheme(newDark ? darkTheme : lightTheme);
+    document.documentElement.classList.toggle("dark", newDark);
+    localStorage.setItem("theme", newDark ? "dark" : "light");
   };
 
   useEffect(() => {
@@ -312,10 +340,6 @@ const ViewSingleEvent = () => {
     );
   }
 
-  const handleThemeToggle = () => {
-    setTheme(theme.isDark ? lightTheme : darkTheme);
-  };
-
   const handleSearchChange = (event) => {
     setSearchTerm(event.target.value);
   };
@@ -323,9 +347,22 @@ const ViewSingleEvent = () => {
   const handleTuneClick = () => {
     alert("Tune/Filter button clicked!");
   };
-  const handleNavigateHome=()=>{
-    navigate("/home");
-  }
+  const handleNavigateHome = () => {
+    navigate("/home", {
+      state: {
+        initialThemeIsDark: theme.isDark,
+      },
+    });
+  };
+  const handleGuestClick = (guest) => {
+console.log("Guest Clicked! Modal should open for:", guest.guest_name);    setSelectedGuest(guest);
+    setShowGuideModal(true);
+};
+
+const handleCloseGuideModal = () => {
+    setShowGuideModal(false);
+    setSelectedGuest(null);
+};
 
   const guidesToShow = 3;
   const ticketsToShow = 3;
@@ -434,6 +471,33 @@ const ViewSingleEvent = () => {
           </div>
         </div>
         <div className="flex items-center space-x-4">
+          <div
+            className="relative rounded-full"
+            style={{
+              backgroundColor: theme.cardBg,
+              boxShadow: theme.shadowOutset,
+            }}
+          >
+            <div
+              style={{
+                boxShadow: theme.isDark
+                  ? "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)"
+                  : "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
+              }}
+              className={`w-11 h-11 rounded-full flex items-center justify-center`}
+            >
+              <img
+                src={NotificationIcon}
+                alt="Notification"
+                className={`w-4 h-4 ${
+                  theme.isDark ? "filter brightness-0 invert" : ""
+                }`}
+              />
+            </div>
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5">
+              12
+            </span>
+          </div>
           <ThemeToggle isDark={theme.isDark} onToggle={handleThemeToggle} />
         </div>
       </header>
@@ -563,8 +627,7 @@ const ViewSingleEvent = () => {
                   <div className="flex space-x-3 justify-around">
                     <Card
                       theme={theme}
-                      className="p-2 py-6 my-2 flex flex-col border border-gray-400 items-center justify-center w-2/5 rounded-lg"
-                    >
+className={`p-2 py-6 my-2 flex flex-col items-center justify-center w-2/5 rounded-lg border ${theme.isDark ? 'border-gray-700' : 'border-gray-400'}`}                    >
                       <img
                         src={Event_Days}
                         alt="Event Days Icon"
@@ -584,8 +647,7 @@ const ViewSingleEvent = () => {
                     eventData.sub_events?.length > 0 ? (
                       <Card
                         theme={theme}
-                        className="p-2 py-6 my-2 flex flex-col border border-gray-400 items-center justify-center w-2/5 rounded-lg relative overflow-hidden"
-                      >
+className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700' : 'border-gray-300'} items-center justify-center w-2/5 rounded-lg relative overflow-hidden`}                      >
                         <div className="absolute inset-y-0 left-0 flex items-center p-1">
                           <ChevronLeft
                             size={20}
@@ -606,7 +668,7 @@ const ViewSingleEvent = () => {
                             size={20}
                             className={`text-gray-400 cursor-pointer ${
                               currentStatsEventIndex ===
-                                eventData.sub_events.length - 1
+                              eventData.sub_events.length - 1
                                 ? "opacity-30"
                                 : "hover:text-white"
                             }`}
@@ -651,8 +713,7 @@ const ViewSingleEvent = () => {
                     ) : (
                       <Card
                         theme={theme}
-                        className="p-2 py-6 my-2 flex flex-col border border-gray-800 items-center justify-center w-2/5 rounded-lg"
-                      >
+className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700' : 'border-gray-400'} items-center justify-center w-2/5 rounded-lg`}                      >
                         <img
                           src={Max_People}
                           alt="Max People Icon"
@@ -671,9 +732,9 @@ const ViewSingleEvent = () => {
                   </div>
                 </div>
               </div>
-              <div className="hidden  w-2/5 md:flex px-3 pt-8">
+              <div className="hidden  w-2/5 md:flex px-10 pt-10">
                 <div
-                  className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0"
+                  className="w-32 h-32 rounded-full overflow-hidden flex-shrink-0"
                   style={{ boxShadow: theme.shadowOutset }}
                 >
                   <img
@@ -1238,7 +1299,7 @@ const ViewSingleEvent = () => {
                 <div className="flex-grow flex items-center justify-center space-x-3 overflow-x-auto p-2">
                   {(eventData.POCS || []).map((person, index) => (
                     <div key={index} className="text-center w-16">
-                      <div className="w-12 h-12 rounded-full mx-auto mb-1 border-2 border-gray-600 overflow-hidden flex items-center justify-center bg-gray-700">
+                      <div className="w-12 h-12 rounded-full mx-auto mb-1 border-2 border-gray-700 overflow-hidden flex items-center justify-center bg-gray-700">
                         <span className="text-white text-lg">
                           {person.POC_name?.[0]?.toUpperCase() || "P"}
                         </span>
@@ -1272,7 +1333,7 @@ const ViewSingleEvent = () => {
               Guide & Event Hosts
             </h3>
             {eventData.guests && eventData.guests.length > 0 ? (
-              <div className="flex items-center space-x-2 pb-2 flex-grow">
+              <div className="flex items-center space-x-2 pb-2 flex-grow ">
                 <ChevronLeft
                   size={24}
                   className={`text-gray-400 cursor-pointer ${
@@ -1280,16 +1341,17 @@ const ViewSingleEvent = () => {
                   }`}
                   onClick={handlePrevGuide}
                 />
-                <div className="flex-grow flex items-center justify-center space-x-4 p-2">
+                <div className="flex-grow flex items-center justify-center space-x-4 p-2 ">
                   {eventData.guests
                     .slice(currentGuideIndex, currentGuideIndex + guidesToShow)
                     .map((guest) => (
                       <Card
                         key={guest.guest_name}
                         theme={theme}
-                        className="p-2 w-40 text-center rounded-lg"
-                      >
-                        <div className="w-32 h-32 rounded-lg mx-auto mb-2 overflow-hidden">
+onClick={() => handleGuestClick(guest)}
+      className="p-2 w-40 text-center rounded-lg cursor-pointer relative" >
+                        <div className="w-32 h-32 rounded-lg mx-auto mb-2 overflow-hidden"
+                       >
                           <img
                             src={
                               formatImagePath(guest.guest_profile) ||
@@ -1354,6 +1416,14 @@ const ViewSingleEvent = () => {
           theme={theme}
         />
       )}
+      {showGuideModal && (
+    <GuideModal 
+        guest={selectedGuest}
+        theme={theme}
+        formatImagePath={formatImagePath} 
+        onClose={handleCloseGuideModal}
+    />
+)}
     </div>
   );
 };
