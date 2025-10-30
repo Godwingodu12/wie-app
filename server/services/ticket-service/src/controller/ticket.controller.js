@@ -1,6 +1,7 @@
 import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import TicketLike from '../models/ticketLike.model.js';
+import { createNotification } from './notification.controller.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
 export const getGroupsTypes = async (req, res) => {
     try {
@@ -599,7 +600,7 @@ export const getMyPastEvents = async (req, res) => {
         const tickets = await Ticket.find({ 
             userId: userId,
             status: 'completed',
-            event_end_date: { $lt: currentDate }
+            end_date: { $lt: currentDate }
         });
         res.status(200).json({
             message: "My Past Tickets retrieved successfully",
@@ -696,7 +697,7 @@ export const getOthersPastEvents = async (req, res) => {
         const tickets = await Ticket.find({ 
             userId: other,
             status: 'completed',
-            event_end_date: { $lt: currentDate }
+            end_date: { $lt: currentDate }
         });
         res.status(200).json({
             message: "other user Past Tickets retrieved successfully",
@@ -852,33 +853,58 @@ export const getGroupStatistics = async (req, res) => {
     });
   }
 };
-export const confirmEvent = async(req, res) => {
+export const confirmEvent = async (req, res) => {
   try {
+    const ticketId = req.params.ticketId || req.body.ticketId;
     const userId = req.user._id || req.user.id;
-    const ticketId = req.params.ticketId;
-    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+    if (!ticketId) {
       return res.status(400).json({
-        message: "Invalid ticket ID format"
+        message: "Missing required parameter: ticketId"
       });
     }
-    const ticket = await Ticket.findOne({ _id: ticketId, userId: userId });
-    if (!ticket) {
-      return res.status(404).json({
-        message: "Ticket not found"
+    // Update ticket to confirmed status
+    const updatedTicket = await Ticket.findOneAndUpdate(
+      { _id: ticketId, userId: userId },
+      { 
+        event_status: 'confirmed',
+        updated_at: new Date()
+      },
+      { new: true }
+    );
+
+    if (!updatedTicket) {
+      return res.status(404).json({ 
+        message: "Ticket not found or unauthorized" 
       });
     }
-    ticket.event_status = 'confirmed';
-    await ticket.save();
+    // Populate groupId
+    await updatedTicket.populate('groupId');
+    // Create notification
+    try {
+      const groupName = updatedTicket.groupId?.name || 'Unknown Group';
+      await createNotification({
+        userId: userId,
+        type: 'event_created',
+        title: 'Event Created Successfully',
+        message: `Your event "${updatedTicket.event_name}" has been created in ${groupName}`,
+        ticketId: updatedTicket._id,
+        groupId: updatedTicket.groupId?._id,
+        groupName: groupName,
+        eventName: updatedTicket.event_name
+      });
+      console.log('Notification created for confirmed event:', updatedTicket.event_name);
+    } catch (notifError) {
+      console.error('Error creating notification:', notifError);
+    }
     res.status(200).json({
       message: "Event confirmed successfully",
-      ticket: ticket
+      ticket: updatedTicket
     });
-  }
-  catch (error) {
+  } catch (error) {
     console.error("Error confirming event:", error);
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message 
     });
   }
 };
@@ -886,20 +912,29 @@ export const goLiveEvent = async(req, res) => {
   try {
     const userId = req.user._id || req.user.id;
     const ticketId = req.params.ticketId;
+    
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
         message: "Invalid ticket ID format"
       });
     }
-    const ticket = await Ticket.findOne({ _id: ticketId, userId: userId });
+
+    // Find ticket without populate first
+    const ticket = await Ticket.findOne({ 
+      _id: ticketId, 
+      userId: userId 
+    });
+    
     if (!ticket) {
       return res.status(404).json({
         message: "Ticket not found"
       });
     }
+
     const currentDate = new Date();
     currentDate.setHours(0, 0, 0, 0);
     const expiredDates = [];
+    
     // Check event_dates array for start_date and end_date
     if (ticket.event_dates && ticket.event_dates.length > 0) {
       ticket.event_dates.forEach((dateObj, index) => {
@@ -919,6 +954,7 @@ export const goLiveEvent = async(req, res) => {
         }
       });
     }
+    
     // Check booking_start_date
     if (ticket.booking_start_date) {
       const bookingStartDate = new Date(ticket.booking_start_date);
@@ -927,6 +963,7 @@ export const goLiveEvent = async(req, res) => {
         expiredDates.push(`Booking start date (${bookingStartDate.toLocaleDateString()})`);
       }
     }
+    
     // Check booking_end_date
     if (ticket.booking_end_date) {
       const bookingEndDate = new Date(ticket.booking_end_date);
@@ -935,7 +972,8 @@ export const goLiveEvent = async(req, res) => {
         expiredDates.push(`Booking end date (${bookingEndDate.toLocaleDateString()})`);
       }
     }
-    // Check event_start_date (fallback if not in event_dates array)
+    
+    // Check event start_date (fallback if not in event_dates array)
     if (ticket.start_date) {
       const eventStartDate = new Date(ticket.start_date);
       eventStartDate.setHours(0, 0, 0, 0);
@@ -943,14 +981,15 @@ export const goLiveEvent = async(req, res) => {
         expiredDates.push(`Event start date (${eventStartDate.toLocaleDateString()})`);
       }
     }
-    // Check event_end_date (fallback if not in event_dates array)
-    if (ticket.event_end_date) {
-      const eventEndDate = new Date(ticket.event_end_date);
+    // Check event end_date (fallback if not in event_dates array)
+    if (ticket.end_date) {
+      const eventEndDate = new Date(ticket.end_date);
       eventEndDate.setHours(0, 0, 0, 0);
       if (eventEndDate < currentDate) {
         expiredDates.push(`Event end date (${eventEndDate.toLocaleDateString()})`);
       }
     }
+    
     // If any dates are expired, prevent going live
     if (expiredDates.length > 0) {
       return res.status(400).json({
@@ -962,6 +1001,28 @@ export const goLiveEvent = async(req, res) => {
     // All dates are valid, proceed to go live
     ticket.event_status = 'live';
     await ticket.save();
+    // Now populate groupId after save
+    await ticket.populate('groupId');
+    // Create notification for hosted event
+    try {
+      const groupName = ticket.groupId?.name || 'Unknown Group';
+      
+      await createNotification({
+        userId: userId,
+        type: 'event_hosted',
+        title: 'Event Hosted Successfully',
+        message: `Your event "${ticket.event_name}" from ${groupName} is now live!`,
+        ticketId: ticket._id,
+        groupId: ticket.groupId?._id,
+        groupName: groupName,
+        eventName: ticket.event_name
+      });
+      
+      console.log('Notification created for live event:', ticket.event_name);
+    } catch (notifError) {
+      console.error('Error creating notification:', notifError);
+      // Don't fail the request if notification fails
+    }
     res.status(200).json({
       message: "Event went live successfully",
       ticket: ticket
