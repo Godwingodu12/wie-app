@@ -5,6 +5,7 @@ import {getUserData,CreateGroup, createTicketBasicInfo, getGroups, getUserGroupC
 getTicketById,deleteTicket,deleteSubEvent,viewTickets, getAllDeletedEvents} from '../services/ticket.service.js';
 import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getOthersEvents,getOtherLiveEvents,
 getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted } from '../controller/ticket.controller.js';
+import {getNotifications,markAsRead,markAllAsRead,deleteNotification} from '../controller/notification.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);

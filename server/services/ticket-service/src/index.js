@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import ticketRoutes from './routes/ticket.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -71,7 +72,7 @@ app.get('/test-uploads', (req, res) => {
 
 // Routes
 app.use('/api/ticket', ticketRoutes);
-
+app.use('/api/notification', notificationRoutes);
 // Start server and services
 const PORT = process.env.PORT || 5003;
 const startServer = async () => {

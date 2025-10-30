@@ -34,6 +34,7 @@ import ConfirmEvents from './pages/ticket/ConfirmEvents';
 import PreviousEvent from './pages/ticket/PreviousEvent';
 import LiveEvent from './pages/ticket/LiveEvent';
 import BankDetails from './pages/ticket/BankDetails';
+import ViewSingleEvent from './pages/ticket/ViewSingleEvent';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
   if (!token || !user) {
@@ -288,6 +289,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <BankDetails />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/view-single-event/:ticketId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <ViewSingleEvent/>
           </ProtectedRoute>
         }
       />

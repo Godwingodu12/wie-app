@@ -45,6 +45,8 @@ const OrganisationSignup = () => {
   });
   const [alert, setAlert] = useState(null); // <-- ADD THIS
 const [isLoading, setIsLoading] = useState(false);
+const [showPassword, setShowPassword] = useState(false);
+const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 const [errors, setErrors] = useState({});
 
 const showAlert = (data) => setAlert({ ...data, show: true });
@@ -332,7 +334,7 @@ styles={CustomSelectStyles(true, errors)}
               {/* Password Input */}
               <div className="relative flex items-center">
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
@@ -342,14 +344,15 @@ styles={CustomSelectStyles(true, errors)}
                 <img
                   src={PasswordInputIcon}
                   alt="Password Icon"
-                  className="w-4 h-4 absolute right-4 pointer-events-none"
+                  className="w-4 h-4 absolute right-4 cursor-pointer"
+                  onClick={() => setShowPassword(!showPassword)}
                 />
               </div>
 
               {/* Confirm Password Input */}
               <div className="relative flex items-center">
                 <input
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   name="confirm"
                   value={formData.confirm}
                   onChange={handleChange}
@@ -359,7 +362,8 @@ styles={CustomSelectStyles(true, errors)}
                 <img
                   src={PasswordInputIcon}
                   alt="Password Icon"
-                  className="w-4 h-4 absolute right-4 pointer-events-none"
+                  className="w-4 h-4 absolute right-4 cursor-pointer"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 />
               </div>
 

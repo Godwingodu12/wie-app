@@ -6,7 +6,6 @@ import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import DeletedEventIcon from "../../assets/Event/DeletedEventIcon.svg";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
-import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
 import { Trash2, RotateCcw, Eye, Search, Trash } from "lucide-react";
 
 const HEADER_HEIGHT = 72;
@@ -291,15 +290,6 @@ const formatDate = (event) => {
                 />
               </div>
               <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div 
-                    style={{ boxShadow: theme.notificationShadow }} 
-                    className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg} transition-colors duration-300`}
-                  >
-                    <img src={NotificationIcon} alt="Notification" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
-                  </div>
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
-                </div>
                 <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
               </div>
             </div>

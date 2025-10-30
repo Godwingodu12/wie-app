@@ -12,9 +12,7 @@ import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import WieText from "../../assets/HomePage/WieText.svg";
-import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
 import ChatIcon from "../../assets/HomePage/ChatIcon.svg";
-
 import PlusIcon from "../../assets/PROFILEPAGE/PlusIcon.svg";
 import EventIcon from "../../assets/PROFILEPAGE/EventIcon.svg";
 import FollowersIcon from "../../assets/PROFILEPAGE/FollowersIcon.svg";
@@ -713,17 +711,6 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                 <img src={WieText} alt="WIE" className="h-5 object-contain" />
               </div>
               <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div 
-                    style={{ 
-                      boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' 
-                    }} 
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${theme.bg}`}
-                  >
-                    <img src={NotificationIcon} alt="Notification" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
-                  </div>
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
-                </div>
                 <button 
                   style={{ 
                     boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' 
@@ -745,15 +732,6 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                 />
               </div>
               <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div 
-                    style={{ boxShadow: theme.notificationShadow }} 
-                    className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg} transition-colors duration-300`}
-                  >
-                    <img src={NotificationIcon} alt="Notification" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
-                  </div>
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
-                </div>
                 <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
               </div>
             </div>

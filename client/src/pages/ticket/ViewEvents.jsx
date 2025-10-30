@@ -17,7 +17,6 @@ import {
   getGroupStatistics,
 } from "../../services/ticketService";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
-import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
 import {
   ChevronDown,
   ChevronLeft,
@@ -593,7 +592,7 @@ const EventsList = ({
   const itemsPerPage = 6;
   const [isCategoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("All");
-
+  const navigate = useNavigate();
   const categories = useMemo(() => {
     if (!events) return ["All"];
     const allCategories = events
@@ -705,6 +704,9 @@ const filteredEvents = useMemo(() => {
       month: "2-digit",
       year: "numeric",
     });
+  };
+  const handleViewEvent = (ticketId) => {
+    navigate(`/ticket/view-single-event/${ticketId}`);
   };
 
   return (
@@ -918,10 +920,13 @@ const filteredEvents = useMemo(() => {
                           </div>
                           {/* Action Buttons */}
                           <div className="flex items-center gap-2 justify-start">
-                            <button className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50">
-                              View
-                            </button>
-                            <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
+                            <button 
+                                onClick={() => handleViewEvent(event._id)}
+                                className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50"
+                              >
+                                View
+                              </button>
+                              <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
                               <img
                                 src={EditIcon}
                                 alt="EditIcon"
@@ -1053,6 +1058,7 @@ const filteredEvents = useMemo(() => {
                       </span>
                     </div>
                     <button
+                      onClick={() => handleViewEvent(event._id)}
                       className={`px-4 sm:px-6 py-2 border border-[#6549B8] rounded-full text-sm transition-colors ${
                         isDark
                           ? "text-white hover:bg-[#6549B8]"
@@ -1247,6 +1253,7 @@ const filteredEvents = useMemo(() => {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <button
+                        onClick={() => handleViewEvent(event._id)}
                         className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
                           isDark
                             ? "text-white hover:bg-[#6549B8]"
@@ -1609,29 +1616,6 @@ const ViewEvent = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onTuneClick={() => {}}
               />
-            </div>
-            <div className="relative">
-              <div
-                style={{
-                  boxShadow: isDark
-                    ? "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)"
-                    : "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
-                }}
-                className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg}`}
-              >
-                <img
-                  src={NotificationIcon}
-                  alt="Notification"
-                  className={`w-4 h-4 ${
-                    isDark
-                      ? "filter brightness-0 invert"
-                      : "filter brightness-0"
-                  }`}
-                />
-              </div>
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
-                12
-              </span>
             </div>
             <div className="flex items-center gap-4 ml-auto flex-shrink-0">
               <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />

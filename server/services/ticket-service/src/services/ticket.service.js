@@ -2,6 +2,7 @@ import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import upload from '../middlewares/upload.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
+import { createNotification } from '../controller/notification.controller.js';
 import multer from 'multer';
 import  { sendRPC } from '../rabbit/producer.js';
 function parseJSONSafely(value, defaultValue = []) {
@@ -3178,25 +3179,29 @@ export const updateTicketDetails = async (req, res) => {
 // Step 5: Update Ticket - Terms & Conditions (Company Provided)
 export const updateTicketTerms = async (req, res) => {
   try {
-    // Get ticketId from params first, fallback to body
     const ticketId = req.params.ticketId || req.body.ticketId;
     const { terms_accepted, company_terms_version } = req.body;
+    
     console.log('updateTicketTerms called with:', { ticketId, terms_accepted, company_terms_version });
-    // Validate required parameters
+    
     if (!ticketId) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Missing required parameters",
         required: ["ticketId"]
       });
     }
+    
     if (!terms_accepted) {
-      return res.status(400).json({ message: "Company terms and conditions must be accepted" });
+      return res.status(400).json({ 
+        message: "Company terms and conditions must be accepted" 
+      });
     }
 
     const userId = req.user._id || req.user.id;
     
-    console.log('Updating ticket with ID:', ticketId); // Debug log
+    console.log('Updating ticket with ID:', ticketId);
     
+    // First update the ticket
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
       {
@@ -3211,19 +3216,50 @@ export const updateTicketTerms = async (req, res) => {
     );
 
     if (!updatedTicket) {
-      console.log('Ticket not found for ID:', ticketId); // Debug log
+      console.log('Ticket not found for ID:', ticketId);
       return res.status(404).json({ message: "Ticket not found or unauthorized" });
     }
-    console.log('Ticket updated successfully:', updatedTicket._id); // Debug log
-    res.status(200).json({ 
-      message: "Company terms and conditions accepted successfully", 
+
+    console.log('Ticket updated successfully:', updatedTicket._id);
+
+    // Populate groupId to get group details
+    await updatedTicket.populate('groupId');
+
+    // Create notification only if event_status is 'confirmed'
+    if (updatedTicket.event_status === 'confirmed') {
+      try {
+        const groupName = updatedTicket.groupId?.name || 'Unknown Group';
+        
+        await createNotification({
+          userId: userId,
+          type: 'event_created',
+          title: 'Event Created Successfully',
+          message: `Your event "${updatedTicket.event_name}" has been created in ${groupName}`,
+          ticketId: updatedTicket._id,
+          groupId: updatedTicket.groupId?._id,
+          groupName: groupName,
+          eventName: updatedTicket.event_name
+        });
+        
+        console.log('Notification created for event:', updatedTicket.event_name);
+      } catch (notifError) {
+        console.error('Error creating notification:', notifError);
+        // Don't fail the request if notification fails
+      }
+    }
+
+    res.status(200).json({
+      message: "Company terms and conditions accepted successfully",
       ticket: updatedTicket,
       ticketId: ticketId,
       userId: userId,
     });
   } catch (error) {
     console.error("Error updating ticket terms:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message 
+    });
   }
 };
 // Step 6: Final Preview and Submit Ticket
