@@ -16,7 +16,6 @@ import {
   showEventBankDetails,
 } from "../../services/ticketService";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
-import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
 import FilterButton from "../../components/HomePage/FilterButton.jsx";
 import ShowArrow from "../../assets/Event/ShowArrow.png";
 import HideArrow from "../../assets/Event/HideArrow.png";
@@ -1325,29 +1324,6 @@ const openHostModal = (event) => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onTuneClick={() => {}}
               />
-            </div>
-            <div className="relative">
-              <div
-                style={{
-                  boxShadow: isDark
-                    ? "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)"
-                    : "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
-                }}
-                className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg}`}
-              >
-                <img
-                  src={NotificationIcon}
-                  alt="Notification"
-                  className={`w-4 h-4 ${
-                    isDark
-                      ? "filter brightness-0 invert"
-                      : "filter brightness-0"
-                  }`}
-                />
-              </div>
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
-                12
-              </span>
             </div>
             <div className="flex items-center gap-4 ml-auto flex-shrink-0">
               <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />

@@ -1190,25 +1190,6 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                   onTuneClick={() => {}}
                 />
               </div>
-              <div className="relative">
-                <div
-                  style={{
-                    boxShadow: isDark
-                      ? "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)"
-                      : "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
-                  }}
-                  className={`w-8 sm:w-10 md:w-12 h-8 sm:h-10 md:h-12 rounded-full flex items-center justify-center ${theme.bg}`}
-                >
-                  <img
-                    src={NotificationIcon}
-                    alt="Notification"
-                    className={`w-4 h-4 ${isDark ? "filter brightness-0 invert" : "filter brightness-0"}`}
-                  />
-                </div>
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
-                  12
-                </span>
-              </div>
               <div className="flex items-center gap-4 ml-auto flex-shrink-0">
                 <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
               </div>

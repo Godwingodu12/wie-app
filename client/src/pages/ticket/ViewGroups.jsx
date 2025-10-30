@@ -18,7 +18,6 @@ import no_event from "../../assets/ViewGroup/no_event.png";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
 import SpeakerIcon from "../../assets/HomePage/SpeakerIcon.svg";
-import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
 const SlickCarouselStyles = () => (
     <style>{`
         .slick-slider { position: relative; display: block; box-sizing: border-box; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; -webkit-touch-callout: none; -khtml-user-select: none; -ms-touch-action: pan-y; touch-action: pan-y; -webkit-tap-highlight-color: transparent; }
@@ -329,22 +328,12 @@ const ViewGroups = () => {
                         <div className="flex md:hidden items-center justify-between w-full">
                             <img src={WieLogo} alt="Wie Logo" className="w-10 h-10" />
                             <div className="flex items-center gap-2">
-                                <div className="relative">
-                                    <div style={{ boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' }} className={`w-10 h-10 rounded-full flex items-center justify-center ${theme.bg}`}>
-                                        <img src={NotificationIcon} alt="Notification" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : ''}`} />
-                                    </div>
-                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
-                                </div>
                                 <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
                             </div>
                         </div>
                         <div className="hidden md:flex items-center gap-4 w-full">
                             <div className="flex-1 min-w-0"><SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} /></div>
                             <div className="flex items-center gap-4 ml-auto flex-shrink-0">
-                                <div className="relative">
-                                    <div style={{ boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' }} className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg}`}><img src={NotificationIcon} alt="Notification" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : ''}`} /></div>
-                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
-                                </div>
                                 <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
                             </div>
                         </div>
@@ -422,7 +411,6 @@ const ViewGroups = () => {
 
                     <BottomNavigation />
                 </div>
-
                 <GroupSelectionModal groups={modalGroups} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSelectGroup={handleSelectGroupForEvent} />
             </div>
         </>

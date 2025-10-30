@@ -9,6 +9,10 @@ import DarkIcon from '../../assets/Event/DarkIcon.svg';
 
 import ThemeToggle from '../../components/HomePage/ThemeToggle';
 import EventSidebar from '../../components/CreateGroup/EventSidebar';
+import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
+
+import Alert from "../../components/CreateGroup/Alert";
+
 
 // CSS for placeholders, which will be injected based on the theme
 const darkThemeStyles = `
@@ -197,6 +201,11 @@ const CreateGroup = () => {
   });
   
   const [errors, setErrors] = useState({});
+  const [alert, setAlert] = useState(null); // <-- ADD THIS
+
+// --- ADD THESE HANDLER FUNCTIONS ---
+const showAlert = (data) => setAlert({ ...data, show: true });
+const hideAlert = () => setAlert(null);
   
 
   useEffect(() => {
@@ -361,130 +370,93 @@ const CreateGroup = () => {
 
 const validateForm = () => {
     const newErrors = {};
-    
-    // PAN validation (Required + Format)
-    if (!formData.pan_no.trim()) {
-      newErrors.pan_no = 'PAN number is required';
-    } else if (!/^[A-Z0-9]{10}$/i.test(formData.pan_no)) {
-      newErrors.pan_no = 'PAN must be 10 alphanumeric characters.';
+
+    // Helper to add error and show alert
+    const addError = (field, message) => {
+        if (Object.keys(newErrors).length === 0) { // Show alert for the first error only
+            showAlert({ type: 'error', message: 'Validation Failed', description: message });
+        }
+        newErrors[field] = message;
+    };
+        if (formData.grp_type === 'organisation') {
+        if (!formData.name.trim()) addError('name', 'Organization name is required.');
+        if (!formData.email.trim()) addError('email', 'Email is required.');
+        if (!formData.contact_no.trim()) addError('contact_no', 'Contact number is required.');
+        if (!formData.organisation_type) addError('organisation_type', 'Organisation type is required.');
+        if (!formData.address.trim()) addError('address', 'Address is required.');
+
+        if (formData.organisation_type && formData.organisation_type.toLowerCase() !== 'educational') {
+            if (!formData.gst_no.trim()) addError('gst_no', 'GST number is required for non-educational organisations.');
+            if (!files.bank_check) addError('bank_check', 'Bank check is required for non-educational organisations.');
+            if (!files.company_logo) addError('company_logo', 'Company logo is required for non-educational organisations.');
+        }
     }
 
     if (!files.id_proof) {
-      newErrors.id_proof = 'Aadhaar card is required';
+        addError('id_proof', 'Aadhaar card is required for verification.');
     }
 
-    if (formData.grp_type === 'admin') {
-      if (!userData?.name) newErrors.name = 'Admin name is required in profile';
-      if (!userData?.email) newErrors.email = 'Admin email is required in profile';
-      if (!userData?.contact_no) newErrors.contact_no = 'Admin contact is required in profile';
-
-      if (!hasGst) {
-        newErrors.hasGst = 'Please select if you have GST registration.';
-      } else if (hasGst === 'Yes') {
-        if (!formData.gst_no.trim()) {
-            newErrors.gst_no = 'GST number is required.';
-        } else if (!/^[0-9A-Z]{15}$/i.test(formData.gst_no)) { // GST Format Check
-            newErrors.gst_no = 'GST must be 15 alphanumeric characters.';
-        }
-      }
-
-    } else { // Organisation validation
-      if (!formData.name.trim()) newErrors.name = 'Organization name is required';
-      if (!formData.email.trim()) newErrors.email = 'Email is required';
-      if (!formData.contact_no.trim()) newErrors.contact_no = 'Contact number is required';
-      if (!formData.organisation_type.trim()) newErrors.organisation_type = 'Organisation type is required';
-      if (!formData.address.trim()) newErrors.address = 'Address is required';
-
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (formData.email && !emailRegex.test(formData.email)) {
-        newErrors.email = 'Please enter a valid email address';
-      }
-
-      const phoneRegex = /^[0-9]{10}$/;
-      if (formData.contact_no && !phoneRegex.test(formData.contact_no)) {
-        newErrors.contact_no = 'Contact number must be 10 digits';
-      }
-      
-      if (formData.organisation_type && formData.organisation_type.toLowerCase() !== 'educational') {
-        if (!formData.gst_no.trim()) {
-          newErrors.gst_no = 'GST number is required for non-educational organisations';
-        } else if (!/^[0-9A-Z]{15}$/i.test(formData.gst_no)) { // GST Format Check
-            newErrors.gst_no = 'GST must be 15 alphanumeric characters.';
-        }
-        if (!files.bank_check) {
-          newErrors.bank_check = 'Bank check is required for non-educational organisations';
-        }
-        if (!files.company_logo) {
-          newErrors.company_logo = 'Company logo is required for non-educational organisations';
-        }
-      }
+    // PAN validation
+    if (!formData.pan_no.trim()) {
+        addError('pan_no', 'PAN number is required.');
+    } else if (!/^[A-Z0-9]{10}$/i.test(formData.pan_no)) {
+        addError('pan_no', 'PAN must be 10 alphanumeric characters.');
     }
-    // PAN vs GST Check
-    if (
-      formData.pan_no.trim() &&
-      formData.gst_no.trim() &&
-      formData.pan_no.trim().toUpperCase() === formData.gst_no.trim().toUpperCase()
-    ) {
-      newErrors.pan_no = 'PAN and GST numbers cannot be the same.';
-      newErrors.gst_no = 'PAN and GST numbers cannot be the same.';
-    }
+
+    // ID Proof validation
+    
+
+    // Organisation-specific validation
+
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+};
 
-  const handleSubmit = async (e) => {
-      e.preventDefault();
-      
-      if (!canCreateGroupType(formData.grp_type)) {
-        setErrors({ general: `You cannot create more ${formData.grp_type} groups.` });
+const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!canCreateGroupType(formData.grp_type)) {
+        showAlert({ type: 'error', message: 'Limit Reached', description: `You cannot create more ${formData.grp_type} groups.` });
         return;
-      }
-      
-      if (!validateForm()) return;
+    }
 
-      setLoading(true);
-      try {
+    if (!validateForm()) return;
+
+    setLoading(true);
+    try {
         const submitData = new FormData();
-        
+
         Object.keys(formData).forEach(key => {
-          submitData.append(key, formData[key]);
+            submitData.append(key, formData[key]);
         });
-        
+
         Object.keys(files).forEach(key => {
-          if (files[key]) {
-            submitData.append(key, files[key]);
-          }
+            if (files[key]) {
+                submitData.append(key, files[key]);
+            }
         });
-        
+
         const response = await CreationGroup(submitData);
-        
-        navigate(`/ticket/create-event/${response.group._id}`, {
-          state: {
-            message: 'Group created successfully!',
-            newGroup: response.group 
-          }
+
+        showAlert({
+            type: 'success',
+            message: 'Group Created!',
+            description: 'Redirecting you to the next step...'
         });
-      } catch (error) {
+
+        setTimeout(() => {
+            navigate(`/ticket/create-event/${response.group._id}`);
+        }, 1500);
+
+    } catch (error) {
         console.error('Error creating group:', error);
-        if (error.response?.data?.errors) {
-          const backendErrors = {};
-          error.response.data.errors.forEach(err => {
-            if (err.includes('email')) backendErrors.email = err;
-            else if (err.includes('contact')) backendErrors.contact_no = err;
-            else if (err.includes('name')) backendErrors.name = err;
-            else backendErrors.general = err;
-          });
-          setErrors(backendErrors);
-        } else if (error.response?.data?.message) {
-          setErrors({ general: error.response.data.message });
-        } else {
-          setErrors({ general: 'An error occurred. Please try again.' });
-        }
-      } finally {
+        const errorMessage = error.response?.data?.message || 'An unexpected error occurred. Please try again.';
+        showAlert({ type: 'error', message: 'Creation Failed', description: errorMessage });
+    } finally {
         setLoading(false);
-      }
-  };
+    }
+};
 
   const handleBack = () => navigate(-1);
 
@@ -561,7 +533,9 @@ const validateForm = () => {
     const previewUrl = filePreviews[name];
 
     return (
-      <div className="space-y-2">
+      <>     
+
+            <div className="space-y-2">
         <label className={`flex items-center text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
           {label}
           <InfoTooltip note="This is a dummy note for the file upload." />
@@ -621,6 +595,8 @@ const validateForm = () => {
         </div>
         {hasError && <p className="text-red-500 text-sm mt-1">{errors[name]}</p>}
       </div>
+</>
+
     );
   };
 
@@ -630,7 +606,9 @@ const validateForm = () => {
 
   return (
     <>
-      <style>{scrollbarStyles}</style>
+     <CustomScrollbarStyles isDark={darkMode} />
+         <Alert alert={alert} onClose={hideAlert} /> 
+
       <div className={`min-h-screen flex ${darkMode ? 'dark' : 'light'}`}>
                 {/* --- REFACTORED SIDEBAR --- */}
                 <EventSidebar
@@ -875,7 +853,7 @@ const validateForm = () => {
         placeholder="Select your organization type"
         styles={customSelectStyles(darkMode)}
         theme={(theme) => themeOverride(theme, darkMode)}
-        required
+        
     />
     {errors.organisation_type && <p className="text-red-500 text-sm mt-1">{errors.organisation_type}</p>}
 </div>
@@ -1087,5 +1065,4 @@ const validateForm = () => {
     </>
   );
 };
-
 export default CreateGroup;
