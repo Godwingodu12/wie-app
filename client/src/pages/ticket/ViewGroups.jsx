@@ -11,6 +11,7 @@ import {
   getMyLiveEvents,
   getMyEvents,
 } from "../../services/ticketService";
+import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
@@ -465,8 +466,6 @@ const ViewGroups = () => {
   const totalLiveEvents = events.filter(
     (event) => event.event_status === "live"
   ).length;
-
-
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia(
@@ -807,86 +806,6 @@ const ViewGroups = () => {
     setCurrentDate(new Date(year, month + offset, 1));
   };
 
-  const BottomNavigation = () => (
-    <nav className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 w-[95%] md:hidden">
-      <div
-        className={`flex justify-around items-center py-3 px-4 rounded-full ${
-          theme.cardBg
-        } ${theme.border} ${
-          isDark
-            ? "shadow-[6px_6px_12px_rgba(0,0,0,0.6),-6px_-6px_12px_rgba(60,60,60,0.3)]"
-            : "shadow-[6px_6px_12px_rgba(0,0,0,0.1),-6px_-6px_12px_rgba(255,255,255,0.8)]"
-        }`}
-      >
-        {[
-          { to: "/home", icon: HomeIcon, label: "Home" },
-          {
-            to: "/ticket/view-groups",
-            icon: GroupIcon,
-            label: "Groups",
-            active: true,
-          },
-          { icon: PlusIcon, label: "Create", special: true },
-          {
-            to: "/ticket/live-events",
-            icon: SpeakerIcon,
-            label: "Live Events",
-          },
-          { to: "/profile", label: "Profile", profile: true },
-        ].map(({ to, icon, label, special, profile, active }) =>
-          special ? (
-            <div key={label}>
-              <button
-                onClick={handleCreateClick}
-                disabled={loading}
-                style={outerShadow}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition hover:scale-105 ${theme.specialButtonBg}`}
-              >
-                <img
-                  src={icon}
-                  alt="Create"
-                  className="w-6 h-6 invert brightness-0"
-                />
-              </button>
-            </div>
-          ) : (
-            <Link
-              key={label}
-              to={to}
-              className="flex items-center justify-center p-2"
-            >
-              {profile ? (
-                <div
-                  className={`w-8 h-8 rounded-full overflow-hidden flex items-center justify-center font-bold ${
-                    isDark
-                      ? "bg-[#6a47fa] text-white"
-                      : "bg-purple-200 text-purple-800"
-                  }`}
-                >
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-              ) : (
-                <div
-                  className={`w-8 h-8 flex items-center justify-center rounded-full ${
-                    active ? (isDark ? "bg-gray-700" : "bg-gray-200") : ""
-                  }`}
-                >
-                  <img
-                    src={icon}
-                    alt={label}
-                    className={`w-5 h-5 ${
-                      isDark ? "filter brightness-0 invert" : ""
-                    }`}
-                  />
-                </div>
-              )}
-            </Link>
-          )
-        )}
-      </div>
-    </nav>
-  );
-
   if (loading && createdGroups.length === 0)
     return (
       <div
@@ -1209,10 +1128,7 @@ const ViewGroups = () => {
               </div>
             </div>
           </main>
-
-          <BottomNavigation />
         </div>
-
         <GroupSelectionModal
           groups={modalGroups}
           isOpen={isModalOpen}
@@ -1220,6 +1136,18 @@ const ViewGroups = () => {
           onSelectGroup={handleSelectGroupForEvent}
         />
       </div>
+      <nav 
+        className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t"
+        style={{
+          backgroundColor: isDark ? '#212426' : '#f5f5f5',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          boxShadow: isDark 
+            ? '0 -4px 6px -1px rgba(0, 0, 0, 0.3)' 
+            : '0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
+        }}
+      >
+        <BottomNavigation theme={theme} user={user} />
+      </nav>
     </>
   );
 };

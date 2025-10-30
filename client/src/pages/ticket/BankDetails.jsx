@@ -6,6 +6,7 @@ import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import { Building2, CreditCard, Search, Eye, FileText } from "lucide-react";
+import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 
 const HEADER_HEIGHT = 72;
 
@@ -582,6 +583,18 @@ const BankDetails = () => {
           </main>
         </div>
       </div>
+            <nav 
+              className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t"
+              style={{
+                backgroundColor: isDark ? '#212426' : '#f5f5f5',
+                paddingBottom: 'env(safe-area-inset-bottom)',
+                boxShadow: isDark 
+                  ? '0 -4px 6px -1px rgba(0, 0, 0, 0.3)' 
+                  : '0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
+              }}
+            >
+              <BottomNavigation theme={theme} user={user} />
+            </nav>
     </>
   );
 };
