@@ -10,7 +10,6 @@ import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import WieText from "../../assets/HomePage/WieText.svg";
-import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
 import ChatIcon from "../../assets/HomePage/ChatIcon.svg";
 
 import PlusIcon from "../../assets/PROFILEPAGE/PlusIcon.svg";
@@ -707,17 +706,6 @@ const OtherProfilePage = () => {
                 <img src={WieText} alt="WIE" className="h-5 object-contain" />
               </div>
               <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div 
-                    style={{ 
-                      boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' 
-                    }} 
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${theme.bg}`}
-                  >
-                    <img src={NotificationIcon} alt="Notification" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
-                  </div>
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
-                </div>
                 <button 
                   style={{ 
                     boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' 
@@ -739,15 +727,6 @@ const OtherProfilePage = () => {
                 />
               </div>
               <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div 
-                    style={{ boxShadow: theme.notificationShadow }} 
-                    className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg} transition-colors duration-300`}
-                  >
-                    <img src={NotificationIcon} alt="Notification" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
-                  </div>
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
-                </div>
                 <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
               </div>
             </div>
@@ -916,11 +895,6 @@ const OtherProfilePage = () => {
                   {/* Right side */}
                   <div className="flex flex-col items-end gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div style={{ boxShadow: theme.notificationShadow }} className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg}`}>
-                          <img src={NotificationIcon} alt="Notification" className={`w-5 h-5 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
-                        </div>
-                      </div>
                       <button 
                         onClick={handleHandburgerClick}
                         className={`w-10 h-10 flex items-center justify-center ${theme.bg}`}
@@ -928,7 +902,6 @@ const OtherProfilePage = () => {
                         <img src={HandBurgerIcon} alt="Menu" className={`w-10 h-10 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
                       </button>
                     </div>
-                    
                     {/* Stats */}
                     <div className={`rounded-[2rem] md:rounded-[2.5rem] px-6 md:px-8 lg:px-10 py-3 md:py-3.5 lg:py-4 flex gap-4 md:gap-6 lg:gap-8 transition-all duration-300 ${theme.cardBg}`} style={{boxShadow: theme.smallCardShadow}}>
                       <div className="text-center flex flex-col items-center gap-1 md:gap-1.5">
