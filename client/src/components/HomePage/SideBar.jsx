@@ -6,20 +6,20 @@ import { getMe } from "../../services/userService.js";
 import { getGroups } from "../../services/ticketService";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
 // ICONS
-import HomeIcon from "../../assets/HOMEPAGE/HomeIcon.svg";
-import TicketIcon from "../../assets/HOMEPAGE/TicketIcon.svg";
-import OrgIcon from "../../assets/HOMEPAGE/OrgIcon.svg";
-import SpeakerIcon from "../../assets/HOMEPAGE/SpeakerIcon.svg";
-import ChatIcon from "../../assets/HOMEPAGE/ChatIcon.svg";
-import Vector from "../../assets/HOMEPAGE/Vector.svg";
-import SettingIcon from "../../assets/HOMEPAGE/SettingIcon.svg";
+import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
+import TicketIcon from "../../assets/HomePage/TicketIcon.svg";
+import OrgIcon from "../../assets/HomePage/OrgIcon.svg";
+import SpeakerIcon from "../../assets/HomePage/SpeakerIcon.svg";
+import ChatIcon from "../../assets/HomePage/ChatIcon.svg";
+import Vector from "../../assets/HomePage/Vector.svg";
+import SettingIcon from "../../assets/HomePage/SettingIcon.svg";
 import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
-import EmojiIcon from "../../assets/HOMEPAGE/EmojiIcon.svg";
-import EyeIcon from "../../assets/HOMEPAGE/EyeIcon.svg";
-import SideCalenderIcon from "../../assets/HOMEPAGE/SideCalenderIcon.svg";
-import PreviousIcon from "../../assets/HOMEPAGE/PreviousIcon.svg";
-import DeletedIcon from "../../assets/HOMEPAGE/DeletedIcon.svg";
-import BankIcon from "../../assets/HOMEPAGE/BankIcon.svg";
+import EmojiIcon from "../../assets/HomePage/EmojiIcon.svg";
+import EyeIcon from "../../assets/HomePage/EyeIcon.svg";
+import SideCalenderIcon from "../../assets/HomePage/SideCalenderIcon.svg";
+import PreviousIcon  from "../../assets/HomePage/PreviousIcon.svg";
+import DeletedIcon from "../../assets/HomePage/DeletedIcon.svg";
+import BankIcon from "../../assets/HomePage/BankIcon.svg";
 import createTicketicon from "../../assets/HomePage/createTicketicon.svg";
 const SIDEBAR_WIDTH = 80;
 const Sidebar = ({ theme }) => {
@@ -38,45 +38,44 @@ const Sidebar = ({ theme }) => {
   const cached = sessionStorage.getItem('userData');
     return cached ? JSON.parse(cached) : null;
   });
-useEffect(() => {
-  const fetchUser = async () => {
-    try {
-      const res = await getMe();
-      if (res && res.data) {
-        setUserData(res.data);
-        sessionStorage.setItem('userData', JSON.stringify(res.data));
-        if (res.data.image) {
-          const imageUrl = `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${res.data.image}`;
-          setUserImage(imageUrl);
-          sessionStorage.setItem('userImage', imageUrl);
-        } else {
-          // Clear image if user has no image
-          setUserImage(null);
-          sessionStorage.removeItem('userImage');
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await getMe();
+        if (res && res.data) {
+          setUserData(res.data);
+          sessionStorage.setItem('userData', JSON.stringify(res.data));
+          if (res.data.image) {
+            const imageUrl = `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${res.data.image}`;
+            setUserImage(imageUrl);
+            sessionStorage.setItem('userImage', imageUrl);
+          } else {
+            // Clear image if user has no image
+            setUserImage(null);
+            sessionStorage.removeItem('userImage');
+          }
         }
+      } catch (err) {
+        console.error("Failed to fetch user", err);
+        // Clear cached data on error (user might be logged out)
+        sessionStorage.removeItem('userData');
+        sessionStorage.removeItem('userImage');
+        setUserData(null);
+        setUserImage(null);
       }
-    } catch (err) {
-      console.error("Failed to fetch user", err);
-      // Clear cached data on error (user might be logged out)
+    };
+
+    // Always fetch fresh data when user changes
+    if (user) {
+      fetchUser();
+    } else {
+      // Clear data when no user
       sessionStorage.removeItem('userData');
       sessionStorage.removeItem('userImage');
       setUserData(null);
       setUserImage(null);
     }
-  };
-
-  // Always fetch fresh data when user changes
-  if (user) {
-    fetchUser();
-  } else {
-    // Clear data when no user
-    sessionStorage.removeItem('userData');
-    sessionStorage.removeItem('userImage');
-    setUserData(null);
-    setUserImage(null);
-  }
-}, [user]); // Add user as dependency
-  // Check if currently on home page
+  }, [user]);
   const isHomePage = currentPath === "/home";
   const isDark = theme.bg === "bg-[#212426]";
   
