@@ -3,6 +3,7 @@ import Ticket from "../models/ticket.model.js";
 import TicketLike from '../models/ticketLike.model.js';
 import { createNotification } from './notification.controller.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
+import mongoose from 'mongoose';
 export const getGroupsTypes = async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
@@ -601,13 +602,10 @@ export const getMyLiveEventView = async (req, res) => {
                 message: "Invalid ticket ID format"
             });
         }
-        const currentDate = new Date();
         const ticket = await Ticket.findOne({ 
             _id: ticketId,
             userId: userId,
-            status: 'live',
-            start_date: { $lte: currentDate },
-            end_date: { $gte: currentDate }
+            event_status: 'live'
         });
         if (!ticket) {
             return res.status(404).json({
@@ -630,11 +628,9 @@ export const getMyLiveEventView = async (req, res) => {
 export const getMyPastEvents = async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
-        const currentDate = new Date();
         const tickets = await Ticket.find({ 
             userId: userId,
-            status: 'completed',
-            end_date: { $lt: currentDate }
+            event_status: 'completed',
         });
         res.status(200).json({
             message: "My Past Tickets retrieved successfully",
@@ -643,6 +639,38 @@ export const getMyPastEvents = async (req, res) => {
     }
     catch (error) {
         console.error("Error fetching past tickets:", error);
+        res.status(500).json({
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+};
+export const getMyPreviousEventView = async (req, res) => {
+    try {
+        const userId = req.user._id || req.user.id;
+        const ticketId = req.params.ticketId;
+        if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({
+                message: "Invalid ticket ID format"
+            });
+        }
+        const ticket = await Ticket.findOne({ 
+            _id: ticketId,
+            userId: userId,
+            event_status: 'completed',
+        });
+        if (!ticket) {
+            return res.status(404).json({
+                message: "Past Ticket not found"
+            });
+        }
+        res.status(200).json({
+            message: "My Past Ticket View retrieved successfully",
+            ticket: ticket
+        });
+    }
+    catch (error) {
+        console.error("Error fetching past ticket:", error);
         res.status(500).json({
             message: "Internal server error",
             error: error.message
@@ -760,7 +788,7 @@ export const getOthersPastEvents = async (req, res) => {
         const currentDate = new Date();
         const tickets = await Ticket.find({ 
             userId: other,
-            status: 'completed',
+            event_status: 'completed',
             end_date: { $lt: currentDate }
         });
         res.status(200).json({
@@ -776,8 +804,6 @@ export const getOthersPastEvents = async (req, res) => {
         });
     }
 };
-import mongoose from 'mongoose';
-
 export const getGroupTicketPercentages = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
@@ -806,7 +832,7 @@ export const getGroupTicketPercentages = async (req, res) => {
       {
         $match: {
           groupId: { $in: groupIds },
-          status: { $in: ['live', 'completed', 'pending'] }
+          event_status: { $in: ['live', 'completed', 'pending'] }
         }
       },
       {

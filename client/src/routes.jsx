@@ -36,6 +36,8 @@ import LiveEvent from './pages/ticket/LiveEvent';
 import BankDetails from './pages/ticket/BankDetails';
 import ViewSingleEvent from './pages/ticket/ViewSingleEvent';
 import OtherEventViewDetails from './pages/ticket/OtherEventViewDetails';
+import PreviousEvenetDetails from './pages/ticket/PreviousEvenetDetails';
+import LiveEventView from './pages/ticket/LiveEventView';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
   if (!token || !user) {
@@ -310,6 +312,23 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/ticket/previous-event-view/:ticketId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <PreviousEvenetDetails/>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/live-event-view/:ticketId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <LiveEventView/>
+          </ProtectedRoute>
+        }
+      />
+      
+=      <Route
         path="/admin/dashboard"
         element={
           <ProtectedRoute allowedRoles={['admin', 'organisation']}>
