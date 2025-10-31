@@ -205,7 +205,7 @@ export const getMyEventById = async (ticketId) => {
 }
 export const getMyLiveEvents = async () => {
   try {
-    const response = await api.get("ticket/my-live-events");
+    const response = await api.get("/ticket/my-live-events");
     return response.data;
   } catch (error) {
     throw error;
@@ -294,7 +294,16 @@ export const goLiveEvent = async (ticketId) => {
 };
 export const getPreviousEvents = async () => {
   try {
-    const response = await api.get(`ticket/get-previous-events`);
+    const response = await api.get(`/ticket/get-previous-events`);
+    return response.data;
+  }
+  catch (error) {
+    throw error;
+  }
+};
+export const getMyPreviousEventView = async (ticketId) => {
+  try {
+    const response = await api.get(`/ticket/my-previous-event-view/${ticketId}`);
     return response.data;
   }
   catch (error) {
