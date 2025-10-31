@@ -372,6 +372,7 @@ const EventsList = ({
   const itemsPerPage = 6;
   const [isCategoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const navigate = useNavigate();
 
   const categories = useMemo(() => {
     if (!events) return ["All"];
@@ -645,7 +646,9 @@ const EventsList = ({
                             <button className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50">
                               Manage
                             </button>
-                            <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
+                            <button onClick={() =>
+                        navigate(`/ticket/live-event-view/${event._id}`)
+                      } className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
                               <img
                                 src={ViewConfirm}
                                 alt="ViewConfirm"
@@ -756,6 +759,9 @@ const EventsList = ({
                         Manage
                       </button>
                       <button
+                      onClick={() =>
+                        navigate(`/ticket/live-event-view/${event._id}`)
+                      }
                         className={`px-3 sm:px-4 py-1.5 border border-[#6549B8] rounded-full text-xs sm:text-sm transition-colors whitespace-nowrap ${
                           isDark
                             ? "text-white hover:bg-[#6549B8]"
@@ -913,6 +919,9 @@ const EventsList = ({
                     </td>
                     <td className="py-3 px-4 text-right">
                       <button
+                      onClick={() =>
+                        navigate(`/ticket/live-event-view/${event._id}`)
+                      }
                         className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
                           isDark
                             ? "text-white hover:bg-[#6549B8]"
