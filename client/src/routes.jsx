@@ -35,6 +35,7 @@ import PreviousEvent from './pages/ticket/PreviousEvent';
 import LiveEvent from './pages/ticket/LiveEvent';
 import BankDetails from './pages/ticket/BankDetails';
 import ViewSingleEvent from './pages/ticket/ViewSingleEvent';
+import OtherEventViewDetails from './pages/ticket/OtherEventViewDetails';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
   if (!token || !user) {
@@ -297,6 +298,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <ViewSingleEvent/>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/other-event-view/:otherId/:ticketId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <OtherEventViewDetails/>
           </ProtectedRoute>
         }
       />

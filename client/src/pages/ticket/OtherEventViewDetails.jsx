@@ -23,9 +23,8 @@ import NoGuide from "../../assets/ViewSingleEvent/NoGuide.svg";
 import GuideVector from "../../assets/ViewSingleEvent/GuideVector.svg";
 import Rules from "../../assets/ViewSingleEvent/Rules.svg";
 
-import { getTicketById, getGroupView } from "../../services/ticketService";
+import { getOthersEventsById, getOtherGroupView } from "../../services/ticketService";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-
 import Card from "../../components/ViewSingleEvent/Card";
 import getFullBankingDetails from "../../components/ViewSingleEvent/getFullBankingDetails";
 import getCarouselEvents from "../../components/ViewSingleEvent/getCarouselEvents";
@@ -61,9 +60,9 @@ const lightTheme = {
   shadowInset: "inset 5px 5px 10px #c5c5c5, inset -5px -5px 10px #fbfbfb",
   textColor: "text-gray-700",
 };
-
-const ViewSingleEvent = () => {
+const OtherEventViewDetails = () => {
   const { ticketId } = useParams();
+  const { otherId } = useParams();
   const navigate = useNavigate();
   const location = useLocation(); // <--- New hook usage
   const initialThemeIsDark = location.state?.initialThemeIsDark ?? true;
@@ -90,7 +89,8 @@ const ViewSingleEvent = () => {
 
 
   const [showGuideModal, setShowGuideModal] = useState(false);
-const [selectedGuest, setSelectedGuest] = useState(null);
+ const [selectedGuest, setSelectedGuest] = useState(null);
+const [showPreferenceModal, setShowPreferenceModal] = useState(false);
 
   const [currentStatsEventIndex, setCurrentStatsEventIndex] = useState(0);
   const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
@@ -199,47 +199,113 @@ const [selectedGuest, setSelectedGuest] = useState(null);
     initializeMap();
   }, [isApiReady, eventData]);
 
-  useEffect(() => {
-    const fetchAndSetData = async () => {
-      if (!ticketId) {
-        setError("Event ID not found in URL parameters.");
-        setLoading(false);
-        return;
+useEffect(() => {
+  const fetchAndSetData = async () => {
+    // Validate params first
+    console.log("Route params - otherId:", otherId, "ticketId:", ticketId);
+    
+    if (!otherId) {
+      setError("Other User ID not found in URL parameters.");
+      setLoading(false);
+      return;
+    }
+    if (!ticketId) {
+      setError("Event ID not found in URL parameters.");
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log("Fetching data for otherId:", otherId, "ticketId:", ticketId);
+
+      const [ticketResponse, groupResponse] = await Promise.all([
+        getOthersEventsById(otherId, ticketId),
+        getOtherGroupView(ticketId),
+      ]);
+
+      // Debug: Log raw responses
+      console.log("Raw Ticket Response:", ticketResponse);
+      console.log("Raw Group Response:", groupResponse);
+
+      // Extract event data with multiple fallback attempts
+      let data = null;
+      
+      // Try different possible response structures
+      if (ticketResponse?.data?.tickets) {
+        // If tickets is an array, take the first one
+        data = Array.isArray(ticketResponse.data.tickets) 
+          ? ticketResponse.data.tickets[0] 
+          : ticketResponse.data.tickets;
+      } else if (ticketResponse?.tickets) {
+        data = Array.isArray(ticketResponse.tickets) 
+          ? ticketResponse.tickets[0] 
+          : ticketResponse.tickets;
+      } else if (ticketResponse?.data?.ticket) {
+        data = ticketResponse.data.ticket;
+      } else if (ticketResponse?.ticket) {
+        data = ticketResponse.ticket;
+      } else if (ticketResponse?.data) {
+        // Check if data itself has tickets property
+        if (ticketResponse.data.tickets) {
+          data = Array.isArray(ticketResponse.data.tickets) 
+            ? ticketResponse.data.tickets[0] 
+            : ticketResponse.data.tickets;
+        } else {
+          data = ticketResponse.data;
+        }
+      } else if (ticketResponse && typeof ticketResponse === 'object') {
+        data = ticketResponse;
       }
-      try {
-        setLoading(true);
 
-        const [ticketResponse, groupResponse] = await Promise.all([
-          getTicketById(ticketId),
-          getGroupView(ticketId),
-        ]);
-
-        const data =
-          ticketResponse?.ticket ||
-          ticketResponse?.data?.ticket ||
-          ticketResponse?.data ||
-          ticketResponse;
-
-        const fetchedGroupData =
-          groupResponse?.group || groupResponse?.data || groupResponse;
-
-        if (!data || !data.event_name)
-          throw new Error("Event data is incomplete.");
-
-        setEventData(data);
-        setGroupData(fetchedGroupData);
-      } catch (err) {
-        console.error("Failed to fetch event/group data:", err);
-        setError(err.message || "Failed to load event details.");
-      } finally {
-        setLoading(false);
+      // Extract group data
+      let fetchedGroupData = null;
+      
+      if (groupResponse?.data?.group) {
+        fetchedGroupData = groupResponse.data.group;
+      } else if (groupResponse?.group) {
+        fetchedGroupData = groupResponse.group;
+      } else if (groupResponse?.data) {
+        fetchedGroupData = groupResponse.data;
+      } else if (groupResponse && typeof groupResponse === 'object') {
+        fetchedGroupData = groupResponse;
       }
-    };
 
-    fetchAndSetData();
-  }, [ticketId]);
+      console.log("Extracted Event Data:", data);
+      console.log("Extracted Group Data:", fetchedGroupData);
 
-  const [showPreferenceModal, setShowPreferenceModal] = useState(false);
+      // Validate event data
+      if (!data) {
+        console.error("No event data found in response");
+        throw new Error("No event data received from server");
+      }
+
+      if (!data.event_name) {
+        console.error("Event data structure:", Object.keys(data));
+        console.error("Full event data:", data);
+        throw new Error(`Event data is missing event_name. Available keys: ${Object.keys(data).join(', ')}`);
+      }
+
+      // Set the data
+      console.log("Setting event data successfully");
+      setEventData(data);
+      setGroupData(fetchedGroupData);
+      
+    } catch (err) {
+      console.error("Failed to fetch event/group data:", err);
+      console.error("Error details:", err.message);
+      console.error("Error stack:", err.stack);
+      
+      setError(err.message || "Failed to load event details.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  fetchAndSetData();
+}, [ticketId, otherId]);
 
   useEffect(() => {
     if (eventData?.banking_details?.length > 0) {
@@ -285,11 +351,9 @@ const [selectedGuest, setSelectedGuest] = useState(null);
       ticketTypes: eventData.ticket_types || [],
     };
   }, [eventData]);
-
   const hashtags = useMemo(() => {
     return eventData?.hashtag || [];
   }, [eventData]);
-
   const formattedDateRange = useMemo(() => {
     if (!eventData?.event_dates?.length)
       return { dateText: "Date TBA", timeText: "N/A" };
@@ -1398,4 +1462,4 @@ onClick={() => handleGuestClick(guest)}
     </div>
   );
 };
-export default ViewSingleEvent;
+export default OtherEventViewDetails;
