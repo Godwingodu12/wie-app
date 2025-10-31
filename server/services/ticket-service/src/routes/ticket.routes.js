@@ -3,9 +3,8 @@ import { uploadFields, uploadTicketMedia } from '../middlewares/upload.js';
 import multer from 'multer';
 import {getUserData,CreateGroup, createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
 getTicketById,deleteTicket,deleteSubEvent,viewTickets, getAllDeletedEvents} from '../services/ticket.service.js';
-import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getOthersEvents,getOtherLiveEvents,
+import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getOtherGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getOthersEvents,getOthersEventsById,getOtherLiveEvents,
 getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted } from '../controller/ticket.controller.js';
-import {getNotifications,markAsRead,markAllAsRead,deleteNotification} from '../controller/notification.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);
@@ -30,6 +29,7 @@ router.get('/get-all-deleted-events', getAllDeletedEvents);
 router.get('/view-tickets', viewTickets);
 router.get('/get-groups-types', getGroupsTypes);
 router.get('/get-group-view/:ticketId', getGroupView);
+router.get('/get-other-group-view/:ticketId', getOtherGroupView);
 router.get('/my-events', getMyEvents);
 router.get('/my-event-view/:ticketId', getMyEventById);
 router.get('/my-live-events', getMyLiveEvents);
@@ -37,6 +37,7 @@ router.get('/my-live-event-view/:ticketId', getMyLiveEventView);
 router.get('/my-past-events', getMyPastEvents);
 router.get('/my-upcoming-events', getMyUpcomingEvents);
 router.get('/get-others-events/:otherId',getOthersEvents);
+router.get('/get-other-ticket-id/:otherId/:ticketId',getOthersEventsById)
 router.get('/get-others-live-events/:otherId',getOtherLiveEvents);
 router.get('/get-others-past-events/:otherId',getOthersPastEvents);
 router.get('/get-group-statistics', getGroupStatistics);
