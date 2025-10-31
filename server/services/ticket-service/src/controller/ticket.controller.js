@@ -492,6 +492,40 @@ export const getGroupView = async (req, res) => {
     });
   }
 };
+export const getOtherGroupView = async (req, res) => {
+    try {
+        const ticketId = req.params.ticketId;
+        if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({
+                message: "Invalid ticket ID format"
+            });
+        }
+        const ticket = await Ticket.findOne({ _id: ticketId });
+        if (!ticket) {
+            return res.status(404).json({
+                message: "Ticket not found"
+            });
+        }
+        const groupId = ticket.groupId;
+        const group = await Group.findOne({ _id: groupId });
+        if (!group) {
+            return res.status(404).json({
+                message: "Group not found"
+            });
+        }
+        res.status(200).json({
+            message: "Groups retrieved successfully",
+            group: group
+        });
+    }
+    catch (error) {
+        console.error("Error fetching group:", error);
+        res.status(500).json({  
+            message: "Internal server error",
+            error: error.message
+        });
+    }
+};
 export const getMyEvents = async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
@@ -654,7 +688,7 @@ export const getOthersEvents = async(req, res)=>{
       const other = req.params.otherId;
       const tickets = await Ticket.find({ 
                 userId: other,
-                event_status: ['completed','live','pending']
+                event_status: ['completed','live']
             });
       res.status(200).json({
             message: "Other User Tickets retrieved successfully",
@@ -666,6 +700,36 @@ export const getOthersEvents = async(req, res)=>{
             message: "Internal server error",
             error: error.message
         });
+  }
+};
+export const getOthersEventsById = async(req, res)=>{
+  try{
+      const other = req.params.otherId;
+      const ticketId = req.params.ticketId;
+      if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+        return res.status(400).json({
+            message: "Invalid ticket ID format"
+        });
+      }
+      const tickets = await Ticket.findOne({ 
+                _id: ticketId,
+                userId: other,
+            });
+      if (!tickets) {
+        return res.status(404).json({
+            message: "Ticket not found"
+        });
+      }
+      res.status(200).json({
+        message: "Other user Ticket is fetched successfully",
+        tickets: tickets
+      });
+  }catch (error) {
+    console.error("Error fetching Other user Ticket", error);
+    res.status(500).json({
+        message: "Internal server error",
+        error: error.message
+    });
   }
 };
 export const getOtherLiveEvents = async(req, res)=>{
