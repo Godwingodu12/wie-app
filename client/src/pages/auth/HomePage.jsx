@@ -646,7 +646,8 @@ const HomePage = () => {
                                     </div>
                               <div className="flex-1 pr-2">{liveEvents.length > 0 ? liveEvents.slice(0, 3).map((event) => {
                                 const isSelected = selectedEvent === event._id;
-                                const eventDate = new Date(event.start_date).toLocaleDateString("en-GB", { 
+                                const eventDates = event.event_dates[0];
+                                const eventDate = new Date(eventDates.start_date).toLocaleDateString("en-GB", { 
                                   day: "numeric", 
                                   month: "long", 
                                   year: "numeric" 
@@ -658,7 +659,7 @@ const HomePage = () => {
                                 return (
                                   <div 
                                     key={event._id} 
-                                    onClick={() => navigate('/ticket/live-events')}
+                                    onClick={() => navigate(`/ticket/live-event-view/${event._id}`)} 
                                     className={`flex items-center justify-between p-3 mb-2 rounded-2xl cursor-pointer transition-all duration-300`}
                                     style={{ boxShadow: isSelected ? (isDark ? 'inset 3px 3px 6px rgba(0,0,0,0.6), inset -3px -3px 6px rgba(60,60,60,0.3)' : 'inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.8)') : 'none' }}
                                   >
@@ -668,7 +669,8 @@ const HomePage = () => {
                                         alt={event.event_name} 
                                         className="w-10 h-10 rounded-md object-cover"
                                         onError={(e) => {
-                                          e.target.src = "https://via.placeholder.com/40?text=Event";
+                                          e.target.onerror = null;
+                                          e.target.src = ProfileImage;
                                         }}
                                       />
                                       <div>
@@ -723,7 +725,8 @@ const HomePage = () => {
                 alt={group.name} 
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  e.target.src = "https://via.placeholder.com/80?text=Group";
+                  e.target.onerror = null;
+                  e.target.src = ProfileImage;
                 }}
               />
             </div>
