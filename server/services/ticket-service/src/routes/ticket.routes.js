@@ -3,7 +3,7 @@ import { uploadFields, uploadTicketMedia } from '../middlewares/upload.js';
 import multer from 'multer';
 import {getUserData,CreateGroup, createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
 getTicketById,deleteTicket,deleteSubEvent,viewTickets, getAllDeletedEvents} from '../services/ticket.service.js';
-import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getOtherGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getOthersEvents,getOthersEventsById,getOtherLiveEvents,
+import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getOtherGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getMyPreviousEventView,getOthersEvents,getOthersEventsById,getOtherLiveEvents,
 getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted } from '../controller/ticket.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
@@ -36,6 +36,7 @@ router.get('/my-live-events', getMyLiveEvents);
 router.get('/my-live-event-view/:ticketId', getMyLiveEventView);
 router.get('/my-past-events', getMyPastEvents);
 router.get('/my-upcoming-events', getMyUpcomingEvents);
+router.get('/my-previous-event-view/:ticketId', getMyPreviousEventView);
 router.get('/get-others-events/:otherId',getOthersEvents);
 router.get('/get-other-ticket-id/:otherId/:ticketId',getOthersEventsById)
 router.get('/get-others-live-events/:otherId',getOtherLiveEvents);
@@ -44,7 +45,7 @@ router.get('/get-group-statistics', getGroupStatistics);
 router.post('/confirm-event/:ticketId',confirmEvent);
 router.post('/go-live-event/:ticketId',goLiveEvent);
 router.get('/get-previous-events',protect, getPreviousEvents);
-router.post('/make-event-completed', makeEventCompleted);//it is a manual cron job work to change event status as completed.
+router.post('/make-event-completed', makeEventCompleted);
 router.get('/show-event-bank-details',protect, showEventBankDetails);
 router.get('/show-all-bank-details',protect, showAllBankDetails);
 router.get('/live-event-bank-details',protect, LiveEventBankDetails);
