@@ -842,7 +842,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                     </div>
                     <button
                       onClick={() =>
-                        navigate(`/ticket/previous-event/${event._id}`)
+                        navigate(`/ticket/previous-event-view/${event._id}`)
                       }
                       className="text-white font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-shadow duration-300 flex-shrink-0"
                       style={{
@@ -963,7 +963,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                     <td className="py-4 px-4 text-center">
                       <button
                         onClick={() =>
-                          navigate(`/ticket/previous-event/${event._id}`)
+                          navigate(`/ticket/previous-event-view/${event._id}`)
                         }
                         style={{
                           width: "90px",
