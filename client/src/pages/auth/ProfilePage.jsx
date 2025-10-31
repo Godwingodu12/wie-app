@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { getMe } from "../../services/userService";
 import { findAllActiveUsers,followUser, unfollowUser,getOtherProfile ,getFollowers,getFollowing,checkIsFollowing } from "../../services/authService";
 import { useNavigate, Link } from 'react-router-dom';
-import { getGroups, getMyEvents, getMyLiveEvents, getMyPastEvents} from "../../services/ticketService";
+import { getGroups, getMyEvents, getMyLiveEvents, getMyPastEvents, totalEventsCreatedCount} from "../../services/ticketService";
 import { useDispatch } from 'react-redux';
 import { logoutSuccess } from '../../features/auth/authSlice'; 
 import { logout } from '../../services/authService';
@@ -128,6 +128,7 @@ const ProfilePage = () => {
   const [followingStates, setFollowingStates] = useState({});
   const [profileUser, setProfileUser] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [eventCountsMap, setEventCountsMap] = useState({});
   // Active tab state: 'all', 'live', 'past'
   const [activeTab, setActiveTab] = useState('all');
   
@@ -398,6 +399,26 @@ useEffect(() => {
   
       setTimeout(checkScrollArrows, 100);
     }, [users]);
+    useEffect(() => {
+      const fetchEventCounts = async () => {
+        try {
+          const response = await totalEventsCreatedCount();
+          
+          if (response?.userEventCounts) {
+            const countsMap = {};
+            response.userEventCounts.forEach(item => {
+              countsMap[item.userId] = item.eventsCount;
+            });
+            setEventCountsMap(countsMap);
+          }
+        } catch (err) {
+          console.error("Failed to fetch event counts:", err);
+          setEventCountsMap({});
+        }
+      };
+      
+      fetchEventCounts();
+    }, []);
 
   const handleThemeToggle = () => {
     const newTheme = !isDark;
@@ -1098,7 +1119,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                  </div>
                  <div className="flex items-center gap-1">
                    <img src={EventIcon} alt="Events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}/>
-                   <span className={`text-sm font-medium ${theme.text}`}>{suggestedUser.eventsCount || 0}</span>
+                   <span className={`text-sm font-medium ${theme.text}`}>{eventCountsMap[suggestedUser._id || suggestedUser.id] || 0}</span>
                  </div>
                </div>
                 <button 
@@ -1179,7 +1200,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                </div>
                <div className="flex items-center gap-1">
                  <img src={EventIcon} alt="Events" className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}/>
-                 <span className={`text-xs font-medium ${theme.text}`}>{suggestedUser.eventsCount || 0}</span>
+                 <span className={`text-xs font-medium ${theme.text}`}>{eventCountsMap[suggestedUser._id || suggestedUser.id] || 0}</span>
                </div>
              </div>
             <button 
