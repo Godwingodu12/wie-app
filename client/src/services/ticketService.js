@@ -179,6 +179,14 @@ export const getGroupView = async (ticketId) => {
     throw error;
   }
 }
+export const getOtherGroupView = async (ticketId) => {
+  try {
+    const response = await api.get(`ticket/get-other-group-view/${ticketId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
 export const getMyEvents = async () => {
   try {
     const response = await api.get("ticket/my-events");
@@ -231,6 +239,14 @@ export const getMyUpcomingEvents = async () => {
 export const getOthersEvents = async(otherId)=>{
   try{
     const response = await api.get(`ticket/get-others-events/${otherId}`);
+    return response.data;
+  }catch(error){
+    throw error;
+  }
+};
+export const getOthersEventsById = async(otherId,ticketId)=>{
+  try{
+    const response = await api.get(`ticket/get-other-ticket-id/${otherId}/${ticketId}`);
     return response.data;
   }catch(error){
     throw error;
