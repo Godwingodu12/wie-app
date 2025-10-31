@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getMe } from "../../services/userService";
 import { getOtherProfile, findAllActiveUsers, followUser, unfollowUser, checkIsFollowing} from "../../services/authService";
-import { getOthersEvents } from "../../services/ticketService";
+import { getOthersEvents, totalEventsCreatedCount } from "../../services/ticketService";
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
@@ -121,6 +121,7 @@ const OtherProfilePage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [followingMap, setFollowingMap] = useState({});
   const [followingStates, setFollowingStates] = useState({});
+  const [eventCountsMap, setEventCountsMap] = useState({});
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -151,14 +152,8 @@ const OtherProfilePage = () => {
       setLoading(true);
       try {
         const response = await getOtherProfile(userId);
-        console.log("Other profile API response:", response);
-        console.log("User data:", response?.user);
-        
         if (response?.user) {
           const userData = Array.isArray(response.user) ? response.user[0] : response.user;
-          console.log("Setting profile user:", userData);
-          console.log("IsFollowing value:", userData.isFollowing);
-          
           setProfileUser(userData);
           setIsFollowing(userData.isFollowing === true);
         } else {
@@ -183,14 +178,9 @@ const OtherProfilePage = () => {
       setEventsLoading(true);
       try {
         const response = await getOthersEvents(userId);
-        console.log("Events API Response:", response);
-        console.log("Tickets array:", response?.tickets);
-        
         let events = [];
-        
         if (response?.tickets && Array.isArray(response.tickets)) {
           events = response.tickets;
-          console.log(`Found ${events.length} events for user ${userId}`);
         } else if (response?.data?.tickets && Array.isArray(response.data.tickets)) {
           events = response.data.tickets;
         } else if (response?.events && Array.isArray(response.events)) {
@@ -202,8 +192,6 @@ const OtherProfilePage = () => {
         } else if (Array.isArray(response)) {
           events = response;
         }
-
-        console.log("Setting events:", events);
         setProfileUserEvents(events);
       } catch (err) {
         console.error("Error fetching events:", err);
@@ -303,7 +291,26 @@ const OtherProfilePage = () => {
     
     checkFollowStatuses();
   }, [users]);
-
+  useEffect(() => {
+    const fetchEventCounts = async () => {
+      try {
+        const response = await totalEventsCreatedCount();
+        
+        if (response?.userEventCounts) {
+          const countsMap = {};
+          response.userEventCounts.forEach(item => {
+            countsMap[item.userId] = item.eventsCount;
+          });
+          setEventCountsMap(countsMap);
+        }
+      } catch (err) {
+        console.error("Failed to fetch event counts:", err);
+        setEventCountsMap({});
+      }
+    };
+    
+    fetchEventCounts();
+  }, []);
   const handleThemeToggle = () => {
     const newTheme = !isDark;
     setIsDark(newTheme);
@@ -668,7 +675,9 @@ const OtherProfilePage = () => {
       </div>
     );
   }
-
+  const handleViewEvent = (otherId, ticketId) => {
+    navigate(`/ticket/other-event-view/${otherId}/${ticketId}`);
+  };
   return (
     <>
       <CustomScrollbarStyles />
@@ -1012,7 +1021,7 @@ const OtherProfilePage = () => {
                               </div>
                               <div className="flex items-center gap-1">
                                 <img src={EventIcon} alt="Events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}/>
-                                <span className={`text-sm font-medium ${theme.text}`}>{suggestedUser.eventsCount || 0}</span>
+                                <span className={`text-sm font-medium ${theme.text}`}>{eventCountsMap[suggestedUser._id || suggestedUser.id] || 0}</span>
                               </div>
                             </div>
                             <button 
@@ -1053,7 +1062,6 @@ const OtherProfilePage = () => {
                   )}
                 </div>
               </div>
-
               {/* Events Section with Tabs */}
               <div
                 className={`rounded-2xl md:rounded-[2.5rem] p-3 md:p-4 lg:p-6 ${theme.cardBg} md:bg-transparent nest-hub-card transition-all duration-300 w-full overflow-hidden`}
@@ -1215,7 +1223,7 @@ const OtherProfilePage = () => {
                           </div>
 
                           {/* Event Info */}
-                          <div className="flex flex-col flex-1 p-4">
+                          <div className="flex flex-col flex-1 p-4" onClick={() => handleViewEvent(event.userId, event._id)}>
                             <div className="text-center mb-6">
                               <h3 className={`font-bold text-base ${theme.text}`}>{event.event_name || event.name || "Event"}</h3>
                               <p className={`text-sm ${theme.subText} mt-1`}>{event.event_category || event.category || "Event Type"}</p>
@@ -1242,14 +1250,7 @@ const OtherProfilePage = () => {
                             {/* View button */}
                             <div className="flex justify-center pt-4">
                               <button
-                                onClick={() => {
-                                  const eventId = event._id || event.id;
-                                  if (eventId) {
-                                    navigate(`/ticket/event/${eventId}`);
-                                  } else {
-                                    console.warn("No event ID found for navigation");
-                                  }
-                                }}
+                                onClick={() => handleViewEvent(event.userId, event._id)}
                                 className="px-10 py-2 rounded-full text-white text-sm font-medium ml-4"
                                 style={{
                                   background: "linear-gradient(180deg, #2e1745 0%, #7f53e7 100%)"
@@ -1273,6 +1274,7 @@ const OtherProfilePage = () => {
                             backgroundColor: isDark ? "#212426" : "#ffffff",
                             boxShadow: theme.smallCardShadow,
                           }}
+                          onClick={() => handleViewEvent(event.userId, event._id)}
                         >
                           {/* Event Image */}
                           <div className="p-2">
