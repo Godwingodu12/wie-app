@@ -1,0 +1,12 @@
+import express from 'express';
+import { uploadFields, uploadTicketMedia } from '../middlewares/upload.js'; 
+import multer from 'multer';
+import {getNotifications,markAsRead,markAllAsRead,deleteNotification} from '../controller/notification.controller.js';
+import { protect } from '../middlewares/auth.js';
+const router = express.Router();
+router.use(protect);
+router.get('/get-notifications', getNotifications);
+router.patch('/notification-read/:notificationId', markAsRead);
+router.patch('/mark-all-read', markAllAsRead);
+router.delete('/delete-notification/:notificationId', deleteNotification);
+export default router;
