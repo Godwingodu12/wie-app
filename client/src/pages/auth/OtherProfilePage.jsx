@@ -3,15 +3,14 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getMe } from "../../services/userService";
 import { getOtherProfile, findAllActiveUsers, followUser, unfollowUser, checkIsFollowing} from "../../services/authService";
 import { getOthersEvents, totalEventsCreatedCount } from "../../services/ticketService";
+import { getImageUrl } from "../../utils/imageUtils.js";
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
-
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import WieText from "../../assets/HomePage/WieText.svg";
 import ChatIcon from "../../assets/HomePage/ChatIcon.svg";
-
 import PlusIcon from "../../assets/PROFILEPAGE/PlusIcon.svg";
 import EventIcon from "../../assets/PROFILEPAGE/EventIcon.svg";
 import FollowersIcon from "../../assets/PROFILEPAGE/FollowersIcon.svg";
@@ -241,7 +240,25 @@ const OtherProfilePage = () => {
       fetchActiveUsers();
     }
   }, [userId, currentUser]);
-
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await getMe();
+        setUser(res.data);
+        if (res.data.image) {
+            const imageUrl = getImageUrl(res.data.image, 'auth');
+            setUserImage(imageUrl);
+            sessionStorage.setItem('userImage', imageUrl);
+        } else {
+            setUserImage(null);
+            sessionStorage.removeItem('userImage');
+        }
+      } catch (err) {
+        console.error("Failed to fetch user", err);
+      }
+    };
+    fetchUser();
+  }, []);
   // Update arrow visibility
   useEffect(() => {
     const checkScrollArrows = () => {
@@ -748,11 +765,11 @@ const OtherProfilePage = () => {
                 <div className="flex md:hidden flex-col space-y-4">
                   {/* Profile Image and Name - Horizontal */}
                   <div className="flex items-start gap-4">
-                    <img 
-                      src={profileUser.image ? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${profileUser.image}` : ProfileImage}
-                      alt="Profile"
-                      className={`w-20 h-20 rounded-full object-cover border-2 flex-shrink-0 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
-                    />
+                     <img
+                        src={getImageUrl(profileUser.image, 'auth') || ProfileImage}
+                        alt={profileUser.name}
+                        className="w-full h-[160px] object-cover rounded-2xl"
+                      />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h1 className={`text-lg font-bold ${theme.text}`}>{profileUser.name}</h1>
@@ -842,12 +859,11 @@ const OtherProfilePage = () => {
                 <div className="hidden md:flex justify-between items-center gap-6">
                   {/* Left side */}
                   <div className="flex items-start gap-6">
-                    <img 
-                      src={profileUser.image ? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${profileUser.image}` : ProfileImage}
-                      alt="Profile"
-                      className={`w-32 h-32 md:w-36 md:h-36 lg:w-48 lg:h-48 rounded-full object-cover border-4 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
-                    />
-                    
+                    <img
+                        src={getImageUrl(profileUser.image, 'auth') || ProfileImage}
+                        alt={profileUser.name}
+                        className={`w-32 h-32 md:w-36 md:h-36 lg:w-48 lg:h-48 rounded-full object-cover border-4 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
+                      />
                     <div className="space-y-1 md:space-y-2 flex-1">
                       <h1 className={`text-xl md:text-xl lg:text-2xl font-bold ${theme.text}`}>{profileUser.name}</h1>
                       <p className={`text-xs md:text-sm ${theme.subText}`}>{profileUser.username}</p>
