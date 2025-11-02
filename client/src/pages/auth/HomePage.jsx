@@ -7,6 +7,8 @@ import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import SideBar from "../../components/HomePage/SideBar.jsx";
+import NotificationModal from '../../components/Event/NotificationModal';
+import { getNotifications } from '../../services/notificationService';
 // ICONS
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
@@ -14,6 +16,7 @@ import TicketIcon from "../../assets/HomePage/TicketIcon.svg";
 import LinkIcon from "../../assets/HomePage/LiveIcon.svg";
 import SpeakerIcon from "../../assets/HomePage/SpeakerIcon.svg";
 import ChatIcon from "../../assets/HomePage/ChatIcon.svg";
+import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
 import SettingIcon from "../../assets/HomePage/SettingIcon.svg";
 import CalenderIcon from "../../assets/HomePage/CalenderIcon.svg";
 import EventCalenderIcon from "../../assets/HomePage/EventCalenderIcon.svg";
@@ -21,7 +24,6 @@ import MoneyIcon from "../../assets/HomePage/MoneyIcon.svg";
 import MovieIcon from "../../assets/HomePage/MovieIcon.svg";
 import LiveIcon from "../../assets/HomePage/LiveIcon.svg";
 import GroupIcon from "../../assets/HomePage/GroupIcon.svg";
-import NotificationIcon from "../../assets/HomePage/NotificationIcon.svg";
 import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
 import WieText from "../../assets/HomePage/WieText.svg";
 import RevenueICon from "../../assets/HomePage/RevenueICon.svg";
@@ -110,6 +112,9 @@ const HomePage = () => {
   const [liveEvents, setLiveEvents] = useState([]);
   const [confirmedEventsCount, setConfirmedEventsCount] = useState(0);
   const [groupsWithCount, setGroupsWithCount] = useState([]);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+
   const totalEvents = groupsWithCount.reduce((acc, group) => acc + (group.events_count || 0), 0);
   const [eventStats, setEventStats] = useState({
     totalCount: 0,
@@ -158,6 +163,36 @@ const HomePage = () => {
     };
     fetchData();
   }, [user]);
+  useEffect(() => {
+    const fetchNotificationCount = async () => {
+      if (!user) return;
+      try {
+        const data = await getNotifications('all', 1, 0);
+        setNotificationCount(data.unreadCount || 0);
+      } catch (error) {
+        console.error('Error fetching notification count:', error);
+      }
+    };
+    
+    fetchNotificationCount();
+    
+    // Poll for new notifications every 30 seconds
+    const interval = setInterval(fetchNotificationCount, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const handleNotificationModalClose = async () => {
+    setIsNotificationModalOpen(false);
+    // Refresh count after closing modal
+    if (user) {
+      try {
+        const data = await getNotifications('all', 1, 0);
+        setNotificationCount(data.unreadCount || 0);
+      } catch (error) {
+        console.error('Error refreshing notification count:', error);
+      }
+    }
+  };
   useEffect(() => {
     const fetchEventStats = async () => {
       if (!user) return;
@@ -343,27 +378,48 @@ const HomePage = () => {
               </div>
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <div style={{ boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' }} className={`w-10 h-10 rounded-full flex items-center justify-center ${theme.bg}`}>
-                    <img src={NotificationIcon} alt="Notification" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} /></div>
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
+                  <div 
+                    onClick={() => setIsNotificationModalOpen(true)}
+                    style={{ 
+                      boxShadow: isDark 
+                        ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' 
+                        : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' 
+                    }} 
+                    className={`w-10 h-10 rounded-full flex items-center justify-center cursor-pointer ${theme.bg}`}
+                  >
+                    <img 
+                      src={NotificationIcon} 
+                      alt="Notification" 
+                      className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} 
+                    />
+                  </div>
+                  {notificationCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
+                      {notificationCount}
+                    </span>
+                  )}
                 </div>
-                <button style={{ boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' }} className={`w-10 h-10 rounded-full flex items-center justify-center ${theme.bg}`}>
-                  <img src={ChatIcon} alt="chats" className={`w-6 h-6 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
+                <button 
+                  style={{ 
+                    boxShadow: isDark 
+                      ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' 
+                      : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' 
+                  }} 
+                  className={`w-10 h-10 rounded-full flex items-center justify-center ${theme.bg}`}
+                >
+                  <img 
+                    src={ChatIcon} 
+                    alt="chats" 
+                    className={`w-6 h-6 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} 
+                  />
                 </button>
               </div>
             </div>
-
             <div className="hidden md:flex items-center gap-4 w-full">
               <div className="flex-1 min-w-0">
-                <SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} onTuneClick={() => console.log("Tune clicked")} />
+                <SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} onTuneClick={() => console.log("Tune clicked")} user={user} />
               </div>
               <div className="flex items-center gap-4 ml-auto flex-shrink-0">
-                <div className="relative">
-                  <div style={{ boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' }} className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg}`}>
-                    <img src={NotificationIcon} alt="Notification" className={`w-4 h-4 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
-                  </div>
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">12</span>
-                </div>
                 <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
               </div>
             </div>
@@ -376,7 +432,7 @@ const HomePage = () => {
                               <p className={`text-sm ${theme.subText}`}>Let's Rock This!</p>
                           </div>
                           <div className="mb-4 md:hidden">
-                              <SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} onTuneClick={() => console.log("Tune clicked")} />
+                              <SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} onTuneClick={() => console.log("Tune clicked")} user={user} />
                           </div>
                           <div className="flex items-center gap-3">
                               <button onClick={handleCreateEvent} disabled={loading} style={{boxShadow: isDark? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)": "-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)", }}className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg} ${theme.text} ${ isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"}`}>
@@ -390,7 +446,7 @@ const HomePage = () => {
                           </div>
                       </div>
                       
-                      <div className="grid grid-cols-1 lg:grid-cols-2 3xl:grid-cols-1 gap-4 flex-1">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 3xl:grid-cols-1 gap-4 flex-1 self-start">
                           
                           {/* Left Column */}
                           <div className="flex flex-col gap-4">
@@ -522,7 +578,7 @@ const HomePage = () => {
                                 })}
                               </div>
                       <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)'}}
-                          className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1`}
+                          className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 min-h-[400px] max-h-[500px]`}
                         >
                                   <div className="flex items-center justify-between mb-4 flex-shrink-0">
                                       <div className="flex items-center gap-3">
@@ -550,37 +606,15 @@ const HomePage = () => {
                                           </div>
                                       </div>
                                   </div>
-                    <div className="flex justify-around items-stretch py-2 mt-4 lg:flex-1">
-                      {" "}
-                      {[ 
-                        "JAN",
-                        "FEB",
-                        "MAR",
-                        "APR",
-                        "MAY",
-                        "JUN",
-                        "JUL",
-                        "AUG",
-                      ].map((month, index) => (
-                        <div key={month} className="flex flex-col items-center">
-                          <div className={`text-xs ${theme.subText} mb-1`}>
-                            320k
-                          </div>
-                          <div className="w-4 h-32 lg:h-auto lg:flex-1 relative">
-                            <div
-                              className="bg-[#21d18b] rounded-xl w-full absolute bottom-0"
-                              style={{
-                                height: `${((index + 1) / 8) * 90 + 10}%`,
-                              }}
-                            ></div>
-                          </div>
-                          <div className={`text-xs mt-1 ${theme.subText}`}>
-                            {month}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-      <div className="flex flex-col items-center mt-auto pt-2">                                  <div className="w-full flex justify-between items-center text-xs">
+      <div className="flex items-end justify-around py-2 mt-4">                                  {['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG'].map((month, index) => (
+                                          <div key={month} className="flex flex-col items-center">
+                                              <div className={`text-xs ${theme.subText} mb-1`}>320k</div>
+                                              <div className="w-4 rounded-xl bg-[#21d18b]" style={{ height: `${(index + 1) * 8 + 15}px` }}></div>
+                                              <div className={`text-xs mt-1 ${theme.subText}`}>{month}</div>
+                                          </div>
+                                      ))}
+                                  </div>
+      <div className="flex flex-col items-center mt-4 pt-2">                                  <div className="w-full flex justify-between items-center text-xs">
                                           <span className={`${theme.subText}`}>Coldpaly concert : $666.27k</span>
                                           <span className={`${theme.subText}`}>Total booking (Coldpaly concert) : 22k</span>
                                       </div>
@@ -596,7 +630,7 @@ const HomePage = () => {
                           {/* Right Column */}
                           <div className="flex flex-col gap-4">
                               <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }}
-        className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1`}
+        className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 min-h-[300px] max-h-[400px]`}
       >
                                   <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4">
                                       <div className="flex items-center gap-3">
@@ -612,7 +646,8 @@ const HomePage = () => {
                                     </div>
                               <div className="flex-1 pr-2">{liveEvents.length > 0 ? liveEvents.slice(0, 3).map((event) => {
                                 const isSelected = selectedEvent === event._id;
-                                const eventDate = new Date(event.start_date).toLocaleDateString("en-GB", { 
+                                const eventDates = event.event_dates[0];
+                                const eventDate = new Date(eventDates.start_date).toLocaleDateString("en-GB", { 
                                   day: "numeric", 
                                   month: "long", 
                                   year: "numeric" 
@@ -624,7 +659,7 @@ const HomePage = () => {
                                 return (
                                   <div 
                                     key={event._id} 
-                                    onClick={() => navigate('/ticket/live-events')}
+                                    onClick={() => navigate(`/ticket/live-event-view/${event._id}`)} 
                                     className={`flex items-center justify-between p-3 mb-2 rounded-2xl cursor-pointer transition-all duration-300`}
                                     style={{ boxShadow: isSelected ? (isDark ? 'inset 3px 3px 6px rgba(0,0,0,0.6), inset -3px -3px 6px rgba(60,60,60,0.3)' : 'inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.8)') : 'none' }}
                                   >
@@ -634,7 +669,8 @@ const HomePage = () => {
                                         alt={event.event_name} 
                                         className="w-10 h-10 rounded-md object-cover"
                                         onError={(e) => {
-                                          e.target.src = "https://via.placeholder.com/40?text=Event";
+                                          e.target.onerror = null;
+                                          e.target.src = ProfileImage;
                                         }}
                                       />
                                       <div>
@@ -658,7 +694,7 @@ const HomePage = () => {
                               </div>
                               </div>
                               
-                              <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }}className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1`}>
+                              <div style={{ boxShadow: isDark ? '-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)' : '-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)' }}className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 min-h-[350px] max-h-[450px]`}>
   <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4">
     <div className="flex items-center gap-3">
       <img src={GroupIcon} alt="My Groups" className="w-5 h-5" />
@@ -689,7 +725,8 @@ const HomePage = () => {
                 alt={group.name} 
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  e.target.src = "https://via.placeholder.com/80?text=Group";
+                  e.target.onerror = null;
+                  e.target.src = ProfileImage;
                 }}
               />
             </div>
@@ -727,7 +764,11 @@ const HomePage = () => {
                   </div>
                   </div>
           </main>
-        
+        <NotificationModal
+          isOpen={isNotificationModalOpen}
+          onClose={handleNotificationModalClose}
+          isDark={isDark}
+        />
         <BottomNavigation 
           theme={theme}
           user={user}
