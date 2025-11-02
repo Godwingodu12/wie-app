@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 
 import { ChevronRight, ChevronLeft, X, Phone, Play } from "lucide-react";
-
+import { getImageUrl } from "../../utils/imageUtils";
 import Event_Days from "../../assets/ViewSingleEvent/Event_Days.svg";
 import Globe from "../../assets/ViewSingleEvent/Globe.svg";
 import Private from "../../assets/ViewSingleEvent/Private.svg";
@@ -30,11 +30,9 @@ import Card from "../../components/ViewSingleEvent/Card";
 import getFullBankingDetails from "../../components/ViewSingleEvent/getFullBankingDetails";
 import getCarouselEvents from "../../components/ViewSingleEvent/getCarouselEvents";
 import getPreferences from "../../components/ViewSingleEvent/getPreferences";
-import formatImagePath from "../../components/ViewSingleEvent/formatImagePath";
 import formatCapacity from "../../components/ViewSingleEvent/formatCapacity";
 import InsetCard from "../../components/ViewSingleEvent/InsetCard";
 import FeatureButton from "../../components/ViewSingleEvent/FeatureButton";
-import RulesPopover from "../../components/ViewSingleEvent/RulesPopover";
 import LanguagePopover from "../../components/ViewSingleEvent/LanguagePopover";
 import ProhibitPopover from "../../components/ViewSingleEvent/ProhibitPopover";
 import PreferenceModal from "../../components/ViewSingleEvent/PreferenceModal";
@@ -49,7 +47,7 @@ import SeatingLayoutModal from "../../components/ViewSingleEvent/SeatingLayoutMo
 import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles";
 import ConfirmModal from "../../components/Modal";
 import Alert from "../../components/Alert";
-
+import RulesModal from "../../components/ViewSingleEvent/RulesModal";
 const darkTheme = {
   isDark: true,
   text: "text-white",
@@ -117,6 +115,8 @@ const ViewSingleEvent = () => {
 
   const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
   const [appAlert, setAppAlert] = useState(null);
+
+  const [showRulesModal, setShowRulesModal] = useState(false);
 
   const groupId = eventData?.group_id || eventData?.groupId; // Derive groupId from fetched data
 
@@ -380,7 +380,7 @@ const ViewSingleEvent = () => {
   }, [eventData]);
 
   const carouselEvents = useMemo(
-    () => getCarouselEvents(eventData, formatImagePath),
+    () => getCarouselEvents(eventData, (path) => getImageUrl(path, "auth")),
     [eventData]
   );
 
@@ -577,7 +577,7 @@ const ViewSingleEvent = () => {
     );
   };
 
-  const bannerImageUrl = formatImagePath(eventData.event_banner);
+  const bannerImageUrl = getImageUrl(eventData.event_banner, "auth");
   const TypeIcon = eventData.event_type === "private" ? Private : Globe;
   const TypeLabel = eventData.event_type === "private" ? "Private" : "Public";
 
@@ -648,8 +648,8 @@ const ViewSingleEvent = () => {
           <ActionCircleButton
             theme={theme}
             type="edit"
-            ticketId={ticketId}
             groupId={groupId}
+            ticketId={ticketId}
             setAppalert={setAppAlert}
           />
           <ActionCircleButton
@@ -737,7 +737,7 @@ const ViewSingleEvent = () => {
                   >
                     <img
                       src={
-                        formatImagePath(eventData.event_logo) ||
+                        getImageUrl(eventData.event_logo, "auth") ||
                         "https://upload.wikimedia.org/wikipedia/en/thumb/d/d3/Starbucks_Corporation_Logo.svg/1200px-Starbucks_Corporation_Logo.svg.png"
                       }
                       alt="Event Logo"
@@ -877,14 +877,14 @@ const ViewSingleEvent = () => {
                   </div>
                 </div>
               </div>
-              <div className="hidden  w-2/5 md:flex px-10 pt-10">
+              <div className="hidden  w-2/5 md:flex lg:px-10 lg:pt-10 px=7 pt-7">
                 <div
-                  className="w-32 h-32 rounded-full overflow-hidden flex-shrink-0"
+                  className="lg:w-32 lg:h-32 h-28 w-28 rounded-full overflow-hidden flex-shrink-0"
                   style={{ boxShadow: theme.shadowOutset }}
                 >
                   <img
                     src={
-                      formatImagePath(eventData.event_logo) ||
+                      getImageUrl(eventData.event_logo, "auth") ||
                       "https://upload.wikimedia.org/wikipedia/en/thumb/d/d3/Starbucks_Corporation_Logo.svg/1200px-Starbucks_Corporation_Logo.svg.png"
                     }
                     alt="Event Logo"
@@ -1140,31 +1140,36 @@ const ViewSingleEvent = () => {
             >
               <path d="M 200,0 L 200,100 Q 200,0 0,0 Z" fill={theme.mainBg} />
             </svg>
-            <div className="w-full flex justify-between md:justify-start items-center px-6 md:px-0">
-              {/* This is the first item/group, containing Seat and Rules buttons */}
-              <div className="md:flex md:gap-x-4">
+            <div className="w-full flex md:gap-x-4 justify-between md:justify-start items-center px-6 md:px-0">
+              <div className="md:flex md:gap-x-4 space-y-4  md:space-y-0  ">
                 <FeatureButton
                   Icon={Seat}
                   label="Seat"
                   theme={theme}
-                  // MODIFIED: Only allow click if seatingEvents exist
                   onClick={() => {
                     if (seatingEvents.length > 0) {
                       setCurrentSeatingIndex(0); // Start at the first seating layout
                       setShowSeatingModal(true);
                     } else {
-                      alert(
-                        "No seating layout information is available for this event or its sub-events."
-                      );
+                      setAppAlert({
+                        message: "No seating layout",
+                        description:
+                          "Information is available for this event or its sub-events.",
+                        type: "error",
+                        show: true,
+                      });
                     }
                   }}
                 />
-                <FeatureButton Icon={Rules} label="Rules" theme={theme}>
-                  <RulesPopover rules={rulesContent} theme={theme} />
-                </FeatureButton>
+                <FeatureButton
+                  Icon={Rules}
+                  label="Rules"
+                  theme={theme}
+                  onClick={() => setShowRulesModal(true)}
+                />
               </div>
 
-              <div className="md:flex md:gap-x-4">
+              <div className="md:flex md:gap-x-4 space-y-4  md:space-y-0">
                 <FeatureButton
                   Icon={Preference}
                   label="Preference"
@@ -1199,7 +1204,7 @@ const ViewSingleEvent = () => {
               </Card>
             </div>
           </Card>
-          <div className="md:absolute md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:z-50 md:pointer-events-none">
+          <div className="md:absolute md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:z-30 md:pointer-events-none">
             <div
               className="w-80 h-80 rounded-full relative"
               style={{
@@ -1539,7 +1544,7 @@ const ViewSingleEvent = () => {
                         >
                           <img
                             src={
-                              formatImagePath(guest.guest_profile) ||
+                              getImageUrl(guest.guest_profile, "auth") ||
                               "https://i.pravatar.cc/150?img=default"
                             }
                             alt={guest.guest_name}
@@ -1609,7 +1614,7 @@ const ViewSingleEvent = () => {
         <GuideModal
           guest={selectedGuest}
           theme={theme}
-          formatImagePath={formatImagePath} // <--- Passed here
+          formatImagePath={(path) => getImageUrl(path, "auth")}
           onClose={handleCloseGuideModal}
           setAppAlert={setAppAlert}
         />
@@ -1622,7 +1627,7 @@ const ViewSingleEvent = () => {
             setShowSubEventModal(false);
             setSelectedSubEvent(null);
           }}
-          formatImagePath={formatImagePath}
+          formatImagePath={(path) => getImageUrl(path, "auth")}
           setAppAlert={setAppAlert}
         />
       )}
@@ -1640,9 +1645,9 @@ const ViewSingleEvent = () => {
           onClose={() => setShowTicketModal(false)}
           ticketTypes={eventStats.ticketTypes}
           currentTicketIndex={currentTicketIndex}
-          onPrevTicket={handlePrevTicketModal} 
-          onNextTicket={handleNextTicketModal} 
-          formatImagePath={formatImagePath}
+          onPrevTicket={handlePrevTicketModal}
+          onNextTicket={handleNextTicketModal}
+          formatImagePath={(path) => getImageUrl(path, "auth")}
           setAppAlert={setAppAlert}
         />
       )}
@@ -1655,12 +1660,19 @@ const ViewSingleEvent = () => {
           currentSeatingIndex={currentSeatingIndex}
           onPrevSeating={handlePrevSeating}
           onNextSeating={handleNextSeating}
-          formatImagePath={formatImagePath}
+          formatImagePath={(path) => getImageUrl(path, "auth")}
           setAppAlert={setAppAlert}
+        />
+      )}
+      {showRulesModal && (
+        <RulesModal
+          eventRules={eventData?.event_rules}
+          theme={theme}
+          onClose={() => setShowRulesModal(false)}
+          formatImagePath={(path) => getImageUrl(path, "auth")}
         />
       )}
     </div>
   );
 };
-
 export default ViewSingleEvent;
