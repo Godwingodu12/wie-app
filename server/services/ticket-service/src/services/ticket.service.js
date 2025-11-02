@@ -2,7 +2,7 @@ import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import upload from '../middlewares/upload.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
-import { processFileUploads, deleteFromCloudinary } from '../utils/cloudinaryHelper.js';
+import { processFileUploads, deleteFromCloudinary, processGroupFileUploads } from '../utils/cloudinaryHelper.js';
 import { createNotification } from '../controller/notification.controller.js';
 import multer from 'multer';
 import  { sendRPC } from '../rabbit/producer.js';
@@ -41,17 +41,6 @@ export const getUserData = async (req, res) => {
 };
 export const CreateGroup = async (req, res) => {
   try {
-    await new Promise((resolve, reject) => {
-      upload.fields([
-        { name: 'id_proof', maxCount: 1 },
-        { name: 'bank_check', maxCount: 1 },
-        { name: 'company_certificate', maxCount: 1 },
-        { name: 'company_logo', maxCount: 1 },
-      ])(req, res, (err) => {
-        if (err) return reject(err);
-        return resolve();
-      });
-    });
     const userId = req.user._id || req.user.id;
     const userRole = req.user.role;
     let usertype;
@@ -79,11 +68,23 @@ export const CreateGroup = async (req, res) => {
       primary_bank_ifsc,
       primary_bank_acc_holder
     } = req.body;
+    let uploadedFiles = {};
+    if (req.files) {
+      try {
+        uploadedFiles = await processGroupFileUploads(req.files);
+      } catch (uploadError) {
+        console.error('File upload error:', uploadError);
+        return res.status(500).json({ 
+          message: "File upload failed", 
+          error: uploadError.message 
+        });
+      }
+    }
     const filePaths = {
-      id_proof: req.files?.id_proof?.[0]?.path || null,
-      bank_check: req.files?.bank_check?.[0]?.path || null,
-      company_certificate: req.files?.company_certificate?.[0]?.path || null,
-      company_logo: req.files?.company_logo?.[0]?.path || null,
+      id_proof: uploadedFiles.id_proof || null,
+      bank_check: uploadedFiles.bank_check || null,
+      company_certificate: uploadedFiles.company_certificate || null,
+      company_logo: uploadedFiles.company_logo || null,
     };
     // Determine actual group type
     let actualGroupType;
@@ -245,22 +246,25 @@ export const CreateGroup = async (req, res) => {
     // Build group data
     const groupData = {
       pan_no: checkPan,
-      id_proof: filePaths.id_proof,
       userId: userId,
       grp_type: actualGroupType,
       status: 'active',
-      primary_bank_acc_type,
-      primary_bank_acc_no,
-      primary_bank_ifsc,
-      primary_bank_acc_holder
     };
+    if (primary_bank_acc_type) groupData.primary_bank_acc_type = primary_bank_acc_type;
+    if (primary_bank_acc_no) groupData.primary_bank_acc_no = primary_bank_acc_no;
+    if (primary_bank_ifsc) groupData.primary_bank_ifsc = primary_bank_ifsc;
+    if (primary_bank_acc_holder) groupData.primary_bank_acc_holder = primary_bank_acc_holder;
     if (actualGroupType === 'admin') {
       // Use admin user data from auth service
       groupData.name = userData.name;
       groupData.email = userData.email;
       groupData.contact_no = userData.contact_no;
+      groupData.id_proof = filePaths.id_proof;
+      
       // Add optional fields for admin
       if (filePaths.bank_check) groupData.bank_check = filePaths.bank_check;
+      if (filePaths.company_certificate) groupData.company_certificate = filePaths.company_certificate;
+      if (filePaths.company_logo) groupData.company_logo = filePaths.company_logo;
       if (gst_no) groupData.gst_no = gst_no;
     } else {
       // Use form data for organisation
@@ -269,15 +273,29 @@ export const CreateGroup = async (req, res) => {
       groupData.contact_no = contact_no;
       groupData.address = address;
       groupData.organisation_type = organisation_type;
-      if (gst_no) {
-        groupData.gst_no = gst_no;
-      }
-      if (filePaths.bank_check) {
-        groupData.bank_check = filePaths.bank_check;
-      }
-      // Optional files for all organisations
+      groupData.id_proof = filePaths.id_proof;
+      // Add optional/conditional fields
+      if (gst_no) groupData.gst_no = gst_no;
+      if (filePaths.bank_check) groupData.bank_check = filePaths.bank_check;
       if (filePaths.company_certificate) groupData.company_certificate = filePaths.company_certificate;
       if (filePaths.company_logo) groupData.company_logo = filePaths.company_logo;
+    }
+    // Helper function to determine file type from mimetype
+    const getFileType = (mimetype) => {
+      if (mimetype?.startsWith('image/')) return 'image';
+      if (mimetype?.includes('pdf')) return 'pdf';
+      if (mimetype?.includes('document') || mimetype?.includes('msword')) return 'doc';
+      return 'unknown';
+    };
+    // Add file types to groupData
+    if (filePaths.id_proof && req.files?.id_proof?.[0]) {
+      groupData.id_proof_type = getFileType(req.files.id_proof[0].mimetype);
+    }
+    if (filePaths.bank_check && req.files?.bank_check?.[0]) {
+      groupData.bank_check_type = getFileType(req.files.bank_check[0].mimetype);
+    }
+    if (filePaths.company_certificate && req.files?.company_certificate?.[0]) {
+      groupData.company_certificate_type = getFileType(req.files.company_certificate[0].mimetype);
     }
     const newGroup = new Group(groupData);
     await newGroup.save();
@@ -305,6 +323,364 @@ export const CreateGroup = async (req, res) => {
         field: field
       });
     }
+    res.status(500).json({
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+export const UpdateGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user._id || req.user.id;
+    const userRole = req.user.role;
+
+    // Validate groupId
+    if (!groupId) {
+      return res.status(400).json({ message: "Group ID is required" });
+    }
+
+    // Find the existing group
+    const existingGroup = await Group.findById(groupId);
+    if (!existingGroup) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    // Authorization check - ensure user owns this group
+    if (existingGroup.userId.toString() !== userId.toString()) {
+      return res.status(403).json({ 
+        message: "You are not authorized to update this group" 
+      });
+    }
+
+    // Extract update data from request body
+    const {
+      name,
+      email,
+      contact_no,
+      address,
+      gst_no,
+      pan_no,
+      organisation_type,
+      primary_bank_acc_type,
+      primary_bank_acc_no,
+      primary_bank_ifsc,
+      primary_bank_acc_holder,
+      status
+    } = req.body;
+
+    // Process new file uploads to Cloudinary
+    let uploadedFiles = {};
+    const filesToDelete = []; // Track old files to delete from Cloudinary
+
+    if (req.files && Object.keys(req.files).length > 0) {
+      try {
+        uploadedFiles = await processGroupFileUploads(req.files);
+        
+        // Track old files for deletion
+        if (uploadedFiles.id_proof && existingGroup.id_proof) {
+          filesToDelete.push(existingGroup.id_proof);
+        }
+        if (uploadedFiles.bank_check && existingGroup.bank_check) {
+          filesToDelete.push(existingGroup.bank_check);
+        }
+        if (uploadedFiles.company_certificate && existingGroup.company_certificate) {
+          filesToDelete.push(existingGroup.company_certificate);
+        }
+        if (uploadedFiles.company_logo && existingGroup.company_logo) {
+          filesToDelete.push(existingGroup.company_logo);
+        }
+      } catch (uploadError) {
+        console.error('File upload error:', uploadError);
+        return res.status(500).json({ 
+          message: "File upload failed", 
+          error: uploadError.message 
+        });
+      }
+    }
+
+    // Prepare data for duplication checking (only if unique fields are being updated)
+    const duplicateQuery = { 
+      _id: { $ne: groupId } // Exclude current group from check
+    };
+    let needsDuplicateCheck = false;
+    const orConditions = [];
+
+    // Build duplicate check query only for fields being updated
+    if (pan_no && pan_no !== existingGroup.pan_no) {
+      orConditions.push({ pan_no: pan_no });
+      needsDuplicateCheck = true;
+    }
+
+    if (name && email) {
+      const checkName = name || existingGroup.name;
+      const checkEmail = email || existingGroup.email;
+      
+      if (checkName.toLowerCase() !== existingGroup.name.toLowerCase() || 
+          checkEmail.toLowerCase() !== existingGroup.email.toLowerCase()) {
+        orConditions.push({
+          $and: [
+            { name: { $regex: new RegExp(`^${checkName.trim()}$`, 'i') } },
+            { email: { $regex: new RegExp(`^${checkEmail.trim()}$`, 'i') } }
+          ]
+        });
+        needsDuplicateCheck = true;
+      }
+    }
+
+    if (contact_no && name) {
+      const checkName = name || existingGroup.name;
+      const checkContact = contact_no || existingGroup.contact_no;
+      
+      if (checkName.toLowerCase() !== existingGroup.name.toLowerCase() || 
+          checkContact !== existingGroup.contact_no) {
+        orConditions.push({
+          $and: [
+            { name: { $regex: new RegExp(`^${checkName.trim()}$`, 'i') } },
+            { contact_no: checkContact.trim() }
+          ]
+        });
+        needsDuplicateCheck = true;
+      }
+    }
+
+    if (email && contact_no) {
+      const checkEmail = email || existingGroup.email;
+      const checkContact = contact_no || existingGroup.contact_no;
+      
+      if (checkEmail.toLowerCase() !== existingGroup.email.toLowerCase() || 
+          checkContact !== existingGroup.contact_no) {
+        orConditions.push({
+          $and: [
+            { email: { $regex: new RegExp(`^${checkEmail.trim()}$`, 'i') } },
+            { contact_no: checkContact.trim() }
+          ]
+        });
+        needsDuplicateCheck = true;
+      }
+    }
+
+    if (gst_no && gst_no !== existingGroup.gst_no && gst_no.trim()) {
+      orConditions.push({ gst_no: gst_no.trim() });
+      needsDuplicateCheck = true;
+    }
+
+    // Perform duplicate check if needed
+    if (needsDuplicateCheck && orConditions.length > 0) {
+      duplicateQuery.$or = orConditions;
+      const duplicateGroup = await Group.findOne(duplicateQuery);
+      
+      if (duplicateGroup) {
+        let duplicateFields = [];
+        
+        if (pan_no && duplicateGroup.pan_no === pan_no) {
+          duplicateFields.push('PAN number');
+        }
+        if (name && duplicateGroup.name.toLowerCase() === name.toLowerCase()) {
+          duplicateFields.push('name');
+        }
+        if (email && duplicateGroup.email.toLowerCase() === email.toLowerCase()) {
+          duplicateFields.push('email');
+        }
+        if (contact_no && duplicateGroup.contact_no === contact_no) {
+          duplicateFields.push('contact number');
+        }
+        if (gst_no && duplicateGroup.gst_no === gst_no) {
+          duplicateFields.push('GST number');
+        }
+
+        return res.status(409).json({
+          message: `Another group with the same ${duplicateFields.join(', ')} already exists`,
+          duplicateFields: duplicateFields,
+          existingGroupId: duplicateGroup._id
+        });
+      }
+    }
+
+    // Build update data object
+    const updateData = {};
+
+    // Update basic fields if provided
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (contact_no) updateData.contact_no = contact_no;
+    if (pan_no) updateData.pan_no = pan_no;
+    
+    // Organisation-specific fields
+    if (existingGroup.grp_type === 'organisation') {
+      if (address) updateData.address = address;
+      if (organisation_type) updateData.organisation_type = organisation_type;
+    }
+    
+    if (gst_no !== undefined) updateData.gst_no = gst_no; // Allow empty string to clear
+    
+    // Bank account details
+    if (primary_bank_acc_type !== undefined) updateData.primary_bank_acc_type = primary_bank_acc_type;
+    if (primary_bank_acc_no !== undefined) updateData.primary_bank_acc_no = primary_bank_acc_no;
+    if (primary_bank_ifsc !== undefined) updateData.primary_bank_ifsc = primary_bank_ifsc;
+    if (primary_bank_acc_holder !== undefined) updateData.primary_bank_acc_holder = primary_bank_acc_holder;
+
+    // Only admin can update status
+    if (userRole === 'admin' && status) {
+      if (['unverified', 'active', 'blocked'].includes(status)) {
+        updateData.status = status;
+      }
+    }
+
+    // Helper function to determine file type from mimetype
+    const getFileType = (mimetype) => {
+      if (mimetype?.startsWith('image/')) return 'image';
+      if (mimetype?.includes('pdf')) return 'pdf';
+      if (mimetype?.includes('document') || mimetype?.includes('msword')) return 'doc';
+      return 'unknown';
+    };
+
+    // Update file fields if new files were uploaded
+    if (uploadedFiles.id_proof) {
+      updateData.id_proof = uploadedFiles.id_proof;
+      if (req.files?.id_proof?.[0]) {
+        updateData.id_proof_type = getFileType(req.files.id_proof[0].mimetype);
+      }
+    }
+
+    if (uploadedFiles.bank_check) {
+      updateData.bank_check = uploadedFiles.bank_check;
+      if (req.files?.bank_check?.[0]) {
+        updateData.bank_check_type = getFileType(req.files.bank_check[0].mimetype);
+      }
+    }
+
+    if (uploadedFiles.company_certificate) {
+      updateData.company_certificate = uploadedFiles.company_certificate;
+      if (req.files?.company_certificate?.[0]) {
+        updateData.company_certificate_type = getFileType(req.files.company_certificate[0].mimetype);
+      }
+    }
+
+    if (uploadedFiles.company_logo) {
+      updateData.company_logo = uploadedFiles.company_logo;
+    }
+
+    // Validation for organisation groups
+    if (existingGroup.grp_type === 'organisation') {
+      const finalOrgType = organisation_type || existingGroup.organisation_type;
+      
+      if (finalOrgType && finalOrgType.toLowerCase() !== 'educational') {
+        // Check if required fields are present (either in update or existing data)
+        const finalGst = gst_no !== undefined ? gst_no : existingGroup.gst_no;
+        const finalBankCheck = uploadedFiles.bank_check || existingGroup.bank_check;
+        const finalLogo = uploadedFiles.company_logo || existingGroup.company_logo;
+
+        const missingFields = [];
+        if (!finalGst) missingFields.push('gst_no');
+        if (!finalBankCheck) missingFields.push('bank_check file');
+        if (!finalLogo) missingFields.push('company_logo file');
+
+        if (missingFields.length > 0) {
+          return res.status(400).json({
+            message: `Non-educational organisations require: ${missingFields.join(', ')}`,
+            missingFields: missingFields
+          });
+        }
+      }
+    }
+
+    // Check if there's anything to update
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ 
+        message: "No fields to update" 
+      });
+    }
+
+    // Update the group
+    const updatedGroup = await Group.findByIdAndUpdate(
+      groupId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedGroup) {
+      return res.status(404).json({ message: "Failed to update group" });
+    }
+
+    // Delete old files from Cloudinary after successful update
+    if (filesToDelete.length > 0) {
+      try {
+        for (const fileUrl of filesToDelete) {
+          const publicId = extractPublicId(fileUrl);
+          if (publicId) {
+            // Try deleting as different resource types since we don't know which type it is
+            try {
+              await deleteFromCloudinary(publicId, 'image');
+            } catch {
+              try {
+                await deleteFromCloudinary(publicId, 'raw');
+              } catch (err) {
+                console.error(`Failed to delete old file: ${publicId}`, err);
+              }
+            }
+          }
+        }
+      } catch (deleteError) {
+        console.error('Error deleting old files:', deleteError);
+        // Don't fail the update if file deletion fails
+      }
+    }
+
+    // Create notification for group update
+    try {
+      await createNotification({
+        userId: userId,
+        type: 'group_updated',
+        title: 'Group Updated',
+        message: `Group "${updatedGroup.name}" has been updated successfully`,
+        metadata: {
+          groupId: updatedGroup._id,
+          groupName: updatedGroup.name
+        }
+      });
+    } catch (notificationError) {
+      console.error('Failed to create notification:', notificationError);
+      // Don't fail the update if notification fails
+    }
+
+    res.status(200).json({
+      message: "Group updated successfully",
+      group: updatedGroup,
+      updatedFields: Object.keys(updateData)
+    });
+
+  } catch (error) {
+    console.error("Error updating group:", error);
+    
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ message: "File too large. Max 10MB." });
+      }
+      return res.status(400).json({ message: error.message });
+    }
+    
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ 
+        message: "Validation error", 
+        errors: messages 
+      });
+    }
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: "Invalid group ID format" });
+    }
+    
+    // Handle MongoDB duplicate key error
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(409).json({
+        message: `Group with this ${field} already exists`,
+        field: field
+      });
+    }
+    
     res.status(500).json({
       message: "Internal server error",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -363,6 +739,10 @@ export const getGroups = async (req, res) => {
 };
 export const createTicketBasicInfo = async (req, res) => {
   try {
+    const guestProfileFiles = {};
+    const eventRulesFiles = [];
+    const videoFiles = {};
+    const previewImageFiles = {};
     // Handle file upload first using Promise wrapper
     await new Promise((resolve, reject) => {
       uploadFields(req, res, (err) => {
@@ -416,15 +796,9 @@ export const createTicketBasicInfo = async (req, res) => {
       event_description,
       groupId: bodyGroupId
     } = req.body;
-   
-
     // Get uploaded file
     const uploadedFiles = await processFileUploads(req.files || {});
     // Handle multiple guest profile uploads and event rules
-    const guestProfileFiles = {};
-    const eventRulesFiles = [];
-    const videoFiles = {};
-    const previewImageFiles = {};
     Object.keys(uploadedFiles).forEach(fieldName => {
       if (fieldName.startsWith('guest_profile_')) {
         const index = fieldName.split('_')[2]; 
@@ -821,35 +1195,25 @@ export const createTicketBasicInfo = async (req, res) => {
         { key: 'exact_map_location', value: exact_map_location }
       ];
     } 
-
-    // Combine all required fields
-    const allRequiredFields = [...baseRequiredFields, ...locationSpecificRequiredFields];
-
-    const missingFields = allRequiredFields
-    .filter(({ value }) => !value || (Array.isArray(value) && value.length === 0))
-    .map(({ key }) => key);
-
-    if (missingFields.length > 0) {
-      return res.status(400).json({ 
-        message: "Missing required fields",
-        missingFields,
-        requiredFields: allRequiredFields.map(({ key }) => key),
-        note: location_type === 'offline' 
-          ? "For offline events: seating_arrangement, location, venue, and exact_map_location are required"
-          : location_type === 'online' || location_type === 'recorded'
-          ? "For online/recorded events: event_link is required"
-          : ""
-      });
-    }
-
-    // Verify group ownership
+    // Validate that the group exists and user has permission
     const group = await Group.findOne({ _id: groupId, userId: userId });
     if (!group) {
       return res.status(404).json({ 
         message: "Group not found or you don't have permission to create events for this group" 
       });
     }
+      // Check all required fields for ticket creation
+      const allRequiredFields = [...baseRequiredFields, ...locationSpecificRequiredFields];
+      const missingTicketFields = allRequiredFields
+        .filter(field => !field.value || (typeof field.value === 'string' && field.value.trim() === ''))
+        .map(field => field.key);
 
+      if (missingTicketFields.length > 0) {
+        return res.status(400).json({
+          message: `Missing required fields: ${missingTicketFields.join(', ')}`,
+          missingFields: missingTicketFields
+        });
+      }
     // Validation: Enum fields
     const validEventTypes = ['private', 'public'];
     if (event_type && !validEventTypes.includes(event_type)) {
@@ -1252,6 +1616,49 @@ export const createTicketBasicInfo = async (req, res) => {
       // Delete files from Cloudinary
       for (const publicId of filesToDelete) {
         await deleteFromCloudinary(publicId);
+      }
+    } catch (cleanupError) {
+      console.error("Error cleaning up Cloudinary files:", cleanupError);
+    }
+    // Cleanup: Delete uploaded Cloudinary files if database operation fails
+    try {
+      const filesToDelete = [];
+      
+      // Collect all uploaded file public_ids
+      if (guestProfileFiles && typeof guestProfileFiles === 'object') {
+        Object.values(guestProfileFiles).forEach(file => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
+      }
+      
+      if (eventRulesFiles && Array.isArray(eventRulesFiles)) {
+        eventRulesFiles.forEach(file => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
+      }
+      
+      if (videoFiles && typeof videoFiles === 'object') {
+        Object.values(videoFiles).forEach(file => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
+      }
+      
+      if (previewImageFiles && typeof previewImageFiles === 'object') {
+        Object.values(previewImageFiles).forEach(file => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
+      }
+      
+      // Delete files from Cloudinary
+      if (filesToDelete.length > 0) {
+        console.log(`Cleaning up ${filesToDelete.length} uploaded files due to error...`);
+        for (const publicId of filesToDelete) {
+          try {
+            await deleteFromCloudinary(publicId, 'auto');
+          } catch (deleteErr) {
+            console.error(`Failed to delete file ${publicId}:`, deleteErr);
+          }
+        }
       }
     } catch (cleanupError) {
       console.error("Error cleaning up Cloudinary files:", cleanupError);
