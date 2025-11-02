@@ -52,13 +52,12 @@ const CreateTicketModal = ({
 
   const handleAddOrUpdateTicket = () => {
     if (!ticketType || !ticketPrice || !totalTickets) {
-      // 2. USE showAlert INSTEAD OF alert()
       showAlert({
         type: "error",
         message: "Missing Details",
         description: "Please fill in all ticket details: Type, Price, and Total Tickets.",
       });
-      return localTickets;
+      return;
     }
 
     const defaultImage =
@@ -80,8 +79,18 @@ const CreateTicketModal = ({
       updatedList = localTickets.map((t) =>
         t.id === currentEditId ? { ...ticketData, id: currentEditId } : t
       );
+      showAlert({
+        type: "success",
+        message: "Ticket Updated",
+        description: `${ticketType} has been updated successfully.`,
+      });
     } else {
       updatedList = [...localTickets, { ...ticketData, id: Date.now() }];
+      showAlert({
+        type: "success",
+        message: "Ticket Added",
+        description: `${ticketType} has been added to your list.`,
+      });
     }
 
     setLocalTickets(updatedList);
@@ -94,8 +103,6 @@ const CreateTicketModal = ({
     setTicketPhoto(null);
     setTicketPhotoPreview("");
     setExistingPhotoPath("");
-
-    return updatedList;
   };
 
   const handleDeleteTicket = (ticketIdToDelete) =>
@@ -110,33 +117,32 @@ const CreateTicketModal = ({
     setTicketPhoto(ticket.photoFile || null);
     setExistingPhotoPath(ticket.existingPhotoPath || "");
   };
-
   const handleSave = () => {
-    let ticketsToSave = localTickets;
-
     const isTyping = ticketType || ticketPrice || totalTickets;
     const isValid = ticketType && ticketPrice && totalTickets;
 
     if (isTyping && !isValid) {
-      // 3. USE showAlert INSTEAD OF alert()
       showAlert({
         type: "warning",
         message: "Incomplete Ticket",
-        description: "You have an incomplete ticket in the form. Please fill in all details or clear the form before saving.",
+        description: "You have an incomplete ticket in the form. Please complete it using '+ Add Ticket' button or clear the form before saving.",
       });
       return;
     }
 
+    // If form is valid but not added, warn user
     if (isValid) {
-      ticketsToSave = handleAddOrUpdateTicket();
+      showAlert({
+        type: "warning",
+        message: "Unsaved Ticket",
+        description: "You have filled in ticket details but haven't added it yet. Click '+ Add Ticket' button first, then 'Save Changes'.",
+      });
+      return;
     }
-
-    onSave(ticketsToSave);
+    onSave(localTickets);
     onClose();
   };
-
   const handleResetAll = () => {
-    // 4. ADD CONFIRMATION FOR DESTRUCTIVE ACTION
     if (
       window.confirm(
         "Are you sure you want to reset all tickets? This will remove all tickets you've added."
@@ -149,13 +155,11 @@ const CreateTicketModal = ({
       setTotalTickets("");
       setTicketPhoto(null);
       setTicketPhotoPreview("");
-      // Call the onResetAll prop if it exists, to clear in parent state too
       if (onResetAll) {
         onResetAll();
       }
     }
   };
-
   if (!isOpen) return null;
 
   return (

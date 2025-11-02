@@ -160,9 +160,7 @@ const UpdateTicketDetails = () => {
                     })) ?? [];
                 
                 setTickets(loadedTickets);
-
-        // Handle banking details
-        let shouldUseGroupBank = true;
+        let shouldUseGroupBank = false; 
         let bankDetailsToSet = [
           {
             id: Date.now(),
@@ -172,39 +170,6 @@ const UpdateTicketDetails = () => {
             bank_ifsc: "",
           },
         ];
-
-        const locationType = ticketData.location_type;
-                if (ticketData.payment_type !== 'free' && locationType !== 'offline' && loadedTickets.length > 0) {
-                    // For simple tickets, we assume only the first ticket type applies
-                    setSimpleTicketPrice(savedDraft?.simpleTicketPrice ?? loadedTickets[0].price);
-                    setSimpleTicketCapacity(savedDraft?.simpleTicketCapacity ?? loadedTickets[0].capacity);
-                } else if (ticketData.payment_type !== 'free' && locationType !== 'offline' && loadedTickets.length === 0) {
-                     // If paid, non-offline, but no tickets loaded, try to load draft
-                     setSimpleTicketPrice(savedDraft?.simpleTicketPrice ?? "");
-                     setSimpleTicketCapacity(savedDraft?.simpleTicketCapacity ?? "");
-                }
-
-        // Check if ticket has custom banking details saved
-        if (ticketData.banking_details && ticketData.banking_details.length > 0) {
-          const hasCustomBankDetails = ticketData.banking_details.some(b => !b.is_group_account);
-          
-          if (hasCustomBankDetails) {
-            // Load custom banking details
-            shouldUseGroupBank = false;
-            bankDetailsToSet = ticketData.banking_details.map((b) => ({
-              id: b._id || Date.now(),
-              bank_acc_type: b.bank_acc_type || "",
-              bank_acc_holder: b.bank_acc_holder || "",
-              bank_acc_no: b.bank_acc_no || "",
-              bank_ifsc: b.bank_ifsc || "",
-            }));
-          }
-        }
-
-        // Override with savedDraft if available
-        setUseGroupBankAccount(savedDraft?.useGroupBankAccount ?? shouldUseGroupBank);
-        setBankingDetails(savedDraft?.bankingDetails ?? bankDetailsToSet);
-
         if (groupData && groupData.primary_bank_acc_no) {
           setGroupHasBankAccount(true);
           const {
@@ -213,7 +178,6 @@ const UpdateTicketDetails = () => {
             primary_bank_acc_no,
             primary_bank_ifsc,
           } = groupData;
-          const normalizedAccType = primary_bank_acc_type?.toLowerCase();
 
           const areDetailsComplete =
             primary_bank_acc_type &&
@@ -222,20 +186,65 @@ const UpdateTicketDetails = () => {
             primary_bank_ifsc;
 
           if (areDetailsComplete) {
+            // Only enable toggle if group bank details are complete
+            shouldUseGroupBank = true;
+            
             const groupBankDetails = [
               {
                 id: groupData._id,
-                bank_acc_type: normalizedAccType,
+                bank_acc_type: primary_bank_acc_type?.toLowerCase(),
                 bank_acc_holder: primary_bank_acc_holder,
                 bank_acc_no: primary_bank_acc_no,
                 bank_ifsc: primary_bank_ifsc,
               },
             ];
             window.groupBankDetails = groupBankDetails;
+            
+            // Set group bank details as default if available
+            bankDetailsToSet = groupBankDetails;
           } else {
             setGroupBankDetailsIncomplete(true);
+            shouldUseGroupBank = false;
+          }
+        } else {
+          setGroupHasBankAccount(false);
+          shouldUseGroupBank = false;
+        }
+        const locationType = ticketData.location_type;
+        if (ticketData.payment_type !== 'free' && locationType !== 'offline' && loadedTickets.length > 0) {
+            // For simple tickets, we assume only the first ticket type applies
+            setSimpleTicketPrice(savedDraft?.simpleTicketPrice ?? loadedTickets[0].price);
+            setSimpleTicketCapacity(savedDraft?.simpleTicketCapacity ?? loadedTickets[0].capacity);
+        } else if (ticketData.payment_type !== 'free' && locationType !== 'offline' && loadedTickets.length === 0) {
+              // If paid, non-offline, but no tickets loaded, try to load draft
+              setSimpleTicketPrice(savedDraft?.simpleTicketPrice ?? "");
+              setSimpleTicketCapacity(savedDraft?.simpleTicketCapacity ?? "");
+        }
+        // Check if ticket has custom banking details saved
+        if (ticketData.banking_details && ticketData.banking_details.length > 0) {
+          const hasCustomBankDetails = ticketData.banking_details.some(b => !b.is_group_account);
+          
+          if (hasCustomBankDetails) {
+            // Load custom banking details - override group account
+            shouldUseGroupBank = false;
+            bankDetailsToSet = ticketData.banking_details.map((b) => ({
+              id: b._id || Date.now(),
+              bank_acc_type: b.bank_acc_type || "",
+              bank_acc_holder: b.bank_acc_holder || "",
+              bank_acc_no: b.bank_acc_no || "",
+              bank_ifsc: b.bank_ifsc || "",
+            }));
+          } else if (groupData && groupData.primary_bank_acc_no) {
+            // Has group bank details saved
+            shouldUseGroupBank = true;
           }
         }
+        // Override with savedDraft if available
+        setUseGroupBankAccount(savedDraft?.useGroupBankAccount ?? shouldUseGroupBank);
+        setBankingDetails(savedDraft?.bankingDetails ?? bankDetailsToSet);
+        // Override with savedDraft if available
+        setUseGroupBankAccount(savedDraft?.useGroupBankAccount ?? shouldUseGroupBank);
+        setBankingDetails(savedDraft?.bankingDetails ?? bankDetailsToSet);
       } catch (error) {
         console.error("Failed to fetch initial data", error);
         setErrors({
@@ -377,10 +386,10 @@ const UpdateTicketDetails = () => {
     return true;
   };
   useEffect(() => {
-  if (!groupHasBankAccount || groupBankDetailsIncomplete) {
-    setUseGroupBankAccount(false);
-  }
-}, [groupHasBankAccount, groupBankDetailsIncomplete]);
+    if (paymentType === 'paid' && (!groupHasBankAccount || groupBankDetailsIncomplete)) {
+      setUseGroupBankAccount(false);
+    }
+  }, [groupHasBankAccount, groupBankDetailsIncomplete, paymentType]);
   const handleGoBack = () => {
     localStorage.removeItem(storageKey);
     navigate(`/ticket/update-ticket-media/${ticketId}`);
@@ -972,59 +981,107 @@ ticket_type: ticket.ticket_type || ticket.name,
                 </div>
               </section>
               {paymentType === "paid" && (
-                            <section className="space-y-6">
-                                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                                     Ticketing details
-                                </h2>
-                                
-                                {isOfflinePaid && (
-                                    <>
-                                        <p className="text-black dark:text-gray-400 text-sm">
-                                            Add ticket types, set prices, and control how attendees book their spot.
-                                        </p>
+                        <section className="space-y-6">
+                            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                  Ticketing details
+                            </h2>
+                            
+                          {isOfflinePaid && (
+                            <>
+                              <p className="text-black dark:text-gray-400 text-sm">
+                                Add ticket types, set prices, and control how attendees book their spot.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={handleOpenModalForAdd}
+                                className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center space-x-2 hover:bg-indigo-700 transition"
+                              >
+                                <span>Add tickets</span>
+                                <img src={Ticket_Form_Icon} alt="" />
+                              </button>
+                              
+                              {/* Display Added Tickets */}
+                              {tickets.length > 0 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
+                                  {tickets.map((ticket) => (
+                                    <div
+                                      key={ticket.id}
+                                      className="bg-white dark:bg-[#363A3F] rounded-lg p-4 shadow-sm hover:shadow-md transition"
+                                    >
+                                      {ticket.image && (
+                                        <img
+                                          src={ticket.image}
+                                          alt={ticket.name}
+                                          className="w-full h-32 object-cover rounded-md mb-3"
+                                        />
+                                      )}
+                                      <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                                        {ticket.name}
+                                      </h3>
+                                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                        Price: ₹{Number(ticket.price).toLocaleString()}
+                                      </p>
+                                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                        Capacity: {ticket.capacity}
+                                      </p>
+                                      <div className="flex gap-2">
                                         <button
-                                            type="button"
-                                            onClick={handleOpenModalForAdd}
-                                            className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center space-x-2 hover:bg-indigo-700 transition"
+                                          type="button"
+                                          onClick={() => handleOpenModalForEdit(ticket)}
+                                          className="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700 transition"
                                         >
-                                            <span>Add tickets</span>
-                                            <img src={Ticket_Form_Icon} alt="" />
+                                          Edit
                                         </button>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                                            {/* ... (Mapping of complex tickets using tickets.map) ... */}
-                                        </div>
-                                    </>
-                                )}
-
-                                {isOnlineOrRecordedPaid && (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4   rounded-lg">
-                                        <FormInput
-                                            label="Ticket Price"
-                                            id="simpleTicketPrice"
-                                            name="simpleTicketPrice"
-                                            type="number"
-                                            value={simpleTicketPrice}
-                                            onChange={(e) => setSimpleTicketPrice(e.target.value)}
-                                            placeholder="Enter Price (e.g., 500)"
-                                            info="Base price for the standard ticket type."
-                                            darkMode={darkMode}
-                                            required={false}
-                                        />
-                                        <FormInput
-                                            label="Total Ticket Capacity "
-                                            id="simpleTicketCapacity"
-                                            name="simpleTicketCapacity"
-                                            type="number"
-                                            value={simpleTicketCapacity}
-                                            onChange={(e) => setSimpleTicketCapacity(e.target.value)}
-                                            placeholder="Enter total capacity"
-                                            info="Maximum number of attendees allowed."
-                                            darkMode={darkMode}
-                                            required={false}
-                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteTicket(ticket.id)}
+                                          className="flex-1 px-3 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition"
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
                                     </div>
-                                )}
-                            </section>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              {tickets.length === 0 && (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                                  No tickets added yet. Click "Add tickets" to create your first ticket type.
+                                </div>
+                              )}
+                            </>
+                          )}
+
+                            {isOnlineOrRecordedPaid && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4   rounded-lg">
+                                    <FormInput
+                                        label="Ticket Price"
+                                        id="simpleTicketPrice"
+                                        name="simpleTicketPrice"
+                                        type="number"
+                                        value={simpleTicketPrice}
+                                        onChange={(e) => setSimpleTicketPrice(e.target.value)}
+                                        placeholder="Enter Price (e.g., 500)"
+                                        info="Base price for the standard ticket type."
+                                        darkMode={darkMode}
+                                        required={false}
+                                    />
+                                    <FormInput
+                                        label="Total Ticket Capacity "
+                                        id="simpleTicketCapacity"
+                                        name="simpleTicketCapacity"
+                                        type="number"
+                                        value={simpleTicketCapacity}
+                                        onChange={(e) => setSimpleTicketCapacity(e.target.value)}
+                                        placeholder="Enter total capacity"
+                                        info="Maximum number of attendees allowed."
+                                        darkMode={darkMode}
+                                        required={false}
+                                    />
+                                </div>
+                            )}
+                        </section>
                         )}
               <div className="pt-8 flex justify-end gap-4">
                 <button

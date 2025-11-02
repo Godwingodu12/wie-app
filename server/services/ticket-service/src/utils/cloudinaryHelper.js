@@ -4,15 +4,12 @@ export const processFileUploads = async (files) => {
   const uploadedFiles = {};
 
   try {
-    // Process single file fields (event_logo, event_banner, etc.)
     const singleFileFields = [
       'event_logo',
       'event_banner',
       'event_rules',
-      'college_authorisation',
-      'ticket_layout'
+      'college_authorisation'
     ];
-
     for (const fieldName of singleFileFields) {
       if (files[fieldName] && files[fieldName][0]) {
         const file = files[fieldName][0];
@@ -28,6 +25,28 @@ export const processFileUploads = async (files) => {
         uploadedFiles[fieldName] = result.url;
         console.log(`✅ ${fieldName} uploaded:`, result.url);
       }
+    }
+    if (files.ticket_layout && files.ticket_layout[0]) {
+      const file = files.ticket_layout[0];
+      const folder = getCloudinaryFolder('ticket_layout');
+      const resourceType = getResourceType('ticket_layout', file.mimetype);
+
+      console.log(`Uploading ticket_layout to Cloudinary...`);
+      const result = await uploadToCloudinary(file.buffer, {
+        folder,
+        resourceType
+      });
+
+      uploadedFiles.ticket_layout = [{
+        path: result.url,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        public_id: result.public_id,
+        resource_type: result.resource_type
+      }];
+      
+      console.log(`✅ ticket_layout uploaded:`, result.url);
     }
 
     // Process event_images (multiple files)

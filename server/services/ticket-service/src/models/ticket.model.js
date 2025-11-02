@@ -11,6 +11,7 @@ const ticketTypeSchema = new mongoose.Schema({
   ticket_type: { type: String },
   ticket_price: { type: Number },
   ticket_photo: { type: String },
+  ticket_photo_public_id: { type: String },
   max_capacity: { type: Number },
 });
 const ticketdateSchema = new mongoose.Schema({
@@ -139,6 +140,7 @@ const subEventSchema = new mongoose.Schema({
   guests: [guestSchema],
   ticket_types: [ticketTypeSchema],
   ticket_layout: { type: String, required: false },
+  ticket_layout_public_id: { type: String, required: false },
   total_capacity: { type: String, required: false },
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
@@ -229,6 +231,7 @@ const ticketSchema = new mongoose.Schema({
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
   ticket_layout: { type: String, required: false },
+  ticket_layout_public_id: { type: String, required: false },
   ticket_types: [ticketTypeSchema],
   created_by: { type: String, required: false },
   like: {type: Number,required: false,default: 0},

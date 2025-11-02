@@ -3050,8 +3050,7 @@ export const updateTicketDetails = async (req, res) => {
         }
       }
     });
-    // Handle ticket layout upload
-    if (uploadedFiles.ticket_layout && uploadedFiles.ticket_layout.length > 0) {
+    if (uploadedFiles.ticket_layout && Array.isArray(uploadedFiles.ticket_layout) && uploadedFiles.ticket_layout.length > 0) {
       const layoutFile = uploadedFiles.ticket_layout[0];
       
       // Validate upload success
@@ -3064,10 +3063,8 @@ export const updateTicketDetails = async (req, res) => {
       processedFiles.ticket_layout = layoutFile.path; // Cloudinary URL
       processedFiles.ticket_layout_public_id = layoutFile.public_id; // Store for deletion
     }
-
     // Store the processed file objects
     processedFiles.ticketPhotoFiles = ticketPhotoFiles;
-
     // Validate required fields
     if (!payment_type) {
       return res.status(400).json({
