@@ -124,27 +124,22 @@ const EditProfile = () => {
       reader.readAsDataURL(file);
     }
   };
-
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
       const formDataToSend = new FormData();
-
       formDataToSend.append("website", formData.website);
       formDataToSend.append("bio", formData.bio);
-      formDataToSend.append("gender", formData.gender.toLowerCase());
-
+      if (user?.role === 'admin') {
+        formDataToSend.append("gender", formData.gender.toLowerCase());
+      }
       if (selectedImage) {
         formDataToSend.append("image", selectedImage);
       }
-
       const response = await editProfile(formDataToSend);
-
       if (response.success) {
         alert("Profile updated successfully!");
-
         setUser(response.user);
-
         if (response.user.image) {
           setImagePreview(getImageUrl(response.user.image, 'auth'));
         }
@@ -348,12 +343,11 @@ const EditProfile = () => {
                     {user?.name || "Loading..."}
                   </h3>
                 </div>
-
-                {/* Form Fields */}
-                <div className="space-y-4">
+                {/* Form Fields - Shifted left for better alignment */}
+                <div className="space-y-4 md:pr-12 lg:pr-16">
                   {/* Website */}
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                    <label className="col-span-1 md:col-span-3 text-sm font-medium md:flex md:justify-end">
+                  <label className="col-span-1 md:col-span-3 text-sm font-medium md:flex md:justify-end md:pr-2">
                       Website
                     </label>
                     <input
@@ -363,17 +357,16 @@ const EditProfile = () => {
                         handleInputChange("website", e.target.value)
                       }
                       placeholder="https://example.com"
-                      className={`col-span-1 md:col-span-9 px-4 py-3 rounded-lg ${theme.inputBg} ${theme.text} transition-colors duration-300 border-2 border-white opacity-35 outline-none`}
+                      className={`col-span-1 md:col-span-8 px-4 py-3 rounded-lg ${theme.inputBg} ${theme.text} transition-colors duration-300 border-2 border-white opacity-35 outline-none`}
                       style={{ boxShadow: theme.inputShadow }}
                     />
                   </div>
-
                   {/* Bio */}
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
                     <label className="col-span-1 md:col-span-3 text-sm font-medium md:flex md:justify-end">
                       Bio
                     </label>
-                    <div className="col-span-1 md:col-span-9">
+                    <div className="col-span-1 md:col-span-8">
                       <textarea
                         value={formData.bio}
                         onChange={(e) =>
@@ -425,48 +418,51 @@ const EditProfile = () => {
                       </div>
                     </div>
                   </div>
-
-                  {/* Gender */}
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center py-3">
+                        
+                  {/* Gender - Only show for admin users */}
+                  {user?.role === 'admin' && (
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
                     <label className="col-span-1 md:col-span-3 text-sm font-medium md:flex md:justify-end">
-                      Gender
-                    </label>
-                    <div className="col-span-1 md:col-span-9 relative">
-                      <select
-                        value={formData.gender}
-                        onChange={(e) =>
-                          handleInputChange("gender", e.target.value)
-                        }
-                        className={`w-full px-4 py-3 rounded-lg ${theme.inputBg} ${theme.text} transition-colors duration-300 border-2 border-white opacity-35 outline-none appearance-none cursor-pointer`}
-                        style={{ boxShadow: theme.inputShadow }}
-                      >
-                        <option value="Prefer not to say">
-                          Prefer not to say
-                        </option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                      </select>
-                      <svg
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 pointer-events-none"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
+                        Gender
+                      </label>
+                      <div className="col-span-1 md:col-span-8 relative">
+                        <select
+                          value={formData.gender}
+                          onChange={(e) =>
+                            handleInputChange("gender", e.target.value)
+                          }
+                          className={`w-full px-4 py-3 rounded-lg ${theme.inputBg} ${theme.text} transition-colors duration-300 border-2 border-white opacity-35 outline-none appearance-none cursor-pointer`}
+                          style={{ boxShadow: theme.inputShadow }}
+                        >
+                          <option value="Prefer not to say">
+                            Prefer not to say
+                          </option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                        </select>
+                        <svg
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 pointer-events-none"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
 
                   {/* Show wie account suggestion on profile */}
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center mt-4">
-                    <label className="col-span-1 md:col-span-3" />
-                    <div className="col-span-1 md:col-span-9">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                    <label className="col-span-1 md:col-span-3 text-sm font-medium md:flex md:justify-end" />
+                    <div className="col-span-1 md:col-span-8">
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-medium">
                           Show wie account suggestion on profile
@@ -508,8 +504,8 @@ const EditProfile = () => {
 
                   {/* Connect accounts with Submit button */}
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                    <div className="col-span-1 md:col-span-3" />
-                    <div className="col-span-1 md:col-span-9 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="col-span-1 md:col-span-3 text-sm font-medium md:flex md:justify-end md:pr-2" />
+                    <div className="col-span-1 md:col-span-8 flex flex-col sm:flex-row items-center justify-between gap-4">
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-medium">
                           Connect accounts
