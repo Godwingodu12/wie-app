@@ -47,7 +47,6 @@ onClick={onClose}
  const isCurrent = index === currentIndex;
 
  const offset = index - currentIndex;
- // Cleaned: Removed extra characters/spaces at end of template literal
  const translateX = offset * 264;
  
  return (

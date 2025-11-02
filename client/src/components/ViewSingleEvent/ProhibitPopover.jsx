@@ -1,7 +1,7 @@
 const ProhibitPopover = ({ prohibitedItems, theme }) => {
   return (
     <div
-      className={`absolute left-full top-1/2 transform -translate-y-1/2 p-4 rounded-xl max-w-xs w-64 z-60 transition-opacity duration-300 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto`}
+      className={`absolute right-full md:left-full top-1/2 transform -translate-y-1/2 p-4 rounded-xl max-w-xs w-64 z-60 transition-opacity duration-300 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto`}
       style={{
         backgroundColor: theme.cardBg,
         boxShadow: theme.shadowOutset,
