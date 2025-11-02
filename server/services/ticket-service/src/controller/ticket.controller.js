@@ -737,30 +737,44 @@ export const getMyUpcomingEvents = async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
         
+        // Get current date (start of today)
+        const currentDate = new Date();
+        currentDate.setHours(0, 0, 0, 0);
+        
         // Get all confirmed tickets for the user
         const tickets = await Ticket.find({ 
             userId: userId,
             event_status: 'confirmed'
-        });
+        }).lean(); // Use .lean() for better performance
         
-        // Filter tickets with upcoming start dates
-        const currentDate = new Date();
-        currentDate.setHours(0, 0, 0, 0); // Reset to start of day for accurate comparison
-        
+        // Filter tickets where the event hasn't ended yet
         const upcomingTickets = tickets.filter(ticket => {
-            if (ticket.event_dates && ticket.event_dates.length > 0 && ticket.event_dates[0].start_date) {
-                const eventStartDate = new Date(ticket.event_dates[0].start_date);
-                return eventStartDate >= currentDate;
+            if (ticket.event_dates && ticket.event_dates.length > 0) {
+                // Check the last date in event_dates array (end date of the event)
+                const lastEventDate = ticket.event_dates[ticket.event_dates.length - 1];
+                
+                // Use end_date if available, otherwise use start_date
+                const endDateString = lastEventDate.end_date || lastEventDate.start_date;
+                
+                if (endDateString) {
+                    const eventEndDate = new Date(endDateString);
+                    eventEndDate.setHours(23, 59, 59, 999); // Set to end of day
+                    
+                    // Include event if it hasn't ended yet (end date is today or in future)
+                    return eventEndDate >= currentDate;
+                }
             }
             return false;
         });
         
         res.status(200).json({
-            message: "My Upcoming Tickets retrieved successfully",
-            tickets: upcomingTickets
+            message: "My upcoming events retrieved successfully",
+            tickets: upcomingTickets,
+            totalCount: upcomingTickets.length,
+            currentDate: currentDate.toISOString()
         });
     } catch (error) {
-        console.error("Error fetching upcoming tickets:", error);
+        console.error("Error fetching upcoming events:", error);
         res.status(500).json({
             message: "Internal server error",
             error: error.message

@@ -1027,7 +1027,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
     const [activeFilter, setActiveFilter] = useState("All");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentDate, setCurrentDate] = useState(new Date());
-
+    const [totalLiveEvents, setTotalLiveEvents] = useState(0);
     const handleCreateEvent = async () => {
       if (!user) return;
       setLoading(true);
@@ -1058,25 +1058,39 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
     useEffect(() => {
       const fetchData = async () => {
         try {
-          const [previousEventsData, groupsData] =
+          const [previousEventsData, groupsData, liveEventsData] =
             await Promise.all([
               getPreviousEvents(),
               getGroups(),
+              getMyLiveEvents(),
             ]);
-
+          
+          // Process previous events
           const eventsArray =
             previousEventsData?.events ||
             previousEventsData?.tickets ||
             (Array.isArray(previousEventsData) ? previousEventsData : []);
           setEvents(eventsArray);
 
+          // Process groups
           const groupsArray =
             groupsData?.groups || (Array.isArray(groupsData) ? groupsData : []);
           setGroups(groupsArray);
+
+          // Get live events count - use count from response or array length
+          const liveCount = liveEventsData?.count || 
+                          liveEventsData?.totalEvents ||
+                          liveEventsData?.events?.length ||
+                          liveEventsData?.tickets?.length ||
+                          (Array.isArray(liveEventsData) ? liveEventsData.length : 0);
+          
+          setTotalLiveEvents(liveCount);
+
         } catch (e) {
           console.error("Error fetching data:", e);
           setEvents([]);
           setGroups([]);
+          setTotalLiveEvents(0);
         }
       };
 
@@ -1112,12 +1126,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
           subText: "text-gray-600",
           cardBg: "bg-slate-100",
         };
-
-    const confirmedEventsCount = events.length;
-    const totalLiveEvents = events.filter(
-      (event) => event.event_status === "live"
-    ).length;
-
+    const PreviousEventsCount = events.length;
     return (
       <>
       <style>{`
@@ -1256,7 +1265,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
               <StatsCard
                 isDark={isDark}
                 theme={theme}
-                count={confirmedEventsCount}
+                count={PreviousEventsCount}
                 title="Total Completed events"
                 icon={
                   <div className="text-yellow-400">
@@ -1269,7 +1278,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                 isDark={isDark}
                 theme={theme}
                 count={totalLiveEvents}
-                title="Total created events"
+                title="Total Live events"
                 icon={
                   <div className="text-red-500 relative">
                     <Radio className="h-6 w-6 sm:h-7 sm:w-7" />
@@ -1299,7 +1308,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
               <StatsCard
                 isDark={isDark}
                 theme={theme}
-                count={confirmedEventsCount}
+                count={PreviousEventsCount}
                 title="Total Completed events"
                 icon={
                   <div className="text-yellow-400">
@@ -1313,7 +1322,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                 isDark={isDark}
                 theme={theme}
                 count={totalLiveEvents}
-                title="Total created events"
+                title="Total Live events"
                 icon={
                   <div className="text-red-500 relative">
                     <Radio className="h-7 w-7 lg:h-8 lg:w-8 xl:h-9 xl:w-9" />
