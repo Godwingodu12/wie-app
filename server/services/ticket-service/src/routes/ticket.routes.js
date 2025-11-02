@@ -1,7 +1,8 @@
 import express from 'express';
 import { uploadFields, uploadTicketMedia } from '../middlewares/upload.js'; 
 import multer from 'multer';
-import {getUserData,CreateGroup, createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
+import { uploadGroupFiles } from '../middlewares/upload.js';
+import {getUserData,CreateGroup, UpdateGroup,createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
 getTicketById,deleteTicket,deleteSubEvent,viewTickets, getAllDeletedEvents} from '../services/ticket.service.js';
 import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getOtherGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getMyPreviousEventView,getOthersEvents,getOthersEventsById,getOtherLiveEvents,
 getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted } from '../controller/ticket.controller.js';
@@ -9,7 +10,8 @@ import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);
 router.get('/get-user-data',getUserData);
-router.post('/create-group', CreateGroup);
+router.post('/create-group',uploadGroupFiles, CreateGroup);
+router.put('/update-group/:groupId', protect, uploadGroupFiles, UpdateGroup);
 router.get('/get-groups', getGroups);
 router.post('/create-event/:groupId', createTicketBasicInfo);
 router.post('/create-event/:groupId/:ticketId', createTicketBasicInfo);
