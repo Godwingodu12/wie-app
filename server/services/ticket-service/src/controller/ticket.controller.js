@@ -3,6 +3,7 @@ import Ticket from "../models/ticket.model.js";
 import TicketLike from '../models/ticketLike.model.js';
 import { createNotification } from './notification.controller.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
+import { processFileUploads, deleteFromCloudinary } from '../utils/cloudinaryHelper.js';
 import mongoose from 'mongoose';
 export const getGroupsTypes = async (req, res) => {
     try {
@@ -120,93 +121,106 @@ export const updateSubEvent = async (req, res) => {
 
     // Process file uploads - only if files exist
     const processedFiles = {};
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-    const docExtensions = ['.pdf', '.doc', '.docx'];
-    const uploadedFiles = req.files || {};
+    const uploadedFiles = await processFileUploads(req.files || {});
     const guestProfileFiles = {};
     const ticketPhotoFiles = {};
     Object.keys(uploadedFiles).forEach(fieldName => {
       if (fieldName.startsWith('guest_profile_')) {
         const index = fieldName.split('_')[2];
         if (!isNaN(index) && parseInt(index) >= 0 && parseInt(index) <= 9) {
-          const profileFile = uploadedFiles[fieldName][0];
-          const ext = '.' + profileFile.originalname.toLowerCase().split('.').pop();
-          if (imageExtensions.includes(ext)) {
-            guestProfileFiles[parseInt(index)] = profileFile;
+          const fileData = uploadedFiles[fieldName];
+          // processFileUploads returns array of objects for multiple files
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            const profileFile = fileData[0];
+            
+            // Validate upload success
+            if (profileFile.path && profileFile.originalName) {
+              guestProfileFiles[parseInt(index)] = profileFile;
+              console.log(`✓ Guest profile ${index}: ${profileFile.originalName}`);
+            }
           }
         }
       }
       if (fieldName.startsWith('ticket_photo_')) {
         const index = fieldName.split('_')[2];
         if (!isNaN(index) && parseInt(index) >= 0) {
-          const ticketPhotoFile = uploadedFiles[fieldName][0];
-          const ext = '.' + ticketPhotoFile.originalname.toLowerCase().split('.').pop();
-          if (imageExtensions.includes(ext)) {
-            ticketPhotoFiles[parseInt(index)] = ticketPhotoFile;
-            console.log(`✓ Ticket photo ${index}: ${ticketPhotoFile.originalname}`);
+          const fileData = uploadedFiles[fieldName];
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            const ticketPhotoFile = fileData[0];
+            // Validate upload success
+            if (ticketPhotoFile.path && ticketPhotoFile.originalName) {
+              ticketPhotoFiles[parseInt(index)] = ticketPhotoFile;
+              console.log(`✓ Ticket photo ${index}: ${ticketPhotoFile.originalName}`);
+            }
           }
         }
       }
     });
-
     // Handle event banner
-    if (uploadedFiles.event_banner && uploadedFiles.event_banner[0]) {
+    if (uploadedFiles.event_banner && uploadedFiles.event_banner.length > 0) {
       const bannerFile = uploadedFiles.event_banner[0];
-      const ext = '.' + bannerFile.originalname.toLowerCase().split('.').pop();
-      if (imageExtensions.includes(ext)) {
-        processedFiles.event_banner = bannerFile.path;
+      if (bannerFile.path && bannerFile.originalName) {
+        processedFiles.event_banner = bannerFile.path; // Cloudinary URL
+        processedFiles.event_banner_public_id = bannerFile.public_id;
+        console.log(`✓ Event banner: ${bannerFile.originalName}`);
       }
     }
-
     // Handle event logo
-    if (uploadedFiles.event_logo && uploadedFiles.event_logo[0]) {
+    if (uploadedFiles.event_logo && uploadedFiles.event_logo.length > 0) {
       const logoFile = uploadedFiles.event_logo[0];
-      const ext = '.' + logoFile.originalname.toLowerCase().split('.').pop();
-      if (imageExtensions.includes(ext)) {
-        processedFiles.event_logo = logoFile.path;
+      if (logoFile.path && logoFile.originalName) {
+        processedFiles.event_logo = logoFile.path; // Cloudinary URL
+        processedFiles.event_logo_public_id = logoFile.public_id;
+        console.log(`✓ Event logo: ${logoFile.originalName}`);
       }
     }
-
-    // Handle event images
     if (uploadedFiles.event_images && uploadedFiles.event_images.length > 0) {
       if (uploadedFiles.event_images.length <= 10) {
-        const validImages = uploadedFiles.event_images.filter(file => {
-          const ext = '.' + file.originalname.toLowerCase().split('.').pop();
-          return imageExtensions.includes(ext);
-        });
+        // Filter valid uploads
+        const validImages = uploadedFiles.event_images.filter(file => 
+          file.path && file.originalName
+        );
         
-        processedFiles.event_images = validImages.map(file => ({
-          path: file.path,
-          originalName: file.originalname,
-          mimeType: file.mimetype,
-          size: file.size,
-          uploadedAt: new Date()
-        }));
+        if (validImages.length > 0) {
+          processedFiles.event_images = validImages.map(file => ({
+            path: file.path, // Cloudinary URL
+            originalName: file.originalName,
+            mimeType: file.mimeType,
+            size: file.size,
+            public_id: file.public_id, // Store for deletion
+            resource_type: file.resource_type,
+            uploadedAt: new Date()
+          }));
+          console.log(`✓ Event images: ${validImages.length} uploaded`);
+        }
+      } else {
+        console.warn('⚠ Too many event images (max 10)');
       }
     }
-
     // Handle event rules file
-    if (uploadedFiles.event_rules && uploadedFiles.event_rules[0]) {
+    if (uploadedFiles.event_rules && uploadedFiles.event_rules.length > 0) {
       const rulesFile = uploadedFiles.event_rules[0];
-      const ext = '.' + rulesFile.originalname.toLowerCase().split('.').pop();
-      if (docExtensions.includes(ext)) {
+      if (rulesFile.path && rulesFile.originalName) {
         processedFiles.event_rules = {
           type: 'file',
-          path: rulesFile.path,
-          originalName: rulesFile.originalname,
-          mimeType: rulesFile.mimetype,
+          path: rulesFile.path, // Cloudinary URL
+          originalName: rulesFile.originalName,
+          mimeType: rulesFile.mimeType,
           size: rulesFile.size,
+          public_id: rulesFile.public_id, // Store for deletion
+          resource_type: rulesFile.resource_type,
           uploadedAt: new Date()
         };
+        console.log(`✓ Event rules: ${rulesFile.originalName}`);
       }
     }
-
     // Handle ticket layout (offline only)
-    if (uploadedFiles.ticket_layout && uploadedFiles.ticket_layout[0]) {
+    if (uploadedFiles.ticket_layout && uploadedFiles.ticket_layout.length > 0) {
       const layoutFile = uploadedFiles.ticket_layout[0];
-      const ext = '.' + layoutFile.originalname.toLowerCase().split('.').pop();
-      if (imageExtensions.includes(ext)) {
-        processedFiles.ticket_layout = layoutFile.path;
+      if (layoutFile.path && layoutFile.originalName) {
+        processedFiles.ticket_layout = layoutFile.path; // Cloudinary URL
+        processedFiles.ticket_layout_public_id = layoutFile.public_id;
+        console.log(`✓ Ticket layout: ${layoutFile.originalName}`);
       }
     }
     const parseNestedData = (data, fieldName) => {
@@ -231,13 +245,11 @@ export const updateSubEvent = async (req, res) => {
           guest_name: guest.guest_name || '',
           guest_profile: guest.guest_profile || existingSubEvent.guests?.[index]?.guest_profile || '',
           guest_link: guest.guest_link || ''
-        };
-        
-        // Add uploaded profile image if available
+        };   
         if (guestProfileFiles[index]) {
-          guestData.guest_profile = guestProfileFiles[index].path;
+          guestData.guest_profile = guestProfileFiles[index].path; // Cloudinary URL
+          console.log(`✓ Updated guest ${index} profile with Cloudinary URL`);
         }
-
         return guestData;
       });
     } else if (existingSubEvent.guests) {
@@ -247,18 +259,18 @@ export const updateSubEvent = async (req, res) => {
     let processedTicketTypes = [];
     if (ticketTypes && ticketTypes.length > 0) {
       processedTicketTypes = ticketTypes.map((ticket, index) => {
-        const ticketData = {
+      const ticketData = {
           ticket_type: ticket.ticket_type || '',
           ticket_price: Number(ticket.ticket_price) || 0,
           max_capacity: Number(ticket.max_capacity) || 0,
-          ticket_photo: ticket.ticket_photo || existingSubEvent.ticket_types?.[index]?.ticket_photo || ''
+          ticket_photo: ticket.ticket_photo || existingSubEvent.ticket_types?.[index]?.ticket_photo || '',
+          ticket_photo_public_id: ticket.ticket_photo_public_id || existingSubEvent.ticket_types?.[index]?.ticket_photo_public_id || ''
         };
-        
-        // Add uploaded ticket photo if available
         if (ticketPhotoFiles[index]) {
-          ticketData.ticket_photo = ticketPhotoFiles[index].path;
+          ticketData.ticket_photo = ticketPhotoFiles[index].path; // Cloudinary URL
+          ticketData.ticket_photo_public_id = ticketPhotoFiles[index].public_id;
+          console.log(`✓ Updated ticket ${index} photo with Cloudinary URL`);
         }
-        
         return ticketData;
       });
     } else if (existingSubEvent.ticket_types) {
@@ -310,10 +322,18 @@ export const updateSubEvent = async (req, res) => {
       event_logo: processedFiles.event_logo || existingSubEvent.event_logo,
       event_images: processedFiles.event_images || existingSubEvent.event_images || [],
     };
-
     // Handle event_rules (file or text)
     if (processedFiles.event_rules) {
-      updatedSubEvent.event_rules = processedFiles.event_rules;
+      updatedSubEvent.event_rules = {
+        type: 'file',
+        path: processedFiles.event_rules.path, // Cloudinary URL
+        originalName: processedFiles.event_rules.originalName,
+        mimeType: processedFiles.event_rules.mimeType,
+        size: processedFiles.event_rules.size,
+        public_id: processedFiles.event_rules.public_id, // Store for deletion
+        resource_type: processedFiles.event_rules.resource_type,
+        uploadedAt: new Date(processedFiles.event_rules.uploadedAt)
+      };
     } else if (updateData.event_rules_text) {
       updatedSubEvent.event_rules = {
         type: 'text',
@@ -327,7 +347,6 @@ export const updateSubEvent = async (req, res) => {
         uploadedAt: new Date()
       };
     }
-
     // Handle location-type specific fields
     const locationType = updatedSubEvent.location_type;
 
@@ -392,14 +411,18 @@ export const updateSubEvent = async (req, res) => {
       sub_event: ticket.sub_events[subEventIndex],
       updatedFields: {
         location_type: updatedSubEvent.location_type,
-        event_banner: processedFiles.event_banner ? 'updated' : 'unchanged',
-        event_rules: processedFiles.event_rules ? 'updated' : (updateData.event_rules_text ? 'updated (text)' : 'unchanged'),
+        event_banner: processedFiles.event_banner ? 'updated (Cloudinary)' : 'unchanged',
+        event_logo: processedFiles.event_logo ? 'updated (Cloudinary)' : 'unchanged',
+        event_images: processedFiles.event_images ? `${processedFiles.event_images.length} updated (Cloudinary)` : 'unchanged',
+        event_rules: processedFiles.event_rules ? 'updated (Cloudinary)' : (updateData.event_rules_text ? 'updated (text)' : 'unchanged'),
+        ticket_layout: processedFiles.ticket_layout ? 'updated (Cloudinary)' : 'unchanged',
         guests: processedGuests.length,
         ticket_types: processedTicketTypes.length,
-        prohibited_items: (updatedSubEvent.prohibited_items || []).length
+        prohibited_items: (updatedSubEvent.prohibited_items || []).length,
+        guest_profiles_uploaded: Object.keys(guestProfileFiles).length,
+        ticket_photos_uploaded: Object.keys(ticketPhotoFiles).length
       }
     });
-
   } catch (error) {
     console.error('Error updating sub-event:', error);
     if (error.name === 'ValidationError') {
@@ -411,6 +434,39 @@ export const updateSubEvent = async (req, res) => {
         message: "Validation error",
         errors: validationErrors
       });
+    }
+    try {
+      const filesToDelete = [];
+      // Collect all uploaded file public_ids
+      if (processedFiles.event_banner_public_id) {
+        filesToDelete.push(processedFiles.event_banner_public_id);
+      }
+      if (processedFiles.event_logo_public_id) {
+        filesToDelete.push(processedFiles.event_logo_public_id);
+      }
+      if (processedFiles.ticket_layout_public_id) {
+        filesToDelete.push(processedFiles.ticket_layout_public_id);
+      }
+      if (processedFiles.event_images && Array.isArray(processedFiles.event_images)) {
+        processedFiles.event_images.forEach(img => {
+          if (img.public_id) filesToDelete.push(img.public_id);
+        });
+      }
+      if (processedFiles.event_rules && processedFiles.event_rules.public_id) {
+        filesToDelete.push(processedFiles.event_rules.public_id);
+      }
+      Object.values(guestProfileFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+      Object.values(ticketPhotoFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+      for (const publicId of filesToDelete) {
+        await deleteFromCloudinary(publicId);
+      }
+      console.log(`Cleaned up ${filesToDelete.length} files from Cloudinary due to error`);
+    } catch (cleanupError) {
+      console.error("Error cleaning up Cloudinary files:", cleanupError);
     }
     res.status(500).json({
       message: 'Failed to update sub-event',
