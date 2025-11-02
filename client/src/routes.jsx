@@ -38,6 +38,9 @@ import ViewSingleEvent from './pages/ticket/ViewSingleEvent';
 import OtherEventViewDetails from './pages/ticket/OtherEventViewDetails';
 import PreviousEvenetDetails from './pages/ticket/PreviousEvenetDetails';
 import LiveEventView from './pages/ticket/LiveEventView';
+import ConfirmEventView from './pages/ticket/ConfirmEventView';
+
+// Protected Route - Only for authenticated users
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
   if (!token || !user) {
@@ -327,8 +330,15 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      
-=      <Route
+      <Route
+        path="/ticket/view-confirm-event/:ticketId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <ConfirmEventView/>
+          </ProtectedRoute>
+        }
+      />   
+     <Route
         path="/admin/dashboard"
         element={
           <ProtectedRoute allowedRoles={['admin', 'organisation']}>

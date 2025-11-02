@@ -706,10 +706,27 @@ const filteredEvents = useMemo(() => {
       year: "numeric",
     });
   };
-  const handleViewEvent = (ticketId) => {
-    navigate(`/ticket/view-single-event/${ticketId}`);
-  };
-
+const handleViewEvent = (event) => {
+  const ticketId = event._id;
+  const status = event.event_status?.toLowerCase();
+  switch (status) {
+    case 'pending':
+      navigate(`/ticket/view-single-event/${ticketId}`);
+      break;
+    case 'confirmed':
+      navigate(`/ticket/view-confirm-event/${ticketId}`);
+      break;
+    case 'live':
+      navigate(`/ticket/live-event-view/${ticketId}`);
+      break;
+    case 'completed':
+      navigate(`/ticket/previous-event-view/${ticketId}`);
+      break;
+    default:
+      // Fallback for unknown status
+      navigate(`/ticket/view-single-event/${ticketId}`);
+  }
+};
   return (
     <div
       style={{
@@ -921,7 +938,7 @@ const filteredEvents = useMemo(() => {
                           {/* Action Buttons */}
                           <div className="flex items-center gap-2 justify-start">
                             <button 
-                                onClick={() => handleViewEvent(event._id)}
+                                onClick={() => handleViewEvent(event)}
                                 className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50"
                               >
                                 View
@@ -1058,7 +1075,7 @@ const filteredEvents = useMemo(() => {
                       </span>
                     </div>
                     <button
-                      onClick={() => handleViewEvent(event._id)}
+                      onClick={() => handleViewEvent(event)}
                       className={`px-4 sm:px-6 py-2 border border-[#6549B8] rounded-full text-sm transition-colors ${
                         isDark
                           ? "text-white hover:bg-[#6549B8]"
@@ -1253,7 +1270,7 @@ const filteredEvents = useMemo(() => {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <button
-                        onClick={() => handleViewEvent(event._id)}
+                        onClick={() => handleViewEvent(event)}
                         className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
                           isDark
                             ? "text-white hover:bg-[#6549B8]"
