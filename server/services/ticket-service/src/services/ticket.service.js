@@ -425,28 +425,29 @@ export const createTicketBasicInfo = async (req, res) => {
     const eventRulesFiles = [];
     const videoFiles = {};
     const previewImageFiles = {};
-    // Extract guest profile files (guest_profile_0, guest_profile_1, etc.)
     Object.keys(uploadedFiles).forEach(fieldName => {
       if (fieldName.startsWith('guest_profile_')) {
-        const index = fieldName.split('_')[2]; // Extract index from guest_profile_X
+        const index = fieldName.split('_')[2]; 
         if (!isNaN(index) && parseInt(index) >= 0 && parseInt(index) <= 9) {
           const fileData = uploadedFiles[fieldName];
-          // processFileUploads returns array of objects for multiple files
-          if (Array.isArray(fileData) && fileData.length > 0) {
-            guestProfileFiles[parseInt(index)] = fileData[0]; // Take first file
+          console.log(`Processing guest_profile_${index}:`, typeof fileData, Array.isArray(fileData));
+          if (typeof fileData === 'string') {
+            guestProfileFiles[parseInt(index)] = { path: fileData };
+          } else if (Array.isArray(fileData) && fileData.length > 0) {
+            guestProfileFiles[parseInt(index)] = fileData[0];
+          } else if (fileData && typeof fileData === 'object' && fileData.path) {
+            guestProfileFiles[parseInt(index)] = fileData;
           }
+          
+          console.log(`✅ Guest profile ${index} stored:`, guestProfileFiles[parseInt(index)]?.path);
         }
       }
-      
-      // Handle event rules files
       if (fieldName === 'event_rules') {
         const fileData = uploadedFiles[fieldName];
         if (Array.isArray(fileData) && fileData.length > 0) {
           eventRulesFiles.push(fileData[0]);
         }
       }
-      
-      // Handle video files
       if (fieldName.startsWith('video_file_')) {
         const index = fieldName.split('_')[2];
         if (!isNaN(index)) {
@@ -956,19 +957,15 @@ export const createTicketBasicInfo = async (req, res) => {
         mapLocation = {};
       }
     }
-
-    // Process guests data with their profile images
     let processedGuests = [];
     if (guests) {
       const guestsArray = parseJSONSafely(guests, []);
-      // Limit to maximum 10 guests
       if(guestsArray.length > 10) {
         return res.status(400).json({
           message: "Maximum 10 guests allowed"
         });
       }
-      
-      // Process each guest with their corresponding profile image
+      console.log(`Processing ${guestsArray.length} guests with profile files:`, Object.keys(guestProfileFiles));
       processedGuests = guestsArray.map((guest, index) => {
         let guestData = {
           guest_name: '',
@@ -985,12 +982,18 @@ export const createTicketBasicInfo = async (req, res) => {
             guest_link: guest.guest_link || ''
           };
         }
+        
         // Add uploaded profile image Cloudinary URL if available
-        if (guestProfileFiles[index]) {
+        if (guestProfileFiles[index] && guestProfileFiles[index].path) {
           guestData.guest_profile = guestProfileFiles[index].path; // Cloudinary URL
+          console.log(`✅ Guest ${index} profile set:`, guestData.guest_profile);
+        } else {
+          console.log(`⚠️ No profile file for guest ${index}`);
         }
+        
         return guestData;
       });
+      console.log(`Processed ${processedGuests.length} guests:`, processedGuests.map(g => ({ name: g.guest_name, has_profile: !!g.guest_profile })));
     }
 
     // Create ticket data object with location-type specific fields
@@ -1879,10 +1882,22 @@ export const updateTicketAddOns = async (req, res) => {
         const index = fieldName.split('_')[2];
         if (!isNaN(index) && parseInt(index) >= 0 && parseInt(index) <= 9) {
           const fileData = uploadedFiles[fieldName];
-          // processFileUploads returns array of objects for multiple files
-          if (Array.isArray(fileData) && fileData.length > 0) {
+          
+          console.log(`Processing guest_profile_${index} in addons:`, typeof fileData, Array.isArray(fileData));
+          
+          // Handle different return formats from processFileUploads
+          if (typeof fileData === 'string') {
+            // Direct Cloudinary URL
+            guestProfileFiles[parseInt(index)] = { path: fileData };
+          } else if (Array.isArray(fileData) && fileData.length > 0) {
+            // Array of file objects
             guestProfileFiles[parseInt(index)] = fileData[0];
+          } else if (fileData && typeof fileData === 'object' && fileData.path) {
+            // Single file object
+            guestProfileFiles[parseInt(index)] = fileData;
           }
+          
+          console.log(`✅ Guest profile ${index} stored in addons:`, guestProfileFiles[parseInt(index)]?.path);
         }
       }
       if (fieldName.startsWith('ticket_photo_')) {
@@ -2192,14 +2207,13 @@ export const updateTicketAddOns = async (req, res) => {
           message: "Maximum 10 guests allowed"
         });
       }
-
+      console.log(`Processing ${guests.length} guests in addons with profile files:`, Object.keys(guestProfileFiles));
       processedGuests = guests.map((guest, index) => {
         let guestData = {
           guest_name: '',
           guest_profile: '',
           guest_link: ''
         };
-        
         if (typeof guest === 'string') {
           guestData.guest_name = guest;
         } else if (typeof guest === 'object' && guest !== null) {
@@ -2209,11 +2223,15 @@ export const updateTicketAddOns = async (req, res) => {
             guest_link: guest.guest_link || ''
           };
         }
-        if (guestProfileFiles[index]) {
-          guestData.guest_profile = guestProfileFiles[index].path; // Cloudinary URL
+        if (guestProfileFiles[index] && guestProfileFiles[index].path) {
+          guestData.guest_profile = guestProfileFiles[index].path;
+          console.log(`✅ Guest ${index} profile set in addons:`, guestData.guest_profile);
+        } else {
+          console.log(`⚠️ No profile file for guest ${index} in addons`);
         }
         return guestData;
       });
+      console.log(`Processed ${processedGuests.length} guests in addons:`, processedGuests.map(g => ({ name: g.guest_name, has_profile: !!g.guest_profile })));
     }
     let processedTicketTypes = [];
     if (ticketTypes && ticketTypes.length > 0) {
