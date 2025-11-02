@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { getMe } from "../../services/userService.js";
 import { editProfile } from "../../services/authService.js";
 import { useNavigate } from "react-router-dom";
+import { getImageUrl, getOptimizedImageUrl } from '../../utils/imageUtils.js';
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
@@ -73,11 +74,7 @@ const EditProfile = () => {
               : true,
         });
         if (res.data.image) {
-          setImagePreview(
-            `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${
-              res.data.image
-            }`
-          );
+          setImagePreview(getImageUrl(res.data.image, 'auth'));
         }
       } catch (err) {
         console.error("Failed to fetch user", err);
@@ -149,11 +146,7 @@ const EditProfile = () => {
         setUser(response.user);
 
         if (response.user.image) {
-          setImagePreview(
-            `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${
-              response.user.image
-            }`
-          );
+          setImagePreview(getImageUrl(response.user.image, 'auth'));
         }
         setSelectedImage(null);
       }

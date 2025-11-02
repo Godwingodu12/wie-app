@@ -3,7 +3,7 @@ import Follow from "../models/follow.model.js";
 import { hashPassword, comparePassword } from "../utils/hash.js";
 import { generateToken, verifyResetToken } from "../utils/jwt.js";
 import otpService from "../reposetory/otp.js";
-import upload from "../middlewares/upload.js";
+import upload, { uploadToCloudinary, deleteFromCloudinary } from "../middlewares/upload.js";
 import { generateOtp } from "../utils/otp.js";
 import { sendEmail } from "../utils/sendMail.js";
 import { sendSMSOTP } from "../utils/sendSMS.js";
@@ -798,6 +798,7 @@ export const findAllActiveUsers = async (req, res) => {
 };
 export const editProfile = async (req, res) => {
   try {
+    // Handle file upload with multer
     await new Promise((resolve, reject) => {
       upload.fields([
         { name: 'image', maxCount: 1 },
@@ -806,6 +807,7 @@ export const editProfile = async (req, res) => {
         return resolve();
       });
     });
+
     let userId;
     if (req.user) {
       userId = req.user._id || req.user.id || req.user.userId;
@@ -817,9 +819,8 @@ export const editProfile = async (req, res) => {
     if (!userId) {
       throw new Error("User ID is required");
     }
-
     // Find the user
-    const user = await User.findById(userId);
+    const user = await User.findOne({ _id: userId,status: 'active'}).select('-password');
     if (!user) {
       throw new Error("User not found");
     }
@@ -840,7 +841,6 @@ export const editProfile = async (req, res) => {
       if (req.body.name.trim() && validateName(req.body.name)) {
         user.name = req.body.name.trim();
       } else if (req.body.name.trim() === '') {
-        // If empty string provided, keep original value
         user.name = originalValues.name;
       }
     }
@@ -848,22 +848,21 @@ export const editProfile = async (req, res) => {
       if (req.body.contact_no.trim() && validateContactNo(req.body.contact_no)) {
         user.contact_no = req.body.contact_no.trim();
       } else if (req.body.contact_no.trim() === '') {
-        // If empty string provided, keep original value
         user.contact_no = originalValues.contact_no;
       }
     }
+
     // Role-based field updates
     if (user.role === 'admin') {
-      // Admin-specific fields (website, bio, gender are optional for admin)
-      // Update website if provided
+      // Admin-specific fields
       if (req.body.website !== undefined) {
         user.website = req.body.website.trim() || originalValues.website;
       }
-      // Update bio if provided
+
       if (req.body.bio !== undefined) {
         user.bio = req.body.bio.trim() || originalValues.bio;
       }
-      // Update gender if provided and valid
+
       if (req.body.gender !== undefined) {
         const validGenders = ['male', 'female', 'other'];
         if (validGenders.includes(req.body.gender)) {
@@ -872,22 +871,17 @@ export const editProfile = async (req, res) => {
           user.gender = originalValues.gender;
         }
       }
-
-      // Ignore organisation-specific fields for admin
-      // (address and organisation_type are not updated for admin)
       
     } else if (user.role === 'organisation') {
       // Organisation-specific fields
-      
-      // Update address if provided and valid (required for organisation)
       if (req.body.address !== undefined) {
         if (req.body.address.trim() && req.body.address.trim().length >= 5) {
           user.address = req.body.address.trim();
         } else if (req.body.address.trim() === '') {
-          // If empty string provided, keep original value
           user.address = originalValues.address;
         }
       }
+
       if (req.body.organisation_type !== undefined) {
         const validTypes = ['Private Limited', 'Public Limited', 'Partnership', 'Proprietorship', 'LLP', 
           'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Trust', 'Society','Government', 'Other'];
@@ -897,14 +891,15 @@ export const editProfile = async (req, res) => {
           user.organisation_type = originalValues.organisation_type;
         }
       }
+
       if (req.body.website !== undefined) {
         user.website = req.body.website.trim() || originalValues.website;
       }
+
       if (req.body.bio !== undefined) {
         user.bio = req.body.bio.trim() || originalValues.bio;
       }
 
-      // Update gender if provided and valid
       if (req.body.gender !== undefined) {
         const validGenders = ['male', 'female', 'other'];
         if (validGenders.includes(req.body.gender)) {
@@ -914,11 +909,44 @@ export const editProfile = async (req, res) => {
         }
       }
     }
-    // Handle image upload
+
+    // Handle image upload to Cloudinary
     if (req.files && req.files.image && req.files.image[0]) {
-      user.image = req.files.image[0].filename;
+      try {
+        const imageFile = req.files.image[0];
+        console.log('Uploading profile image to Cloudinary...');
+        // Upload new image to Cloudinary
+        const uploadResult = await uploadToCloudinary(imageFile.buffer, {
+          folder: 'WIE_AUTH/profile_images',
+          transformation: [
+            { width: 500, height: 500, crop: 'limit' }, // Limit max dimensions
+            { quality: 'auto:good' },
+            { fetch_format: 'auto' }
+          ]
+        });
+
+        console.log('✅ Profile image uploaded:', uploadResult.url);
+
+        // Delete old image from Cloudinary if it exists and is a Cloudinary URL
+        if (originalValues.image && originalValues.image.includes('cloudinary.com')) {
+          try {
+            await deleteFromCloudinary(originalValues.image);
+            console.log('✅ Old profile image deleted from Cloudinary');
+          } catch (deleteError) {
+            console.warn('⚠️ Failed to delete old image:', deleteError.message);
+            // Continue anyway - new image is uploaded successfully
+          }
+        }
+
+        // Update user with new Cloudinary URL
+        user.image = uploadResult.url;
+
+      } catch (uploadError) {
+        console.error('❌ Error uploading image to Cloudinary:', uploadError);
+        throw new Error(`Image upload failed: ${uploadError.message}`);
+      }
     }
-    // If no new image is uploaded, keep the existing image (originalValues.image is already preserved)
+    // If no new image is uploaded, keep the existing image
 
     // Save the updated user
     await user.save();

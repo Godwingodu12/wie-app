@@ -5,6 +5,7 @@ import { useSelector } from "react-redux";
 import { getMe } from "../../services/userService.js";
 import { getGroups } from "../../services/ticketService";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
+import { getImageUrl, getOptimizedImageUrl } from '../../utils/imageUtils.js';
 // ICONS
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
 import TicketIcon from "../../assets/HomePage/TicketIcon.svg";
@@ -46,7 +47,7 @@ const Sidebar = ({ theme }) => {
           setUserData(res.data);
           sessionStorage.setItem('userData', JSON.stringify(res.data));
           if (res.data.image) {
-            const imageUrl = `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${res.data.image}`;
+            const imageUrl = getImageUrl(res.data.image, 'auth');
             setUserImage(imageUrl);
             sessionStorage.setItem('userImage', imageUrl);
           } else {

@@ -2,9 +2,11 @@ import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import upload from '../middlewares/upload.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
+import { processFileUploads, deleteFromCloudinary } from '../utils/cloudinaryHelper.js';
 import { createNotification } from '../controller/notification.controller.js';
 import multer from 'multer';
 import  { sendRPC } from '../rabbit/producer.js';
+
 function parseJSONSafely(value, defaultValue = []) {
   if (!value) return defaultValue;
   if (typeof value === 'string') {
@@ -417,36 +419,53 @@ export const createTicketBasicInfo = async (req, res) => {
    
 
     // Get uploaded file
-    const uploadedFiles = req.files || {};
-    
+    const uploadedFiles = await processFileUploads(req.files || {});
     // Handle multiple guest profile uploads and event rules
     const guestProfileFiles = {};
-    const eventRulesFiles = uploadedFiles.event_rules || [];
-
-    const videoFiles = uploadedFiles.video_file || [];
-    const previewImageFiles = uploadedFiles.preview_image || [];
-
+    const eventRulesFiles = [];
+    const videoFiles = {};
+    const previewImageFiles = {};
     // Extract guest profile files (guest_profile_0, guest_profile_1, etc.)
     Object.keys(uploadedFiles).forEach(fieldName => {
       if (fieldName.startsWith('guest_profile_')) {
         const index = fieldName.split('_')[2]; // Extract index from guest_profile_X
         if (!isNaN(index) && parseInt(index) >= 0 && parseInt(index) <= 9) {
-          guestProfileFiles[parseInt(index)] = uploadedFiles[fieldName][0]; // Take first file
+          const fileData = uploadedFiles[fieldName];
+          // processFileUploads returns array of objects for multiple files
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            guestProfileFiles[parseInt(index)] = fileData[0]; // Take first file
+          }
         }
       }
-      // FIX: Properly extract video files with correct field name pattern
+      
+      // Handle event rules files
+      if (fieldName === 'event_rules') {
+        const fileData = uploadedFiles[fieldName];
+        if (Array.isArray(fileData) && fileData.length > 0) {
+          eventRulesFiles.push(fileData[0]);
+        }
+      }
+      
+      // Handle video files
       if (fieldName.startsWith('video_file_')) {
         const index = fieldName.split('_')[2];
         if (!isNaN(index)) {
-          videoFiles[index] = uploadedFiles[fieldName][0];
+          const fileData = uploadedFiles[fieldName];
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            videoFiles[index] = fileData[0];
+          }
         }
       }
-      // FIX: Properly extract preview images with correct field name pattern
+      
+      // Handle preview images
       if (fieldName.startsWith('preview_image_')) {
         const parts = fieldName.split('_');
         const index = parts[2]; // Get index from preview_image_X
         if (!isNaN(index)) {
-          previewImageFiles[index] = uploadedFiles[fieldName][0];
+          const fileData = uploadedFiles[fieldName];
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            previewImageFiles[index] = fileData[0];
+          }
         }
       }
     });
@@ -910,30 +929,22 @@ export const createTicketBasicInfo = async (req, res) => {
         message: "Maximum age allowed must be between 0 and 100"
       });
     }
-
-    // File validation - guest profile files must be images
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     for (const [index, file] of Object.entries(guestProfileFiles)) {
-      const ext = '.' + file.originalname.toLowerCase().split('.').pop();
-      if (!imageExtensions.includes(ext)) {
+      if (!file.path || !file.originalName) {
         return res.status(400).json({
-          message: `Guest profile ${index} must be an image file (JPG, JPEG, PNG, GIF, WEBP)`
+          message: `Guest profile ${index} upload failed or is invalid`
         });
       }
     }
-
-    // File validation - event_rules must be document if uploaded
     if (eventRulesFiles.length > 0) {
-      const docExtensions = ['.pdf', '.doc', '.docx'];
       const rulesFile = eventRulesFiles[0];
-      const ext = '.' + rulesFile.originalname.toLowerCase().split('.').pop();
-      if (!docExtensions.includes(ext)) {
+      if (!rulesFile.path || !rulesFile.originalName) {
         return res.status(400).json({
-          message: "Event rules file must be a document (PDF, DOC, DOCX)"
+          message: "Event rules file upload failed or is invalid"
         });
       }
     }
-
     // Process exact_map_location only for offline events
     let mapLocation = {};
     if (location_type === 'offline' && exact_map_location) {
@@ -974,12 +985,10 @@ export const createTicketBasicInfo = async (req, res) => {
             guest_link: guest.guest_link || ''
           };
         }
-        
-        // Add uploaded profile image path if available
+        // Add uploaded profile image Cloudinary URL if available
         if (guestProfileFiles[index]) {
-          guestData.guest_profile = guestProfileFiles[index].path;
+          guestData.guest_profile = guestProfileFiles[index].path; // Cloudinary URL
         }
-
         return guestData;
       });
     }
@@ -1088,12 +1097,15 @@ export const createTicketBasicInfo = async (req, res) => {
     }
     // Handle event rules (text or file)
     if (eventRulesFiles.length > 0) {
+      const rulesFile = eventRulesFiles[0];
       ticketData.event_rules = {
         type: 'file',
-        path: eventRulesFiles[0].path,
-        originalName: eventRulesFiles[0].originalname,
-        mimeType: eventRulesFiles[0].mimetype,
-        size: eventRulesFiles[0].size,
+        path: rulesFile.path, // Cloudinary URL
+        originalName: rulesFile.originalName,
+        mimeType: rulesFile.mimeType,
+        size: rulesFile.size,
+        public_id: rulesFile.public_id, // Store Cloudinary public_id for deletion
+        resource_type: rulesFile.resource_type,
         uploadedAt: new Date()
       };
     } else if (event_rules_text && event_rules_text.trim()) {
@@ -1158,10 +1170,9 @@ export const createTicketBasicInfo = async (req, res) => {
       };
     } else if (location_type === 'online' || location_type === 'recorded') {
       responseData.online_fields = {
-  event_links: totalEventDates.map(date => date.event_link).filter(link => !!link), // array of links
-  verification_codes: totalEventDates.map(date => date.verification_event_code).filter(code => !!code)
-};
-
+      event_links: totalEventDates.map(date => date.event_link).filter(link => !!link), // array of links
+      verification_codes: totalEventDates.map(date => date.verification_event_code).filter(code => !!code)
+    };
     }
     res.status(201).json(responseData);
   } catch (error) {
@@ -1219,6 +1230,29 @@ export const createTicketBasicInfo = async (req, res) => {
         error: "Event with similar details already exists at database level"
       });
     }
+    // Cleanup: Delete uploaded Cloudinary files if database operation fails
+    try {
+      const filesToDelete = [];
+      // Collect all uploaded file public_ids
+      Object.values(guestProfileFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+      eventRulesFiles.forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+      Object.values(videoFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+      Object.values(previewImageFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+      // Delete files from Cloudinary
+      for (const publicId of filesToDelete) {
+        await deleteFromCloudinary(publicId);
+      }
+    } catch (cleanupError) {
+      console.error("Error cleaning up Cloudinary files:", cleanupError);
+    }
     // Generic error response
     res.status(500).json({ 
       message: "Internal server error", 
@@ -1236,7 +1270,6 @@ export const updateTicketMedia = async (req, res) => {
       organisation_type: req.user?.organisation_type,
       id: req.user?._id || req.user?.id 
     });
-
     await new Promise((resolve, reject) => {
       uploadTicketMedia(req, res, (err) => {
         if (err) {
@@ -1251,10 +1284,6 @@ export const updateTicketMedia = async (req, res) => {
         resolve();
       });
     });
-
-    console.log('Multer processing completed successfully');
-    console.log('Uploaded files:', Object.keys(req.files || {}));
-
     const ticketId = req.params.ticketId;
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({ 
@@ -1262,17 +1291,13 @@ export const updateTicketMedia = async (req, res) => {
         ticketId: ticketId
       });
     }
-
-    const uploadedFiles = req.files || {};
-    console.log('Processing uploaded files:', Object.keys(uploadedFiles));
-    
-    const { 
-      event_logo = [], 
-      event_banner = [], 
-      event_images = [],
-      college_authorisation = [] 
-    } = uploadedFiles;
-
+    console.log('Uploading files to Cloudinary...');
+    const uploadedFiles = await processFileUploads(req.files || {});
+    console.log('Cloudinary upload completed:', Object.keys(uploadedFiles));
+    const event_logo = uploadedFiles.event_logo ? [{ path: uploadedFiles.event_logo }] : [];
+    const event_banner = uploadedFiles.event_banner ? [{ path: uploadedFiles.event_banner }] : [];
+    const college_authorisation = uploadedFiles.college_authorisation ? [{ path: uploadedFiles.college_authorisation }] : [];
+    const event_images = uploadedFiles.event_images || [];
     // Log file counts for debugging
     console.log('File counts:', {
       event_logo: event_logo.length,
@@ -1280,7 +1305,6 @@ export const updateTicketMedia = async (req, res) => {
       event_images: event_images.length,
       college_authorisation: college_authorisation.length
     });
-
     // Get organization_type - Enhanced validation
     const userRole = req.user?.role;
     let organisation_type = null;
@@ -1301,30 +1325,17 @@ export const updateTicketMedia = async (req, res) => {
             organization_type: organisation_type
           });
         }
-        
         // Validate college authorization file type (should be document)
         const docExtensions = ['.pdf', '.doc', '.docx'];
         const authFile = college_authorisation[0];
-        
-        if (!authFile || !authFile.originalname) {
+        if (!authFile || !authFile.path) {
           return res.status(400).json({
-            message: "Invalid college authorization file",
-            error: "File missing or corrupted"
-          });
-        }
-        
-        const ext = '.' + authFile.originalname.toLowerCase().split('.').pop();
-        console.log('College authorization file extension:', ext);
-        
-        if (!docExtensions.includes(ext)) {
-          return res.status(400).json({
-            message: "College authorization file must be a document (PDF, DOC, DOCX)",
-            received_extension: ext,
-            allowed_extensions: docExtensions
-          });
-        }
-        
-        console.log('College authorization validation passed');
+          message: "Invalid college authorization file",
+          error: "File missing or corrupted"
+        });
+      }
+      console.log('College authorization uploaded to Cloudinary:', authFile.path);
+      console.log('College authorization validation passed');
       }
     } else {
       console.log('User role is not organization:', userRole);
@@ -1427,21 +1438,16 @@ export const updateTicketMedia = async (req, res) => {
           max_allowed: 10
         });
       }
-      
-      // Check video count (existing + new)
       const videoExtensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
-      
       const existingVideoCount = existingImages.filter(img => {
         if (!img.mimeType && !img.originalName) return false;
         if (img.mimeType && img.mimeType.startsWith('video/')) return true;
         const ext = '.' + (img.originalName || '').toLowerCase().split('.').pop();
         return videoExtensions.includes(ext);
       }).length;
-      
       const newVideoCount = event_images.filter(file => {
-        if (!file.originalname) return false;
-        const ext = '.' + file.originalname.toLowerCase().split('.').pop();
-        return videoExtensions.includes(ext);
+        if (!file.mimeType) return false;
+          return file.mimeType.startsWith('video/');
       }).length;
       
       const totalVideoCount = existingVideoCount + newVideoCount;
@@ -1454,16 +1460,16 @@ export const updateTicketMedia = async (req, res) => {
           max_videos_allowed: 1
         });
       }
-      
-      // Append new images to existing ones
+      // Append new images to existing ones (already in correct format from Cloudinary)
       const newImages = event_images.map(file => ({
         path: file.path,
-        originalName: file.originalname,
-        mimeType: file.mimetype,
+        originalName: file.originalName,
+        mimeType: file.mimeType,
         size: file.size,
+        public_id: file.public_id,
+        resource_type: file.resource_type,
         uploadedAt: new Date()
       }));
-      
       updateData.event_images = [...existingImages, ...newImages];
       console.log('Event images updated:', existingImages.length, 'existing +', event_images.length, 'new =', updateData.event_images.length, 'total');
     }
@@ -1506,12 +1512,27 @@ export const updateTicketMedia = async (req, res) => {
       organisationType: organisation_type || 'Not specified',
       totalEventImages: updatedTicket.event_images?.length || 0
     });
-
-  } catch (error) {
-    console.error("Error updating ticket media:", error);
-    
-    // Enhanced error handling with more specific responses
-    
+    // Cleanup: Delete uploaded files from Cloudinary if update fails
+    if (uploadedFiles) {
+      const filesToDelete = [];
+      if (uploadedFiles.event_logo) filesToDelete.push(uploadedFiles.event_logo);
+      if (uploadedFiles.event_banner) filesToDelete.push(uploadedFiles.event_banner);
+      if (uploadedFiles.college_authorisation) filesToDelete.push(uploadedFiles.college_authorisation);
+      if (uploadedFiles.event_images) {
+        uploadedFiles.event_images.forEach(img => filesToDelete.push(img.path));
+      }
+      if (filesToDelete.length > 0) {
+        console.log('Cleaning up uploaded files due to error...');
+        await Promise.all(filesToDelete.map(url => 
+          deleteFromCloudinary(url).catch(err => 
+            console.error('Cleanup error:', err.message)
+          )
+        ));
+      }
+    }
+  }
+   catch (error) {
+    console.error("Error updating ticket media:", error);    
     // Handle multer errors
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ 
@@ -1540,7 +1561,6 @@ export const updateTicketMedia = async (req, res) => {
         error_code: 'INVALID_FILE_TYPE'
       });
     }
-
     // Handle multer field errors
     if (error.code === 'LIMIT_UNEXPECTED_FILE') {
       return res.status(400).json({
@@ -1584,6 +1604,13 @@ export const updateTicketMedia = async (req, res) => {
         error_code: 'DATABASE_ERROR'
       });
     }
+    // Generic server error
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message,
+      error_code: 'INTERNAL_ERROR',
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    });
 
     // Generic server error
     res.status(500).json({ 
@@ -1842,55 +1869,132 @@ export const updateTicketAddOns = async (req, res) => {
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     const docExtensions = ['.pdf', '.doc', '.docx'];
     const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
-    
-    const uploadedFiles = req.files || {};
-    
+    const uploadedFiles = await processFileUploads(req.files || {});
     const guestProfileFiles = {};
     const ticketPhotoFiles = {};
     const videoFiles = {};
     const previewImageFiles = {};
-    
     Object.keys(uploadedFiles).forEach(fieldName => {
       if (fieldName.startsWith('guest_profile_')) {
         const index = fieldName.split('_')[2];
         if (!isNaN(index) && parseInt(index) >= 0 && parseInt(index) <= 9) {
-          guestProfileFiles[parseInt(index)] = uploadedFiles[fieldName][0];
+          const fileData = uploadedFiles[fieldName];
+          // processFileUploads returns array of objects for multiple files
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            guestProfileFiles[parseInt(index)] = fileData[0];
+          }
         }
       }
-      
       if (fieldName.startsWith('ticket_photo_')) {
         const index = fieldName.split('_')[2];
         if (!isNaN(index)) {
-          ticketPhotoFiles[parseInt(index)] = uploadedFiles[fieldName][0];
+          const fileData = uploadedFiles[fieldName];
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            ticketPhotoFiles[parseInt(index)] = fileData[0];
+          }
         }
       }
-      
       if (fieldName.startsWith('video_file_')) {
         const index = fieldName.split('_')[2];
         if (!isNaN(index)) {
-          videoFiles[index] = uploadedFiles[fieldName][0];
+          const fileData = uploadedFiles[fieldName];
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            videoFiles[index] = fileData[0];
+          }
         }
       }
-      
       if (fieldName.startsWith('preview_image_')) {
         const index = fieldName.split('_')[2];
         if (!isNaN(index)) {
-          previewImageFiles[index] = uploadedFiles[fieldName][0];
+          const fileData = uploadedFiles[fieldName];
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            previewImageFiles[index] = fileData[0];
+          }
         }
       }
     });
     if (uploadedFiles) {
-      if (uploadedFiles.event_banner && uploadedFiles.event_banner[0]) {
-        const bannerFile = uploadedFiles.event_banner[0];
-        const ext = '.' + bannerFile.originalname.toLowerCase().split('.').pop();
-        if (!imageExtensions.includes(ext)) {
+      // Handle event banner (single file, NOT array in schema)
+      if (uploadedFiles.event_banner) {
+        let bannerFile = uploadedFiles.event_banner;
+        let bannerUrl = null;
+        let bannerPublicId = null;
+        
+        console.log('🔍 event_banner type:', typeof bannerFile);
+        console.log('🔍 event_banner is array?', Array.isArray(bannerFile));
+        
+        // Case 1: It's already a string URL (Cloudinary direct return)
+        if (typeof bannerFile === 'string') {
+          bannerUrl = bannerFile;
+          console.log('✓ Event banner is direct URL string:', bannerUrl);
+        }
+        // Case 2: It's an array with object
+        else if (Array.isArray(bannerFile) && bannerFile.length > 0) {
+          const firstFile = bannerFile[0];
+          if (typeof firstFile === 'string') {
+            bannerUrl = firstFile;
+          } else if (firstFile.path) {
+            bannerUrl = firstFile.path;
+            bannerPublicId = firstFile.public_id;
+          }
+          console.log('✓ Event banner from array:', bannerUrl);
+        }
+        // Case 3: It's an object with path property
+        else if (typeof bannerFile === 'object' && bannerFile !== null && bannerFile.path) {
+          bannerUrl = bannerFile.path;
+          bannerPublicId = bannerFile.public_id;
+          console.log('✓ Event banner from object:', bannerUrl);
+        }
+        
+        if (bannerUrl) {
+          processedFiles.event_banner = bannerUrl; // Cloudinary URL (String)
+          processedFiles.event_banner_public_id = bannerPublicId || '';
+          console.log('✅ Event banner processed successfully:', bannerUrl);
+        } else {
+          console.error('❌ Event banner upload failed:', {
+            type: typeof bannerFile,
+            isArray: Array.isArray(bannerFile),
+            hasPath: bannerFile && bannerFile.path ? 'yes' : 'no',
+            firstChars: typeof bannerFile === 'string' ? bannerFile.substring(0, 50) : 'not a string'
+          });
           return res.status(400).json({
-            message: "Event banner must be an image file (JPG, JPEG, PNG, GIF, WEBP)"
+            message: "Event banner upload failed or is invalid",
+            debug: {
+              uploadedFilesKeys: Object.keys(uploadedFiles),
+              bannerFileType: typeof bannerFile,
+              isArray: Array.isArray(bannerFile),
+              isString: typeof bannerFile === 'string',
+              hasPathProperty: bannerFile && typeof bannerFile === 'object' ? 'path' in bannerFile : false
+            }
           });
         }
-        processedFiles.event_banner = bannerFile.path;
       }
       
+      // Handle event logo (single file, NOT array in schema)
+      if (uploadedFiles.event_logo) {
+        let logoFile = uploadedFiles.event_logo;
+        let logoUrl = null;
+        let logoPublicId = null;
+        
+        if (typeof logoFile === 'string') {
+          logoUrl = logoFile;
+        } else if (Array.isArray(logoFile) && logoFile.length > 0) {
+          const firstFile = logoFile[0];
+          logoUrl = typeof firstFile === 'string' ? firstFile : firstFile.path;
+          logoPublicId = typeof firstFile === 'object' ? firstFile.public_id : null;
+        } else if (typeof logoFile === 'object' && logoFile !== null && logoFile.path) {
+          logoUrl = logoFile.path;
+          logoPublicId = logoFile.public_id;
+        }
+        
+        if (logoUrl) {
+          processedFiles.event_logo = logoUrl;
+          processedFiles.event_logo_public_id = logoPublicId || '';
+          console.log('✅ Event logo processed:', logoUrl);
+        }
+      }
+      
+      // Handle event images (array in schema)
       if (uploadedFiles.event_images && uploadedFiles.event_images.length > 0) {
         if (uploadedFiles.event_images.length > 10) {
           return res.status(400).json({
@@ -1898,63 +2002,99 @@ export const updateTicketAddOns = async (req, res) => {
           });
         }
         
-        for (const imageFile of uploadedFiles.event_images) {
-          const ext = '.' + imageFile.originalname.toLowerCase().split('.').pop();
-          if (!imageExtensions.includes(ext)) {
-            return res.status(400).json({
-              message: `Event image '${imageFile.originalname}' must be an image file (JPG, JPEG, PNG, GIF, WEBP)`
-            });
+        processedFiles.event_images = uploadedFiles.event_images.map(file => {
+          // Handle both string URLs and objects
+          if (typeof file === 'string') {
+            return {
+              path: file,
+              originalName: 'uploaded_image',
+              mimeType: 'image/jpeg',
+              size: 0,
+              public_id: '',
+              resource_type: 'image',
+              uploadedAt: new Date()
+            };
+          } else {
+            return {
+              path: file.path || file,
+              originalName: file.originalName || file.originalname || 'uploaded_image',
+              mimeType: file.mimeType || file.mimetype || 'image/jpeg',
+              size: file.size || 0,
+              public_id: file.public_id || '',
+              resource_type: file.resource_type || 'image',
+              uploadedAt: new Date()
+            };
           }
-        }
-        
-        processedFiles.event_images = uploadedFiles.event_images.map(file => ({
-          path: file.path,
-          originalName: file.originalname,
-          mimeType: file.mimetype,
-          size: file.size,
-          uploadedAt: new Date()
-        }));
+        });
+        console.log(`✅ ${processedFiles.event_images.length} event images processed`);
       }
       
-      if (uploadedFiles.event_rules && uploadedFiles.event_rules[0]) {
-        const rulesFile = uploadedFiles.event_rules[0];
-        const ext = '.' + rulesFile.originalname.toLowerCase().split('.').pop();
-        if (!docExtensions.includes(ext)) {
-          return res.status(400).json({
-            message: "Event rules file must be a document (PDF, DOC, DOCX)"
-          });
+      // Handle event rules
+      if (uploadedFiles.event_rules) {
+        let rulesFile = uploadedFiles.event_rules;
+        let rulesUrl = null;
+        let rulesPublicId = null;
+        let rulesOriginalName = 'event_rules';
+        let rulesMimeType = 'application/pdf';
+        let rulesSize = 0;
+        if (typeof rulesFile === 'string') {
+          rulesUrl = rulesFile;
+        } else if (Array.isArray(rulesFile) && rulesFile.length > 0) {
+          const firstFile = rulesFile[0];
+          if (typeof firstFile === 'string') {
+            rulesUrl = firstFile;
+          } else {
+            rulesUrl = firstFile.path;
+            rulesPublicId = firstFile.public_id;
+            rulesOriginalName = firstFile.originalName || firstFile.originalname || 'event_rules';
+            rulesMimeType = firstFile.mimeType || firstFile.mimetype || 'application/pdf';
+            rulesSize = firstFile.size || 0;
+          }
+        } else if (typeof rulesFile === 'object' && rulesFile !== null) {
+          rulesUrl = rulesFile.path;
+          rulesPublicId = rulesFile.public_id;
+          rulesOriginalName = rulesFile.originalName || rulesFile.originalname || 'event_rules';
+          rulesMimeType = rulesFile.mimeType || rulesFile.mimetype || 'application/pdf';
+          rulesSize = rulesFile.size || 0;
         }
         
-        processedFiles.event_rules = {
-          type: 'file',
-          path: rulesFile.path,
-          originalName: rulesFile.originalname,
-          mimeType: rulesFile.mimetype,
-          size: rulesFile.size,
-          uploadedAt: new Date()
-        };
+        if (rulesUrl) {
+          processedFiles.event_rules = {
+            type: 'file',
+            path: rulesUrl,
+            originalName: rulesOriginalName,
+            mimeType: rulesMimeType,
+            size: rulesSize,
+            public_id: rulesPublicId || '',
+            resource_type: 'raw',
+            uploadedAt: new Date()
+          };
+          console.log('✅ Event rules processed:', rulesUrl);
+        }
       }
 
-      if (uploadedFiles.ticket_layout && uploadedFiles.ticket_layout[0] && subEventData.location_type === 'offline') {
-        const layoutFile = uploadedFiles.ticket_layout[0];
-        const ext = '.' + layoutFile.originalname.toLowerCase().split('.').pop();
-        if (!imageExtensions.includes(ext)) {
-          return res.status(400).json({
-            message: "Ticket layout must be an image file (JPG, JPEG, PNG, GIF, WEBP)"
-          });
+      // Handle ticket layout (single file, only for offline)
+      if (uploadedFiles.ticket_layout && subEventData.location_type === 'offline') {
+        let layoutFile = uploadedFiles.ticket_layout;
+        let layoutUrl = null;
+        let layoutPublicId = null;
+        
+        if (typeof layoutFile === 'string') {
+          layoutUrl = layoutFile;
+        } else if (Array.isArray(layoutFile) && layoutFile.length > 0) {
+          const firstFile = layoutFile[0];
+          layoutUrl = typeof firstFile === 'string' ? firstFile : firstFile.path;
+          layoutPublicId = typeof firstFile === 'object' ? firstFile.public_id : null;
+        } else if (typeof layoutFile === 'object' && layoutFile !== null && layoutFile.path) {
+          layoutUrl = layoutFile.path;
+          layoutPublicId = layoutFile.public_id;
         }
-        processedFiles.ticket_layout = layoutFile.path;
-      }
-
-      if (uploadedFiles.event_logo && uploadedFiles.event_logo[0]) {
-        const logoFile = uploadedFiles.event_logo[0];
-        const ext = '.' + logoFile.originalname.toLowerCase().split('.').pop();
-        if (!imageExtensions.includes(ext)) {
-          return res.status(400).json({
-            message: "Event logo must be an image file (JPG, JPEG, PNG, GIF, WEBP)"
-          });
+        
+        if (layoutUrl) {
+          processedFiles.ticket_layout = layoutUrl;
+          processedFiles.ticket_layout_public_id = layoutPublicId || '';
+          console.log('✅ Ticket layout processed:', layoutUrl);
         }
-        processedFiles.event_logo = logoFile.path;
       }
       
       processedFiles.guestProfileFiles = guestProfileFiles;
@@ -1962,7 +2102,6 @@ export const updateTicketAddOns = async (req, res) => {
       processedFiles.videoFiles = videoFiles;
       processedFiles.previewImageFiles = previewImageFiles;
     }
-
     // Parse guests, banking details, POCS
     const guests = parseNestedData(subEventData.guests || req.body.guests, 'guests');
     const bankingDetails = parseNestedData(subEventData.banking_details || req.body.banking_details, 'banking_details');
@@ -2070,11 +2209,9 @@ export const updateTicketAddOns = async (req, res) => {
             guest_link: guest.guest_link || ''
           };
         }
-        
         if (guestProfileFiles[index]) {
-          guestData.guest_profile = guestProfileFiles[index].path;
+          guestData.guest_profile = guestProfileFiles[index].path; // Cloudinary URL
         }
-
         return guestData;
       });
     }
@@ -2106,14 +2243,16 @@ export const updateTicketAddOns = async (req, res) => {
           ticket_type: String(ticketType).trim(),
           ticket_price: parsedPrice,
           max_capacity: parsedCapacity,
-          ticket_photo: ''
+          ticket_photo: '',
+          ticket_photo_public_id: '' // Add for Cloudinary deletion
         };
         if (ticketPhotoFiles[index]) {
-          ticketData.ticket_photo = ticketPhotoFiles[index].path;
+          ticketData.ticket_photo = ticketPhotoFiles[index].path; // Cloudinary URL
+          ticketData.ticket_photo_public_id = ticketPhotoFiles[index].public_id;
         } else if (existingPhoto) {
           ticketData.ticket_photo = existingPhoto;
         } else {
-          console.log(`⚠ No photo`);
+          console.log(`⚠ No photo for ticket ${index}`);
         }
         console.log('Final:', ticketData);
         return ticketData;
@@ -2125,8 +2264,10 @@ export const updateTicketAddOns = async (req, res) => {
         const previewImage = previewImageFiles[index];
         return {
           ...date,
-          video_file_path: videoFile ? videoFile.path : date.video_file_path || '',
-          preview_image_path: previewImage ? previewImage.path : date.preview_image_path || ''
+          video_file_path: videoFile ? videoFile.path : date.video_file_path || '', // Cloudinary URL
+          video_file_public_id: videoFile ? videoFile.public_id : date.video_file_public_id || '',
+          preview_image_path: previewImage ? previewImage.path : date.preview_image_path || '', // Cloudinary URL
+          preview_image_public_id: previewImage ? previewImage.public_id : date.preview_image_public_id || ''
         };
       });
     }
@@ -2165,14 +2306,15 @@ export const updateTicketAddOns = async (req, res) => {
         .filter(item => item !== '' && item !== 'undefined' && item !== 'null');
       return processed;
     })();
-    const finalTicketTypes = (processedTicketTypes && processedTicketTypes.length > 0)
-      ? processedTicketTypes.map(ticket => ({
-          ticket_type: String(ticket.ticket_type),
-          ticket_price: Number(ticket.ticket_price),
-          max_capacity: Number(ticket.max_capacity),
-          ticket_photo: String(ticket.ticket_photo || '')
-        }))
-      : [];
+  const finalTicketTypes = (processedTicketTypes && processedTicketTypes.length > 0)
+    ? processedTicketTypes.map(ticket => ({
+        ticket_type: String(ticket.ticket_type),
+        ticket_price: Number(ticket.ticket_price),
+        max_capacity: Number(ticket.max_capacity),
+        ticket_photo: String(ticket.ticket_photo || ''),
+        ticket_photo_public_id: String(ticket.ticket_photo_public_id || '')
+      }))
+    : [];
   if (isEditingSubEvent && editingSubEventId) {
     const ticket = await Ticket.findById(ticketId);
     if (!ticket) {
@@ -2280,10 +2422,12 @@ export const updateTicketAddOns = async (req, res) => {
     if (processedFiles.event_rules) {
       updatedSubEvent.event_rules = {
         type: 'file',
-        path: String(processedFiles.event_rules.path),
+        path: String(processedFiles.event_rules.path), // Cloudinary URL
         originalName: String(processedFiles.event_rules.originalName),
         mimeType: String(processedFiles.event_rules.mimeType),
         size: Number(processedFiles.event_rules.size),
+        public_id: String(processedFiles.event_rules.public_id), // Store for deletion
+        resource_type: String(processedFiles.event_rules.resource_type),
         uploadedAt: new Date(processedFiles.event_rules.uploadedAt)
       };
     } else if (subEventData.event_rules_text && String(subEventData.event_rules_text).trim()) {
@@ -2536,10 +2680,12 @@ export const updateTicketAddOns = async (req, res) => {
     if (processedFiles.event_rules) {
       newSubEvent.event_rules = {
         type: 'file',
-        path: String(processedFiles.event_rules.path),
+        path: String(processedFiles.event_rules.path), // Cloudinary URL
         originalName: String(processedFiles.event_rules.originalName),
         mimeType: String(processedFiles.event_rules.mimeType),
         size: Number(processedFiles.event_rules.size),
+        public_id: String(processedFiles.event_rules.public_id), // Store for deletion
+        resource_type: String(processedFiles.event_rules.resource_type),
         uploadedAt: new Date(processedFiles.event_rules.uploadedAt)
       };
     } else if (subEventData.event_rules_text && String(subEventData.event_rules_text).trim()) {
@@ -2720,6 +2866,54 @@ export const updateTicketAddOns = async (req, res) => {
         error: "Sub-event with similar details already exists"
       });
     }
+    // Cleanup: Delete uploaded Cloudinary files if database operation fails
+    try {
+      const filesToDelete = [];
+      
+      // Collect all uploaded file public_ids
+      if (processedFiles.event_banner_public_id) {
+        filesToDelete.push(processedFiles.event_banner_public_id);
+      }
+      if (processedFiles.event_logo_public_id) {
+        filesToDelete.push(processedFiles.event_logo_public_id);
+      }
+      if (processedFiles.ticket_layout_public_id) {
+        filesToDelete.push(processedFiles.ticket_layout_public_id);
+      }
+      
+      if (processedFiles.event_images && Array.isArray(processedFiles.event_images)) {
+        processedFiles.event_images.forEach(img => {
+          if (img.public_id) filesToDelete.push(img.public_id);
+        });
+      }
+      
+      if (processedFiles.event_rules && processedFiles.event_rules.public_id) {
+        filesToDelete.push(processedFiles.event_rules.public_id);
+      }
+      
+      Object.values(guestProfileFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+      
+      Object.values(ticketPhotoFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+      
+      Object.values(videoFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+      
+      Object.values(previewImageFiles).forEach(file => {
+        if (file.public_id) filesToDelete.push(file.public_id);
+      });
+      
+      // Delete files from Cloudinary
+      for (const publicId of filesToDelete) {
+        await deleteFromCloudinary(publicId);
+      }
+    } catch (cleanupError) {
+      console.error("Error cleaning up Cloudinary files:", cleanupError);
+    }
     res.status(500).json({ 
       message: "Internal server error", 
       error: error.message,
@@ -2810,47 +3004,47 @@ export const updateTicketDetails = async (req, res) => {
         return [];
       }
     };
-
     // Parse nested arrays from request body
     const bankingDetails = parseNestedData(req.body.banking_details, 'banking_details');
     const ticketTypes = parseNestedData(req.body.ticket_types, 'ticket_types');
-
     // Process uploaded files - Handle ticket photo uploads
-    const processedFiles = {};
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-    
+    const processedFiles = {};    
     // Get uploaded files
-    const uploadedFiles = req.files || {};
-    
-    // Handle ticket photo uploads (ticket_photo_0, ticket_photo_1, etc.)
+    const uploadedFiles = await processFileUploads(req.files || {});
     const ticketPhotoFiles = {};
-    
-    // Extract ticket photo files from uploaded files
     Object.keys(uploadedFiles).forEach(fieldName => {
       // Handle ticket photo files
       if (fieldName.startsWith('ticket_photo_')) {
         const index = fieldName.split('_')[2]; // Extract index from ticket_photo_X
         if (!isNaN(index) && parseInt(index) >= 0) {
-          const ticketPhotoFile = uploadedFiles[fieldName][0]; // Take first file
-          const ext = '.' + ticketPhotoFile.originalname.toLowerCase().split('.').pop();
-          if (!imageExtensions.includes(ext)) {
-            throw new Error(`Ticket photo ${index} must be an image file (JPG, JPEG, PNG, GIF, WEBP)`);
+          const fileData = uploadedFiles[fieldName];
+          // processFileUploads returns array of objects for multiple files
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            const ticketPhotoFile = fileData[0]; // Take first file
+            
+            // Validate it's an image (Cloudinary already validates, but double-check)
+            if (!ticketPhotoFile.path || !ticketPhotoFile.originalName) {
+              throw new Error(`Ticket photo ${index} upload failed or is invalid`);
+            }
+            
+            ticketPhotoFiles[parseInt(index)] = ticketPhotoFile;
           }
-          ticketPhotoFiles[parseInt(index)] = ticketPhotoFile;
         }
       }
     });
-
     // Handle ticket layout upload
-    if (uploadedFiles.ticket_layout && uploadedFiles.ticket_layout[0]) {
+    if (uploadedFiles.ticket_layout && uploadedFiles.ticket_layout.length > 0) {
       const layoutFile = uploadedFiles.ticket_layout[0];
-      const ext = '.' + layoutFile.originalname.toLowerCase().split('.').pop();
-      if (!imageExtensions.includes(ext)) {
+      
+      // Validate upload success
+      if (!layoutFile.path || !layoutFile.originalName) {
         return res.status(400).json({
-          message: "Ticket layout must be an image file (JPG, JPEG, PNG, GIF, WEBP)"
+          message: "Ticket layout upload failed or is invalid"
         });
       }
-      processedFiles.ticket_layout = layoutFile.path;
+      
+      processedFiles.ticket_layout = layoutFile.path; // Cloudinary URL
+      processedFiles.ticket_layout_public_id = layoutFile.public_id; // Store for deletion
     }
 
     // Store the processed file objects
@@ -2896,20 +3090,19 @@ export const updateTicketDetails = async (req, res) => {
         if (isNaN(maxCapacity) || maxCapacity <= 0) {
           throw new Error(`Invalid max capacity for ticket type ${index + 1}. Must be a positive number.`);
         }
-
-        const ticketData = {
-          ticket_type: String(ticket.ticket_type).trim(),
-          ticket_price: ticketPrice,
-          max_capacity: maxCapacity,
-          ticket_photo: ticket.ticket_photo || '' // existing photo URL if any
-        };
-        
-        // Add uploaded ticket photo if available
-        if (ticketPhotoFiles[index]) {
-          ticketData.ticket_photo = ticketPhotoFiles[index].path;
-        }
-        
-        return ticketData;
+      const ticketData = {
+        ticket_type: String(ticket.ticket_type).trim(),
+        ticket_price: ticketPrice,
+        max_capacity: maxCapacity,
+        ticket_photo: ticket.ticket_photo || '', // existing photo URL if any
+        ticket_photo_public_id: ticket.ticket_photo_public_id || '' // existing public_id if any
+      };
+      // Add uploaded ticket photo if available
+      if (ticketPhotoFiles[index]) {
+        ticketData.ticket_photo = ticketPhotoFiles[index].path; // Cloudinary URL
+        ticketData.ticket_photo_public_id = ticketPhotoFiles[index].public_id; // Store for deletion
+      }
+      return ticketData;
       });
     }
     let finalBankingDetails = [];
@@ -3012,6 +3205,7 @@ export const updateTicketDetails = async (req, res) => {
 
     if (processedFiles.ticket_layout) {
       updateData.ticket_layout = String(processedFiles.ticket_layout);
+      updateData.ticket_layout_public_id = String(processedFiles.ticket_layout_public_id || '');
     }
 
     if (total_capacity !== undefined) {
@@ -3168,6 +3362,34 @@ export const updateTicketDetails = async (req, res) => {
         message: "Duplicate entry found",
         error: "Ticket details with similar data already exists"
       });
+    }
+    // Cleanup: Delete uploaded Cloudinary files if database operation fails
+    if (error.name !== 'LIMIT_FILE_SIZE' && 
+        error.name !== 'LIMIT_FILE_COUNT' && 
+        error.name !== 'LIMIT_UNEXPECTED_FILE') {
+      try {
+        const filesToDelete = [];
+        
+        // Collect all uploaded file public_ids
+        if (processedFiles.ticket_layout_public_id) {
+          filesToDelete.push(processedFiles.ticket_layout_public_id);
+        }
+        
+        Object.values(ticketPhotoFiles || {}).forEach(file => {
+          if (file && file.public_id) {
+            filesToDelete.push(file.public_id);
+          }
+        });
+        
+        // Delete files from Cloudinary
+        for (const publicId of filesToDelete) {
+          await deleteFromCloudinary(publicId);
+        }
+        
+        console.log(`Cleaned up ${filesToDelete.length} files from Cloudinary due to error`);
+      } catch (cleanupError) {
+        console.error("Error cleaning up Cloudinary files:", cleanupError);
+      }
     }
     res.status(500).json({ 
       message: "Internal server error", 

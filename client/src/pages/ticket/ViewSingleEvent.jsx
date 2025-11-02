@@ -2,13 +2,9 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 
 import { ChevronRight, ChevronLeft, X, Phone, Play } from "lucide-react";
 
-import SearchBar from "../../components/HomePage/SearchBar";
-import ThemeToggle from "../../components/HomePage/ThemeToggle";
-import LogoIcon from "../../assets/WieLogo.svg";
 import Event_Days from "../../assets/ViewSingleEvent/Event_Days.svg";
 import Globe from "../../assets/ViewSingleEvent/Globe.svg";
 import Private from "../../assets/ViewSingleEvent/Private.svg";
-import Bank_Details from "../../assets/ViewSingleEvent/Bank_Details.svg";
 import Language from "../../assets/ViewSingleEvent/Language.svg";
 import Map_Loc from "../../assets/ViewSingleEvent/Map_Loc.svg";
 import Map_No_Loc from "../../assets/ViewSingleEvent/Map_No_Loc.svg";
@@ -23,7 +19,11 @@ import NoGuide from "../../assets/ViewSingleEvent/NoGuide.svg";
 import GuideVector from "../../assets/ViewSingleEvent/GuideVector.svg";
 import Rules from "../../assets/ViewSingleEvent/Rules.svg";
 
-import { getTicketById, getGroupView } from "../../services/ticketService";
+import {
+  getTicketById,
+  getGroupView,
+  deleteTicket,
+} from "../../services/ticketService";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import Card from "../../components/ViewSingleEvent/Card";
@@ -40,6 +40,16 @@ import ProhibitPopover from "../../components/ViewSingleEvent/ProhibitPopover";
 import PreferenceModal from "../../components/ViewSingleEvent/PreferenceModal";
 import ImageModal from "../../components/ViewSingleEvent/ImageModal";
 import GuideModal from "../../components/ViewSingleEvent/GuideModal";
+import TopNavBar from "../../components/ViewSingleEvent/TopNavBar";
+import SubEventDetailModal from "../../components/ViewSingleEvent/SubEventDetailModal";
+import ActionCircleButton from "../../components/ViewSingleEvent/ActionCircleButton";
+import EventLocationModal from "../../components/ViewSingleEvent/EventLocationModal";
+import TicketDetailModal from "../../components/ViewSingleEvent/TicketDetailModal";
+import SeatingLayoutModal from "../../components/ViewSingleEvent/SeatingLayoutModal";
+import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles";
+import ConfirmModal from "../../components/Modal";
+import Alert from "../../components/Alert";
+
 const darkTheme = {
   isDark: true,
   text: "text-white",
@@ -88,12 +98,116 @@ const ViewSingleEvent = () => {
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-
   const [showGuideModal, setShowGuideModal] = useState(false);
-const [selectedGuest, setSelectedGuest] = useState(null);
+  const [selectedGuest, setSelectedGuest] = useState(null);
+
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
   const [currentStatsEventIndex, setCurrentStatsEventIndex] = useState(0);
   const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
+
+  const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+
+  const [showSubEventModal, setShowSubEventModal] = useState(false);
+  const [selectedSubEvent, setSelectedSubEvent] = useState(null);
+
+  const [currentSeatingIndex, setCurrentSeatingIndex] = useState(0);
+  const [showSeatingModal, setShowSeatingModal] = useState(false);
+
+  const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
+  const [appAlert, setAppAlert] = useState(null);
+
+  const groupId = eventData?.group_id || eventData?.groupId; // Derive groupId from fetched data
+
+  const guidesToShow = viewportWidth >= 768 ? 3 : 1;
+  const visibleTickets = viewportWidth >= 768 ? 3 : 1;
+  const ticketsToShow = 3;
+
+  const guideContainerRef = useRef(null);
+
+  const handleDeleteEvent = async () => {
+    setShowConfirmDeleteModal(true);
+  };
+
+  // ADDED: New function to execute deletion after confirmation
+  const handleConfirmDelete = async () => {
+    setShowConfirmDeleteModal(false);
+    if (!ticketId) return;
+
+    try {
+      setLoading(true);
+
+      await deleteTicket(ticketId);
+
+      setAppAlert({
+        message: "Success!",
+        description: `Event ID ${ticketId} was successfully deleted.`,
+        type: "success",
+        show: true,
+      });
+
+      setTimeout(() => navigate("/home"), 1000);
+    } catch (error) {
+      console.error("Failed to delete event:", error);
+      setAppAlert({
+        message: "Error Deleting Event",
+        description: error.message || "Please check server connection.",
+        type: "error",
+        show: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ADDED: useEffect for responsiveness
+  useEffect(() => {
+    const handleResize = () => {
+      setViewportWidth(window.innerWidth);
+    };
+
+    // Use a simple window listener for general responsiveness
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const seatingEvents = useMemo(() => {
+    if (!eventData) return [];
+
+    const allEvents = [];
+
+    // 1. Add the main event itself if it has seating info (assuming 'eventData.has_seating_layout' property)
+    if (eventData.location_type === "offline" && eventData.ticket_layout) {
+      allEvents.push(eventData);
+    }
+
+    // 2. Add all sub-events that have seating info
+    if (eventData.sub_events) {
+      eventData.sub_events.forEach((sub) => {
+        if (sub.location_type === "offline" && sub.ticket_layout) {
+          allEvents.push(sub);
+        }
+      });
+    }
+    return allEvents;
+  }, [eventData]);
+
+  const handlePrevSeating = () => {
+    const len = seatingEvents.length;
+    if (len === 0) return;
+
+    setCurrentSeatingIndex((prevIndex) =>
+      prevIndex === 0 ? len - 1 : prevIndex - 1
+    );
+  };
+
+  const handleNextSeating = () => {
+    const len = seatingEvents.length;
+    if (len === 0) return;
+
+    setCurrentSeatingIndex((prevIndex) => (prevIndex + 1) % len);
+  };
 
   const handleCarouselPrev = () => {
     setActiveCarouselIndex((prev) => Math.max(0, prev - 1));
@@ -111,7 +225,12 @@ const [selectedGuest, setSelectedGuest] = useState(null);
       setShowImageModal(true);
       console.log("showImageModal set to true");
     } else {
-      alert("No images or video available for preview.");
+      setAppAlert({
+        message: "Information",
+        description: "No images or video available for preview.",
+        type: "error",
+        show: true,
+      });
     }
   };
   // Inside ViewEvent component
@@ -343,7 +462,12 @@ const [selectedGuest, setSelectedGuest] = useState(null);
   };
 
   const handleTuneClick = () => {
-    alert("Tune/Filter button clicked!");
+    setAppAlert({
+      message: "Information",
+      description: "Tune/Filter button clicked!",
+      type: "error",
+      show: true,
+    });
   };
   const handleNavigateHome = () => {
     navigate("/home", {
@@ -352,18 +476,35 @@ const [selectedGuest, setSelectedGuest] = useState(null);
       },
     });
   };
-  const handleGuestClick = (guest) => {
-console.log("Guest Clicked! Modal should open for:", guest.guest_name);    setSelectedGuest(guest);
-    setShowGuideModal(true);
-};
+  const handleLocationClick = () => {
+    if (eventData.location_type === "offline") {
+      setShowLocationModal(true);
+    } else {
+      setAppAlert({
+        message: "Location Inapplicable",
+        description:
+          "Location details are not applicable for this online/recorded event.",
+        type: "error",
+        show: true,
+      });
+    }
+  };
 
-const handleCloseGuideModal = () => {
+  const handleTicketInfoClick = () => {
+    if (eventStats.ticketTypes.length > 0) {
+      setShowTicketModal(true);
+    }
+  };
+  const handleGuestClick = (guest) => {
+    console.log("Guest Clicked! Modal should open for:", guest.guest_name);
+    setSelectedGuest(guest);
+    setShowGuideModal(true);
+  };
+
+  const handleCloseGuideModal = () => {
     setShowGuideModal(false);
     setSelectedGuest(null);
-};
-
-  const guidesToShow = 3;
-  const ticketsToShow = 3;
+  };
 
   const insetBoxStyle = {
     boxShadow: theme.shadowInset,
@@ -402,9 +543,24 @@ const handleCloseGuideModal = () => {
   };
 
   const handleNextTicket = () => {
+    const len = eventStats.ticketTypes.length;
     setCurrentTicketIndex((prevIndex) =>
-      Math.min(eventStats.ticketTypes.length - ticketsToShow, prevIndex + 1)
+      Math.min(len - visibleTickets, prevIndex + 1)
     );
+  };
+
+  const handlePrevTicketModal = () => {
+    const len = eventStats.ticketTypes.length;
+    if (len === 0) return;
+    setCurrentTicketIndex((prevIndex) =>
+      prevIndex === 0 ? len - 1 : prevIndex - 1
+    );
+  };
+
+  const handleNextTicketModal = () => {
+    const len = eventStats.ticketTypes.length;
+    if (len === 0) return;
+    setCurrentTicketIndex((prevIndex) => (prevIndex + 1) % len);
   };
 
   const handleNextImage = () => {
@@ -449,56 +605,65 @@ const handleCloseGuideModal = () => {
       className={`min-h-screen md:p-8 p-2 ${theme.text}`}
       style={{ backgroundColor: theme.mainBg }}
     >
-      <header className="flex justify-between w-full items-center mb-8">
-        <div className="flex items-center space-x-4">
-          <img
-            src={LogoIcon}
-            alt="Logo"
-            className={`w-12 h-12 object-contain cursor-pointer ${
-              theme.isDark ? "" : "filter invert"
-            }`}
-            onClick={handleNavigateHome}
-          />
-          <div className="hidden md:block">
-            <SearchBar
-              theme={theme}
-              value={searchTerm}
-              onChange={handleSearchChange}
-              onTuneClick={handleTuneClick}
-            />
-          </div>
-        </div>
-        <div className="flex items-center space-x-4">
-          <ThemeToggle isDark={theme.isDark} onToggle={handleThemeToggle} />
-        </div>
-      </header>
-      <div className="mb-4 md:hidden">
-        <SearchBar
-          theme={theme}
-          value={searchTerm}
-          onChange={handleSearchChange}
-          onTuneClick={handleTuneClick}
-        />
-      </div>
+      <ConfirmModal
+        isOpen={showConfirmDeleteModal}
+        onClose={() => setShowConfirmDeleteModal(false)}
+        onConfirm={handleConfirmDelete}
+        title="Confirm Deletion"
+        message={`Are you sure you want to permanently delete event ID ${ticketId}? This action cannot be undone.`}
+        darkMode={theme.isDark} // Pass theme state
+      />
 
-      <div className="flex justify-center md:mb-10 mb-4">
-        <Card
-          theme={theme}
-          className="inline-block px-12 py-2"
-          customStyle={{ borderRadius: "20px" }}
-        >
-          <h1
-            className={`text-4xl font-bold text-center tracking-widest ${
-              theme.isDark ? "text-gray-300" : "text-gray-800"
-            }`}
+      {/* GLOBAL ALERT: Displays success/error messages */}
+      <Alert alert={appAlert} onClose={() => setAppAlert(null)} />
+      <CustomScrollbarStyles isDark={theme} />
+      <TopNavBar
+        theme={theme}
+        searchTerm={searchTerm}
+        onSearchChange={handleSearchChange}
+        onTuneClick={handleTuneClick}
+        handleThemeToggle={handleThemeToggle}
+        handleNavigateHome={handleNavigateHome}
+      />
+
+      <div className="flex justify-between items-center md:mb-10 mb-4 px-2 md:px-0">
+        <div className="flex justify-start md:justify-center flex-grow">
+          <Card
+            theme={theme}
+            className="inline-block px-12 py-2"
+            customStyle={{ borderRadius: "20px" }}
           >
-            {eventData.event_name?.toUpperCase() || "EVENT NAME"}
-          </h1>
-        </Card>
+            <h1
+              className={`text-4xl font-bold text-center tracking-widest ${
+                theme.isDark ? "text-gray-300" : "text-gray-800"
+              }`}
+            >
+              {eventData.event_name?.toUpperCase() || "EVENT NAME"}
+            </h1>
+          </Card>
+        </div>
+
+        {/* 2. Action Buttons - Always on the far right, never wraps */}
+        <div className="flex items-center my-auto space-x-4 flex-shrink-0 ml-4">
+          <ActionCircleButton
+            theme={theme}
+            type="edit"
+            ticketId={ticketId}
+            groupId={groupId}
+            setAppalert={setAppAlert}
+          />
+          <ActionCircleButton
+            theme={theme}
+            type="delete"
+            ticketId={ticketId}
+            onClick={handleDeleteEvent}
+            setAppalert={setAppAlert} // Use the new handler here
+          />
+        </div>
       </div>
 
       <div className="md:relative">
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 gap-6 ">
           <Card
             theme={theme}
             className="p-6 relative overflow-hidden"
@@ -598,7 +763,10 @@ const handleCloseGuideModal = () => {
                   <div className="flex space-x-3 justify-around">
                     <Card
                       theme={theme}
-className={`p-2 py-6 my-2 flex flex-col items-center justify-center w-2/5 rounded-lg border ${theme.isDark ? 'border-gray-700' : 'border-gray-400'}`}                    >
+                      className={`p-2 py-6 my-2 flex flex-col items-center justify-center w-2/5 rounded-lg border ${
+                        theme.isDark ? "border-gray-700" : "border-gray-400"
+                      }`}
+                    >
                       <img
                         src={Event_Days}
                         alt="Event Days Icon"
@@ -618,7 +786,10 @@ className={`p-2 py-6 my-2 flex flex-col items-center justify-center w-2/5 rounde
                     eventData.sub_events?.length > 0 ? (
                       <Card
                         theme={theme}
-className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700' : 'border-gray-300'} items-center justify-center w-2/5 rounded-lg relative overflow-hidden`}                      >
+                        className={`p-2 py-6 my-2 flex flex-col border ${
+                          theme.isDark ? "border-gray-700" : "border-gray-300"
+                        } items-center justify-center w-2/5 rounded-lg relative overflow-hidden`}
+                      >
                         <div className="absolute inset-y-0 left-0 flex items-center p-1">
                           <ChevronLeft
                             size={20}
@@ -684,7 +855,10 @@ className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700
                     ) : (
                       <Card
                         theme={theme}
-className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700' : 'border-gray-400'} items-center justify-center w-2/5 rounded-lg`}                      >
+                        className={`p-2 py-6 my-2 flex flex-col border ${
+                          theme.isDark ? "border-gray-700" : "border-gray-400"
+                        } items-center justify-center w-2/5 rounded-lg`}
+                      >
                         <img
                           src={Max_People}
                           alt="Max People Icon"
@@ -736,7 +910,10 @@ className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700
 
             <InsetCard theme={theme} className="md:p-3 md:mb-2 p-1 mb-1">
               <Card theme={theme} className="md:p-3 p-1">
-                <div className="flex justify-between items-center md:space-x-3 space-x-1">
+                <div
+                  onClick={handleLocationClick}
+                  className="flex justify-between items-center md:space-x-3 space-x-1"
+                >
                   <div
                     className="!p-0 relative md:w-24 md:h-24 w-10 h-10 rounded-lg overflow-hidden flex-shrink-0"
                     ref={mapRef}
@@ -834,7 +1011,16 @@ className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700
                           return (
                             <div
                               key={index}
-                              onClick={() => setActiveCarouselIndex(index)}
+                              onClick={() => {
+                                if (isActive) {
+                                  setSelectedSubEvent(
+                                    eventData.sub_events[index]
+                                  );
+                                  setShowSubEventModal(true);
+                                } else {
+                                  setActiveCarouselIndex(index);
+                                }
+                              }}
                               className={`flex-shrink-0 w-24 h-36 p-2 rounded-xl transition-all duration-300 transform-gpu`}
                               style={cardStyle}
                             >
@@ -961,7 +1147,17 @@ className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700
                   Icon={Seat}
                   label="Seat"
                   theme={theme}
-                  onClick={() => setShowPreferenceModal(true)}
+                  // MODIFIED: Only allow click if seatingEvents exist
+                  onClick={() => {
+                    if (seatingEvents.length > 0) {
+                      setCurrentSeatingIndex(0); // Start at the first seating layout
+                      setShowSeatingModal(true);
+                    } else {
+                      alert(
+                        "No seating layout information is available for this event or its sub-events."
+                      );
+                    }
+                  }}
                 />
                 <FeatureButton Icon={Rules} label="Rules" theme={theme}>
                   <RulesPopover rules={rulesContent} theme={theme} />
@@ -1048,8 +1244,8 @@ className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700
               <path d="M 0,0 L 0,100 Q 0,0 200,0 Z" fill={theme.mainBg} />
             </svg>
 
-            <div className="flex flex-col h-full w-2/3 md:ml-auto mx-auto md:mx-0">
-              <Card theme={theme} className=" mb-2 rounded-lg">
+            <div className="flex flex-col h-full md:w-2/3 w-full md:ml-auto mx-auto md:mx-0">
+              <Card theme={theme} className=" mb-2 rounded-lg w-3/4 mx-auto">
                 <div className="flex justify-between items-center">
                   <ChevronLeft
                     size={24}
@@ -1071,14 +1267,14 @@ className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700
                 </div>
               </Card>
               {eventData.payment_type === "paid" ? (
-                <div className="flex flex-col h-full w-4/5 mx-auto">
+                <div className="flex flex-col h-full md:w-4/5 mx-auto">
                   {currentBankInfo.is_group_account && (
                     <p className="text-xs text-green-500 font-medium text-center mb-1">
                       (Group Primary Account)
                     </p>
                   )}
 
-                  <dl className="text-sm space-y-2 px-2 w-3/4 mx-auto  flex-grow ite">
+                  <dl className="text-sm space-y-2 px-2 md:w-3/4 mx-auto  flex-grow ite">
                     <div className="flex justify-between ">
                       <dt className={`text-gray-400 ${theme.textColor}`}>
                         Account Holder :
@@ -1156,7 +1352,10 @@ className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700
 
             <div className="flex items-start  md:space-x-3 mb-6">
               {eventStats.ticketTypes.length > 0 ? (
-                <Card theme={theme} className="md:w-3/4 p-3 w-full rounded-lg">
+                <Card
+                  theme={theme}
+                  className="md:w-3/4 w-full p-3 mx-auto  rounded-lg"
+                >
                   <div className="flex items-center justify-between mt-4">
                     <ChevronLeft
                       size={20}
@@ -1166,54 +1365,58 @@ className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700
                       onClick={handlePrevTicket}
                     />
 
-                    <div className="flex items-center justify-center space-x-4 flex-grow px-2">
-                      {eventStats.ticketTypes
-                        .slice(
-                          currentTicketIndex,
-                          currentTicketIndex + ticketsToShow
-                        )
-                        .map((tier, index) => {
-                          const actualIndex = currentTicketIndex + index;
-                          const isSelected = actualIndex === currentTicketIndex;
+                    {/* CORRECTED CAROUSEL WINDOW: Removed justify-center and applied padding for spacing */}
+                    <div className="flex items-center flex-grow overflow-hidden px-2 ">
+                      <div className="flex justify-center w-full py-2">
+                        {eventStats.ticketTypes
+                          .slice(
+                            currentTicketIndex,
+                            currentTicketIndex + visibleTickets
+                          )
+                          .map((tier, index) => {
+                            const globalIndex = currentTicketIndex + index;
 
-                          return (
-                            <div
-                              key={tier.ticket_type}
-                              className="text-center cursor-pointer"
-                              onClick={() => setCurrentTicketIndex(actualIndex)}
-                            >
+                            // Define dynamic width and margin
+
+                            const itemMarginClass =
+                              viewportWidth < 768 ? "mr-4" : "mr-4";
+                            return (
                               <div
-                                className={`w-12 h-12 rounded-full mx-auto mb-1 border-2 transition-all duration-300 flex items-center justify-center`}
-                                style={{
-                                  backgroundColor: tier.color || "#3B82F6",
-                                  boxShadow: isSelected
-                                    ? "0 0 10px rgba(99, 102, 241, 0.7)"
-                                    : "0 4px 8px rgba(0,0,0,0.3)",
-                                  borderColor: isSelected
-                                    ? "#5E5CE6"
-                                    : "transparent",
-                                  transform: isSelected
-                                    ? "scale(1.1)"
-                                    : "scale(1)",
+                                key={tier.ticket_type}
+                                className={`text-center cursor-pointer flex-shrink-0 ${
+                                  viewportWidth < 780 ? "w-full" : "w-20"
+                                } ${itemMarginClass}`}
+                                onClick={() => {
+                                  setCurrentTicketIndex(globalIndex);
+
+                                  handleTicketInfoClick();
                                 }}
                               >
-                                <span className="text-white text-xs font-bold">
-                                  {tier.ticket_type[0]}
-                                </span>
+                                <div
+                                  className={`w-12 h-12 rounded-full mx-auto mb-1 hover:scale-110 transition-all duration-300 flex items-center justify-center`}
+                                  style={{
+                                    backgroundColor: tier.color || "#3B82F6",
+                                  }}
+                                >
+                                  <span className="text-white text-xs font-bold">
+                                    {tier.ticket_type[0]}
+                                  </span>
+                                </div>
+                                <p className={`text-xs ${theme.textColor}`}>
+                                  {tier.ticket_type}
+                                </p>
                               </div>
-                              <p className={`text-xs ${theme.textColor}`}>
-                                {tier.ticket_type}
-                              </p>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                      </div>
                     </div>
 
+                    {/* Right Chevron (Always flex-shrink-0) */}
                     <ChevronRight
                       size={20}
                       className={`text-gray-400 cursor-pointer ${
                         currentTicketIndex >=
-                        eventStats.ticketTypes.length - ticketsToShow
+                        eventStats.ticketTypes.length - visibleTickets // Check if we are at the last index
                           ? "opacity-50"
                           : ""
                       }`}
@@ -1305,6 +1508,7 @@ className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700
             </h3>
             {eventData.guests && eventData.guests.length > 0 ? (
               <div className="flex items-center space-x-2 pb-2 flex-grow ">
+                {/* Prev Button */}
                 <ChevronLeft
                   size={24}
                   className={`text-gray-400 cursor-pointer ${
@@ -1312,32 +1516,45 @@ className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700
                   }`}
                   onClick={handlePrevGuide}
                 />
-                <div className="flex-grow flex items-center justify-center space-x-4 p-2 ">
+                {/* Guide Carousel Container */}
+                <div className="flex-grow flex items-center justify-center md:gap-x-6 overflow-x-hidden p-2">
                   {eventData.guests
                     .slice(currentGuideIndex, currentGuideIndex + guidesToShow)
-                    .map((guest) => (
+                    .map((guest, index) => (
                       <Card
                         key={guest.guest_name}
                         theme={theme}
-onClick={() => handleGuestClick(guest)}
-      className="p-2 w-40 text-center rounded-lg cursor-pointer relative" >
-                        <div className="w-32 h-32 rounded-lg mx-auto mb-2 overflow-hidden"
-                       >
+                        onClick={() => handleGuestClick(guest)}
+                        className={`p-2 text-center rounded-lg cursor-pointer relative flex-shrink-0 w-full md:w-1/3 ${
+                          currentGuideIndex % guidesToShow !== 0 &&
+                          index === 0 &&
+                          viewportWidth < 768
+                            ? "-translate-x-full"
+                            : ""
+                        }`}
+                      >
+                        <div
+                          className="relative w-28 md:w-32 rounded-lg mx-auto mb-2 overflow-hidden"
+                          style={{ paddingTop: "100%" }}
+                        >
                           <img
                             src={
                               formatImagePath(guest.guest_profile) ||
                               "https://i.pravatar.cc/150?img=default"
                             }
                             alt={guest.guest_name}
-                            className="w-full h-full object-cover"
+                            className="absolute inset-0 w-full h-full object-cover"
                           />
                         </div>
-                        <p className={`text-sm ${theme.textColor}`}>
+                        <p
+                          className={`text-sm ${theme.textColor} truncate px-1`}
+                        >
                           {guest.guest_name}
                         </p>
                       </Card>
                     ))}
                 </div>
+                {/* Next Button */}
                 <ChevronRight
                   size={24}
                   className={`text-gray-400 cursor-pointer ${
@@ -1385,17 +1602,65 @@ onClick={() => handleGuestClick(guest)}
           onPrev={handlePrevImage}
           onClose={() => setShowImageModal(false)}
           theme={theme}
+          setAppAlert={setAppAlert}
         />
       )}
       {showGuideModal && (
-    <GuideModal 
-        guest={selectedGuest}
-        theme={theme}
-        formatImagePath={formatImagePath} 
-        onClose={handleCloseGuideModal}
-    />
-)}
+        <GuideModal
+          guest={selectedGuest}
+          theme={theme}
+          formatImagePath={formatImagePath} // <--- Passed here
+          onClose={handleCloseGuideModal}
+          setAppAlert={setAppAlert}
+        />
+      )}
+      {showSubEventModal && selectedSubEvent && (
+        <SubEventDetailModal
+          subEvent={selectedSubEvent}
+          theme={theme}
+          onClose={() => {
+            setShowSubEventModal(false);
+            setSelectedSubEvent(null);
+          }}
+          formatImagePath={formatImagePath}
+          setAppAlert={setAppAlert}
+        />
+      )}
+      {showLocationModal && (
+        <EventLocationModal
+          eventData={eventData}
+          theme={theme}
+          onClose={() => setShowLocationModal(false)}
+          setAppAlert={setAppAlert}
+        />
+      )}
+      {showTicketModal && (
+        <TicketDetailModal
+          theme={theme}
+          onClose={() => setShowTicketModal(false)}
+          ticketTypes={eventStats.ticketTypes}
+          currentTicketIndex={currentTicketIndex}
+          onPrevTicket={handlePrevTicketModal} 
+          onNextTicket={handleNextTicketModal} 
+          formatImagePath={formatImagePath}
+          setAppAlert={setAppAlert}
+        />
+      )}
+      {showSeatingModal && seatingEvents.length > 0 && (
+        <SeatingLayoutModal
+          eventData={seatingEvents[currentSeatingIndex]}
+          theme={theme}
+          onClose={() => setShowSeatingModal(false)}
+          totalSeatingLayouts={seatingEvents.length}
+          currentSeatingIndex={currentSeatingIndex}
+          onPrevSeating={handlePrevSeating}
+          onNextSeating={handleNextSeating}
+          formatImagePath={formatImagePath}
+          setAppAlert={setAppAlert}
+        />
+      )}
     </div>
   );
 };
+
 export default ViewSingleEvent;
