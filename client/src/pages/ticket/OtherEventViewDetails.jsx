@@ -33,7 +33,7 @@ import formatImagePath from "../../components/ViewSingleEvent/formatImagePath";
 import formatCapacity from "../../components/ViewSingleEvent/formatCapacity";
 import InsetCard from "../../components/ViewSingleEvent/InsetCard";
 import FeatureButton from "../../components/ViewSingleEvent/FeatureButton";
-import RulesPopover from "../../components/ViewSingleEvent/RulesPopover";
+import RulesModal from "../../components/ViewSingleEvent/RulesModal";
 import LanguagePopover from "../../components/ViewSingleEvent/LanguagePopover";
 import ProhibitPopover from "../../components/ViewSingleEvent/ProhibitPopover";
 import PreferenceModal from "../../components/ViewSingleEvent/PreferenceModal";
@@ -1028,7 +1028,7 @@ className={`p-2 py-6 my-2 flex flex-col border ${theme.isDark ? 'border-gray-700
                   onClick={() => setShowPreferenceModal(true)}
                 />
                 <FeatureButton Icon={Rules} label="Rules" theme={theme}>
-                  <RulesPopover rules={rulesContent} theme={theme} />
+                  <RulesModal rules={rulesContent} theme={theme} />
                 </FeatureButton>
               </div>
 
