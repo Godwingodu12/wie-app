@@ -56,29 +56,28 @@ export const processFileUploads = async (files) => {
         console.log(`✅ Event image uploaded:`, result.url);
       }
     }
-
-    // Process guest profiles (guest_profile_0, guest_profile_1, etc.)
     for (let i = 0; i < 10; i++) {
       const fieldName = `guest_profile_${i}`;
       if (files[fieldName] && files[fieldName][0]) {
         const file = files[fieldName][0];
         const folder = getCloudinaryFolder('guest_profile');
         const resourceType = 'image';
-
         console.log(`Uploading ${fieldName} to Cloudinary...`);
         const result = await uploadToCloudinary(file.buffer, {
           folder,
           resourceType
         });
-
-        if (!uploadedFiles.guest_profiles) {
-          uploadedFiles.guest_profiles = {};
-        }
-        uploadedFiles.guest_profiles[i] = result.url;
+        uploadedFiles[fieldName] = [{
+          path: result.url,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          public_id: result.public_id,
+          resource_type: result.resource_type
+        }];
         console.log(`✅ ${fieldName} uploaded:`, result.url);
       }
     }
-
     // Process ticket photos (ticket_photo_0, ticket_photo_1, etc.)
     for (let i = 0; i < 20; i++) {
       const fieldName = `ticket_photo_${i}`;
@@ -93,10 +92,15 @@ export const processFileUploads = async (files) => {
           resourceType
         });
 
-        if (!uploadedFiles.ticket_photos) {
-          uploadedFiles.ticket_photos = {};
-        }
-        uploadedFiles.ticket_photos[i] = result.url;
+        uploadedFiles[fieldName] = [{
+          path: result.url,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          public_id: result.public_id,
+          resource_type: result.resource_type
+        }];
+        
         console.log(`✅ ${fieldName} uploaded:`, result.url);
       }
     }
@@ -117,10 +121,15 @@ export const processFileUploads = async (files) => {
           resourceType
         });
 
-        if (!uploadedFiles.video_files) {
-          uploadedFiles.video_files = {};
-        }
-        uploadedFiles.video_files[i] = result.url;
+        uploadedFiles[videoFieldName] = [{
+          path: result.url,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          public_id: result.public_id,
+          resource_type: result.resource_type
+        }];
+        
         console.log(`✅ ${videoFieldName} uploaded:`, result.url);
       }
 
@@ -135,10 +144,15 @@ export const processFileUploads = async (files) => {
           resourceType
         });
 
-        if (!uploadedFiles.preview_images) {
-          uploadedFiles.preview_images = {};
-        }
-        uploadedFiles.preview_images[i] = result.url;
+        uploadedFiles[previewFieldName] = [{
+          path: result.url,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          public_id: result.public_id,
+          resource_type: result.resource_type
+        }];
+        
         console.log(`✅ ${previewFieldName} uploaded:`, result.url);
       }
     }
@@ -149,12 +163,6 @@ export const processFileUploads = async (files) => {
     throw new Error(`File upload failed: ${error.message}`);
   }
 };
-
-/**
- * Delete files from Cloudinary
- * @param {string|string[]} publicIds - Public ID(s) to delete
- * @param {string} resourceType - Resource type (image, video, raw)
- */
 export const deleteFromCloudinary = async (publicIds, resourceType = 'image') => {
   try {
     const idsArray = Array.isArray(publicIds) ? publicIds : [publicIds];
