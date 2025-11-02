@@ -190,6 +190,10 @@ export const uploadToCloudinary = (buffer, options = {}) => {
 // Helper function to determine folder based on fieldname
 export const getCloudinaryFolder = (fieldname) => {
   const folderMap = {
+    id_proof: 'WIE_EVENTS/group_documents/id_proofs',
+    bank_check: 'WIE_EVENTS/group_documents/bank_checks',
+    company_certificate: 'WIE_EVENTS/group_documents/certificates',
+    company_logo: 'WIE_EVENTS/group_documents/logos',
     guest_profile: 'WIE_EVENTS/guest_profiles',
     event_rules: 'WIE_EVENTS/event_rules',
     college_authorisation: 'WIE_EVENTS/college_authorisations',
@@ -213,17 +217,39 @@ export const getCloudinaryFolder = (fieldname) => {
   return 'WIE_EVENTS/misc';
 };
 
-// Helper function to determine resource type
 export const getResourceType = (fieldname, mimetype) => {
   if (fieldname.startsWith('video_file') || mimetype?.startsWith('video/')) {
     return 'video';
   }
+  
+  // Handle group document fields that can be images or PDFs
+  if (fieldname === 'id_proof' || 
+      fieldname === 'bank_check' || 
+      fieldname === 'company_certificate') {
+    // Check mimetype to determine if it's an image or document
+    if (mimetype?.startsWith('image/')) {
+      return 'image';
+    }
+    if (mimetype?.includes('pdf') || 
+        mimetype?.includes('document') || 
+        mimetype?.includes('msword')) {
+      return 'raw';
+    }
+    // Default to 'auto' to let Cloudinary decide
+    return 'auto';
+  }
+  
   if (fieldname === 'event_rules' || 
       fieldname === 'college_authorisation' || 
       mimetype?.includes('pdf') || 
       mimetype?.includes('document')) {
     return 'raw';
   }
+  
+  if (fieldname === 'company_logo') {
+    return 'image';
+  }
+  
   return 'image';
 };
 
@@ -470,4 +496,83 @@ export const createDynamicTicketUpload = (maxTicketTypes = 20) => {
     { name: 'college_authorisation', maxCount: 1 }
   ];
   return ticketMediaUpload.fields(dynamicFields);
+};
+export const uploadGroupFiles = (req, res, next) => {
+  const upload = multer({
+    storage,
+    limits: { 
+      fileSize: 10 * 1024 * 1024, // 10MB
+      files: 4
+    },
+    fileFilter: (req, file, cb) => {
+      const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+      const docTypes = ['.pdf', '.doc', '.docx'];
+      const allowedTypes = [...imageTypes, ...docTypes];
+      
+      let ext = path.extname(file.originalname).toLowerCase();
+      
+      // Handle missing extension by checking mimetype
+      if (!ext && file.mimetype) {
+        const mimeTypeMap = {
+          'image/jpeg': '.jpg',
+          'image/jpg': '.jpg',
+          'image/png': '.png',
+          'image/gif': '.gif',
+          'image/webp': '.webp',
+          'application/pdf': '.pdf',
+          'application/msword': '.doc',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx'
+        };
+        ext = mimeTypeMap[file.mimetype] || '';
+      }
+      
+      // Validation based on field name
+      if (file.fieldname === 'company_logo') {
+        if (!imageTypes.includes(ext)) {
+          return cb(new Error('Company logo must be an image file (JPG, JPEG, PNG, GIF, WEBP)'), false);
+        }
+      } else if (file.fieldname === 'id_proof' || 
+                 file.fieldname === 'bank_check' || 
+                 file.fieldname === 'company_certificate') {
+        // These fields accept both images and documents
+        if (!allowedTypes.includes(ext)) {
+          return cb(new Error(`${file.fieldname} must be an image (JPG, JPEG, PNG, GIF, WEBP) or document (PDF, DOC, DOCX)`), false);
+        }
+      } else {
+        // Other fields default to accepting all allowed types
+        if (!allowedTypes.includes(ext)) {
+          return cb(new Error('Only image (JPG, JPEG, PNG, GIF, WEBP) and document (PDF, DOC, DOCX) files are allowed'), false);
+        }
+      }
+      
+      cb(null, true);
+    }
+  }).fields([
+    { name: 'id_proof', maxCount: 1 },
+    { name: 'bank_check', maxCount: 1 },
+    { name: 'company_certificate', maxCount: 1 },
+    { name: 'company_logo', maxCount: 1 }
+  ]);
+
+  upload(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          message: 'File too large. Maximum 10MB allowed.',
+          error: err.message
+        });
+      }
+      if (err.code === 'LIMIT_FILE_COUNT') {
+        return res.status(400).json({
+          message: 'Too many files. Maximum 4 files allowed.',
+          error: err.message
+        });
+      }
+      return res.status(400).json({
+        message: 'File upload error',
+        error: err.message
+      });
+    }
+    next();
+  });
 };

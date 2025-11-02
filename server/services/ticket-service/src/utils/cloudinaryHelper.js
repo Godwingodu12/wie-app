@@ -1,5 +1,48 @@
 import { uploadToCloudinary, getCloudinaryFolder, getResourceType } from '../middlewares/upload.js';
 import cloudinary from '../cloudinary/cloudinary.js';
+export const processGroupFileUploads = async (files) => {
+  const uploadedFiles = {};
+
+  try {
+    const groupFileFields = [
+      'id_proof',
+      'bank_check',
+      'company_certificate',
+      'company_logo'
+    ];
+
+    for (const fieldName of groupFileFields) {
+      if (files[fieldName] && files[fieldName][0]) {
+        const file = files[fieldName][0];
+        const folder = getCloudinaryFolder(fieldName);
+        
+        // Determine resource type based on field name and mimetype
+        let resourceType;
+        if (fieldName === 'company_logo') {
+          resourceType = 'image';
+        } else {
+          // For id_proof, bank_check, company_certificate
+          resourceType = getResourceType(fieldName, file.mimetype);
+        }
+
+        console.log(`Uploading ${fieldName} to Cloudinary (type: ${resourceType})...`);
+        
+        const result = await uploadToCloudinary(file.buffer, {
+          folder,
+          resourceType
+        });
+
+        uploadedFiles[fieldName] = result.url;
+        console.log(`✅ ${fieldName} uploaded:`, result.url);
+      }
+    }
+
+    return uploadedFiles;
+  } catch (error) {
+    console.error('Error processing group file uploads:', error);
+    throw new Error(`Group file upload failed: ${error.message}`);
+  }
+};
 export const processFileUploads = async (files) => {
   const uploadedFiles = {};
 
