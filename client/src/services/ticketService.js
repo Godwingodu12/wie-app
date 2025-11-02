@@ -19,6 +19,14 @@ export const CreationGroup = async (formData) => {
     throw error;
   }
 };
+export const UpdateGroup = async (groupId, formData) => {
+  try {
+    const response = await api.put(`ticket/update-group/${groupId}`, formData);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
 export const getUserGroupCapabilities = async () => {
   try {
     const response = await api.get("ticket/user-group-capabilities");
