@@ -185,21 +185,21 @@ const UpdateTicketMedia = () => {
                     setInitialLoading(false);
                     return;
                 }
-
                 setTicketData(ticket);
-
                 // Helper function to construct URLs - handle Windows backslashes
                 const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
                 const getUrl = (path) => {
                     if (!path) return null;
-                    // Convert Windows backslashes to forward slashes and remove 'src/' prefix if present
+                    
+                    if (path.startsWith('http://') || path.startsWith('https://')) {
+                        return path;
+                    }
+                    // Legacy: Handle old local paths (for backward compatibility)
+                    const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
                     let cleanPath = path.replace(/\\/g, '/');
-                    // Remove 'src/' from the beginning if present
                     cleanPath = cleanPath.replace(/^src\//, '');
-                    // Remove leading slash if present
                     cleanPath = cleanPath.replace(/^\//, '');
-                    const fullUrl = `${API_BASE_URL}/${cleanPath}`;
-                    return fullUrl;
+                    return `${API_BASE_URL}/${cleanPath}`;
                 };
                 
                 // Prepare server media data
