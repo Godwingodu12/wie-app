@@ -29,9 +29,7 @@ import getCarouselEvents from "../../components/ViewSingleEvent/getCarouselEvent
 import getPreferences from "../../components/ViewSingleEvent/getPreferences";
 import formatImagePath from "../../components/ViewSingleEvent/formatImagePath";
 import formatCapacity from "../../components/ViewSingleEvent/formatCapacity";
-import InsetCard from "../../components/ViewSingleEvent/InsetCard";
 import FeatureButton from "../../components/ViewSingleEvent/FeatureButton";
-import RulesPopover from "../../components/ViewSingleEvent/RulesPopover";
 import LanguagePopover from "../../components/ViewSingleEvent/LanguagePopover";
 import ProhibitPopover from "../../components/ViewSingleEvent/ProhibitPopover";
 import PreferenceModal from "../../components/ViewSingleEvent/PreferenceModal";

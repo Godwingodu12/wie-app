@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { getMe } from "../../services/userService";
-import { findAllActiveUsers,followUser, unfollowUser,getOtherProfile ,getFollowers,getFollowing,checkIsFollowing } from "../../services/authService";
+import { findAllActiveUsers,followUser, unfollowUser ,checkIsFollowing } from "../../services/authService";
 import { useNavigate, Link } from 'react-router-dom';
 import { getGroups, getMyEvents, getMyLiveEvents, getMyPastEvents, totalEventsCreatedCount} from "../../services/ticketService";
+import { getImageUrl } from "../../utils/imageUtils.js";
 import { useDispatch } from 'react-redux';
-import { logoutSuccess } from '../../features/auth/authSlice'; 
+import { logoutSuccess } from '../../features/auth/authSlice';
 import { logout } from '../../services/authService';
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
@@ -44,7 +45,7 @@ const CustomScrollbarStyles = () => (
     *::-webkit-scrollbar {
       display: none;
     }
-    
+
     .scrollbar-hide {
       -ms-overflow-style: none;
       scrollbar-width: none;
@@ -52,7 +53,7 @@ const CustomScrollbarStyles = () => (
     .scrollbar-hide::-webkit-scrollbar {
       display: none;
     }
-    
+
     /* Nest Hub (1024x600) specific adjustments */
     @media (min-width: 1024px) and (max-width: 1024px) and (min-height: 600px) and (max-height: 600px) {
       html {
@@ -73,14 +74,14 @@ const CustomScrollbarStyles = () => (
         gap: 0.75rem !important;
       }
     }
-    
+
     /* Nest Hub Max (1280x800) */
     @media (min-width: 1280px) and (max-width: 1280px) and (min-height: 800px) and (max-height: 800px) {
       html {
         font-size: 14px;
       }
     }
-    
+
     /* Medium devices scaling */
     @media (min-width: 768px) and (max-width: 1023px) {
       html {
@@ -91,7 +92,7 @@ const CustomScrollbarStyles = () => (
         gap: 1rem !important;
       }
     }
-    
+
     /* Large screens */
     @media (min-width: 1440px) {
       html {
@@ -105,14 +106,17 @@ const ProfilePage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [user, setUser] = useState(null);
+  const [userImage, setUserImage] = useState(() => {
+    return sessionStorage.getItem('userImage') || null;
+  });
   const [users, setUsers] = useState([]);
   const [groups, setGroups] = useState([]);
-  
+
   // Separate state for different event types
   const [allEvents, setAllEvents] = useState([]);
   const [liveEvents, setLiveEvents] = useState([]);
   const [pastEvents, setPastEvents] = useState([]);
-  
+
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
   const [loading, setLoading] = useState(false);
@@ -131,7 +135,7 @@ const ProfilePage = () => {
   const [eventCountsMap, setEventCountsMap] = useState({});
   // Active tab state: 'all', 'live', 'past'
   const [activeTab, setActiveTab] = useState('all');
-  
+
   // State for hamburger menu dropdown
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const hamburgerRef = useRef(null);
@@ -139,7 +143,7 @@ const ProfilePage = () => {
     navigate(`/ticket/view-single-event/${ticketId}`);
   };
   // Helper function to parse API response and extract tickets/events
-  const parseApiResponse = (response= 'events') => {    
+  const parseApiResponse = (response= 'events') => {
     let data = [];
     // Try different response structures
     if (response?.data?.tickets) {
@@ -157,8 +161,8 @@ const ProfilePage = () => {
     } else if (response?.data && typeof response.data === 'object') {
       // If response.data is an object, try to extract events from it
       const dataKeys = Object.keys(response.data);
-      const eventKey = dataKeys.find(key => 
-        Array.isArray(response.data[key]) || 
+      const eventKey = dataKeys.find(key =>
+        Array.isArray(response.data[key]) ||
         key.toLowerCase().includes('event') ||
         key.toLowerCase().includes('ticket')
       );
@@ -221,6 +225,14 @@ const ProfilePage = () => {
       try {
         const res = await getMe();
         setUser(res.data);
+        if (res.data.image) {
+            const imageUrl = getImageUrl(res.data.image, 'auth');
+            setUserImage(imageUrl);
+            sessionStorage.setItem('userImage', imageUrl);
+        } else {
+            setUserImage(null);
+            sessionStorage.removeItem('userImage');
+        }
       } catch (err) {
         console.error("Failed to fetch user", err);
       }
@@ -231,7 +243,7 @@ const ProfilePage = () => {
   useEffect(() => {
     const fetchActiveUsers = async () => {
       try {
-        const response = await findAllActiveUsers();        
+        const response = await findAllActiveUsers();
         if (response?.data?.users) {
           setUsers(response.data.users);
         } else if (response?.users) {
@@ -254,7 +266,7 @@ const ProfilePage = () => {
 useEffect(() => {
   const checkFollowStatuses = async () => {
     if (users.length === 0) return;
-    
+
     const statuses = {};
     for (const suggestUser of users) {
       try {
@@ -268,7 +280,7 @@ useEffect(() => {
     }
     setFollowingMap(statuses);
   };
-  
+
   checkFollowStatuses();
 }, [users]);
 
@@ -276,7 +288,7 @@ useEffect(() => {
     const fetchGroups = async () => {
       setGroupsLoading(true);
       try {
-        const response = await getGroups();        
+        const response = await getGroups();
         if (response?.data) {
           setGroups(Array.isArray(response.data) ? response.data : []);
         } else if (Array.isArray(response)) {
@@ -300,9 +312,9 @@ useEffect(() => {
     const fetchAllEvents = async () => {
       setEventsLoading(true);
       try {
-        const response = await getMyEvents();        
+        const response = await getMyEvents();
         const tickets = parseApiResponse(response, 'tickets');
-        
+
         if (tickets.length > 0) {
           const { all, live, past } = categorizeEvents(tickets);
           setAllEvents(all);
@@ -330,7 +342,7 @@ useEffect(() => {
   useEffect(() => {
     const fetchLiveEvents = async () => {
       try {
-        const response = await getMyLiveEvents();        
+        const response = await getMyLiveEvents();
         const events = parseApiResponse(response, 'live events');
         // Only update if this endpoint returns different data
         if (events.length > 0 && liveEvents.length === 0) {
@@ -341,20 +353,20 @@ useEffect(() => {
         // Don't reset liveEvents here as it might be populated from categorizeEvents
       }
     };
-    
+
     // Only fetch if we don't have live events from the main fetch
     if (liveEvents.length === 0) {
       fetchLiveEvents();
     }
   }, [liveEvents.length]);
 
-  
+
 
   // Optional: Fetch past events separately if you have separate endpoints
   useEffect(() => {
     const fetchPastEvents = async () => {
       try {
-        const response = await getMyPastEvents();        
+        const response = await getMyPastEvents();
         const events = parseApiResponse(response, 'past events');
         if (events.length > 0 && pastEvents.length === 0) {
           setPastEvents(events);
@@ -363,7 +375,7 @@ useEffect(() => {
         console.error("Failed to fetch past events:", err);
       }
     };
-    
+
     // Only fetch if we don't have past events from the main fetch
     if (pastEvents.length === 0) {
       fetchPastEvents();
@@ -396,14 +408,14 @@ useEffect(() => {
           setShowRightArrow(false);
         }
       };
-  
+
       setTimeout(checkScrollArrows, 100);
     }, [users]);
     useEffect(() => {
       const fetchEventCounts = async () => {
         try {
           const response = await totalEventsCreatedCount();
-          
+
           if (response?.userEventCounts) {
             const countsMap = {};
             response.userEventCounts.forEach(item => {
@@ -416,7 +428,7 @@ useEffect(() => {
           setEventCountsMap({});
         }
       };
-      
+
       fetchEventCounts();
     }, []);
 
@@ -449,23 +461,23 @@ useEffect(() => {
   };
 const handleSuggestionFollowToggle = async (suggestedUserId) => {
   if (!suggestedUserId || !user) return;
-  
+
   const key = suggestedUserId;
-  
+
   // Set loading state for this specific user
   setFollowingStates(prev => ({ ...prev, [key]: true }));
-  
+
   const isCurrentlyFollowing = followingMap[key] || false;
-  
+
   try {
     if (isCurrentlyFollowing) {
       // UNFOLLOW FLOW
       const response = await unfollowUser(suggestedUserId);
       console.log("Unfollow response:", response);
-      
+
       // Update state AFTER successful API call
       setFollowingMap(prev => ({ ...prev, [key]: false }));
-      
+
       // Update users list - decrement follower count
       setUsers(prev => prev.map(u => {
         if ((u._id || u.id) === suggestedUserId) {
@@ -478,7 +490,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
         }
         return u;
       }));
-      
+
       // Update current user's following count from API response
       if (response?.following) {
         setUser(prev => ({
@@ -493,15 +505,15 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
           followingCount: Math.max(0, (prev.followingCount || 0) - 1)
         }));
       }
-      
+
     } else {
       // FOLLOW FLOW
       const response = await followUser(suggestedUserId);
       console.log("Follow response:", response);
-      
+
       // Update state AFTER successful API call
       setFollowingMap(prev => ({ ...prev, [key]: true }));
-      
+
       // Update users list - increment follower count
       setUsers(prev => prev.map(u => {
         if ((u._id || u.id) === suggestedUserId) {
@@ -514,7 +526,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
         }
         return u;
       }));
-      
+
       // Update current user's following count from API response
       if (response?.following) {
         setUser(prev => ({
@@ -532,7 +544,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
     }
   } catch (err) {
     console.error('Error toggling follow status:', err);
-    
+
     // Show error alert
     alert(err.response?.data?.message || 'Failed to update follow status');
   } finally {
@@ -638,7 +650,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
               >
                 <div className="flex items-center gap-3">
                   {group.image ? (
-                    <img 
+                    <img
                       src={group.image}
                       alt={group.name || group.groupName}
                       className="w-10 h-10 rounded-full object-cover"
@@ -670,19 +682,19 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
   // Hamburger Menu Component
   const HamburgerMenu = ({ isDesktop = false }) => (
     <div className="relative" ref={hamburgerRef}>
-      <button 
+      <button
         onClick={handleHamburgerClick}
         className={`${isDesktop ? 'p-2' : 'p-2'} rounded-full transition-colors duration-200 ${theme.buttonHoverBg}`}
       >
-        <img 
-          src={HandburgerIcon} 
-          alt="Menu" 
-          className={`${isDesktop ? 'w-8 h-8' : 'w-6 h-6'} ${!isDark ? 'filter brightness-0' : ''}`} 
+        <img
+          src={HandburgerIcon}
+          alt="Menu"
+          className={`${isDesktop ? 'w-8 h-8' : 'w-6 h-6'} ${!isDark ? 'filter brightness-0' : ''}`}
         />
       </button>
-      
+
       {showHamburgerMenu && (
-        <div 
+        <div
           className={`absolute ${isDesktop ? 'right-0 top-12' : 'right-0 top-10'} z-50 ${theme.cardBg} rounded-lg ${theme.border} min-w-[150px] py-2`}
           style={{ boxShadow: theme.smallCardShadow }}
         >
@@ -702,13 +714,13 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
      <CustomScrollbarStyles />
     <div className={`${theme.bg} ${theme.text} min-h-screen flex overflow-hidden transition-colors duration-300`}>
       {/* Sidebar - Fixed like HomePage */}
-      <div 
+      <div
   className={`hidden md:flex flex-col flex-shrink-0 ${theme.bg} transition-colors duration-300`}
-  style={{ 
-    position: 'fixed', 
-    left: 0, 
-    top: 0, 
-    bottom: 0, 
+  style={{
+    position: 'fixed',
+    left: 0,
+    top: 0,
+    bottom: 0,
     width: '80px',
     zIndex: 40,
     overflowY: 'auto',
@@ -734,10 +746,10 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                 <img src={WieText} alt="WIE" className="h-5 object-contain" />
               </div>
               <div className="flex items-center gap-3">
-                <button 
-                  style={{ 
-                    boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' 
-                  }} 
+                <button
+                  style={{
+                    boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)'
+                  }}
                   className={`w-10 h-10 rounded-full flex items-center justify-center ${theme.bg}`}
                 >
                   <img src={ChatIcon} alt="chats" className={`w-6 h-6 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
@@ -748,7 +760,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
             {/* Desktop Header */}
             <div className="hidden md:flex items-center gap-4 w-full">
               <div className="flex-1 min-w-0">
-                <SearchBar 
+                <SearchBar
                   theme={theme}
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
@@ -770,8 +782,8 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
   {/* Top Row: Profile image + Name/Username */}
   <div className="flex items-center gap-4">
     {/* Profile Image */}
-    <img 
-      src={user.image ? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${user.image}` : ProfileImage}
+    <img
+      src={userImage || ProfileImage}
       alt="Profile"
       className={`w-24 h-24 rounded-full object-cover border-2 flex-shrink-0 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
     />
@@ -792,13 +804,13 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
     {/* Bio Section (full width below image and name) */}
     <div className="w-full">
       <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
-        {user.bio} 
+        {user.bio}
       </p>
       <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
-        {user.website} 
+        {user.website}
       </p>
     </div>
-  </div>      
+  </div>
                       {/* Stats */}
                       <div className="flex justify-start gap-4">
                         <div className="text-left">
@@ -841,12 +853,12 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                     <div className="hidden md:flex justify-between items-center gap-6">
                       {/* Left side */}
                       <div className="flex items-start gap-6">
-                        <img 
-                          src={user.image? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${user.image}`: ProfileImage}
+                        <img
+                          src={userImage || ProfileImage}
                           alt="Profile"
   className={`w-32 h-32 md:w-36 md:h-36 lg:w-48 lg:h-48 rounded-full object-cover border-4 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
                         />
-                        
+
                         <div className="space-y-1 md:space-y-2 flex-1">
   <h1 className={`text-xl md:text-xl lg:text-2xl font-bold ${theme.text}`}>{user.name}</h1>
   <p className={`text-xs md:text-sm ${theme.subText}`}>{user.username}</p>
@@ -857,32 +869,32 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
     {user.bio }
   </p>
   <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
-        {user.website} 
+        {user.website}
       </p>
 <div className="flex gap-2 md:gap-3 pt-2 md:pt-3 flex-wrap">
-                            <button 
+                            <button
                               onClick={() => navigate('/settings/editprofile')}
                               className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                                isDark 
-                                  ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110' 
+                                isDark
+                                  ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
                                   : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
                               }`}
                             >
-                              Edit profile 
+                              Edit profile
                             </button>
-                            <button 
+                            <button
                               className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                                isDark 
-                                  ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110' 
+                                isDark
+                                  ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
                                   : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
                               }`}
                             >
                               Share profile
                             </button>
-                            <button 
+                            <button
                               className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                                isDark 
-                                  ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110' 
+                                isDark
+                                  ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
                                   : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
                               }`}
                             >
@@ -891,12 +903,12 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                           </div>
                         </div>
                       </div>
-                      
+
                       {/* Right side */}
                       <div className="flex flex-col items-end gap-4">
                         {/* Create Event + Hamburger */}
                         <div className="flex items-center gap-3">
-                          <button onClick={handleCreateEvent} 
+                          <button onClick={handleCreateEvent}
                             disabled={loading}
                             className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 ${
                               isDark ? 'text-white' : 'text-gray-800'
@@ -912,10 +924,10 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                           </button>
                           <HamburgerMenu isDesktop />
                         </div>
-                        
+
                         {/* Stats */}
 <div
-  className={`w-[457px] h-[161px] flex justify-between items-center 
+  className={`w-[457px] h-[161px] flex justify-between items-center
   rounded-[24px] px-[39px] pr-[42px] py-[25px]
   transition-all duration-300 ${theme.cardBg}`}
   style={{
@@ -964,7 +976,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
 <div className={`rounded-2xl md:rounded-3xl p-3 md:p-4 lg:p-6 ${theme.cardBg} nest-hub-card transition-all duration-300 w-full overflow-hidden`} style={{ boxShadow: theme.cardShadow }}>
   <div className="flex items-center gap-4 mb-2 md:mb-0">
     <h2 className={`text-lg font-semibold ${theme.text}`}>My groups</h2>
-    
+
     {/* Mobile: Horizontal scroll */}
     <div className="md:hidden flex gap-2 overflow-x-auto scrollbar-hide pb-1 flex-1">
       {groupsLoading ? (
@@ -975,7 +987,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
             <div key={group._id || idx} className="flex flex-col items-center flex-shrink-0">
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center" style={{ boxShadow: theme.smallCardShadow }}>
                 {group.image ? (
-                  <img 
+                  <img
                     src={group.image}
                     alt={group.name || group.groupName}
                     className="w-11 h-11 rounded-full object-cover"
@@ -992,11 +1004,11 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
             </div>
           ))}
           <div className="flex flex-col items-center flex-shrink-0">
-            <button 
+            <button
               onClick={() => navigate("/ticket/create-group")}
               className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
                 isDark ? "border-gray-600" : "border-gray-400"
-              }`} 
+              }`}
               style={{ boxShadow: theme.smallCardShadow }}
             >
               <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
@@ -1017,7 +1029,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
             <div key={group._id || idx} className="flex flex-col items-center">
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center" style={{ boxShadow: theme.smallCardShadow }}>
                 {group.image ? (
-                  <img 
+                  <img
                     src={group.image}
                     alt={group.name || group.groupName}
                     className="w-11 h-11 rounded-full object-cover"
@@ -1035,11 +1047,11 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
           ))}
           {/* Plus Button */}
           <div className="flex flex-col items-center">
-            <button 
+            <button
               onClick={() => navigate("/ticket/create-group")}
               className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
                 isDark ? "border-gray-600" : "border-gray-400"
-              }`} 
+              }`}
               style={{ boxShadow: theme.smallCardShadow }}
             >
               <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
@@ -1095,7 +1107,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
              <div className="flex flex-col">
                <div className="relative mb-4">
                  <img
-                   src={suggestedUser.image? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}`: ProfileImage}
+                   src={getImageUrl(suggestedUser.image, 'auth') || ProfileImage}
                    alt={suggestedUser.name}
                    className="w-full h-[160px] object-cover rounded-2xl"
                  />
@@ -1122,7 +1134,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                    <span className={`text-sm font-medium ${theme.text}`}>{eventCountsMap[suggestedUser._id || suggestedUser.id] || 0}</span>
                  </div>
                </div>
-                <button 
+                <button
                 onClick={(e) => {
                 e.stopPropagation();
                 handleSuggestionFollowToggle(suggestedUser._id || suggestedUser.id);
@@ -1176,7 +1188,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
            <div className="flex flex-col">
              <div className="relative mb-3">
                <img
-                 src={suggestedUser.image? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}`: ProfileImage}
+                 src={getImageUrl(suggestedUser.image, 'auth') || ProfileImage}
                  alt={suggestedUser.name}
                  className="w-full h-[100px] object-cover rounded-xl"
                />
@@ -1203,7 +1215,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                  <span className={`text-xs font-medium ${theme.text}`}>{eventCountsMap[suggestedUser._id || suggestedUser.id] || 0}</span>
                </div>
              </div>
-            <button 
+            <button
               onClick={(e) => {
                 e.stopPropagation();
                 handleSuggestionFollowToggle(suggestedUser._id || suggestedUser.id);
@@ -1240,7 +1252,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
   {/* Tabs */}
   <div className="flex items-center justify-between mb-4 md:mb-6 px-2 md:px-4">
    {/* Mobile Tabs */}
-<div 
+<div
   className="flex md:hidden items-center rounded-2xl transition-shadow duration-200"
   style={{
     backgroundColor: isDark ? "#212426" : "#ffffff",
@@ -1332,7 +1344,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
         </span>
       </div>
 
-      <div 
+      <div
         className={`flex items-center gap-2 cursor-pointer mx-auto p-3 rounded-xl transition-all duration-200 ${
           activeTab === 'live' ? '' : 'opacity-60'
         }`}
@@ -1354,7 +1366,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
         </span>
       </div>
 
-      <div 
+      <div
         className={`flex items-center gap-2 cursor-pointer -mr-2 p-4 rounded-xl transition-all duration-200 ${
           activeTab === 'past' ? '' : 'opacity-60'
         }`}
@@ -1387,8 +1399,8 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
     /* Empty State */
     <div className="flex flex-col items-center justify-center py-16 md:py-24">
       <h3 className={`text-xl font-medium ${theme.text} mb-4`}>
-        {activeTab === 'all' ? 'Create your first Event' : 
-         activeTab === 'live' ? 'No live events yet' : 
+        {activeTab === 'all' ? 'Create your first Event' :
+         activeTab === 'live' ? 'No live events yet' :
          'No past events yet'}
       </h3>
       {activeTab === 'all' && (
@@ -1539,7 +1551,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
             </div>
 
             {/* Event Info */}
-            <div 
+            <div
               className="flex flex-col flex-1 p-2 justify-between cursor-pointer"
               onClick={() => handleViewEvent(event._id)}
             >
@@ -1609,7 +1621,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
         <GroupSelectionModal />
       </div>
       <div >
-      <BottomNavigation 
+      <BottomNavigation
         theme={theme}
         user={user}
       />
