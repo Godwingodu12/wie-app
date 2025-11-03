@@ -6,6 +6,10 @@ const userSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    username: {
+      type: String,
+      trim: true,
+    },
     email: {
       type: String,
       required: true,
@@ -14,6 +18,14 @@ const userSchema = new mongoose.Schema(
     contact_no: {
       type: String,
       required: true,
+    },
+    country_code: {
+      type: String,
+      default: '+91',
+    },
+    country_iso2: {
+      type: String,
+      default: 'in',
     },
     organisation_type: {
       type: String,
@@ -152,6 +164,14 @@ userSchema.index(
     unique: true, 
     partialFilterExpression: { status: 'active' },
     name: 'contact_no_unique_active'
+  }
+);
+userSchema.index(
+  { username: 1 }, 
+  { 
+    unique: true, 
+    partialFilterExpression: { status: 'active', username: { $exists: true, $ne: '' } },
+    name: 'username_unique_active'
   }
 );
 const User = mongoose.model('User', userSchema);
