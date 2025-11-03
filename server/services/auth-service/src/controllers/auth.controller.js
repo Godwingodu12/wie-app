@@ -1,8 +1,12 @@
 import User from "../models/user.model.js";
 import Follow from "../models/follow.model.js";
 import { hashPassword, comparePassword } from "../utils/hash.js";
+import upload, { uploadToCloudinary, deleteFromCloudinary } from "../middlewares/upload.js";
 const validatePassword = (password) => {
   return password && password.length >= 6;
+};
+const validateName = (name) => {
+  return name && name.trim().length >= 2;
 };
 export const followUser = async (req, res) => {
   try {
@@ -549,6 +553,109 @@ export const changePassword = async (req, res) => {
     console.error("Change password error:", error);
     return res.status(500).json({ 
       message: "Failed to change password. Please try again later." 
+    });
+  }
+};
+export const personalDetails = async(req, res) => {
+  try {
+    await new Promise((resolve, reject) => {
+      upload.fields([
+        { name: 'image', maxCount: 1 },
+      ])(req, res, (err) => {
+        if (err) return reject(err);
+        return resolve();
+      });
+    });
+
+    const UserId = req.user._id || req.user.id || req.user.userId;
+    if (!UserId) {
+      return res.status(401).json({ 
+        message: "Authentication required. Please login again." 
+      });
+    }
+    const user = await User.findOne({ _id: UserId, status: 'active'}).select('-password');
+    if (!user) {
+      return res.status(404).json({ 
+        message: "User not found" 
+      });
+    }
+
+    const originalValues = {
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      secondary_email: user.secondary_email,
+      contact_no: user.contact_no,
+      country_code: user.country_code,
+      country_iso2: user.country_iso2,
+      address: user.address,
+      image: user.image,
+    };
+
+    if (req.body.name !== undefined) {
+      if (req.body.name.trim() && validateName(req.body.name)) {
+        user.name = req.body.name.trim();
+      } else if (req.body.name.trim() === '') {
+        user.name = originalValues.name;
+      }
+    }
+    if(req.body.username !== undefined){
+      if (req.body.username.trim() && validateName(req.body.username)) {
+        user.username = req.body.username.trim();
+      } else if (req.body.username.trim() === '') {
+        user.username = originalValues.username;
+      }
+    }
+
+    if (req.body.email) user.email = req.body.email;
+    if (req.body.secondary_email) user.secondary_email = req.body.secondary_email;
+    if (req.body.contact_no) user.contact_no = req.body.contact_no;
+    if (req.body.country_code) user.country_code = req.body.country_code;
+    if (req.body.country_iso2) user.country_iso2 = req.body.country_iso2;
+    if (req.body.address) user.address = req.body.address;
+    
+    if (req.files && req.files.image && req.files.image[0]) {
+      try {
+        const imageFile = req.files.image[0];
+        const uploadResult = await uploadToCloudinary(imageFile.buffer, {
+          folder: 'WIE_AUTH/profile_images',
+          transformation: [
+            { width: 500, height: 500, crop: 'limit' },
+            { quality: 'auto:good' },
+            { fetch_format: 'auto' }
+          ]
+        });
+        
+        if (originalValues.image && originalValues.image.includes('cloudinary.com')) {
+          try {
+            await deleteFromCloudinary(originalValues.image);
+            console.log('✅ Old profile image deleted from Cloudinary');
+          } catch (deleteError) {
+            console.warn('⚠️ Failed to delete old image:', deleteError.message);
+          }
+        }
+        user.image = uploadResult.url;
+      } catch (uploadError) {
+        console.error('❌ Error uploading image to Cloudinary:', uploadError);
+        throw new Error(`Image upload failed: ${uploadError.message}`);
+      }
+    }
+    await user.save();
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    if (user.role === 'admin') {
+      delete userResponse.organisation_type;
+    }
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      user: userResponse
+    });
+  } catch (error) {
+    console.error('Error in personalDetails:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to update profile"
     });
   }
 };

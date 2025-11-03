@@ -2,8 +2,6 @@ import React, { useEffect } from 'react';
 
 // Internal Icon components - no need for separate files
 
-
-
 const SuccessIcon = ({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
         <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.71 12.29l-3.59-3.59L8.11 9.3l2.18 2.18 5.59-5.59L17.29 7.3l-7 7z" />
@@ -16,7 +14,8 @@ const ErrorIcon = ({ className }) => (
     </svg>
 );
 
-const Alert = ({ alert, onClose }) => {
+// Added new 'darkMode' prop
+const Alert = ({ alert, onClose, darkMode = true }) => { 
     // Auto-hide the alert after 5 seconds
     useEffect(() => {
         if (alert) {
@@ -37,11 +36,29 @@ const Alert = ({ alert, onClose }) => {
     const baseClasses = "fixed top-5 left-1/2 -translate-x-1/2 w-11/12 max-w-md p-4 rounded-xl shadow-lg border flex items-center gap-4 z-[100] transition-all duration-300";
     const visibilityClasses = show ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10 pointer-events-none";
 
-    const themeClasses = isSuccess
-        ? "bg-gradient-to-r from-green-500/20 to-gray-800/10 border-green-500/30 text-white"
-        : "bg-gradient-to-r from-red-500/20 to-gray-800/10 border-red-500/30 text-white";
-        
-    const iconClasses = isSuccess ? "text-green-400" : "text-red-400";
+    let themeClasses, descriptionColor, closeButtonColor;
+    
+    // Conditional styling based on the darkMode prop
+    if (darkMode) {
+        themeClasses = isSuccess
+            ? "bg-gradient-to-r from-green-500/20 to-gray-800/10 border-green-500/30 text-white"
+            : "bg-gradient-to-r from-red-500/20 to-gray-800/10 border-red-500/30 text-white";
+        descriptionColor = "text-gray-300";
+        closeButtonColor = "text-gray-400 hover:text-white";
+    } else {
+        // Light Mode Styles
+        themeClasses = isSuccess
+            ? "bg-gradient-to-r from-green-500/10 to-white/90 border-green-600/50 text-gray-900"
+            : "bg-gradient-to-r from-red-500/10 to-white/90 border-red-600/50 text-gray-900";
+        descriptionColor = "text-gray-600";
+        closeButtonColor = "text-gray-600 hover:text-gray-900";
+    }
+
+    // Icon color is now separate and theme-aware (darker for light mode, lighter for dark mode implied by context)
+    const iconClasses = isSuccess 
+        ? darkMode ? "text-green-400" : "text-green-600"
+        : darkMode ? "text-red-400" : "text-red-600";
+
 
     return (
         <div className={`${baseClasses} ${visibilityClasses} ${themeClasses}`}>
@@ -50,15 +67,10 @@ const Alert = ({ alert, onClose }) => {
             </div>
             <div className="flex-grow">
                 <p className="font-bold">{message}</p>
-                {description && <p className="text-sm text-gray-300">{description}</p>}
+                {description && <p className={`text-sm ${descriptionColor}`}>{description}</p>}
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
+            <button onClick={onClose} className={`text-2xl font-bold ${closeButtonColor}`}>&times;</button>
         </div>
     );
 };
-
-
-
 export default Alert;
-
-

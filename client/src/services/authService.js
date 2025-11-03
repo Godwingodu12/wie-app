@@ -175,3 +175,13 @@ export const changePassword = async (data) => {
     throw err;
   }
 };
+export const personalDetails = async (data) => {
+  try {
+    const response = await api.post(`/auth/personal-details`, data);
+    return response.data;
+  }
+  catch (error) {
+    console.error('personalDetails error in Backend:', error);
+    throw error;
+  }
+};
