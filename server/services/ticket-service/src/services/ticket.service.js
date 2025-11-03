@@ -1673,17 +1673,19 @@ export const createTicketBasicInfo = async (req, res) => {
 export const updateTicketMedia = async (req, res) => {
   try {
     // Enhanced logging for debugging
-    console.log('Starting ticket media update process...');
-    console.log('Request params:', req.params);
-    console.log('User info:', { 
+    console.log('🚀 Starting ticket media update process...');
+    console.log('📋 Request params:', req.params);
+    console.log('👤 User info:', { 
       role: req.user?.role, 
       organisation_type: req.user?.organisation_type,
       id: req.user?._id || req.user?.id 
     });
+
+    // Handle file upload with multer
     await new Promise((resolve, reject) => {
       uploadTicketMedia(req, res, (err) => {
         if (err) {
-          console.error("Multer error details:", {
+          console.error("❌ Multer error details:", {
             message: err.message,
             code: err.code,
             field: err.field,
@@ -1694,6 +1696,8 @@ export const updateTicketMedia = async (req, res) => {
         resolve();
       });
     });
+
+    // Validate ticket ID
     const ticketId = req.params.ticketId;
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({ 
@@ -1701,58 +1705,65 @@ export const updateTicketMedia = async (req, res) => {
         ticketId: ticketId
       });
     }
-    console.log('Uploading files to Cloudinary...');
+
+    // Upload files to Cloudinary
+    console.log('☁️ Uploading files to Cloudinary...');
     const uploadedFiles = await processFileUploads(req.files || {});
-    console.log('Cloudinary upload completed:', Object.keys(uploadedFiles));
-    const event_logo = uploadedFiles.event_logo ? [{ path: uploadedFiles.event_logo }] : [];
-    const event_banner = uploadedFiles.event_banner ? [{ path: uploadedFiles.event_banner }] : [];
-    const college_authorisation = uploadedFiles.college_authorisation ? [{ path: uploadedFiles.college_authorisation }] : [];
-    const event_images = uploadedFiles.event_images || [];
-    // Log file counts for debugging
-    console.log('File counts:', {
-      event_logo: event_logo.length,
-      event_banner: event_banner.length,
-      event_images: event_images.length,
-      college_authorisation: college_authorisation.length
+    console.log('✅ Cloudinary upload completed:', {
+      files: Object.keys(uploadedFiles),
+      event_logo: uploadedFiles.event_logo,
+      event_banner: uploadedFiles.event_banner,
+      college_authorisation: uploadedFiles.college_authorisation
     });
+
+    // Extract URLs directly - these are already complete Cloudinary URLs
+    const eventLogoUrl = uploadedFiles.event_logo || null;
+    const eventBannerUrl = uploadedFiles.event_banner || null;
+    const collegeAuthorisationUrl = uploadedFiles.college_authorisation || null;
+    const event_images = uploadedFiles.event_images || [];
+
+    // Log extracted URLs for debugging
+    console.log('📸 Extracted URLs:', {
+      event_logo: eventLogoUrl,
+      event_banner: eventBannerUrl,
+      college_authorisation: collegeAuthorisationUrl,
+      event_images_count: event_images.length
+    });
+
     // Get organization_type - Enhanced validation
     const userRole = req.user?.role;
     let organisation_type = null;
     
     if (userRole === 'organisation') {
       organisation_type = req.user?.organisation_type;
-      console.log('Organization type detected:', organisation_type);
+      console.log('🏢 Organization type detected:', organisation_type);
       
       // College authorization validation for educational organizations
       if (organisation_type && organisation_type.toLowerCase() === 'educational') {
-        console.log('Educational organization detected, checking college authorization...');
+        console.log('🎓 Educational organization detected, checking college authorization...');
         
-        if (college_authorisation.length === 0) {
-          console.error('Missing college authorization for educational organization');
-          return res.status(400).json({
-            message: "College authorization file is required for educational organizations",
-            required_field: "college_authorisation",
-            organization_type: organisation_type
-          });
+        if (!collegeAuthorisationUrl) {
+          // Check if existing ticket has college authorization
+          const existingTicket = await Ticket.findById(ticketId);
+          if (!existingTicket?.college_authorisation) {
+            console.error('❌ Missing college authorization for educational organization');
+            return res.status(400).json({
+              message: "College authorization file is required for educational organizations",
+              required_field: "college_authorisation",
+              organization_type: organisation_type
+            });
+          }
+        } else {
+          console.log('✅ College authorization uploaded to Cloudinary:', collegeAuthorisationUrl);
         }
-        // Validate college authorization file type (should be document)
-        const docExtensions = ['.pdf', '.doc', '.docx'];
-        const authFile = college_authorisation[0];
-        if (!authFile || !authFile.path) {
-          return res.status(400).json({
-          message: "Invalid college authorization file",
-          error: "File missing or corrupted"
-        });
-      }
-      console.log('College authorization uploaded to Cloudinary:', authFile.path);
-      console.log('College authorization validation passed');
       }
     } else {
-      console.log('User role is not organization:', userRole);
+      console.log('👤 User role is not organization:', userRole);
     }
 
-    const hasNewMediaFiles = event_logo.length > 0 || event_banner.length > 0 || event_images.length > 0;
-    const hasNewCollegeAuth = college_authorisation.length > 0;
+    // Check if any new media files were uploaded
+    const hasNewMediaFiles = !!eventLogoUrl || !!eventBannerUrl || event_images.length > 0;
+    const hasNewCollegeAuth = !!collegeAuthorisationUrl;
 
     if (!hasNewMediaFiles && !hasNewCollegeAuth) {
       const existingTicket = await Ticket.findById(ticketId);
@@ -1763,20 +1774,22 @@ export const updateTicketMedia = async (req, res) => {
         });
       }
 
+      // Check if event banner exists (required)
       if (!existingTicket.event_banner) {
         return res.status(400).json({ 
           message: "Event banner is required to proceed",
-          uploaded_files: {
-            event_logo: event_logo.length,
-            event_banner: event_banner.length,
-            event_images: event_images.length
+          current_status: {
+            has_event_logo: !!existingTicket.event_logo,
+            has_event_banner: !!existingTicket.event_banner,
+            event_images_count: existingTicket.event_images?.length || 0
           }
         });
       }
 
+      // Check college authorization for educational organizations
       if (organisation_type && organisation_type.toLowerCase() === 'educational' && 
           !existingTicket.college_authorisation) {
-        console.error('College authorization is required for educational organizations but not found');
+        console.error('❌ College authorization is required for educational organizations but not found');
         return res.status(400).json({ 
           message: "College authorization file is required for educational organizations",
           required_field: "college_authorisation",
@@ -1784,35 +1797,28 @@ export const updateTicketMedia = async (req, res) => {
         });
       }
       
-      console.log('Existing media found and validated, updating progress only');
+      console.log('✅ Existing media found and validated, updating progress only');
       const userId = req.user._id || req.user.id;
-      const updateData = {
-        'form_progress.media': true,
-        updated_by: userId,
-        updated_at: new Date()
-      };
-      
-      // If only college auth is being added to existing media
-      if (hasNewCollegeAuth) {
-        updateData.college_authorisation = college_authorisation[0].path;
-        console.log('Adding college authorization to existing media:', college_authorisation[0].path);
-      }
       
       const updatedTicket = await Ticket.findOneAndUpdate(
         { _id: ticketId },
-        updateData,
+        {
+          'form_progress.media': true,
+          updated_by: userId,
+          updated_at: new Date()
+        },
         { new: true, runValidators: true }
       );
       
       return res.status(200).json({ 
-        message: hasNewCollegeAuth ? "College authorization added successfully" : "Media step completed (no new files uploaded)", 
+        message: "Media step completed (no new files uploaded)", 
         ticket: updatedTicket,
         ticketId: ticketId,
         note: "Existing media retained"
       });
     }
 
-    console.log('All validations passed, preparing update data...');
+    console.log('✅ All validations passed, preparing update data...');
 
     const userId = req.user._id || req.user.id;
     const updateData = {
@@ -1821,15 +1827,15 @@ export const updateTicketMedia = async (req, res) => {
       updated_at: new Date()
     };
 
-    // Process uploaded files
-    if (event_logo.length > 0) {
-      updateData.event_logo = event_logo[0].path;
-      console.log('Event logo updated:', event_logo[0].path);
+    // Process uploaded files - Use the URLs directly
+    if (eventLogoUrl) {
+      updateData.event_logo = eventLogoUrl;
+      console.log('✅ Event logo will be updated to:', eventLogoUrl);
     }
 
-    if (event_banner.length > 0) {
-      updateData.event_banner = event_banner[0].path;
-      console.log('Event banner updated:', event_banner[0].path);
+    if (eventBannerUrl) {
+      updateData.event_banner = eventBannerUrl;
+      console.log('✅ Event banner will be updated to:', eventBannerUrl);
     }
 
     // Process event_images with append logic
@@ -1841,6 +1847,19 @@ export const updateTicketMedia = async (req, res) => {
       // Check total count (existing + new)
       const totalImageCount = existingImages.length + event_images.length;
       if (totalImageCount > 10) {
+        // Cleanup uploaded files before returning error
+        const filesToDelete = [];
+        if (eventLogoUrl) filesToDelete.push(eventLogoUrl);
+        if (eventBannerUrl) filesToDelete.push(eventBannerUrl);
+        if (collegeAuthorisationUrl) filesToDelete.push(collegeAuthorisationUrl);
+        event_images.forEach(img => filesToDelete.push(img.path));
+        
+        await Promise.all(filesToDelete.map(url => 
+          deleteFromCloudinary(url).catch(err => 
+            console.error('Cleanup error:', err.message)
+          )
+        ));
+        
         return res.status(400).json({ 
           message: `Cannot add ${event_images.length} new files. Maximum 10 files allowed (currently have ${existingImages.length})`,
           uploaded_count: event_images.length,
@@ -1848,21 +1867,37 @@ export const updateTicketMedia = async (req, res) => {
           max_allowed: 10
         });
       }
-      const videoExtensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
+      
+      // Validate video count
+      const videoExtensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv'];
       const existingVideoCount = existingImages.filter(img => {
         if (!img.mimeType && !img.originalName) return false;
         if (img.mimeType && img.mimeType.startsWith('video/')) return true;
         const ext = '.' + (img.originalName || '').toLowerCase().split('.').pop();
         return videoExtensions.includes(ext);
       }).length;
+      
       const newVideoCount = event_images.filter(file => {
         if (!file.mimeType) return false;
-          return file.mimeType.startsWith('video/');
+        return file.mimeType.startsWith('video/');
       }).length;
       
       const totalVideoCount = existingVideoCount + newVideoCount;
       
       if (totalVideoCount > 1) {
+        // Cleanup uploaded files before returning error
+        const filesToDelete = [];
+        if (eventLogoUrl) filesToDelete.push(eventLogoUrl);
+        if (eventBannerUrl) filesToDelete.push(eventBannerUrl);
+        if (collegeAuthorisationUrl) filesToDelete.push(collegeAuthorisationUrl);
+        event_images.forEach(img => filesToDelete.push(img.path));
+        
+        await Promise.all(filesToDelete.map(url => 
+          deleteFromCloudinary(url).catch(err => 
+            console.error('Cleanup error:', err.message)
+          )
+        ));
+        
         return res.status(400).json({ 
           message: `Maximum 1 video allowed. You already have ${existingVideoCount} video(s)`,
           existing_videos: existingVideoCount,
@@ -1870,7 +1905,8 @@ export const updateTicketMedia = async (req, res) => {
           max_videos_allowed: 1
         });
       }
-      // Append new images to existing ones (already in correct format from Cloudinary)
+      
+      // Append new images to existing ones
       const newImages = event_images.map(file => ({
         path: file.path,
         originalName: file.originalName,
@@ -1880,17 +1916,27 @@ export const updateTicketMedia = async (req, res) => {
         resource_type: file.resource_type,
         uploadedAt: new Date()
       }));
+      
       updateData.event_images = [...existingImages, ...newImages];
-      console.log('Event images updated:', existingImages.length, 'existing +', event_images.length, 'new =', updateData.event_images.length, 'total');
+      console.log('✅ Event images will be updated:', existingImages.length, 'existing +', event_images.length, 'new =', updateData.event_images.length, 'total');
     }
 
     // Add college authorization file if uploaded
-    if (college_authorisation.length > 0) {
-      updateData.college_authorisation = college_authorisation[0].path;
-      console.log('College authorization updated:', college_authorisation[0].path);
+    if (collegeAuthorisationUrl) {
+      updateData.college_authorisation = collegeAuthorisationUrl;
+      console.log('✅ College authorization will be updated to:', collegeAuthorisationUrl);
     }
 
-    console.log('Updating ticket in database...');
+    console.log('📝 Final update data:', {
+      has_event_logo: !!updateData.event_logo,
+      has_event_banner: !!updateData.event_banner,
+      has_college_auth: !!updateData.college_authorisation,
+      event_images_count: updateData.event_images?.length,
+      event_logo_url: updateData.event_logo,
+      event_banner_url: updateData.event_banner
+    });
+
+    console.log('💾 Updating ticket in database...');
 
     // Find and update the ticket
     const updatedTicket = await Ticket.findOneAndUpdate(
@@ -1900,49 +1946,79 @@ export const updateTicketMedia = async (req, res) => {
     );
 
     if (!updatedTicket) {
-      console.error('Ticket not found:', ticketId);
-      return res.status(404).json({ 
-        message: "Ticket not found or unauthorized",
-        ticketId: ticketId
-      });
-    }
-
-    console.log('Ticket updated successfully');
-
-    res.status(200).json({ 
-      message: "Ticket media updated successfully", 
-      ticket: updatedTicket,
-      ticketId: ticketId,
-      uploadedFiles: {
-        event_logo: event_logo.length,
-        event_banner: event_banner.length,
-        event_images: event_images.length,
-        college_authorisation: college_authorisation.length > 0 ? college_authorisation.length : 'Not applicable'
-      },
-      organisationType: organisation_type || 'Not specified',
-      totalEventImages: updatedTicket.event_images?.length || 0
-    });
-    // Cleanup: Delete uploaded files from Cloudinary if update fails
-    if (uploadedFiles) {
+      console.error('❌ Ticket not found:', ticketId);
+      
+      // Cleanup uploaded files
       const filesToDelete = [];
-      if (uploadedFiles.event_logo) filesToDelete.push(uploadedFiles.event_logo);
-      if (uploadedFiles.event_banner) filesToDelete.push(uploadedFiles.event_banner);
-      if (uploadedFiles.college_authorisation) filesToDelete.push(uploadedFiles.college_authorisation);
-      if (uploadedFiles.event_images) {
-        uploadedFiles.event_images.forEach(img => filesToDelete.push(img.path));
+      if (eventLogoUrl) filesToDelete.push(eventLogoUrl);
+      if (eventBannerUrl) filesToDelete.push(eventBannerUrl);
+      if (collegeAuthorisationUrl) filesToDelete.push(collegeAuthorisationUrl);
+      if (event_images && event_images.length > 0) {
+        event_images.forEach(img => filesToDelete.push(img.path));
       }
+      
       if (filesToDelete.length > 0) {
-        console.log('Cleaning up uploaded files due to error...');
         await Promise.all(filesToDelete.map(url => 
           deleteFromCloudinary(url).catch(err => 
             console.error('Cleanup error:', err.message)
           )
         ));
       }
+      
+      return res.status(404).json({ 
+        message: "Ticket not found or unauthorized",
+        ticketId: ticketId
+      });
     }
-  }
-   catch (error) {
-    console.error("Error updating ticket media:", error);    
+
+    console.log('✅ Ticket updated successfully');
+
+    res.status(200).json({ 
+      message: "Ticket media updated successfully", 
+      ticket: updatedTicket,
+      ticketId: ticketId,
+      uploadedFiles: {
+        event_logo: !!eventLogoUrl,
+        event_banner: !!eventBannerUrl,
+        event_images: event_images.length,
+        college_authorisation: !!collegeAuthorisationUrl
+      },
+      uploadedUrls: {
+        event_logo: eventLogoUrl,
+        event_banner: eventBannerUrl,
+        college_authorisation: collegeAuthorisationUrl
+      },
+      organisationType: organisation_type || 'Not specified',
+      totalEventImages: updatedTicket.event_images?.length || 0
+    });
+
+  } catch (error) {
+    console.error("❌ Error updating ticket media:", error);
+    
+    // Cleanup: Delete uploaded files from Cloudinary if update fails
+    try {
+      const filesToDelete = [];
+      
+      // Check if variables are defined in this scope
+      if (typeof eventLogoUrl !== 'undefined' && eventLogoUrl) filesToDelete.push(eventLogoUrl);
+      if (typeof eventBannerUrl !== 'undefined' && eventBannerUrl) filesToDelete.push(eventBannerUrl);
+      if (typeof collegeAuthorisationUrl !== 'undefined' && collegeAuthorisationUrl) filesToDelete.push(collegeAuthorisationUrl);
+      if (typeof event_images !== 'undefined' && event_images && event_images.length > 0) {
+        event_images.forEach(img => filesToDelete.push(img.path));
+      }
+      
+      if (filesToDelete.length > 0) {
+        console.log('🧹 Cleaning up uploaded files due to error...');
+        await Promise.all(filesToDelete.map(url => 
+          deleteFromCloudinary(url).catch(err => 
+            console.error('Cleanup error:', err.message)
+          )
+        ));
+      }
+    } catch (cleanupError) {
+      console.error('❌ Error during cleanup:', cleanupError);
+    }
+    
     // Handle multer errors
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ 
@@ -1971,6 +2047,7 @@ export const updateTicketMedia = async (req, res) => {
         error_code: 'INVALID_FILE_TYPE'
       });
     }
+
     // Handle multer field errors
     if (error.code === 'LIMIT_UNEXPECTED_FILE') {
       return res.status(400).json({
@@ -2014,13 +2091,6 @@ export const updateTicketMedia = async (req, res) => {
         error_code: 'DATABASE_ERROR'
       });
     }
-    // Generic server error
-    res.status(500).json({ 
-      message: "Internal server error", 
-      error: error.message,
-      error_code: 'INTERNAL_ERROR',
-      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
-    });
 
     // Generic server error
     res.status(500).json({ 
