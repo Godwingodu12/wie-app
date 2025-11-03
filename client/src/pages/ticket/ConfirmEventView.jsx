@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 
 import { ChevronRight, ChevronLeft, X, Phone, Play } from "lucide-react";
-
+import { getImageUrl, getTicketImageUrl } from "../../utils/imageUtils";
 import Event_Days from "../../assets/ViewSingleEvent/Event_Days.svg";
 import Globe from "../../assets/ViewSingleEvent/Globe.svg";
 import Private from "../../assets/ViewSingleEvent/Private.svg";
@@ -19,6 +19,11 @@ import NoGuide from "../../assets/ViewSingleEvent/NoGuide.svg";
 import GuideVector from "../../assets/ViewSingleEvent/GuideVector.svg";
 import Rules from "../../assets/ViewSingleEvent/Rules.svg";
 
+import LeftIcon from "../../assets/ViewSingleEvent/LeftIcon.svg";
+import RightIcon from "../../assets/ViewSingleEvent/RightIcon.svg";
+
+import Bank_Details from "../../assets/ViewSingleEvent/Bank_Details.svg";
+
 import {
   getTicketById,
   getGroupView,
@@ -30,11 +35,9 @@ import Card from "../../components/ViewSingleEvent/Card";
 import getFullBankingDetails from "../../components/ViewSingleEvent/getFullBankingDetails";
 import getCarouselEvents from "../../components/ViewSingleEvent/getCarouselEvents";
 import getPreferences from "../../components/ViewSingleEvent/getPreferences";
-import formatImagePath from "../../components/ViewSingleEvent/formatImagePath";
 import formatCapacity from "../../components/ViewSingleEvent/formatCapacity";
 import InsetCard from "../../components/ViewSingleEvent/InsetCard";
 import FeatureButton from "../../components/ViewSingleEvent/FeatureButton";
-import RulesModal from "../../components/ViewSingleEvent/RulesModal";
 import LanguagePopover from "../../components/ViewSingleEvent/LanguagePopover";
 import ProhibitPopover from "../../components/ViewSingleEvent/ProhibitPopover";
 import PreferenceModal from "../../components/ViewSingleEvent/PreferenceModal";
@@ -49,6 +52,7 @@ import SeatingLayoutModal from "../../components/ViewSingleEvent/SeatingLayoutMo
 import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles";
 import ConfirmModal from "../../components/Modal";
 import Alert from "../../components/Alert";
+import RulesModal from "../../components/ViewSingleEvent/RulesModal";
 
 const darkTheme = {
   isDark: true,
@@ -59,6 +63,8 @@ const darkTheme = {
   shadowOutset: "7px 7px 14px #151515, -7px -7px 14px #2b2b2b",
   shadowInset: "inset 7px 7px 14px #151515, inset -7px -7px 14px #2b2b2b",
   textColor: "text-gray-300",
+  arrowBgClass: "bg-gray-700",
+  arrowColorClass: "text-white",
 };
 
 const lightTheme = {
@@ -70,12 +76,14 @@ const lightTheme = {
   shadowOutset: "5px 5px 10px #c5c5c5, -5px -5px 10px #fbfbfb",
   shadowInset: "inset 5px 5px 10px #c5c5c5, inset -5px -5px 10px #fbfbfb",
   textColor: "text-gray-700",
+  arrowBgClass: "bg-gray-800",
+  arrowColorClass: "text-gray-200",
 };
 
 const ConfirmEventView = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation(); 
+  const location = useLocation(); // <--- New hook usage
   const initialThemeIsDark = location.state?.initialThemeIsDark ?? true;
 
   const [theme, setTheme] = useState(
@@ -118,6 +126,8 @@ const ConfirmEventView = () => {
   const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
   const [appAlert, setAppAlert] = useState(null);
 
+  const [showRulesModal, setShowRulesModal] = useState(false);
+
   const groupId = eventData?.group_id || eventData?.groupId; // Derive groupId from fetched data
 
   const guidesToShow = viewportWidth >= 768 ? 3 : 1;
@@ -130,7 +140,63 @@ const ConfirmEventView = () => {
     setShowConfirmDeleteModal(true);
   };
 
-  // ADDED: New function to execute deletion after confirmation
+  const paymentSourceList = useMemo(() => {
+    if (!eventData) return [];
+    const sources = [];
+    sources.push({
+      name: eventData.event_name,
+      isPaid: eventData.payment_type === "paid",
+      isMain: true,
+    });
+    if (eventData.sub_events) {
+      eventData.sub_events.forEach((subEvent) => {
+        sources.push({
+          name: subEvent.event_name,
+          isPaid: subEvent.payment_type === "paid",
+          isMain: false,
+          subEvent, // Keeping the full sub-event object here for potential use
+        });
+      });
+    }
+    return sources;
+  }, [eventData]);
+
+  const allEventsForBankView = useMemo(() => {
+    if (!eventData) return [];
+
+    // Start with the Main Event
+    const events = [
+      {
+        name: eventData.event_name,
+        isPaid: eventData.payment_type === "paid",
+        isPrimary: true,
+        bankDetails:
+          eventData.banking_details || groupData?.banking_details || [], // Prioritize event bank, fallback to group
+      },
+    ];
+
+    // Add all Sub-Events
+    if (eventData.sub_events) {
+      eventData.sub_events.forEach((subEvent) => {
+        // Determine the bank details for the sub-event.
+        // It uses its own bank, OR the main event's bank (if group is not separate), OR the group bank.
+        const subEventBankDetails =
+          subEvent.banking_details ||
+          eventData.banking_details ||
+          groupData?.banking_details ||
+          [];
+
+        events.push({
+          name: subEvent.event_name,
+          isPaid: subEvent.payment_type === "paid",
+          isPrimary: false,
+          bankDetails: subEventBankDetails,
+        });
+      });
+    }
+    return events;
+  }, [eventData, groupData]);
+
   const handleConfirmDelete = async () => {
     setShowConfirmDeleteModal(false);
     if (!ticketId) return;
@@ -159,6 +225,39 @@ const ConfirmEventView = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const [currentEventBankIndex, setCurrentEventBankIndex] = useState(0);
+
+  const currentEventForBankView = useMemo(() => {
+    return allEventsForBankView[currentEventBankIndex] || {};
+  }, [allEventsForBankView, currentEventBankIndex]);
+
+  const currentBankDetailsList = useMemo(() => {
+    // This allows navigating multiple bank accounts *within* the selected event/sub-event
+    return currentEventForBankView.bankDetails || [];
+  }, [currentEventForBankView]);
+
+  const [currentBankDetailsIndex, setCurrentBankDetailsIndex] = useState(0);
+
+  const currentBankInfo = useMemo(() => {
+    return currentBankDetailsList[currentBankDetailsIndex] || {};
+  }, [currentBankDetailsList, currentBankDetailsIndex]);
+
+  const handlePrevEventForBankView = () => {
+    setCurrentEventBankIndex((prev) => {
+      const newIndex = prev === 0 ? allEventsForBankView.length - 1 : prev - 1;
+      setCurrentBankDetailsIndex(0); // Reset account index when changing event
+      return newIndex;
+    });
+  };
+
+  const handleNextEventForBankView = () => {
+    setCurrentEventBankIndex((prev) => {
+      const newIndex = prev === allEventsForBankView.length - 1 ? 0 : prev + 1;
+      setCurrentBankDetailsIndex(0); // Reset account index when changing event
+      return newIndex;
+    });
   };
 
   // ADDED: useEffect for responsiveness
@@ -218,21 +317,30 @@ const ConfirmEventView = () => {
     setActiveCarouselIndex((prev) => Math.min(maxIndex, prev + 1));
   };
 
-  const handlePlayClick = () => {
-    console.log("Play clicked, event_images:", eventData?.event_images);
-    if (eventData?.event_images?.length > 0) {
-      setCurrentImageIndex(0);
-      setShowImageModal(true);
-      console.log("showImageModal set to true");
-    } else {
-      setAppAlert({
-        message: "Information",
-        description: "No images or video available for preview.",
-        type: "error",
-        show: true,
-      });
-    }
-  };
+const handlePlayClick = () => {
+  console.log("Play clicked, event_images:", eventData?.event_images);
+  
+  // Check if event_images exists and has items
+  if (eventData?.event_images?.length > 0) {
+    // Map event_images to get the path from each object
+    const imagePaths = eventData.event_images.map(img => 
+      (img.path?.startsWith('http://') || img.path?.startsWith('https://')) 
+        ? img.path 
+        : getImageUrl(img.path, "ticket")
+    );
+    console.log("Processed image paths:", imagePaths);
+    
+    setCurrentImageIndex(0);
+    setShowImageModal(true);
+  } else {
+    setAppAlert({
+      message: "Information",
+      description: "No images or video available for preview.",
+      type: "error",
+      show: true,
+    });
+  }
+};
   // Inside ViewEvent component
 
   useEffect(() => {
@@ -344,7 +452,6 @@ const ConfirmEventView = () => {
 
         if (!data || !data.event_name)
           throw new Error("Event data is incomplete.");
-
         setEventData(data);
         setGroupData(fetchedGroupData);
       } catch (err) {
@@ -366,33 +473,14 @@ const ConfirmEventView = () => {
     }
   }, [eventData]);
 
-  const allBankingDetails = useMemo(
-    () => getFullBankingDetails(eventData, groupData),
-    [eventData, groupData]
-  );
-
-  const currentBankInfo = useMemo(() => {
-    return allBankingDetails[currentBankIndex] || {};
-  }, [allBankingDetails, currentBankIndex]);
-
   const eventPreferences = useMemo(() => {
     return getPreferences(eventData);
   }, [eventData]);
 
   const carouselEvents = useMemo(
-    () => getCarouselEvents(eventData, formatImagePath),
+    () => getCarouselEvents(eventData, (path) => getImageUrl(path, "ticket")),
     [eventData]
   );
-
-  const handleClosePreferenceModal = () => setShowPreferenceModal(false);
-
-  const rulesContent = useMemo(() => {
-    const rules = eventData?.event_rules;
-    if (rules && rules.type === "text" && rules.content) {
-      return rules.content;
-    }
-    return "Please maintain silence during the show. Mobile phones must be switched off. Photography, video recording, and outside food are strictly prohibited. Follow seat numbers and avoid blocking aisles. Respect performers and fellow audience members. Entry is not allowed after the show begins. Keep the theater clean and tidy.";
-  }, [eventData]);
 
   const eventStats = useMemo(() => {
     if (!eventData)
@@ -522,22 +610,6 @@ const ConfirmEventView = () => {
     );
   };
 
-  const handlePrevBank = () => {
-    const len = allBankingDetails.length || 0;
-    if (len <= 1) return;
-    setCurrentBankIndex((prevIndex) =>
-      prevIndex === 0 ? len - 1 : prevIndex - 1
-    );
-  };
-
-  const handleNextBank = () => {
-    const len = allBankingDetails.length || 0;
-    if (len <= 1) return;
-    setCurrentBankIndex((prevIndex) =>
-      prevIndex === len - 1 ? 0 : prevIndex + 1
-    );
-  };
-
   const handlePrevTicket = () => {
     setCurrentTicketIndex((prevIndex) => Math.max(0, prevIndex - 1));
   };
@@ -576,11 +648,13 @@ const ConfirmEventView = () => {
       prevIndex === 0 ? len - 1 : prevIndex - 1
     );
   };
-
-  const bannerImageUrl = formatImagePath(eventData.event_banner);
   const TypeIcon = eventData.event_type === "private" ? Private : Globe;
   const TypeLabel = eventData.event_type === "private" ? "Private" : "Public";
-
+  const bannerImageUrl = (() => {
+    const fallback = "https://via.placeholder.com/400x400?text=Event+Banner";
+    if (!eventData?.event_banner) return fallback;
+    return getTicketImageUrl(eventData.event_banner, fallback);
+  })();
   let LocationIcon;
   let LocationLabel;
 
@@ -611,11 +685,15 @@ const ConfirmEventView = () => {
         onConfirm={handleConfirmDelete}
         title="Confirm Deletion"
         message={`Are you sure you want to permanently delete event ID ${ticketId}? This action cannot be undone.`}
-        darkMode={theme.isDark} // Pass theme state
+        darkMode={theme.isDark}
       />
 
       {/* GLOBAL ALERT: Displays success/error messages */}
-      <Alert alert={appAlert} onClose={() => setAppAlert(null)} />
+      <Alert
+        alert={appAlert}
+        onClose={() => setAppAlert(null)}
+        darkMode={theme.isDark}
+      />
       <CustomScrollbarStyles isDark={theme} />
       <TopNavBar
         theme={theme}
@@ -648,8 +726,8 @@ const ConfirmEventView = () => {
           <ActionCircleButton
             theme={theme}
             type="edit"
-            ticketId={ticketId}
             groupId={groupId}
+            ticketId={ticketId}
             setAppalert={setAppAlert}
           />
           <ActionCircleButton
@@ -736,12 +814,16 @@ const ConfirmEventView = () => {
                     style={{ boxShadow: theme.shadowOutset }}
                   >
                     <img
-                      src={
-                        formatImagePath(eventData.event_logo) ||
-                        "https://upload.wikimedia.org/wikipedia/en/thumb/d/d3/Starbucks_Corporation_Logo.svg/1200px-Starbucks_Corporation_Logo.svg.png"
-                      }
+                      src={getTicketImageUrl(
+                        eventData.event_logo,
+                        "https://via.placeholder.com/150?text=Logo"
+                      )}
                       alt="Event Logo"
-                      className="w-full h-full rounded-full object-fit opacity-70 p-1"
+                      className="w-full h-full rounded-full object-cover opacity-70 p-1"
+                      onError={(e) => {
+                        console.error("Logo failed to load:", eventData.event_logo);
+                        e.target.src = "https://via.placeholder.com/150?text=Logo";
+                      }}
                     />
                   </div>
                 </div>
@@ -763,7 +845,7 @@ const ConfirmEventView = () => {
                   <div className="flex space-x-3 justify-around">
                     <Card
                       theme={theme}
-                      className={`p-2 py-6 my-2 flex flex-col items-center justify-center w-2/5 rounded-lg border ${
+                      className={`p-2 py-6 my-2 flex flex-col items-center justify-center w-2/5 rounded-3xl border ${
                         theme.isDark ? "border-gray-700" : "border-gray-400"
                       }`}
                     >
@@ -788,9 +870,9 @@ const ConfirmEventView = () => {
                         theme={theme}
                         className={`p-2 py-6 my-2 flex flex-col border ${
                           theme.isDark ? "border-gray-700" : "border-gray-300"
-                        } items-center justify-center w-2/5 rounded-lg relative overflow-hidden`}
+                        } items-center justify-center w-2/5 rounded-3xl  relative overflow-hidden`}
                       >
-                        <div className="absolute inset-y-0 left-0 flex items-center p-1">
+                        <div className="absolute inset-y-0 left-0 flex  items-center p-1">
                           <ChevronLeft
                             size={20}
                             className={`text-gray-400 cursor-pointer ${
@@ -857,7 +939,7 @@ const ConfirmEventView = () => {
                         theme={theme}
                         className={`p-2 py-6 my-2 flex flex-col border ${
                           theme.isDark ? "border-gray-700" : "border-gray-400"
-                        } items-center justify-center w-2/5 rounded-lg`}
+                        } items-center justify-center w-2/5 rounded-3xl`}
                       >
                         <img
                           src={Max_People}
@@ -877,27 +959,51 @@ const ConfirmEventView = () => {
                   </div>
                 </div>
               </div>
-              <div className="hidden  w-2/5 md:flex px-10 pt-10">
+              {/* Desktop logo */}
+              <div className="hidden w-2/5 md:flex lg:px-10 lg:pt-10 px-7 pt-7">
                 <div
-                  className="w-32 h-32 rounded-full overflow-hidden flex-shrink-0"
+                  className="lg:w-32 lg:h-32 h-28 w-28 rounded-full overflow-hidden flex-shrink-0"
                   style={{ boxShadow: theme.shadowOutset }}
                 >
                   <img
-                    src={
-                      formatImagePath(eventData.event_logo) ||
-                      "https://upload.wikimedia.org/wikipedia/en/thumb/d/d3/Starbucks_Corporation_Logo.svg/1200px-Starbucks_Corporation_Logo.svg.png"
-                    }
+                    src={getTicketImageUrl(
+                      eventData.event_logo,
+                      "https://via.placeholder.com/150?text=Logo"
+                    )}
                     alt="Event Logo"
-                    className="w-full h-full rounded-full object-fit opacity-70 p-1"
+                    className="w-full h-full rounded-full object-cover opacity-70 p-1"
+                    onError={(e) => {
+                      console.error("Logo failed to load:", eventData.event_logo);
+                      e.target.src = "https://via.placeholder.com/150?text=Logo";
+                    }}
+                  />
+                </div>
+              </div>
+              {/* Mobile logo */}
+              <div className="flex md:hidden pt-8">
+                <div
+                  className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0"
+                  style={{ boxShadow: theme.shadowOutset }}
+                >
+                  <img
+                    src={getTicketImageUrl(
+                      eventData.event_logo,
+                      "https://via.placeholder.com/150?text=Logo"
+                    )}
+                    alt="Event Logo"
+                    className="w-full h-full rounded-full object-cover opacity-70 p-1"
+                    onError={(e) => {
+                      console.error("Logo failed to load:", eventData.event_logo);
+                      e.target.src = "https://via.placeholder.com/150?text=Logo";
+                    }}
                   />
                 </div>
               </div>
             </div>
           </Card>
-
           <Card
             theme={theme}
-            className="p-6 flex flex-col relative overflow-hidden"
+            className="p-6 flex flex-col relative overflow-hidden "
             customStyle={{ borderTopRightRadius: "50px" }}
           >
             <svg
@@ -908,22 +1014,26 @@ const ConfirmEventView = () => {
               <path d="M 0,200 L 0,0 Q 0,200 200,200 Z" fill={theme.mainBg} />
             </svg>
 
-            <InsetCard theme={theme} className="md:p-3 md:mb-2 p-1 mb-1">
-              <Card theme={theme} className="md:p-3 p-1">
+            <InsetCard
+              theme={theme}
+              className="md:p-3 md:mb-2 p-1 mb-1  rounded-3xl"
+              style={{ boxShadow: theme.shadowInset }}
+            >
+              <Card theme={theme} className="md:p-1 p-1 rounded-3xl">
                 <div
                   onClick={handleLocationClick}
                   className="flex justify-between items-center md:space-x-3 space-x-1"
                 >
                   <div
-                    className="!p-0 relative md:w-24 md:h-24 w-10 h-10 rounded-lg overflow-hidden flex-shrink-0"
+                    className="!p-0 relative md:w-24 md:h-24 w-10 h-10 rounded-3xl overflow-hidden flex-shrink-0"
                     ref={mapRef}
                   >
                     {!eventData.exact_map_location?.latitude && (
-                      <div className="w-full h-full bg-gray-700 flex flex-col items-center justify-center text-xs text-gray-400 md:p-2">
+                      <div className="w-full h-full bg-gray-700 flex rounded-3xl flex-col items-center justify-center text-xs text-gray-400 md:p-1">
                         <img
                           src={Map_No_Loc}
                           alt="Map Not Available"
-                          className="bg-contain"
+                          className="bg-contain rounded-3xl"
                         />
                       </div>
                     )}
@@ -943,7 +1053,7 @@ const ConfirmEventView = () => {
                     </p>
                   </div>
                   <div className="md:w-[1px] h-10 bg-gray-700 md:mx-2 flex-shrink-0 hidden md:block"></div>
-                  <div className="text-right flex-shrink-0 pr-1 w-1/4 md:w-1/3">
+                  <div className="text-right flex-shrink-0 pr-1 md:pr-3  w-1/4 md:w-1/3">
                     <p className="text-xs text-gray-500 mb-1">Gate opens at</p>
                     <p
                       className={`md:text-xl text-sm md:font-bold ${theme.textColor}`}
@@ -1087,14 +1197,14 @@ const ConfirmEventView = () => {
                 </h3>
                 <div
                   style={insetBoxStyle}
-                  className={`p-4 ${theme.textColor} leading-relaxed my-4 text-sm  rounded-lg`}
+                  className={`p-4 ${theme.textColor}  leading-relaxed h-32  my-4 text-sm  rounded-3xl`}
                 >
-                  {eventData.event_description}
+                  No extra event is added
                 </div>
               </div>
             )}
-            <div className="flex items-end justify-end mb-0 w-4/5 mx-auto md:mx-0 md:ml-auto">
-              <Card theme={theme} className="w-full p-2  rounded-lg">
+            <div className="flex items-end h-full md:w-4/5 mx-auto md:mx-0 md:ml-auto">
+              <Card theme={theme} className="w-full p-2  rounded-3xl  ">
                 <div className="flex items-center h-12">
                   <div className="flex items-center pr-2">
                     <h3
@@ -1103,8 +1213,8 @@ const ConfirmEventView = () => {
                       Event hashtag
                     </h3>
                   </div>
-                  <div className="border-l-2 border-dotted border-gray-700 h-full mx-2"></div>
-                  <div className="flex-grow pl-2">
+                  <div className="border-l-2 border-dotted border-gray-700 h-full mx-1 overflow-y-auto custom-scrollbar"></div>
+                  <div className="flex pl-2 ">
                     {hashtags.length > 0 ? (
                       <div className="flex flex-wrap gap-1.5">
                         {hashtags.slice(0, 4).map((tag, index) => (
@@ -1130,7 +1240,7 @@ const ConfirmEventView = () => {
 
           <Card
             theme={theme}
-            className="p-4 flex items-center justify-start  space-x-1 xl:space-x-6  relative"
+            className="p-4 md:p-2 flex items-center justify-start  space-x-1 xl:space-x-6  relative"
             customStyle={{ overflow: "visible", zIndex: 30 }}
           >
             <svg
@@ -1140,31 +1250,36 @@ const ConfirmEventView = () => {
             >
               <path d="M 200,0 L 200,100 Q 200,0 0,0 Z" fill={theme.mainBg} />
             </svg>
-            <div className="w-full flex justify-between md:justify-start items-center px-6 md:px-0">
-              {/* This is the first item/group, containing Seat and Rules buttons */}
-              <div className="md:flex md:gap-x-4">
+            <div className="w-full flex md:gap-x-2 justify-between md:justify-start items-center px-6 md:px-0">
+              <div className="md:flex md:gap-x-2 space-y-4  md:space-y-0  ">
                 <FeatureButton
                   Icon={Seat}
                   label="Seat"
                   theme={theme}
-                  // MODIFIED: Only allow click if seatingEvents exist
                   onClick={() => {
                     if (seatingEvents.length > 0) {
                       setCurrentSeatingIndex(0); // Start at the first seating layout
                       setShowSeatingModal(true);
                     } else {
-                      alert(
-                        "No seating layout information is available for this event or its sub-events."
-                      );
+                      setAppAlert({
+                        message: "No seating layout",
+                        description:
+                          "Information is available for this event or its sub-events.",
+                        type: "error",
+                        show: true,
+                      });
                     }
                   }}
                 />
-                <FeatureButton Icon={Rules} label="Rules" theme={theme}>
-                  <RulesModal rules={rulesContent} theme={theme} />
-                </FeatureButton>
+                <FeatureButton
+                  Icon={Rules}
+                  label="Rules"
+                  theme={theme}
+                  onClick={() => setShowRulesModal(true)}
+                />
               </div>
 
-              <div className="md:flex md:gap-x-4">
+              <div className="md:flex md:gap-x-2 space-y-4  md:space-y-0">
                 <FeatureButton
                   Icon={Preference}
                   label="Preference"
@@ -1179,10 +1294,10 @@ const ConfirmEventView = () => {
                 </FeatureButton>
               </div>
             </div>
-            <div className="md:hidden">
+            <div className="md:hidden ">
               <Card
                 theme={theme}
-                className="group relative p-2 text-center w-24  flex-shrink-0 z-20 flex flex-col justify-center items-center h-24 cursor-pointer"
+                className="group relative p-2 text-center w-24 rounded-3xl  flex-shrink-0 z-20 flex flex-col justify-center items-center h-24 cursor-pointer"
               >
                 <div
                   className="w-12 h-12 rounded-full mx-auto mb-1  flex items-center justify-center"
@@ -1199,36 +1314,37 @@ const ConfirmEventView = () => {
               </Card>
             </div>
           </Card>
-          <div className="md:absolute md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:z-50 md:pointer-events-none">
+          <div className="md:absolute md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:z-30 md:pointer-events-none">
             <div
-              className="w-80 h-80 rounded-full relative"
+              className="xl:w-80 xl:h-80 w-72 h-72 rounded-full relative"
               style={{
                 boxShadow: theme.shadowInset,
                 backgroundColor: theme.insetBg,
               }}
             >
               <div
-                className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full overflow-hidden"
+                className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 xl:w-64 xl:h-64 h-60 w-60 rounded-full overflow-hidden"
                 style={{ boxShadow: theme.shadowOutset }}
               >
                 <img
-                  src={
-                    bannerImageUrl ||
-                    "https://i.ibb.co/b34XJb5/Salaar-Poster-Prabhas.jpg"
-                  }
+                  src={bannerImageUrl}
                   alt={eventData.event_name}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    console.error("Banner image failed to load:", bannerImageUrl);
+                    e.target.src = "https://via.placeholder.com/400x400?text=Event+Banner";
+                  }}
                 />
               </div>
               <button
-                className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 w-16 h-16 rounded-full flex items-center justify-center pointer-events-auto cursor-pointer"
+                className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 md:w-20 md:h-20 w-16 h-16 rounded-full flex items-center justify-center pointer-events-auto cursor-pointer"
                 style={{
                   backgroundColor: "#5E5CE6",
                   boxShadow: theme.shadowOutset,
                 }}
                 onClick={handlePlayClick}
               >
-                <Play size={24} className="text-white ml-1" fill="white" />
+                <Play size={26} className="text-white ml-1" fill="white" />
               </button>
             </div>
           </div>
@@ -1245,36 +1361,91 @@ const ConfirmEventView = () => {
             </svg>
 
             <div className="flex flex-col h-full md:w-2/3 w-full md:ml-auto mx-auto md:mx-0">
-              <Card theme={theme} className=" mb-2 rounded-lg w-3/4 mx-auto">
+              <Card
+                theme={theme}
+                className="mb-2 rounded-lg w-full md:w-3/4 mx-auto"
+              >
                 <div className="flex justify-between items-center">
-                  <ChevronLeft
-                    size={24}
-                    className={`text-gray-400 cursor-pointer ${
-                      eventData.banking_details?.length <= 1 ? "opacity-50" : ""
-                    }`}
-                    onClick={handlePrevBank}
-                  />
-                  <h3 className={`text-lg font-semibold ${theme.textColor}`}>
-                    Bank Details
+                  {/* Left Arrow Container */}
+                  <div>
+                    <img
+                      src={LeftIcon}
+                      alt=""
+                      className={`cursor-pointer  ${
+                        theme.isDark ? "" : "filter invert"
+                      } ${
+                        allEventsForBankView.length <= 1 ? "opacity-50" : ""
+                      }`}
+                      onClick={handlePrevEventForBankView}
+                    />
+                  </div>
+
+                  {/* Center Heading */}
+                  <h3
+                    className={`flex justify-center items-center text-lg mx-auto font-semibold ${theme.textColor}`}
+                  >
+                    <span className="flex gap-2 text-base ">
+                      <img
+                        src={Bank_Details}
+                        alt=""
+                        className={`h-4 w-4 my-auto ${
+                          theme.isDark ? "" : "filter invert"
+                        }`}
+                      />{" "}
+                      Bank Details
+                    </span>
                   </h3>
-                  <ChevronRight
-                    size={24}
-                    className={`text-gray-400 cursor-pointer ${
-                      eventData.banking_details?.length <= 1 ? "opacity-50" : ""
-                    }`}
-                    onClick={handleNextBank}
-                  />
+
+                  {/* Right Arrow Container */}
+                  <div>
+                    <img
+                      src={RightIcon}
+                      alt=""
+                      className={`cursor-pointer  ${
+                        theme.isDark ? "" : "filter invert"
+                      } ${
+                        allEventsForBankView.length <= 1 ? "opacity-50" : ""
+                      }`}
+                      onClick={handleNextEventForBankView}
+                    />
+                  </div>
                 </div>
               </Card>
-              {eventData.payment_type === "paid" ? (
-                <div className="flex flex-col h-full md:w-4/5 mx-auto">
-                  {currentBankInfo.is_group_account && (
-                    <p className="text-xs text-green-500 font-medium text-center mb-1">
-                      (Group Primary Account)
-                    </p>
-                  )}
+              {(() => {
+                let accountLabel;
+                let labelColorClass;
 
-                  <dl className="text-sm space-y-2 px-2 md:w-3/4 mx-auto  flex-grow ite">
+                if (currentEventForBankView.isPrimary) {
+                  accountLabel = "Primary Event";
+                  labelColorClass = "text-gray-500";
+                } else {
+                  accountLabel =
+                    currentEventForBankView.name || "Sub-Event Account";
+                  labelColorClass = "text-blue-500";
+                }
+
+                const isMultiAccount = currentBankDetailsList.length > 1;
+
+                return (
+                  <p
+                    className={`text-xs ${labelColorClass} font-medium text-center mb-1`}
+                  >
+                    ({accountLabel})
+                    {isMultiAccount && (
+                      <span className="text-gray-400">
+                        {" "}
+                        - Account {currentBankDetailsIndex + 1} of{" "}
+                        {currentBankDetailsList.length}
+                      </span>
+                    )}
+                  </p>
+                );
+              })()}
+
+              {currentEventForBankView.isPaid &&
+              currentBankDetailsList.length > 0 ? (
+                <div className="flex flex-col h-full md:w-4/5 mx-auto">
+                  <dl className="text-sm space-y-2 px-2 md:w-3/4 mx-auto flex-grow">
                     <div className="flex justify-between ">
                       <dt className={`text-gray-400 ${theme.textColor}`}>
                         Account Holder :
@@ -1295,35 +1466,34 @@ const ConfirmEventView = () => {
                       <dt className={`text-gray-400 ${theme.textColor}`}>
                         IFSC Code :
                       </dt>
-                      <dd className={`font-medium  ${theme.textColor}`}>
+                      <dd className={`font-medium ${theme.textColor}`}>
                         {currentBankInfo.bank_ifsc || "N/A"}
                       </dd>
                     </div>
                   </dl>
-
-                  {allBankingDetails.length > 1 && (
-                    <div className="flex justify-center space-x-2 pb-2">
-                      {allBankingDetails.map((_, index) => (
-                        <div
-                          key={index}
-                          className={`w-2 h-2 rounded-full ${
-                            index === currentBankIndex
-                              ? "bg-white"
-                              : "bg-gray-600"
-                          }`}
-                        ></div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center flex-grow text-center py-3">
-                  <h2 className="text-3xl font-bold text-green-500 mb-2">
+                <div className="flex flex-col items-center justify-center flex-grow text-center py-1">
+                  <h2 className="text-xl font-bold text-green-500 mb-2">
                     Free event
                   </h2>
-                  <p className={`text-lg ${theme.textColor}`}>
-                    No payment required
+                  <p className={`text-sm ${theme.textColor}`}>
+                    No payment required for this event.
                   </p>
+                </div>
+              )}
+              {currentBankDetailsList.length > 1 && (
+                <div className="flex justify-center space-x-2 pb-2">
+                  {currentBankDetailsList.map((_, index) => (
+                    <div
+                      key={index}
+                      className={`w-2 h-2 rounded-full ${
+                        index === currentBankDetailsIndex
+                          ? "bg-white"
+                          : "bg-gray-700"
+                      }`}
+                    ></div>
+                  ))}
                 </div>
               )}
             </div>
@@ -1509,13 +1679,18 @@ const ConfirmEventView = () => {
             {eventData.guests && eventData.guests.length > 0 ? (
               <div className="flex items-center space-x-2 pb-2 flex-grow ">
                 {/* Prev Button */}
-                <ChevronLeft
-                  size={24}
-                  className={`text-gray-400 cursor-pointer ${
-                    currentGuideIndex === 0 ? "opacity-50" : ""
-                  }`}
-                  onClick={handlePrevGuide}
-                />
+
+                <div>
+                  <img
+                    src={LeftIcon}
+                    alt=""
+                    className={`cursor-pointer text-gray-400 ${
+                      theme.isDark ? "" : "filter invert"
+                    } 
+                        ${currentGuideIndex === 0 ? "opacity-50" : ""}`}
+                    onClick={handlePrevGuide}
+                  />
+                </div>
                 {/* Guide Carousel Container */}
                 <div className="flex-grow flex items-center justify-center md:gap-x-6 overflow-x-hidden p-2">
                   {eventData.guests
@@ -1539,7 +1714,7 @@ const ConfirmEventView = () => {
                         >
                           <img
                             src={
-                              formatImagePath(guest.guest_profile) ||
+                              getImageUrl(guest.guest_profile, "ticket") ||
                               "https://i.pravatar.cc/150?img=default"
                             }
                             alt={guest.guest_name}
@@ -1555,15 +1730,23 @@ const ConfirmEventView = () => {
                     ))}
                 </div>
                 {/* Next Button */}
-                <ChevronRight
-                  size={24}
-                  className={`text-gray-400 cursor-pointer ${
-                    currentGuideIndex >= eventData.guests.length - guidesToShow
-                      ? "opacity-50"
-                      : ""
-                  }`}
-                  onClick={handleNextGuide}
-                />
+
+                <div>
+                  <img
+                    src={RightIcon}
+                    alt=""
+                    className={`cursor-pointer text-gray-400 ${
+                      theme.isDark ? "" : "filter invert"
+                    } 
+                        ${
+                          currentGuideIndex >=
+                          eventData.guests.length - guidesToShow
+                            ? "opacity-50"
+                            : ""
+                        }`}
+                    onClick={handleNextGuide}
+                  />
+                </div>
               </div>
             ) : (
               <div className="flex  items-center justify-center h-full  ">
@@ -1609,7 +1792,7 @@ const ConfirmEventView = () => {
         <GuideModal
           guest={selectedGuest}
           theme={theme}
-          formatImagePath={formatImagePath} // <--- Passed here
+          formatImagePath={(path) => getImageUrl(path, "ticket")}
           onClose={handleCloseGuideModal}
           setAppAlert={setAppAlert}
         />
@@ -1622,7 +1805,7 @@ const ConfirmEventView = () => {
             setShowSubEventModal(false);
             setSelectedSubEvent(null);
           }}
-          formatImagePath={formatImagePath}
+          formatImagePath={(path) => getImageUrl(path, "ticket")}
           setAppAlert={setAppAlert}
         />
       )}
@@ -1640,9 +1823,9 @@ const ConfirmEventView = () => {
           onClose={() => setShowTicketModal(false)}
           ticketTypes={eventStats.ticketTypes}
           currentTicketIndex={currentTicketIndex}
-          onPrevTicket={handlePrevTicketModal} 
-          onNextTicket={handleNextTicketModal} 
-          formatImagePath={formatImagePath}
+          onPrevTicket={handlePrevTicketModal}
+          onNextTicket={handleNextTicketModal}
+          formatImagePath={(path) => getImageUrl(path, "ticket")}
           setAppAlert={setAppAlert}
         />
       )}
@@ -1655,8 +1838,16 @@ const ConfirmEventView = () => {
           currentSeatingIndex={currentSeatingIndex}
           onPrevSeating={handlePrevSeating}
           onNextSeating={handleNextSeating}
-          formatImagePath={formatImagePath}
+          formatImagePath={(path) => getImageUrl(path, "ticket")}
           setAppAlert={setAppAlert}
+        />
+      )}
+      {showRulesModal && (
+        <RulesModal
+          eventRules={eventData?.event_rules}
+          theme={theme}
+          onClose={() => setShowRulesModal(false)}
+          formatImagePath={(path) => getImageUrl(path, "ticket")}
         />
       )}
     </div>
