@@ -71,8 +71,7 @@ const UpdateTicketDetails = () => {
   const [editingTicket, setEditingTicket] = useState(null);
   const [bookingStartDate, setBookingStartDate] = useState("");
   const [bookingEndDate, setBookingEndDate] = useState("");
-  const [mainEventData, setMainEventData] = useState(null); // Changed initial state to null
-
+  const [mainEventData, setMainEventData] = useState(null);
   const [simpleTicketPrice, setSimpleTicketPrice] = useState("");
   const [simpleTicketCapacity, setSimpleTicketCapacity] = useState("");
 
