@@ -807,7 +807,7 @@ export const editProfile = async (req, res) => {
         return resolve();
       });
     });
-
+    
     let userId;
     if (req.user) {
       userId = req.user._id || req.user.id || req.user.userId;
@@ -862,7 +862,6 @@ export const editProfile = async (req, res) => {
       if (req.body.bio !== undefined) {
         user.bio = req.body.bio.trim() || originalValues.bio;
       }
-
       if (req.body.gender !== undefined) {
         const validGenders = ['male', 'female', 'other'];
         if (validGenders.includes(req.body.gender)) {
@@ -891,25 +890,13 @@ export const editProfile = async (req, res) => {
           user.organisation_type = originalValues.organisation_type;
         }
       }
-
       if (req.body.website !== undefined) {
         user.website = req.body.website.trim() || originalValues.website;
       }
-
       if (req.body.bio !== undefined) {
         user.bio = req.body.bio.trim() || originalValues.bio;
       }
-
-      if (req.body.gender !== undefined) {
-        const validGenders = ['male', 'female', 'other'];
-        if (validGenders.includes(req.body.gender)) {
-          user.gender = req.body.gender;
-        } else {
-          user.gender = originalValues.gender;
-        }
-      }
     }
-
     // Handle image upload to Cloudinary
     if (req.files && req.files.image && req.files.image[0]) {
       try {
