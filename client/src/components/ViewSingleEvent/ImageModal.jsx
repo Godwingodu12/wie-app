@@ -1,6 +1,5 @@
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useMemo } from "react";
-import { getImageUrl } from "../../utils/imageUtils";
 
 const ImageModal = ({
   images,
@@ -18,25 +17,38 @@ const ImageModal = ({
 
     const imageObject = images[currentIndex];
     
+    // Handle if it's an object with path property (banner, logo, event_images)
+    if (typeof imageObject === 'object' && imageObject.path) {
+      const path = imageObject.path;
+      // If it's already a full URL (Cloudinary), return as is
+      if (path.startsWith('http://') || path.startsWith('https://')) {
+        return path;
+      }
+    }
+    
     // Handle if it's already a string URL
     if (typeof imageObject === 'string') {
       if (imageObject.startsWith('http://') || imageObject.startsWith('https://')) {
         return imageObject;
       }
-      return getImageUrl(imageObject, "ticket");
     }
     
-    // Handle if it's an object with path property
-    const rawPathString = imageObject?.path;
-    if (!rawPathString) return null;
+    // Fallback
+    return null;
+  }, [images, currentIndex]);
+
+  const imageInfo = useMemo(() => {
+    if (!images || !images[currentIndex]) return null;
+    const img = images[currentIndex];
     
-    // Check if it's already a full Cloudinary URL
-    if (rawPathString.startsWith('http://') || rawPathString.startsWith('https://')) {
-      return rawPathString;
+    if (typeof img === 'object') {
+      return {
+        name: img.name || img.originalName || 'Image',
+        type: img.type || 'image'
+      };
     }
     
-    // Otherwise use getImageUrl
-    return getImageUrl(rawPathString, "ticket");
+    return { name: 'Image', type: 'image' };
   }, [images, currentIndex]);
 
   if (
@@ -116,16 +128,38 @@ const ImageModal = ({
         )}
 
         {/* Image Display */}
-        <div className="max-w-5xl max-h-[95vh] w-full h-full flex items-center justify-center relative">
+        <div className="max-w-5xl max-h-[95vh] w-full h-full flex flex-col items-center justify-center relative">
           <img
             src={imagePath}
-            alt="Event Image"
-            className="max-w-full max-h-full object-contain rounded-xl shadow-lg"
+            alt={imageInfo?.name || "Event Image"}
+            className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-lg"
             onError={(e) => {
               console.error("Failed to load image:", imagePath);
-              e.target.src = "https://i.ibb.co/b34XJb5/Salaar-Poster-Prabhas.jpg";
+              e.target.src = "https://via.placeholder.com/800x600?text=Image+Not+Found";
             }}
           />
+
+          {/* Image Info Label */}
+          {imageInfo && (
+            <div
+              className={`mt-4 p-2 px-4 rounded-xl font-medium text-sm
+                          ${
+                            theme.isDark
+                              ? "text-white bg-gray-700"
+                              : "text-gray-900 bg-white"
+                          }`}
+              style={{
+                boxShadow: theme.shadowInset,
+              }}
+            >
+              {imageInfo.name}
+              {imageInfo.type && (
+                <span className="ml-2 text-xs opacity-60">
+                  ({imageInfo.type})
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Index Indicator */}
           <div
