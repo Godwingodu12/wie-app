@@ -175,7 +175,16 @@ const seatingOptions = [
   { value: "seated and standing", label: "Seated and Standing" },
   { value: "other", label: "Other" },
 ];
+const getInitialTheme = () => {
+  // 1. Check for saved preference in localStorage
+  const savedTheme = localStorage.getItem("theme");
+  if (savedTheme) {
+    return savedTheme === "dark"; // Returns true or false
+  }
 
+  // 2. Fallback to system preference
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+};
 const CreateTicket = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -183,7 +192,7 @@ const CreateTicket = () => {
   const queryTicketId = new URLSearchParams(location.search).get("ticketId");
   const [loading, setLoading] = useState(false);
   const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(getInitialTheme());
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [pageLoading, setPageLoading] = useState(true);
@@ -605,7 +614,7 @@ const getImageUrl = (path) => {
     const scriptId = "google-maps-script";
 
     // Check if already loaded
-    if (window.google && window.google.maps) {
+    if (window.google && window.google.maps && window.google.maps.Map) {
       setIsApiReady(true);
       return;
     }
@@ -613,14 +622,30 @@ const getImageUrl = (path) => {
     // Set up callback BEFORE creating the script
     if (!window[callbackName]) {
       window[callbackName] = () => {
-        setIsApiReady(true);
+        // Add a small delay to ensure all Google Maps objects are available
+        setTimeout(() => {
+          if (window.google && window.google.maps && window.google.maps.Map) {
+            setIsApiReady(true);
+          } else {
+            console.error("Google Maps objects not fully available after callback");
+            // Retry after a delay
+            setTimeout(() => {
+              if (window.google && window.google.maps && window.google.maps.Map) {
+                setIsApiReady(true);
+              }
+            }, 500);
+          }
+        }, 100);
       };
     }
 
     // Check if script already exists
     const existingScript = document.getElementById(scriptId);
     if (existingScript) {
-      // Script exists but not loaded yet, wait for callback
+      // Script exists, wait for it to load
+      if (window.google && window.google.maps && window.google.maps.Map) {
+        setIsApiReady(true);
+      }
       return;
     }
 
@@ -634,27 +659,37 @@ const getImageUrl = (path) => {
 
     script.onerror = () => {
       console.error("Failed to load Google Maps script");
+      showAlert({
+        type: "error",
+        message: "Map Loading Failed",
+        description: "Unable to load Google Maps. Please check your internet connection and refresh the page.",
+      });
     };
 
     document.head.appendChild(script);
-
-    // NO cleanup - let the callback persist for the script
   }, []);
 
-  // Enhanced map initialization with initial location
-  useEffect(() => {
-    if (!isApiReady || !mapRef.current || !dataLoaded) return;
+useEffect(() => {
+  // Don't proceed if API not ready, no map container, or data not loaded
+  if (!isApiReady || !mapRef.current || !dataLoaded) return;
 
-    // If location type is not offline, cleanup and return
-    if (formData.location_type !== "offline") {
-      if (map) {
-        setMap(null);
-        markerRef.current = null;
-      }
-      return;
+  // If location type is not offline, cleanup and return
+  if (formData.location_type !== "offline") {
+    if (map) {
+      setMap(null);
+      markerRef.current = null;
     }
+    return;
+  }
 
-    const initializeMap = () => {
+  // CRITICAL FIX: Add additional check for Google Maps objects
+  if (!window.google || !window.google.maps || !window.google.maps.Map) {
+    console.warn("Google Maps not fully loaded yet, waiting...");
+    return;
+  }
+
+  const initializeMap = () => {
+    try {
       // Use form data coordinates if available, otherwise use initial location
       const initialCenter =
         formData.exact_map_location.latitude &&
@@ -715,8 +750,8 @@ const getImageUrl = (path) => {
         updateStateFromCoords(e.latLng.lat(), e.latLng.lng());
       });
 
-      // Autocomplete setup
-      if (autocompleteRef.current) {
+      // Autocomplete setup - with additional safety check
+      if (autocompleteRef.current && window.google.maps.places) {
         const autocompleteInstance = new window.google.maps.places.Autocomplete(
           autocompleteRef.current,
           {
@@ -765,10 +800,19 @@ const getImageUrl = (path) => {
       setTimeout(triggerResize, 100);
       setTimeout(triggerResize, 300);
       setTimeout(triggerResize, 500);
-    };
+    } catch (error) {
+      console.error("Error initializing map:", error);
+      // Optionally show an alert to the user
+      showAlert({
+        type: "error",
+        message: "Map Loading Error",
+        description: "Failed to load the map. Please refresh the page.",
+      });
+    }
+  };
 
-    initializeMap();
-  }, [isApiReady, formData.location_type, dataLoaded]);
+  initializeMap();
+}, [isApiReady, formData.location_type, dataLoaded]);
 
   // Update map position when coordinates change
   useEffect(() => {

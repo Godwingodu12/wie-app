@@ -21,11 +21,19 @@ import FormInput from "../../components/CreateGroup/FormInput.jsx";
 import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
 import DateInput from "../../components/CreateGroup/DateInput.jsx";
 
+const getInitialTheme = () => {
+  const savedTheme = localStorage.getItem("theme");
+  if (savedTheme) {
+    return savedTheme === "dark"; // Returns true or false
+  }
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+};
 // --- Main Page Component ---
 const UpdateTicketDetails = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(getInitialTheme());
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [errors, setErrors] = useState({});
@@ -71,7 +79,8 @@ const UpdateTicketDetails = () => {
   const [editingTicket, setEditingTicket] = useState(null);
   const [bookingStartDate, setBookingStartDate] = useState("");
   const [bookingEndDate, setBookingEndDate] = useState("");
-  const [mainEventData, setMainEventData] = useState(null);
+  const [mainEventData, setMainEventData] = useState(null); // Changed initial state to null
+
   const [simpleTicketPrice, setSimpleTicketPrice] = useState("");
   const [simpleTicketCapacity, setSimpleTicketCapacity] = useState("");
 
@@ -293,7 +302,11 @@ const UpdateTicketDetails = () => {
     };
     fetchData();
   }, [ticketId, storageKey]);
-  // Effect to save form data to localStorage whenever it changes
+
+  useEffect(() => {
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
+    document.documentElement.classList.toggle("dark", darkMode);
+  }, [darkMode]);
   useEffect(() => {
     if (initialLoading) return;
 

@@ -186,13 +186,21 @@ const seatingOptions = [
   { value: "other", label: "Other" },
 ];
 
-// --- STYLES FOR REACT-SELECT (REPLACE THE OLD VERSION WITH THIS) ---
+const getInitialTheme = () => {
+  // 1. Check for saved preference in localStorage
+  const savedTheme = localStorage.getItem("theme");
+  if (savedTheme) {
+    return savedTheme === "dark"; // Returns true or false based on saved value
+  }
 
-// --- Main Component ---
+  // 2. Fallback to system preference
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+};
+
 const UpdateTicketAddOns = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(getInitialTheme());
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingSubEvents, setExistingSubEvents] = useState([]);
@@ -571,6 +579,11 @@ const UpdateTicketAddOns = () => {
     setGroupBankDetails(null);
     setUseGroupBankAccount(false);
   };
+
+  useEffect(() => {
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
+    document.documentElement.classList.toggle("dark", darkMode);
+  }, [darkMode]);
   useEffect(() => {
     fetchData();
   }, [ticketId]);
