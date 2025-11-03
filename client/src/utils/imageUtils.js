@@ -1,18 +1,26 @@
 export const getImageUrl = (imagePath, service = 'auth') => {
   if (!imagePath) return null;
-  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+  
+  // If it's already a full URL (Cloudinary or any external URL), return as is
+  if (typeof imagePath === 'string' && (imagePath.startsWith('http://') || imagePath.startsWith('https://'))) {
     return imagePath;
   }
+  
+  // If it's a cloudinary URL without protocol (shouldn't happen, but just in case)
+  if (typeof imagePath === 'string' && imagePath.includes('cloudinary.com')) {
+    return `https://${imagePath}`;
+  }
+  
   const baseUrls = {
     auth: import.meta.env.VITE_AUTH_API_BASE_URL,
     ticket: import.meta.env.VITE_TICKET_API_BASE_URL
   };
-  const baseUrl = baseUrls[service] || baseUrls.auth;
-  let cleanPath = imagePath.replace(/\\/g, '/');
-  // Remove 'src/' prefix if present
-  cleanPath = cleanPath.replace(/^src\//, '');
   
-  // Remove leading slashes
+  const baseUrl = baseUrls[service] || baseUrls.auth;
+  
+  // Clean the path
+  let cleanPath = imagePath.replace(/\\/g, '/');
+  cleanPath = cleanPath.replace(/^src\//, '');
   cleanPath = cleanPath.replace(/^\/+/, '');
   
   // If path doesn't start with 'uploads/', add it
@@ -23,11 +31,40 @@ export const getImageUrl = (imagePath, service = 'auth') => {
   return `${baseUrl}/${cleanPath}`;
 };
 
-/**
- * Check if an image URL is from Cloudinary
- * @param {string} imageUrl - Image URL to check
- * @returns {boolean}
- */
+// New function specifically for ticket/event images with better error handling
+export const getTicketImageUrl = (imagePath, fallbackUrl = null) => {
+  if (!imagePath) return fallbackUrl;
+  
+  // If it's already a full URL (Cloudinary or external), return as is
+  if (typeof imagePath === 'string' && (imagePath.startsWith('http://') || imagePath.startsWith('https://'))) {
+    return imagePath;
+  }
+  
+  // If it's a cloudinary URL without protocol
+  if (typeof imagePath === 'string' && imagePath.includes('cloudinary.com')) {
+    return `https://${imagePath}`;
+  }
+  
+  // For local server images
+  const baseUrl = import.meta.env.VITE_TICKET_API_BASE_URL;
+  
+  if (!baseUrl) {
+    console.error('VITE_TICKET_API_BASE_URL is not defined');
+    return fallbackUrl;
+  }
+  
+  // Clean the path
+  let cleanPath = imagePath.replace(/\\/g, '/');
+  cleanPath = cleanPath.replace(/^src\//, '');
+  cleanPath = cleanPath.replace(/^\/+/, '');
+  
+  // If path doesn't start with 'uploads/', add it
+  if (!cleanPath.startsWith('uploads/')) {
+    cleanPath = `uploads/${cleanPath}`;
+  }
+  
+  return `${baseUrl}/${cleanPath}`;
+};
 export const isCloudinaryUrl = (imageUrl) => {
   if (!imageUrl) return false;
   return imageUrl.includes('cloudinary.com');
