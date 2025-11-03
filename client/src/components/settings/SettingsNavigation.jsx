@@ -33,7 +33,7 @@ const SettingsNavigation = ({
       title: "Wie account centre",
       subtitle: "Your space, your relationships, how your account works for you.",
       items: [
-        { icon: PersonalIcon, text: "Personal details", path: "/settings/personalDetails" },
+        { icon: PersonalIcon, text: "Personal details", path: "/settings/personal-details" },
         { icon: PasswordIcon, text: "Password & security", path: "/settings/password-security" },
         { icon: EventIcon, text: "Event history", path: "/settings/eventHistory" },
       ],
