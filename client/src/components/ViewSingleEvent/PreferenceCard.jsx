@@ -17,7 +17,9 @@ const PreferenceCard = ({ pref, theme, isCurrent }) => {
         transform: isCurrent ? "scale(1.05)" : "scale(0.95)",
       }}
     >
-      <h4 className={`text-md text-center mb-4 flex-grow-0 opacity-70 ${textColorClass}`}>
+      <h4
+        className={`text-md text-center mb-4 flex-grow-0 opacity-70 ${textColorClass}`}
+      >
         {pref.type === "Seating"
           ? "Audience seated or standing ?"
           : `${pref.type} allowed ?`}

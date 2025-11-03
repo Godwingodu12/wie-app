@@ -2,13 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { ArrowLeft, MapPin } from "lucide-react";
 import Card from "./Card";
 
-
 import DirectionSubEvent from "../../assets/ViewSingleEvent/DirectionSubEvent.svg";
 import ShareSubEvent from "../../assets/ViewSingleEvent/ShareSubEvent.svg";
 import SaveSubEvent from "../../assets/ViewSingleEvent/SaveSubEvent.svg";
 
 const EventLocationModal = ({ eventData, theme, onClose, setAppAlert }) => {
-    // --- Data Derivation ---
+  // --- Data Derivation ---
   const coords = eventData.exact_map_location || {};
   const hasLocation = coords.latitude && coords.longitude;
   if (!hasLocation) {
@@ -24,8 +23,6 @@ const EventLocationModal = ({ eventData, theme, onClose, setAppAlert }) => {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const [isApiReady, setIsApiReady] = useState(false);
-
-
 
   const initialCenter = {
     lat: parseFloat(coords.latitude) || 10.5276,

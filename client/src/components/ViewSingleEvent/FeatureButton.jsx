@@ -1,29 +1,63 @@
-const FeatureButton = ({ Icon, label, theme, onClick, children }) => (
-  <div
-    className={`group relative flex flex-col items-center justify-center p-4 rounded-2xl xl:w-24 xl:h-32  w-16 h-20 cursor-pointer transition-all duration-200 ${
-      theme.textColor
-    } 
-                    shadow-md hover:scale-[1.02] active:scale-[0.98]
-                    ${
-                      theme.isDark
-                        ? "bg-opacity-90 shadow-[7px_7px_14px_#151515,-7px_-7px_14px_#2b2b2b] hover:shadow-[inset_4px_4px_8px_#151515,inset_-4px_-4px_8px_#2b2b2b]"
-                        : "bg-opacity-90 shadow-[5px_5px_10px_#c5c5c5,-5px_-5px_10px_#fbfbfb] hover:shadow-[inset_4px_4px_8px_#c5c5c5,inset_-4px_-4px_8px_#fbfbfb]"
-                    }`}
-    style={{
-      backgroundColor: theme.cardBg,
-    }}
-    onClick={onClick}
-  >
+import React from "react";
+import { useMemo } from "react"; // Added to use useMemo
+
+const FeatureButton = ({ Icon, label, theme, onClick, children }) => {
+  const [isPressed, setIsPressed] = React.useState(false);
+
+  // Determine theme-sensitive classes for background and image
+  const iconFilterClass = theme?.isDark ? "filter invert" : "";
+  const labelColor = theme?.isDark ? "text-gray-300" : "text-gray-800"; // Using general text colors
+
+  return (
     <div
-      className="xl:w-12 xl:h-12 w-8 h-8  rounded-full flex items-center justify-center mb-2"
-      style={{ backgroundColor: "#5E5CE6" }}
+      className="group relative flex flex-col xl:w-24 xl:h-28 w-16 h-24 items-center justify-center p-5 rounded-3xl cursor-pointer transition-all duration-300"
+      style={{
+        backgroundColor: theme?.cardBg || "#212426",
+        // 1. DYNAMIC BORDER COLOR
+        border: theme?.isDark
+          ? "1.02px solid #33373A" // Dark mode border
+          : "1.02px solid #d0d0d0", // Light mode border (e.g., light gray)
+        boxShadow: isPressed
+          ? theme?.shadowInset ||
+            "inset 7px 7px 14px #151515, inset -7px -7px 14px #2b2b2b"
+          : theme?.shadowOutset ||
+            "7px 7px 14px #151515, -7px -7px 14px #2b2b2b",
+      }}
+      onMouseEnter={() => setIsPressed(true)}
+      onMouseLeave={() => setIsPressed(false)}
+      onClick={onClick}
     >
-      <img src={Icon} alt="" className="text-white" />
+      {/* Icon Circle */}
+      <div
+        className="rounded-full flex h-6 w-6 xl:h-11 xl:w-11 items-center justify-center mb-3 transition-all"
+        style={{
+          // 4. ICON ACCENT COLOR (Kept hardcoded blue as a standard accent color,
+          // but could be replaced by a theme.primaryColor if defined)
+          background: "linear-gradient(135deg, #6B5FED 0%, #5B51D8 100%)",
+          boxShadow: "0 4px 16px rgba(107, 95, 237, 0.4)",
+        }}
+      >
+        <img
+          src={Icon}
+          alt={label}
+          // 2. DYNAMIC ICON IMAGE COLOR
+          className={`xl:w-5 xl:h-5 h-3 w-3 object-contain ${iconFilterClass}`}
+        />
+      </div>
+
+      {/* Label */}
+      <p
+        className={`xl:text-sm text-xs font-medium text-center leading-tight ${labelColor}`}
+        style={{
+          // 3. REMOVED HARDCODED LABEL COLOR and used Tailwind class
+          letterSpacing: "0.01em",
+        }}
+      >
+        {label}
+      </p>
+
+      {children}
     </div>
-    <p className="text-xs xl:text-sm text-center">{label}</p>
-
-    {children}
-  </div>
-);
-
+  );
+};
 export default FeatureButton;

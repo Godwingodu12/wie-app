@@ -42,4 +42,4 @@ const getPreferences = (eventData) => {
   ];
 };
 
-export default getPreferences
+export default getPreferences;

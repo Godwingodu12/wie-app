@@ -10,7 +10,7 @@ const ProhibitPopover = ({ prohibitedItems, theme }) => {
       <h3 className={`text-lg font-bold mb-3 ${theme.textColor}`}>
         Prohibited Items
       </h3>
-      <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+      <ul className="list-disc list-inside space-y-1 custom-scrollbar max-h-35 overflow-y-auto ml-4 text-sm">
         {prohibitedItems && prohibitedItems.length > 0 ? (
           prohibitedItems.map((item, index) => (
             <li
@@ -28,4 +28,4 @@ const ProhibitPopover = ({ prohibitedItems, theme }) => {
     </div>
   );
 };
-export default ProhibitPopover
+export default ProhibitPopover;

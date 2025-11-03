@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useMemo } from "react";
-import formatImagePath from "./formatImagePath";
+import { getImageUrl } from "../../utils/imageUtils";
 
 const ImageModal = ({
   images,
@@ -12,9 +12,31 @@ const ImageModal = ({
   setAppAlert,
 }) => {
   const imagePath = useMemo(() => {
-    const imageObject = images?.[currentIndex];
+    if (!images || images.length === 0 || currentIndex < 0 || currentIndex >= images.length) {
+      return null;
+    }
+
+    const imageObject = images[currentIndex];
+    
+    // Handle if it's already a string URL
+    if (typeof imageObject === 'string') {
+      if (imageObject.startsWith('http://') || imageObject.startsWith('https://')) {
+        return imageObject;
+      }
+      return getImageUrl(imageObject, "ticket");
+    }
+    
+    // Handle if it's an object with path property
     const rawPathString = imageObject?.path;
-    return formatImagePath(rawPathString);
+    if (!rawPathString) return null;
+    
+    // Check if it's already a full Cloudinary URL
+    if (rawPathString.startsWith('http://') || rawPathString.startsWith('https://')) {
+      return rawPathString;
+    }
+    
+    // Otherwise use getImageUrl
+    return getImageUrl(rawPathString, "ticket");
   }, [images, currentIndex]);
 
   if (
@@ -31,11 +53,9 @@ const ImageModal = ({
         show: true,
       });
     }
-    if (images && images.length > 0) {
-      onClose();
-    }
     return null;
   }
+
   if (!imagePath) {
     console.error(
       "ImageModal: Failed to generate valid image path from data:",
@@ -61,7 +81,7 @@ const ImageModal = ({
         className="relative flex items-center justify-center w-full h-full p-2 sm:p-4"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close Button (Top Right) - Now with INSET Shadow */}
+        {/* Close Button (Top Right) */}
         <button
           onClick={onClose}
           className={`absolute top-2 right-2 sm:top-4 sm:right-4 p-3 rounded-full transition-opacity hover:opacity-80 z-20 
@@ -77,7 +97,7 @@ const ImageModal = ({
           <X size={24} />
         </button>
 
-        {/* Left Arrow - Now with INSET Shadow */}
+        {/* Left Arrow */}
         {images.length > 1 && (
           <button
             onClick={onPrev}
@@ -100,11 +120,14 @@ const ImageModal = ({
           <img
             src={imagePath}
             alt="Event Image"
-            // The image itself does not typically take an inset shadow
             className="max-w-full max-h-full object-contain rounded-xl shadow-lg"
+            onError={(e) => {
+              console.error("Failed to load image:", imagePath);
+              e.target.src = "https://i.ibb.co/b34XJb5/Salaar-Poster-Prabhas.jpg";
+            }}
           />
 
-          {/* Index Indicator - Now with INSET Shadow */}
+          {/* Index Indicator */}
           <div
             className={`absolute bottom-2 sm:bottom-4 p-2 px-4 rounded-xl font-medium text-base sm:text-lg 
                         ${
@@ -120,7 +143,7 @@ const ImageModal = ({
           </div>
         </div>
 
-        {/* Right Arrow - Now with INSET Shadow */}
+        {/* Right Arrow */}
         {images.length > 1 && (
           <button
             onClick={onNext}
@@ -141,5 +164,4 @@ const ImageModal = ({
     </div>
   );
 };
-
 export default ImageModal;
