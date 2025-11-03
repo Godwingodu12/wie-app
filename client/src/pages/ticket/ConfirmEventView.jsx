@@ -85,7 +85,7 @@ const ConfirmEventView = () => {
   const navigate = useNavigate();
   const location = useLocation(); // <--- New hook usage
   const initialThemeIsDark = location.state?.initialThemeIsDark ?? true;
-
+  const [processedEventData, setProcessedEventData] = useState(null);
   const [theme, setTheme] = useState(
     initialThemeIsDark ? darkTheme : lightTheme
   );
@@ -318,24 +318,66 @@ const ConfirmEventView = () => {
   };
 
 const handlePlayClick = () => {
-  console.log("Play clicked, event_images:", eventData?.event_images);
+  console.log("Play clicked, eventData:", eventData);
   
-  // Check if event_images exists and has items
-  if (eventData?.event_images?.length > 0) {
-    // Map event_images to get the path from each object
-    const imagePaths = eventData.event_images.map(img => 
-      (img.path?.startsWith('http://') || img.path?.startsWith('https://')) 
-        ? img.path 
-        : getImageUrl(img.path, "ticket")
-    );
-    console.log("Processed image paths:", imagePaths);
+  // Collect all images: banner, logo, and event_images
+  const allImages = [];
+  
+  // Add banner if exists
+  if (eventData?.event_banner) {
+    const bannerUrl = eventData.event_banner.startsWith('http://') || eventData.event_banner.startsWith('https://')
+      ? eventData.event_banner
+      : getImageUrl(eventData.event_banner, "ticket");
     
+    allImages.push({
+      path: bannerUrl,
+      type: 'banner',
+      name: 'Event Banner',
+      originalName: 'Event Banner'
+    });
+  }
+  
+  // Add logo if exists
+  if (eventData?.event_logo) {
+    const logoUrl = eventData.event_logo.startsWith('http://') || eventData.event_logo.startsWith('https://')
+      ? eventData.event_logo
+      : getImageUrl(eventData.event_logo, "ticket");
+    
+    allImages.push({
+      path: logoUrl,
+      type: 'logo',
+      name: 'Event Logo',
+      originalName: 'Event Logo'
+    });
+  }
+  
+  // Add event_images if exist
+  if (eventData?.event_images?.length > 0) {
+    eventData.event_images.forEach((img, index) => {
+      const imgPath = img.path || img;
+      const imgUrl = imgPath.startsWith('http://') || imgPath.startsWith('https://')
+        ? imgPath
+        : getImageUrl(imgPath, "ticket");
+      
+      allImages.push({
+        path: imgUrl,
+        type: 'event_image',
+        name: img.originalName || `Event Image ${index + 1}`,
+        originalName: img.originalName || `Event Image ${index + 1}`
+      });
+    });
+  }
+  
+  console.log("All collected images:", allImages);
+  console.log("Total images:", allImages.length);
+  
+  if (allImages.length > 0) {
     setCurrentImageIndex(0);
     setShowImageModal(true);
   } else {
     setAppAlert({
       message: "Information",
-      description: "No images or video available for preview.",
+      description: "No images available for preview.",
       type: "error",
       show: true,
     });
@@ -425,7 +467,6 @@ const handlePlayClick = () => {
 
     initializeMap();
   }, [isApiReady, eventData]);
-
   useEffect(() => {
     const fetchAndSetData = async () => {
       if (!ticketId) {
@@ -452,6 +493,21 @@ const handlePlayClick = () => {
 
         if (!data || !data.event_name)
           throw new Error("Event data is incomplete.");
+        
+        // DEBUG: Verify image URLs
+        console.log("=== IMAGE VERIFICATION ===");
+        console.log("Raw Event Logo:", data.event_logo);
+        console.log("Raw Event Banner:", data.event_banner);
+        console.log("Raw Event Images:", data.event_images);
+        
+        // Test if logo URL is accessible
+        if (data.event_logo) {
+          const testImg = new Image();
+          testImg.onload = () => console.log("✅ Logo URL is accessible:", data.event_logo);
+          testImg.onerror = () => console.error("❌ Logo URL failed to load:", data.event_logo);
+          testImg.src = data.event_logo;
+        }
+        
         setEventData(data);
         setGroupData(fetchedGroupData);
       } catch (err) {
@@ -628,33 +684,35 @@ const handlePlayClick = () => {
       prevIndex === 0 ? len - 1 : prevIndex - 1
     );
   };
-
   const handleNextTicketModal = () => {
     const len = eventStats.ticketTypes.length;
     if (len === 0) return;
     setCurrentTicketIndex((prevIndex) => (prevIndex + 1) % len);
   };
-
   const handleNextImage = () => {
-    const len = eventData?.event_images?.length || 0;
-    if (len === 0) return;
-    setCurrentImageIndex((prevIndex) => (prevIndex + 1) % len);
+    // Calculate total images: banner + logo + event_images
+    let totalImages = 0;
+    if (eventData?.event_banner) totalImages++;
+    if (eventData?.event_logo) totalImages++;
+    if (eventData?.event_images?.length > 0) totalImages += eventData.event_images.length;
+    
+    if (totalImages === 0) return;
+    setCurrentImageIndex((prevIndex) => (prevIndex + 1) % totalImages);
   };
-
   const handlePrevImage = () => {
-    const len = eventData?.event_images?.length || 0;
-    if (len === 0) return;
-    setCurrentImageIndex((prevIndex) =>
-      prevIndex === 0 ? len - 1 : prevIndex - 1
+    // Calculate total images: banner + logo + event_images
+    let totalImages = 0;
+    if (eventData?.event_banner) totalImages++;
+    if (eventData?.event_logo) totalImages++;
+    if (eventData?.event_images?.length > 0) totalImages += eventData.event_images.length;
+    
+    if (totalImages === 0) return;
+    setCurrentImageIndex((prevIndex) => 
+      prevIndex === 0 ? totalImages - 1 : prevIndex - 1
     );
   };
   const TypeIcon = eventData.event_type === "private" ? Private : Globe;
   const TypeLabel = eventData.event_type === "private" ? "Private" : "Public";
-  const bannerImageUrl = (() => {
-    const fallback = "https://via.placeholder.com/400x400?text=Event+Banner";
-    if (!eventData?.event_banner) return fallback;
-    return getTicketImageUrl(eventData.event_banner, fallback);
-  })();
   let LocationIcon;
   let LocationLabel;
 
@@ -814,15 +872,14 @@ const handlePlayClick = () => {
                     style={{ boxShadow: theme.shadowOutset }}
                   >
                     <img
-                      src={getTicketImageUrl(
-                        eventData.event_logo,
-                        "https://via.placeholder.com/150?text=Logo"
-                      )}
+                      src={
+                        eventData.event_logo
+                      }
                       alt="Event Logo"
                       className="w-full h-full rounded-full object-cover opacity-70 p-1"
                       onError={(e) => {
                         console.error("Logo failed to load:", eventData.event_logo);
-                        e.target.src = "https://via.placeholder.com/150?text=Logo";
+                        e.target.src = "";
                       }}
                     />
                   </div>
@@ -966,19 +1023,23 @@ const handlePlayClick = () => {
                   style={{ boxShadow: theme.shadowOutset }}
                 >
                   <img
-                    src={getTicketImageUrl(
-                      eventData.event_logo,
-                      "https://via.placeholder.com/150?text=Logo"
-                    )}
+                    src={
+                      eventData.event_logo
+                        ? (eventData.event_logo.startsWith('http://') || eventData.event_logo.startsWith('https://'))
+                          ? eventData.event_logo
+                          : getImageUrl(eventData.event_logo, "ticket")
+                        : "https://via.placeholder.com/128?text=Logo"
+                    }
                     alt="Event Logo"
                     className="w-full h-full rounded-full object-cover opacity-70 p-1"
                     onError={(e) => {
-                      console.error("Logo failed to load:", eventData.event_logo);
-                      e.target.src = "https://via.placeholder.com/150?text=Logo";
+                      console.error("Logo failed to load:", e.target.src);
+                      e.target.src = "https://via.placeholder.com/128?text=Logo";
                     }}
                   />
                 </div>
               </div>
+
               {/* Mobile logo */}
               <div className="flex md:hidden pt-8">
                 <div
@@ -986,15 +1047,18 @@ const handlePlayClick = () => {
                   style={{ boxShadow: theme.shadowOutset }}
                 >
                   <img
-                    src={getTicketImageUrl(
-                      eventData.event_logo,
-                      "https://via.placeholder.com/150?text=Logo"
-                    )}
+                    src={
+                      eventData.event_logo
+                        ? (eventData.event_logo.startsWith('http://') || eventData.event_logo.startsWith('https://'))
+                          ? eventData.event_logo
+                          : getImageUrl(eventData.event_logo, "ticket")
+                        : "https://via.placeholder.com/96?text=Logo"
+                    }
                     alt="Event Logo"
                     className="w-full h-full rounded-full object-cover opacity-70 p-1"
                     onError={(e) => {
-                      console.error("Logo failed to load:", eventData.event_logo);
-                      e.target.src = "https://via.placeholder.com/150?text=Logo";
+                      console.error("Logo failed to load:", e.target.src);
+                      e.target.src = "https://via.placeholder.com/96?text=Logo";
                     }}
                   />
                 </div>
@@ -1314,40 +1378,46 @@ const handlePlayClick = () => {
               </Card>
             </div>
           </Card>
-          <div className="md:absolute md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:z-30 md:pointer-events-none">
-            <div
-              className="xl:w-80 xl:h-80 w-72 h-72 rounded-full relative"
-              style={{
-                boxShadow: theme.shadowInset,
-                backgroundColor: theme.insetBg,
-              }}
-            >
-              <div
-                className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 xl:w-64 xl:h-64 h-60 w-60 rounded-full overflow-hidden"
-                style={{ boxShadow: theme.shadowOutset }}
-              >
-                <img
-                  src={bannerImageUrl}
-                  alt={eventData.event_name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    console.error("Banner image failed to load:", bannerImageUrl);
-                    e.target.src = "https://via.placeholder.com/400x400?text=Event+Banner";
-                  }}
-                />
-              </div>
-              <button
-                className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 md:w-20 md:h-20 w-16 h-16 rounded-full flex items-center justify-center pointer-events-auto cursor-pointer"
-                style={{
-                  backgroundColor: "#5E5CE6",
-                  boxShadow: theme.shadowOutset,
-                }}
-                onClick={handlePlayClick}
-              >
-                <Play size={26} className="text-white ml-1" fill="white" />
-              </button>
-            </div>
-          </div>
+<div className="md:absolute md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:z-30 md:pointer-events-none">
+  <div
+    className="xl:w-80 xl:h-80 w-72 h-72 rounded-full relative"
+    style={{
+      boxShadow: theme.shadowInset,
+      backgroundColor: theme.insetBg,
+    }}
+  >
+    <div
+      className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 xl:w-64 xl:h-64 h-60 w-60 rounded-full overflow-hidden"
+      style={{ boxShadow: theme.shadowOutset }}
+    >
+      <img
+        src={
+          eventData.event_banner
+            ? (eventData.event_banner.startsWith('http://') || eventData.event_banner.startsWith('https://'))
+              ? eventData.event_banner
+              : getImageUrl(eventData.event_banner, "ticket")
+            : "https://via.placeholder.com/256?text=Banner"
+        }
+        alt={eventData.event_name}
+        className="w-full h-full object-cover"
+        onError={(e) => {
+          console.error("Banner image failed to load:", e.target.src);
+          e.target.src = "https://via.placeholder.com/256?text=Banner";
+        }}
+      />
+    </div>
+    <button
+      className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 md:w-20 md:h-20 w-16 h-16 rounded-full flex items-center justify-center pointer-events-auto cursor-pointer"
+      style={{
+        backgroundColor: "#5E5CE6",
+        boxShadow: theme.shadowOutset,
+      }}
+      onClick={handlePlayClick}
+    >
+      <Play size={26} className="text-white ml-1" fill="white" />
+    </button>
+  </div>
+</div>
           <Card
             theme={theme}
             className="p-2 flex flex-col relative overflow-hidden"
@@ -1714,8 +1784,7 @@ const handlePlayClick = () => {
                         >
                           <img
                             src={
-                              getImageUrl(guest.guest_profile, "ticket") ||
-                              "https://i.pravatar.cc/150?img=default"
+                              getImageUrl(guest.guest_profile, "ticket")
                             }
                             alt={guest.guest_name}
                             className="absolute inset-0 w-full h-full object-cover"
@@ -1777,9 +1846,52 @@ const handlePlayClick = () => {
           theme={theme}
         />
       )}
-      {showImageModal && eventData?.event_images?.length > 0 && (
+      {showImageModal && (
         <ImageModal
-          images={eventData.event_images}
+          images={(() => {
+            const allImages = [];
+            
+            // Add banner
+            if (eventData?.event_banner) {
+              const bannerUrl = eventData.event_banner.startsWith('http://') || eventData.event_banner.startsWith('https://')
+                ? eventData.event_banner
+                : getImageUrl(eventData.event_banner, "ticket");
+              allImages.push({
+                path: bannerUrl,
+                type: 'banner',
+                name: 'Event Banner'
+              });
+            }
+            
+            // Add logo
+            if (eventData?.event_logo) {
+              const logoUrl = eventData.event_logo.startsWith('http://') || eventData.event_logo.startsWith('https://')
+                ? eventData.event_logo
+                : getImageUrl(eventData.event_logo, "ticket");
+              allImages.push({
+                path: logoUrl,
+                type: 'logo',
+                name: 'Event Logo'
+              });
+            }
+            
+            // Add event_images
+            if (eventData?.event_images?.length > 0) {
+              eventData.event_images.forEach((img, index) => {
+                const imgPath = img.path || img;
+                const imgUrl = imgPath.startsWith('http://') || imgPath.startsWith('https://')
+                  ? imgPath
+                  : getImageUrl(imgPath, "ticket");
+                allImages.push({
+                  path: imgUrl,
+                  type: 'event_image',
+                  name: img.originalName || `Event Image ${index + 1}`
+                });
+              });
+            }
+            
+            return allImages;
+          })()}
           currentIndex={currentImageIndex}
           onNext={handleNextImage}
           onPrev={handlePrevImage}
