@@ -119,7 +119,56 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
         }
     }, [isOpen, initialDates]);
 
+useEffect(() => {
+    if (isOpen) {
+        const dates = initialDates || [];
+        setTimeError("");
+        
+        console.log("Modal Opened. Raw initialDates received:", dates);
+        
+        // Convert 24h stored time to 12h display format
+        const preparedDates = dates.map(d => {
+            // Check if conversion is needed (i.e., startAmPm/endAmPm fields are missing)
+            const needsConversion = !d.startAmPm || !d.endAmPm;
+            
+            const timeDetails = needsConversion ? {
+                startTime: convertTo12Hour(d.startTime).time,
+                startAmPm: convertTo12Hour(d.startTime).ampm,
+                endTime: convertTo12Hour(d.endTime).time,
+                endAmPm: convertTo12Hour(d.endTime).ampm,
+            } : {
+                startTime: d.startTime,
+                startAmPm: d.startAmPm,
+                endTime: d.endTime,
+                endAmPm: d.endAmPm,
+            };
 
+            return {
+                ...d, 
+                ...timeDetails
+            };
+        });
+
+        setSelectedDates(preparedDates);
+        setCurrentMonth(preparedDates.length > 0 ? new Date(preparedDates[0].date.replace(/-/g, "/")) : new Date());
+        
+        // Set useSameTime flag based on loaded data
+        let allSameTime = true;
+        if (preparedDates.length > 1) {
+            const first = preparedDates[0];
+            allSameTime = preparedDates.every(d => 
+                d.startTime === first.startTime &&
+                d.endTime === first.endTime &&
+                d.startAmPm === first.startAmPm &&
+                d.endAmPm === first.endAmPm
+            );
+        }
+        setUseSameTime(allSameTime);
+        
+        console.log("Prepared Dates (State):", preparedDates);
+        console.log("useSameTime set to:", allSameTime);
+    }
+}, [isOpen, initialDates]);
     const handleReset = () => {
         setIsConfirmOpen(true);
     };
@@ -156,7 +205,6 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
         
         return isValid;
     };
-
     const generateCalendarDays = () => {
         const datefnsStartOfMonth = startOfMonth(currentMonth);
         const start = startOfWeek(datefnsStartOfMonth); 
@@ -167,9 +215,11 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const minDateTime = minDate ? new Date(minDate) : null;
+        // FIX: Proper date parsing with timezone handling
+        const minDateTime = minDate ? new Date(minDate + 'T00:00:00') : null;
         if (minDateTime) minDateTime.setHours(0, 0, 0, 0);
-        const maxDateTime = maxDate ? new Date(maxDate) : null;
+        
+        const maxDateTime = maxDate ? new Date(maxDate + 'T00:00:00') : null;
         if (maxDateTime) maxDateTime.setHours(0, 0, 0, 0);
         
         return daysInMonthView.map((date) => {
@@ -179,11 +229,16 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
             const isCurrentMonth = isSameMonth(date, currentMonth);
 
             const isPast = date < today;
-            const isOutOfRange = (minDateTime && date < minDateTime) || (maxDateTime && date > maxDateTime);
-            const isDisabled = isPast || isOutOfRange || !isCurrentMonth;
+            
+            // Check if date is outside the allowed range
+            const isBeforeMin = minDateTime && date < minDateTime;
+            const isAfterMax = maxDateTime && date > maxDateTime;
+            const isOutOfRange = isBeforeMin || isAfterMax;
+            
+            const isDisabled = isPast || isOutOfRange;
             
             const textColor = isCurrentMonth 
-                ? "" 
+                ? isDisabled ? "text-gray-500" : "" 
                 : `${darkMode ? "text-gray-600" : "text-gray-400"}`;
 
             return (
@@ -191,8 +246,8 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
                     key={dateStr}
                     onClick={() => !isDisabled && isCurrentMonth && handleDateClick(dateStr)}
                     className={`flex items-center justify-center h-10 w-10 rounded-lg transition-colors text-center ${
-                        isDisabled && isCurrentMonth
-                            ? "text-gray-600 cursor-not-allowed opacity-50"
+                        isDisabled
+                            ? "text-gray-500 cursor-not-allowed opacity-40 line-through"
                             : isCurrentMonth ? "cursor-pointer" : "cursor-not-allowed"
                     } ${
                         isSelected
@@ -211,13 +266,11 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
             );
         });
     };
-
     const renderDayNames = () => {
         return ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
             <div key={index}>{day}</div>
         ));
     };
-
     
     const handleDateClick = (dateStr) => {
         const defaultTime = { startTime: "12:00", endTime: "12:00", startAmPm: "AM", endAmPm: "AM" };
@@ -227,12 +280,8 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
             endTime: selectedDates[0].endTime, 
             startAmPm: selectedDates[0].startAmPm, 
             endAmPm: selectedDates[0].endAmPm, 
-            eventLink: useSameDetails ? selectedDates[0].eventLink : "",
-            verificationCode: useSameDetails ? selectedDates[0].verificationCode : "",
         } : { 
-            ...defaultTime, 
-            eventLink: "", 
-            verificationCode: "" 
+            ...defaultTime
         };
         
         const isAlreadySelected = selectedDates.some(d => d.date === dateStr);
@@ -247,7 +296,7 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
                 newDates = [...selectedDates, { date: dateStr, endDate: dateStr, ...commonDetails }];
             }
         }
-        setSelectedDates(newDates.sort((a, b) => new Date(a.date) - new Date(b.date)));
+        setSelectedDates(newDates.sort((a, b) => new Date(a.date.replace(/-/g, "/")) - new Date(b.date.replace(/-/g, "/"))));
     };
 
     const handleIndividualTimeChange = (index, field, value) => {
@@ -289,7 +338,6 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
         
         setSelectedDates(updatedDates);
     };
-
     const handleUseSameTimeChange = (e) => {
         const isEnabled = e.target.checked;
         setUseSameTime(isEnabled);
@@ -305,8 +353,14 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
             })));
         }
     };
-
     const handleSave = () => {
+        if (selectedDates.length === 0) {
+            if (showAlert) {
+                showAlert({ type: 'warning', message: 'No Dates Selected', description: 'Please select at least one date to save.' });
+            }
+            return;
+        }
+        
         if (timeError) {
             showAlert({type: 'error', message: 'Invalid Time', description: timeError});
             return;
@@ -324,9 +378,8 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
             }
         }
         
-        // --- FIX: Convert to 24-hour format and REMOVE redundant 12-hour fields ---
+        // Convert to 24-hour format and REMOVE redundant 12-hour fields
         const convertedDates = selectedDates.map((dateEntry) => {
-            // Destructure to exclude 12-hour fields (startAmPm, endAmPm) from the saved object
             const { startAmPm, endAmPm, ...rest } = dateEntry;
 
             return {
@@ -336,14 +389,11 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
             };
         });
         
-        // --- CONSOLE LOGGING START ---
         console.log("Saving Dates (24h format):", convertedDates);
-        // --- CONSOLE LOGGING END ---
 
         onSave(convertedDates, dateType);
         onClose();
     };
-
     const removeDate = (dateToRemove) => {
         setSelectedDates(prevDates => prevDates.filter(d => d.date !== dateToRemove));
     };
