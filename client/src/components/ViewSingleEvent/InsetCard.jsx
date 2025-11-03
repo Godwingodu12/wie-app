@@ -9,4 +9,4 @@ const InsetCard = ({ children, className = "", theme }) => (
     {children}
   </div>
 );
-export default InsetCard
+export default InsetCard;

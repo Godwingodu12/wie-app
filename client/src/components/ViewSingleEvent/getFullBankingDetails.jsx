@@ -50,4 +50,4 @@ const getFullBankingDetails = (eventData, groupData) => {
   return Object.values(accountsMap);
 };
 
-export default getFullBankingDetails
+export default getFullBankingDetails;

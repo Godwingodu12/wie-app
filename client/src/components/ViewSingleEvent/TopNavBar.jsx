@@ -54,35 +54,6 @@ const TopNavBar = ({
         </div>
 
         <div className="flex items-center space-x-4">
-          {/* Notification Icon (Copied from ViewSingleEvent) */}
-          <div
-            className="relative rounded-full"
-            style={{
-              backgroundColor: theme.cardBg,
-              boxShadow: theme.shadowOutset,
-            }}
-          >
-            <div
-              style={{
-                boxShadow: theme.isDark
-                  ? "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)"
-                  : "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
-              }}
-              className={`w-11 h-11 rounded-full flex items-center justify-center`}
-            >
-              <img
-                src={NotificationIcon}
-                alt="Notification"
-                className={`w-4 h-4 ${
-                  theme.isDark ? "filter brightness-0 invert" : ""
-                }`}
-              />
-            </div>
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5">
-              12
-            </span>
-          </div>
-
           {/* Theme Toggle */}
           <ThemeToggle isDark={theme.isDark} onToggle={handleThemeToggle} />
         </div>

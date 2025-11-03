@@ -6,4 +6,4 @@ const formatImagePath = (path) => {
   const cleanPath = path.replace("src\\", "").replace(/\\/g, "/");
   return `${API_BASE_URL}/${cleanPath}`;
 };
-export default formatImagePath
+export default formatImagePath;

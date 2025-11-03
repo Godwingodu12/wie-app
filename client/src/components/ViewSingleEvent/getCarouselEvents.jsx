@@ -1,4 +1,4 @@
-const getCarouselEvents = (eventData, formatImagePath) => {
+const getCarouselEvents = (eventData, getImageUrlWithAuth) => {
   if (
     !eventData ||
     eventData.event_date_type !== "multi-day" ||
@@ -32,7 +32,7 @@ const getCarouselEvents = (eventData, formatImagePath) => {
       return {
         date: formattedDate,
         name: subEvent?.event_name || "TBD Event",
-        logo: bannerPath ? formatImagePath(bannerPath) : "",
+        logo: bannerPath ? getImageUrlWithAuth(bannerPath) : "", // <-- CHANGED HERE
       };
     })
     .filter(
