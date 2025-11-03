@@ -39,7 +39,7 @@ import OtherEventViewDetails from './pages/ticket/OtherEventViewDetails';
 import PreviousEvenetDetails from './pages/ticket/PreviousEvenetDetails';
 import LiveEventView from './pages/ticket/LiveEventView';
 import ConfirmEventView from './pages/ticket/ConfirmEventView';
-
+import PersonalDetails from './pages/settings/PersonalDetails';
 // Protected Route - Only for authenticated users
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
@@ -335,6 +335,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <ConfirmEventView/>
+          </ProtectedRoute>
+        }
+      />  
+      <Route
+        path="/settings/personal-details"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <PersonalDetails/>
           </ProtectedRoute>
         }
       />   
