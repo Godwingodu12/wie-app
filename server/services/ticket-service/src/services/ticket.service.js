@@ -3418,7 +3418,6 @@ export const updateTicketAddOns = async (req, res) => {
 };
 export const updateTicketDetails = async (req, res) => {
   const ticketId = req.params.ticketId;
-  
   if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
     return res.status(400).json({ 
       message: "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
@@ -3442,6 +3441,8 @@ export const updateTicketDetails = async (req, res) => {
   };
 
   try {
+  const processedFiles = {}; 
+  const ticketPhotoFiles = {};
     // Handle file uploads first with better error handling
     await new Promise((resolve, reject) => {
       uploadTicketMedia(req, res, (err) => {
@@ -3502,11 +3503,9 @@ export const updateTicketDetails = async (req, res) => {
     // Parse nested arrays from request body
     const bankingDetails = parseNestedData(req.body.banking_details, 'banking_details');
     const ticketTypes = parseNestedData(req.body.ticket_types, 'ticket_types');
-    // Process uploaded files - Handle ticket photo uploads
-    const processedFiles = {};    
+    // Process uploaded files - Handle ticket photo uploads   
     // Get uploaded files
     const uploadedFiles = await processFileUploads(req.files || {});
-    const ticketPhotoFiles = {};
     Object.keys(uploadedFiles).forEach(fieldName => {
       // Handle ticket photo files
       if (fieldName.startsWith('ticket_photo_')) {
@@ -3856,33 +3855,75 @@ export const updateTicketDetails = async (req, res) => {
       });
     }
     // Cleanup: Delete uploaded Cloudinary files if database operation fails
-    if (error.name !== 'LIMIT_FILE_SIZE' && 
-        error.name !== 'LIMIT_FILE_COUNT' && 
-        error.name !== 'LIMIT_UNEXPECTED_FILE') {
-      try {
-        const filesToDelete = [];
-        
-        // Collect all uploaded file public_ids
-        if (processedFiles.ticket_layout_public_id) {
-          filesToDelete.push(processedFiles.ticket_layout_public_id);
-        }
-        
-        Object.values(ticketPhotoFiles || {}).forEach(file => {
+if (error.name !== 'LIMIT_FILE_SIZE' && 
+    error.name !== 'LIMIT_FILE_COUNT' && 
+    error.name !== 'LIMIT_UNEXPECTED_FILE') {
+  try {
+    const filesToDelete = [];
+    
+    // Check if processedFiles exists before accessing its properties
+    if (typeof processedFiles !== 'undefined') {
+      // Collect ticket layout file
+      if (processedFiles.ticket_layout_public_id) {
+        filesToDelete.push(processedFiles.ticket_layout_public_id);
+      }
+      
+      // Collect ticket photo files
+      if (processedFiles.ticketPhotoFiles && typeof processedFiles.ticketPhotoFiles === 'object') {
+        Object.values(processedFiles.ticketPhotoFiles).forEach(file => {
           if (file && file.public_id) {
             filesToDelete.push(file.public_id);
           }
         });
-        
-        // Delete files from Cloudinary
-        for (const publicId of filesToDelete) {
-          await deleteFromCloudinary(publicId);
-        }
-        
-        console.log(`Cleaned up ${filesToDelete.length} files from Cloudinary due to error`);
-      } catch (cleanupError) {
-        console.error("Error cleaning up Cloudinary files:", cleanupError);
       }
     }
+    
+    // Also check if uploadedFiles exists (from earlier in the try block)
+    if (typeof uploadedFiles !== 'undefined' && uploadedFiles) {
+      // Check for ticket layout in uploadedFiles
+      if (uploadedFiles.ticket_layout && 
+          Array.isArray(uploadedFiles.ticket_layout) && 
+          uploadedFiles.ticket_layout.length > 0) {
+        const layoutFile = uploadedFiles.ticket_layout[0];
+        if (layoutFile.public_id && !filesToDelete.includes(layoutFile.public_id)) {
+          filesToDelete.push(layoutFile.public_id);
+        }
+      }
+      
+      // Check for ticket photos in uploadedFiles
+      Object.keys(uploadedFiles).forEach(fieldName => {
+        if (fieldName.startsWith('ticket_photo_')) {
+          const fileData = uploadedFiles[fieldName];
+          if (Array.isArray(fileData) && fileData.length > 0) {
+            const photoFile = fileData[0];
+            if (photoFile.public_id && !filesToDelete.includes(photoFile.public_id)) {
+              filesToDelete.push(photoFile.public_id);
+            }
+          }
+        }
+      });
+    }
+    // Delete files from Cloudinary if any were collected
+    if (filesToDelete.length > 0) {
+      for (const publicId of filesToDelete) {
+        try {
+          await deleteFromCloudinary(publicId);
+          console.log(`Successfully deleted file: ${publicId}`);
+        } catch (deleteError) {
+          console.error(`Failed to delete file ${publicId}:`, deleteError.message);
+        }
+      }
+      
+      console.log(`Cleaned up ${filesToDelete.length} file(s) from Cloudinary due to error`);
+        } else {
+          console.log('No Cloudinary files to clean up');
+        }
+      } catch (cleanupError) {
+        console.error("Error during Cloudinary cleanup:", cleanupError.message);
+        // Don't throw - we're already handling an error
+      }
+    }
+    
     res.status(500).json({ 
       message: "Internal server error", 
       error: error.message,
