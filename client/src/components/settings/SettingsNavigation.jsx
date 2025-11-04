@@ -22,7 +22,7 @@ const SettingsNavigation = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false); // Changed to false by default
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
 
   const handleGoBack = () => {
     navigate('/profile');
@@ -41,7 +41,12 @@ const SettingsNavigation = ({
     {
       title: "How to use Wie centre",
       items: [
-        { icon: EditIcon, text: "Edit profile", path: "/settings/editprofile" },
+        { 
+          icon: EditIcon, 
+          text: "Edit profile", 
+          path: "/settings/editprofile", 
+          style: { filter: isDark ? 'brightness(0) invert(1)' : 'invert(1)' }
+        },
         { icon: NotificationSettingsIcon, text: "Notification", path: "/settings/notifications" },
       ],
     },
@@ -70,27 +75,31 @@ const SettingsNavigation = ({
       }
     }
   };
-
   const SidebarContent = () => (
     <div className="space-y-6 md:space-y-8">
       {sidebarItems.map((section, sectionIndex) => (
         <div key={sectionIndex}>
+          {/* Section Title */}
           <h3
             className={`mb-2 text-sm font-semibold ${
               isDesktopCollapsed ? "hidden" : ""
-            }`}
+            } ${isDark ? "text-gray-100" : "text-gray-800"}`}
           >
             {section.title}
           </h3>
+
+          {/* Section Subtitle */}
           {section.subtitle && (
             <p
-              className={`mb-4 text-xs text-gray-500 ${
-                isDesktopCollapsed ? "hidden" : ""
-              }`}
+              className={`mb-4 text-xs ${
+                isDark ? "text-gray-400" : "text-gray-500"
+              } ${isDesktopCollapsed ? "hidden" : ""}`}
             >
               {section.subtitle}
             </p>
           )}
+
+          {/* Sidebar Items */}
           <div className="space-y-1">
             {section.items.map((item, itemIndex) => {
               const isActive = location.pathname === item.path;
@@ -103,17 +112,29 @@ const SettingsNavigation = ({
                     isDesktopCollapsed ? "justify-center" : ""
                   } ${
                     isActive
-                      ? "text-black dark:text-white font-bold"
-                      : "opacity-60 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                      ? isDark
+                        ? "bg-gray-700 text-white font-semibold"
+                        : "bg-gray-100 text-black font-semibold"
+                      : isDark
+                      ? "text-gray-300 hover:bg-gray-800"
+                      : "text-gray-700 hover:bg-gray-100"
                   }`}
-                  style={isActive ? { boxShadow: theme.inputShadow, backgroundColor: theme.inputBg.replace('bg-','') } : {}}
+                  style={
+                    isActive
+                      ? {
+                          boxShadow: theme.inputShadow,
+                          backgroundColor: theme.inputBg.replace("bg-", ""),
+                        }
+                      : {}
+                  }
                 >
                   <img
                     src={item.icon}
                     alt={item.text}
-                    className={`h-5 w-5 flex-shrink-0 ${isDark ? "filter brightness-0 invert" : ""} ${
-                      isActive ? "opacity-100" : "opacity-60"
+                    className={`h-5 w-5 flex-shrink-0 ${
+                      isActive ? "opacity-100" : "opacity-70"
                     }`}
+                    style={item.style || (isDark ? { filter: 'brightness(0) invert(1)' } : {})}
                   />
                   <span
                     className={`whitespace-nowrap text-sm ${
@@ -130,7 +151,6 @@ const SettingsNavigation = ({
       ))}
     </div>
   );
-
   // Mobile overlay
   if (isMobile) {
     if (!isOpen) return null;
@@ -151,7 +171,8 @@ const SettingsNavigation = ({
               <img
                 src={BackArrowIcon}
                 alt="Close"
-                className={`h-3 w-3 ${isDark ? "filter brightness-0 invert" : ""}`}
+                className="h-3 w-3"
+                style={{ filter: isDark ? 'brightness(0) invert(1)' : 'brightness(0)' }}
               />
             </button>
             <h2 className="text-lg font-semibold">Settings</h2>
@@ -181,9 +202,10 @@ const SettingsNavigation = ({
             <img
               src={BackArrowIcon}
               alt="Toggle Sidebar"
-              className={`h-3 w-3 transform transition-transform duration-300 ${
+               className={`h-3 w-3 transform transition-transform duration-300 ${
                 isDesktopCollapsed ? "rotate-180" : ""
-              } ${isDark ? "filter brightness-0 invert" : ""}`}
+              }`}
+              style={{ filter: isDark ? 'brightness(0) invert(1)' : 'brightness(0)' }}
             />
           </button>
           <h2 className={`text-lg font-semibold ${isDesktopCollapsed ? "hidden" : ""}`}>

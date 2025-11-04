@@ -239,16 +239,38 @@ const handleSubmit = async () => {
     setIsLoading(false);
   }
 };
-  const theme = isDark
+const theme = isDark
     ? {
         bg: "bg-[#212426]",
         text: "text-white",
-        inputBg: "bg-[#212426]",
+        notificationShadow:
+          "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)",
+        cardShadow:
+          "inset 8px 8px 16px rgba(0,0,0,0.4), inset -8px -8px 16px rgba(60,60,60,0.1)",
+        inputShadow:
+          "inset 4px 4px 8px rgba(0,0,0,0.3), inset -4px -4px 8px rgba(60,60,60,0.1)",
+        buttonShadow:
+          "4px 4px 8px rgba(0,0,0,0.3), -4px -4px 8px rgba(60,60,60,0.1)",
+        sidebarBg: "bg-[#1a1c1e]",
+        inputBg: "bg-[#2a2d30]",
+        borderColor: "border-[#3a3c40]",
+        separatorColor: "rgba(255,255,255,0.3)",
       }
     : {
         bg: "bg-[#f0f2f5]",
         text: "text-gray-900",
+        notificationShadow:
+          "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
+        cardShadow:
+          "inset 8px 8px 16px rgba(0,0,0,0.1), inset -8px -8px 16px rgba(255,255,255,0.8)",
+        inputShadow:
+          "inset 4px 4px 8px rgba(0,0,0,0.1), inset -4px -4px 8px rgba(255,255,255,0.8)",
+        buttonShadow:
+          "4px 4px 8px rgba(0,0,0,0.1), -4px -4px 8px rgba(255,255,255,0.8)",
+        sidebarBg: "bg-gray-50",
         inputBg: "bg-gray-50",
+        borderColor: "border-gray-200",
+        separatorColor: "rgba(255,255,255,0.3)",
       };
 
   return (
@@ -300,6 +322,7 @@ const handleSubmit = async () => {
                   src={HandBurgerIcon}
                   alt="Menu"
                   className={`w-6 h-6 ${isDark ? "filter brightness-0 invert" : ""}`}
+                  style={{ filter: isDark ? 'brightness(0) invert(1)' : 'brightness(0)' }}
                 />
               </button>
               <img src={WieLogo} alt="Wie Logo" className="w-8 h-8" />
@@ -324,14 +347,12 @@ const handleSubmit = async () => {
                 }}
               >
                <SettingsNavigation
-  theme={theme}
-  isDark={isDark}
-  isMobile={isMobile}
-  isOpen={isMobileSidebarOpen}
-  onClose={() => setIsMobileSidebarOpen(false)}
-/>
-
-
+                theme={theme}
+                isDark={isDark}
+                isMobile={isMobile}
+                isOpen={isMobileSidebarOpen}
+                onClose={() => setIsMobileSidebarOpen(false)}
+              />
                 <div className="flex-1 p-6 md:p-8 overflow-y-auto">
                   <div className="mb-8">
                     <h1 className="text-2xl font-bold mb-2">Personal details</h1>
@@ -589,5 +610,4 @@ const handleSubmit = async () => {
     </>
   );
 };
-
 export default PersonalDetails;
