@@ -1042,8 +1042,7 @@ const ViewSingleEvent = () => {
                       </p>
                     </Card>
 
-                    {eventData.event_date_type === "multi-day" &&
-                    eventData.sub_events.length > 0 ? (
+                    {eventData.sub_events.length > 0 ? (
                       <Card
                         theme={theme}
                         style={{
@@ -1266,8 +1265,7 @@ const ViewSingleEvent = () => {
               </div>
             </div>
 
-            {eventData.event_date_type === "multi-day" &&
-            eventData.sub_events.length > 0 ? (
+            {eventData.sub_events.length > 0 ? (
               <div className="w-full">
                 <h3 className={`text-lg font-semibold mb-1 ${theme.textColor}`}>
                   Multiple event
@@ -1728,7 +1726,7 @@ const ViewSingleEvent = () => {
                     Free event
                   </h2>
                   <p className={`text-sm ${theme.textColor}`}>
-                    No payment required for this event.
+                    No payment required for main event.
                   </p>
                 </div>
               )}
