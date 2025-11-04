@@ -1,9 +1,5 @@
 const getCarouselEvents = (eventData, getImageUrlWithAuth) => {
-  if (
-    !eventData ||
-    eventData.event_date_type !== "multi-day" ||
-    !eventData.sub_events?.length
-  ) {
+  if (!eventData || !eventData.sub_events?.length) {
     return [];
   }
 
