@@ -1,6 +1,19 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 
-import { ChevronRight, ChevronLeft, X, Phone, Play } from "lucide-react";
+import {
+  ChevronRight,
+  ChevronLeft,
+  X,
+  Phone,
+  Play,
+  Bookmark,
+} from "lucide-react";
 import { getImageUrl, getTicketImageUrl } from "../../utils/imageUtils";
 import Event_Days from "../../assets/ViewSingleEvent/Event_Days.svg";
 import Globe from "../../assets/ViewSingleEvent/Globe.svg";
@@ -28,11 +41,11 @@ import {
   getTicketById,
   getGroupView,
   deleteTicket,
+  confirmEvent,
 } from "../../services/ticketService";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import Card from "../../components/ViewSingleEvent/Card";
-import getFullBankingDetails from "../../components/ViewSingleEvent/getFullBankingDetails";
 import getCarouselEvents from "../../components/ViewSingleEvent/getCarouselEvents";
 import getPreferences from "../../components/ViewSingleEvent/getPreferences";
 import formatCapacity from "../../components/ViewSingleEvent/formatCapacity";
@@ -85,15 +98,13 @@ const ConfirmEventView = () => {
   const navigate = useNavigate();
   const location = useLocation(); // <--- New hook usage
   const initialThemeIsDark = location.state?.initialThemeIsDark ?? true;
-  const [processedEventData, setProcessedEventData] = useState(null);
   const [theme, setTheme] = useState(
     initialThemeIsDark ? darkTheme : lightTheme
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [currentGuideIndex, setCurrentGuideIndex] = useState(0);
-  const [currentBankIndex, setCurrentBankIndex] = useState(0);
+  const [currentBankIndex,setCurrentBankIndex] = useState(0);
   const [currentTicketIndex, setCurrentTicketIndex] = useState(0);
-
   const [eventData, setEventData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -119,6 +130,7 @@ const ConfirmEventView = () => {
 
   const [showSubEventModal, setShowSubEventModal] = useState(false);
   const [selectedSubEvent, setSelectedSubEvent] = useState(null);
+  const [showConfirmSaveModal, setShowConfirmSaveModal] = useState(false);
 
   const [currentSeatingIndex, setCurrentSeatingIndex] = useState(0);
   const [showSeatingModal, setShowSeatingModal] = useState(false);
@@ -132,39 +144,56 @@ const ConfirmEventView = () => {
 
   const guidesToShow = viewportWidth >= 768 ? 3 : 1;
   const visibleTickets = viewportWidth >= 768 ? 3 : 1;
-  const ticketsToShow = 3;
-
-  const guideContainerRef = useRef(null);
 
   const handleDeleteEvent = async () => {
     setShowConfirmDeleteModal(true);
   };
 
-  const paymentSourceList = useMemo(() => {
-    if (!eventData) return [];
-    const sources = [];
-    sources.push({
-      name: eventData.event_name,
-      isPaid: eventData.payment_type === "paid",
-      isMain: true,
-    });
-    if (eventData.sub_events) {
-      eventData.sub_events.forEach((subEvent) => {
-        sources.push({
-          name: subEvent.event_name,
-          isPaid: subEvent.payment_type === "paid",
-          isMain: false,
-          subEvent, // Keeping the full sub-event object here for potential use
-        });
+  const handleSave = useCallback(async () => {
+    setShowConfirmSaveModal(false);
+    if (!ticketId) {
+      setAppAlert({
+        type: "error",
+        message: "Error",
+        description: "Ticket ID is missing.",
       });
+      return;
     }
-    return sources;
-  }, [eventData]);
+
+    setLoading(true);
+
+    try {
+      // Call confirmEvent API to save the event
+      await confirmEvent(ticketId);
+
+      setAppAlert({
+        type: "success",
+        message: "Event Saved!",
+        description: "Your event has been saved successfully.",
+      });
+
+      // Navigate to confirm events page after a short delay
+      setTimeout(() => {
+        navigate("/ticket/confirm-events");
+      }, 1500);
+    } catch (err) {
+      console.error("Error saving event:", err);
+      const errorMessage =
+        err.response?.data?.message ||
+        "Failed to save event. Please try again.";
+      setAppAlert({
+        type: "error",
+        message: "Save Failed",
+        description: errorMessage,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [ticketId, navigate]);
 
   const allEventsForBankView = useMemo(() => {
-    if (!eventData) return [];
+    if (!eventData) return []; // 1. Collect all events and their associated bank details
 
-    // Start with the Main Event
     const events = [
       {
         name: eventData.event_name,
@@ -172,14 +201,13 @@ const ConfirmEventView = () => {
         isPrimary: true,
         bankDetails:
           eventData.banking_details || groupData?.banking_details || [], // Prioritize event bank, fallback to group
+        order: 0, // Used for tie-breaking/original order
       },
-    ];
+    ]; // Add all Sub-Events
 
-    // Add all Sub-Events
     if (eventData.sub_events) {
-      eventData.sub_events.forEach((subEvent) => {
+      eventData.sub_events.forEach((subEvent, index) => {
         // Determine the bank details for the sub-event.
-        // It uses its own bank, OR the main event's bank (if group is not separate), OR the group bank.
         const subEventBankDetails =
           subEvent.banking_details ||
           eventData.banking_details ||
@@ -191,11 +219,25 @@ const ConfirmEventView = () => {
           isPaid: subEvent.payment_type === "paid",
           isPrimary: false,
           bankDetails: subEventBankDetails,
+          order: index + 1, // Used for tie-breaking/original order
         });
       });
     }
+
+    events.sort((a, b) => {
+      const paidDiff = (b.isPaid ? 1 : 0) - (a.isPaid ? 1 : 0);
+      if (paidDiff !== 0) {
+        return paidDiff;
+      }
+      return a.order - b.order;
+    });
+
     return events;
   }, [eventData, groupData]);
+
+  const handleSaveEvent = () => {
+    setShowConfirmSaveModal(true);
+  };
 
   const handleConfirmDelete = async () => {
     setShowConfirmDeleteModal(false);
@@ -259,6 +301,16 @@ const ConfirmEventView = () => {
       return newIndex;
     });
   };
+  const eventStats = useMemo(() => {
+    if (!eventData)
+      return { likeCount: 0, totalCapacity: 0, shareCount: 0, ticketTypes: [] };
+    return {
+      likeCount: eventData.like || 0,
+      totalCapacity: eventData.total_capacity || 0,
+      shareCount: eventData.share_count || 0,
+      ticketTypes: eventData.ticket_types || [],
+    };
+  }, [eventData]);
 
   // ADDED: useEffect for responsiveness
   useEffect(() => {
@@ -308,81 +360,77 @@ const ConfirmEventView = () => {
     setCurrentSeatingIndex((prevIndex) => (prevIndex + 1) % len);
   };
 
-  const handleCarouselPrev = () => {
-    setActiveCarouselIndex((prev) => Math.max(0, prev - 1));
-  };
+  const handlePlayClick = () => {
+    console.log("Play clicked, eventData:", eventData);
 
-  const handleCarouselNext = () => {
-    const maxIndex = carouselEvents.length - 1;
-    setActiveCarouselIndex((prev) => Math.min(maxIndex, prev + 1));
-  };
+    // Collect all images: banner, logo, and event_images
+    const allImages = [];
 
-const handlePlayClick = () => {
-  console.log("Play clicked, eventData:", eventData);
-  
-  // Collect all images: banner, logo, and event_images
-  const allImages = [];
-  
-  // Add banner if exists
-  if (eventData?.event_banner) {
-    const bannerUrl = eventData.event_banner.startsWith('http://') || eventData.event_banner.startsWith('https://')
-      ? eventData.event_banner
-      : getImageUrl(eventData.event_banner, "ticket");
-    
-    allImages.push({
-      path: bannerUrl,
-      type: 'banner',
-      name: 'Event Banner',
-      originalName: 'Event Banner'
-    });
-  }
-  
-  // Add logo if exists
-  if (eventData?.event_logo) {
-    const logoUrl = eventData.event_logo.startsWith('http://') || eventData.event_logo.startsWith('https://')
-      ? eventData.event_logo
-      : getImageUrl(eventData.event_logo, "ticket");
-    
-    allImages.push({
-      path: logoUrl,
-      type: 'logo',
-      name: 'Event Logo',
-      originalName: 'Event Logo'
-    });
-  }
-  
-  // Add event_images if exist
-  if (eventData?.event_images?.length > 0) {
-    eventData.event_images.forEach((img, index) => {
-      const imgPath = img.path || img;
-      const imgUrl = imgPath.startsWith('http://') || imgPath.startsWith('https://')
-        ? imgPath
-        : getImageUrl(imgPath, "ticket");
-      
+    // Add banner if exists
+    if (eventData?.event_banner) {
+      const bannerUrl =
+        eventData.event_banner.startsWith("http://") ||
+        eventData.event_banner.startsWith("https://")
+          ? eventData.event_banner
+          : getImageUrl(eventData.event_banner, "ticket");
+
       allImages.push({
-        path: imgUrl,
-        type: 'event_image',
-        name: img.originalName || `Event Image ${index + 1}`,
-        originalName: img.originalName || `Event Image ${index + 1}`
+        path: bannerUrl,
+        type: "banner",
+        name: "Event Banner",
+        originalName: "Event Banner",
       });
-    });
-  }
-  
-  console.log("All collected images:", allImages);
-  console.log("Total images:", allImages.length);
-  
-  if (allImages.length > 0) {
-    setCurrentImageIndex(0);
-    setShowImageModal(true);
-  } else {
-    setAppAlert({
-      message: "Information",
-      description: "No images available for preview.",
-      type: "error",
-      show: true,
-    });
-  }
-};
+    }
+
+    // Add logo if exists
+    if (eventData?.event_logo) {
+      const logoUrl =
+        eventData.event_logo.startsWith("http://") ||
+        eventData.event_logo.startsWith("https://")
+          ? eventData.event_logo
+          : getImageUrl(eventData.event_logo, "ticket");
+
+      allImages.push({
+        path: logoUrl,
+        type: "logo",
+        name: "Event Logo",
+        originalName: "Event Logo",
+      });
+    }
+
+    // Add event_images if exist
+    if (eventData?.event_images?.length > 0) {
+      eventData.event_images.forEach((img, index) => {
+        const imgPath = img.path || img;
+        const imgUrl =
+          imgPath.startsWith("http://") || imgPath.startsWith("https://")
+            ? imgPath
+            : getImageUrl(imgPath, "ticket");
+
+        allImages.push({
+          path: imgUrl,
+          type: "event_image",
+          name: img.originalName || `Event Image ${index + 1}`,
+          originalName: img.originalName || `Event Image ${index + 1}`,
+        });
+      });
+    }
+
+    console.log("All collected images:", allImages);
+    console.log("Total images:", allImages.length);
+
+    if (allImages.length > 0) {
+      setCurrentImageIndex(0);
+      setShowImageModal(true);
+    } else {
+      setAppAlert({
+        message: "Information",
+        description: "No images available for preview.",
+        type: "error",
+        show: true,
+      });
+    }
+  };
   // Inside ViewEvent component
 
   useEffect(() => {
@@ -493,21 +541,23 @@ const handlePlayClick = () => {
 
         if (!data || !data.event_name)
           throw new Error("Event data is incomplete.");
-        
+
         // DEBUG: Verify image URLs
         console.log("=== IMAGE VERIFICATION ===");
         console.log("Raw Event Logo:", data.event_logo);
         console.log("Raw Event Banner:", data.event_banner);
         console.log("Raw Event Images:", data.event_images);
-        
+
         // Test if logo URL is accessible
         if (data.event_logo) {
           const testImg = new Image();
-          testImg.onload = () => console.log("✅ Logo URL is accessible:", data.event_logo);
-          testImg.onerror = () => console.error("❌ Logo URL failed to load:", data.event_logo);
+          testImg.onload = () =>
+            console.log("✅ Logo URL is accessible:", data.event_logo);
+          testImg.onerror = () =>
+            console.error("❌ Logo URL failed to load:", data.event_logo);
           testImg.src = data.event_logo;
         }
-        
+
         setEventData(data);
         setGroupData(fetchedGroupData);
       } catch (err) {
@@ -537,17 +587,6 @@ const handlePlayClick = () => {
     () => getCarouselEvents(eventData, (path) => getImageUrl(path, "ticket")),
     [eventData]
   );
-
-  const eventStats = useMemo(() => {
-    if (!eventData)
-      return { likeCount: 0, totalCapacity: 0, shareCount: 0, ticketTypes: [] };
-    return {
-      likeCount: eventData.like || 0,
-      totalCapacity: eventData.total_capacity || 0,
-      shareCount: eventData.share_count || 0,
-      ticketTypes: eventData.ticket_types || [],
-    };
-  }, [eventData]);
 
   const hashtags = useMemo(() => {
     return eventData?.hashtag || [];
@@ -650,12 +689,6 @@ const handlePlayClick = () => {
     setSelectedGuest(null);
   };
 
-  const insetBoxStyle = {
-    boxShadow: theme.shadowInset,
-    backgroundColor: theme.insetBg,
-    borderRadius: "12px",
-  };
-
   const handlePrevGuide = () => {
     setCurrentGuideIndex((prevIndex) => Math.max(0, prevIndex - 1));
   };
@@ -694,20 +727,26 @@ const handlePlayClick = () => {
     let totalImages = 0;
     if (eventData?.event_banner) totalImages++;
     if (eventData?.event_logo) totalImages++;
-    if (eventData?.event_images?.length > 0) totalImages += eventData.event_images.length;
-    
+    if (eventData?.event_images?.length > 0)
+      totalImages += eventData.event_images.length;
+
     if (totalImages === 0) return;
     setCurrentImageIndex((prevIndex) => (prevIndex + 1) % totalImages);
+  };
+
+  const handleBack = () => {
+    navigate(-1);
   };
   const handlePrevImage = () => {
     // Calculate total images: banner + logo + event_images
     let totalImages = 0;
     if (eventData?.event_banner) totalImages++;
     if (eventData?.event_logo) totalImages++;
-    if (eventData?.event_images?.length > 0) totalImages += eventData.event_images.length;
-    
+    if (eventData?.event_images?.length > 0)
+      totalImages += eventData.event_images.length;
+
     if (totalImages === 0) return;
-    setCurrentImageIndex((prevIndex) => 
+    setCurrentImageIndex((prevIndex) =>
       prevIndex === 0 ? totalImages - 1 : prevIndex - 1
     );
   };
@@ -745,6 +784,15 @@ const handlePlayClick = () => {
         message={`Are you sure you want to permanently delete event ID ${ticketId}? This action cannot be undone.`}
         darkMode={theme.isDark}
       />
+      <ConfirmModal
+        isOpen={showConfirmSaveModal}
+        onClose={() => setShowConfirmSaveModal(false)}
+        onConfirm={handleSave}
+        title="Confirm Event?"
+        message={`Are you sure you want to save and confirm event ID ${ticketId}? This will confirm your final selection.`}
+        confirmText="Confirm Save"
+        darkMode={theme.isDark}
+      />
 
       {/* GLOBAL ALERT: Displays success/error messages */}
       <Alert
@@ -763,7 +811,38 @@ const handlePlayClick = () => {
       />
 
       <div className="flex justify-between items-center md:mb-10 mb-4 px-2 md:px-0">
-        <div className="flex justify-start md:justify-center flex-grow">
+        <div className="flex items-center my-auto space-x-4 flex-shrink-0 mr-4">
+          <button
+            onClick={handleBack}
+            className="h-10 w-10 md:h-12 md:w-12 rounded-full flex items-center justify-center transition-all duration-300 transform-gpu flex-shrink-0"
+            style={{
+              backgroundColor: theme.isDark ? "#212426" : theme.mainBg, // Use dark theme color for the button base
+              boxShadow: theme.isDark
+                ? "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14"
+                : theme.shadowOutset, // Apply custom inset shadow for dark theme, or default for light
+              color: theme.textColor,
+            }}
+          >
+            <ChevronLeft
+              size={24}
+              className={theme.isDark ? "text-gray-300" : "text-gray-800"}
+            />
+          </button>
+          <div
+            className="flex flex-col items-center cursor-pointer space-y-2 transition-transform duration-200 hover:scale-[1.02]"
+            onClick={handleSaveEvent}
+          >
+            <div
+              className="w-10 h-10 bg-[#5E5CE6] text-white rounded-full flex items-center justify-center"
+              style={{
+                boxShadow: theme.shadowOutset, // Outer shadow for floating effect
+              }}
+            >
+              <Bookmark size={20} />
+            </div>
+          </div>
+        </div>
+        <div className=" md:flex hidden justify-start md:justify-center flex-grow">
           <Card
             theme={theme}
             className="inline-block px-12 py-2"
@@ -774,7 +853,7 @@ const handlePlayClick = () => {
                 theme.isDark ? "text-gray-300" : "text-gray-800"
               }`}
             >
-              {eventData.event_name?.toUpperCase() || "EVENT NAME"}
+              {eventData.event_name || "EVENT NAME"}
             </h1>
           </Card>
         </div>
@@ -795,6 +874,23 @@ const handlePlayClick = () => {
             onClick={handleDeleteEvent}
             setAppalert={setAppAlert} // Use the new handler here
           />
+        </div>
+      </div>
+      <div className="flex  md:hidden justify-center items-center md:mb-10 mb-4 px-2 md:px-0">
+        <div className=" md:hidden flex justify-center flex-grow">
+          <Card
+            theme={theme}
+            className="inline-block px-12 py-2"
+            customStyle={{ borderRadius: "20px" }}
+          >
+            <h1
+              className={`text-4xl font-bold text-center tracking-widest ${
+                theme.isDark ? "text-gray-300" : "text-gray-800"
+              }`}
+            >
+              {eventData.event_name || "EVENT NAME"}
+            </h1>
+          </Card>
         </div>
       </div>
 
@@ -826,47 +922,62 @@ const handlePlayClick = () => {
             </div>
             <div className="md:flex space-y-4 md:space-y-0 md:space-x-6 mb-4">
               <div
-                style={insetBoxStyle}
-                className={`p-4 ${theme.textColor} leading-relaxed text-sm  flex-grow rounded-lg`}
+                style={{
+                  borderRadius: "31.15px",
+                  boxShadow: `6.23px 6.23px 12.46px 0px #0000002E inset, -6.23px -6.23px 12.46px 0px #FFFFFF14 inset`,
+                }}
+                className={`p-4 ${theme.textColor} leading-relaxed text-sm flex-grow rounded-3xl  `}
               >
-                {eventData.event_description}
+                {eventData.event_description ||
+                  "A detailed description of the event will appear here."}
               </div>
               <div className="flex justify-between">
                 <Card
                   theme={theme}
-                  className="md:p-4 gap-x-4  flex md:flex-col justify-around items-center flex-shrink-0"
-                  style={{ minWidth: "80px" }}
+                  className="md:p-4 gap-x-4 flex md:flex-col justify-around items-center flex-shrink-0"
+                  style={{
+                    minWidth: "80px",
+                    background: theme.isDark ? "#212426" : "A light mode color",
+                    border: theme.isDark
+                      ? "0.66px solid #33373A"
+                      : "0.66px solid #E0E0E0",
+                    borderRadius: "19.66px",
+                    boxShadow: `5.24px 5.24px 7.86px 0px #00000029, -5.24px -5.24px 7.86px 0px #FFFFFF0A`,
+                  }}
                 >
                   <div className="text-center md:py-2">
                     <img
                       src={TypeIcon}
-                      alt=""
-                      size={20}
+                      alt="Event Type Icon"
                       className={`mx-auto mb-1 ${
                         theme.isDark ? "" : "filter invert"
                       }`}
                     />
-                    <p className={`text-xs ${theme.textColor}`}>{TypeLabel}</p>
+                    <p className={`text-xs ${theme.textColor}`}>
+                      {TypeLabel || "Event Type"}
+                    </p>
                   </div>
+
                   <div
-                    className={`md:w-full h-full w-[1px] md:h-[1px] rounded-full my-1 ${
+                    className={`md:w-full h-full w-[1px] md:h-[1px] rounded-full  my-1 ${
                       theme.isDark ? "bg-gray-700" : "bg-gray-400"
                     }`}
                   ></div>
+
                   <div className="text-center md:py-2">
                     <img
                       src={LocationIcon}
-                      alt=""
+                      alt="Location Icon"
                       className={`h-6 w-6 mx-auto mb-1 ${
                         theme.isDark ? "" : "filter invert"
                       }`}
                     />
                     <p className={`text-xs ${theme.textColor}`}>
-                      {LocationLabel}
+                      {LocationLabel || "Location"}
                     </p>
                   </div>
                 </Card>
-                <div className=" flex md:hidden   pt-8">
+                <div className="flex md:hidden pt-8">
                   <div
                     className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0"
                     style={{ boxShadow: theme.shadowOutset }}
@@ -874,12 +985,18 @@ const handlePlayClick = () => {
                     <img
                       src={
                         eventData.event_logo
+                          ? eventData.event_logo.startsWith("http://") ||
+                            eventData.event_logo.startsWith("https://")
+                            ? eventData.event_logo
+                            : getImageUrl(eventData.event_logo, "ticket")
+                          : "https://via.placeholder.com/96?text=Logo"
                       }
                       alt="Event Logo"
                       className="w-full h-full rounded-full object-cover opacity-70 p-1"
                       onError={(e) => {
-                        console.error("Logo failed to load:", eventData.event_logo);
-                        e.target.src = "";
+                        console.error("Logo failed to load:", e.target.src);
+                        e.target.src =
+                          "https://via.placeholder.com/96?text=Logo";
                       }}
                     />
                   </div>
@@ -898,12 +1015,22 @@ const handlePlayClick = () => {
                     } ml-2`}
                   ></span>
                 </h3>
-                <div style={insetBoxStyle} className="p-2 rounded-xl">
-                  <div className="flex space-x-3 justify-around">
+                <div
+                  style={{
+                    borderRadius: "23.51px",
+                    boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
+                  }}
+                  className="p-3 rounded-xl"
+                >
+                  <div className="flex  justify-around">
                     <Card
                       theme={theme}
+                      style={{
+                        borderRadius: "23.51px",
+                        boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
+                      }}
                       className={`p-2 py-6 my-2 flex flex-col items-center justify-center w-2/5 rounded-3xl border ${
-                        theme.isDark ? "border-gray-700" : "border-gray-400"
+                        theme.isDark ? "border-gray-700" : "border-gray-300"
                       }`}
                     >
                       <img
@@ -921,10 +1048,13 @@ const handlePlayClick = () => {
                       </p>
                     </Card>
 
-                    {eventData.event_date_type === "multi-day" &&
-                    eventData.sub_events?.length > 0 ? (
+                    {eventData.event_date_type === "multi-day" ? (
                       <Card
                         theme={theme}
+                        style={{
+                          borderRadius: "23.51px",
+                          boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
+                        }}
                         className={`p-2 py-6 my-2 flex flex-col border ${
                           theme.isDark ? "border-gray-700" : "border-gray-300"
                         } items-center justify-center w-2/5 rounded-3xl  relative overflow-hidden`}
@@ -974,7 +1104,7 @@ const handlePlayClick = () => {
                         <p className={`text-3xl font-bold ${theme.textColor}`}>
                           {formatCapacity(
                             eventData.sub_events[currentStatsEventIndex]
-                              .total_capacity
+                              ?.total_capacity
                           )}
                         </p>
                         <p
@@ -983,7 +1113,7 @@ const handlePlayClick = () => {
                           (
                           {
                             eventData.sub_events[currentStatsEventIndex]
-                              .event_name
+                              ?.event_name
                           }
                           )
                         </p>
@@ -994,6 +1124,10 @@ const handlePlayClick = () => {
                     ) : (
                       <Card
                         theme={theme}
+                        style={{
+                          borderRadius: "23.51px",
+                          boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
+                        }}
                         className={`p-2 py-6 my-2 flex flex-col border ${
                           theme.isDark ? "border-gray-700" : "border-gray-400"
                         } items-center justify-center w-2/5 rounded-3xl`}
@@ -1017,7 +1151,7 @@ const handlePlayClick = () => {
                 </div>
               </div>
               {/* Desktop logo */}
-              <div className="hidden w-2/5 md:flex lg:px-10 lg:pt-10 px-7 pt-7">
+              <div className="md:flex w-2/5  lg:px-10 lg:pt-10 px-7 pt-7">
                 <div
                   className="lg:w-32 lg:h-32 h-28 w-28 rounded-full overflow-hidden flex-shrink-0"
                   style={{ boxShadow: theme.shadowOutset }}
@@ -1025,7 +1159,8 @@ const handlePlayClick = () => {
                   <img
                     src={
                       eventData.event_logo
-                        ? (eventData.event_logo.startsWith('http://') || eventData.event_logo.startsWith('https://'))
+                        ? eventData.event_logo.startsWith("http://") ||
+                          eventData.event_logo.startsWith("https://")
                           ? eventData.event_logo
                           : getImageUrl(eventData.event_logo, "ticket")
                         : "https://via.placeholder.com/128?text=Logo"
@@ -1034,31 +1169,8 @@ const handlePlayClick = () => {
                     className="w-full h-full rounded-full object-cover opacity-70 p-1"
                     onError={(e) => {
                       console.error("Logo failed to load:", e.target.src);
-                      e.target.src = "https://via.placeholder.com/128?text=Logo";
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Mobile logo */}
-              <div className="flex md:hidden pt-8">
-                <div
-                  className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0"
-                  style={{ boxShadow: theme.shadowOutset }}
-                >
-                  <img
-                    src={
-                      eventData.event_logo
-                        ? (eventData.event_logo.startsWith('http://') || eventData.event_logo.startsWith('https://'))
-                          ? eventData.event_logo
-                          : getImageUrl(eventData.event_logo, "ticket")
-                        : "https://via.placeholder.com/96?text=Logo"
-                    }
-                    alt="Event Logo"
-                    className="w-full h-full rounded-full object-cover opacity-70 p-1"
-                    onError={(e) => {
-                      console.error("Logo failed to load:", e.target.src);
-                      e.target.src = "https://via.placeholder.com/96?text=Logo";
+                      e.target.src =
+                        "https://via.placeholder.com/128?text=Logo";
                     }}
                   />
                 </div>
@@ -1078,12 +1190,39 @@ const handlePlayClick = () => {
               <path d="M 0,200 L 0,0 Q 0,200 200,200 Z" fill={theme.mainBg} />
             </svg>
 
-            <InsetCard
-              theme={theme}
-              className="md:p-3 md:mb-2 p-1 mb-1  rounded-3xl"
-              style={{ boxShadow: theme.shadowInset }}
+            <div
+              style={{
+                borderRadius: "30px",
+                border: theme.isDark
+                  ? "0.75px solid #33373A" // Dark Mode: Darker border
+                  : "0.75px solid #D0D0D0",
+                background: theme.isDark
+                  ? "linear-gradient(0deg, #212426, #212426), linear-gradient(0deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1))"
+                  : "#FFFFFF0A",
+                boxShadow: theme.isDark
+                  ? `6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset `
+                  : `6px 6px 12px 0px #FFFFFF inset,-6px -6px 12px 0px #A0A0A0 inset `,
+              }}
+              className="md:p-5 md:mb-2 p-1 mb-1 rounded-3xl mt-6"
             >
-              <Card theme={theme} className="md:p-1 p-1 rounded-3xl">
+              <div
+                style={{
+                  borderRadius: "22.44px",
+                  border: theme.isDark
+                    ? "0.75px solid #33373A" // Dark Mode: Darker border
+                    : "0.75px solid #D0D0D0",
+                  boxShadow: theme.isDark
+                    ? `
+        5.98px 5.98px 8.98px 0px #00000029, 
+        -5.98px -5.98px 8.98px 0px #FFFFFF0A 
+      `
+                    : `
+        5.98px 5.98px 8.98px 0px #A0A0A099, 
+        -5.98px -5.98px 8.98px 0px #FFFFFF
+      `,
+                }}
+                className=""
+              >
                 <div
                   onClick={handleLocationClick}
                   className="flex justify-between items-center md:space-x-3 space-x-1"
@@ -1116,8 +1255,10 @@ const handlePlayClick = () => {
                       {eventData.venue}
                     </p>
                   </div>
+
                   <div className="md:w-[1px] h-10 bg-gray-700 md:mx-2 flex-shrink-0 hidden md:block"></div>
-                  <div className="text-right flex-shrink-0 pr-1 md:pr-3  w-1/4 md:w-1/3">
+
+                  <div className="text-right flex-shrink-0 pr-1 md:pr-3 w-1/4 md:w-1/3">
                     <p className="text-xs text-gray-500 mb-1">Gate opens at</p>
                     <p
                       className={`md:text-xl text-sm md:font-bold ${theme.textColor}`}
@@ -1126,37 +1267,20 @@ const handlePlayClick = () => {
                     </p>
                   </div>
                 </div>
-              </Card>
-            </InsetCard>
+              </div>
+            </div>
 
-            {eventData.event_date_type === "multi-day" &&
-            eventData.event_dates?.length > 0 ? (
+            {eventData.event_date_type === "multi-day" ? (
               <div className="w-full">
-                <h3 className={`text-lg font-semibold mb-2 ${theme.textColor}`}>
+                <h3 className={`text-lg font-semibold mb-1 ${theme.textColor}`}>
                   Multiple event
                 </h3>
 
                 <div className="w-full">
-                  <div className="flex items-center justify-center relative px-8">
-                    <button
-                      onClick={handleCarouselPrev}
-                      disabled={activeCarouselIndex === 0}
-                      className={`absolute left-0 z-10 p-2 rounded-full transition-opacity ${
-                        activeCarouselIndex === 0
-                          ? "opacity-30 cursor-default"
-                          : "opacity-80 hover:opacity-100"
-                      }`}
-                      style={{
-                        backgroundColor: theme.cardBg,
-                        boxShadow: theme.shadowOutset,
-                      }}
-                    >
-                      <ChevronLeft size={24} className={theme.textColor} />
-                    </button>
-
-                    <div className="overflow-hidden w-full">
+                  <div className="relative">
+                    <div className="overflow-x-hidden overflow-y-hidden w-full">
                       <div
-                        className="flex space-x-2 transition-transform duration-300 items-center py-4"
+                        className="flex space-x-2 transition-transform duration-300 items-center py-3"
                         style={{
                           transform: `translateX(calc(50% - 52px - ${
                             activeCarouselIndex * 104
@@ -1165,21 +1289,45 @@ const handlePlayClick = () => {
                       >
                         {carouselEvents.map((event, index) => {
                           const isActive = index === activeCarouselIndex;
-                          const scale = isActive ? 1.1 : 1;
-                          const opacity = isActive ? 1 : 0.6;
-                          const translateY = isActive ? "-5px" : "0";
 
-                          const cardStyle = {
-                            backgroundColor: isActive
-                              ? "#5E5CE6"
-                              : theme.cardBg,
-                            boxShadow: isActive
-                              ? "0 0 15px rgba(94, 92, 230, 0.7)"
-                              : theme.shadowOutset,
-                            transform: `scale(${scale}) translateY(${translateY})`,
-                            opacity: opacity,
-                            zIndex: isActive ? 10 : 1,
-                            cursor: isActive ? "default" : "pointer",
+                          const subEventCardStyle = (isActive, isDark) => {
+                            // ... (your existing subEventCardStyle function remains here)
+                            const baseStyle = {
+                              borderRadius: "25.33px",
+                              transition:
+                                "all 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+                            };
+
+                            const darkShadowSoft = "#00000015";
+                            const lightShadowSoft = "#FFFFFF06";
+                            const lightModeDarkShadowSoft = "#A0A0A040";
+
+                            const shadowDimensions =
+                              "6.75px 6.75px 10.13px 0px";
+
+                            if (isActive) {
+                              return {
+                                ...baseStyle,
+                                scale: 1.1,
+                                opacity: 1,
+                                background: "#5E5CE6",
+                                border: "0.84px solid #C1C1C1",
+                                boxShadow: `${shadowDimensions} #3131A1D0, -${shadowDimensions} #9C9BF6C0`,
+                              };
+                            } else {
+                              return {
+                                ...baseStyle,
+                                scale: 0.9,
+                                opacity: 0.6,
+                                background: isDark ? "#212426" : "#E0E0E0",
+                                border: isDark
+                                  ? "0.84px solid #33373A"
+                                  : "0.84px solid #D0D0D0",
+                                boxShadow: isDark
+                                  ? `${shadowDimensions} ${darkShadowSoft},-${shadowDimensions} ${lightShadowSoft}`
+                                  : `${shadowDimensions} ${lightModeDarkShadowSoft},-${shadowDimensions} #FFFFFF `,
+                              };
+                            }
                           };
 
                           return (
@@ -1192,12 +1340,14 @@ const handlePlayClick = () => {
                                   );
                                   setShowSubEventModal(true);
                                 } else {
+                                  // This is the core logic for changing the centered item
                                   setActiveCarouselIndex(index);
                                 }
                               }}
-                              className={`flex-shrink-0 w-24 h-36 p-2 rounded-xl transition-all duration-300 transform-gpu`}
-                              style={cardStyle}
+                              className={`flex-shrink-0 w-24 h-36 p-2 rounded-xl transition-all duration-300 transform-gpu cursor-pointer`}
+                              style={subEventCardStyle(isActive, theme.isDark)}
                             >
+                              {/* Inner content remains the same */}
                               <div className="flex flex-col items-center justify-between h-full">
                                 <div
                                   className="w-10 h-10 mt-4 rounded-full overflow-hidden flex items-center justify-center"
@@ -1234,23 +1384,20 @@ const handlePlayClick = () => {
                       </div>
                     </div>
 
-                    <button
-                      onClick={handleCarouselNext}
-                      disabled={
-                        activeCarouselIndex === carouselEvents.length - 1
-                      }
-                      className={`absolute right-0 z-10 p-2 rounded-full transition-opacity ${
-                        activeCarouselIndex === carouselEvents.length - 1
-                          ? "opacity-30 cursor-default"
-                          : "opacity-80 hover:opacity-100"
-                      }`}
-                      style={{
-                        backgroundColor: theme.cardBg,
-                        boxShadow: theme.shadowOutset,
-                      }}
-                    >
-                      <ChevronRight size={24} className={theme.textColor} />
-                    </button>
+                    {/* Progress Bar (remains the same) */}
+                    <div className="w-1/2 mx-auto h-1 bg-gray-700/50 rounded-full mt-4">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${
+                            (activeCarouselIndex /
+                              (carouselEvents.length - 1)) *
+                            100
+                          }%`,
+                          backgroundColor: "#5E5CE6",
+                        }}
+                      ></div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1260,7 +1407,14 @@ const handlePlayClick = () => {
                   Single event
                 </h3>
                 <div
-                  style={insetBoxStyle}
+                  style={{
+                    borderRadius: "23px",
+                    background: theme.isDark ? "#212426" : "#E0E0E0",
+
+                    boxShadow: theme.isDark
+                      ? `6px 6px 12px 0px #00000022 inset, -6px -6px 12px 0px #FFFFFF10 inset `
+                      : `6px 6px 12px 0px #FFFFFF inset, -6px -6px 12px 0px #A0A0A040 inset `,
+                  }}
                   className={`p-4 ${theme.textColor}  leading-relaxed h-32  my-4 text-sm  rounded-3xl`}
                 >
                   No extra event is added
@@ -1268,7 +1422,19 @@ const handlePlayClick = () => {
               </div>
             )}
             <div className="flex items-end h-full md:w-4/5 mx-auto md:mx-0 md:ml-auto">
-              <Card theme={theme} className="w-full p-2  rounded-3xl  ">
+              <div
+                style={{
+                  borderRadius: "22.44px",
+                  border: theme.isDark
+                    ? "0.75px solid #33373A"
+                    : "0.75px solid #D0D0D0",
+                  background: theme.isDark ? "#212426" : "#FFFFFF08",
+                  boxShadow: theme.isDark
+                    ? `4px 4px 6px 0px #0000001A, -4px -4px 6px 0px #FFFFFF08`
+                    : `4px 4px 6px 0px #90909066, -4px -4px 6px 0px #FFFFFF08`,
+                }}
+                className="w-full p-2 rounded-3xl mt-4"
+              >
                 <div className="flex items-center h-12">
                   <div className="flex items-center pr-2">
                     <h3
@@ -1277,7 +1443,14 @@ const handlePlayClick = () => {
                       Event hashtag
                     </h3>
                   </div>
-                  <div className="border-l-2 border-dotted border-gray-700 h-full mx-1 overflow-y-auto custom-scrollbar"></div>
+
+                  {/* Theme-sensitive Divider */}
+                  <div
+                    className={`border-l-2 border-dotted ${
+                      theme.isDark ? "border-gray-700" : "border-gray-400"
+                    } h-full mx-1 overflow-y-auto custom-scrollbar`}
+                  ></div>
+
                   <div className="flex pl-2 ">
                     {hashtags.length > 0 ? (
                       <div className="flex flex-wrap gap-1.5">
@@ -1298,7 +1471,7 @@ const handlePlayClick = () => {
                     )}
                   </div>
                 </div>
-              </Card>
+              </div>
             </div>
           </Card>
 
@@ -1361,13 +1534,13 @@ const handlePlayClick = () => {
             <div className="md:hidden ">
               <Card
                 theme={theme}
-                className="group relative p-2 text-center w-24 rounded-3xl  flex-shrink-0 z-20 flex flex-col justify-center items-center h-24 cursor-pointer"
+                className="group relative p-2 text-center w-16 h-24  rounded-3xl  flex-shrink-0 z-20 flex flex-col justify-center items-center  cursor-pointer"
               >
                 <div
-                  className="w-12 h-12 rounded-full mx-auto mb-1  flex items-center justify-center"
+                  className="h-6 w-6 rounded-full mx-auto mb-1  flex items-center justify-center"
                   style={{ backgroundColor: "#E53E3E" }}
                 >
-                  <img src={Prohibit} alt="Prohibit" className="w-5 h-5" />
+                  <img src={Prohibit} alt="Prohibit" className="h-3 w-3" />
                 </div>
                 <p className={`text-xs ${theme.textColor}`}>Prohibit</p>
 
@@ -1378,46 +1551,48 @@ const handlePlayClick = () => {
               </Card>
             </div>
           </Card>
-<div className="md:absolute md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:z-30 md:pointer-events-none">
-  <div
-    className="xl:w-80 xl:h-80 w-72 h-72 rounded-full relative"
-    style={{
-      boxShadow: theme.shadowInset,
-      backgroundColor: theme.insetBg,
-    }}
-  >
-    <div
-      className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 xl:w-64 xl:h-64 h-60 w-60 rounded-full overflow-hidden"
-      style={{ boxShadow: theme.shadowOutset }}
-    >
-      <img
-        src={
-          eventData.event_banner
-            ? (eventData.event_banner.startsWith('http://') || eventData.event_banner.startsWith('https://'))
-              ? eventData.event_banner
-              : getImageUrl(eventData.event_banner, "ticket")
-            : "https://via.placeholder.com/256?text=Banner"
-        }
-        alt={eventData.event_name}
-        className="w-full h-full object-cover"
-        onError={(e) => {
-          console.error("Banner image failed to load:", e.target.src);
-          e.target.src = "https://via.placeholder.com/256?text=Banner";
-        }}
-      />
-    </div>
-    <button
-      className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 md:w-20 md:h-20 w-16 h-16 rounded-full flex items-center justify-center pointer-events-auto cursor-pointer"
-      style={{
-        backgroundColor: "#5E5CE6",
-        boxShadow: theme.shadowOutset,
-      }}
-      onClick={handlePlayClick}
-    >
-      <Play size={26} className="text-white ml-1" fill="white" />
-    </button>
-  </div>
-</div>
+          <div className="md:absolute mx-auto md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:z-30 md:pointer-events-none">
+            <div
+              className="xl:w-80 xl:h-80 w-72 h-72 rounded-full relative"
+              style={{
+                boxShadow: theme.shadowInset,
+                backgroundColor: theme.insetBg,
+              }}
+            >
+              <div
+                className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 xl:w-64 xl:h-64 h-60 w-60 rounded-full overflow-hidden"
+                style={{ boxShadow: theme.shadowOutset }}
+              >
+                <img
+                  src={
+                    eventData.event_banner
+                      ? eventData.event_banner.startsWith("http://") ||
+                        eventData.event_banner.startsWith("https://")
+                        ? eventData.event_banner
+                        : getImageUrl(eventData.event_banner, "ticket")
+                      : "https://via.placeholder.com/256?text=Banner"
+                  }
+                  alt={eventData.event_name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    console.error("Banner image failed to load:", e.target.src);
+                    e.target.src =
+                      "https://via.placeholder.com/256?text=Banner";
+                  }}
+                />
+              </div>
+              <button
+                className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 md:w-20 md:h-20 w-16 h-16 rounded-full flex items-center justify-center pointer-events-auto cursor-pointer"
+                style={{
+                  backgroundColor: "#5E5CE6",
+                  boxShadow: theme.shadowOutset,
+                }}
+                onClick={handlePlayClick}
+              >
+                <Play size={26} className="text-white ml-1" fill="white" />
+              </button>
+            </div>
+          </div>
           <Card
             theme={theme}
             className="p-2 flex flex-col relative overflow-hidden"
@@ -1431,17 +1606,25 @@ const handlePlayClick = () => {
             </svg>
 
             <div className="flex flex-col h-full md:w-2/3 w-full md:ml-auto mx-auto md:mx-0">
-              <Card
-                theme={theme}
-                className="mb-2 rounded-lg w-full md:w-3/4 mx-auto"
+              <div
+                style={{
+                  borderRadius: "16px",
+                  background: theme.isDark ? "#212426" : "#FFFFFF08",
+                  border: theme.isDark
+                    ? "1.02px solid #33373A"
+                    : "1.02px solid #D0D0D0",
+                  boxShadow: theme.isDark
+                    ? `8.18px 8.18px 12.26px 0px #00000029,-8.18px -8.18px 12.26px 0px #FFFFFF0A`
+                    : `8.18px 8.18px 12.26px 0px #A0A0A099, -8.18px -8.18px 12.26px 0px #FFFFFF `,
+                }}
+                className="mb-2 p-2 rounded-lg w-full md:w-3/4 mx-auto"
               >
                 <div className="flex justify-between items-center">
-                  {/* Left Arrow Container */}
                   <div>
                     <img
                       src={LeftIcon}
-                      alt=""
-                      className={`cursor-pointer  ${
+                      alt="Previous Event"
+                      className={`cursor-pointer ${
                         theme.isDark ? "" : "filter invert"
                       } ${
                         allEventsForBankView.length <= 1 ? "opacity-50" : ""
@@ -1457,9 +1640,9 @@ const handlePlayClick = () => {
                     <span className="flex gap-2 text-base ">
                       <img
                         src={Bank_Details}
-                        alt=""
+                        alt="Bank Icon"
                         className={`h-4 w-4 my-auto ${
-                          theme.isDark ? "" : "filter invert"
+                          theme.isDark ? "" : "filter invert" // Theme-sensitive icon
                         }`}
                       />{" "}
                       Bank Details
@@ -1470,9 +1653,9 @@ const handlePlayClick = () => {
                   <div>
                     <img
                       src={RightIcon}
-                      alt=""
-                      className={`cursor-pointer  ${
-                        theme.isDark ? "" : "filter invert"
+                      alt="Next Event"
+                      className={`cursor-pointer ${
+                        theme.isDark ? "" : "filter invert" // Theme-sensitive icon
                       } ${
                         allEventsForBankView.length <= 1 ? "opacity-50" : ""
                       }`}
@@ -1480,7 +1663,7 @@ const handlePlayClick = () => {
                     />
                   </div>
                 </div>
-              </Card>
+              </div>
               {(() => {
                 let accountLabel;
                 let labelColorClass;
@@ -1596,12 +1779,14 @@ const handlePlayClick = () => {
                   theme={theme}
                   className="md:w-3/4 w-full p-3 mx-auto  rounded-lg"
                 >
-                  <div className="flex items-center justify-between mt-4">
-                    <ChevronLeft
-                      size={20}
-                      className={`text-gray-400 cursor-pointer ${
-                        currentTicketIndex === 0 ? "opacity-50" : ""
-                      }`}
+                  <div>
+                    <img
+                      src={LeftIcon}
+                      alt=""
+                      className={`cursor-pointer text-gray-400 ${
+                        theme.isDark ? "" : "filter invert"
+                      } 
+                        ${currentTicketIndex === 0 ? "opacity-50" : ""}`}
                       onClick={handlePrevTicket}
                     />
 
@@ -1652,43 +1837,70 @@ const handlePlayClick = () => {
                     </div>
 
                     {/* Right Chevron (Always flex-shrink-0) */}
-                    <ChevronRight
-                      size={20}
-                      className={`text-gray-400 cursor-pointer ${
-                        currentTicketIndex >=
-                        eventStats.ticketTypes.length - visibleTickets // Check if we are at the last index
-                          ? "opacity-50"
-                          : ""
-                      }`}
-                      onClick={handleNextTicket}
-                    />
+                    <div>
+                      <img
+                        src={RightIcon}
+                        alt=""
+                        className={`cursor-pointer text-gray-400 ${
+                          theme.isDark ? "" : "filter invert"
+                        } 
+                        ${
+                          currentTicketIndex >=
+                          eventStats.ticketTypes.length - visibleTickets
+                            ? "opacity-50"
+                            : ""
+                        }`}
+                        onClick={handleNextTicket}
+                      />
+                    </div>
                   </div>
                 </Card>
               ) : (
-                <InsetCard
-                  theme={theme}
+                <div
+                  style={{
+                    borderRadius: "23px",
+                    background: theme.isDark ? "#212426" : "#FFFFFF08",
+                    border: theme.isDark
+                      ? "0.75px solid #33373A"
+                      : "0.75px solid #D0D0D0",
+
+                    boxShadow: theme.isDark
+                      ? `6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset `
+                      : `6px 6px 12px 0px #FFFFFF inset, -6px -6px 12px 0px #A0A0A099 inset `,
+                  }}
                   className="flex flex-col items-center justify-center h-24 w-full md:w-3/4  text-gray-400"
                 >
                   <img
                     src={Ticket}
-                    alt=""
+                    alt="Ticket Unavailable"
+                    // Icon logic: invert and reduce opacity in light mode
                     className={`h-6 w-6 ${
                       theme.isDark ? "" : "filter invert opacity-50"
                     }`}
                   />
                   <p className="text-lg">No Ticket is available</p>
-                </InsetCard>
+                </div>
               )}
 
-              <Card
-                theme={theme}
-                className="group relative p-2 text-center w-24 hidden   flex-shrink-0 z-20 md:flex flex-col justify-center items-center h-24 cursor-pointer"
+              <div
+                style={{
+                  borderRadius: "30.66px",
+                  background: theme.isDark ? "#212426" : "#FFFFFF08",
+                  border: theme.isDark
+                    ? "1.02px solid #33373A"
+                    : "1.02px solid #D0D0D0",
+
+                  boxShadow: theme.isDark
+                    ? `8.18px 8.18px 12.26px 0px #00000029, -8.18px -8.18px 12.26px 0px #FFFFFF0A `
+                    : `8.18px 8.18px 12.26px 0px #A0A0A099,-8.18px -8.18px 12.26px 0px #FFFFFF `,
+                }}
+                className="group relative p-2 text-center w-24 hidden flex-shrink-0 z-20 md:flex flex-col justify-center items-center h-24 cursor-pointer"
               >
                 <div
-                  className="w-12 h-12 rounded-full mx-auto mb-1  flex items-center justify-center"
+                  className="w-12 h-12 rounded-full mx-auto mb-1 flex items-center justify-center"
                   style={{ backgroundColor: "#E53E3E" }}
                 >
-                  <img src={Prohibit} alt="Prohibit" className="w-5 h-5" />
+                  <img src={Prohibit} alt="Prohibit Icon" className="w-5 h-5" />
                 </div>
                 <p className={`text-xs ${theme.textColor}`}>Prohibit</p>
 
@@ -1696,20 +1908,42 @@ const handlePlayClick = () => {
                   theme={theme}
                   prohibitedItems={eventData.prohibited_items}
                 />
-              </Card>
+              </div>
             </div>
 
-            <InsetCard theme={theme} className="p-4">
+            <InsetCard
+              theme={theme}
+              style={{
+                borderRadius: "23px",
+                background: theme.isDark ? "#212426" : "#E0E0E0",
+
+                boxShadow: theme.isDark
+                  ? `6px 7px 10px 0px #00000045 inset, /* Dark bottom shadow */-2px 0px 8px 0px #FFFFFF0D inset  /* Light top/side highlight */`
+                  : `6px 7px 10px 0px #FFFFFF inset, /* Light Mode: White highlight */-2px 0px 8px 0px #A0A0A045 inset /* Light Mode: Dark shadow */`,
+              }}
+              className="p-4"
+            >
               <div className="flex items-center space-x-4">
-                <Card
-                  theme={theme}
+                <div
+                  style={{
+                    borderRadius: "16px",
+                    background: theme.isDark ? "#212426" : "#FFFFFf",
+                    border: theme.isDark
+                      ? "1.02px solid #33373A"
+                      : "1.02px solid #D0D0D0",
+
+                    boxShadow: theme.isDark
+                      ? `8.18px 8.18px 12.26px 0px #00000029, -8.18px -8.18px 12.26px 0px #FFFFFF0A `
+                      : `8.18px 8.18px 12.26px 0px #A0A0A099, -8.18px -8.18px 12.26px 0px #FFFFFF `,
+                  }}
                   className="flex flex-col items-center justify-center p-3 rounded-lg w-28 cursor-pointer h-24"
                 >
                   <Phone size={20} className="text-green-500 mb-1" />
+
                   <p className={`text-sm text-center ${theme.textColor}`}>
                     Point of call
                   </p>
-                </Card>
+                </div>
                 <div className="flex-grow flex items-center justify-center space-x-3 overflow-x-auto p-2">
                   {(eventData.POCS || []).map((person, index) => (
                     <div key={index} className="text-center w-16">
@@ -1766,11 +2000,18 @@ const handlePlayClick = () => {
                   {eventData.guests
                     .slice(currentGuideIndex, currentGuideIndex + guidesToShow)
                     .map((guest, index) => (
-                      <Card
+                      <div
                         key={guest.guest_name}
-                        theme={theme}
                         onClick={() => handleGuestClick(guest)}
-                        className={`p-2 text-center rounded-lg cursor-pointer relative flex-shrink-0 w-full md:w-1/3 ${
+                        style={{
+                          borderRadius: "17.82px",
+                          background: theme.isDark ? "#212426" : "#E0E0E0",
+                          boxShadow: theme.isDark
+                            ? `3.71px 4.45px 6.68px 0px #00000075,-1.48px -1.48px 7.42px 0px #63636336 `
+                            : `3.71px 4.45px 6.68px 0px #A0A0A099, -1.48px -1.48px 7.42px 0px #FFFFFF `,
+                        }}
+                        // Retaining complex responsiveness and flow logic
+                        className={`p-2 text-center rounded-lg cursor-pointer relative flex-shrink-0 w-full md:w-1/4 ${
                           currentGuideIndex % guidesToShow !== 0 &&
                           index === 0 &&
                           viewportWidth < 768
@@ -1783,9 +2024,7 @@ const handlePlayClick = () => {
                           style={{ paddingTop: "100%" }}
                         >
                           <img
-                            src={
-                              getImageUrl(guest.guest_profile, "ticket")
-                            }
+                            src={getImageUrl(guest.guest_profile, "ticket")}
                             alt={guest.guest_name}
                             className="absolute inset-0 w-full h-full object-cover"
                           />
@@ -1795,7 +2034,7 @@ const handlePlayClick = () => {
                         >
                           {guest.guest_name}
                         </p>
-                      </Card>
+                      </div>
                     ))}
                 </div>
                 {/* Next Button */}
@@ -1850,46 +2089,52 @@ const handlePlayClick = () => {
         <ImageModal
           images={(() => {
             const allImages = [];
-            
+
             // Add banner
             if (eventData?.event_banner) {
-              const bannerUrl = eventData.event_banner.startsWith('http://') || eventData.event_banner.startsWith('https://')
-                ? eventData.event_banner
-                : getImageUrl(eventData.event_banner, "ticket");
+              const bannerUrl =
+                eventData.event_banner.startsWith("http://") ||
+                eventData.event_banner.startsWith("https://")
+                  ? eventData.event_banner
+                  : getImageUrl(eventData.event_banner, "ticket");
               allImages.push({
                 path: bannerUrl,
-                type: 'banner',
-                name: 'Event Banner'
+                type: "banner",
+                name: "Event Banner",
               });
             }
-            
+
             // Add logo
             if (eventData?.event_logo) {
-              const logoUrl = eventData.event_logo.startsWith('http://') || eventData.event_logo.startsWith('https://')
-                ? eventData.event_logo
-                : getImageUrl(eventData.event_logo, "ticket");
+              const logoUrl =
+                eventData.event_logo.startsWith("http://") ||
+                eventData.event_logo.startsWith("https://")
+                  ? eventData.event_logo
+                  : getImageUrl(eventData.event_logo, "ticket");
               allImages.push({
                 path: logoUrl,
-                type: 'logo',
-                name: 'Event Logo'
+                type: "logo",
+                name: "Event Logo",
               });
             }
-            
+
             // Add event_images
             if (eventData?.event_images?.length > 0) {
               eventData.event_images.forEach((img, index) => {
                 const imgPath = img.path || img;
-                const imgUrl = imgPath.startsWith('http://') || imgPath.startsWith('https://')
-                  ? imgPath
-                  : getImageUrl(imgPath, "ticket");
+                const imgUrl =
+                  imgPath.startsWith("http://") ||
+                  imgPath.startsWith("https://")
+                    ? imgPath
+                    : getImageUrl(imgPath, "ticket");
                 allImages.push({
                   path: imgUrl,
-                  type: 'event_image',
-                  name: img.originalName || `Event Image ${index + 1}`
+                  type: "event_image",
+                  name: img.originalName || `Event Image ${index + 1}`,
                 });
               });
             }
-            
+
             return allImages;
           })()}
           currentIndex={currentImageIndex}
@@ -1965,5 +2210,4 @@ const handlePlayClick = () => {
     </div>
   );
 };
-
 export default ConfirmEventView;
