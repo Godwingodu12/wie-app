@@ -502,28 +502,9 @@ const HomePage = () => {
                   />
                 </div>
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleCreateEvent}
-                    disabled={loading}
-                    style={{
-                      boxShadow: isDark
-                        ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
-                        : "-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)",
-                    }}
-                    className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg} ${theme.text} ${isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"}`}
-                  >
-                    <span
-                      className="w-[38px] h-[38px] flex items-center justify-center rounded-full -ml-2"
-                      style={{
-                        background: "#3EB489",
-                        padding: "7px",
-                        boxShadow:
-                          "inset 4px 4px 12px #00000052, inset -4px -4px 8px #FFFFFF05",
-                      }}
-                    >
-                      <img src={PlusIcon} alt="Add" className="w-6 h-6" style={{ filter: isDark ? 'brightness(0) invert(1)' : 'brightness(0)' }}/>
-                    </span>
-                    {loading ? "Checking..." : "Create event"}
+                  <button onClick={handleCreateEvent} disabled={loading} style={{boxShadow: isDark? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)": "-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)", }}className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg} ${theme.text} ${ isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"}`}>
+                    <span className="w-[38px] h-[38px] flex items-center justify-center rounded-full -ml-2"style={{background: "#3EB489", padding: "7px",boxShadow:"inset 4px 4px 12px #00000052, inset -4px -4px 8px #FFFFFF05", }} >
+                    <img src={PlusIcon} alt="Add" className="w-6 h-6" /></span>{loading ? "Checking..." : "Create event"}
                   </button>
                   <div
                     style={{
@@ -885,7 +866,7 @@ const HomePage = () => {
                       </div>
                       <button
                         onClick={() => navigate("/ticket/live-events")}
-                        className="bg-[#6a47fa] text-white rounded-full px-6 py-2 text-sm font-light tracking-wider hover:bg-blue-500 transition-colors"
+                        className={`border border-[background: background: #6549B8;] rounded-full px-6 py-2 text-sm font-light tracking-wider transition-colors hover:bg-blue-500 hover:text-white ${isDark ? "text-gray-300" : "text-gray-700"}`}
                       >
                         see all
                       </button>
@@ -1014,7 +995,7 @@ const HomePage = () => {
                       </div>
                       <button
                         onClick={() => navigate("/ticket/groups")}
-                        className={`border border-[rgba(101,73,184,1)] rounded-full px-6 py-2 text-sm font-light tracking-wider transition-colors hover:bg-blue-500 hover:text-white ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                        className={`border border-[background: #6549B8;] rounded-full px-6 py-2 text-sm font-light tracking-wider transition-colors hover:bg-blue-500 hover:text-white ${isDark ? "text-gray-300" : "text-gray-700"}`}
                       >
                         see all
                       </button>
@@ -1074,22 +1055,27 @@ const HomePage = () => {
                       </div>
                     ) : (
                       <div className="flex-1 flex items-center justify-center">
-                        <button
-                          onClick={() => navigate("/ticket/create-group")}
-                          className="w-[54px] h-[54px] rounded-full flex items-center justify-center border border-[#00000014] p-[15px] transition-all hover:scale-105"
-                          style={{
-                            boxShadow: isDark
-                              ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
-                              : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
-                          }}
-                        >
-                          <img
-                            src={PlusIcon}
-                            alt="Create Group"
-                            className="w-6 h-6"
-                            style={{ filter: isDark ? 'brightness(0) invert(1)' : 'brightness(0)' }}
-                          />
-                        </button>
+                      <button
+  onClick={() => navigate("/ticket/create-group")}
+  className="w-[54px] h-[54px] flex items-center justify-center p-[15px] transition-all hover:scale-105"
+  style={{
+    background: isDark
+      ? "linear-gradient(0deg, #212426, #212426), linear-gradient(95.04deg, rgba(84, 84, 84, 0.12) 3.11%, rgba(0, 0, 0, 0.12) 94.96%)"
+      : "#F7F7F7",
+    boxShadow: isDark
+      ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+      : "4px 4px 8px #D1D1D1, -4px -4px 8px #FFFFFF",
+    borderRadius: "100px",
+    border: "1px solid rgba(0, 0, 0, 0.08)",
+  }}
+>
+  <img 
+    src={PlusIcon} 
+    alt="Add" 
+    className="w-6 h-6" 
+    style={{ filter: isDark ? 'brightness(0) invert(1)' : 'brightness(0)' }}
+  />
+</button>
                       </div>
                     )}
                   </div>
