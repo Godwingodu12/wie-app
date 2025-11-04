@@ -151,7 +151,8 @@ const SettingsNavigation = ({
               <img
                 src={BackArrowIcon}
                 alt="Close"
-                className={`h-3 w-3 ${isDark ? "filter brightness-0 invert" : ""}`}
+                className="h-3 w-3"
+                style={{ filter: isDark ? 'brightness(0) invert(1)' : 'brightness(0)' }}
               />
             </button>
             <h2 className="text-lg font-semibold">Settings</h2>
@@ -181,9 +182,10 @@ const SettingsNavigation = ({
             <img
               src={BackArrowIcon}
               alt="Toggle Sidebar"
-              className={`h-3 w-3 transform transition-transform duration-300 ${
+               className={`h-3 w-3 transform transition-transform duration-300 ${
                 isDesktopCollapsed ? "rotate-180" : ""
-              } ${isDark ? "filter brightness-0 invert" : ""}`}
+              }`}
+              style={{ filter: isDark ? 'brightness(0) invert(1)' : 'brightness(0)' }}
             />
           </button>
           <h2 className={`text-lg font-semibold ${isDesktopCollapsed ? "hidden" : ""}`}>
