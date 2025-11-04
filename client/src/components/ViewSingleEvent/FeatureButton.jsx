@@ -1,11 +1,9 @@
 import React from "react";
-import { useMemo } from "react"; // Added to use useMemo
 
 const FeatureButton = ({ Icon, label, theme, onClick, children }) => {
   const [isPressed, setIsPressed] = React.useState(false);
 
   // Determine theme-sensitive classes for background and image
-  const iconFilterClass = theme?.isDark ? "filter invert" : "";
   const labelColor = theme?.isDark ? "text-gray-300" : "text-gray-800"; // Using general text colors
 
   return (
@@ -41,7 +39,7 @@ const FeatureButton = ({ Icon, label, theme, onClick, children }) => {
           src={Icon}
           alt={label}
           // 2. DYNAMIC ICON IMAGE COLOR
-          className={`xl:w-5 xl:h-5 h-3 w-3 object-contain ${iconFilterClass}`}
+          className={`xl:w-5 xl:h-5 h-3 w-3 object-contain`}
         />
       </div>
 
