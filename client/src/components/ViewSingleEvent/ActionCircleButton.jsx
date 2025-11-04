@@ -6,15 +6,15 @@ import { useNavigate } from "react-router-dom";
 const ActionCircleButton = ({
   theme,
   type,
-  groupId,
+
   ticketId,
+  groupId,
   onClick,
   setAppAlert,
 }) => {
   const navigate = useNavigate();
 
   const Icon = type === "edit" ? Pencil : Trash2;
-  const label = type === "edit" ? "Edit" : "Delete";
   const bgColor = "#5E5CE6";
   const iconColor = "white";
 
@@ -30,8 +30,10 @@ const ActionCircleButton = ({
           show: true,
         });
       }
-    } else if (onClick) {
+    } else if (type == "delete") {
       onClick();
+    } else if (type == "save") {
+      onClick;
     }
   };
 
@@ -49,9 +51,7 @@ const ActionCircleButton = ({
       >
         <Icon size={20} color={iconColor} />
       </div>
-      <p className={`${theme.textColor} text-base font-medium`}>{label}</p>
     </div>
   );
 };
-
 export default ActionCircleButton;
