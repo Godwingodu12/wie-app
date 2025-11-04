@@ -1,111 +1,123 @@
 // client/src/components/modals/ExtraEventsPlanner.jsx
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from "react";
+import { useNavigate } from "react-router-dom";
 
-const ExtraEventsPlanner = ({ isOpen, onYes, onNo, ticketId }) => {
-  const navigate = useNavigate();
+// Added darkMode to props
+const ExtraEventsPlanner = ({ isOpen, onYes, onNo, ticketId, darkMode }) => {
+  const navigate = useNavigate(); // Determine theme-dependent styles
+
+  const modalBgColor = darkMode ? "#262628" : "#FFFFFF";
+  const titleColor = darkMode ? "text-gray-100" : "text-gray-900";
+  const paragraphColor = darkMode ? "text-gray-400" : "text-gray-600";
+  const iconBgColor = "#1E1242"; // Retained your specific dark background color for the icon
+  const noButtonBg = darkMode ? "#363A3F" : "#E5E7EB";
+  const noButtonText = darkMode ? "text-gray-100" : "text-gray-700";
 
   if (!isOpen) {
     return null;
   }
 
-  const handleYesClick = () => {    
+  const handleYesClick = () => {
     if (!ticketId) {
-      console.error('ExtraEventsPlanner: ticketId is undefined!');
-      alert('Error: Ticket ID is missing. Please try again.');
+      console.error("ExtraEventsPlanner: ticketId is undefined!");
+      alert("Error: Ticket ID is missing. Please try again.");
       return;
     }
 
     if (onYes) {
-      onYes(); // Call the original onYes callback if provided
-    }
-    
-    // Navigate to ticket addons page with ticketId
+      onYes(); // Call the original onYes callback (which should handle navigation)
+    } // If the parent component didn't handle navigation (e.g., if it only sets state) // Navigate to the Add Shows page (Step 5: Addons)
     const targetUrl = `/ticket/update-ticket-addons/${ticketId}`;
-    console.log('ExtraEventsPlanner: Navigating to:', targetUrl);
+    console.log("ExtraEventsPlanner: Navigating to:", targetUrl);
     navigate(targetUrl);
   };
 
-  const handleNoClick = () => {    
+  const handleNoClick = () => {
     if (!ticketId) {
-      console.error('ExtraEventsPlanner: ticketId is undefined!');
-      alert('Error: Ticket ID is missing. Please try again.');
+      console.error("ExtraEventsPlanner: ticketId is undefined!");
+      alert("Error: Ticket ID is missing. Please try again.");
       return;
     }
 
     if (onNo) {
-      onNo(); // Call the original onNo callback if provided
-    }
-    
-    // Navigate to ticket details page with ticketId
-    const targetUrl = `/ticket/update-ticket-details/${ticketId}`;
-    console.log('ExtraEventsPlanner: Navigating to:', targetUrl);
+      onNo(); // Call the original onNo callback (which should handle navigation)
+    } // FIX: Navigate to Terms & Conditions (Step 5 or 6: Final step) // This ensures we skip the Addons step and move to the next logical stage.
+    const targetUrl = `/ticket/ticket-terms/${ticketId}`;
+    console.log("ExtraEventsPlanner: Navigating to:", targetUrl);
     navigate(targetUrl);
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4"
-    >
-      <div 
-        style={{ backgroundColor: '#262628' }} // Applied your main background color
-        className="rounded-xl shadow-2xl w-full max-w-md mx-auto p-8 text-center"
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
+      <div
+        style={{ backgroundColor: modalBgColor }}
+        className={`rounded-xl shadow-2xl w-full max-w-md mx-auto p-8 text-center ${
+          darkMode ? "dark" : ""
+        }`}
       >
-
-        {/* Icon container with your specified color */}
-        <div 
-          style={{ backgroundColor: '#1E1242' }} // Applied your icon background color
+        <div
+          style={{ backgroundColor: iconBgColor }}
           className="mb-6 mx-auto w-24 h-24 rounded-full flex items-center justify-center"
         >
-          {/* Using a generic placeholder icon */}
-          <svg className="w-12 h-12 text-purple-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            className="w-12 h-12 text-purple-300"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
         </div>
-
-        {/* Text */}
-        <h2 className="text-3xl font-semibold text-gray-100 mb-4">Any extra events planned?</h2>
-        <p className="text-gray-400 mb-8 leading-relaxed text-sm px-4">
-          Let us know if your main event includes additional sessions, workshops, or side events.
+        <h2 className={`text-3xl font-semibold ${titleColor} mb-4`}>
+          Any extra events planned?
+        </h2>
+        <p className={`${paragraphColor} mb-8 leading-relaxed text-sm px-4`}>
+         Let us know if your main event includes additional sessions,
+          workshops, or side events. 
         </p>
-        
-        {/* Buttons with your specified colors */}
         <div className="flex flex-col sm:flex-row gap-4">
           <button
             onClick={handleNoClick}
             disabled={!ticketId}
-            style={{ 
-              backgroundColor: !ticketId ? '#444' : '#363A3F',
+            style={{
+              backgroundColor: !ticketId
+                ? darkMode
+                  ? "#444"
+                  : "#CCC"
+                : noButtonBg,
               opacity: !ticketId ? 0.5 : 1,
-              cursor: !ticketId ? 'not-allowed' : 'pointer'
+              cursor: !ticketId ? "not-allowed" : "pointer",
             }}
-            className="flex-1 px-6 py-3 text-gray-100 rounded-lg text-lg font-medium hover:opacity-80 transition-opacity"
+            className={`flex-1 px-6 py-3 rounded-lg text-lg font-medium hover:opacity-80 transition-opacity ${noButtonText}`}
           >
-            No
+             No, go to Terms 
           </button>
           <button
             onClick={handleYesClick}
             disabled={!ticketId}
-            style={{ 
-              backgroundColor: !ticketId ? '#444' : '#1E1242',
+            style={{
+              backgroundColor: !ticketId ? "#444" : "#1E1242",
               opacity: !ticketId ? 0.5 : 1,
-              cursor: !ticketId ? 'not-allowed' : 'pointer'
+              cursor: !ticketId ? "not-allowed" : "pointer",
             }}
             className="flex-1 px-6 py-3 text-white rounded-lg text-lg font-medium hover:opacity-80 transition-opacity"
           >
-            Yes
+            Yes, add shows
           </button>
         </div>
-
-        {/* Show error message if ticketId is missing */}
         {!ticketId && (
           <p className="text-red-400 text-sm mt-4">
-            Error: Ticket ID is missing. Please refresh the page and try again.
+             Error: Ticket ID is missing. Please refresh the page and
+            try again. 
           </p>
         )}
       </div>
     </div>
   );
 };
-
 export default ExtraEventsPlanner;

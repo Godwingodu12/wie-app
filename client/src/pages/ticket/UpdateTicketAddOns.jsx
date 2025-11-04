@@ -8,6 +8,7 @@ import {
 } from "../../services/ticketService";
 import Select from "react-select";
 import DateInput from "../../components/CreateGroup/DateInput.jsx";
+import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
 
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
@@ -28,7 +29,6 @@ import Alert from "../../components/CreateGroup/Alert";
 import CreateTicketModal from "../../components/CreateGroup/CreateTicketModal.jsx";
 import ConfirmModal from "../../components/CreateGroup/ConfirmModal.jsx";
 import FileInput from "../../components/CreateGroup/FileInput.jsx";
-import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
 import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.jsx";
 
 const eventCategories = {
@@ -2173,7 +2173,7 @@ const UpdateTicketAddOns = () => {
 
   return (
     <>
-      <CustomScrollbarStyles isDark={darkMode} />
+      <ScrollBarStyle isDark={darkMode} />
       <Alert alert={alert} onClose={hideAlert} />
       <ConfirmModal
         isOpen={confirmState.isOpen}
@@ -3724,84 +3724,84 @@ const UpdateTicketAddOns = () => {
                           maxDate={subEventEndDate}
                         />
                       </div>
-                      {formData.location_type === "offline" && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingTicket(null);
-                              setIsTicketModalOpen(true);
-                            }}
-                            className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center space-x-2 hover:bg-indigo-700 transition"
-                          >
-                            <span>Add tickets</span>
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                      {formData.location_type === "offline" &&
+                        formData.payment_type === "paid" && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingTicket(null);
+                                setIsTicketModalOpen(true);
+                              }}
+                              className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center space-x-2 hover:bg-indigo-700 transition"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2H5z"
-                              />
-                            </svg>
-                          </button>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                            {formData.ticket_types.map((ticket) => (
-                              // ... your ticket mapping JSX here ...
-                              <div
-                                key={ticket.id}
-                                className="bg-white dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none"
+                              <span>Add tickets</span>
+                              <svg
+                                className="w-5 h-5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
                               >
-                                <div className="flex items-center space-x-3">
-                                  <img
-                                    src={ticket.image}
-                                    alt={ticket.name}
-                                    className="w-16 h-16 rounded-md object-cover"
-                                  />
-                                  <div>
-                                    <p className="font-semibold text-gray-900 dark:text-white">{`${
-                                      ticket.name
-                                    } - ₹${Number(
-                                      ticket.price
-                                    ).toLocaleString()}`}</p>
-                                    <p className="text-xs text-black dark:text-gray-400">
-                                      Capacity: {ticket.capacity}
-                                    </p>
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2H5z"
+                                />
+                              </svg>
+                            </button>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
+                              {formData.ticket_types.map((ticket) => (
+                                // ... your ticket mapping JSX here ...
+                                <div
+                                  key={ticket.id}
+                                  className="bg-white dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none"
+                                >
+                                  <div className="flex items-center space-x-3">
+                                    <img
+                                      src={ticket.image}
+                                      alt={ticket.name}
+                                      className="w-16 h-16 rounded-md object-cover"
+                                    />
+                                    <div>
+                                      <p className="font-semibold text-gray-900 dark:text-white">{`${
+                                        ticket.name
+                                      } - ₹${Number(
+                                        ticket.price
+                                      ).toLocaleString()}`}</p>
+                                      <p className="text-xs text-black dark:text-gray-400">
+                                        Capacity: {ticket.capacity}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {/* Edit/Delete Buttons */}
+                                  <div className="flex items-center space-x-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingTicket(ticket);
+                                        setIsTicketModalOpen(true);
+                                      }}
+                                      className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
+                                    >
+                                      ✏️
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        /* DELETE LOGIC HERE */
+                                      }}
+                                      className="text-gray-400 hover:text-red-500 transition"
+                                    >
+                                      &times;
+                                    </button>
                                   </div>
                                 </div>
-                                {/* Edit/Delete Buttons */}
-                                <div className="flex items-center space-x-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingTicket(ticket);
-                                      setIsTicketModalOpen(true);
-                                    }}
-                                    className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
-                                  >
-                                    ✏️
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      /* DELETE LOGIC HERE */
-                                    }}
-                                    className="text-gray-400 hover:text-red-500 transition"
-                                  >
-                                    &times;
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
+                              ))}
+                            </div>
+                          </>
+                        )}
 
-                      {/* 1B. Simple Ticket Flow (Online/Recorded Paid Events) */}
                       {formData.location_type !== "offline" && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
                           <FormInput

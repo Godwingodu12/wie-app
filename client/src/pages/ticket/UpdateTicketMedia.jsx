@@ -5,13 +5,12 @@ import { updateTicketMedia, getTicketById } from "../../services/ticketService";
 import { getMe } from "../../services/userService";
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
-import ExtraEventsPlanner from "../../components/modals/ExtraEventsPlanner";
 import Alert from "../../components/CreateGroup/Alert"; // Import the Alert component
 
 import MediaIcon from "../../assets/Event/MediaIcon.svg?react";
 import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
 import FileInput from "../../components/CreateGroup/FileInput.jsx";
-import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
+import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
 
 const getInitialTheme = () => {
   const savedTheme = localStorage.getItem("theme");
@@ -101,7 +100,7 @@ const UpdateTicketMedia = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [isExtraEventsModalOpen, setIsExtraEventsModalOpen] = useState(false);
   const [ticketData, setTicketData] = useState(null);
-  const [userDetails,setUserDetails] =useState(null);
+
   const [alert, setAlert] = useState(null); // State for local alert management
 
   const storageKey = `ticketMediaFormData_${ticketId}`;
@@ -800,15 +799,7 @@ const UpdateTicketMedia = () => {
         college_authorisation: null,
       });
 
-      // Step 3: Check if a path for Step 4 has already been chosen
-      if (progress?.add_on_events) {
-        navigate(`/ticket/update-ticket-addons/${ticketId}`);
-      } else if (progress?.banking_tickets) {
-        navigate(`/ticket/update-ticket-details/${ticketId}`);
-      } else {
-        // If no path is chosen yet, show the modal
-        setIsExtraEventsModalOpen(true);
-      }
+      navigate(`/ticket/update-ticket-details/${ticketId}`);
     } catch (error) {
       console.error("Upload error:", error);
       const errorMessage =
@@ -824,12 +815,6 @@ const UpdateTicketMedia = () => {
       setLoading(false);
     }
   };
-  const handleModalYes = () => {
-    setIsExtraEventsModalOpen(false);
-  };
-  const handleModalNo = () => {
-    setIsExtraEventsModalOpen(false);
-  };
 
   if (initialLoading) {
     return (
@@ -841,7 +826,7 @@ const UpdateTicketMedia = () => {
 
   return (
     <div className={darkMode ? "dark" : ""}>
-      <CustomScrollbarStyles isDark={darkMode} />
+      <ScrollBarStyle isDark={darkMode} />
       <Alert alert={alert} onClose={hideAlert} />
       <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
         <EventSidebar
@@ -1054,13 +1039,6 @@ const UpdateTicketMedia = () => {
           </div>
         </main>
       </div>
-
-      <ExtraEventsPlanner
-        isOpen={isExtraEventsModalOpen}
-        onYes={handleModalYes}
-        onNo={handleModalNo}
-        ticketId={ticketId}
-      />
     </div>
   );
 };

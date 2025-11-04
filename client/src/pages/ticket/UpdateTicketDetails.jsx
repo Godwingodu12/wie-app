@@ -18,8 +18,9 @@ import ConfirmModal from "../../components/CreateGroup/ConfirmModal.jsx";
 import ToggleSwitch from "../../components/CreateGroup/ToggleSwitch.jsx";
 import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
 import FormInput from "../../components/CreateGroup/FormInput.jsx";
-import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
 import DateInput from "../../components/CreateGroup/DateInput.jsx";
+import ExtraEventsPlanner from "../../components/modals/ExtraEventsPlanner.jsx";
+import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
 
 const getInitialTheme = () => {
   const savedTheme = localStorage.getItem("theme");
@@ -83,6 +84,8 @@ const UpdateTicketDetails = () => {
 
   const [simpleTicketPrice, setSimpleTicketPrice] = useState("");
   const [simpleTicketCapacity, setSimpleTicketCapacity] = useState("");
+
+  const [isExtraEventsModalOpen, setIsExtraEventsModalOpen] = useState(false);
 
   // Effect to load data from API and localStorage on initial mount
   useEffect(() => {
@@ -389,8 +392,6 @@ const UpdateTicketDetails = () => {
     setIsTicketModalOpen(true);
   };
 
-  const handleSaveOrUpdateTickets = (updatedTickets) =>
-    setTickets(updatedTickets);
   const handleDeleteTicket = (ticketIdToDelete) => {
     setConfirmState({
       isOpen: true,
@@ -410,6 +411,14 @@ const UpdateTicketDetails = () => {
         setConfirmState({ isOpen: false });
       },
     });
+  };
+  const handleModalYes = () => {
+    setIsExtraEventsModalOpen(false);
+    navigate(`/ticket/update-ticket-addons/${ticketId}`);
+  };
+  const handleModalNo = () => {
+    setIsExtraEventsModalOpen(false);
+    navigate(`/ticket/ticket-terms/${ticketId}`);
   };
   const validateBankingDetails = () => {
     if (useGroupBankAccount) {
@@ -588,12 +597,12 @@ const UpdateTicketDetails = () => {
     try {
       await updateTicketDetails(ticketId, apiFormData);
       localStorage.removeItem(storageKey);
-      navigate(`/ticket/ticket-terms/${ticketId}`);
       showAlert({
         type: "success",
         message: "Details Saved!",
         description: "Banking and ticket info has been updated.",
       });
+      setIsExtraEventsModalOpen(true);
     } catch (error) {
       console.error("Submission failed:", error);
       const errorDesc =
@@ -624,7 +633,7 @@ const UpdateTicketDetails = () => {
     (locationType === "online" || locationType === "recorded");
   return (
     <div className={darkMode ? "dark " : ""}>
-      <CustomScrollbarStyles isDark={darkMode} />
+      <ScrollBarStyle isDark={darkMode} />
       <Alert alert={alert} onClose={hideAlert} />
       <ConfirmModal
         isOpen={confirmState.isOpen}
@@ -1220,6 +1229,13 @@ const UpdateTicketDetails = () => {
         existingTickets={tickets}
         darkMode={darkMode}
         showAlert={showAlert}
+      />
+      <ExtraEventsPlanner
+        isOpen={isExtraEventsModalOpen}
+        onYes={handleModalYes}
+        onNo={handleModalNo}
+        ticketId={ticketId}
+        darkMode={darkMode}
       />
     </div>
   );

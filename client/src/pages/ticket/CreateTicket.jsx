@@ -18,6 +18,8 @@ import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import DatePickerModal from "../../components/CreateGroup/DatePickerModal.jsx";
 import GuestModal from "../../components/CreateGroup/GuestModal.jsx";
 import ProhibitedItemsModal from "../../components/CreateGroup/ProhibitedItemsModal.jsx";
+
+import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
 import Alert from "../../components/CreateGroup/Alert";
 import FormInput from "../../components/CreateGroup/FormInput";
 import OnlineDatePickerModal from "../../components/CreateGroup/OnlineDatePickerModal.jsx";
@@ -175,6 +177,7 @@ const seatingOptions = [
   { value: "seated and standing", label: "Seated and Standing" },
   { value: "other", label: "Other" },
 ];
+
 const getInitialTheme = () => {
   // 1. Check for saved preference in localStorage
   const savedTheme = localStorage.getItem("theme");
@@ -185,6 +188,7 @@ const getInitialTheme = () => {
   // 2. Fallback to system preference
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
 };
+
 const CreateTicket = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -192,8 +196,6 @@ const CreateTicket = () => {
   const queryTicketId = new URLSearchParams(location.search).get("ticketId");
   const [loading, setLoading] = useState(false);
   const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const [darkMode, setDarkMode] = useState(getInitialTheme());
-  const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -218,6 +220,12 @@ const CreateTicket = () => {
 
   // --- NEW: Data structure for event categories and subcategories ---
 
+  const [darkMode, setDarkMode] = useState(getInitialTheme()); // Use the helper function
+
+  useEffect(() => {
+    // Save the current theme state to localStorage
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
   // Set initial map location (Thrissur, Kerala, India)
   const INITIAL_MAP_LOCATION = {
     lat: 10.5276,
@@ -281,13 +289,27 @@ const CreateTicket = () => {
     value: category,
     label: category,
   }));
-  const subCategoryOptions = formData.event_category
-    ? eventCategories[formData.event_category].map((sub) => ({
-        value: sub,
-        label: sub,
-      }))
-    : [];
-
+  const getSubCategoryOptions = (category) => {
+  if (!category || !eventCategories[category]) {
+    return [];
+  }
+  
+  const subcategories = eventCategories[category];
+  
+  if (!Array.isArray(subcategories)) {
+    console.warn(`Subcategories for "${category}" is not an array:`, subcategories);
+    return [];
+  }
+  
+  return subcategories.map((sub) => ({
+    value: sub,
+    label: sub,
+  }));
+};
+const subCategoryOptions = useMemo(
+  () => getSubCategoryOptions(formData.event_category),
+  [formData.event_category]
+);
   const saveFormDataToStorage = (data) => {
     try {
       const { ...dataToSave } = data; // File objects can't be stored
@@ -326,32 +348,37 @@ const CreateTicket = () => {
     if (/^\d{2}:\d{2}$/.test(timeString)) return timeString;
     return new Date(timeString).toTimeString().slice(0, 5);
   };
-// Add this helper function near the top of your component, after the imports
-const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
+  // Add this helper function near the top of your component, after the imports
+  const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
 
-const getImageUrl = (path) => {
-  if (!path) return null;
-  
-  // If it's already a blob URL or full URL, return as is
-  if (typeof path === 'string' && (path.startsWith('blob:') || path.startsWith('http://') || path.startsWith('https://'))) {
-    return path;
-  }
-  
-  if (typeof path === 'object') {
-    path = path.path || path.url || null;
-  }
-  
-  if (typeof path !== 'string') {
-    console.warn('Invalid path type:', typeof path, path);
-    return null;
-  }
-  
-  let cleanPath = path.replace(/\\/g, '/');
-  cleanPath = cleanPath.replace(/^src\//, '');
-  cleanPath = cleanPath.replace(/^\//, '');
-  const fullUrl = `${API_BASE_URL}/${cleanPath}`;
-  return fullUrl;
-};
+  const getImageUrl = (path) => {
+    if (!path) return null;
+
+    // If it's already a blob URL or full URL, return as is
+    if (
+      typeof path === "string" &&
+      (path.startsWith("blob:") ||
+        path.startsWith("http://") ||
+        path.startsWith("https://"))
+    ) {
+      return path;
+    }
+
+    if (typeof path === "object") {
+      path = path.path || path.url || null;
+    }
+
+    if (typeof path !== "string") {
+      console.warn("Invalid path type:", typeof path, path);
+      return null;
+    }
+
+    let cleanPath = path.replace(/\\/g, "/");
+    cleanPath = cleanPath.replace(/^src\//, "");
+    cleanPath = cleanPath.replace(/^\//, "");
+    const fullUrl = `${API_BASE_URL}/${cleanPath}`;
+    return fullUrl;
+  };
   const loadExistingTicketData = async (ticketIdParam) => {
     try {
       if (!ticketIdParam) return null;
@@ -451,16 +478,18 @@ const getImageUrl = (path) => {
               return time.getHours() >= 12 ? "PM" : "AM";
             })()
           : "",
-        guests: ticketData.guests ? ticketData.guests.map(g => ({
-          id: g._id || g.id || Date.now() + Math.random(),
-          name: g.guest_name || g.name || "",
-          guest_name: g.guest_name || g.name || "",
-          link: g.guest_link || g.link || "",
-          guest_link: g.guest_link || g.link || "",
-          image: getImageUrl(g.guest_profile) || g.guest_profile || g.image,
-          guest_profile: g.guest_profile || g.image,
-          rawFile: null, // Existing images don't have rawFile
-        })) : [],
+        guests: ticketData.guests
+          ? ticketData.guests.map((g) => ({
+              id: g._id || g.id || Date.now() + Math.random(),
+              name: g.guest_name || g.name || "",
+              guest_name: g.guest_name || g.name || "",
+              link: g.guest_link || g.link || "",
+              guest_link: g.guest_link || g.link || "",
+              image: getImageUrl(g.guest_profile) || g.guest_profile || g.image,
+              guest_profile: g.guest_profile || g.image,
+              rawFile: null, // Existing images don't have rawFile
+            }))
+          : [],
         event_rules: ticketData.event_rules || { type: "text", content: "" },
         prohibited_items: ticketData.prohibited_items || [],
         POCS: ticketData.POCS || [],
@@ -595,26 +624,28 @@ const getImageUrl = (path) => {
   useEffect(() => {
     // Populate Event Rules Editor
     if (rulesEditorRef.current && formData.event_rules?.content) {
-        // Only set the innerHTML if it doesn't already match to prevent cursor jump
-        if (rulesEditorRef.current.innerHTML !== formData.event_rules.content) {
-            rulesEditorRef.current.innerHTML = formData.event_rules.content;
-        }
+      // Only set the innerHTML if it doesn't already match to prevent cursor jump
+      if (rulesEditorRef.current.innerHTML !== formData.event_rules.content) {
+        rulesEditorRef.current.innerHTML = formData.event_rules.content;
+      }
     }
-    
+
     // Populate Event Description Editor
     if (descriptionEditorRef.current && formData.event_description) {
-         if (descriptionEditorRef.current.innerHTML !== formData.event_description) {
-            descriptionEditorRef.current.innerHTML = formData.event_description;
-        }
+      if (
+        descriptionEditorRef.current.innerHTML !== formData.event_description
+      ) {
+        descriptionEditorRef.current.innerHTML = formData.event_description;
+      }
     }
-}, [formData.event_rules, formData.event_description, dataLoaded]);
+  }, [formData.event_rules, formData.event_description, dataLoaded]);
 
   useEffect(() => {
     const callbackName = "initMapCallback";
     const scriptId = "google-maps-script";
 
     // Check if already loaded
-    if (window.google && window.google.maps && window.google.maps.Map) {
+    if (window.google && window.google.maps) {
       setIsApiReady(true);
       return;
     }
@@ -622,30 +653,14 @@ const getImageUrl = (path) => {
     // Set up callback BEFORE creating the script
     if (!window[callbackName]) {
       window[callbackName] = () => {
-        // Add a small delay to ensure all Google Maps objects are available
-        setTimeout(() => {
-          if (window.google && window.google.maps && window.google.maps.Map) {
-            setIsApiReady(true);
-          } else {
-            console.error("Google Maps objects not fully available after callback");
-            // Retry after a delay
-            setTimeout(() => {
-              if (window.google && window.google.maps && window.google.maps.Map) {
-                setIsApiReady(true);
-              }
-            }, 500);
-          }
-        }, 100);
+        setIsApiReady(true);
       };
     }
 
     // Check if script already exists
     const existingScript = document.getElementById(scriptId);
     if (existingScript) {
-      // Script exists, wait for it to load
-      if (window.google && window.google.maps && window.google.maps.Map) {
-        setIsApiReady(true);
-      }
+      // Script exists but not loaded yet, wait for callback
       return;
     }
 
@@ -659,18 +674,14 @@ const getImageUrl = (path) => {
 
     script.onerror = () => {
       console.error("Failed to load Google Maps script");
-      showAlert({
-        type: "error",
-        message: "Map Loading Failed",
-        description: "Unable to load Google Maps. Please check your internet connection and refresh the page.",
-      });
     };
 
     document.head.appendChild(script);
-  }, []);
 
+    // NO cleanup - let the callback persist for the script
+  }, []);
+// Enhanced map initialization with initial location
 useEffect(() => {
-  // Don't proceed if API not ready, no map container, or data not loaded
   if (!isApiReady || !mapRef.current || !dataLoaded) return;
 
   // If location type is not offline, cleanup and return
@@ -682,12 +693,10 @@ useEffect(() => {
     return;
   }
 
-  // CRITICAL FIX: Add additional check for Google Maps objects
   if (!window.google || !window.google.maps || !window.google.maps.Map) {
-    console.warn("Google Maps not fully loaded yet, waiting...");
-    return;
-  }
-
+     console.error("Google Maps API not fully loaded yet");
+     return;
+   }
   const initializeMap = () => {
     try {
       // Use form data coordinates if available, otherwise use initial location
@@ -750,7 +759,7 @@ useEffect(() => {
         updateStateFromCoords(e.latLng.lat(), e.latLng.lng());
       });
 
-      // Autocomplete setup - with additional safety check
+      // Autocomplete setup - ADD NULL CHECK HERE
       if (autocompleteRef.current && window.google.maps.places) {
         const autocompleteInstance = new window.google.maps.places.Autocomplete(
           autocompleteRef.current,
@@ -802,12 +811,6 @@ useEffect(() => {
       setTimeout(triggerResize, 500);
     } catch (error) {
       console.error("Error initializing map:", error);
-      // Optionally show an alert to the user
-      showAlert({
-        type: "error",
-        message: "Map Loading Error",
-        description: "Failed to load the map. Please refresh the page.",
-      });
     }
   };
 
@@ -922,19 +925,25 @@ useEffect(() => {
     e.preventDefault();
     const newErrors = {};
 
- const minAge = parseInt(formData.min_age_allowed, 10);
-    const maxAge = formData.max_age_allowed ? parseInt(formData.max_age_allowed, 10) : null;
+    const minAge = parseInt(formData.min_age_allowed, 10);
+    const maxAge = formData.max_age_allowed
+      ? parseInt(formData.max_age_allowed, 10)
+      : null;
 
-    if (formData.min_age_allowed && formData.max_age_allowed && maxAge < minAge) {
-        newErrors.max_age_allowed = true;
-        newErrors.min_age_allowed = true; // Highlight both fields
-        showAlert({
-            type: "error",
-            message: "Invalid Age Range",
-            description: `The maximum age (${maxAge}) must be greater than or equal to the minimum age (${minAge}).`,
-        });
-        setErrors(newErrors);
-        return; // Stop submission
+    if (
+      formData.min_age_allowed &&
+      formData.max_age_allowed &&
+      maxAge < minAge
+    ) {
+      newErrors.max_age_allowed = true;
+      newErrors.min_age_allowed = true; // Highlight both fields
+      showAlert({
+        type: "error",
+        message: "Invalid Age Range",
+        description: `The maximum age (${maxAge}) must be greater than or equal to the minimum age (${minAge}).`,
+      });
+      setErrors(newErrors);
+      return; // Stop submission
     }
     if (!groupId) {
       showAlert({
@@ -1119,7 +1128,10 @@ useEffect(() => {
       data.append("kids_friendly", formData.kids_friendly);
       data.append("pet_friendly", formData.pet_friendly);
       if (formData.prohibited_items && formData.prohibited_items.length > 0) {
-        data.append("prohibited_items", JSON.stringify(formData.prohibited_items));
+        data.append(
+          "prohibited_items",
+          JSON.stringify(formData.prohibited_items)
+        );
       } else {
         data.append("prohibited_items", JSON.stringify([]));
       }
@@ -1400,7 +1412,7 @@ useEffect(() => {
 
   return (
     <>
-      <CustomScrollbarStyles isDark={darkMode} />
+      <ScrollBarStyle isDark={darkMode} />
       <DatePickerModal
         isOpen={isOfflineDateModalOpen}
         onClose={() => setIsOfflineDateModalOpen(false)}
@@ -1546,12 +1558,14 @@ useEffect(() => {
                         name="event_subcategory"
                         options={subCategoryOptions}
                         value={
-                      formData.event_subcategory // Check if it has a value
-                        ? subCategoryOptions.find( // If yes, find the object
-                            (option) => option.value === formData.event_subcategory
-                          )
-                        : null // If no (it's ""), explicitly pass null
-                    }
+                          formData.event_subcategory // Check if it has a value
+                            ? subCategoryOptions.find(
+                                // If yes, find the object
+                                (option) =>
+                                  option.value === formData.event_subcategory
+                              )
+                            : null // If no (it's ""), explicitly pass null
+                        }
                         onChange={handleSelectChange}
                         placeholder="Select subcategory"
                         styles={CustomSelectStyles(darkMode, errors)}
@@ -1743,18 +1757,18 @@ useEffect(() => {
                     />
                   </div>
                   <FormInput
-                      label="What is the maximum age allowed for entry?(Optional)"
-                      id="max_age_allowed"
-                      name="max_age_allowed"
-                      type="number"
-                      value={formData.max_age_allowed}
-                      onChange={handleInputChange}
-                      placeholder="Enter Max Age"
-                      info="Select an age limit if applicable."
-                      error={errors.max_age_allowed}
-                      required={false}
-                      darkMode={darkMode}
-                    />
+                    label="What is the maximum age allowed for entry?(Optional)"
+                    id="max_age_allowed"
+                    name="max_age_allowed"
+                    type="number"
+                    value={formData.max_age_allowed}
+                    onChange={handleInputChange}
+                    placeholder="Enter Max Age"
+                    info="Select an age limit if applicable."
+                    error={errors.max_age_allowed}
+                    required={false}
+                    darkMode={darkMode}
+                  />
                   {formData.location_type === "offline" && (
                     <div className="animate-fade-in">
                       <label
@@ -1781,7 +1795,6 @@ useEffect(() => {
                     </div>
                   )}
                   <div className="space-y-4 pt-4">
-                    
                     <ToggleSwitch
                       label="Is this event pet friendly?"
                       checked={formData.pet_friendly}
@@ -2030,9 +2043,12 @@ useEffect(() => {
                     </button>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                       {formData.guests.map((guest) => {
-                        const guestImageUrl = getImageUrl(guest.guest_profile || guest.image) || 
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(guest.name || guest.guest_name || 'Guest')}&background=random`;
-                        
+                        const guestImageUrl =
+                          getImageUrl(guest.guest_profile || guest.image) ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                            guest.name || guest.guest_name || "Guest"
+                          )}&background=random`;
+
                         return (
                           <div
                             key={guest.id}
@@ -2047,10 +2063,14 @@ useEffect(() => {
                                 className="w-10 h-10 rounded-full object-cover"
                                 onError={(e) => {
                                   e.target.onerror = null;
-                                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(guest.name || guest.guest_name || 'Guest')}&background=random`;
+                                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                    guest.name || guest.guest_name || "Guest"
+                                  )}&background=random`;
                                 }}
                               />
-                              <span className="font-semibold">{guest.name || guest.guest_name}</span>
+                              <span className="font-semibold">
+                                {guest.name || guest.guest_name}
+                              </span>
                             </div>
                             <button
                               type="button"
@@ -2136,24 +2156,24 @@ useEffect(() => {
                           U
                         </button>
                       </div>
-                     <div
-            ref={rulesEditorRef}
-            contentEditable="true"
-            onInput={() => {
-                if (rulesEditorRef.current) {
-                    setFormData((prev) => ({
-                        ...prev,
-                        event_rules: {
-                            ...(prev.event_rules || { type: "text" }),
-                            content: rulesEditorRef.current.innerHTML,
-                        },
-                        // Ensure the type is 'text' if user starts typing
-                        event_rules_file: null 
-                    }));
-                }
-            }}
-            className="w-full min-h-[120px] p-3 focus:outline-none resize-none text-left [direction:ltr]"
-        ></div>
+                      <div
+                        ref={rulesEditorRef}
+                        contentEditable="true"
+                        onInput={() => {
+                          if (rulesEditorRef.current) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              event_rules: {
+                                ...(prev.event_rules || { type: "text" }),
+                                content: rulesEditorRef.current.innerHTML,
+                              },
+                              // Ensure the type is 'text' if user starts typing
+                              event_rules_file: null,
+                            }));
+                          }
+                        }}
+                        className="w-full min-h-[120px] p-3 focus:outline-none resize-none text-left [direction:ltr]"
+                      ></div>
                     </div>
                     <p className="px-4"> or</p>
 
@@ -2295,20 +2315,20 @@ useEffect(() => {
                         </button>
                       </div>
                       <div
-            ref={descriptionEditorRef}
-            contentEditable="true"
-            onInput={() => {
-                if (descriptionEditorRef.current) {
-                    handleInputChange({
-                        target: {
-                            name: "event_description",
-                            value: descriptionEditorRef.current.innerHTML,
-                        },
-                    });
-                }
-            }}
-            className="w-full min-h-[120px] p-3 focus:outline-none text-left [direction:ltr]"
-        ></div>
+                        ref={descriptionEditorRef}
+                        contentEditable="true"
+                        onInput={() => {
+                          if (descriptionEditorRef.current) {
+                            handleInputChange({
+                              target: {
+                                name: "event_description",
+                                value: descriptionEditorRef.current.innerHTML,
+                              },
+                            });
+                          }
+                        }}
+                        className="w-full min-h-[120px] p-3 focus:outline-none text-left [direction:ltr]"
+                      ></div>
                     </div>
                   </div>
                   {/* Point of Contact Section */}
