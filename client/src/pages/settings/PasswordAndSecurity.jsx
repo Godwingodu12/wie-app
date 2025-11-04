@@ -223,6 +223,7 @@ const PasswordAndSecurity = () => {
                 className={`w-6 h-6 ${
                   isDark ? "filter brightness-0 invert" : ""
                 }`}
+                style={{ filter: isDark ? 'brightness(0) invert(1)' : 'brightness(0)' }}
               />
             </button>
             <img src={WieLogo} alt="Wie Logo" className="w-8 h-8" />
