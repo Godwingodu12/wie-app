@@ -187,6 +187,14 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/ticket/edit-group/:groupId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <CreateGroup />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/ticket/groups"
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
