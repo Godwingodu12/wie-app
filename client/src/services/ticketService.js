@@ -187,6 +187,14 @@ export const getGroupView = async (ticketId) => {
     throw error;
   }
 }
+export const getGroupById = async (groupId) => {
+  try {
+    const response = await api.get(`ticket/get-group-by-id/${groupId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
 export const getOtherGroupView = async (ticketId) => {
   try {
     const response = await api.get(`ticket/get-other-group-view/${ticketId}`);
