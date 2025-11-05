@@ -4,7 +4,7 @@ import multer from 'multer';
 import { uploadGroupFiles } from '../middlewares/upload.js';
 import {getUserData,CreateGroup, UpdateGroup,createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
 getTicketById,deleteTicket,deleteSubEvent,viewTickets, getAllDeletedEvents} from '../services/ticket.service.js';
-import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getOtherGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getMyPreviousEventView,getOthersEvents,getOthersEventsById,getOtherLiveEvents,
+import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getGroupById,getOtherGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getMyPreviousEventView,getOthersEvents,getOthersEventsById,getOtherLiveEvents,
 getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted } from '../controller/ticket.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
@@ -31,6 +31,7 @@ router.get('/get-all-deleted-events', getAllDeletedEvents);
 router.get('/view-tickets', viewTickets);
 router.get('/get-groups-types', getGroupsTypes);
 router.get('/get-group-view/:ticketId', getGroupView);
+router.get('/get-group-by-id/:groupId', getGroupById);
 router.get('/get-other-group-view/:ticketId', getOtherGroupView);
 router.get('/my-events', getMyEvents);
 router.get('/my-event-view/:ticketId', getMyEventById);

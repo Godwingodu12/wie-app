@@ -10,7 +10,6 @@ import FilterButton from "../../components/HomePage/FilterButton.jsx";
 import ShowArrow from "../../assets/Event/ShowArrow.png";
 import HideArrow from "../../assets/Event/HideArrow.png";
 import ViewConfirm from "../../assets/Event/ViewConfirm.png";
-import EditIcon from "../../assets/Event/EditIcon.png";
 import {
   getMyEvents,
   getGroups,
@@ -80,7 +79,7 @@ const DoughnutChart = ({ stats, theme }) => {
   const circumference = 2 * Math.PI * radius;
   const hasMultipleSegments = stats.length > 1;
   const gapSize = hasMultipleSegments ? 10 : 0;
-  
+
   const primaryStat =
     stats.find((s) => s.isPrimary) || (stats.length > 0 ? stats[0] : null);
 
@@ -110,15 +109,17 @@ const DoughnutChart = ({ stats, theme }) => {
         <g transform={`rotate(-90 ${center} ${center})`}>
           {stats.map((stat, index) => {
             const segmentArcLength = (circumference * stat.percentage) / 100;
-            const visibleArcLength = hasMultipleSegments 
-              ? Math.max(segmentArcLength - (gapSize * 2), 0)
+            const visibleArcLength = hasMultipleSegments
+              ? Math.max(segmentArcLength - gapSize * 2, 0)
               : segmentArcLength;
-            
+
             let startPosition = 0;
             for (let i = 0; i < index; i++) {
               startPosition += (circumference * stats[i].percentage) / 100;
             }
-            const offset = hasMultipleSegments ? startPosition + gapSize : startPosition;
+            const offset = hasMultipleSegments
+              ? startPosition + gapSize
+              : startPosition;
             return (
               <circle
                 key={index}
@@ -143,12 +144,14 @@ const DoughnutChart = ({ stats, theme }) => {
 const GroupStatisticsChart = ({ theme, statsData = [] }) => {
   if (statsData.length === 0) {
     return (
-      <div>
-        <h2 className={`text-lg md:text-xl font-bold ${theme.text} mb-4`}>
+      <>
+        <h2 className={`text-lg md:text-xl font-bold ${theme.text} mb-3 md:mb-4`}>
           Active group statistics
         </h2>
-        <p className={`${theme.subText} text-sm`}>Not enough data to display stats.</p>
-      </div>
+        <div className="flex-grow flex justify-center items-center min-h-[192px] xl:min-h-0">
+          <p className={`${theme.subText} text-sm`}>No group to display</p>
+        </div>
+      </>
     );
   }
   return (
@@ -206,10 +209,14 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
     <div className="flex items-center justify-between w-full mb-3 md:mb-4">
       <div className="flex items-center gap-2 flex-wrap">
         <h3 className="text-lg md:text-xl font-semibold">My groups,</h3>
-        <p className={`text-xs md:text-sm ${theme.subText}`}>{groups.length} groups</p>
+        <p className={`text-xs md:text-sm ${theme.subText}`}>
+          {groups.length} groups
+        </p>
       </div>
       {groups.length > 2 && (
-        <button className={`text-xs md:text-sm ${theme.subText} hover:underline flex-shrink-0`}>
+        <button
+          className={`text-xs md:text-sm ${theme.subText} hover:underline flex-shrink-0`}
+        >
           See more
         </button>
       )}
@@ -244,7 +251,9 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
                 }}
               />
             </div>
-            <p className={`font-medium text-xs md:text-sm ${theme.text} text-center max-w-[100px] truncate`}>
+            <p
+              className={`font-medium text-xs md:text-sm ${theme.text} text-center max-w-[100px] truncate`}
+            >
               {group.name}
             </p>
           </div>
@@ -253,7 +262,15 @@ const MyGroupsCard = ({ theme, groups, isDark }) => (
     </div>
   </div>
 );
-const StatsCard = ({ count, title, isDark, theme, className, icon, isMobile = false }) => {
+const StatsCard = ({
+  count,
+  title,
+  isDark,
+  theme,
+  className,
+  icon,
+  isMobile = false,
+}) => {
   if (isMobile) {
     return (
       <div
@@ -263,7 +280,7 @@ const StatsCard = ({ count, title, isDark, theme, className, icon, isMobile = fa
           padding: "3%",
           borderRadius: "30px",
           border: "3px solid transparent",
-          backgroundImage: isDark 
+          backgroundImage: isDark
             ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
             : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
           backgroundOrigin: "border-box",
@@ -278,13 +295,15 @@ const StatsCard = ({ count, title, isDark, theme, className, icon, isMobile = fa
         <p className={`text-xl sm:text-2xl font-semibold ${theme.text}`}>
           {count}
         </p>
-        <p className={`text-[9px] sm:text-[10px] text-center leading-tight px-1 ${theme.subText}`}>
+        <p
+          className={`text-[9px] sm:text-[10px] text-center leading-tight px-1 ${theme.subText}`}
+        >
           {title}
         </p>
       </div>
     );
   }
-  
+
   return (
     <div
       style={{
@@ -293,7 +312,7 @@ const StatsCard = ({ count, title, isDark, theme, className, icon, isMobile = fa
         padding: "3%",
         borderRadius: "30px",
         border: "3px solid transparent",
-        backgroundImage: isDark 
+        backgroundImage: isDark
           ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
           : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
         backgroundOrigin: "border-box",
@@ -308,7 +327,9 @@ const StatsCard = ({ count, title, isDark, theme, className, icon, isMobile = fa
       <p className={`text-2xl lg:text-3xl font-semibold ${theme.text}`}>
         {count}
       </p>
-      <p className={`text-[10px] lg:text-xs text-center leading-tight ${theme.subText}`}>
+      <p
+        className={`text-[10px] lg:text-xs text-center leading-tight ${theme.subText}`}
+      >
         {title}
       </p>
     </div>
@@ -523,18 +544,19 @@ function CalendarGrid({
         isDark ? theme.cardBg : "bg-gray-200"
       } rounded-[2.5rem] w-full ${getOuterDepthShadows(
         isDark
-      )} flex flex-col`}
-      style={{
-        padding: "16px",
-        gap: "8px",
-      }}
+      )} flex flex-col p-4 gap-2 ${className}`}
     >
-      <div className="grid grid-cols-7 gap-1 text-center mb-1">
+      <div className="grid grid-cols-7 gap-1 text-center">
         {days.map((day) => (
-          <div key={day} className={`text-[10px] md:text-xs font-bold ${theme.subText}`}>
+          <div
+            key={day}
+            className={`text-[10px] md:text-xs font-bold ${theme.subText}`}
+          >
             {day}
           </div>
         ))}
+      </div>
+      <div className="grid grid-cols-7 grid-rows-6 gap-1 flex-1">
         {dates.map((dayInfo, index) => {
           const isSelected =
             selectedDate &&
@@ -564,7 +586,7 @@ function CalendarGrid({
           return (
             <div
               key={index}
-              className={`p-1 rounded-xl text-xs md:text-sm flex items-center justify-center cursor-pointer transition-colors duration-200 aspect-square ${bgColorClass} ${textColorClass} ${fontClass} ${ringClass} ${otherClasses}`}
+              className={`rounded-xl text-xs md:text-sm flex items-center justify-center cursor-pointer transition-colors duration-200 ${bgColorClass} ${textColorClass} ${fontClass} ${ringClass} ${otherClasses}`}
               onClick={() => onDateClick(dayInfo)}
             >
               {dayInfo.date}
@@ -582,8 +604,8 @@ const EventsList = ({
   activeFilter,
   searchTerm,
   onSearchTermChange,
-  selectedDate,      // Make sure this is included
-  setSelectedDate,   // Make sure this is included
+  selectedDate, // Make sure this is included
+  setSelectedDate, // Make sure this is included
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -620,62 +642,62 @@ const EventsList = ({
   }, [activeFilter, searchTerm, selectedCategory]);
 
   const toggleRowExpansion = (eventId) => {
-    setExpandedRows(prev => ({
+    setExpandedRows((prev) => ({
       ...prev,
-      [eventId]: !prev[eventId]
+      [eventId]: !prev[eventId],
     }));
   };
-const filteredEvents = useMemo(() => {
-  let filtered = events || [];
+  const filteredEvents = useMemo(() => {
+    let filtered = events || [];
 
-  // Filter by selected calendar date (if passed from parent)
-  if (selectedDate) {
-    filtered = filtered.filter((event) => {
-      if (!event?.event_dates?.[0]?.start_date) return false;
-      
-      const eventStartDate = new Date(event.event_dates[0].start_date);
-      const selectedDateOnly = new Date(
-        selectedDate.getFullYear(),
-        selectedDate.getMonth(),
-        selectedDate.getDate()
+    // Filter by selected calendar date (if passed from parent)
+    if (selectedDate) {
+      filtered = filtered.filter((event) => {
+        if (!event?.event_dates?.[0]?.start_date) return false;
+
+        const eventStartDate = new Date(event.event_dates[0].start_date);
+        const selectedDateOnly = new Date(
+          selectedDate.getFullYear(),
+          selectedDate.getMonth(),
+          selectedDate.getDate()
+        );
+        const eventDateOnly = new Date(
+          eventStartDate.getFullYear(),
+          eventStartDate.getMonth(),
+          eventStartDate.getDate()
+        );
+
+        return eventDateOnly.getTime() === selectedDateOnly.getTime();
+      });
+    }
+
+    // Filter by Paid/Free
+    if (activeFilter === "Paid") {
+      filtered = filtered.filter(
+        (event) => event.ticket_types && event.ticket_types.length > 0
       );
-      const eventDateOnly = new Date(
-        eventStartDate.getFullYear(),
-        eventStartDate.getMonth(),
-        eventStartDate.getDate()
+    } else if (activeFilter === "Free") {
+      filtered = filtered.filter(
+        (event) => !event.ticket_types || event.ticket_types.length === 0
       );
-      
-      return eventDateOnly.getTime() === selectedDateOnly.getTime();
-    });
-  }
+    }
 
-  // Filter by Paid/Free
-  if (activeFilter === "Paid") {
-    filtered = filtered.filter(
-      (event) => event.ticket_types && event.ticket_types.length > 0
-    );
-  } else if (activeFilter === "Free") {
-    filtered = filtered.filter(
-      (event) => !event.ticket_types || event.ticket_types.length === 0
-    );
-  }
+    // Filter by category
+    if (selectedCategory && selectedCategory !== "All") {
+      filtered = filtered.filter(
+        (event) => event.event_category === selectedCategory
+      );
+    }
 
-  // Filter by category
-  if (selectedCategory && selectedCategory !== "All") {
-    filtered = filtered.filter(
-      (event) => event.event_category === selectedCategory
-    );
-  }
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter((event) =>
+        event.event_name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
 
-  // Filter by search term
-  if (searchTerm) {
-    filtered = filtered.filter((event) =>
-      event.event_name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }
-
-  return filtered;
-}, [events, activeFilter, searchTerm, selectedCategory, selectedDate]);
+    return filtered;
+  }, [events, activeFilter, searchTerm, selectedCategory, selectedDate]);
   const paginatedEvents = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredEvents.slice(startIndex, startIndex + itemsPerPage);
@@ -706,27 +728,27 @@ const filteredEvents = useMemo(() => {
       year: "numeric",
     });
   };
-const handleViewEvent = (event) => {
-  const ticketId = event._id;
-  const status = event.event_status?.toLowerCase();
-  switch (status) {
-    case 'pending':
-      navigate(`/ticket/view-single-event/${ticketId}`);
-      break;
-    case 'confirmed':
-      navigate(`/ticket/view-confirm-event/${ticketId}`);
-      break;
-    case 'live':
-      navigate(`/ticket/live-event-view/${ticketId}`);
-      break;
-    case 'completed':
-      navigate(`/ticket/previous-event-view/${ticketId}`);
-      break;
-    default:
-      // Fallback for unknown status
-      navigate(`/ticket/view-single-event/${ticketId}`);
-  }
-};
+  const handleViewEvent = (event) => {
+    const ticketId = event._id;
+    const status = event.event_status?.toLowerCase();
+    switch (status) {
+      case "pending":
+        navigate(`/ticket/view-single-event/${ticketId}`);
+        break;
+      case "confirmed":
+        navigate(`/ticket/view-confirm-event/${ticketId}`);
+        break;
+      case "live":
+        navigate(`/ticket/live-event-view/${ticketId}`);
+        break;
+      case "completed":
+        navigate(`/ticket/previous-event-view/${ticketId}`);
+        break;
+      default:
+        // Fallback for unknown status
+        navigate(`/ticket/view-single-event/${ticketId}`);
+    }
+  };
   return (
     <div
       style={{
@@ -741,102 +763,112 @@ const handleViewEvent = (event) => {
         isDark ? theme.cardBg : "bg-[#f1f1f1]"
       } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
     >
-    <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-gray-100 dark:lg:[&::-webkit-scrollbar-track]:bg-gray-800 lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
+      <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-gray-100 dark:lg:[&::-webkit-scrollbar-track]:bg-gray-800 lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
         {/* Mobile Only View (below sm breakpoint - phones only) */}
-      <div className="flex flex-col sm:hidden">
-        <div className="relative mb-6 mt-4">
-          <div className="flex items-center gap-3">
-            {/* Filter Button */}
-            <button
-              onClick={() => setShowFilter(!showFilter)}
-              className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${
-                isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
-              }`}
-              style={{
-                boxShadow: isDark
-                  ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
-                  : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
-              }}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-            </button>
-            {/* Search Bar */}
-            <div
-              className={`flex-1 flex items-center gap-2 ${
-                isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'
-              }`}
-              style={{
-                maxWidth: '300px',
-                height: '31px',
-                borderRadius: '17.1px',
-                padding: '8.55px',
-                boxShadow: isDark
-                  ? '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
-                  : '3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset'
-              }}
-            >
-              <Search className="w-4 h-4 flex-shrink-0" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search events..."
-                value={searchTerm}
-                onChange={(e) => onSearchTermChange(e.target.value)}
-                className={`bg-transparent focus:outline-none w-full text-sm ${
-                  isDark ? 'placeholder-gray-500' : 'placeholder-gray-400'
+        <div className="flex flex-col sm:hidden">
+          <div className="relative mb-6 mt-4">
+            <div className="flex items-center gap-3">
+              {/* Filter Button */}
+              <button
+                onClick={() => setShowFilter(!showFilter)}
+                className={`w-[31px] h-[31px] rounded-[17.1px] flex items-center justify-center flex-shrink-0 ${
+                  isDark ? "bg-[#232426]" : "bg-[#f1f1f1]"
                 }`}
-              />
+                style={{
+                  boxShadow: isDark
+                    ? "3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset"
+                    : "3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset",
+                }}
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                  />
+                </svg>
+              </button>
+              {/* Search Bar */}
+              <div
+                className={`flex-1 flex items-center gap-2 ${
+                  isDark ? "bg-[#232426]" : "bg-[#f1f1f1]"
+                }`}
+                style={{
+                  maxWidth: "300px",
+                  height: "31px",
+                  borderRadius: "17.1px",
+                  padding: "8.55px",
+                  boxShadow: isDark
+                    ? "3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset"
+                    : "3.21px 3.21px 6.41px 0px #0000002E inset, -3.21px -3.21px 6.41px 0px #FFFFFF14 inset",
+                }}
+              >
+                <Search className="w-4 h-4 flex-shrink-0" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search events..."
+                  value={searchTerm}
+                  onChange={(e) => onSearchTermChange(e.target.value)}
+                  className={`bg-transparent focus:outline-none w-full text-sm ${
+                    isDark ? "placeholder-gray-500" : "placeholder-gray-400"
+                  }`}
+                />
+              </div>
             </div>
+            {selectedDate && (
+              <div className="flex items-center justify-between mb-4 px-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs ${theme.subText}`}>
+                    Events for:
+                  </span>
+                  <span className={`text-xs font-semibold ${theme.text}`}>
+                    {selectedDate.toLocaleDateString("en-GB", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <button
+                    onClick={() => setSelectedDate(null)}
+                    className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${
+                      isDark
+                        ? "bg-blue-600 hover:bg-blue-500 text-white"
+                        : "bg-blue-500 hover:bg-blue-600 text-white"
+                    }`}
+                  >
+                    Clear filter
+                  </button>
+                </div>
+              </div>
+            )}
+            {/* Filter Dropdown */}
+            {showFilter && (
+              <div className="absolute top-14 left-0 z-50">
+                <FilterButton />
+              </div>
+            )}
           </div>
-              {selectedDate && (
-                <div className="flex items-center justify-between mb-4 px-2">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs ${theme.subText}`}>
-                      Events for:
-                    </span>
-                    <span className={`text-xs font-semibold ${theme.text}`}>
-                      {selectedDate.toLocaleDateString("en-GB", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </span>
-                  </div>
-                    <div className="mt-2">
-                      <button
-                        onClick={() => setSelectedDate(null)}
-                        className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${
-                          isDark
-                            ? "bg-blue-600 hover:bg-blue-500 text-white"
-                            : "bg-blue-500 hover:bg-blue-600 text-white"
-                        }`}
-                      >
-                        Clear filter
-                      </button>
-                    </div>
-                </div>
-              )}
-              {/* Filter Dropdown */}
-              {showFilter && (
-                <div className="absolute top-14 left-0 z-50">
-                  <FilterButton />
-                </div>
-              )}
-        </div>
           {/* Events Table */}
           <div
-            className={`${isDark ? 'bg-[#232426]' : 'bg-[#f1f1f1]'}`}
+            className={`${isDark ? "bg-[#232426]" : "bg-[#f1f1f1]"}`}
             style={{
-              width: '100%',
-              maxWidth: '344px',
-              minHeight: 'auto',
-              borderRadius: '24px',
-              padding: '32px 24px',
+              width: "100%",
+              maxWidth: "344px",
+              minHeight: "auto",
+              borderRadius: "24px",
+              padding: "32px 24px",
               boxShadow: isDark
-                ? '6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset'
-                : '6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset'
+                ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
+                : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
             }}
           >
             {filteredEvents.length === 0 ? (
@@ -858,26 +890,33 @@ const handleViewEvent = (event) => {
                   <p className={`text-base font-medium ${theme.text} mb-2`}>
                     No events found
                   </p>
-                  <p className="text-sm">Create your first event to get started</p>
+                  <p className="text-sm">
+                    Create your first event to get started
+                  </p>
                 </div>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
                 {paginatedEvents.map((event, index) => {
                   const isExpanded = expandedRows[event._id];
-                  
+
                   return (
-                    <div key={event._id || index} className="flex flex-col gap-4">
+                    <div
+                      key={event._id || index}
+                      className="flex flex-col gap-4"
+                    >
                       {/* Event Row */}
                       <div
                         className="flex items-center justify-between"
                         style={{
-                          width: '100%',
-                          maxWidth: '294px',
-                          height: '30px'
+                          width: "100%",
+                          maxWidth: "294px",
+                          height: "30px",
                         }}
                       >
-                        <p className={`${theme.text} font-medium text-sm truncate flex-1`}>
+                        <p
+                          className={`${theme.text} font-medium text-sm truncate flex-1`}
+                        >
                           {event.event_name}
                         </p>
                         <button
@@ -897,58 +936,71 @@ const handleViewEvent = (event) => {
                         <div
                           className="flex flex-col gap-5"
                           style={{
-                            width: '100%',
-                            maxWidth: '294px',
-                            minHeight: '202px'
+                            width: "100%",
+                            maxWidth: "294px",
+                            minHeight: "202px",
                           }}
                         >
                           {/* Event Details */}
                           <div className="flex flex-col gap-3">
                             <div className="flex justify-between items-center">
-                              <span className={`text-xs ${theme.subText}`}>Category:</span>
-                              <span className={`text-xs ${theme.text} font-medium`}>
-                                {event.event_category || 'N/A'}
+                              <span className={`text-xs ${theme.subText}`}>
+                                Category:
+                              </span>
+                              <span
+                                className={`text-xs ${theme.text} font-medium`}
+                              >
+                                {event.event_category || "N/A"}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className={`text-xs ${theme.subText}`}>Sub Category:</span>
-                              <span className={`text-xs ${theme.text} font-medium`}>
-                                {event.event_subcategory || 'N/A'}
+                              <span className={`text-xs ${theme.subText}`}>
+                                Sub Category:
+                              </span>
+                              <span
+                                className={`text-xs ${theme.text} font-medium`}
+                              >
+                                {event.event_subcategory || "N/A"}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className={`text-xs ${theme.subText}`}>Start Date:</span>
-                              <span className={`text-xs ${theme.text} font-medium`}>
+                              <span className={`text-xs ${theme.subText}`}>
+                                Start Date:
+                              </span>
+                              <span
+                                className={`text-xs ${theme.text} font-medium`}
+                              >
                                 {formatDate(event)}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className={`text-xs ${theme.subText}`}>Location:</span>
-                              <span className={`text-xs ${theme.text} font-medium truncate max-w-[150px]`}>
-                                {event.venue || event.location_type || 'N/A'}
+                              <span className={`text-xs ${theme.subText}`}>
+                                Location:
+                              </span>
+                              <span
+                                className={`text-xs ${theme.text} font-medium truncate max-w-[150px]`}
+                              >
+                                {event.venue || event.location_type || "N/A"}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className={`text-xs ${theme.subText}`}>Status:</span>
-                              <span className={`text-xs ${theme.text} font-medium`}>
-                                {event.event_status || 'N/A'}
+                              <span className={`text-xs ${theme.subText}`}>
+                                Status:
+                              </span>
+                              <span
+                                className={`text-xs ${theme.text} font-medium`}
+                              >
+                                {event.event_status || "N/A"}
                               </span>
                             </div>
                           </div>
                           {/* Action Buttons */}
                           <div className="flex items-center gap-2 justify-start">
-                            <button 
-                                onClick={() => handleViewEvent(event)}
-                                className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50"
-                              >
-                                View
-                              </button>
-                              <button className="bg-[#7D7D7D] w-10 h-10 flex items-center justify-center rounded-full shadow-md hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
-                              <img
-                                src={EditIcon}
-                                alt="EditIcon"
-                                className="w-4 h-4 object-contain"
-                              />
+                            <button
+                              onClick={() => handleViewEvent(event)}
+                              className="bg-[#00DEA3] text-black font-semibold text-xs px-4 py-2 rounded-full shadow-md hover:bg-[#00c591] transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#00DEA3] focus:ring-opacity-50"
+                            >
+                              View
                             </button>
                           </div>
                         </div>
@@ -956,7 +1008,11 @@ const handleViewEvent = (event) => {
 
                       {/* Divider */}
                       {index < paginatedEvents.length - 1 && (
-                        <div className={`h-px ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                        <div
+                          className={`h-px ${
+                            isDark ? "bg-gray-700" : "bg-gray-300"
+                          }`}
+                        />
                       )}
                     </div>
                   );
@@ -967,21 +1023,23 @@ const handleViewEvent = (event) => {
         </div>
         {/* Tablet/Desktop View (sm breakpoint and above) */}
         <div className="hidden sm:block">
-        {/* Tablet Search Header */}
+          {/* Tablet Search Header */}
           <div className="flex lg:hidden mb-4 flex-col gap-3">
             <div className="flex items-center justify-between w-full">
               {!isSearchActive ? (
-                <button 
+                <button
                   className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${
                     isDark ? theme.cardBg : "bg-[#f1f1f1]"
                   } ${getNeumorphicShadows(isDark)}`}
                   onClick={() => setIsSearchActive(true)}
                 >
                   <Search className={`w-4 h-4 ${theme.subText}`} />
-                  <span className={`text-sm font-bold ${theme.text}`}>Event</span>
+                  <span className={`text-sm font-bold ${theme.text}`}>
+                    Event
+                  </span>
                 </button>
               ) : (
-                <div 
+                <div
                   className={`flex items-center gap-2 px-4 py-3 rounded-[32px] ${
                     isDark ? theme.cardBg : "bg-[#f1f1f1]"
                   } ${getNeumorphicShadows(isDark)}`}
@@ -999,9 +1057,11 @@ const handleViewEvent = (event) => {
                   />
                 </div>
               )}
-              <span className={`text-sm font-bold ${theme.text} mr-1`}>Actions</span>
+              <span className={`text-sm font-bold ${theme.text} mr-1`}>
+                Actions
+              </span>
             </div>
-            
+
             {/* Date Filter Indicator - Tablet */}
             {selectedDate && (
               <div className="flex items-center justify-between px-2">
@@ -1125,11 +1185,13 @@ const handleViewEvent = (event) => {
                 </button>
               </div>
             )}
-            
+
             <table className="w-full table-auto text-left">
               <thead>
                 <tr
-                  className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
+                  className={`${
+                    isDark ? "text-gray-400" : "text-black"
+                  } border-b ${
                     isDark ? "border-gray-700" : "border-gray-200"
                   } text-sm sticky top-0`}
                   style={{
@@ -1166,125 +1228,144 @@ const handleViewEvent = (event) => {
                       )}
                     </div>
                   </th>
-                <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
-                  <div className="relative">
-                    <button
-                      onClick={() => setCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                      className="flex items-center justify-between w-full"
-                    >
-                      <span>{selectedCategory === "All" ? "Category" : selectedCategory}</span>
-                      <ChevronDown className="w-4 h-4" />
-                    </button>
-                    {isCategoryDropdownOpen && (
-                      <div className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${
-                        isDark ? "bg-[#232426] ring-gray-600" : "bg-slate-100 ring-gray-400"
-                      }`} style={{
-                        boxShadow: isDark
-                          ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
-                          : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A"
-                      }}>
-                        <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                          {categories.map((category) => (
-                            <button
-                              key={category}
-                              onClick={() => {
-                                setSelectedCategory(category);
-                                setCategoryDropdownOpen(false);
-                              }}
-                              className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${
-                                selectedCategory === category
-                                  ? isDark ? "bg-gray-700 text-white" : "bg-gray-200 text-gray-900"
-                                  : isDark ? "text-gray-300 hover:bg-gray-800" : "text-gray-700 hover:bg-gray-200"
-                              }`}
-                            >
-                              {category}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </th>
-                <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
-                  <div className="flex items-center gap-2">
-                    <span>Event Status</span>
-                  </div>
-                </th>
-                <th className="py-3 px-2 lg:px-4 font-normal w-[18%]"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayEvents.map((event, index) => {
-                if (!event) {
-                  return (
-                    <tr key={`placeholder-${index}`}>
-                      <td className="py-3 px-4 h-[60px]">&nbsp;</td>
-                      <td className="py-3 px-4">&nbsp;</td>
-                      <td className="py-3 px-4">&nbsp;</td>
-                      <td className="py-3 px-4">&nbsp;</td>
-                    </tr>
-                  );
-                }
-                return (
-                  <tr
-                    key={event._id || index}
-                    className={`border-b ${
-                      isDark ? "border-gray-700/50" : "border-gray-200"
-                    } ${
-                      isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
-                    }`}
-                  >
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
+                  <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
+                    <div className="relative">
+                      <button
+                        onClick={() =>
+                          setCategoryDropdownOpen(!isCategoryDropdownOpen)
+                        }
+                        className="flex items-center justify-between w-full"
+                      >
+                        <span>
+                          {selectedCategory === "All"
+                            ? "Category"
+                            : selectedCategory}
+                        </span>
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      {isCategoryDropdownOpen && (
                         <div
-                          className={`w-6 h-6 rounded-full ${
-                            isDark ? "bg-indigo-500/20" : "bg-indigo-100"
-                          } flex items-center justify-center ${
-                            isDark ? "text-indigo-300" : "text-indigo-500"
+                          className={`absolute z-50 mt-2 w-56 rounded-2xl p-2 ring-1 ring-opacity-5 top-full left-0 ${
+                            isDark
+                              ? "bg-[#232426] ring-gray-600"
+                              : "bg-slate-100 ring-gray-400"
+                          }`}
+                          style={{
+                            boxShadow: isDark
+                              ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
+                              : "8px 8px 12px #00000029, -8px -8px 12px #FFFFFF0A",
+                          }}
+                        >
+                          <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                            {categories.map((category) => (
+                              <button
+                                key={category}
+                                onClick={() => {
+                                  setSelectedCategory(category);
+                                  setCategoryDropdownOpen(false);
+                                }}
+                                className={`block w-full text-left px-3 py-1.5 text-sm rounded-lg my-1 transition-colors ${
+                                  selectedCategory === category
+                                    ? isDark
+                                      ? "bg-gray-700 text-white"
+                                      : "bg-gray-200 text-gray-900"
+                                    : isDark
+                                    ? "text-gray-300 hover:bg-gray-800"
+                                    : "text-gray-700 hover:bg-gray-200"
+                                }`}
+                              >
+                                {category}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </th>
+                  <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
+                    <div className="flex items-center gap-2">
+                      <span>Event Status</span>
+                    </div>
+                  </th>
+                  <th className="py-3 px-2 lg:px-4 font-normal w-[18%]"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayEvents.map((event, index) => {
+                  if (!event) {
+                    return (
+                      <tr key={`placeholder-${index}`}>
+                        <td className="py-3 px-4 h-[60px]">&nbsp;</td>
+                        <td className="py-3 px-4">&nbsp;</td>
+                        <td className="py-3 px-4">&nbsp;</td>
+                        <td className="py-3 px-4">&nbsp;</td>
+                      </tr>
+                    );
+                  }
+                  return (
+                    <tr
+                      key={event._id || index}
+                      className={`border-b ${
+                        isDark ? "border-gray-700/50" : "border-gray-200"
+                      } ${
+                        isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
+                      }`}
+                    >
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-6 h-6 rounded-full ${
+                              isDark ? "bg-indigo-500/20" : "bg-indigo-100"
+                            } flex items-center justify-center ${
+                              isDark ? "text-indigo-300" : "text-indigo-500"
+                            }`}
+                          >
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z"
+                              />
+                            </svg>
+                          </div>
+                          <span className={`${theme.text} text-sm truncate`}>
+                            {event.event_name}
+                          </span>
+                        </div>
+                      </td>
+                      <td
+                        className={`py-3 px-4 ${theme.text} text-sm truncate`}
+                      >
+                        {event.event_category ? event.event_category : "N/A"}
+                      </td>
+                      <td
+                        className={`py-3 px-4 ${theme.text} text-sm truncate`}
+                      >
+                        {event.event_status ? event.event_status : "N/A"}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={() => handleViewEvent(event)}
+                          className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
+                            isDark
+                              ? "text-white hover:bg-[#6549B8]"
+                              : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
                           }`}
                         >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M13 10V3L4 14h7v7l9-11h-7z"
-                            />
-                          </svg>
-                        </div>
-                        <span className={`${theme.text} text-sm truncate`}>
-                          {event.event_name}
-                        </span>
-                      </div>
-                    </td>
-                    <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                      {event.event_category ? event.event_category : "N/A"}
-                    </td>
-                    <td className={`py-3 px-4 ${theme.text} text-sm truncate`}>
-                      {event.event_status ? event.event_status : "N/A"}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => handleViewEvent(event)}
-                        className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
-                          isDark
-                            ? "text-white hover:bg-[#6549B8]"
-                            : "text-[#6549B8] hover:bg-[#6549B8] hover:text-white"
-                        }`}
-                      >
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -1451,7 +1532,10 @@ const ViewEvent = () => {
       return n;
     });
   const handleDateClick = (dayInfo) => {
-    if (selectedDate && dayInfo.fullDate.toDateString() === selectedDate.toDateString()) {
+    if (
+      selectedDate &&
+      dayInfo.fullDate.toDateString() === selectedDate.toDateString()
+    ) {
       setSelectedDate(null);
     } else {
       setSelectedDate(dayInfo.fullDate);
@@ -1642,7 +1726,9 @@ const ViewEvent = () => {
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-32 md:pb-8 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-6 md:mb-8 gap-4">
             <div>
-              <h1 className={`text-3xl md:text-4xl ${theme.text}`}>View events</h1>
+              <h1 className={`text-3xl md:text-4xl ${theme.text}`}>
+                View events
+              </h1>
               <p className={`${theme.subText} mt-2 text-base md:text-lg`}>
                 Review and manage everything related to events
               </p>
@@ -1701,7 +1787,7 @@ const ViewEvent = () => {
                         gap: "20px",
                         borderRadius: "50px",
                         background: isDark ? "#212426" : "#f1f1f1",
-                        boxShadow: isDark 
+                        boxShadow: isDark
                           ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
                           : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
                       }}
@@ -1762,7 +1848,7 @@ const ViewEvent = () => {
                         }
                         isMobile={false}
                       />
-                      
+
                       <StatsCard
                         isDark={isDark}
                         theme={theme}
@@ -1783,39 +1869,41 @@ const ViewEvent = () => {
               {/* Filter Buttons */}
               <div className="flex justify-end items-center">
                 <div className="flex items-center gap-2 flex-wrap">
-                  {["All events", "Paid events", "Free events"].map((filter) => {
-                    const filterName = filter.split(" ")[0];
-                    const isActive = activeFilter === filterName;
+                  {["All events", "Paid events", "Free events"].map(
+                    (filter) => {
+                      const filterName = filter.split(" ")[0];
+                      const isActive = activeFilter === filterName;
 
-                    const activeClass =
-                      "bg-gradient-to-br from-[#6D4DE6] to-[#896CF1] text-white shadow-lg";
-                    const inactiveOutlineClass = `border border-[#6D4DE6] ${
-                      isDark ? "text-white" : "text-[#6D4DE6]"
-                    }`;
-                    const inactiveNeumorphicClass = `${
-                      theme.text
-                    } ${getButtonNeumorphicShadows(isDark)}`;
+                      const activeClass =
+                        "bg-gradient-to-br from-[#6D4DE6] to-[#896CF1] text-white shadow-lg";
+                      const inactiveOutlineClass = `border border-[#6D4DE6] ${
+                        isDark ? "text-white" : "text-[#6D4DE6]"
+                      }`;
+                      const inactiveNeumorphicClass = `${
+                        theme.text
+                      } ${getButtonNeumorphicShadows(isDark)}`;
 
-                    let buttonClass;
-                    if (isActive) {
-                      buttonClass = activeClass;
-                    } else {
-                      if (filterName === "All") {
-                        buttonClass = inactiveNeumorphicClass;
+                      let buttonClass;
+                      if (isActive) {
+                        buttonClass = activeClass;
                       } else {
-                        buttonClass = inactiveOutlineClass;
+                        if (filterName === "All") {
+                          buttonClass = inactiveNeumorphicClass;
+                        } else {
+                          buttonClass = inactiveOutlineClass;
+                        }
                       }
+                      return (
+                        <button
+                          key={filter}
+                          onClick={() => setActiveFilter(filterName)}
+                          className={`px-4 md:px-5 py-2 md:py-2.5 rounded-full text-xs md:text-sm font-medium transition-all duration-200 ${buttonClass}`}
+                        >
+                          {filter}
+                        </button>
+                      );
                     }
-                    return (
-                      <button
-                        key={filter}
-                        onClick={() => setActiveFilter(filterName)}
-                        className={`px-4 md:px-5 py-2 md:py-2.5 rounded-full text-xs md:text-sm font-medium transition-all duration-200 ${buttonClass}`}
-                      >
-                        {filter}
-                      </button>
-                    );
-                  })}
+                  )}
                 </div>
               </div>
 
@@ -1827,77 +1915,70 @@ const ViewEvent = () => {
                 activeFilter={activeFilter}
                 searchTerm={searchTerm}
                 onSearchTermChange={setSearchTerm}
-                selectedDate={selectedDate}           
-                setSelectedDate={setSelectedDate}     
+                selectedDate={selectedDate}
+                setSelectedDate={setSelectedDate}
               />
             </div>
             {/* Right Column - Statistics & Calendar (40%) */}
             <div className="lg:col-span-2">
               <div
-                style={{
-                  opacity: 1,
-                  transform: "rotate(0deg)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "20px",
-                  overflow: "hidden",
-                  minHeight: "auto", 
-                }}
                 className={`w-full rounded-[50px] ${
                   isDark ? theme.cardBg : "bg-[#f1f1f1]"
-                } ${getNeumorphicShadows(isDark)} p-4 md:p-5 lg:p-6`}
+                } ${getNeumorphicShadows(
+                  isDark
+                )} p-4 md:p-5 lg:p-6 flex flex-col gap-4 h-full`}
               >
                 {/* Group Statistics Chart */}
                 <div className="w-full">
                   <GroupStatisticsChart theme={theme} statsData={groupStats} />
                 </div>
                 {/* Calendar Section */}
-              <div className="w-full flex flex-col gap-4" style={{ marginTop: "103px" }}>
-                <CalendarControls
-                  isDark={isDark}
-                  theme={theme}
-                  onPrevMonth={handlePrevMonth}
-                  onNextMonth={handleNextMonth}
-                  onSelectMonth={handleSelectMonth}
-                  onSelectYear={handleSelectYear}
-                  currentMonth={month}
-                  currentYear={year}
-                  months={shortMonths}
-                  fullMonths={fullMonths}
-                  className="md:ml-0"
-                />
-                
-                <div className="w-full">
-                  <CalendarGrid
+                <div className="w-full flex flex-col gap-4 flex-1">
+                  <CalendarControls
                     isDark={isDark}
                     theme={theme}
-                    dates={generateCalendarDates}
-                    selectedDate={selectedDate}
-                    onDateClick={handleDateClick}
-                    style={{ minHeight: 'auto', boxShadow: '8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A' }}
+                    onPrevMonth={handlePrevMonth}
+                    onNextMonth={handleNextMonth}
+                    onSelectMonth={handleSelectMonth}
+                    onSelectYear={handleSelectYear}
+                    currentMonth={month}
+                    currentYear={year}
+                    months={shortMonths}
+                    fullMonths={fullMonths}
+                    className="md:ml-0"
                   />
+
+                  <div className="w-full flex-1">
+                    <CalendarGrid
+                      isDark={isDark}
+                      theme={theme}
+                      dates={generateCalendarDates}
+                      selectedDate={selectedDate}
+                      onDateClick={handleDateClick}
+                      className="h-full"
+                    />
+                  </div>
                 </div>
-              </div>
               </div>
             </div>
           </div>
           <GroupSelectionModal
-          isDark={isDark}
+            isDark={isDark}
             groups={groups}
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             onSelectGroup={handleSelectGroup}
           />
-        </main>  
+        </main>
       </div>
-      <nav 
+      <nav
         className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t"
         style={{
-          backgroundColor: isDark ? '#212426' : '#f5f5f5',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-          boxShadow: isDark 
-            ? '0 -4px 6px -1px rgba(0, 0, 0, 0.3)' 
-            : '0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
+          backgroundColor: isDark ? "#212426" : "#f5f5f5",
+          paddingBottom: "env(safe-area-inset-bottom)",
+          boxShadow: isDark
+            ? "0 -4px 6px -1px rgba(0, 0, 0, 0.3)"
+            : "0 -4px 6px -1px rgba(0, 0, 0, 0.1)",
         }}
       >
         <BottomNavigation theme={theme} user={user} />

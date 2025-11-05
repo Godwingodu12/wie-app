@@ -1,19 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
-import { CreationGroup, getUserGroupCapabilities, getUserData } from '../../services/ticketService';
+import { CreationGroup, getUserGroupCapabilities, getUserData,getGroupById, UpdateGroup } from '../../services/ticketService';
 import Select from 'react-select';
+import { getImageUrl } from "../../utils/imageUtils";
 import OrgIcon from '../../assets/Event/OrgIcon.svg';
-
 import LightIcon from '../../assets/Event/LightIcon.svg';
 import DarkIcon from '../../assets/Event/DarkIcon.svg';
-
 import ThemeToggle from '../../components/HomePage/ThemeToggle';
 import EventSidebar from '../../components/CreateGroup/EventSidebar';
 import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
-
 import Alert from "../../components/CreateGroup/Alert";
-
-
 // CSS for placeholders, which will be injected based on the theme
 const darkThemeStyles = `
   .dark input::placeholder,
@@ -178,6 +175,8 @@ const CreateGroup = () => {
   const [hasGst, setHasGst] = useState('');
   const [existingGroups, setExistingGroups] = useState([]);
   const [ticketData, setTicketData] = useState(null);
+  const { groupId } = useParams();
+  const isEditMode = !!groupId;
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -250,18 +249,80 @@ const hideAlert = () => setAlert(null);
       }));
     }
   }, [userData, capabilities, existingGroups]);
-
-  const fetchUserCapabilities = async () => {
-    try {
-      const caps = await getUserGroupCapabilities();
-      const userGroups = caps.userGroups || [];
-      setCapabilities(caps);
-      setExistingGroups(userGroups);
-    } catch (error) {
-      console.error("Error fetching capabilities:", error);
+const fetchUserCapabilities = async () => {
+  try {
+    setLoading(true);
+    const caps = await getUserGroupCapabilities();
+    const userGroups = caps.userGroups || [];
+    setCapabilities(caps);
+    setExistingGroups(userGroups);
+    
+    // Fetch group data if in edit mode
+    if (groupId) {
+      try {
+        const groupResponse = await getGroupById(groupId);
+        const groupToEdit = groupResponse.group;
+        
+        if (groupToEdit) {
+          // Set form data
+          setFormData({
+            name: groupToEdit.name || '',
+            email: groupToEdit.email || '',
+            contact_no: groupToEdit.contact_no || '',
+            address: groupToEdit.address || '',
+            gst_no: groupToEdit.gst_no || '',
+            pan_no: groupToEdit.pan_no || '',
+            organisation_type: groupToEdit.organisation_type || '',
+            grp_type: groupToEdit.grp_type || 'organisation',
+            primary_bank_acc_type: groupToEdit.primary_bank_acc_type || '',
+            primary_bank_acc_holder: groupToEdit.primary_bank_acc_holder || '',
+            primary_bank_acc_no: groupToEdit.primary_bank_acc_no || '',
+            primary_bank_ifsc: groupToEdit.primary_bank_ifsc || '',
+          });
+          
+          // Set GST status
+          if (groupToEdit.gst_no) {
+            setHasGst('Yes');
+          } else {
+            setHasGst('No');
+          }
+          
+          // Set file previews for existing files
+          const newPreviews = {};
+          if (groupToEdit.id_proof) {
+            newPreviews.id_proof = getImageUrl(groupToEdit.id_proof);
+          }
+          if (groupToEdit.bank_check) {
+            newPreviews.bank_check = getImageUrl(groupToEdit.bank_check);
+          }
+          if (groupToEdit.company_logo) {
+            newPreviews.company_logo = getImageUrl(groupToEdit.company_logo);
+          }
+          if (groupToEdit.company_certificate) {
+            newPreviews.company_certificate = getImageUrl(groupToEdit.company_certificate);
+          }
+          setFilePreviews(newPreviews);
+        }
+      } catch (error) {
+        console.error("Error fetching group data:", error);
+        showAlert({ 
+          type: 'error', 
+          message: 'Error', 
+          description: 'Failed to load group data. Please try again.' 
+        });
+      }
     }
-  };
-
+  } catch (error) {
+    console.error("Error fetching capabilities:", error);
+    showAlert({ 
+      type: 'error', 
+      message: 'Error', 
+      description: 'Failed to load data. Please try again.' 
+    });
+  } finally {
+    setLoading(false);
+  }
+};
   const fetchUserData = async () => {
     try {
       const response = await getUserData();
@@ -391,11 +452,9 @@ const validateForm = () => {
             if (!files.company_logo) addError('company_logo', 'Company logo is required for non-educational organisations.');
         }
     }
-
-    if (!files.id_proof) {
+    if (!files.id_proof && !filePreviews.id_proof) {
         addError('id_proof', 'Aadhaar card is required for verification.');
     }
-
     // PAN validation
     if (!formData.pan_no.trim()) {
         addError('pan_no', 'PAN number is required.');
@@ -412,52 +471,73 @@ const validateForm = () => {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
 };
-
 const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!canCreateGroupType(formData.grp_type)) {
-        showAlert({ type: 'error', message: 'Limit Reached', description: `You cannot create more ${formData.grp_type} groups.` });
-        return;
+  if (!isEditMode && !canCreateGroupType(formData.grp_type)) {
+    showAlert({ 
+      type: 'error', 
+      message: 'Limit Reached', 
+      description: `You cannot create more ${formData.grp_type} groups.` 
+    });
+    return;
+  }
+
+  if (!validateForm()) return;
+
+  setLoading(true);
+  try {
+    const submitData = new FormData();
+
+    // Append all form data
+    Object.keys(formData).forEach(key => {
+      if (formData[key] !== null && formData[key] !== undefined) {
+        submitData.append(key, formData[key]);
+      }
+    });
+
+    // Append only new files (not existing ones)
+    Object.keys(files).forEach(key => {
+      if (files[key]) {
+        submitData.append(key, files[key]);
+      }
+    });
+
+    if (isEditMode) {
+      // Update existing group
+      await UpdateGroup(groupId, submitData);
+      showAlert({
+        type: 'success',
+        message: 'Group Updated!',
+        description: 'Your group has been updated successfully.'
+      });
+      setTimeout(() => {
+        navigate('/ticket/groups');
+      }, 1500);
+    } else {
+      // Create new group
+      const response = await CreationGroup(submitData);
+      showAlert({
+        type: 'success',
+        message: 'Group Created!',
+        description: 'Redirecting you to the next step...'
+      });
+      setTimeout(() => {
+        navigate(`/ticket/create-event/${response.group._id}`);
+      }, 1500);
     }
-
-    if (!validateForm()) return;
-
-    setLoading(true);
-    try {
-        const submitData = new FormData();
-
-        Object.keys(formData).forEach(key => {
-            submitData.append(key, formData[key]);
-        });
-
-        Object.keys(files).forEach(key => {
-            if (files[key]) {
-                submitData.append(key, files[key]);
-            }
-        });
-
-        const response = await CreationGroup(submitData);
-
-        showAlert({
-            type: 'success',
-            message: 'Group Created!',
-            description: 'Redirecting you to the next step...'
-        });
-
-        setTimeout(() => {
-            navigate(`/ticket/create-event/${response.group._id}`);
-        }, 1500);
-
-    } catch (error) {
-        console.error('Error creating group:', error);
-        const errorMessage = error.response?.data?.message || 'An unexpected error occurred. Please try again.';
-        showAlert({ type: 'error', message: 'Creation Failed', description: errorMessage });
-    } finally {
-        setLoading(false);
-    }
+  } catch (error) {
+    console.error('Error saving group:', error);
+    const errorMessage = error.response?.data?.message || 'An unexpected error occurred. Please try again.';
+    showAlert({ 
+      type: 'error', 
+      message: isEditMode ? 'Update Failed' : 'Creation Failed', 
+      description: errorMessage 
+    });
+  } finally {
+    setLoading(false);
+  }
 };
-
   const handleBack = () => navigate(-1);
 
   if (!capabilities || !userData) {
@@ -468,157 +548,183 @@ const handleSubmit = async (e) => {
     );
   }
   
-  const handleFileUpload = (name, file) => {
+const handleFileUpload = (name, file) => {
     setFiles(prev => ({ ...prev, [name]: file }));
 
-    const fileType = file?.type || '';
-    if (fileType.startsWith('image/')) {
-      const previewURL = URL.createObjectURL(file);
-      setFilePreviews(prev => ({ ...prev, [name]: previewURL }));
-    } else {
-      setFilePreviews(prev => ({ ...prev, [name]: null }));
+    if (file) {
+        const fileType = file.type || '';
+        if (fileType.startsWith('image/')) {
+            const previewURL = URL.createObjectURL(file);
+            setFilePreviews(prev => ({ ...prev, [name]: previewURL }));
+        } else {
+            setFilePreviews(prev => ({ ...prev, [name]: 'FILE_SELECTED' }));
+        }
     }
 
+    if (errors[name]) {
+        setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+};
+const FileUploadArea = ({ label, name }) => {
+  const openFileDialog = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
+
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'image/jpeg',
+        'image/png',
+        'image/jpg',
+      ];
+
+      if (!allowedTypes.includes(file.type)) {
+        showAlert({ 
+          type: 'error', 
+          message: 'Invalid File Type', 
+          description: 'Only PDF, DOC, DOCX, and image files are allowed.' 
+        });
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        showAlert({ 
+          type: 'error', 
+          message: 'File Too Large', 
+          description: 'File size must be less than 10MB.' 
+        });
+        return;
+      }
+
+      handleFileUpload(name, file);
+    };
+    
+    input.click();
+  };
+  
+  const handleRemoveFile = (e) => {
+    e.stopPropagation();
+    setFiles(prev => ({ ...prev, [name]: null }));
+    setFilePreviews(prev => ({ ...prev, [name]: null }));
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
+  
+  const hasError = !!errors[name];
+  const hasFile = !!files[name];
+  const previewUrl = filePreviews[name];
+  // Check if we have an existing file (from server) OR a newly selected file
+  const hasExistingFile = previewUrl && !hasFile;
+  const hasNewFile = hasFile && files[name];
 
-  const FileUploadArea = ({ label, name }) => {
-    const openFileDialog = () => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
-
-      input.onchange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const allowedTypes = [
-          'application/pdf',
-          'application/msword',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          'image/jpeg',
-          'image/png',
-          'image/jpg',
-        ];
-
-        if (!allowedTypes.includes(file.type)) {
-          alert('Error: Invalid file type. Only PDF, DOC, DOCX, and image files are allowed.');
-          return;
+  return (
+    <div className="space-y-2">
+      <label className={`flex items-center text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+        {label}
+        <InfoTooltip note={`Upload ${label.toLowerCase()} (PDF, DOC, DOCX, or image files up to 10MB)`} />
+      </label>
+      <div
+        onClick={openFileDialog}
+        className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors flex flex-col items-center justify-center min-h-[220px] cursor-pointer
+          ${darkMode
+            ? `bg-transparent ${hasError ? 'border-red-500' : 'border-gray-600'} hover:border-gray-500`
+            : `bg-white ${hasError ? 'border-red-500' : 'border-gray-300'} hover:border-gray-400`
+          }`
         }
+      >
+        {(hasFile || hasExistingFile) && (
+          <button
+            onClick={handleRemoveFile}
+            className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center z-10 ${
+              darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+            } transition-colors`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
 
-        if (file.size > 10 * 1024 * 1024) {
-          alert('File size must be less than 10MB');
-          return;
-        }
-
-        handleFileUpload(name, file);
-      };
-      
-      input.click();
-    };
-    
-    const handleRemoveFile = (e) => {
-      e.stopPropagation();
-      setFiles(prev => ({ ...prev, [name]: null }));
-      setFilePreviews(prev => ({ ...prev, [name]: null }));
-      if (errors[name]) {
-        setErrors(prev => ({ ...prev, [name]: '' }));
-      }
-    };
-    
-    const hasError = !!errors[name];
-    const hasFile = !!files[name];
-    const previewUrl = filePreviews[name];
-
-    return (
-      <>     
-
-            <div className="space-y-2">
-        <label className={`flex items-center text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-          {label}
-          <InfoTooltip note="This is a dummy note for the file upload." />
-        </label>
-        <div
-          onClick={!hasFile ? openFileDialog : undefined}
-          className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors flex flex-col items-center justify-center min-h-[220px]
-            ${darkMode
-              ? `bg-transparent ${hasError ? 'border-red-500' : 'border-gray-600'} hover:border-gray-500`
-              : `bg-white ${hasError ? 'border-red-500' : 'border-gray-300'} hover:border-gray-400`
-            }`
-          }
-        >
-          {hasFile && (
-            <button
-              onClick={handleRemoveFile}
-              className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center z-10 ${
-                darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
-              } transition-colors`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-
-          <div className="flex flex-col items-center justify-center space-y-4 flex-grow">
-            {previewUrl ? (
-              <img src={previewUrl} alt="Preview" className="max-h-24 object-contain rounded" />
-            ) : hasFile ? (
+        <div className="flex flex-col items-center justify-center space-y-4 flex-grow">
+          {(previewUrl && previewUrl !== 'FILE_SELECTED') ? (
               <div className="text-center">
-                 <svg className="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {previewUrl.match(/\.(jpg|jpeg|png|gif|svg)$/i) || previewUrl.startsWith('blob:') ? (
+                <img 
+                  src={previewUrl} 
+                  alt="Preview" 
+                  className="max-h-24 object-contain rounded mx-auto" 
+                />
+              ) : (
+                <div className="text-center">
+                  <svg className="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                 </svg>
-                 <p className="text-sm mt-2">{files[name]?.name}</p>
-              </div>
-            ) : (
-              <>
-                <svg className={`w-10 h-10 mx-auto ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Drag your file(s) or <span className="font-semibold text-indigo-400">browse</span>
+                  </svg>
+                  <p className="text-sm mt-2">{hasNewFile ? files[name]?.name : 'Existing file'}</p>
+                </div>
+              )}
+              {hasExistingFile && (
+                <p className={`text-xs mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Existing file - Click to change
                 </p>
-                <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Max 10 MB files are allowed</p>
-              </>
-            )}
-            
-            <button
-              type="button"
-              onClick={openFileDialog}
-              className="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              Browse file
-            </button>
-          </div>
+              )}
+            </div>
+          ) : hasFile ? (
+            <div className="text-center">
+              <svg className="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+              <p className="text-sm mt-2">{files[name]?.name}</p>
+            </div>
+          ) : (
+            <>
+              <svg className={`w-10 h-10 mx-auto ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Drag your file(s) or <span className="font-semibold text-indigo-400">browse</span>
+              </p>
+              <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Max 10 MB files are allowed</p>
+            </>
+          )}
+          
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openFileDialog();
+            }}
+            className="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            {hasFile || hasExistingFile ? 'Change file' : 'Browse file'}
+          </button>
         </div>
-        {hasError && <p className="text-red-500 text-sm mt-1">{errors[name]}</p>}
       </div>
-</>
-
-    );
-  };
-
-
-
-
-
+      {hasError && <p className="text-red-500 text-sm mt-1">{errors[name]}</p>}
+    </div>
+  );
+};
   return (
     <>
      <CustomScrollbarStyles isDark={darkMode} />
          <Alert alert={alert} onClose={hideAlert} /> 
 
       <div className={`min-h-screen flex ${darkMode ? 'dark' : 'light'}`}>
-                {/* --- REFACTORED SIDEBAR --- */}
-                <EventSidebar
-    darkMode={darkMode}
-    onBackClick={handleBack}
-    formProgress={{}} // Pass an empty object since progress hasn't started
-    groupId={{}} // Pass the groupId from useParams
-/>
-
-        <div className="flex-1 transition-colors duration-300" style={{ backgroundColor: darkMode ? '#212426' : '#F9FAFB' }}>
+          {!isEditMode && (
+              <EventSidebar
+                  darkMode={darkMode}
+                  onBackClick={handleBack}
+                  formProgress={{}}
+                  groupId={{}}
+              />
+          )}
+        <div className={`${isEditMode ? 'w-full' : 'flex-1'} transition-colors duration-300`} style={{ backgroundColor: darkMode ? '#212426' : '#F9FAFB' }}>
                     <div className="absolute top-6 right-6 z-10">
                         <ThemeToggle isDark={darkMode} onToggle={() => setDarkMode(!darkMode)} />
                     </div>
@@ -659,8 +765,9 @@ const handleSubmit = async (e) => {
                   <img src={OrgIcon} alt="Organization" className="w-8 h-8 filter brightness-0 invert" />
                 </div>
                 <p className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>SECTION 1/6</p>
-                <h1 className={`text-xl lg:text-2xl font-semibold lg:mb-8 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Create your group to organize the event</h1>
-                
+                <h1 className={`text-xl lg:text-2xl font-semibold lg:mb-8 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {isEditMode ? 'Update your group' : 'Create your group to organize the event'}
+                </h1>                
                 <div className={`mt-4 p-3 rounded-lg ${darkMode ? 'bg-blue-900/20 border border-blue-700/30 text-blue-300' : 'bg-blue-50 border border-blue-200 text-blue-700'}`}>
                   <p className="text-sm">{getGroupCreationMessage()}</p>
                 </div>
@@ -674,11 +781,10 @@ const handleSubmit = async (e) => {
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-6">
-                  
                   {capabilities.userRole === 'admin' && (() => {
                     const creatableTypes = ['admin', 'organisation'].filter(type => canCreateGroupType(type));
 
-                    if (creatableTypes.length > 1) {
+                    if (creatableTypes.length > 1 && !isEditMode) {
                       return (
                         <div>
                           <label className={`flex items-center text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -694,6 +800,7 @@ const handleSubmit = async (e) => {
                                   value={type}
                                   checked={formData.grp_type === type}
                                   onChange={handleGroupTypeChange}
+                                  disabled={isEditMode}
                                   className={`w-4 h-4 text-indigo-600 focus:ring-indigo-500 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-gray-100 border-gray-300'}`}
                                 />
                                 <span className={`${darkMode ? 'text-gray-300' : 'text-gray-700'} capitalize`}>
@@ -705,23 +812,17 @@ const handleSubmit = async (e) => {
                         </div>
                       );
                     }
-
-                    if (creatableTypes.length === 1) {
-                      return (
-                        <div>
-                          <label className={`block text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                            Event created under <span className="text-red-400">*</span>
-                          </label>
-                          <div className={`px-4 capitalize  font-medium ${darkMode ? ' text-gray-200' : ' text-gray-800'}`}>
-                            {creatableTypes[0]}
-                          </div>
+                    return (
+                      <div>
+                        <label className={`block text-sm font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Event created under <span className="text-red-400">*</span>
+                        </label>
+                        <div className={`px-4 capitalize font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                          {isEditMode ? formData.grp_type : creatableTypes[0]}
                         </div>
-                      );
-                    }
-                    
-                    return null;
+                      </div>
+                    );
                   })()}
-
                   {formData.grp_type === 'admin' && (
                     <div className="space-y-6">
                       <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800/50 border border-gray-700' : 'bg-gray-50 border border-gray-200'}`}>
@@ -1050,11 +1151,11 @@ const handleSubmit = async (e) => {
                   </button>
                   <button 
                     type="submit" 
-                    disabled={loading || !canCreateGroupType(formData.grp_type)}
+                    disabled={loading || (!isEditMode && !canCreateGroupType(formData.grp_type))}
                     className="w-full sm:w-auto px-8 py-3 text-white rounded-lg transition-colors disabled:opacity-50 h-12 min-w-[120px] font-semibold"
                     style={{ backgroundColor: darkMode ? '#1E1242' : '#1E1242' }}
                   >
-                    {loading ? 'Creating...' : 'Add group'}
+                    {loading ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update group' : 'Add group')}
                   </button>
                 </div>
               </form>
