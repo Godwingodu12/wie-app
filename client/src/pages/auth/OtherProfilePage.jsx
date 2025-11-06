@@ -1176,7 +1176,6 @@ const OtherProfilePage = () => {
                         All Events 
                       </span>
                     </div>
-
                     <div 
                       className={`flex items-center gap-2 cursor-pointer mx-auto p-3 rounded-xl transition-all duration-200 ${activeTab === 'live' ? '' : 'opacity-60'}`}
                       style={{
@@ -1206,7 +1205,6 @@ const OtherProfilePage = () => {
                     </div>
                   </div>
                 </div>
-
                 {/* Events Content */}
                 {eventsLoading ? (
                   <div className="flex flex-col items-center justify-center py-16">
