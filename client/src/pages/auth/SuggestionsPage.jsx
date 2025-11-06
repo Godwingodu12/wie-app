@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import { getMe } from "../../services/userService";
-import { findAllActiveUsers,followUser, unfollowUser,getOtherProfile ,getFollowers,getFollowing,checkIsFollowing } from "../../services/authService";
+import { getImageUrl } from "../../utils/imageUtils.js";
+import { findAllActiveUsers, followUser, unfollowUser, checkIsFollowing } from "../../services/authService";
 import { totalEventsCreatedCount } from "../../services/ticketService";
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
@@ -33,7 +34,6 @@ const CustomScrollbarStyles = () => (
     }
   `}</style>
 );
-
 const SuggestionsPage = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -41,9 +41,12 @@ const SuggestionsPage = () => {
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
+  const [_userImage, setUserImage] = useState(() => {
+          return sessionStorage.getItem('userImage') || null;
+  });
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [followLoading, setFollowLoading] = useState(false);
+  const [_currentUser, _setCurrentUser] = useState(null);
+  const [_followLoading, _setFollowLoading] = useState(false);
   const [followingMap, setFollowingMap] = useState({});
   const [followingStates, setFollowingStates] = useState({});
   const [eventCountsMap, setEventCountsMap] = useState({});
@@ -61,6 +64,14 @@ const SuggestionsPage = () => {
       try {
         const res = await getMe();
         setUser(res.data);
+        if (res.data.image) {
+            const imageUrl = getImageUrl(res.data.image, 'auth');
+            setUserImage(imageUrl);
+            sessionStorage.setItem('userImage', imageUrl);
+        } else {
+            setUserImage(null);
+            sessionStorage.removeItem('userImage');
+        }
       } catch (err) {
         console.error("Failed to fetch user", err);
       }
@@ -360,7 +371,7 @@ const SuggestionsPage = () => {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
+<div className="space-y-4 max-w-6xl mx-auto w-[95%]">
                   {filteredUsers.map((suggestedUser) => {
                     const userId = suggestedUser._id || suggestedUser.id;
                     const eventCount = eventCountsMap[userId] || 0;
@@ -374,7 +385,7 @@ const SuggestionsPage = () => {
                       >
                         <div className="flex items-center gap-4 flex-1 min-w-0">
                           <img
-                            src={suggestedUser.image ? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}` : ProfileImage}
+                            src={getImageUrl(suggestedUser.image, 'auth') || ProfileImage}    
                             alt={suggestedUser.name}
                             className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover flex-shrink-0"
                           />
@@ -429,7 +440,7 @@ const SuggestionsPage = () => {
                             handleSuggestionFollowToggle(userId);
                           }}
                           disabled={followingStates[userId]}
-                          className={`px-3 py-1 rounded-full text-white text-xs font-medium transition-all duration-200 ${
+className={`px-5 py-2 md:px-6 md:py-2.5 rounded-full text-white text-sm md:text-base font-semibold transition-all duration-200 ${
                             followingMap[userId]
                               ? 'bg-[#44444D] shadow-[0px_3px_6px_rgba(0,0,0,0.25)] hover:bg-[#50505A]'
                               : 'bg-blue-500 hover:bg-blue-600'
