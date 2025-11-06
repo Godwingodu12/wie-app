@@ -3,22 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import MainImage from '../../assets/Event/main.png';
 import { groupEventCount } from '../../services/ticketService';
 import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
-const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
-const getImageUrl = (path) => {
-  if (!path) return null;
-  if (typeof path === "object") {
-    path = path.path || path.url || null;
-  }
-  if (typeof path !== "string") {
-    console.warn("Invalid path type:", typeof path, path);
-    return null;
-  }
-  let cleanPath = path.replace(/\\/g, "/");
-  cleanPath = cleanPath.replace(/^src\//, "");
-  cleanPath = cleanPath.replace(/^\//, "");
-  const fullUrl = `${API_BASE_URL}/${cleanPath}`;
-  return fullUrl;
-};
+import { getImageUrl } from "../../utils/imageUtils";
 const GroupSelectionModal = ({ groups, isOpen, onClose, onSelectGroup, isDark = true }) => {
   const navigate = useNavigate();
   const [groupsWithCount, setGroupsWithCount] = useState([]);
