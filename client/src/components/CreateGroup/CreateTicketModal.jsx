@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getTicketImageUrl } from "../../utils/imageUtils";
 
 const CreateTicketModal = ({
   isOpen,
@@ -26,7 +27,9 @@ const CreateTicketModal = ({
         setTicketType(editingTicket.name);
         setTicketPrice(editingTicket.price);
         setTotalTickets(editingTicket.capacity);
-        setTicketPhotoPreview(editingTicket.image);
+        setTicketPhotoPreview(
+          editingTicket.image ? getTicketImageUrl(editingTicket.image) : ""
+        );
         setTicketPhoto(editingTicket.photoFile || null);
         setExistingPhotoPath(editingTicket.existingPhotoPath || "");
         setCurrentEditId(editingTicket.id);
@@ -55,7 +58,8 @@ const CreateTicketModal = ({
       showAlert({
         type: "error",
         message: "Missing Details",
-        description: "Please fill in all ticket details: Type, Price, and Total Tickets.",
+        description:
+          "Please fill in all ticket details: Type, Price, and Total Tickets.",
       });
       return;
     }
@@ -113,7 +117,7 @@ const CreateTicketModal = ({
     setTicketType(ticket.name);
     setTicketPrice(ticket.price);
     setTotalTickets(ticket.capacity);
-    setTicketPhotoPreview(ticket.image);
+    setTicketPhotoPreview(ticket.image ? getTicketImageUrl(ticket.image) : "");
     setTicketPhoto(ticket.photoFile || null);
     setExistingPhotoPath(ticket.existingPhotoPath || "");
   };
@@ -125,7 +129,8 @@ const CreateTicketModal = ({
       showAlert({
         type: "warning",
         message: "Incomplete Ticket",
-        description: "You have an incomplete ticket in the form. Please complete it using '+ Add Ticket' button or clear the form before saving.",
+        description:
+          "You have an incomplete ticket in the form. Please complete it using '+ Add Ticket' button or clear the form before saving.",
       });
       return;
     }
@@ -135,7 +140,8 @@ const CreateTicketModal = ({
       showAlert({
         type: "warning",
         message: "Unsaved Ticket",
-        description: "You have filled in ticket details but haven't added it yet. Click '+ Add Ticket' button first, then 'Save Changes'.",
+        description:
+          "You have filled in ticket details but haven't added it yet. Click '+ Add Ticket' button first, then 'Save Changes'.",
       });
       return;
     }
@@ -325,7 +331,6 @@ const CreateTicketModal = ({
                 </button>
               </div>
             </div>
-
             {/* Divider */}
             <div
               className={`w-full h-px md:w-px md:h-auto flex-shrink-0 ${

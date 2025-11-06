@@ -77,8 +77,8 @@ const ExtraEventsPlanner = ({ isOpen, onYes, onNo, ticketId, darkMode }) => {
           Any extra events planned?
         </h2>
         <p className={`${paragraphColor} mb-8 leading-relaxed text-sm px-4`}>
-         Let us know if your main event includes additional sessions,
-          workshops, or side events. 
+         Let us know if your main event includes additional shows, festivals,
+          extra events, or side events planned?. 
         </p>
         <div className="flex flex-col sm:flex-row gap-4">
           <button
@@ -95,7 +95,7 @@ const ExtraEventsPlanner = ({ isOpen, onYes, onNo, ticketId, darkMode }) => {
             }}
             className={`flex-1 px-6 py-3 rounded-lg text-lg font-medium hover:opacity-80 transition-opacity ${noButtonText}`}
           >
-             No, go to Terms 
+             No, More Events
           </button>
           <button
             onClick={handleYesClick}
@@ -107,7 +107,7 @@ const ExtraEventsPlanner = ({ isOpen, onYes, onNo, ticketId, darkMode }) => {
             }}
             className="flex-1 px-6 py-3 text-white rounded-lg text-lg font-medium hover:opacity-80 transition-opacity"
           >
-            Yes, add shows
+            Yes, add events
           </button>
         </div>
         {!ticketId && (

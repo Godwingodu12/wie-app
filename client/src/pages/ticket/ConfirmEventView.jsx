@@ -6,15 +6,8 @@ import React, {
   useCallback,
 } from "react";
 
-import {
-  ChevronRight,
-  ChevronLeft,
-  X,
-  Phone,
-  Play,
-  Bookmark,
-} from "lucide-react";
-import { getImageUrl, getTicketImageUrl } from "../../utils/imageUtils";
+import { ChevronRight, ChevronLeft, Phone, Play, Bookmark } from "lucide-react";
+import { getImageUrl } from "../../utils/imageUtils";
 import Event_Days from "../../assets/ViewSingleEvent/Event_Days.svg";
 import Globe from "../../assets/ViewSingleEvent/Globe.svg";
 import Private from "../../assets/ViewSingleEvent/Private.svg";
@@ -31,17 +24,15 @@ import Ticket from "../../assets/ViewSingleEvent/Ticket.svg";
 import NoGuide from "../../assets/ViewSingleEvent/NoGuide.svg";
 import GuideVector from "../../assets/ViewSingleEvent/GuideVector.svg";
 import Rules from "../../assets/ViewSingleEvent/Rules.svg";
-
 import LeftIcon from "../../assets/ViewSingleEvent/LeftIcon.svg";
 import RightIcon from "../../assets/ViewSingleEvent/RightIcon.svg";
-
 import Bank_Details from "../../assets/ViewSingleEvent/Bank_Details.svg";
 
 import {
   getTicketById,
   getGroupView,
   deleteTicket,
-  confirmEvent,
+  goLiveEvent,
 } from "../../services/ticketService";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -66,6 +57,8 @@ import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarS
 import ConfirmModal from "../../components/Modal";
 import Alert from "../../components/Alert";
 import RulesModal from "../../components/ViewSingleEvent/RulesModal";
+import ScrollBarStyle from "../../components/ScrollBarStyle";
+import HostEventModal from "../../components/Event/HostEventModal";
 
 const darkTheme = {
   isDark: true,
@@ -103,8 +96,9 @@ const ConfirmEventView = () => {
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [currentGuideIndex, setCurrentGuideIndex] = useState(0);
-  const [currentBankIndex,setCurrentBankIndex] = useState(0);
+  const [currentBankIndex, setCurrentBankIndex] = useState(0);
   const [currentTicketIndex, setCurrentTicketIndex] = useState(0);
+
   const [eventData, setEventData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -130,7 +124,10 @@ const ConfirmEventView = () => {
 
   const [showSubEventModal, setShowSubEventModal] = useState(false);
   const [selectedSubEvent, setSelectedSubEvent] = useState(null);
-  const [showConfirmSaveModal, setShowConfirmSaveModal] = useState(false);
+
+  const [isHostModalOpen, setIsHostModalOpen] = useState(false);
+  const [selectedEventToHost, setSelectedEventToHost] = useState(null);
+  const [isHosting, setIsHosting] = useState(false);
 
   const [currentSeatingIndex, setCurrentSeatingIndex] = useState(0);
   const [showSeatingModal, setShowSeatingModal] = useState(false);
@@ -149,47 +146,48 @@ const ConfirmEventView = () => {
     setShowConfirmDeleteModal(true);
   };
 
-  const handleSave = useCallback(async () => {
-    setShowConfirmSaveModal(false);
-    if (!ticketId) {
-      setAppAlert({
-        type: "error",
-        message: "Error",
-        description: "Ticket ID is missing.",
-      });
-      return;
-    }
+  const handleHostEvent = async () => {
+    if (!selectedEventToHost) return;
 
-    setLoading(true);
-
+    setIsHosting(true);
     try {
-      // Call confirmEvent API to save the event
-      await confirmEvent(ticketId);
+      const response = await goLiveEvent(selectedEventToHost._id);
 
-      setAppAlert({
-        type: "success",
-        message: "Event Saved!",
-        description: "Your event has been saved successfully.",
-      });
+      if (response) {
+        // Show success message
+        alert(`"${selectedEventToHost.event_name}" is now live!`);
 
-      // Navigate to confirm events page after a short delay
-      setTimeout(() => {
-        navigate("/ticket/confirm-events");
-      }, 1500);
-    } catch (err) {
-      console.error("Error saving event:", err);
-      const errorMessage =
-        err.response?.data?.message ||
-        "Failed to save event. Please try again.";
-      setAppAlert({
-        type: "error",
-        message: "Save Failed",
-        description: errorMessage,
-      });
+        // Close modal
+        setIsHostModalOpen(false);
+        setSelectedEventToHost(null);
+
+        // Navigate to live events page
+        navigate("/ticket/live-events");
+      }
+    } catch (error) {
+      console.error("Error hosting event:", error);
+
+      // Check if error has expired dates information
+      if (error.response?.data?.expiredDates) {
+        const expiredDates = error.response.data.expiredDates.join("\n• ");
+        alert(
+          `Cannot host event. The following dates have expired:\n\n• ${expiredDates}\n\nPlease update these dates before hosting the event.`
+        );
+      } else {
+        alert(
+          error.response?.data?.message ||
+            "Failed to host event. Please try again."
+        );
+      }
     } finally {
-      setLoading(false);
+      setIsHosting(false);
     }
-  }, [ticketId, navigate]);
+  };
+
+  const openHostModal = (event) => {
+    setSelectedEventToHost(event);
+    setIsHostModalOpen(true);
+  };
 
   const allEventsForBankView = useMemo(() => {
     if (!eventData) return []; // 1. Collect all events and their associated bank details
@@ -234,10 +232,6 @@ const ConfirmEventView = () => {
 
     return events;
   }, [eventData, groupData]);
-
-  const handleSaveEvent = () => {
-    setShowConfirmSaveModal(true);
-  };
 
   const handleConfirmDelete = async () => {
     setShowConfirmDeleteModal(false);
@@ -770,12 +764,13 @@ const ConfirmEventView = () => {
       LocationLabel = "Offline";
       break;
   }
-
+  eventData.sub_events[eventData.sub_events.length] = eventData;
   return (
     <div
       className={`min-h-screen md:p-8 p-2 ${theme.text}`}
       style={{ backgroundColor: theme.mainBg }}
     >
+      <ScrollBarStyle />
       <ConfirmModal
         isOpen={showConfirmDeleteModal}
         onClose={() => setShowConfirmDeleteModal(false)}
@@ -784,14 +779,17 @@ const ConfirmEventView = () => {
         message={`Are you sure you want to permanently delete event ID ${ticketId}? This action cannot be undone.`}
         darkMode={theme.isDark}
       />
-      <ConfirmModal
-        isOpen={showConfirmSaveModal}
-        onClose={() => setShowConfirmSaveModal(false)}
-        onConfirm={handleSave}
-        title="Confirm Event?"
-        message={`Are you sure you want to save and confirm event ID ${ticketId}? This will confirm your final selection.`}
-        confirmText="Confirm Save"
-        darkMode={theme.isDark}
+      <HostEventModal
+        isOpen={isHostModalOpen}
+        onClose={() => {
+          setIsHostModalOpen(false);
+          setSelectedEventToHost(null);
+        }}
+        onConfirm={handleHostEvent}
+        eventName={eventData.event_name || ""}
+        isDark={theme.isDark}
+        theme={theme}
+        isLoading={isHosting}
       />
 
       {/* GLOBAL ALERT: Displays success/error messages */}
@@ -830,7 +828,7 @@ const ConfirmEventView = () => {
           </button>
           <div
             className="flex flex-col items-center cursor-pointer space-y-2 transition-transform duration-200 hover:scale-[1.02]"
-            onClick={handleSaveEvent}
+            onClick={() => openHostModal(eventData)}
           >
             <div
               className="w-10 h-10 bg-[#5E5CE6] text-white rounded-full flex items-center justify-center"
@@ -1006,7 +1004,7 @@ const ConfirmEventView = () => {
             <div className="md:flex items-start space-x-4">
               <div className="md:w-3/5 space-y-4">
                 <h3 className={`text-md font-semibold pt-2 ${theme.textColor}`}>
-                  Status: {eventData.event_status}{" "}
+                  Status: {eventData.event_status}
                   <span
                     className={`inline-block w-2 h-2 rounded-full ${
                       eventData.event_status === "live"
@@ -1048,7 +1046,7 @@ const ConfirmEventView = () => {
                       </p>
                     </Card>
 
-                    {eventData.event_date_type === "multi-day" ? (
+                    {eventData.sub_events.length > 0 ? (
                       <Card
                         theme={theme}
                         style={{
@@ -1111,10 +1109,11 @@ const ConfirmEventView = () => {
                           className={`text-xs mt-0 text-center text-gray-500 truncate w-full px-2`}
                         >
                           (
-                          {
-                            eventData.sub_events[currentStatsEventIndex]
-                              ?.event_name
-                          }
+                          {currentStatsEventIndex ===
+                          eventData.sub_events.length
+                            ? "Main event"
+                            : eventData.sub_events[currentStatsEventIndex]
+                                ?.event_name}
                           )
                         </p>
                         <p className={`text-sm mt-1 ${theme.textColor}`}>
@@ -1203,7 +1202,7 @@ const ConfirmEventView = () => {
                   ? `6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset `
                   : `6px 6px 12px 0px #FFFFFF inset,-6px -6px 12px 0px #A0A0A0 inset `,
               }}
-              className="md:p-5 md:mb-2 p-1 mb-1 rounded-3xl mt-6"
+              className="md:p-5 md:mb-2 p-4 mb-1 rounded-3xl mt-6"
             >
               <div
                 style={{
@@ -1225,18 +1224,18 @@ const ConfirmEventView = () => {
               >
                 <div
                   onClick={handleLocationClick}
-                  className="flex justify-between items-center md:space-x-3 space-x-1"
+                  className="flex py-3 md:py-0 pr-1 justify-between items-center md:space-x-3 space-x-1 cursor-pointer"
                 >
                   <div
-                    className="!p-0 relative md:w-24 md:h-24 w-10 h-10 rounded-3xl overflow-hidden flex-shrink-0"
+                    className="!p-0 relative md:w-24 md:h-24 w-12 h-full md:rounded-3xl overflow-hidden flex-shrink-0"
                     ref={mapRef}
                   >
                     {!eventData.exact_map_location?.latitude && (
-                      <div className="w-full h-full bg-gray-700 flex rounded-3xl flex-col items-center justify-center text-xs text-gray-400 md:p-1">
+                      <div className="w-full h-full bg-gray-700 flex md:rounded-3xl flex-col items-center justify-center text-xs text-gray-400 md:p-1">
                         <img
                           src={Map_No_Loc}
                           alt="Map Not Available"
-                          className="bg-contain rounded-3xl"
+                          className="bg-contain md:rounded-3xl"
                         />
                       </div>
                     )}
@@ -1261,7 +1260,7 @@ const ConfirmEventView = () => {
                   <div className="text-right flex-shrink-0 pr-1 md:pr-3 w-1/4 md:w-1/3">
                     <p className="text-xs text-gray-500 mb-1">Gate opens at</p>
                     <p
-                      className={`md:text-xl text-sm md:font-bold ${theme.textColor}`}
+                      className={`md:text-xl text-xs md:font-bold ${theme.textColor}`}
                     >
                       {formattedDateRange.timeText}
                     </p>
@@ -1270,7 +1269,7 @@ const ConfirmEventView = () => {
               </div>
             </div>
 
-            {eventData.event_date_type === "multi-day" ? (
+            {eventData.sub_events.length > 0 ? (
               <div className="w-full">
                 <h3 className={`text-lg font-semibold mb-1 ${theme.textColor}`}>
                   Multiple event
@@ -1775,20 +1774,32 @@ const ConfirmEventView = () => {
 
             <div className="flex items-start  md:space-x-3 mb-6">
               {eventStats.ticketTypes.length > 0 ? (
-                <Card
-                  theme={theme}
+                <div
+                  style={{
+                    borderRadius: "23px",
+                    background: theme.isDark ? "#212426" : "#FFFFFF08",
+                    border: theme.isDark
+                      ? "0.75px solid #33373A"
+                      : "0.75px solid #D0D0D0",
+
+                    boxShadow: theme.isDark
+                      ? `6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset `
+                      : `6px 6px 12px 0px #FFFFFF inset, -6px -6px 12px 0px #A0A0A099 inset `,
+                  }}
                   className="md:w-3/4 w-full p-3 mx-auto  rounded-lg"
                 >
-                  <div>
-                    <img
-                      src={LeftIcon}
-                      alt=""
-                      className={`cursor-pointer text-gray-400 ${
-                        theme.isDark ? "" : "filter invert"
-                      } 
+                  <div className="flex ">
+                    <div className="flex my-auto">
+                      <img
+                        src={LeftIcon}
+                        alt=""
+                        className={`cursor-pointer text-gray-400 ${
+                          theme.isDark ? "" : "filter invert"
+                        } 
                         ${currentTicketIndex === 0 ? "opacity-50" : ""}`}
-                      onClick={handlePrevTicket}
-                    />
+                        onClick={handlePrevTicket}
+                      />
+                    </div>
 
                     {/* CORRECTED CAROUSEL WINDOW: Removed justify-center and applied padding for spacing */}
                     <div className="flex items-center flex-grow overflow-hidden px-2 ">
@@ -1837,7 +1848,7 @@ const ConfirmEventView = () => {
                     </div>
 
                     {/* Right Chevron (Always flex-shrink-0) */}
-                    <div>
+                    <div className="flex my-auto">
                       <img
                         src={RightIcon}
                         alt=""
@@ -1854,7 +1865,7 @@ const ConfirmEventView = () => {
                       />
                     </div>
                   </div>
-                </Card>
+                </div>
               ) : (
                 <div
                   style={{

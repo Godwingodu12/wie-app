@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { format, addMonths, subMonths, eachDayOfInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameDay, isSameMonth } from "date-fns";
+import { format, addMonths, subMonths } from "date-fns";
 import Date_Form_Icon  from "../../assets/Event/Date_Form_Icon.svg?react";
 import ConfirmModal from "./ConfirmModal";
 
@@ -111,8 +111,7 @@ const RecordedDatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMo
     const handleAddOrUpdate = () => {
         if (currentSelection.length === 0) {             showAlert({ type: 'error', message: 'No Date Selected', description: 'Please select at least one date from the calendar.' });
  return; }
-        if (!videoName.trim()) {             showAlert({ type: 'error', message: 'Video Name Required', description: 'Please provide a name for the video.' });
- return; }
+        
         if (!videoLink.trim() && !videoFile) {            showAlert({ type: 'error', message: 'Video Source Missing', description: 'Please provide either a video link or attach a video file.' });
  return; }
 
@@ -168,10 +167,7 @@ const RecordedDatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMo
     // Check if there's an unsaved selection in the form
     if (currentSelection.length > 0) {
         // Validate the unsaved selection before adding it
-        if (!videoName.trim()) {
-            showAlert({ type: 'error', message: 'Unsaved Changes', description: 'Please add your current selection to a date group before saving.' });
-            return;
-        }
+        
         if (!videoLink.trim() && !videoFile) {
             showAlert({ type: 'error', message: 'Unsaved Changes', description: 'Your current selection is missing a video link or file. Please add it to a group.' });
             return;
@@ -370,7 +366,7 @@ const RecordedDatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMo
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Video name <span className="text-red-500">*</span></label>
+                                        <label className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Video name </label>
                                         <input type="text" placeholder="E.g. Chapter 1" value={videoName} onChange={e => setVideoName(e.target.value)} className={`w-full mt-1 p-3 rounded-lg ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-100 border-gray-300 text-black'}`} />
                                     </div>
                                     <div>
@@ -391,7 +387,7 @@ const RecordedDatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMo
                                     className={`flex-grow py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 ${editingId ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
                                     disabled={currentSelection.length === 0}
                                 >
-                                    {editingId ? 'Update Date Group' : 'Add Date Group'}
+                                    {editingId ? 'Update Date Group' : 'Add Date '}
                                 </button>
                                 {editingId && (
                                     <button type="button" onClick={resetFormAndSelection} className="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700">Cancel Edit</button>
@@ -411,5 +407,4 @@ const RecordedDatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMo
         </div>
     );
 };
-
 export default RecordedDatePickerModal;

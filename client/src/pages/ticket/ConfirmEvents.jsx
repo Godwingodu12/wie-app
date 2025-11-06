@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
+import GroupViewModal from "../../components/CreateGroup/GroupViewModal";
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import HostEventModal from "../../components/Event/HostEventModal";
 import SideBar from "../../components/HomePage/SideBar";
@@ -24,25 +25,7 @@ import ViewConfirm from "../../assets/Event/ViewConfirm.png";
 import EditIcon from "../../assets/Event/EditIcon.png";
 import { ChevronDown, PartyPopper, Radio, Search, Landmark } from "lucide-react";
 import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
-// import AdminLogo from "../../assets/auth/admin.webp";
-// import OrgLogo from "../../assets/auth/orgz.webp";
-
-const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
-const getImageUrl = (path) => {
-    if (!path) return null;
-    if (typeof path === 'object') {
-      path = path.path || path.url || null;
-    }
-    if (typeof path !== 'string') {
-      console.warn('Invalid path type:', typeof path, path);
-      return null;
-    }
-    let cleanPath = path.replace(/\\/g, '/');
-    cleanPath = cleanPath.replace(/^src\//, '');
-    cleanPath = cleanPath.replace(/^\//, '');
-    const fullUrl = `${API_BASE_URL}/${cleanPath}`;
-    return fullUrl;
-};
+import { getImageUrl } from "../../utils/imageUtils";
 
 const getNeumorphicShadows = (isDark) =>
   isDark
@@ -53,54 +36,141 @@ const getButtonNeumorphicShadows = (isDark) =>
     ? "shadow-[inset_2px_2px_5px_#1a1b1e,inset_-2px_-2px_5px_#3c3f44]"
     : "shadow-[inset_-2px_-2px_5px_rgba(0,0,0,0.1),inset_2px_2px_5px_rgba(255,255,255,1)]";
 
-const MyGroupsCard = ({ theme, groups, isDark }) => (
-  <div className="h-full flex flex-col">
-    <div className="flex items-center justify-between w-full mb-4">
-      <div className="flex items-center gap-2">
-        <h3 className="text-xl font-semibold">My groups,</h3>
-        <p className={`text-sm ${theme.subText}`}>{groups.length} groups</p>
-      </div>
-      {groups.length > 2 && (
-        <button className={`text-sm ${theme.subText} hover:underline`}>
-          See more
-        </button>
-      )}
-    </div>
-    <div className="flex flex-row flex-wrap items-center justify-start w-full gap-6 flex-grow">
-      {groups.slice(0, 2).map((group, index) => {
-        let imageUrl;
-        if (group.grp_type === "admin") {
-          imageUrl = ProfileImage;
-        } else if (group.grp_type === "organization") {
-          imageUrl = getImageUrl(group.company_logo) || ProfileImage;
-        } else {
-          imageUrl = getImageUrl(group.company_logo) || ProfileImage;
-        }
-        return (
-          <div key={index} className="flex flex-col items-center gap-2">
-            <div
-              className="relative w-[100px] h-[100px] rounded-[58px] overflow-hidden"
-              style={{
-                boxShadow: isDark
-                  ? "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)"
-                  : "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)",
-              }}
-            >
-              <img
-                src={imageUrl}
-                alt={group.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <p className={`font-medium text-sm ${theme.text} text-center`}>
-              {group.name}
+const MyGroupsCard = ({ theme, groups, isDark }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [groupEventCount, setGroupEventCount] = useState(0);
+  const [loadingCount, setLoadingCount] = useState(false);
+
+  const handleGroupClick = async (group) => {
+    setSelectedGroup(group);
+    setIsModalOpen(true);
+    setLoadingCount(true);
+    
+    // Fetch event count for this specific group
+    try {
+      const eventsRes = await getMyEvents();
+      
+      // Handle different response structures
+      let eventsArray = [];
+      if (Array.isArray(eventsRes)) {
+        eventsArray = eventsRes;
+      } else if (eventsRes?.tickets) {
+        eventsArray = Array.isArray(eventsRes.tickets) ? eventsRes.tickets : [];
+      } else if (eventsRes?.data) {
+        eventsArray = Array.isArray(eventsRes.data) ? eventsRes.data : [];
+      }
+
+      // Filter events that belong to this specific group
+      const groupId = group._id || group.id;
+      const filteredEvents = eventsArray.filter(event => 
+        event.groupId === groupId || 
+        event.group_id === groupId || 
+        event.group === groupId ||
+        event.group?._id === groupId ||
+        event.group?.id === groupId
+      );
+      
+      setGroupEventCount(filteredEvents.length);
+    } catch (error) {
+      console.error('Error fetching event count:', error);
+      // Fallback to group's own count if available
+      setGroupEventCount(group.totalEvents || group.events || 0);
+    } finally {
+      setLoadingCount(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedGroup(null);
+    setGroupEventCount(0);
+  };
+
+  const handleUpdateGroup = () => {
+    console.log('Update group:', selectedGroup);
+    // Add your update logic here
+    // You might want to navigate to an edit page or open an edit modal
+    // Example: navigate(`/group/edit/${selectedGroup._id}`);
+    handleCloseModal();
+  };
+
+  return (
+    <>
+      <div className="h-full flex flex-col min-h-[180px]">
+        <div className="flex items-center justify-between w-full mb-3 md:mb-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-lg md:text-xl font-semibold">My groups,</h3>
+            <p className={`text-xs md:text-sm ${theme.subText}`}>
+              {groups.length} groups
             </p>
           </div>
-        );
-      })}
-    </div>
-  </div>
-);
+          {groups.length > 2 && (
+            <button
+              className={`text-xs md:text-sm ${theme.subText} hover:underline flex-shrink-0`}
+            >
+              See more
+            </button>
+          )}
+        </div>
+        <div className="flex flex-row items-center justify-start w-full gap-4 md:gap-6 flex-grow">
+          {groups.slice(0, 2).map((group, index) => {
+            let imageUrl;
+            if (group.grp_type === "admin") {
+              imageUrl = ProfileImage;
+            } else if (group.grp_type === "organization") {
+              imageUrl = getImageUrl(group.company_logo) || ProfileImage;
+            } else {
+              imageUrl = getImageUrl(group.company_logo) || ProfileImage;
+            }
+            return (
+              <div 
+                key={index} 
+                className="flex flex-col items-center gap-2 cursor-pointer group"
+                onClick={() => handleGroupClick(group)}
+              >
+                <div
+                  className="relative w-[80px] h-[80px] md:w-[100px] md:h-[100px] rounded-[58px] overflow-hidden flex-shrink-0 transition-transform duration-200 group-hover:scale-105"
+                  style={{
+                    boxShadow: isDark
+                      ? "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)"
+                      : "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <img
+                    src={imageUrl}
+                    alt={group.company_logo}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = ProfileImage;
+                    }}
+                  />
+                </div>
+                <p
+                  className={`font-medium text-xs md:text-sm ${theme.text} text-center max-w-[100px] truncate group-hover:underline`}
+                >
+                  {group.name}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {/* Group View Modal */}
+      <GroupViewModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        group={selectedGroup}
+        isDark={isDark}
+        theme={theme}
+        onUpdate={handleUpdateGroup}
+        totalEvents={groupEventCount}
+        loadingCount={loadingCount}
+      />
+    </>
+  );
+};
 const StatsCard = ({ count, title, isDark, theme, className, icon, isMobile = false }) => {
   if (isMobile) {
     return (

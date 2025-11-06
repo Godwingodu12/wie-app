@@ -1220,18 +1220,18 @@ const ViewSingleEvent = () => {
               >
                 <div
                   onClick={handleLocationClick}
-                  className="flex justify-between items-center md:space-x-3 space-x-1 cursor-pointer"
+                  className="flex py-3 md:py-0 pr-1 justify-between items-center md:space-x-3 space-x-1 cursor-pointer"
                 >
                   <div
-                    className="!p-0 relative md:w-24 md:h-24 w-10 h-10 rounded-3xl overflow-hidden flex-shrink-0"
+                    className="!p-0 relative md:w-24 md:h-24 w-12 h-full md:rounded-3xl overflow-hidden flex-shrink-0"
                     ref={mapRef}
                   >
                     {!eventData.exact_map_location?.latitude && (
-                      <div className="w-full h-full bg-gray-700 flex rounded-3xl flex-col items-center justify-center text-xs text-gray-400 md:p-1">
+                      <div className="w-full h-full bg-gray-700 flex md:rounded-3xl flex-col items-center justify-center text-xs text-gray-400 md:p-1">
                         <img
                           src={Map_No_Loc}
                           alt="Map Not Available"
-                          className="bg-contain rounded-3xl"
+                          className="bg-contain md:rounded-3xl"
                         />
                       </div>
                     )}
@@ -1256,7 +1256,7 @@ const ViewSingleEvent = () => {
                   <div className="text-right flex-shrink-0 pr-1 md:pr-3 w-1/4 md:w-1/3">
                     <p className="text-xs text-gray-500 mb-1">Gate opens at</p>
                     <p
-                      className={`md:text-xl text-sm md:font-bold ${theme.textColor}`}
+                      className={`md:text-xl text-xs md:font-bold ${theme.textColor}`}
                     >
                       {formattedDateRange.timeText}
                     </p>
@@ -1726,7 +1726,7 @@ const ViewSingleEvent = () => {
                     Free event
                   </h2>
                   <p className={`text-sm ${theme.textColor}`}>
-                    No payment required for main event.
+                    No payment required for this event.
                   </p>
                 </div>
               )}

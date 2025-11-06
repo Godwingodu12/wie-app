@@ -448,7 +448,7 @@ const validateForm = () => {
 
         if (formData.organisation_type && formData.organisation_type.toLowerCase() !== 'educational') {
             if (!formData.gst_no.trim()) addError('gst_no', 'GST number is required for non-educational organisations.');
-            if (!files.bank_check) addError('bank_check', 'Bank check is required for non-educational organisations.');
+            if (!files.bank_check && !filePreviews.bank_check) addError('bank_check', 'Bank check is required for non-educational organisations.');
             if (!files.company_logo) addError('company_logo', 'Company logo is required for non-educational organisations.');
         }
     }

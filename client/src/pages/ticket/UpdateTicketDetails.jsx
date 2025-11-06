@@ -7,6 +7,7 @@ import {
   updateTicketDetails,
   getGroupView,
 } from "../../services/ticketService";
+import { getTicketImageUrl } from "../../utils/imageUtils";
 
 import Select from "react-select";
 
@@ -21,15 +22,8 @@ import FormInput from "../../components/CreateGroup/FormInput.jsx";
 import DateInput from "../../components/CreateGroup/DateInput.jsx";
 import ExtraEventsPlanner from "../../components/modals/ExtraEventsPlanner.jsx";
 import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
+import getInitialTheme from "../../components/CreateGroup/getIntialTheme.jsx";
 
-const getInitialTheme = () => {
-  const savedTheme = localStorage.getItem("theme");
-  if (savedTheme) {
-    return savedTheme === "dark"; // Returns true or false
-  }
-
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-};
 // --- Main Page Component ---
 const UpdateTicketDetails = () => {
   const { ticketId } = useParams();
@@ -144,6 +138,11 @@ const UpdateTicketDetails = () => {
           setHasSeatingLayout(
             savedDraft?.hasSeatingLayout ?? !!ticketData.ticket_layout
           );
+          if (ticketData.ticket_layout) {
+            setSeatingLayoutPreview(
+              getTicketImageUrl(ticketData.ticket_layout)
+            );
+          }
           setBookingStartDate(
             savedDraft?.bookingStartDate ??
               (ticketData.booking_start_date
@@ -168,7 +167,10 @@ const UpdateTicketDetails = () => {
                 name: t.ticket_type,
                 price: t.ticket_price,
                 capacity: t.max_capacity,
-                image: t.ticket_photo,
+                image: getTicketImageUrl(
+                  t.ticket_photo,
+                  "/placeholder-ticket.png"
+                ),
               })) ??
               []
           );
@@ -181,7 +183,7 @@ const UpdateTicketDetails = () => {
             name: t.ticket_type,
             price: t.ticket_price,
             capacity: t.max_capacity,
-            image: t.ticket_photo,
+            image: getTicketImageUrl(t.ticket_photo, "/placeholder-ticket.png"),
           })) ??
           [];
 
@@ -293,7 +295,6 @@ const UpdateTicketDetails = () => {
         );
         setBankingDetails(savedDraft?.bankingDetails ?? bankDetailsToSet);
       } catch (error) {
-        console.error("Failed to fetch initial data", error);
         setErrors({
           general:
             error.response?.data?.message ||
@@ -372,12 +373,22 @@ const UpdateTicketDetails = () => {
 
   const handleSeatingLayoutChange = (e) => {
     const file = e.target.files[0];
+
     if (file?.type.startsWith("image/")) {
       setSeatingLayoutFile(file);
+
       setSeatingLayoutPreview(URL.createObjectURL(file));
+
+      setErrors((prev) => ({
+        ...prev,
+        seatingLayoutFile: null,
+        general: null,
+      }));
+    } else {
+      setSeatingLayoutFile(null);
+      setSeatingLayoutPreview(null);
     }
   };
-
   const removeSeatingLayout = () => {
     setSeatingLayoutFile(null);
     setSeatingLayoutPreview(null);
@@ -544,10 +555,11 @@ const UpdateTicketDetails = () => {
       bookingStartDate &&
       new Date(bookingEndDate) < new Date(bookingStartDate)
     ) {
-      const errorMsg = "Invalid Date Range.";
+      const errorMsg =
+        "The booking end date cannot be before the booking start date.";
       showAlert({
         type: "error",
-        message: "Validation Error",
+        message: "Invalid Booking Period",
         description: errorMsg,
       });
       setErrors({ general: errorMsg, booking_end_date: errorMsg });
@@ -562,13 +574,13 @@ const UpdateTicketDetails = () => {
       new Date(bookingEndDate) > new Date(eventEndDate)
     ) {
       const errorMsg =
-        "Booking end date cannot be after the event has finished.";
+        "The booking end date cannot be after the event has finished.";
       showAlert({
         type: "error",
-        message: "Invalid Date Range",
+        message: "Invalid Booking Period",
         description: errorMsg,
       });
-      setErrors({ general: errorMsg });
+      setErrors({ general: errorMsg, booking_end_date: errorMsg });
       setLoading(false);
       return;
     }
@@ -602,9 +614,24 @@ const UpdateTicketDetails = () => {
         message: "Details Saved!",
         description: "Banking and ticket info has been updated.",
       });
-      setIsExtraEventsModalOpen(true);
+      const latestTicketResponse = await getTicketById(ticketId);
+      const latestProgress =
+        latestTicketResponse.ticket?.form_progress ||
+        latestTicketResponse.data?.form_progress ||
+        {};
+      const addOnsCompleted = latestProgress.add_on_events === true;
+      const termsCompleted = latestProgress.terms_conditions === true;
+
+      if (addOnsCompleted || termsCompleted) {
+        if (addOnsCompleted) {
+          navigate(`/ticket/update-ticket-addons/${ticketId}`);
+        } else {
+          navigate(`/ticket/ticket-terms/${ticketId}`);
+        }
+      } else {
+        setIsExtraEventsModalOpen(true);
+      }
     } catch (error) {
-      console.error("Submission failed:", error);
       const errorDesc =
         error.response?.data?.message || "An error occurred while saving.";
       showAlert({
@@ -634,7 +661,7 @@ const UpdateTicketDetails = () => {
   return (
     <div className={darkMode ? "dark " : ""}>
       <ScrollBarStyle isDark={darkMode} />
-      <Alert alert={alert} onClose={hideAlert} />
+      <Alert alert={alert} onClose={hideAlert} isDark={darkMode} />
       <ConfirmModal
         isOpen={confirmState.isOpen}
         onClose={() => setConfirmState({ isOpen: false })}
@@ -1119,38 +1146,45 @@ const UpdateTicketDetails = () => {
                           {tickets.map((ticket) => (
                             <div
                               key={ticket.id}
-                              className="bg-white dark:bg-[#363A3F] rounded-lg p-4 shadow-sm hover:shadow-md transition"
+                              className="bg-gray-100 dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none"
                             >
-                              {ticket.image && (
+                              <div className="flex items-center space-x-3">
                                 <img
                                   src={ticket.image}
                                   alt={ticket.name}
-                                  className="w-full h-32 object-cover rounded-md mb-3"
+                                  className="w-16 h-16 rounded-md object-cover"
                                 />
-                              )}
-                              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                                {ticket.name}
-                              </h3>
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                                Price: ₹{Number(ticket.price).toLocaleString()}
-                              </p>
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                                Capacity: {ticket.capacity}
-                              </p>
-                              <div className="flex gap-2">
+                                <div>
+                                  <p className="font-semibold text-gray-900 dark:text-white">{`${
+                                    ticket.name
+                                  } - ₹${Number(
+                                    ticket.price
+                                  ).toLocaleString()}`}</p>
+                                  <p className="text-xs text-black dark:text-gray-400">
+                                    Capacity: {ticket.capacity}
+                                  </p>
+                                </div>
+                              </div>
+                              {/* Edit/Delete Buttons */}
+                              <div className="flex items-center space-x-2">
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenModalForEdit(ticket)}
-                                  className="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700 transition"
+                                  onClick={() => {
+                                    setEditingTicket(ticket);
+                                    setIsTicketModalOpen(true);
+                                  }}
+                                  className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
                                 >
-                                  Edit
+                                  ✏️
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteTicket(ticket.id)}
-                                  className="flex-1 px-3 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition"
+                                  onClick={() => {
+                                    handleDeleteTicket(ticket.id);
+                                  }}
+                                  className="text-gray-400 hover:text-red-500 transition"
                                 >
-                                  Delete
+                                  &times;
                                 </button>
                               </div>
                             </div>
