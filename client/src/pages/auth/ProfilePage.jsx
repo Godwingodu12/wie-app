@@ -986,10 +986,10 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
           {groups.length > 0 && groups.map((group, idx) => (
             <div key={group._id || idx} className="flex flex-col items-center flex-shrink-0">
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center" style={{ boxShadow: theme.smallCardShadow }}>
-                {group.image ? (
+                {group.company_logo ? (
                   <img
-                    src={group.image}
-                    alt={group.name || group.groupName}
+                    src={getImageUrl(group.company_logo)}
+                    alt={group.name || group.company_logo}
                     className="w-11 h-11 rounded-full object-cover"
                   />
                 ) : (
@@ -1028,15 +1028,15 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
           {groups.length > 0 && groups.slice(0, 6).map((group, idx) => (
             <div key={group._id || idx} className="flex flex-col items-center">
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center" style={{ boxShadow: theme.smallCardShadow }}>
-                {group.image ? (
+                {group.company_logo ? (
                   <img
-                    src={group.image}
-                    alt={group.name || group.groupName}
+                    src={getImageUrl(group.company_logo)}
+                    alt={group.name || group.company_logo}
                     className="w-11 h-11 rounded-full object-cover"
                   />
                 ) : (
                   <span className="text-white text-xs font-bold">
-                    {(group.name || group.groupName || 'G')[0].toUpperCase()}
+                    {(group.name || group.groupName)}
                   </span>
                 )}
               </div>
