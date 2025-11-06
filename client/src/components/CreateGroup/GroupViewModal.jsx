@@ -7,63 +7,80 @@ import {
   getMyLiveEvents,
   getMyEvents,
 } from "../../services/ticketService";
+
 const GroupViewModal = ({ isOpen, onClose, group, isDark, theme, onUpdate, totalEvents, loadingCount }) => {
-    const [events, setEvents] = useState([]);
-    const [groups, setGroups] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [groups, setGroups] = useState([]);
+
+  // Define theme properties based on isDark
+  const modalTheme = {
+    bg: isDark ? '#212426' : '#E0E0E0',
+    text: isDark ? 'text-white' : 'text-gray-900',
+    subText: isDark ? 'text-gray-400' : 'text-gray-600',
+  };
+
   const handleImageError = (e) => {
     e.target.onerror = null;
     e.target.style.display = 'none';
-    e.target.parentElement.innerHTML = '<span class="text-white text-sm">Logo</span>';
-  };
-useEffect(() => {
-  const fetchData = async () => {
-    try {
-      const [eventsRes, groupsRes, liveEventsRes, groupStatsRes] =
-        await Promise.all([
-          getMyEvents(),
-          getGroups(),
-          getMyLiveEvents(),
-          getGroupStatistics(),
-        ]);
-      // Properly handle events array
-      let eventsArray = [];
-      if (Array.isArray(eventsRes)) {
-        eventsArray = eventsRes;
-      } else if (eventsRes?.tickets) {
-        eventsArray = Array.isArray(eventsRes.tickets) ? eventsRes.tickets : [eventsRes.tickets];
-      } else if (eventsRes?.data) {
-        eventsArray = Array.isArray(eventsRes.data) ? eventsRes.data : [eventsRes.data];
-      }
-      setEvents(eventsArray);
-      const groupsArray = Array.isArray(groupsRes) ? groupsRes : [];
-      setGroups(groupsArray);
-      // ... rest of the code
-    } catch (e) {
-      console.error("Error fetching data:", e);
-      setEvents([]);
-      setGroups([]);
-    }
+    e.target.parentElement.innerHTML = `<span class="${isDark ? 'text-white' : 'text-gray-900'} text-sm">Logo</span>`;
   };
 
-  fetchData();
-}, []);
-    if (!isOpen || !group) return null;
+  useEffect(() => {
+    console.log('=== GroupViewModal Mounted ===');
+    console.log('isDark prop:', isDark);
+    console.log('theme prop:', theme);
+    console.log('modalTheme:', modalTheme);
+    
+    const fetchData = async () => {
+      try {
+        const [eventsRes, groupsRes, liveEventsRes, groupStatsRes] =
+          await Promise.all([
+            getMyEvents(),
+            getGroups(),
+            getMyLiveEvents(),
+            getGroupStatistics(),
+          ]);
+        
+        let eventsArray = [];
+        if (Array.isArray(eventsRes)) {
+          eventsArray = eventsRes;
+        } else if (eventsRes?.tickets) {
+          eventsArray = Array.isArray(eventsRes.tickets) ? eventsRes.tickets : [eventsRes.tickets];
+        } else if (eventsRes?.data) {
+          eventsArray = Array.isArray(eventsRes.data) ? eventsRes.data : [eventsRes.data];
+        }
+        setEvents(eventsArray);
+        
+        const groupsArray = Array.isArray(groupsRes) ? groupsRes : [];
+        setGroups(groupsArray);
+      } catch (e) {
+        console.error("Error fetching data:", e);
+        setEvents([]);
+        setGroups([]);
+      }
+    };
+
+    fetchData();
+  }, [isDark]);
+
+  if (!isOpen || !group) return null;
+
   const totalEventsCount = totalEvents !== undefined ? totalEvents : 0;
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-        
         <div
-          className={`relative ${theme.bg} rounded-[30px] md:rounded-[50px] shadow-2xl w-full md:w-[867px] h-auto`}
+          className="relative rounded-[30px] md:rounded-[50px] shadow-2xl w-full md:w-[867px] h-auto"
           style={{
             paddingBottom: "40px",
+            backgroundColor: modalTheme.bg,
           }}
         >
-
           {/* Header */}
           <div className="px-6 md:px-[103px] pt-6 md:pt-[34px]">
             <h2
-              className={`${theme.text} font-semibold text-[32px] leading-[100%]`}
+              className={`${modalTheme.text} font-semibold text-[32px] leading-[100%]`}
               style={{ fontFamily: 'Inter' }}
             >
               Group Details
@@ -83,12 +100,12 @@ useEffect(() => {
 
           {/* Content */}
           <div className="flex flex-col md:flex-row gap-6 md:gap-[34px] px-6 md:px-[51px] pt-6 md:pt-[49px]">
-
             {/* Left Card */}
             <div
-              className={`${theme.bg} rounded-[30px] md:rounded-[40px] p-6 md:p-8 flex flex-col items-center justify-center w-full md:w-[298px]`}
+              className="rounded-[30px] md:rounded-[40px] p-6 md:p-8 flex flex-col items-center justify-center w-full md:w-[298px]"
               style={{
                 minHeight: '250px',
+                backgroundColor: modalTheme.bg,
                 boxShadow: isDark
                   ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
                   : "8px 8px 12px 0px #00000014, -8px -8px 12px 0px #FFFFFF33",
@@ -103,15 +120,15 @@ useEffect(() => {
                     onError={handleImageError}
                   />
                 ) : (
-                  <span className="text-white text-sm">Logo</span>
+                  <span className={isDark ? 'text-white' : 'text-gray-900'}>Logo</span>
                 )}
               </div>
 
-              <h3 className={`${theme.text} font-semibold text-xl mb-2 text-center`}>
+              <h3 className={`${modalTheme.text} font-semibold text-xl mb-2 text-center`}>
                 {group.name}
               </h3>
 
-              <p className={`${theme.subText} text-sm capitalize`}>
+              <p className={`${modalTheme.subText} text-sm capitalize`}>
                 {group.grp_type === 'organisation'
                   ? group.organisation_type
                   : group.grp_type}
@@ -120,67 +137,66 @@ useEffect(() => {
 
             {/* Right Card - Bank Details */}
             <div
-              className={`${theme.bg} flex flex-col`}
+              className="flex flex-col w-full md:w-[360px]"
               style={{
-                width: "360px",
                 borderRadius: "40px",
                 padding: "24px",
+                backgroundColor: modalTheme.bg,
                 boxShadow: isDark
                   ? "6px 6px 10px 0px #00000029, -6px -6px 10px 0px #FFFFFF0A"
                   : "6px 6px 10px 0px #00000014, -6px -6px 10px 0px #FFFFFF33",
               }}
             >
-              <h3 className={`${theme.text} font-medium text-base mb-4`} style={{ fontFamily: "Inter" }}>
+              <h3 className={`${modalTheme.text} font-medium text-base mb-4`} style={{ fontFamily: "Inter" }}>
                 Bank Details:
               </h3>
 
               <div className="space-y-3">
                 <div className="flex justify-between w-full">
-                  <p className={`${theme.subText} text-sm`}>Account Type</p>
-                  <p className={`${theme.text} font-medium`}>
+                  <p className={`${modalTheme.subText} text-sm`}>Account Type</p>
+                  <p className={`${modalTheme.text} font-medium text-sm`}>
                     {group.primary_bank_acc_type?.toUpperCase() || "N/A"}
                   </p>
                 </div>
 
                 <div className="flex justify-between w-full">
-                  <p className={`${theme.subText} text-sm`}>Account Holder</p>
-                  <p className={`${theme.text} font-medium`}>
+                  <p className={`${modalTheme.subText} text-sm`}>Account Holder</p>
+                  <p className={`${modalTheme.text} font-medium text-sm`}>
                     {group.primary_bank_acc_holder || "N/A"}
                   </p>
                 </div>
 
                 <div className="flex justify-between w-full">
-                  <p className={`${theme.subText} text-sm`}>Account Number</p>
-                  <p className={`${theme.text} font-medium`}>
+                  <p className={`${modalTheme.subText} text-sm`}>Account Number</p>
+                  <p className={`${modalTheme.text} font-medium text-sm`}>
                     {group.primary_bank_acc_no || "N/A"}
                   </p>
                 </div>
 
                 <div className="flex justify-between w-full">
-                  <p className={`${theme.subText} text-sm`}>IFSC Code</p>
-                  <p className={`${theme.text} font-medium`}>
+                  <p className={`${modalTheme.subText} text-sm`}>IFSC Code</p>
+                  <p className={`${modalTheme.text} font-medium text-sm`}>
                     {group.primary_bank_ifsc || "N/A"}
                   </p>
                 </div>
               </div>
             </div>
-
           </div>
 
           {/* Bottom Section */}
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-6 md:px-[51px] py-6 mt-6">
-
             {/* Total Events */}
             <div
-              className={`${theme.bg} rounded-2xl px-6 py-3 min-w-[150px]`}
+              className="rounded-2xl px-6 py-3 min-w-[150px]"
               style={{
+                backgroundColor: modalTheme.bg,
                 boxShadow: isDark
                   ? "4px 4px 8px 0px #00000029, -4px -4px 8px 0px #FFFFFF0A"
                   : "4px 4px 8px 0px #00000014, -4px -4px 8px 0px #FFFFFF",
               }}
             >
-              <p className={`${theme.subText} text-sm mb-1`}>Total Events</p>
-              <p className={`${theme.text} font-bold text-2xl`}>{totalEventsCount}</p>
+              <p className={`${modalTheme.subText} text-sm mb-1`}>Total Events</p>
+              <p className={`${modalTheme.text} font-bold text-2xl`}>{totalEventsCount}</p>
             </div>
 
             {/* Buttons */}
@@ -193,9 +209,7 @@ useEffect(() => {
                 Go Back
               </button>
             </div>
-
           </div>
-
         </div>
       </div>
     </>

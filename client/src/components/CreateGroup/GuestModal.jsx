@@ -1,5 +1,16 @@
 import { useState, useEffect } from "react";
 
+import { getImageUrl, getTicketImageUrl } from "../../utils/imageUtils";
+
+const isValidUrl = (string) => {
+  try {
+    new URL(string);
+    return true;
+  } catch (e) {
+    const commonDomainRegex = /^(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/\S*)?$/;
+    return commonDomainRegex.test(string);
+  }
+};
 const GuestModal = ({
   isOpen,
   onClose,
@@ -7,6 +18,7 @@ const GuestModal = ({
   initialGuests,
   editingGuest: initialEditingGuest,
   darkMode,
+  showAlert,
 }) => {
   const [localGuests, setLocalGuests] = useState(initialGuests || []);
   const [name, setName] = useState("");
@@ -15,45 +27,17 @@ const GuestModal = ({
   const [photoPreview, setPhotoPreview] = useState(null);
   const [editingGuest, setEditingGuest] = useState(null);
 
-  const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
-
-  const getImageUrl = (path) => {
-    if (!path) return null;
-    
-    // If it's already a blob URL or full URL, return as is
-    if (typeof path === 'string' && (path.startsWith('blob:') || path.startsWith('http://') || path.startsWith('https://'))) {
-      return path;
-    }
-    
-    if (typeof path === 'object') {
-      path = path.path || path.url || null;
-    }
-    
-    if (typeof path !== 'string') {
-      console.warn('Invalid path type:', typeof path, path);
-      return null;
-    }
-    
-    let cleanPath = path.replace(/\\/g, '/');
-    cleanPath = cleanPath.replace(/^src\//, '');
-    cleanPath = cleanPath.replace(/^\//, '');
-    const fullUrl = `${API_BASE_URL}/${cleanPath}`;
-    return fullUrl;
-  };
   const getGuestImage = (guest) => {
     // Priority: blob preview > server path > fallback
-    if (guest.image && guest.image.startsWith('blob:')) {
-      return guest.image; // New upload preview
+    if (guest.image && guest.image.startsWith("blob:")) {
+      return guest.image; // New upload preview (blob URL)
     }
-    
     const serverPath = guest.guest_profile || guest.image;
     if (serverPath) {
-      const imageUrl = getImageUrl(serverPath);
+      const imageUrl = getTicketImageUrl(serverPath);
       if (imageUrl) return imageUrl;
     }
-    
-    // Fallback to avatar
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(guest.name || guest.guest_name || 'Guest')}&background=random`;
+    return null;
   };
 
   useEffect(() => {
@@ -62,14 +46,12 @@ const GuestModal = ({
       setName(initialEditingGuest.name || initialEditingGuest.guest_name || "");
       setLink(initialEditingGuest.link || initialEditingGuest.guest_link || "");
       setPhoto(null);
-      
-      // Set photo preview from existing image
-      const existingImage = initialEditingGuest.image || initialEditingGuest.guest_profile;
-      setPhotoPreview(getImageUrl(existingImage));
+      const existingImage =
+        initialEditingGuest.image || initialEditingGuest.guest_profile;
+      setPhotoPreview(getTicketImageUrl(existingImage));
     }
   }, [initialEditingGuest]);
 
-  // Sync localGuests when initialGuests changes
   useEffect(() => {
     setLocalGuests(initialGuests || []);
   }, [initialGuests]);
@@ -88,61 +70,82 @@ const GuestModal = ({
     const file = e.target.files[0];
     if (file) {
       setPhoto(file);
-      // Create blob URL for immediate preview
       const blobUrl = URL.createObjectURL(file);
       setPhotoPreview(blobUrl);
     }
   };
 
-const handleFormSubmit = () => {
-  const trimmedName = (name || "").trim();
-  const trimmedLink = (link || "").trim();
+  const handleFormSubmit = () => {
+    const trimmedName = (name || "").trim();
+    let trimmedLink = (link || "").trim();
 
-  if (!trimmedName) {
-    alert("Guest name is required");
-    return localGuests; // Return the list as-is
-  }
+    if (!trimmedName) {
+      showAlert({
+        type: "error",
+        message: "Required Field",
+        description: "Guest/Guide name is required.",
+      });
+      return localGuests; // Return the list as-is
+    }
+    if (trimmedLink) {
+      if (
+        !trimmedLink.startsWith("http://") &&
+        !trimmedLink.startsWith("https://") &&
+        isValidUrl(trimmedLink)
+      ) {
+        trimmedLink = `https://${trimmedLink}`;
+      }
 
-  let updatedGuests; // This will hold the new list
+      if (!isValidUrl(trimmedLink)) {
+        showAlert({
+          type: "error",
+          message: "Invalid Link Format",
+          description:
+            "The Profile link must be a valid URL (e.g., https://instagram.com/username).",
+        });
+        return localGuests;
+      }
+    }
 
-  if (editingGuest) {
-    // When editing
-    updatedGuests = localGuests.map((g) =>
-      g.id === editingGuest.id
-        ? {
-            ...g,
-            name: trimmedName,
-            guest_name: trimmedName,
-            link: trimmedLink,
-            guest_link: trimmedLink,
-            image: photo ? URL.createObjectURL(photo) : g.image,
-            guest_profile: photo ? null : g.guest_profile, 
-            rawFile: photo ? photo : g.rawFile, 
-          }
-        : g
-    );
-  } else {
-    // When adding new guest
-    const defaultImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(trimmedName)}&background=random`;
-    const newImageUrl = photo ? URL.createObjectURL(photo) : defaultImage;
-    
-    const newGuest = {
-      id: Date.now(),
-      name: trimmedName,
-      guest_name: trimmedName,
-      link: trimmedLink,
-      guest_link: trimmedLink,
-      image: newImageUrl,
-      guest_profile: null,
-      rawFile: photo || null,
-    };
-    updatedGuests = [...localGuests, newGuest]; // Create the new list
-  }
+    let updatedGuests; // This will hold the new list
 
-  setLocalGuests(updatedGuests); // Update state
-  resetForm();
-  return updatedGuests; // Return the newly updated list
-};
+    if (editingGuest) {
+      // When editing
+      updatedGuests = localGuests.map((g) =>
+        g.id === editingGuest.id
+          ? {
+              ...g,
+              name: trimmedName,
+              guest_name: trimmedName,
+              link: trimmedLink,
+              guest_link: trimmedLink,
+              image: photo ? URL.createObjectURL(photo) : g.image,
+              guest_profile: photo ? null : g.guest_profile,
+              rawFile: photo ? photo : g.rawFile,
+            }
+          : g
+      );
+    } else {
+      // When adding new guest
+
+      const newImageUrl = photo ? URL.createObjectURL(photo) : null;
+      const newGuest = {
+        id: Date.now(),
+        name: trimmedName,
+        guest_name: trimmedName,
+        link: trimmedLink,
+        guest_link: trimmedLink,
+        image: newImageUrl,
+        guest_profile: null,
+        rawFile: photo || null,
+      };
+      updatedGuests = [...localGuests, newGuest]; // Create the new list
+    }
+
+    setLocalGuests(updatedGuests); // Update state
+    resetForm();
+    return updatedGuests; // Return the newly updated list
+  };
 
   const handleDeleteGuest = (guestId) => {
     setLocalGuests((prev) => prev.filter((g) => g.id !== guestId));
@@ -157,29 +160,32 @@ const handleFormSubmit = () => {
     setName(guest.name || guest.guest_name || "");
     setLink(guest.link || guest.guest_link || "");
     setPhoto(null);
-    
+
     // Set existing image for preview
     const existingImage = guest.image || guest.guest_profile;
-    setPhotoPreview(getImageUrl(existingImage));
+    setPhotoPreview(getTicketImageUrl(existingImage));
   };
 
-const handleSave = () => {
-  const trimmedName = (name || "").trim();
-  let guestsToSave = localGuests; 
+  const handleSave = () => {
+    const trimmedName = (name || "").trim();
+    let guestsToSave = localGuests;
 
-  if (trimmedName) {
+    if (trimmedName) {
+      guestsToSave = handleFormSubmit();
+    }
 
-    guestsToSave = handleFormSubmit(); 
-  }
-
-  onSave(guestsToSave); 
-  onClose();
-};
+    onSave(guestsToSave);
+    onClose();
+  };
 
   const handleCancel = () => {
     resetForm();
     setLocalGuests(initialGuests || []);
     onClose();
+  };
+
+  const getFirstLetter = (nameString) => {
+    return (nameString || "G").trim().charAt(0).toUpperCase();
   };
 
   return (
@@ -228,7 +234,7 @@ const handleSave = () => {
             ×
           </button>
         </div>
-        
+
         <div
           className={`border-b ${
             darkMode ? "border-gray-600" : "border-black"
@@ -260,7 +266,7 @@ const handleSave = () => {
                   }`}
                 />
               </div>
-              
+
               <div>
                 <label
                   className={`${
@@ -281,7 +287,7 @@ const handleSave = () => {
                   }`}
                 />
               </div>
-              
+
               <div>
                 <label
                   className={`block text-sm ${
@@ -290,22 +296,20 @@ const handleSave = () => {
                 >
                   Guest/Guide Photo {editingGuest && "(Upload new to replace)"}
                 </label>
-                
+
                 {/* Photo Preview */}
-                {photoPreview && (
-                  <div className="mt-2 mb-2">
-                    <img
-                      src={photoPreview}
-                      alt="Preview"
-                      className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Guest')}&background=random`;
-                      }}
-                    />
+                {photoPreview ? (
+                  <img
+                    src={photoPreview}
+                    alt="Preview"
+                    className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl font-bold bg-indigo-200 text-indigo-700 border-2 border-indigo-500">
+                    {getFirstLetter(name)}
                   </div>
                 )}
-                
+
                 <input
                   type="file"
                   accept="image/*"
@@ -318,7 +322,7 @@ const handleSave = () => {
                 />
               </div>
             </div>
-            
+
             <div className="mt-auto flex justify-end pt-4">
               <button
                 type="button"
@@ -336,7 +340,7 @@ const handleSave = () => {
               </button>
             </div>
           </div>
-          
+
           <div
             className={`md:border-l border-t ${
               darkMode ? "border-gray-600" : "border-black"
@@ -349,7 +353,7 @@ const handleSave = () => {
               {localGuests.length > 0 ? (
                 localGuests.map((g) => {
                   const guestImageUrl = getGuestImage(g);
-                  
+
                   return (
                     <div
                       key={g.id}
@@ -358,15 +362,23 @@ const handleSave = () => {
                       } rounded-lg p-3 flex items-center justify-between`}
                     >
                       <div className="flex items-center gap-3 overflow-hidden">
-                        <img
-                          src={guestImageUrl}
-                          alt={g.name || g.guest_name}
-                          className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-gray-300"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(g.name || g.guest_name || 'Guest')}&background=random`;
-                          }}
-                        />
+                        {guestImageUrl ? (
+                          <img
+                            src={guestImageUrl}
+                            alt={g.name || g.guest_name}
+                            className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-gray-300"
+                          />
+                        ) : (
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center text-xl font-bold border-2 ${
+                              darkMode
+                                ? "bg-gray-600 text-gray-300 border-gray-500"
+                                : "bg-gray-300 text-gray-700 border-gray-400"
+                            }`}
+                          >
+                            {getFirstLetter(g.name || g.guest_name)}
+                          </div>
+                        )}
                         <div className="truncate">
                           <p
                             className={`font-semibold truncate ${
@@ -417,7 +429,11 @@ const handleSave = () => {
                   );
                 })
               ) : (
-                <div className={`text-center pt-16 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
+                <div
+                  className={`text-center pt-16 ${
+                    darkMode ? "text-gray-400" : "text-gray-600"
+                  }`}
+                >
                   No guests added yet.
                 </div>
               )}

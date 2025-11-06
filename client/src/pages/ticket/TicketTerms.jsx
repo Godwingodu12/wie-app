@@ -11,14 +11,7 @@ import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import Alert from "../../components/CreateGroup/Alert";
 import TcIcon from "../../assets/Event/T&cIcon.svg?react";
 import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
-
-const getInitialTheme = () => {
-  const savedTheme = localStorage.getItem("theme");
-  if (savedTheme) {
-    return savedTheme === "dark";
-  }
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-};
+import getInitialTheme from "../../components/CreateGroup/getIntialTheme.jsx";
 
 const EventTermsAndConditionsPage = () => {
   const { ticketId } = useParams();
@@ -212,7 +205,7 @@ const EventTermsAndConditionsPage = () => {
   return (
     <div className={darkMode ? "dark" : ""}>
       <ScrollBarStyle isDark={darkMode} />
-      <Alert alert={alert} onClose={hideAlert} />
+      <Alert alert={alert} onClose={hideAlert} darkMode={darkMode} />
       <div className="bg-white dark:bg-[#111111] text-gray-800 dark:text-white min-h-screen flex flex-col md:flex-row">
         <EventSidebar
           darkMode={darkMode}

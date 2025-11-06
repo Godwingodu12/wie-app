@@ -5,7 +5,7 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-
+import GroupViewModal from "../../components/CreateGroup/GroupViewModal";
 import { ChevronRight, ChevronLeft, Phone, Play, Bookmark } from "lucide-react";
 import { getImageUrl } from "../../utils/imageUtils";
 import Event_Days from "../../assets/ViewSingleEvent/Event_Days.svg";
@@ -58,7 +58,6 @@ import ConfirmModal from "../../components/Modal";
 import Alert from "../../components/Alert";
 import RulesModal from "../../components/ViewSingleEvent/RulesModal";
 import ScrollBarStyle from "../../components/ScrollBarStyle";
-
 const darkTheme = {
   isDark: true,
   text: "text-white",
@@ -71,7 +70,6 @@ const darkTheme = {
   arrowBgClass: "bg-gray-700",
   arrowColorClass: "text-white",
 };
-
 const lightTheme = {
   isDark: false,
   text: "text-gray-900",
@@ -84,7 +82,6 @@ const lightTheme = {
   arrowBgClass: "bg-gray-800",
   arrowColorClass: "text-gray-200",
 };
-
 const ViewSingleEvent = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
@@ -97,7 +94,7 @@ const ViewSingleEvent = () => {
   const [currentGuideIndex, setCurrentGuideIndex] = useState(0);
   const [currentBankIndex, setCurrentBankIndex] = useState(0);
   const [currentTicketIndex, setCurrentTicketIndex] = useState(0);
-
+  const [isDarkMode, setIsDarkMode] = useState(initialThemeIsDark);
   const [eventData, setEventData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -105,7 +102,9 @@ const ViewSingleEvent = () => {
   const [isApiReady, setIsApiReady] = useState(false);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
-
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [selectedGroupForModal, setSelectedGroupForModal] = useState(null);
+  const [groupEventCount, setGroupEventCount] = useState(0);
   const [groupData, setGroupData] = useState(null);
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -425,24 +424,31 @@ const ViewSingleEvent = () => {
     }
   };
   // Inside ViewEvent component
+useEffect(() => {
+  const themeValue = localStorage.getItem("theme");
+  const d = themeValue
+    ? themeValue === "dark"
+    : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const selectedTheme = d ? darkTheme : lightTheme;
+  setTheme(selectedTheme);
+  setIsDarkMode(d);
+  document.documentElement.classList.toggle("dark", d);
+}, []);
+const handleThemeToggle = () => {
+  const newDark = !theme.isDark;
+  const newTheme = newDark ? darkTheme : lightTheme;
+  
+  console.log('Theme Toggle:', {
+    currentIsDark: theme.isDark,
+    newIsDark: newDark,
+    newTheme: newTheme
+  });
 
-  useEffect(() => {
-    const theme = localStorage.getItem("theme");
-    const d = theme
-      ? theme === "dark"
-      : window.matchMedia("(prefers-color-scheme: dark)").matches;
-    setTheme(d ? darkTheme : lightTheme);
-    document.documentElement.classList.toggle("dark", d);
-  }, []);
-
-  const handleThemeToggle = () => {
-    const newDark = !theme.isDark;
-
-    setTheme(newDark ? darkTheme : lightTheme);
-    document.documentElement.classList.toggle("dark", newDark);
-    localStorage.setItem("theme", newDark ? "dark" : "light");
-  };
-
+  setTheme(newTheme);
+  setIsDarkMode(newDark);
+  document.documentElement.classList.toggle("dark", newDark);
+  localStorage.setItem("theme", newDark ? "dark" : "light");
+};
   useEffect(() => {
     const callbackName = "initViewMapCallback";
     const scriptId = "google-maps-view-script";
@@ -726,9 +732,29 @@ const ViewSingleEvent = () => {
     if (totalImages === 0) return;
     setCurrentImageIndex((prevIndex) => (prevIndex + 1) % totalImages);
   };
-
   const handleBack = () => {
     navigate(-1);
+  };
+const handleGroupLogoClick = () => {
+  console.log('=== GROUP MODAL DEBUG ===');
+  console.log('Theme object:', theme);
+  console.log('Theme isDark:', theme.isDark);
+  console.log('isDarkMode state:', isDarkMode);
+  
+  if (groupData) {
+    setSelectedGroupForModal(groupData);
+    setIsGroupModalOpen(true);
+  }
+};
+  const handleCloseGroupModal = () => {
+    setIsGroupModalOpen(false);
+    setSelectedGroupForModal(null);
+  };
+
+  const handleUpdateGroupFromModal = () => {
+    console.log('Update group:', selectedGroupForModal);
+    // Add your update logic here
+    handleCloseGroupModal();
   };
   const handlePrevImage = () => {
     // Calculate total images: banner + logo + event_images
@@ -766,10 +792,11 @@ const ViewSingleEvent = () => {
   eventData.sub_events[eventData.sub_events.length] = eventData;
   return (
     <div
+      key={`main-container-${theme.isDark ? 'dark' : 'light'}`}
       className={`min-h-screen md:p-8 p-2 ${theme.text}`}
       style={{ backgroundColor: theme.mainBg }}
     >
-      <ScrollBarStyle />
+      <ScrollBarStyle isDark={theme.isDark} key={theme.isDark ? 'dark' : 'light'}/>
       <ConfirmModal
         isOpen={showConfirmDeleteModal}
         onClose={() => setShowConfirmDeleteModal(false)}
@@ -889,7 +916,7 @@ const ViewSingleEvent = () => {
       </div>
 
       <div className="md:relative">
-        <div className="grid md:grid-cols-2 gap-6 ">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <Card
             theme={theme}
             className="p-6 relative overflow-hidden"
@@ -971,30 +998,23 @@ const ViewSingleEvent = () => {
                     </p>
                   </div>
                 </Card>
-                <div className="flex md:hidden pt-8">
-                  <div
-                    className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0"
-                    style={{ boxShadow: theme.shadowOutset }}
-                  >
-                    <img
-                      src={
-                        eventData.event_logo
-                          ? eventData.event_logo.startsWith("http://") ||
-                            eventData.event_logo.startsWith("https://")
-                            ? eventData.event_logo
-                            : getImageUrl(eventData.event_logo, "ticket")
-                          : "https://via.placeholder.com/96?text=Logo"
-                      }
-                      alt="Event Logo"
-                      className="w-full h-full rounded-full object-cover opacity-70 p-1"
-                      onError={(e) => {
-                        console.error("Logo failed to load:", e.target.src);
-                        e.target.src =
-                          "https://via.placeholder.com/96?text=Logo";
-                      }}
-                    />
-                  </div>
+               <div className="flex md:hidden pt-8">
+                <div
+                  onClick={handleGroupLogoClick}
+                  className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0 cursor-pointer transition-transform duration-200 active:scale-95"
+                  style={{ boxShadow: theme.shadowOutset }}
+                >
+                  <img
+                    src={getImageUrl(groupData?.company_logo)}
+                    alt="Group Logo"
+                    className="w-full h-full rounded-full object-cover opacity-70 p-1"
+                    onError={(e) => {
+                      console.error("Logo failed to load:", e.target.src);
+                      e.target.src = "https://via.placeholder.com/96?text=Logo";
+                    }}
+                  />
                 </div>
+              </div>
               </div>
             </div>
             <div className="md:flex items-start space-x-4">
@@ -1020,7 +1040,7 @@ const ViewSingleEvent = () => {
                     <Card
                       theme={theme}
                       style={{
-                        borderRadius: "23.51px",
+                        borderRadius: "30px",
                         boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                       }}
                       className={`p-2 py-6 my-2 flex flex-col items-center justify-center w-2/5 rounded-3xl border ${
@@ -1046,7 +1066,7 @@ const ViewSingleEvent = () => {
                       <Card
                         theme={theme}
                         style={{
-                          borderRadius: "23.51px",
+                          borderRadius: "30px",
                           boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                         }}
                         className={`p-2 py-6 my-2 flex flex-col border ${
@@ -1120,7 +1140,7 @@ const ViewSingleEvent = () => {
                       <Card
                         theme={theme}
                         style={{
-                          borderRadius: "23.51px",
+                          borderRadius: "30px",
                           boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                         }}
                         className={`p-2 py-6 my-2 flex flex-col border ${
@@ -1146,26 +1166,19 @@ const ViewSingleEvent = () => {
                 </div>
               </div>
               {/* Desktop logo */}
-              <div className="md:flex w-2/5  lg:px-10 lg:pt-10 px-7 pt-7">
+              <div className="hidden md:flex w-2/5 lg:px-10 lg:pt-10 px-7 pt-7">
                 <div
-                  className="lg:w-32 lg:h-32 h-28 w-28 rounded-full overflow-hidden flex-shrink-0"
+                  onClick={handleGroupLogoClick}
+                  className="lg:w-32 lg:h-32 h-28 w-28 rounded-full overflow-hidden flex-shrink-0 cursor-pointer transition-transform duration-200 hover:scale-105"
                   style={{ boxShadow: theme.shadowOutset }}
                 >
                   <img
-                    src={
-                      eventData.event_logo
-                        ? eventData.event_logo.startsWith("http://") ||
-                          eventData.event_logo.startsWith("https://")
-                          ? eventData.event_logo
-                          : getImageUrl(eventData.event_logo, "ticket")
-                        : "https://via.placeholder.com/128?text=Logo"
-                    }
-                    alt="Event Logo"
+                    src={getImageUrl(groupData?.company_logo)}
+                    alt="Group Logo"
                     className="w-full h-full rounded-full object-cover opacity-70 p-1"
                     onError={(e) => {
                       console.error("Logo failed to load:", e.target.src);
-                      e.target.src =
-                        "https://via.placeholder.com/128?text=Logo";
+                      e.target.src = "https://via.placeholder.com/128?text=Logo";
                     }}
                   />
                 </div>
@@ -1546,9 +1559,9 @@ const ViewSingleEvent = () => {
               </Card>
             </div>
           </Card>
-          <div className="md:absolute mx-auto md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:z-30 md:pointer-events-none">
+          <div className="md:absolute mx-auto md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:z-30 md:pointer-events-none my-6 md:my-0">
             <div
-              className="xl:w-80 xl:h-80 w-72 h-72 rounded-full relative"
+              className="w-64 h-64 md:w-72 md:h-72 xl:w-80 xl:h-80 rounded-full relative mx-auto"
               style={{
                 boxShadow: theme.shadowInset,
                 backgroundColor: theme.insetBg,
@@ -1664,7 +1677,7 @@ const ViewSingleEvent = () => {
                 let labelColorClass;
 
                 if (currentEventForBankView.isPrimary) {
-                  accountLabel = "Primary Event";
+                  accountLabel = "Main Event";
                   labelColorClass = "text-gray-500";
                 } else {
                   accountLabel =
@@ -1726,7 +1739,9 @@ const ViewSingleEvent = () => {
                     Free event
                   </h2>
                   <p className={`text-sm ${theme.textColor}`}>
-                    No payment required for this event.
+                    {currentEventForBankView.isPrimary
+                      ? "No payment required for the Main Event."
+                      : "No payment required for this event."}
                   </p>
                 </div>
               )}
@@ -2214,6 +2229,18 @@ const ViewSingleEvent = () => {
           formatImagePath={(path) => getImageUrl(path, "ticket")}
         />
       )}
+      {isGroupModalOpen && selectedGroupForModal && (
+  <GroupViewModal
+    isOpen={isGroupModalOpen}
+    onClose={handleCloseGroupModal}
+    isDark={theme.isDark}
+    group={selectedGroupForModal}
+    theme={theme}
+    onUpdate={handleUpdateGroupFromModal}
+    totalEvents={groupEventCount || 0}
+    loadingCount={false}
+  />
+)}
     </div>
   );
 };
