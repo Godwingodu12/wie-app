@@ -5,8 +5,8 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-
-import { ChevronRight, ChevronLeft, Phone, Play, Bookmark } from "lucide-react";
+import GroupViewModal from "../../components/CreateGroup/GroupViewModal";
+import { ChevronRight, ChevronLeft, Phone, Play, Radio } from "lucide-react";
 import { getImageUrl } from "../../utils/imageUtils";
 import Event_Days from "../../assets/ViewSingleEvent/Event_Days.svg";
 import Globe from "../../assets/ViewSingleEvent/Globe.svg";
@@ -32,6 +32,7 @@ import {
   getTicketById,
   getGroupView,
   deleteTicket,
+  confirmEvent,
   goLiveEvent,
 } from "../../services/ticketService";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -59,9 +60,8 @@ import Alert from "../../components/Alert";
 import RulesModal from "../../components/ViewSingleEvent/RulesModal";
 import ScrollBarStyle from "../../components/ScrollBarStyle";
 import HostEventModal from "../../components/Event/HostEventModal";
-
 const darkTheme = {
-  isDark: true,
+  isDark: true,  // This should already be here, but make sure it is
   text: "text-white",
   mainBg: "#212426",
   cardBg: "rgba(33, 36, 38, 0.9)",
@@ -72,9 +72,8 @@ const darkTheme = {
   arrowBgClass: "bg-gray-700",
   arrowColorClass: "text-white",
 };
-
 const lightTheme = {
-  isDark: false,
+  isDark: false,  // This should already be here, but make sure it is
   text: "text-gray-900",
   mainBg: "#e0e0e0",
   cardBg: "rgba(255, 255, 255, 0.9)",
@@ -85,7 +84,6 @@ const lightTheme = {
   arrowBgClass: "bg-gray-800",
   arrowColorClass: "text-gray-200",
 };
-
 const ConfirmEventView = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
@@ -98,7 +96,7 @@ const ConfirmEventView = () => {
   const [currentGuideIndex, setCurrentGuideIndex] = useState(0);
   const [currentBankIndex, setCurrentBankIndex] = useState(0);
   const [currentTicketIndex, setCurrentTicketIndex] = useState(0);
-
+  const [groupEventCount, setGroupEventCount] = useState(0);
   const [eventData, setEventData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -128,17 +126,14 @@ const ConfirmEventView = () => {
   const [isHostModalOpen, setIsHostModalOpen] = useState(false);
   const [selectedEventToHost, setSelectedEventToHost] = useState(null);
   const [isHosting, setIsHosting] = useState(false);
-
   const [currentSeatingIndex, setCurrentSeatingIndex] = useState(0);
   const [showSeatingModal, setShowSeatingModal] = useState(false);
-
   const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
   const [appAlert, setAppAlert] = useState(null);
-
   const [showRulesModal, setShowRulesModal] = useState(false);
-
   const groupId = eventData?.group_id || eventData?.groupId; // Derive groupId from fetched data
-
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [selectedGroupForModal, setSelectedGroupForModal] = useState(null);
   const guidesToShow = viewportWidth >= 768 ? 3 : 1;
   const visibleTickets = viewportWidth >= 768 ? 3 : 1;
 
@@ -731,6 +726,23 @@ const ConfirmEventView = () => {
   const handleBack = () => {
     navigate(-1);
   };
+  const handleGroupLogoClick = () => {
+  if (groupData) {
+    setSelectedGroupForModal(groupData);
+    setIsGroupModalOpen(true);
+  }
+};
+
+const handleCloseGroupModal = () => {
+  setIsGroupModalOpen(false);
+  setSelectedGroupForModal(null);
+};
+
+const handleUpdateGroupFromModal = () => {
+  console.log('Update group:', selectedGroupForModal);
+  // Add your update logic here
+  handleCloseGroupModal();
+};
   const handlePrevImage = () => {
     // Calculate total images: banner + logo + event_images
     let totalImages = 0;
@@ -770,7 +782,7 @@ const ConfirmEventView = () => {
       className={`min-h-screen md:p-8 p-2 ${theme.text}`}
       style={{ backgroundColor: theme.mainBg }}
     >
-      <ScrollBarStyle />
+      <ScrollBarStyle isDark={theme.isDark} key={theme.isDark ? 'dark' : 'light'}/>
       <ConfirmModal
         isOpen={showConfirmDeleteModal}
         onClose={() => setShowConfirmDeleteModal(false)}
@@ -830,14 +842,12 @@ const ConfirmEventView = () => {
             className="flex flex-col items-center cursor-pointer space-y-2 transition-transform duration-200 hover:scale-[1.02]"
             onClick={() => openHostModal(eventData)}
           >
-            <div
-              className="w-10 h-10 bg-[#5E5CE6] text-white rounded-full flex items-center justify-center"
-              style={{
-                boxShadow: theme.shadowOutset, // Outer shadow for floating effect
-              }}
-            >
-              <Bookmark size={20} />
-            </div>
+             <div className="w-10 h-10 bg-white text-red-600 border 
+              dark:bg-[#1e1e1e] dark:text-red-400 dark:
+              rounded-full flex items-center justify-center"
+            style={{boxShadow: theme.shadowOutset,}}>
+            <Radio size={20} />
+          </div>
           </div>
         </div>
         <div className=" md:flex hidden justify-start md:justify-center flex-grow">
@@ -975,30 +985,23 @@ const ConfirmEventView = () => {
                     </p>
                   </div>
                 </Card>
-                <div className="flex md:hidden pt-8">
-                  <div
-                    className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0"
-                    style={{ boxShadow: theme.shadowOutset }}
-                  >
-                    <img
-                      src={
-                        eventData.event_logo
-                          ? eventData.event_logo.startsWith("http://") ||
-                            eventData.event_logo.startsWith("https://")
-                            ? eventData.event_logo
-                            : getImageUrl(eventData.event_logo, "ticket")
-                          : "https://via.placeholder.com/96?text=Logo"
-                      }
-                      alt="Event Logo"
-                      className="w-full h-full rounded-full object-cover opacity-70 p-1"
-                      onError={(e) => {
-                        console.error("Logo failed to load:", e.target.src);
-                        e.target.src =
-                          "https://via.placeholder.com/96?text=Logo";
-                      }}
-                    />
-                  </div>
+               <div className="flex md:hidden pt-8">
+                <div
+                  onClick={handleGroupLogoClick}
+                  className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0 cursor-pointer transition-transform duration-200 active:scale-95"
+                  style={{ boxShadow: theme.shadowOutset }}
+                >
+                  <img
+                    src={getImageUrl(groupData?.company_logo)}
+                    alt="Group Logo"
+                    className="w-full h-full rounded-full object-cover opacity-70 p-1"
+                    onError={(e) => {
+                      console.error("Logo failed to load:", e.target.src);
+                      e.target.src = "https://via.placeholder.com/96?text=Logo";
+                    }}
+                  />
                 </div>
+              </div>
               </div>
             </div>
             <div className="md:flex items-start space-x-4">
@@ -1024,7 +1027,7 @@ const ConfirmEventView = () => {
                     <Card
                       theme={theme}
                       style={{
-                        borderRadius: "23.51px",
+                        borderRadius: "30px",
                         boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                       }}
                       className={`p-2 py-6 my-2 flex flex-col items-center justify-center w-2/5 rounded-3xl border ${
@@ -1050,7 +1053,7 @@ const ConfirmEventView = () => {
                       <Card
                         theme={theme}
                         style={{
-                          borderRadius: "23.51px",
+                          borderRadius: "30px",
                           boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                         }}
                         className={`p-2 py-6 my-2 flex flex-col border ${
@@ -1124,7 +1127,7 @@ const ConfirmEventView = () => {
                       <Card
                         theme={theme}
                         style={{
-                          borderRadius: "23.51px",
+                          borderRadius: "30px",
                           boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                         }}
                         className={`p-2 py-6 my-2 flex flex-col border ${
@@ -1151,23 +1154,15 @@ const ConfirmEventView = () => {
               </div>
               {/* Desktop logo */}
               <div className="md:flex w-2/5  lg:px-10 lg:pt-10 px-7 pt-7">
-                <div
+                <div onClick={handleGroupLogoClick}
                   className="lg:w-32 lg:h-32 h-28 w-28 rounded-full overflow-hidden flex-shrink-0"
                   style={{ boxShadow: theme.shadowOutset }}
                 >
                   <img
-                    src={
-                      eventData.event_logo
-                        ? eventData.event_logo.startsWith("http://") ||
-                          eventData.event_logo.startsWith("https://")
-                          ? eventData.event_logo
-                          : getImageUrl(eventData.event_logo, "ticket")
-                        : "https://via.placeholder.com/128?text=Logo"
-                    }
+                    src={getImageUrl(groupData.company_logo)}
                     alt="Event Logo"
                     className="w-full h-full rounded-full object-cover opacity-70 p-1"
                     onError={(e) => {
-                      console.error("Logo failed to load:", e.target.src);
                       e.target.src =
                         "https://via.placeholder.com/128?text=Logo";
                     }}
@@ -1730,7 +1725,9 @@ const ConfirmEventView = () => {
                     Free event
                   </h2>
                   <p className={`text-sm ${theme.textColor}`}>
-                    No payment required for this event.
+                    {currentEventForBankView.isPrimary
+                      ? "No payment required for the Main Event."
+                      : "No payment required for this event."}
                   </p>
                 </div>
               )}
@@ -2216,6 +2213,18 @@ const ConfirmEventView = () => {
           theme={theme}
           onClose={() => setShowRulesModal(false)}
           formatImagePath={(path) => getImageUrl(path, "ticket")}
+        />
+      )}
+      {isGroupModalOpen && selectedGroupForModal && (
+        <GroupViewModal
+          isOpen={isGroupModalOpen}
+          onClose={handleCloseGroupModal}
+          group={selectedGroupForModal}
+          isDark={theme.isDark}
+          theme={theme}
+          onUpdate={handleUpdateGroupFromModal}
+          totalEvents={groupEventCount || 0}
+          loadingCount={false}
         />
       )}
     </div>
