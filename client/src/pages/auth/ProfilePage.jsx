@@ -11,6 +11,7 @@ import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
+import GroupViewModal from "../../components/CreateGroup/GroupViewModal";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import WieText from "../../assets/HomePage/WieText.svg";
 import ChatIcon from "../../assets/HomePage/ChatIcon.svg";
@@ -123,6 +124,8 @@ const ProfilePage = () => {
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [loadingCount, setLoadingCount] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
@@ -139,6 +142,7 @@ const ProfilePage = () => {
   // State for hamburger menu dropdown
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const hamburgerRef = useRef(null);
+  const [groupEventCount, setGroupEventCount] = useState(0);
   const handleViewEvent = (ticketId) => {
     navigate(`/ticket/view-single-event/${ticketId}`);
   };
@@ -708,7 +712,62 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
       )}
     </div>
   );
+const handleGroupClick = async (group) => {
+  setSelectedGroup(group);
+  setIsModalOpen(true);
+  setLoadingCount(true);
+  
+  try {
+    // Try to fetch event count from API if available
+    const groupId = group._id || group.id;
+    
+    // Method 1: If you have a specific API endpoint for group events
+    try {
+      const response = await getMyEvents(); // or getGroupEvents(groupId) if you have it
+      const tickets = parseApiResponse(response);
+      
+      // Filter events that belong to this group
+      const groupEvents = tickets.filter(event => {
+        const eventGroupId = event.group_id || event.groupId || event.group?._id || event.group?.id;
+        return eventGroupId === groupId;
+      });
+      
+      setGroupEventCount(groupEvents.length);
+    } catch (apiErr) {
+      console.error("Error fetching events from API:", apiErr);
+      
+      // Method 2: Fallback - count from already loaded events
+      const groupEvents = allEvents.filter(event => {
+        const eventGroupId = event.group_id || event.groupId || event.group?._id || event.group?.id;
+        return eventGroupId === groupId;
+      });
+      
+      setGroupEventCount(groupEvents.length);
+    }
+  } catch (err) {
+    console.error("Failed to fetch group event count:", err);
+    setGroupEventCount(0);
+  } finally {
+    setLoadingCount(false);
+  }
+};
+const handleCloseModal = () => {
+  setIsModalOpen(false);
+  setSelectedGroup(null);
+};
 
+const handleUpdateGroup = async () => {
+  // Refresh groups after update
+  try {
+    const response = await getGroups();
+    if (response?.data) {
+      setGroups(Array.isArray(response.data) ? response.data : []);
+    }
+  } catch (err) {
+    console.error("Failed to refresh groups:", err);
+  }
+  handleCloseModal();
+};
   return (
     <>
      <CustomScrollbarStyles />
@@ -971,98 +1030,103 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                       </div>
                     </div>
                   </div>
-
                   {/* Groups Section */}
-<div className={`rounded-2xl md:rounded-3xl p-3 md:p-4 lg:p-6 ${theme.cardBg} nest-hub-card transition-all duration-300 w-full overflow-hidden`} style={{ boxShadow: theme.cardShadow }}>
-  <div className="flex items-center gap-4 mb-2 md:mb-0">
-    <h2 className={`text-lg font-semibold ${theme.text}`}>My groups</h2>
+                  <div className={`rounded-2xl md:rounded-3xl p-3 md:p-4 lg:p-6 ${theme.cardBg} nest-hub-card transition-all duration-300 w-full overflow-hidden`} style={{ boxShadow: theme.cardShadow }}>
+                    <div className="flex items-center gap-4 mb-2 md:mb-0">
+                      <h2 className={`text-lg font-semibold ${theme.text}`}>My groups</h2>
+                      {/* Mobile: Horizontal scroll */}
+                      <div className="md:hidden flex gap-2 overflow-x-auto scrollbar-hide pb-1 flex-1">
+                        {groupsLoading ? (
+                          <div className={`text-sm ${theme.subText}`}>Loading groups...</div>
+                        ) : (
+                          <>
+                            {groups.length > 0 && groups.map((group, idx) => (
+                              <div 
+                                key={group._id || idx} 
+                                className="flex flex-col items-center flex-shrink-0"
+                                onClick={() => handleGroupClick(group)}
+                              >
+                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center cursor-pointer" style={{ boxShadow: theme.smallCardShadow }}>
+                                  {group.company_logo ? (
+                                    <img
+                                      src={getImageUrl(group.company_logo)}
+                                      alt={group.name || group.company_logo}
+                                      className="w-11 h-11 rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <span className="text-white text-xs font-bold">
+                                      {(group.name || group.groupName || 'G')[0].toUpperCase()}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`text-xs mt-1 w-16 text-center truncate ${theme.text}`}>
+                                  {group.name || group.groupName || 'Group'}
+                                </span>
+                              </div>
+                            ))}
+                            <div className="flex flex-col items-center flex-shrink-0">
+                              <button
+                                onClick={() => navigate("/ticket/create-group")}
+                                className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
+                                  isDark ? "border-gray-600" : "border-gray-400"
+                                }`}
+                                style={{ boxShadow: theme.smallCardShadow }}
+                              >
+                                <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
+                              </button>
+                              <span className={`text-xs mt-1 w-16 text-center truncate ${theme.text}`}>New group</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
 
-    {/* Mobile: Horizontal scroll */}
-    <div className="md:hidden flex gap-2 overflow-x-auto scrollbar-hide pb-1 flex-1">
-      {groupsLoading ? (
-        <div className={`text-sm ${theme.subText}`}>Loading groups...</div>
-      ) : (
-        <>
-          {groups.length > 0 && groups.map((group, idx) => (
-            <div key={group._id || idx} className="flex flex-col items-center flex-shrink-0">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center" style={{ boxShadow: theme.smallCardShadow }}>
-                {group.company_logo ? (
-                  <img
-                    src={getImageUrl(group.company_logo)}
-                    alt={group.name || group.company_logo}
-                    className="w-11 h-11 rounded-full object-cover"
-                  />
-                ) : (
-                  <span className="text-white text-xs font-bold">
-                    {(group.name || group.groupName || 'G')[0].toUpperCase()}
-                  </span>
-                )}
-              </div>
-              <span className={`text-xs mt-1 w-16 text-center truncate ${theme.text}`}>
-                {group.name || group.groupName || 'Group'}
-              </span>
-            </div>
-          ))}
-          <div className="flex flex-col items-center flex-shrink-0">
-            <button
-              onClick={() => navigate("/ticket/create-group")}
-              className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
-                isDark ? "border-gray-600" : "border-gray-400"
-              }`}
-              style={{ boxShadow: theme.smallCardShadow }}
-            >
-              <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
-            </button>
-            <span className={`text-xs mt-1 w-16 text-center truncate ${theme.text}`}>New group</span>
-          </div>
-        </>
-      )}
-    </div>
-
-    {/* Desktop: Original layout with real data */}
-    <div className="hidden md:flex flex-row items-end gap-2 flex-nowrap overflow-x-auto">
-      {groupsLoading ? (
-        <div className={`text-sm ${theme.subText}`}>Loading groups...</div>
-      ) : (
-        <>
-          {groups.length > 0 && groups.slice(0, 6).map((group, idx) => (
-            <div key={group._id || idx} className="flex flex-col items-center">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center" style={{ boxShadow: theme.smallCardShadow }}>
-                {group.company_logo ? (
-                  <img
-                    src={getImageUrl(group.company_logo)}
-                    alt={group.name || group.company_logo}
-                    className="w-11 h-11 rounded-full object-cover"
-                  />
-                ) : (
-                  <span className="text-white text-xs font-bold">
-                    {(group.name || group.groupName)}
-                  </span>
-                )}
-              </div>
-              <span className={`text-xs mt-2 w-20 text-center truncate whitespace-nowrap ${theme.text}`}>
-                {group.name || group.groupName || 'Group'}
-              </span>
-            </div>
-          ))}
-          {/* Plus Button */}
-          <div className="flex flex-col items-center">
-            <button
-              onClick={() => navigate("/ticket/create-group")}
-              className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
-                isDark ? "border-gray-600" : "border-gray-400"
-              }`}
-              style={{ boxShadow: theme.smallCardShadow }}
-            >
-              <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
-            </button>
-            <span className={`text-xs mt-2 w-20 text-center truncate whitespace-nowrap ${theme.text}`}>New group</span>
-          </div>
-        </>
-      )}
-    </div>
-  </div>
-</div>
+                      {/* Desktop: Original layout with real data */}
+                      <div className="hidden md:flex flex-row items-end gap-2 flex-nowrap overflow-x-auto">
+                        {groupsLoading ? (
+                          <div className={`text-sm ${theme.subText}`}>Loading groups...</div>
+                        ) : (
+                          <>
+                            {groups.length > 0 && groups.slice(0, 6).map((group, idx) => (
+                              <div 
+                                key={group._id || idx} 
+                                className="flex flex-col items-center cursor-pointer"
+                                onClick={() => handleGroupClick(group)}
+                              >
+                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center" style={{ boxShadow: theme.smallCardShadow }}>
+                                  {group.company_logo ? (
+                                    <img
+                                      src={getImageUrl(group.company_logo)}
+                                      alt={group.name || group.company_logo}
+                                      className="w-11 h-11 rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <span className="text-white text-xs font-bold">
+                                      {(group.name || group.groupName)}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`text-xs mt-2 w-20 text-center truncate whitespace-nowrap ${theme.text}`}>
+                                  {group.name || group.groupName || 'Group'}
+                                </span>
+                              </div>
+                            ))}
+                            <div className="flex flex-col items-center">
+                              <button
+                                onClick={() => navigate("/ticket/create-group")}
+                                className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
+                                  isDark ? "border-gray-600" : "border-gray-400"
+                                }`}
+                                style={{ boxShadow: theme.smallCardShadow }}
+                              >
+                                <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
+                              </button>
+                              <span className={`text-xs mt-2 w-20 text-center truncate whitespace-nowrap ${theme.text}`}>New group</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 {/* Suggestions */}
 <div className={`rounded-xl md:rounded-2xl p-3 md:p-4 lg:p-6 nest-hub-card transition-all duration-300 w-full overflow-hidden`}>
    <div className="flex justify-between items-center mb-4 md:mb-6">
@@ -1389,7 +1453,6 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
       </div>
     </div>
   </div>
-
   {/* Events Content */}
   {eventsLoading ? (
     <div className="flex justify-center items-center py-16">
@@ -1400,8 +1463,8 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
     <div className="flex flex-col items-center justify-center py-16 md:py-24">
       <h3 className={`text-xl font-medium ${theme.text} mb-4`}>
         {activeTab === 'all' ? 'Create your first Event' :
-         activeTab === 'live' ? 'No live events yet' :
-         'No past events yet'}
+        activeTab === 'live' ? 'No live events yet' :
+        'No past events yet'}
       </h3>
       {activeTab === 'all' && (
         <button
@@ -1417,18 +1480,29 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
     /* Events Grid */
     <div>
       {/* Desktop: 3 column grid */}
-<div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-10 xl:gap-14 tablet-grid w-full">
+      <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-[17.59px] w-full ml-4">
         {getCurrentEvents().map((event, index) => (
-          <div
+         <div
             key={event._id || `event-${index}`}
-            className="rounded-3xl overflow-hidden flex flex-col"
-            style={{
+            className="overflow-hidden flex flex-col cursor-pointer hover:scale-[1.02] transition-transform duration-200"
+              style={{
+              width: '315.28px',
+              height: '380px',
+              borderRadius: '32.48px',
+              paddingTop: '19px',
+              paddingRight: '12.18px',
+              paddingBottom: '19px',
+              paddingLeft: '12.18px',
               backgroundColor: isDark ? "#212426" : "#ffffff",
-              boxShadow: theme.smallCardShadow,
+              boxShadow: isDark 
+                ? '-2px -2px 10px 0px #63636336, 5px 6px 9px 0px #00000075'
+                : '-2px -2px 10px 0px #E0E0E0, 5px 6px 9px 0px #00000033',
+              transform: 'translateX(6px)'  // <--- slight move right
             }}
+            onClick={() => handleViewEvent(event._id)}
           >
-            {/* Event Image */}
-            <div className="p-4">
+            {/* Event Image - Fixed height */}
+            <div className="mb-3">
               <img
                 src={
                   event.event_banner ||
@@ -1437,7 +1511,8 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                   "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
                 }
                 alt={event.event_name || "Event"}
-                className="rounded-[1rem] h-70 w-full object-cover border-2 border-white border-opacity-50"
+                className="rounded-[1rem] w-full object-cover border-2 border-white border-opacity-50"
+                style={{ height: '180px' }}
                 onError={(e) => {
                   e.target.src =
                     "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
@@ -1446,23 +1521,23 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
             </div>
 
             {/* Event Info */}
-            <div className="flex flex-col flex-1 p-4" onClick={() => handleViewEvent(event._id)}>
-              <div className="text-center mb-6">
-                <h3 className={`font-bold text-base ${theme.text}`}>
-                  {event.event_name ||"Event"}
+            <div className="flex flex-col flex-1">
+              <div className="text-center mb-4">
+                <h3 className={`font-bold text-base ${theme.text} line-clamp-1`}>
+                  {event.event_name || "Event"}
                 </h3>
-                <p className={`text-sm ${theme.subText} mt-1`}>
+                <p className={`text-sm ${theme.subText} mt-1 line-clamp-1`}>
                   {event.event_category || "Event Type"}
                 </p>
               </div>
 
               {/* Stats */}
-              <div className="flex justify-center items-center gap-20 text-sm mb-3">
+              <div className="flex justify-center items-center gap-8 text-sm mb-4">
                 <div className="flex flex-col items-center">
                   <img
                     src={LikeIcon}
                     alt="Likes"
-                    className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}
+                    className={`w-5 h-5 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
                   />
                   <span className={theme.subText}>
                     {event.likes || event.likesCount || "0"}
@@ -1473,7 +1548,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                   <img
                     src={TicketIcon}
                     alt="Tickets"
-                    className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}
+                    className={`w-5 h-5 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
                   />
                   <span className={theme.subText}>
                     {event.ticketsSold ||
@@ -1489,7 +1564,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                   <img
                     src={SendIcon}
                     alt="Shares"
-                    className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}
+                    className={`w-5 h-5 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
                   />
                   <span className={theme.subText}>
                     {event.shares || event.sharesCount || "0"}
@@ -1498,9 +1573,10 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
               </div>
 
               {/* View button */}
-              <div className="flex justify-center pt-4">
+              <div className="flex justify-center mt-auto">
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     const eventId = event._id || event.id;
                     if (eventId) {
                       navigate(`/ticket/event/${eventId}`);
@@ -1508,7 +1584,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                       console.warn("No event ID found for navigation");
                     }
                   }}
-                  className="px-10 py-2 rounded-full text-white text-sm font-medium ml-4"
+                  className="px-10 py-2 rounded-full text-white text-sm font-medium"
                   style={{
                     background: "linear-gradient(180deg, #2e1745 0%, #7f53e7 100%)"
                   }}
@@ -1526,10 +1602,13 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
         {getCurrentEvents().map((event, index) => (
           <div
             key={event._id || `event-${index}`}
-            className="rounded-2xl overflow-hidden flex flex-col h-[240px]"
+            className="rounded-2xl overflow-hidden flex flex-col"
             style={{
+              height: '280px',
               backgroundColor: isDark ? "#212426" : "#ffffff",
-              boxShadow: theme.smallCardShadow,
+              boxShadow: isDark 
+                ? '-2px -2px 10px 0px #63636336, 5px 6px 9px 0px #00000075'
+                : '-2px -2px 10px 0px #E0E0E0, 5px 6px 9px 0px #00000033',
             }}
           >
             {/* Event Image */}
@@ -1542,7 +1621,8 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                   "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
                 }
                 alt={event.event_name || "Event"}
-                className="rounded-xl h-[100px] w-full object-cover"
+                className="rounded-xl w-full object-cover"
+                style={{ height: '120px' }}
                 onError={(e) => {
                   e.target.src =
                     "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
@@ -1556,21 +1636,21 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
               onClick={() => handleViewEvent(event._id)}
             >
               <div className="text-center mb-2">
-                <h3 className={`font-bold text-sm ${theme.text} truncate`}>
+                <h3 className={`font-bold text-sm ${theme.text} line-clamp-1`}>
                   {event.event_name || "Event"}
                 </h3>
-                <p className={`text-xs ${theme.subText} mt-1 truncate`}>
+                <p className={`text-xs ${theme.subText} mt-1 line-clamp-1`}>
                   {event.event_category || "Event Type"}
                 </p>
               </div>
 
               {/* Stats */}
-              <div className="flex justify-center items-center gap-3 text-xs">
+              <div className="flex justify-center items-center gap-3 text-xs mb-2">
                 <div className="flex flex-col items-center">
                   <img
                     src={LikeIcon}
                     alt="Likes"
-                    className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}
+                    className={`w-3 h-3 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
                   />
                   <span className={theme.subText}>
                     {event.likes || event.likesCount || "0"}
@@ -1581,7 +1661,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                   <img
                     src={TicketIcon}
                     alt="Tickets"
-                    className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}
+                    className={`w-3 h-3 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
                   />
                   <span className={theme.subText}>
                     {event.ticketsSold ||
@@ -1597,7 +1677,7 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
                   <img
                     src={SendIcon}
                     alt="Shares"
-                    className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}
+                    className={`w-3 h-3 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
                   />
                   <span className={theme.subText}>
                     {event.shares || event.sharesCount || "0"}
@@ -1625,6 +1705,20 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
         theme={theme}
         user={user}
       />
+      
+      {/* GroupView Modal */}
+        {isModalOpen && selectedGroup && (
+          <GroupViewModal
+            isOpen={isModalOpen}
+            onClose={handleCloseModal}
+            group={selectedGroup}
+            isDark={isDark}
+            theme={theme}
+            onUpdate={handleUpdateGroup}
+            totalEvents={groupEventCount}
+            loadingCount={loadingCount}
+          />
+        )}
       </div>
     </>
   );
