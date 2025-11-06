@@ -757,104 +757,114 @@ const OtherProfilePage = () => {
               </div>
             </div>
           </header>
-    <main className="flex-1 p-3 md:p-4 lg:p-6 overflow-y-auto overflow-x-hidden pb-32 md:pb-4 nest-hub-content max-w-full">
+          <main className="flex-1 p-3 md:p-4 lg:p-6 overflow-y-auto overflow-x-hidden pb-32 md:pb-4 nest-hub-content max-w-full">
             <div className="max-w-7xl mx-auto space-y-3 md:space-y-4 lg:space-y-6 nest-hub-spacing w-full px-0 md:px-2 lg:px-4">
               {/* Profile Card */}
               <div className={`rounded-2xl md:rounded-3xl lg:rounded-[3rem] p-4 md:p-4 lg:p-6 mt-2 md:mt-4 lg:mt-8 ${theme.cardBg} nest-hub-card transition-all duration-300 w-full overflow-hidden`} style={{boxShadow: theme.cardShadow}}>
                 {/* Mobile Layout */}
                 <div className="flex md:hidden flex-col space-y-4">
-                  {/* Profile Image and Name - Horizontal */}
-                  <div className="flex items-start gap-4">
-                     <img
+                  <div className="flex flex-col gap-4">
+                    {/* Top Row: Profile image + Name/Username */}
+                    <div className="flex items-center gap-4">
+                      {/* Profile Image */}
+                      <img
                         src={getImageUrl(profileUser.image, 'auth') || ProfileImage}
                         alt={profileUser.name}
-                        className="w-full h-[160px] object-cover rounded-2xl"
+                        className={`w-24 h-24 rounded-full object-cover border-2 flex-shrink-0 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
                       />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h1 className={`text-lg font-bold ${theme.text}`}>{profileUser.name}</h1>
-                        <img src={VerifiedIcon} alt="Verified" className="w-4 h-4 flex-shrink-0" />
+
+                      {/* Name + Username */}
+                      <div className="flex flex-col justify-center">
+                        <div className="flex items-center gap-1.5">
+                          <h1 className={`text-lg font-bold ${theme.text}`}>{profileUser.name}</h1>
+                          <img src={VerifiedIcon} alt="Verified" className="w-4 h-4" />
+                        </div>
+                        <p className={`text-sm ${theme.subText}`}>{profileUser.username}</p>
+                        <p className={`text-base leading-6 font-bold ${theme.subText} whitespace-pre-line`}>
+                          {profileUser.organisation_type}
+                        </p>
                       </div>
-                      <p className={`text-sm ${theme.subText} mb-2`}>{profileUser.username}</p>
-                      <p className={`text-base leading-6 font-bold ${theme.subText} whitespace-pre-line`}>
-                        {profileUser.organisation_type}
-                      </p>
                     </div>
-                  </div>
-                  {/* Bio */}
-                  <div className="w-full">
-                    <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
-                      {profileUser.bio}</p>
-                  </div>
-                  {/* Stats Row */}
-                  <div className="flex items-center gap-6">
-                    <div className="text-left">
-                      <p className={`${theme.text}`}>
-                        <span className="text-base font-bold">{profileUser.eventsCount || profileUserEvents.length || 0}</span>
-                        <span className={`text-sm ml-1 ${theme.subText}`}>Event created</span>
+
+                    {/* Bio Section (full width below image and name) */}
+                    <div className="w-full">
+                      <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
+                        {profileUser.bio}
                       </p>
-                    </div>
-                    <div className="text-left">
-                      <p className={`${theme.text}`}>
-                        <span className="text-base font-bold">{profileUser.followers || 0}</span>
-                        <span className={`text-sm ml-1 ${theme.subText}`}>Followers</span>
-                      </p>
-                    </div>
-                    <div className="text-left">
-                      <p className={`${theme.text}`}>
-                        <span className="text-base font-bold">{profileUser.following || 0}</span>
-                        <span className={`text-sm ml-1 ${theme.subText}`}>Following</span>
+                      <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
+                        {profileUser.website}
                       </p>
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 items-stretch">
+                  {/* Stats */}
+                  <div className="flex justify-start gap-4">
+                    <div className="text-left">
+                      <p className={` ${theme.subText}`}>
+                        <span className="text-md font-semibold text-white">{profileUser.eventsCount || profileUserEvents.length || 0}</span>
+                        <span className="text-md ml-1">Event created</span>
+                      </p>
+                    </div>
+                    <div className="text-left">
+                      <p className={` ${theme.subText}`}>
+                        <span className="text-md font-semibold text-white">{profileUser.followersCount || profileUser.followers || 0}</span>
+                        <span className="text-md ml-1">Followers</span>
+                      </p>
+                    </div>
+                    <div className="text-left">
+                      <p className={` ${theme.subText}`}>
+                        <span className="text-md font-semibold text-white">{profileUser.following || 0}</span>
+                        <span className="text-md ml-1">Following</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Buttons */}
+                  <div className="flex gap-2 justify-start items-center flex-nowrap">
                     <button 
                       onClick={handleFollowToggle} 
                       disabled={followLoading}
-                      className={`flex-1 min-w-0 py-2.5 px-2 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap ${
+                      className={`whitespace-nowrap flex-shrink-0 px-3 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
                         followLoading ? 'opacity-50 cursor-not-allowed' : ''
                       } ${
                         isFollowing
-                          ? 'text-white bg-gradient-to-b from-gray-600 to-gray-700 shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
+                          ? isDark
+                            ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
+                            : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
                           : 'text-white bg-gradient-to-b from-indigo-500 to-blue-500 shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
                       }`}
                     >
-                      <span className="block truncate">
-                        {followLoading ? (
-                          <span className="flex items-center justify-center gap-1">
-                            <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                            <span className="truncate">{isFollowing ? "Unfollowing" : "Following"}</span>
-                          </span>
-                        ) : (
-                          isFollowing ? "Unfollow" : "Follow +"
-                        )}
-                      </span>
-                    </button>
-                    <button
-                      onClick={handleInviteToGroup}
-                      className={`flex-1 min-w-0 py-2.5 px-2 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap ${
-                        isDark
-                          ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
-                          : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
-                      }`}
-                    >
-                      <span className="block truncate">Invite to group</span>
+                      {followLoading ? (
+                        <span className="flex items-center justify-center gap-1">
+                          <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                          <span className="truncate">{isFollowing ? "Unfollowing" : "Following"}</span>
+                        </span>
+                      ) : (
+                        isFollowing ? "Unfollow" : "Follow +"
+                      )}
                     </button>
                     <button
                       onClick={handleShareProfile}
-                      className={`flex-1 min-w-0 py-2.5 px-2 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap ${
+                      className={`whitespace-nowrap flex-shrink-0 px-3 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
                         isDark
                           ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
                           : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
                       }`}
                     >
-                      <span className="block truncate">Insight profile</span>
+                      Share profile
+                    </button>
+                    <button
+                      onClick={handleInviteToGroup}
+                      className={`whitespace-nowrap flex-shrink-0 px-3 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
+                        isDark
+                          ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
+                          : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
+                      }`}
+                    >
+                      Invite to group
                     </button>
                   </div>
                 </div>
-
                 {/* Desktop Layout */}
                 <div className="hidden md:flex justify-between items-center gap-6">
                   {/* Left side */}
@@ -1235,7 +1245,6 @@ const OtherProfilePage = () => {
                               }}
                             />
                           </div>
-
                           {/* Event Info */}
                           <div className="flex flex-col flex-1 p-4" onClick={() => handleViewEvent(event.userId, event._id)}>
                             <div className="text-center mb-6">
