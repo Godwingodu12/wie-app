@@ -6,7 +6,7 @@ import ticketRoutes from './routes/ticket.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import { connectRabbitMQ, isChannelAvailable } from './rabbit/connection.js';
 import { startConsumers } from './rabbit/index.js';
-import { startEventStatusScheduler } from './jobs/eventStatusScheduler.js';
+import { startEventStatusScheduler, checkExpiredConfirmedEvents } from './jobs/eventStatusScheduler.js';
 
 // Config
 dotenv.config();
@@ -56,7 +56,7 @@ const startServer = async () => {
     
     // Start event status scheduler (independent of RabbitMQ)
     startEventStatusScheduler();
-    
+    checkExpiredConfirmedEvents();
     // Start HTTP server (regardless of RabbitMQ status)
     app.listen(PORT, () => {
       console.log(`✅ Ticket service running on port ${PORT}`);
