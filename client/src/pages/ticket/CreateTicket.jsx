@@ -920,7 +920,6 @@ useEffect(() => {
       return newData;
     });
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = {};
@@ -935,7 +934,6 @@ useEffect(() => {
       formData.max_age_allowed &&
       maxAge < minAge
     ) {
-      newErrors.max_age_allowed = true;
       newErrors.min_age_allowed = true; // Highlight both fields
       showAlert({
         type: "error",
@@ -999,6 +997,28 @@ useEffect(() => {
       setErrors(newErrors);
       return;
     }
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+    if (formData.event_dates && formData.event_dates.length > 0) {
+      const isPastDate = formData.event_dates.some((item) => {
+        if (item.date) {
+          const eventDate = new Date(item.date);
+          eventDate.setHours(0, 0, 0, 0);
+          return eventDate < currentDate;
+        }
+        return false;
+      });
+
+      if (isPastDate) {
+        showAlert({
+          type: "error",
+          message: "Invalid Event Date",
+          description: "The event date cannot be a date in the past.",
+        });
+
+        return;
+      }
+    }
 
     setLoading(true);
     try {
@@ -1012,30 +1032,25 @@ useEffect(() => {
           guest_link: guest.link || guest.guest_link || "",
         };
 
-        // Handle new file upload
         if (guest.rawFile instanceof File) {
           data.append(`guest_profile_${index}`, guest.rawFile);
-          // Don't include guest_profile in JSON - backend will add the path
         } else if (guest.image && typeof guest.image === "string") {
-          // If it's an existing image URL/path, include it
           cleanGuest.guest_profile = guest.image;
         } else if (
-          guest.guest_profile &&
-          typeof guest.guest_profile === "string"
+          guest.guest_image &&
+          typeof guest.guest_image === "string" &&
+          !guest.image.startsWith("blob:")
         ) {
-          // Handle case where guest_profile is already set
-          cleanGuest.guest_profile = guest.guest_profile;
+          cleanGuest.guest_profile = guest.image;
         }
 
         processedGuests.push(cleanGuest);
       });
-      // Append processed guests as JSON string
       data.append("guests", JSON.stringify(processedGuests));
       const processedEventDates = [];
       (formData.event_dates || []).forEach((item, index) => {
         const cleanItem = { ...item };
 
-        // Convert times to 24-hour format
         const convertTo24Hour = (time12h, ampm) => {
           if (!time12h || !ampm) return "";
           const [hours, minutes] = time12h.split(":");
@@ -1203,8 +1218,6 @@ useEffect(() => {
         });
       }, 1500);
     } catch (error) {
-      console.error("Error creating event:", error);
-
       // FIX: Handle duplication error specifically
       if (error.response?.status === 409) {
         const conflictDetails = error.response?.data?.conflictDetails;
@@ -1447,6 +1460,7 @@ useEffect(() => {
         initialGuests={formData.guests}
         editingGuest={editingGuest}
         darkMode={darkMode}
+        showAlert={showAlert}
       />
       <ProhibitedItemsModal
         isOpen={isProhibitedModalOpen}

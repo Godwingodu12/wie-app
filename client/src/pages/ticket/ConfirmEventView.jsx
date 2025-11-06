@@ -34,6 +34,7 @@ import {
   deleteTicket,
   confirmEvent,
   goLiveEvent,
+  getMyEvents
 } from "../../services/ticketService";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -134,6 +135,8 @@ const ConfirmEventView = () => {
   const groupId = eventData?.group_id || eventData?.groupId; // Derive groupId from fetched data
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [selectedGroupForModal, setSelectedGroupForModal] = useState(null);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [loadingCount, setLoadingCount] = useState(false);
   const guidesToShow = viewportWidth >= 768 ? 3 : 1;
   const visibleTickets = viewportWidth >= 768 ? 3 : 1;
 
@@ -357,12 +360,7 @@ const ConfirmEventView = () => {
 
     // Add banner if exists
     if (eventData?.event_banner) {
-      const bannerUrl =
-        eventData.event_banner.startsWith("http://") ||
-        eventData.event_banner.startsWith("https://")
-          ? eventData.event_banner
-          : getImageUrl(eventData.event_banner, "ticket");
-
+      const bannerUrl = getImageUrl(eventData.event_banner, "ticket");
       allImages.push({
         path: bannerUrl,
         type: "banner",
@@ -530,18 +528,10 @@ const ConfirmEventView = () => {
 
         if (!data || !data.event_name)
           throw new Error("Event data is incomplete.");
-
-        // DEBUG: Verify image URLs
-        console.log("=== IMAGE VERIFICATION ===");
-        console.log("Raw Event Logo:", data.event_logo);
-        console.log("Raw Event Banner:", data.event_banner);
-        console.log("Raw Event Images:", data.event_images);
-
         // Test if logo URL is accessible
         if (data.event_logo) {
           const testImg = new Image();
           testImg.onload = () =>
-            console.log("✅ Logo URL is accessible:", data.event_logo);
           testImg.onerror = () =>
             console.error("❌ Logo URL failed to load:", data.event_logo);
           testImg.src = data.event_logo;
@@ -726,20 +716,60 @@ const ConfirmEventView = () => {
   const handleBack = () => {
     navigate(-1);
   };
-  const handleGroupLogoClick = () => {
-  if (groupData) {
-    setSelectedGroupForModal(groupData);
-    setIsGroupModalOpen(true);
+const handleGroupLogoClick = async (groupData) => {
+  if (!groupData) {
+    console.error('No group data provided');
+    return;
+  }
+  setSelectedGroup(groupData);
+  setIsGroupModalOpen(true);
+  setLoadingCount(true);
+  try {
+    const groupId = groupData._id || groupData.id;    
+    // Fetch all events
+    const response = await getMyEvents();
+    
+    // Parse the response
+    let events = [];
+    if (response?.data?.tickets) {
+      events = response.data.tickets;
+    } else if (response?.tickets) {
+      events = response.tickets;
+    } else if (response?.data?.events) {
+      events = response.data.events;
+    } else if (response?.events) {
+      events = response.events;
+    } else if (Array.isArray(response?.data)) {
+      events = response.data;
+    } else if (Array.isArray(response)) {
+      events = response;
+    }    
+    // Filter events for this specific group
+    const groupEvents = events.filter(event => {
+      const eventGroupId = event.group_id || 
+                          event.groupId || 
+                          event.group?._id || 
+                          event.group?.id ||
+                          event.ticket_group_id ||
+                          event.ticketGroupId;
+      
+      const matches = eventGroupId === groupId;
+      return matches;
+    });
+    setGroupEventCount(groupEvents.length);
+  } catch (err) {
+    console.error("Failed to fetch group event count:", err);
+    setGroupEventCount(0);
+  } finally {
+    setLoadingCount(false);
   }
 };
-
 const handleCloseGroupModal = () => {
   setIsGroupModalOpen(false);
-  setSelectedGroupForModal(null);
+  setSelectedGroup(null);
 };
-
 const handleUpdateGroupFromModal = () => {
-  console.log('Update group:', selectedGroupForModal);
+  console.log('Update group:', selectedGroup);
   // Add your update logic here
   handleCloseGroupModal();
 };
@@ -987,7 +1017,7 @@ const handleUpdateGroupFromModal = () => {
                 </Card>
                <div className="flex md:hidden pt-8">
                 <div
-                  onClick={handleGroupLogoClick}
+                  onClick={() => handleGroupLogoClick(groupData)}
                   className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0 cursor-pointer transition-transform duration-200 active:scale-95"
                   style={{ boxShadow: theme.shadowOutset }}
                 >
@@ -1154,7 +1184,8 @@ const handleUpdateGroupFromModal = () => {
               </div>
               {/* Desktop logo */}
               <div className="md:flex w-2/5  lg:px-10 lg:pt-10 px-7 pt-7">
-                <div onClick={handleGroupLogoClick}
+                <div 
+                  onClick={() => handleGroupLogoClick(groupData)}
                   className="lg:w-32 lg:h-32 h-28 w-28 rounded-full overflow-hidden flex-shrink-0"
                   style={{ boxShadow: theme.shadowOutset }}
                 >
@@ -1558,21 +1589,9 @@ const handleUpdateGroupFromModal = () => {
                 style={{ boxShadow: theme.shadowOutset }}
               >
                 <img
-                  src={
-                    eventData.event_banner
-                      ? eventData.event_banner.startsWith("http://") ||
-                        eventData.event_banner.startsWith("https://")
-                        ? eventData.event_banner
-                        : getImageUrl(eventData.event_banner, "ticket")
-                      : "https://via.placeholder.com/256?text=Banner"
-                  }
+                  src={ getImageUrl(eventData.event_banner, "ticket")}
                   alt={eventData.event_name}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    console.error("Banner image failed to load:", e.target.src);
-                    e.target.src =
-                      "https://via.placeholder.com/256?text=Banner";
-                  }}
                 />
               </div>
               <button
@@ -2100,11 +2119,7 @@ const handleUpdateGroupFromModal = () => {
 
             // Add banner
             if (eventData?.event_banner) {
-              const bannerUrl =
-                eventData.event_banner.startsWith("http://") ||
-                eventData.event_banner.startsWith("https://")
-                  ? eventData.event_banner
-                  : getImageUrl(eventData.event_banner, "ticket");
+              const bannerUrl = getImageUrl(eventData.event_banner, "ticket");
               allImages.push({
                 path: bannerUrl,
                 type: "banner",
@@ -2215,16 +2230,16 @@ const handleUpdateGroupFromModal = () => {
           formatImagePath={(path) => getImageUrl(path, "ticket")}
         />
       )}
-      {isGroupModalOpen && selectedGroupForModal && (
+     {isGroupModalOpen && selectedGroup && (
         <GroupViewModal
           isOpen={isGroupModalOpen}
           onClose={handleCloseGroupModal}
-          group={selectedGroupForModal}
           isDark={theme.isDark}
+          group={selectedGroup}
           theme={theme}
           onUpdate={handleUpdateGroupFromModal}
-          totalEvents={groupEventCount || 0}
-          loadingCount={false}
+          totalEvents={groupEventCount}
+          loadingCount={loadingCount}
         />
       )}
     </div>

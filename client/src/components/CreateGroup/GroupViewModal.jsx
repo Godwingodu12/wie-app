@@ -26,11 +26,6 @@ const GroupViewModal = ({ isOpen, onClose, group, isDark, theme, onUpdate, total
   };
 
   useEffect(() => {
-    console.log('=== GroupViewModal Mounted ===');
-    console.log('isDark prop:', isDark);
-    console.log('theme prop:', theme);
-    console.log('modalTheme:', modalTheme);
-    
     const fetchData = async () => {
       try {
         const [eventsRes, groupsRes, liveEventsRes, groupStatsRes] =
