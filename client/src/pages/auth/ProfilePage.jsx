@@ -130,10 +130,8 @@ const ProfilePage = () => {
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
   const [followingMap, setFollowingMap] = useState({});
   const [followingStates, setFollowingStates] = useState({});
-  const [profileUser, setProfileUser] = useState(null);
   const [userId, setUserId] = useState(null);
   const [eventCountsMap, setEventCountsMap] = useState({});
   // Active tab state: 'all', 'live', 'past'
@@ -635,7 +633,26 @@ const handleSuggestionFollowToggle = async (suggestedUserId) => {
       };
 
   const displayName = user?.name || "User";
+  const getMaxAllowedGroups = () => {
+    if (!user) return 0;
+    
+    const userType = user.role || user.userType;
+    
+    if (userType === 'admin') {
+      return 2; // 1 admin group + 1 organisation group
+    } else if (userType === 'organisation' || userType === 'organization') {
+      return 4; // 4 organisation groups
+    }
+    
+    return 0; // Default: no groups allowed
+  };
 
+  // Check if user has reached group creation limit
+  const hasReachedGroupLimit = () => {
+    const maxGroups = getMaxAllowedGroups();
+    const currentGroupCount = groups.length;
+    return currentGroupCount >= maxGroups;
+  };
   // Group Selection Modal Component
   const GroupSelectionModal = () => (
     isModalOpen && (
@@ -1064,22 +1081,24 @@ const handleUpdateGroup = async () => {
                                 </span>
                               </div>
                             ))}
-                            <div className="flex flex-col items-center flex-shrink-0">
-                              <button
-                                onClick={() => navigate("/ticket/create-group")}
-                                className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
-                                  isDark ? "border-gray-600" : "border-gray-400"
-                                }`}
-                                style={{ boxShadow: theme.smallCardShadow }}
-                              >
-                                <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
-                              </button>
-                              <span className={`text-xs mt-1 w-16 text-center truncate ${theme.text}`}>New group</span>
-                            </div>
+                            {/* Only show "New group" button if limit not reached */}
+                            {!hasReachedGroupLimit() && (
+                              <div className="flex flex-col items-center flex-shrink-0">
+                                <button
+                                  onClick={() => navigate("/ticket/create-group")}
+                                  className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
+                                    isDark ? "border-gray-600" : "border-gray-400"
+                                  }`}
+                                  style={{ boxShadow: theme.smallCardShadow }}
+                                >
+                                  <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
+                                </button>
+                                <span className={`text-xs mt-1 w-16 text-center truncate ${theme.text}`}>New group</span>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
-
                       {/* Desktop: Original layout with real data */}
                       <div className="hidden md:flex flex-row items-end gap-2 flex-nowrap overflow-x-auto">
                         {groupsLoading ? (
@@ -1110,587 +1129,589 @@ const handleUpdateGroup = async () => {
                                 </span>
                               </div>
                             ))}
-                            <div className="flex flex-col items-center">
-                              <button
-                                onClick={() => navigate("/ticket/create-group")}
-                                className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
-                                  isDark ? "border-gray-600" : "border-gray-400"
-                                }`}
-                                style={{ boxShadow: theme.smallCardShadow }}
-                              >
-                                <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
-                              </button>
-                              <span className={`text-xs mt-2 w-20 text-center truncate whitespace-nowrap ${theme.text}`}>New group</span>
-                            </div>
+                            {/* Only show "New group" button if limit not reached */}
+                            {!hasReachedGroupLimit() && (
+                              <div className="flex flex-col items-center">
+                                <button
+                                  onClick={() => navigate("/ticket/create-group")}
+                                  className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center ${
+                                    isDark ? "border-gray-600" : "border-gray-400"
+                                  }`}
+                                  style={{ boxShadow: theme.smallCardShadow }}
+                                >
+                                  <img src={PlusIcon} alt="Add Group" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
+                                </button>
+                                <span className={`text-xs mt-2 w-20 text-center truncate whitespace-nowrap ${theme.text}`}>New group</span>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
                     </div>
                   </div>
-{/* Suggestions */}
-<div className={`rounded-xl md:rounded-2xl p-3 md:p-4 lg:p-6 nest-hub-card transition-all duration-300 w-full overflow-hidden`}>
-   <div className="flex justify-between items-center mb-4 md:mb-6">
-     <h2 className={`text-base md:text-lg font-semibold ${theme.text}`}>Suggestions</h2>
-     <button
-       className={`text-xs md:text-sm px-3 md:px-4 py-1 md:py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${
-         isDark ? "text-[#FFFFFF]" : "text-[#000000]"
-       }`}
-       onClick={() => navigate('/suggestions')}
-     >
-       see all
-     </button>
-   </div>
+                  {/* Suggestions */}
+                  <div className={`rounded-xl md:rounded-2xl p-3 md:p-4 lg:p-6 nest-hub-card transition-all duration-300 w-full overflow-hidden`}>
+                    <div className="flex justify-between items-center mb-4 md:mb-6">
+                      <h2 className={`text-base md:text-lg font-semibold ${theme.text}`}>Suggestions</h2>
+                      <button
+                        className={`text-xs md:text-sm px-3 md:px-4 py-1 md:py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${
+                          isDark ? "text-[#FFFFFF]" : "text-[#000000]"
+                        }`}
+                        onClick={() => navigate('/suggestions')}
+                      >
+                        see all
+                      </button>
+                    </div>
 
-   {/* Desktop: Scrollable Container with Arrows */}
-   <div className="hidden md:block relative">
-     {showLeftArrow && users.length > 0 && (
-       <button
-         onClick={scrollLeft}
-         className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2"
-       >
-         <img src={RightArrowIcon} alt="Scroll Left" className="w-6 h-6 rotate-180 invert" />
-       </button>
-     )}
+                    {/* Desktop: Scrollable Container with Arrows */}
+                    <div className="hidden md:block relative">
+                      {showLeftArrow && users.length > 0 && (
+                        <button
+                          onClick={scrollLeft}
+                          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2"
+                        >
+                          <img src={RightArrowIcon} alt="Scroll Left" className="w-6 h-6 rotate-180 invert" />
+                        </button>
+                      )}
 
-     <div
-       id="suggestions-scroll"
-       className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 scroll-smooth"
-       onScroll={handleScroll}
-     >
-       {users.length > 0 ? (
-         users.slice(0, 8).map((suggestedUser) => (
-           <div
-             key={suggestedUser._id}
-             className="w-[246px] h-[363px] flex-shrink-0 rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 hover:scale-105 cursor-pointer"
-             style={{
-               backgroundColor: isDark ? "#212426" : "#ffffff",
-               boxShadow: theme.smallCardShadow,
-             }}
-             onClick={() => navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)}
-           >
-             <div className="flex flex-col">
-               <div className="relative mb-4">
-                 <img
-                   src={getImageUrl(suggestedUser.image, 'auth') || ProfileImage}
-                   alt={suggestedUser.name}
-                   className="w-full h-[160px] object-cover rounded-2xl"
-                 />
-               </div>
-               <div className="px-1" style={{ marginTop: "2rem" }}>
-                 <div className="flex items-center gap-2 mb-1 justify-center">
-                   <h3 className={`text-base font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
-                   <img src={VerifiedIcon} alt="Verified" className="w-4 h-4 flex-shrink-0"/>
-                 </div>
-                 <p className={`text-sm ${theme.subText} capitalize text-center`}>{suggestedUser.organisation_type || suggestedUser.role}</p>
-               </div>
-             </div>
+                      <div
+                        id="suggestions-scroll"
+                        className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 scroll-smooth"
+                        onScroll={handleScroll}
+                      >
+                        {users.length > 0 ? (
+                          users.slice(0, 8).map((suggestedUser) => (
+                            <div
+                              key={suggestedUser._id}
+                              className="w-[246px] h-[363px] flex-shrink-0 rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 hover:scale-105 cursor-pointer"
+                              style={{
+                                backgroundColor: isDark ? "#212426" : "#ffffff",
+                                boxShadow: theme.smallCardShadow,
+                              }}
+                              onClick={() => navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)}
+                            >
+                              <div className="flex flex-col">
+                                <div className="relative mb-4">
+                                  <img
+                                    src={getImageUrl(suggestedUser.image, 'auth') || ProfileImage}
+                                    alt={suggestedUser.name}
+                                    className="w-full h-[160px] object-cover rounded-2xl"
+                                  />
+                                </div>
+                                <div className="px-1" style={{ marginTop: "2rem" }}>
+                                  <div className="flex items-center gap-2 mb-1 justify-center">
+                                    <h3 className={`text-base font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
+                                    <img src={VerifiedIcon} alt="Verified" className="w-4 h-4 flex-shrink-0"/>
+                                  </div>
+                                  <p className={`text-sm ${theme.subText} capitalize text-center`}>{suggestedUser.organisation_type || suggestedUser.role}</p>
+                                </div>
+                              </div>
 
-             <div className="flex justify-between items-center px-1" style={{ marginBottom: "1rem" }}>
-               <div className="flex items-center gap-3">
-                 <div className="flex items-center gap-1">
-                   <img src={FollowersIcon} alt="Followers" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}/>
-                   <span className={`text-sm font-medium ${theme.text}`}>
-                     {suggestedUser.followersCount || suggestedUser.followers || 0}
-                   </span>
-                 </div>
-                 <div className="flex items-center gap-1">
-                   <img src={EventIcon} alt="Events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}/>
-                   <span className={`text-sm font-medium ${theme.text}`}>{eventCountsMap[suggestedUser._id || suggestedUser.id] || 0}</span>
-                 </div>
-               </div>
-                <button
-                onClick={(e) => {
-                e.stopPropagation();
-                handleSuggestionFollowToggle(suggestedUser._id || suggestedUser.id);
-                }}
-                disabled={followingStates[suggestedUser._id || suggestedUser.id]}
-                className={`px-3 py-1 rounded-full text-white text-xs font-medium transition-all duration-200 ${
-                followingMap[suggestedUser._id || suggestedUser.id]
-                ? 'bg-[#44444D] shadow-[0px_3px_6px_rgba(0,0,0,0.25)] hover:bg-[#50505A]'
-                : 'bg-blue-500 hover:bg-blue-600'
-                } ${followingStates[suggestedUser._id || suggestedUser.id] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                {followingStates[suggestedUser._id || suggestedUser.id] ? (
-                followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollowing...' : 'Following...'
-                ) : (
-                followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollow' : 'Follow +'
-                )}
-                </button>
-             </div>
-           </div>
-         ))
-       ) : (
-         <div className={`w-full text-center py-8 ${theme.subText}`}>
-           <p className="text-sm">No suggestions available</p>
-         </div>
-       )}
-     </div>
+                              <div className="flex justify-between items-center px-1" style={{ marginBottom: "1rem" }}>
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-1">
+                                    <img src={FollowersIcon} alt="Followers" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}/>
+                                    <span className={`text-sm font-medium ${theme.text}`}>
+                                      {suggestedUser.followersCount || suggestedUser.followers || 0}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <img src={EventIcon} alt="Events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`}/>
+                                    <span className={`text-sm font-medium ${theme.text}`}>{eventCountsMap[suggestedUser._id || suggestedUser.id] || 0}</span>
+                                  </div>
+                                </div>
+                                  <button
+                                  onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSuggestionFollowToggle(suggestedUser._id || suggestedUser.id);
+                                  }}
+                                  disabled={followingStates[suggestedUser._id || suggestedUser.id]}
+                                  className={`px-3 py-1 rounded-full text-white text-xs font-medium transition-all duration-200 ${
+                                  followingMap[suggestedUser._id || suggestedUser.id]
+                                  ? 'bg-[#44444D] shadow-[0px_3px_6px_rgba(0,0,0,0.25)] hover:bg-[#50505A]'
+                                  : 'bg-blue-500 hover:bg-blue-600'
+                                  } ${followingStates[suggestedUser._id || suggestedUser.id] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                  >
+                                  {followingStates[suggestedUser._id || suggestedUser.id] ? (
+                                  followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollowing...' : 'Following...'
+                                  ) : (
+                                  followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollow' : 'Follow +'
+                                  )}
+                                  </button>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className={`w-full text-center py-8 ${theme.subText}`}>
+                            <p className="text-sm">No suggestions available</p>
+                          </div>
+                        )}
+                      </div>
 
-     {showRightArrow && users.length > 0 && (
-       <button
-         onClick={scrollRight}
-         className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full"
-       >
-         <img src={RightArrowIcon} alt="Scroll Right" className="w-6 h-6 invert" />
-       </button>
-     )}
-   </div>
+                      {showRightArrow && users.length > 0 && (
+                        <button
+                          onClick={scrollRight}
+                          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full"
+                        >
+                          <img src={RightArrowIcon} alt="Scroll Right" className="w-6 h-6 invert" />
+                        </button>
+                      )}
+                    </div>
 
-   {/* Mobile: Grid of 2 Cards */}
-   <div className="md:hidden grid grid-cols-2 gap-3">
-     {users.length > 0 ? (
-       users.slice(0, 2).map((suggestedUser) => (
-         <div
-           key={suggestedUser._id}
-           className="rounded-2xl p-3 flex flex-col justify-between transition-all duration-300 cursor-pointer"
-           style={{
-             backgroundColor: isDark ? "#212426" : "#ffffff",
-             boxShadow: theme.smallCardShadow,
-           }}
-           onClick={() => navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)}
-         >
-           <div className="flex flex-col">
-             <div className="relative mb-3">
-               <img
-                 src={getImageUrl(suggestedUser.image, 'auth') || ProfileImage}
-                 alt={suggestedUser.name}
-                 className="w-full h-[100px] object-cover rounded-xl"
-               />
-             </div>
-             <div className="px-1 mb-3">
-               <div className="flex items-center gap-1 mb-1 justify-center">
-                 <h3 className={`text-sm font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
-                 <img src={VerifiedIcon} alt="Verified" className="w-3 h-3 flex-shrink-0"/>
-               </div>
-               <p className={`text-xs ${theme.subText} capitalize text-center`}>{suggestedUser.organisation_type || suggestedUser.role}</p>
-             </div>
-           </div>
+                    {/* Mobile: Grid of 2 Cards */}
+                    <div className="md:hidden grid grid-cols-2 gap-3">
+                      {users.length > 0 ? (
+                        users.slice(0, 2).map((suggestedUser) => (
+                          <div
+                            key={suggestedUser._id}
+                            className="rounded-2xl p-3 flex flex-col justify-between transition-all duration-300 cursor-pointer"
+                            style={{
+                              backgroundColor: isDark ? "#212426" : "#ffffff",
+                              boxShadow: theme.smallCardShadow,
+                            }}
+                            onClick={() => navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)}
+                          >
+                            <div className="flex flex-col">
+                              <div className="relative mb-3">
+                                <img
+                                  src={getImageUrl(suggestedUser.image, 'auth') || ProfileImage}
+                                  alt={suggestedUser.name}
+                                  className="w-full h-[100px] object-cover rounded-xl"
+                                />
+                              </div>
+                              <div className="px-1 mb-3">
+                                <div className="flex items-center gap-1 mb-1 justify-center">
+                                  <h3 className={`text-sm font-semibold ${theme.text} truncate`}>{suggestedUser.name}</h3>
+                                  <img src={VerifiedIcon} alt="Verified" className="w-3 h-3 flex-shrink-0"/>
+                                </div>
+                                <p className={`text-xs ${theme.subText} capitalize text-center`}>{suggestedUser.organisation_type || suggestedUser.role}</p>
+                              </div>
+                            </div>
 
-           <div className="flex flex-col gap-2">
-             <div className="flex justify-center items-center gap-3">
-               <div className="flex items-center gap-1">
-                 <img src={FollowersIcon} alt="Followers" className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}/>
-                 <span className={`text-xs font-medium ${theme.text}`}>
-                   {suggestedUser.followersCount || suggestedUser.followers || 0}
-                 </span>
-               </div>
-               <div className="flex items-center gap-1">
-                 <img src={EventIcon} alt="Events" className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}/>
-                 <span className={`text-xs font-medium ${theme.text}`}>{eventCountsMap[suggestedUser._id || suggestedUser.id] || 0}</span>
-               </div>
-             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleSuggestionFollowToggle(suggestedUser._id || suggestedUser.id);
-              }}
-              disabled={followingStates[suggestedUser._id || suggestedUser.id]}
-              className={`w-full px-3 py-1.5 rounded-full text-white text-xs font-medium transition-all duration-200 ${
-                followingMap[suggestedUser._id || suggestedUser.id]
-                  ? 'bg-[#44444D] shadow-[0px_5px_10px_0px_rgba(0,0,0,0.3)] hover:bg-[#50505A]'
-                  : 'bg-blue-500 hover:bg-blue-600'
-              } ${followingStates[suggestedUser._id || suggestedUser.id] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              {followingStates[suggestedUser._id || suggestedUser.id] ? (
-                followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollowing...' : 'Following...'
-              ) : (
-                followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollow' : 'Follow +'
-              )}
-            </button>
-           </div>
-         </div>
-       ))
-     ) : (
-       <div className={`col-span-2 text-center py-8 ${theme.subText}`}>
-         <p className="text-sm">No suggestions available</p>
-       </div>
-     )}
-   </div>
- </div>
-
+                            <div className="flex flex-col gap-2">
+                              <div className="flex justify-center items-center gap-3">
+                                <div className="flex items-center gap-1">
+                                  <img src={FollowersIcon} alt="Followers" className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}/>
+                                  <span className={`text-xs font-medium ${theme.text}`}>
+                                    {suggestedUser.followersCount || suggestedUser.followers || 0}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <img src={EventIcon} alt="Events" className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}/>
+                                  <span className={`text-xs font-medium ${theme.text}`}>{eventCountsMap[suggestedUser._id || suggestedUser.id] || 0}</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSuggestionFollowToggle(suggestedUser._id || suggestedUser.id);
+                                }}
+                                disabled={followingStates[suggestedUser._id || suggestedUser.id]}
+                                className={`w-full px-3 py-1.5 rounded-full text-white text-xs font-medium transition-all duration-200 ${
+                                  followingMap[suggestedUser._id || suggestedUser.id]
+                                    ? 'bg-[#44444D] shadow-[0px_5px_10px_0px_rgba(0,0,0,0.3)] hover:bg-[#50505A]'
+                                    : 'bg-blue-500 hover:bg-blue-600'
+                                } ${followingStates[suggestedUser._id || suggestedUser.id] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                              >
+                                {followingStates[suggestedUser._id || suggestedUser.id] ? (
+                                  followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollowing...' : 'Following...'
+                                ) : (
+                                  followingMap[suggestedUser._id || suggestedUser.id] ? 'Unfollow' : 'Follow +'
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className={`col-span-2 text-center py-8 ${theme.subText}`}>
+                          <p className="text-sm">No suggestions available</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   {/* Events Section with Tabs */}
-<div
-  className={`rounded-2xl md:rounded-[2.5rem] p-3 md:p-4 lg:p-6 ${theme.cardBg} md:bg-transparent nest-hub-card transition-all duration-300 w-full overflow-hidden`}
-  style={{ boxShadow: window.innerWidth >= 768 ? theme.cardShadow : 'none' }}
->
-  {/* Tabs */}
-  <div className="flex items-center justify-between mb-4 md:mb-6 px-2 md:px-4">
-   {/* Mobile Tabs */}
-<div
-  className="flex md:hidden items-center rounded-2xl transition-shadow duration-200"
-  style={{
-    backgroundColor: isDark ? "#212426" : "#ffffff",
-    boxShadow: theme.smallCardShadow,
-    padding: "16px 8px",
-    width: "calc(100% + 16px)", // Increased width
-    marginLeft: "-8px", // Center the wider container
-  }}
->
-  <div className="flex items-center w-full relative gap-2" style={{ minHeight: '44px' }}>
-    {/* My Events - Left */}
-    <div
-      className="flex items-center gap-1 cursor-pointer rounded-xl transition-all duration-200 z-10"
-      style={{
-        boxShadow: activeTab === 'all'
-          ? isDark
-            ? "inset -17px -17px 34px #1c1f20, inset 17px 17px 34px #26292c"
-            : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)"
-          : 'none',
-        backgroundColor: activeTab === 'all' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
-        padding: "8px 10px",
-      }}
-      onClick={() => setActiveTab('all')}
-    >
-      <img src={AllEventsIcon} alt="My events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`} />
-      <span className={`text-xs font-medium ${theme.text} whitespace-nowrap`}>My events</span>
-    </div>
+                  <div
+                    className={`rounded-2xl md:rounded-[2.5rem] p-3 md:p-4 lg:p-6 ${theme.cardBg} md:bg-transparent nest-hub-card transition-all duration-300 w-full overflow-hidden`}
+                    style={{ boxShadow: window.innerWidth >= 768 ? theme.cardShadow : 'none' }}
+                  >
+                    {/* Tabs */}
+                    <div className="flex items-center justify-between mb-4 md:mb-6 px-2 md:px-4">
+                    {/* Mobile Tabs */}
+                  <div
+                    className="flex md:hidden items-center rounded-2xl transition-shadow duration-200"
+                    style={{
+                      backgroundColor: isDark ? "#212426" : "#ffffff",
+                      boxShadow: theme.smallCardShadow,
+                      padding: "16px 8px",
+                      width: "calc(100% + 16px)", // Increased width
+                      marginLeft: "-8px", // Center the wider container
+                    }}
+                  >
+                    <div className="flex items-center w-full relative gap-2" style={{ minHeight: '44px' }}>
+                      {/* My Events - Left */}
+                      <div
+                        className="flex items-center gap-1 cursor-pointer rounded-xl transition-all duration-200 z-10"
+                        style={{
+                          boxShadow: activeTab === 'all'
+                            ? isDark
+                              ? "inset -17px -17px 34px #1c1f20, inset 17px 17px 34px #26292c"
+                              : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)"
+                            : 'none',
+                          backgroundColor: activeTab === 'all' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+                          padding: "8px 10px",
+                        }}
+                        onClick={() => setActiveTab('all')}
+                      >
+                        <img src={AllEventsIcon} alt="My events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`} />
+                        <span className={`text-xs font-medium ${theme.text} whitespace-nowrap`}>My events</span>
+                      </div>
 
-    {/* Live Events - Absolutely centered */}
-    <div
-      className="flex items-center gap-1 cursor-pointer rounded-xl transition-all duration-200 absolute left-1/2 z-20"
-      style={{
-        boxShadow: activeTab === 'live'
-          ? isDark
-            ? "inset -17px -17px 34px #1c1f20, inset 17px 17px 34px #26292c"
-            : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)"
-          : 'none',
-        backgroundColor: activeTab === 'live' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
-        padding: "8px 10px",
-        transform: 'translateX(-50%)',
-      }}
-      onClick={() => setActiveTab('live')}
-    >
-      <img src={LiveEventIcon} alt="Live events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`} />
-      <span className={`text-xs font-medium ${theme.text} whitespace-nowrap`}>Live events</span>
-    </div>
+                      {/* Live Events - Absolutely centered */}
+                      <div
+                        className="flex items-center gap-1 cursor-pointer rounded-xl transition-all duration-200 absolute left-1/2 z-20"
+                        style={{
+                          boxShadow: activeTab === 'live'
+                            ? isDark
+                              ? "inset -17px -17px 34px #1c1f20, inset 17px 17px 34px #26292c"
+                              : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)"
+                            : 'none',
+                          backgroundColor: activeTab === 'live' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+                          padding: "8px 10px",
+                          transform: 'translateX(-50%)',
+                        }}
+                        onClick={() => setActiveTab('live')}
+                      >
+                        <img src={LiveEventIcon} alt="Live events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`} />
+                        <span className={`text-xs font-medium ${theme.text} whitespace-nowrap`}>Live events</span>
+                      </div>
 
-    {/* Past Events - Right */}
-    <div
-      className="flex items-center gap-1 cursor-pointer rounded-xl transition-all duration-200 ml-auto z-10"
-      style={{
-        boxShadow: activeTab === 'past'
-          ? isDark
-            ? "inset -17px -17px 34px #1c1f20, inset 17px 17px 34px #26292c"
-            : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)"
-          : 'none',
-        backgroundColor: activeTab === 'past' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
-        padding: "8px 10px",
-      }}
-      onClick={() => setActiveTab('past')}
-    >
-      <img src={PastEventIcon} alt="Past events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`} />
-      <span className={`text-xs font-medium ${theme.text} whitespace-nowrap`}>Past events</span>
-    </div>
-  </div>
-</div>
+                      {/* Past Events - Right */}
+                      <div
+                        className="flex items-center gap-1 cursor-pointer rounded-xl transition-all duration-200 ml-auto z-10"
+                        style={{
+                          boxShadow: activeTab === 'past'
+                            ? isDark
+                              ? "inset -17px -17px 34px #1c1f20, inset 17px 17px 34px #26292c"
+                              : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)"
+                            : 'none',
+                          backgroundColor: activeTab === 'past' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+                          padding: "8px 10px",
+                        }}
+                        onClick={() => setActiveTab('past')}
+                      >
+                        <img src={PastEventIcon} alt="Past events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`} />
+                        <span className={`text-xs font-medium ${theme.text} whitespace-nowrap`}>Past events</span>
+                      </div>
+                    </div>
+                  </div>
 
-    {/* Desktop Tabs */}
-    <div className="hidden md:flex items-center justify-between w-full">
-      <div
-        className={`flex items-center gap-2 cursor-pointer p-3 rounded-xl transition-all duration-200 ${
-          activeTab === 'all' ? '' : 'opacity-60'
-        }`}
-        style={{
-          boxShadow: activeTab === 'all' ? (isDark
-            ? "inset -17px -17px 34px #1c1f20,inset 17px 17px 34px #26292c"
-            : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
-          backgroundColor: activeTab === 'all' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
-        }}
-        onClick={() => setActiveTab('all')}
-      >
-        <img
-          src={AllEventsIcon}
-          alt="My events"
-          className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
-        />
-        <span className={`text-sm font-medium ${theme.text}`}>
-          All Events
-        </span>
-      </div>
+                      {/* Desktop Tabs */}
+                      <div className="hidden md:flex items-center justify-between w-full">
+                        <div
+                          className={`flex items-center gap-2 cursor-pointer p-3 rounded-xl transition-all duration-200 ${
+                            activeTab === 'all' ? '' : 'opacity-60'
+                          }`}
+                          style={{
+                            boxShadow: activeTab === 'all' ? (isDark
+                              ? "inset -17px -17px 34px #1c1f20,inset 17px 17px 34px #26292c"
+                              : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
+                            backgroundColor: activeTab === 'all' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+                          }}
+                          onClick={() => setActiveTab('all')}
+                        >
+                          <img
+                            src={AllEventsIcon}
+                            alt="My events"
+                            className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
+                          />
+                          <span className={`text-sm font-medium ${theme.text}`}>
+                            All Events
+                          </span>
+                        </div>
 
-      <div
-        className={`flex items-center gap-2 cursor-pointer mx-auto p-3 rounded-xl transition-all duration-200 ${
-          activeTab === 'live' ? '' : 'opacity-60'
-        }`}
-        style={{
-          boxShadow: activeTab === 'live' ? (isDark
-            ? "inset -17px -17px 34px #1c1f20,inset 17px 17px 34px #26292c"
-            : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
-          backgroundColor: activeTab === 'live' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
-        }}
-        onClick={() => setActiveTab('live')}
-      >
-        <img
-          src={LiveEventIcon}
-          alt="Live events"
-          className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
-        />
-        <span className={`text-sm font-medium ${theme.text}`}>
-          Live Events
-        </span>
-      </div>
+                        <div
+                          className={`flex items-center gap-2 cursor-pointer mx-auto p-3 rounded-xl transition-all duration-200 ${
+                            activeTab === 'live' ? '' : 'opacity-60'
+                          }`}
+                          style={{
+                            boxShadow: activeTab === 'live' ? (isDark
+                              ? "inset -17px -17px 34px #1c1f20,inset 17px 17px 34px #26292c"
+                              : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
+                            backgroundColor: activeTab === 'live' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+                          }}
+                          onClick={() => setActiveTab('live')}
+                        >
+                          <img
+                            src={LiveEventIcon}
+                            alt="Live events"
+                            className={`w-8 h-8 ${!isDark ? "filter brightness-0" : ""}`}
+                          />
+                          <span className={`text-sm font-medium ${theme.text}`}>
+                            Live Events
+                          </span>
+                        </div>
 
-      <div
-        className={`flex items-center gap-2 cursor-pointer -mr-2 p-4 rounded-xl transition-all duration-200 ${
-          activeTab === 'past' ? '' : 'opacity-60'
-        }`}
-        style={{
-          boxShadow: activeTab === 'past' ? (isDark
-            ? "inset -17px -17px 34px #1c1f20,inset 17px 17px 34px #26292c"
-            : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
-          backgroundColor: activeTab === 'past' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
-        }}
-        onClick={() => setActiveTab('past')}
-      >
-        <img
-          src={PastEventIcon}
-          alt="PastEvent"
-          className={`w-7 h-7 ${!isDark ? "filter brightness-0" : ""}`}
-        />
-        <span className={`text-sm font-medium ${theme.text}`}>
-          Past Events
-        </span>
-      </div>
-    </div>
-  </div>
-  {/* Events Content */}
-  {eventsLoading ? (
-    <div className="flex justify-center items-center py-16">
-      <div className={`text-lg ${theme.subText}`}>Loading events...</div>
-    </div>
-  ) : getCurrentEvents().length === 0 ? (
-    /* Empty State */
-    <div className="flex flex-col items-center justify-center py-16 md:py-24">
-      <h3 className={`text-xl font-medium ${theme.text} mb-4`}>
-        {activeTab === 'all' ? 'Create your first Event' :
-        activeTab === 'live' ? 'No live events yet' :
-        'No past events yet'}
-      </h3>
-      {activeTab === 'all' && (
-        <button
-          onClick={handleCreateEvent}
-          disabled={loading}
-          className="px-8 md:px-14 py-2.5 rounded-full text-white text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90 transition-opacity duration-200"
-        >
-          {loading ? "Loading..." : "Create"}
-        </button>
-      )}
-    </div>
-  ) : (
-    /* Events Grid */
-    <div>
-      {/* Desktop: 3 column grid */}
-      <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-[17.59px] w-full ml-4">
-        {getCurrentEvents().map((event, index) => (
-         <div
-            key={event._id || `event-${index}`}
-            className="overflow-hidden flex flex-col cursor-pointer hover:scale-[1.02] transition-transform duration-200"
-              style={{
-              width: '315.28px',
-              height: '380px',
-              borderRadius: '32.48px',
-              paddingTop: '19px',
-              paddingRight: '12.18px',
-              paddingBottom: '19px',
-              paddingLeft: '12.18px',
-              backgroundColor: isDark ? "#212426" : "#ffffff",
-              boxShadow: isDark 
-                ? '-2px -2px 10px 0px #63636336, 5px 6px 9px 0px #00000075'
-                : '-2px -2px 10px 0px #E0E0E0, 5px 6px 9px 0px #00000033',
-              transform: 'translateX(6px)'  // <--- slight move right
-            }}
-            onClick={() => handleViewEvent(event._id)}
-          >
-            {/* Event Image - Fixed height */}
-            <div className="mb-3">
-              <img
-                src={
-                  event.event_banner ||
-                  event.event_logo ||
-                  event.event_image ||
-                  "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
-                }
-                alt={event.event_name || "Event"}
-                className="rounded-[1rem] w-full object-cover border-2 border-white border-opacity-50"
-                style={{ height: '180px' }}
-                onError={(e) => {
-                  e.target.src =
-                    "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
-                }}
-              />
-            </div>
+                        <div
+                          className={`flex items-center gap-2 cursor-pointer -mr-2 p-4 rounded-xl transition-all duration-200 ${
+                            activeTab === 'past' ? '' : 'opacity-60'
+                          }`}
+                          style={{
+                            boxShadow: activeTab === 'past' ? (isDark
+                              ? "inset -17px -17px 34px #1c1f20,inset 17px 17px 34px #26292c"
+                              : "inset 2px 2px 4px rgba(0,0,0,0.1), inset -2px -2px 4px rgba(255,255,255,0.8)") : 'none',
+                            backgroundColor: activeTab === 'past' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
+                          }}
+                          onClick={() => setActiveTab('past')}
+                        >
+                          <img
+                            src={PastEventIcon}
+                            alt="PastEvent"
+                            className={`w-7 h-7 ${!isDark ? "filter brightness-0" : ""}`}
+                          />
+                          <span className={`text-sm font-medium ${theme.text}`}>
+                            Past Events
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Events Content */}
+                    {eventsLoading ? (
+                      <div className="flex justify-center items-center py-16">
+                        <div className={`text-lg ${theme.subText}`}>Loading events...</div>
+                      </div>
+                    ) : getCurrentEvents().length === 0 ? (
+                      /* Empty State */
+                      <div className="flex flex-col items-center justify-center py-16 md:py-24">
+                        <h3 className={`text-xl font-medium ${theme.text} mb-4`}>
+                          {activeTab === 'all' ? 'Create your first Event' :
+                          activeTab === 'live' ? 'No live events yet' :
+                          'No past events yet'}
+                        </h3>
+                        {activeTab === 'all' && (
+                          <button
+                            onClick={handleCreateEvent}
+                            disabled={loading}
+                            className="px-8 md:px-14 py-2.5 rounded-full text-white text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90 transition-opacity duration-200"
+                          >
+                            {loading ? "Loading..." : "Create"}
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      /* Events Grid */
+                      <div>
+                        {/* Desktop: 3 column grid */}
+                        <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-[17.59px] w-full ml-4">
+                          {getCurrentEvents().map((event, index) => (
+                          <div
+                              key={event._id || `event-${index}`}
+                              className="overflow-hidden flex flex-col cursor-pointer hover:scale-[1.02] transition-transform duration-200"
+                                style={{
+                                width: '315.28px',
+                                height: '380px',
+                                borderRadius: '32.48px',
+                                paddingTop: '19px',
+                                paddingRight: '12.18px',
+                                paddingBottom: '19px',
+                                paddingLeft: '12.18px',
+                                backgroundColor: isDark ? "#212426" : "#ffffff",
+                                boxShadow: isDark 
+                                  ? '-2px -2px 10px 0px #63636336, 5px 6px 9px 0px #00000075'
+                                  : '-2px -2px 10px 0px #E0E0E0, 5px 6px 9px 0px #00000033',
+                                transform: 'translateX(6px)'  // <--- slight move right
+                              }}
+                              onClick={() => handleViewEvent(event._id)}
+                            >
+                              {/* Event Image - Fixed height */}
+                              <div className="mb-3">
+                                <img
+                                  src={
+                                    event.event_banner ||
+                                    event.event_logo ||
+                                    event.event_image ||
+                                    "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
+                                  }
+                                  alt={event.event_name || "Event"}
+                                  className="rounded-[1rem] w-full object-cover border-2 border-white border-opacity-50"
+                                  style={{ height: '180px' }}
+                                  onError={(e) => {
+                                    e.target.src =
+                                      "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
+                                  }}
+                                />
+                              </div>
 
-            {/* Event Info */}
-            <div className="flex flex-col flex-1">
-              <div className="text-center mb-4">
-                <h3 className={`font-bold text-base ${theme.text} line-clamp-1`}>
-                  {event.event_name || "Event"}
-                </h3>
-                <p className={`text-sm ${theme.subText} mt-1 line-clamp-1`}>
-                  {event.event_category || "Event Type"}
-                </p>
-              </div>
+                              {/* Event Info */}
+                              <div className="flex flex-col flex-1">
+                                <div className="text-center mb-4">
+                                  <h3 className={`font-bold text-base ${theme.text} line-clamp-1`}>
+                                    {event.event_name || "Event"}
+                                  </h3>
+                                  <p className={`text-sm ${theme.subText} mt-1 line-clamp-1`}>
+                                    {event.event_category || "Event Type"}
+                                  </p>
+                                </div>
 
-              {/* Stats */}
-              <div className="flex justify-center items-center gap-8 text-sm mb-4">
-                <div className="flex flex-col items-center">
-                  <img
-                    src={LikeIcon}
-                    alt="Likes"
-                    className={`w-5 h-5 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
-                  />
-                  <span className={theme.subText}>
-                    {event.likes || event.likesCount || "0"}
-                  </span>
-                </div>
+                                {/* Stats */}
+                                <div className="flex justify-center items-center gap-8 text-sm mb-4">
+                                  <div className="flex flex-col items-center">
+                                    <img
+                                      src={LikeIcon}
+                                      alt="Likes"
+                                      className={`w-5 h-5 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
+                                    />
+                                    <span className={theme.subText}>
+                                      {event.likes || event.likesCount || "0"}
+                                    </span>
+                                  </div>
 
-                <div className="flex flex-col items-center">
-                  <img
-                    src={TicketIcon}
-                    alt="Tickets"
-                    className={`w-5 h-5 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
-                  />
-                  <span className={theme.subText}>
-                    {event.ticketsSold ||
-                      event.registrations ||
-                      event.attendeesCount ||
-                      event.ticket_count ||
-                      event.ticketCount ||
-                      "0"}
-                  </span>
-                </div>
+                                  <div className="flex flex-col items-center">
+                                    <img
+                                      src={TicketIcon}
+                                      alt="Tickets"
+                                      className={`w-5 h-5 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
+                                    />
+                                    <span className={theme.subText}>
+                                      {event.ticketsSold ||
+                                        event.registrations ||
+                                        event.attendeesCount ||
+                                        event.ticket_count ||
+                                        event.ticketCount ||
+                                        "0"}
+                                    </span>
+                                  </div>
 
-                <div className="flex flex-col items-center">
-                  <img
-                    src={SendIcon}
-                    alt="Shares"
-                    className={`w-5 h-5 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
-                  />
-                  <span className={theme.subText}>
-                    {event.shares || event.sharesCount || "0"}
-                  </span>
-                </div>
-              </div>
+                                  <div className="flex flex-col items-center">
+                                    <img
+                                      src={SendIcon}
+                                      alt="Shares"
+                                      className={`w-5 h-5 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
+                                    />
+                                    <span className={theme.subText}>
+                                      {event.shares || event.sharesCount || "0"}
+                                    </span>
+                                  </div>
+                                </div>
 
-              {/* View button */}
-              <div className="flex justify-center mt-auto">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const eventId = event._id || event.id;
-                    if (eventId) {
-                      navigate(`/ticket/event/${eventId}`);
-                    } else {
-                      console.warn("No event ID found for navigation");
-                    }
-                  }}
-                  className="px-10 py-2 rounded-full text-white text-sm font-medium"
-                  style={{
-                    background: "linear-gradient(180deg, #2e1745 0%, #7f53e7 100%)"
-                  }}
-                >
-                  View
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+                                {/* View button */}
+                                <div className="flex justify-center mt-auto">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const eventId = event._id || event.id;
+                                      if (eventId) {
+                                        navigate(`/ticket/event/${eventId}`);
+                                      } else {
+                                        console.warn("No event ID found for navigation");
+                                      }
+                                    }}
+                                    className="px-10 py-2 rounded-full text-white text-sm font-medium"
+                                    style={{
+                                      background: "linear-gradient(180deg, #2e1745 0%, #7f53e7 100%)"
+                                    }}
+                                  >
+                                    View
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
 
-      {/* Mobile: 2 column grid */}
-      <div className="md:hidden grid grid-cols-2 gap-3">
-        {getCurrentEvents().map((event, index) => (
-          <div
-            key={event._id || `event-${index}`}
-            className="rounded-2xl overflow-hidden flex flex-col"
-            style={{
-              height: '280px',
-              backgroundColor: isDark ? "#212426" : "#ffffff",
-              boxShadow: isDark 
-                ? '-2px -2px 10px 0px #63636336, 5px 6px 9px 0px #00000075'
-                : '-2px -2px 10px 0px #E0E0E0, 5px 6px 9px 0px #00000033',
-            }}
-          >
-            {/* Event Image */}
-            <div className="p-2">
-              <img
-                src={
-                  event.event_banner ||
-                  event.event_logo ||
-                  event.event_image ||
-                  "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
-                }
-                alt={event.event_name || "Event"}
-                className="rounded-xl w-full object-cover"
-                style={{ height: '120px' }}
-                onError={(e) => {
-                  e.target.src =
-                    "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
-                }}
-              />
-            </div>
+                        {/* Mobile: 2 column grid */}
+                        <div className="md:hidden grid grid-cols-2 gap-3">
+                          {getCurrentEvents().map((event, index) => (
+                            <div
+                              key={event._id || `event-${index}`}
+                              className="rounded-2xl overflow-hidden flex flex-col"
+                              style={{
+                                height: '280px',
+                                backgroundColor: isDark ? "#212426" : "#ffffff",
+                                boxShadow: isDark 
+                                  ? '-2px -2px 10px 0px #63636336, 5px 6px 9px 0px #00000075'
+                                  : '-2px -2px 10px 0px #E0E0E0, 5px 6px 9px 0px #00000033',
+                              }}
+                            >
+                              {/* Event Image */}
+                              <div className="p-2">
+                                <img
+                                  src={
+                                    event.event_banner ||
+                                    event.event_logo ||
+                                    event.event_image ||
+                                    "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
+                                  }
+                                  alt={event.event_name || "Event"}
+                                  className="rounded-xl w-full object-cover"
+                                  style={{ height: '120px' }}
+                                  onError={(e) => {
+                                    e.target.src =
+                                      "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
+                                  }}
+                                />
+                              </div>
 
-            {/* Event Info */}
-            <div
-              className="flex flex-col flex-1 p-2 justify-between cursor-pointer"
-              onClick={() => handleViewEvent(event._id)}
-            >
-              <div className="text-center mb-2">
-                <h3 className={`font-bold text-sm ${theme.text} line-clamp-1`}>
-                  {event.event_name || "Event"}
-                </h3>
-                <p className={`text-xs ${theme.subText} mt-1 line-clamp-1`}>
-                  {event.event_category || "Event Type"}
-                </p>
-              </div>
+                              {/* Event Info */}
+                              <div
+                                className="flex flex-col flex-1 p-2 justify-between cursor-pointer"
+                                onClick={() => handleViewEvent(event._id)}
+                              >
+                                <div className="text-center mb-2">
+                                  <h3 className={`font-bold text-sm ${theme.text} line-clamp-1`}>
+                                    {event.event_name || "Event"}
+                                  </h3>
+                                  <p className={`text-xs ${theme.subText} mt-1 line-clamp-1`}>
+                                    {event.event_category || "Event Type"}
+                                  </p>
+                                </div>
 
-              {/* Stats */}
-              <div className="flex justify-center items-center gap-3 text-xs mb-2">
-                <div className="flex flex-col items-center">
-                  <img
-                    src={LikeIcon}
-                    alt="Likes"
-                    className={`w-3 h-3 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
-                  />
-                  <span className={theme.subText}>
-                    {event.likes || event.likesCount || "0"}
-                  </span>
-                </div>
+                                {/* Stats */}
+                                <div className="flex justify-center items-center gap-3 text-xs mb-2">
+                                  <div className="flex flex-col items-center">
+                                    <img
+                                      src={LikeIcon}
+                                      alt="Likes"
+                                      className={`w-3 h-3 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
+                                    />
+                                    <span className={theme.subText}>
+                                      {event.likes || event.likesCount || "0"}
+                                    </span>
+                                  </div>
 
-                <div className="flex flex-col items-center">
-                  <img
-                    src={TicketIcon}
-                    alt="Tickets"
-                    className={`w-3 h-3 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
-                  />
-                  <span className={theme.subText}>
-                    {event.ticketsSold ||
-                      event.registrations ||
-                      event.attendeesCount ||
-                      event.ticket_count ||
-                      event.ticketCount ||
-                      "0"}
-                  </span>
-                </div>
+                                  <div className="flex flex-col items-center">
+                                    <img
+                                      src={TicketIcon}
+                                      alt="Tickets"
+                                      className={`w-3 h-3 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
+                                    />
+                                    <span className={theme.subText}>
+                                      {event.ticketsSold ||
+                                        event.registrations ||
+                                        event.attendeesCount ||
+                                        event.ticket_count ||
+                                        event.ticketCount ||
+                                        "0"}
+                                    </span>
+                                  </div>
 
-                <div className="flex flex-col items-center">
-                  <img
-                    src={SendIcon}
-                    alt="Shares"
-                    className={`w-3 h-3 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
-                  />
-                  <span className={theme.subText}>
-                    {event.shares || event.sharesCount || "0"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )}
-</div>
+                                  <div className="flex flex-col items-center">
+                                    <img
+                                      src={SendIcon}
+                                      alt="Shares"
+                                      className={`w-3 h-3 mb-1 ${!isDark ? "filter brightness-0" : ""}`}
+                                    />
+                                    <span className={theme.subText}>
+                                      {event.shares || event.sharesCount || "0"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </div>
