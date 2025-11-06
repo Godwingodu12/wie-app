@@ -1,3 +1,85 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  /* Primary Colors */
+  --color-primary: #5E5CE6;
+  --color-secondary: #3B82F6;
+  
+  /* Background Colors - Light Mode */
+  --color-bg-main: #F1F1F1;
+  --color-bg-card: #F1F1F1;
+  --color-bg-dark: #212426;
+  --color-bg-light: #F1F1F1;
+  
+  /* Text Colors */
+  --color-text-primary: #1F2937;
+  --color-text-secondary: #6B7280;
+  --color-text-dark: #1F2937;
+  --color-text-gray: #9CA3AF;
+  --color-text-white: #FFFFFF;
+  
+  /* Custom White variants */
+  --color-white: #FFFFFF;
+  --color-white-soft: #F9FAFB;
+  --color-white-transparent: rgba(255, 255, 255, 0.9);
+  
+  /* Status Colors */
+  --color-success: #10B981;
+  --color-error: #EF4444;
+  --color-warning: #F59E0B;
+  --color-info: #3B82F6;
+  
+  /* Shadow Colors */
+  --shadow-dark: #00000029;
+  --shadow-light: #FFFFFF14;
+}
+
+/* Dark mode overrides */
+.dark {
+  /* Background Colors - Dark Mode */
+  --color-bg-main: #212426;
+  --color-bg-card: #212426;
+  --color-bg-light: #2A2D30;
+  
+  /* Text Colors - Dark Mode */
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #E5E5E5;
+  --color-text-dark: #E5E5E5;
+  --color-text-gray: #9CA3AF;
+}
+
+/* Apply global styles */
+* {
+  font-family: 'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+}
+
+body {
+  font-family: 'Urbanist', sans-serif;
+  background-color: var(--color-bg-main);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
+}
+
+/* Utility classes for consistent usage */
+.bg-main {
+  background-color: var(--color-bg-main);
+}
+
+.bg-card {
+  background-color: var(--color-bg-card);
+}
+
+.text-primary {
+  color: var(--color-text-primary);
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
+}
