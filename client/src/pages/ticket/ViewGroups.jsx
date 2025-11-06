@@ -18,6 +18,8 @@ import {
   getMyLiveEvents,
   getMyEvents,
 } from "../../services/ticketService";
+import { groupEventCount } from "../../services/ticketService";
+import { getImageUrl } from "../../utils/imageUtils";
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
@@ -147,7 +149,7 @@ function MonthSelector({
   return (
     <div
       className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
-        isDark,
+        isDark
       )} p-1 flex flex-col gap-1 w-24 shadow-lg absolute z-20 top-full left-0 mt-2`}
     >
       {months.map((monthName, index) => (
@@ -174,13 +176,13 @@ function YearSelector({ currentYear, onSelectYear, onClose, isDark, theme }) {
   const currentFullYear = new Date().getFullYear(); // Generates a range of years, e.g., 10 years before and 10 years after current year
   const years = Array.from(
     { length: 21 },
-    (_, i) => currentFullYear - 10 + i,
+    (_, i) => currentFullYear - 10 + i
   ).sort((a, b) => b - a); // Sort descending to show newest first
 
   return (
     <div
       className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
-        isDark,
+        isDark
       )} p-1 flex flex-col gap-1 w-24 shadow-lg max-h-[13.5rem] overflow-y-auto absolute z-20 top-full right-0 mt-2`}
     >
       {years.map((yearNum) => (
@@ -393,18 +395,18 @@ const CustomScrollbarStyles = ({ isDark }) => (
         }
     `}</style>
 );
-const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [] }) => {
+const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [], onViewClick, onAddClick }) => {
   const currentGroupStats = statsData.find((stat) => stat.label === card.name);
   const statPercentage = currentGroupStats?.percentage || card.progress || 50;
   const statColor = currentGroupStats?.color || "bg-cyan-400";
   const cardBgColor = isDark ? "#212426" : "#F1F1F1";
 
-  // ✅ Wider card (slightly expanded width)
-  const cardWidth = 212.23; // ⬆️ previously 192.23px
+  // Define original dimensions for viewBox and path calculations
+  const cardWidth = 212.23;
   const cardHeight = 295;
 
-  // ✅ Keep the same curve centered — adjusted X coordinates proportionally
- const cardPath = `
+  // The SVG path is based on the original card dimensions
+  const cardPath = `
   M 30 0
   L 66.33 0
   Q 76 0 83.42 10
@@ -423,19 +425,18 @@ const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [] }) => {
 `;
   return (
     <div
-      className="relative"
+      className="relative w-full"
       style={{
-        width: `${cardWidth}px`,
-        height: `${cardHeight}px`,
-        margin: "0 14px",
+        aspectRatio: `${cardWidth} / ${cardHeight}`,
         overflow: "hidden",
         marginTop: "23px",
         flexShrink: 0,
       }}
+      onClick={() => !isAddCard && onViewClick && onViewClick(card)}
     >
       <svg
-        width={cardWidth}
-        height={cardHeight}
+        width="100%"
+        height="100%"
         viewBox={`0 0 ${cardWidth} ${cardHeight}`}
         className="absolute inset-0"
         style={{
@@ -464,7 +465,7 @@ const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [] }) => {
       {/* ✅ Inner content stays the same */}
       <div className="relative w-full h-full flex flex-col items-center text-center">
         {isAddCard ? (
-          <div className="w-full h-full flex flex-col justify-center items-center group cursor-pointer px-4">
+        <div onClick={onAddClick} className="w-full h-full flex flex-col justify-center items-center group cursor-pointer px-4">
             <div className="w-14 h-14 rounded-full bg-gray-800 flex items-center justify-center border-4 border-[#2D3436] transition-transform duration-300 group-hover:scale-110">
               <Plus
                 className={`w-7 h-7 ${
@@ -484,7 +485,19 @@ const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [] }) => {
           <div className="w-full h-full flex flex-col px-5 pt-14 pb-3">
             <div className="text-center mb-2">
               <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center flex-shrink-0 mx-auto">
-                <span className="text-xs text-white">logo</span>
+                {card.company_logo ? (
+                  <img 
+                    src={getImageUrl(card.company_logo)} 
+                    alt={card.name} 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkxvZ288L3RleHQ+PC9zdmc+';
+                    }}
+                  />
+                ) : (
+                  <span className="text-xs text-white">Logo</span>
+                )}
               </div>
               <div className="mt-1">
                 <h3
@@ -503,7 +516,6 @@ const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [] }) => {
                 </p>
               </div>
             </div>
-
             <div className="flex-grow flex flex-col justify-center items-center w-full min-h-0">
               <div className="w-3/4 flex items-center gap-1.5 mb-2">
                 <div
@@ -524,10 +536,15 @@ const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [] }) => {
                   {statPercentage}%
                 </span>
               </div>
-
-              <button className="py-0.5 px-6 rounded-full font-semibold text-[10px] bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 transition-all">
-                View
-              </button>
+            <button 
+              className="py-0.5 px-6 rounded-full font-semibold text-[10px] bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 transition-all"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewClick && onViewClick(card);
+              }}
+            >
+              View
+            </button>
             </div>
 
             <div
@@ -564,10 +581,183 @@ const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [] }) => {
     </div>
   );
 };
+const GroupViewModal = ({ isOpen, onClose, group, isDark, theme, onUpdate }) => {
+  if (!isOpen || !group) return null;
+  const totalEvents = group.totalEvents !== undefined ? group.totalEvents : (group.events || 0);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div
+        className={`relative ${theme.bg} rounded-[30px] md:rounded-[50px] shadow-2xl w-full md:w-[867px] h-auto`}
+        style={{
+          paddingBottom: "40px", // space for bottom buttons
+        }}
+      >
+        {/* Header */}
+          <div className="px-6 md:px-[103px] pt-6 md:pt-[34px]">
+          <h2
+            className={`${theme.text} font-semibold text-[32px] leading-[100%]`}
+            style={{ fontFamily: 'Inter' }}
+          >
+            Group Details
+          </h2>
+        </div>
+
+        {/* Divider Line */}
+        <div
+          className="mx-[2px] mt-[25px]"
+          style={{
+            height: '1px',
+            background: 'linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #FFFFFF 50.73%, rgba(255, 255, 255, 0) 100%)',
+          }}
+        />
+
+        {/* Content Container */}
+        <div className="flex flex-col md:flex-row gap-6 md:gap-[34px] px-6 md:px-[51px] pt-6 md:pt-[49px]">
+          {/* Left Card - Group Info */}
+          <div
+            className={`${theme.bg} rounded-[30px] md:rounded-[40px] p-6 md:p-8 flex flex-col items-center justify-center w-full md:w-[298px]`}
+            style={{
+              minHeight: '250px',
+              boxShadow: '8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A',
+            }}
+          >
+            <div className="w-20 h-20 rounded-full bg-black flex items-center justify-center mb-4 overflow-hidden">
+              {group.company_logo ? (
+                <img 
+                  src={getImageUrl(group.company_logo)} 
+                  alt="Logo" 
+                  className="w-full h-full rounded-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.style.display = 'none';
+                    e.target.parentElement.innerHTML = '<span class="text-white text-sm">Logo</span>';
+                  }}
+                />
+              ) : (
+                <span className="text-white text-sm">Logo</span>
+              )}
+            </div>
+            <h3 className={`${theme.text} font-semibold text-xl mb-2 text-center`}>
+              {group.name}
+            </h3>
+            <p className={`${theme.subText} text-sm capitalize`}>
+              {group.grp_type === 'organisation' ? group.organisation_type : group.grp_type}
+            </p>
+          </div>
+
+          {/* Right Card - Bank Details */}
+<div
+  className={`${theme.bg} flex flex-col`}
+  style={{
+    width: "360px",               // reduced from 439px
+    height: "auto",               // let height adjust naturally
+    borderRadius: "40px",         // slightly reduced corner radius
+    boxShadow: isDark
+      ? "6px 6px 10px 0px #00000029, -6px -6px 10px 0px #FFFFFF0A"
+      : "6px 6px 10px 0px #00000014, -6px -6px 10px 0px #FFFFFF33",
+    padding: "24px",              // reduced padding
+  }}
+>
+  <h3
+    className={`${theme.text} font-medium text-base mb-4`}
+    style={{ fontFamily: "Inter" }}
+  >
+    Bank Details:
+  </h3>
+
+  {/* Horizontal Bank Detail Rows */}
+  <div className="space-y-3">
+    {/* Account Type */}
+    <div className="flex items-center justify-between w-full">
+      <p className={`${theme.subText} text-sm`}>Account Type</p>
+      <p className={`${theme.text} font-medium`}>
+        {group.primary_bank_acc_type?.toUpperCase() || "N/A"}
+      </p>
+    </div>
+
+    {/* Account Holder */}
+    <div className="flex items-center justify-between w-full">
+      <p className={`${theme.subText} text-sm`}>Account Holder</p>
+      <p className={`${theme.text} font-medium`}>
+        {group.primary_bank_acc_holder || "N/A"}
+      </p>
+    </div>
+
+    {/* Account Number */}
+    <div className="flex items-center justify-between w-full">
+      <p className={`${theme.subText} text-sm`}>Account Number</p>
+      <p className={`${theme.text} font-medium`}>
+        {group.primary_bank_acc_no || "N/A"}
+      </p>
+    </div>
+
+    {/* IFSC Code */}
+    <div className="flex items-center justify-between w-full">
+      <p className={`${theme.subText} text-sm`}>IFSC Code</p>
+      <p className={`${theme.text} font-medium`}>
+        {group.primary_bank_ifsc || "N/A"}
+      </p>
+    </div>
+  </div>
+</div>
+        </div>
+        {/* Bottom Section */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-6 md:px-[51px] py-6 mt-6">
+        {/* Total Events Card */}
+        <div
+          className={`${theme.bg} rounded-2xl px-6 py-3 min-w-[150px]`}
+          style={{
+            boxShadow: isDark
+              ? "4px 4px 8px 0px #00000029, -4px -4px 8px 0px #FFFFFF0A"
+              : "4px 4px 8px 0px #00000014, -4px -4px 8px 0px #FFFFFF",
+          }}
+        >
+          <p className={`${theme.subText} text-sm mb-1`}>Total Events</p>
+          <p className={`${theme.text} font-bold text-2xl`}>
+            {totalEvents !== undefined ? totalEvents : 0}
+          </p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-4">
+          <button
+            onClick={onClose}
+            className="px-[20px] py-[8px] rounded-[50px] font-normal text-[20px] text-white transition-all hover:opacity-90"
+            style={{
+              width: "178px",
+              height: "45px",
+              background: "#44444D",
+              border: "0.5px solid",
+              borderImage:
+                "linear-gradient(0deg, rgba(255, 255, 255, 0) -8.33%, rgba(255, 255, 255, 0.5) 183.33%)",
+              boxShadow:
+                "0px 0px 0px 1px #2B2D43, 0px 4px 6px 0px #00000024, 0px 9px 14px -5px #FFFFFF4D inset",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onUpdate}
+            className="px-[20px] py-[8px] rounded-[50px] font-normal text-[20px] text-white transition-all hover:opacity-90"
+            style={{
+              width: "178px",
+              height: "45px",
+              background: "#5E5CE6",
+              boxShadow: "0px 4px 6px 0px #00000024",
+            }}
+          >
+            Update
+          </button>
+        </div>
+
+      </div>
+      </div>
+    </div>
+  );
+};
 const ViewGroups = () => {
   const { user } = useSelector((state) => state.auth);
   const navigate = useNavigate();
-
   const [isDark, setIsDark] = useState(true);
   const [createdGroups, setCreatedGroups] = useState([]);
   const [showAddGroupCard, setShowAddGroupCard] = useState(false);
@@ -581,7 +771,8 @@ const ViewGroups = () => {
   const [events, setEvents] = useState([]);
   const [groups, setGroups] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
-
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [isGroupViewModalOpen, setIsGroupViewModalOpen] = useState(false);
   const [showMonthSelector, setShowMonthSelector] = useState(false);
   const [showYearSelector, setShowYearSelector] = useState(false);
 
@@ -591,29 +782,64 @@ const ViewGroups = () => {
     let filtered = events.filter((e) => e.event_status === "live");
 
     if (selectedDate) {
-        filtered = filtered.filter((event) => {
-            if (!event?.event_dates?.[0]?.start_date) return false;
-            
-            const eventStartDate = new Date(event.event_dates[0].start_date);
-            const selectedDateOnly = new Date(
-                selectedDate.getFullYear(),
-                selectedDate.getMonth(),
-                selectedDate.getDate()
-            );
-            const eventDateOnly = new Date(
-                eventStartDate.getFullYear(),
-                eventStartDate.getMonth(),
-                eventStartDate.getDate()
-            );
-            
-            return eventDateOnly.getTime() === selectedDateOnly.getTime();
-        });
+      filtered = filtered.filter((event) => {
+        if (!event?.event_dates?.[0]?.start_date) return false;
+
+        const eventStartDate = new Date(event.event_dates[0].start_date);
+        const selectedDateOnly = new Date(
+          selectedDate.getFullYear(),
+          selectedDate.getMonth(),
+          selectedDate.getDate()
+        );
+        const eventDateOnly = new Date(
+          eventStartDate.getFullYear(),
+          eventStartDate.getMonth(),
+          eventStartDate.getDate()
+        );
+
+        return eventDateOnly.getTime() === selectedDateOnly.getTime();
+      });
     }
     return filtered;
   }, [events, selectedDate]);
-
+  const handleCreateGroupClick = () => {
+    navigate("/ticket/create-group");
+  };
   const confirmedEventsCount = events.length;
   const totalLiveEvents = liveEvents.length;
+const handleGroupViewClick = async (card) => {
+  try {
+    setLoading(true);
+    
+    // Fetch full group details
+    const groupsData = await getGroups();
+    const fullGroup = groupsData.find(g => g._id === card.id);
+    
+    if (fullGroup) {
+      // Count events from the local events state
+      const groupEvents = events.filter(event => {
+        // Check different possible property names for groupId
+        return event.groupId === fullGroup._id || 
+               event.group_id === fullGroup._id || 
+               event.group?._id === fullGroup._id;
+      });
+      
+      fullGroup.totalEvents = groupEvents.length;      
+      setSelectedGroup(fullGroup);
+      setIsGroupViewModalOpen(true);
+    }
+  } catch (error) {
+    console.error('Error fetching group details:', error);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleUpdateGroup = () => {
+  if (selectedGroup) {
+    navigate(`/ticket/edit-group/${selectedGroup._id}`);
+  }
+};
   useEffect(() => {
     const timer = setTimeout(() => {
       if (sliderRef.current) {
@@ -638,68 +864,49 @@ const ViewGroups = () => {
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
+      "(prefers-color-scheme: dark)"
     ).matches;
     const shouldBeDark = savedTheme ? savedTheme === "dark" : systemPrefersDark;
     setIsDark(shouldBeDark);
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [eventsRes, groupsRes, liveEventsRes, groupStatsRes] =
-          await Promise.all([
-            getMyEvents(),
-            getGroups(),
-            getMyLiveEvents(),
-            getGroupStatistics(),
-          ]);
-        const eventsArray = eventsRes?.tickets
-          ? [].concat(eventsRes.tickets)
-          : [];
-        setEvents(eventsArray);
-
-        const groupsArray = Array.isArray(groupsRes) ? groupsRes : [];
-        setGroups(groupsArray);
-
-        if (Array.isArray(groupStatsRes)) {
-          const processedStats = groupStatsRes.map((stat, index) => {
-            const colors = [
-              { name: "green-500", stroke: "#22c55e" },
-              { name: "blue-500", stroke: "#3b82f6" },
-              { name: "yellow-500", stroke: "#eab308" },
-              { name: "red-500", stroke: "#ef4444" },
-              { name: "purple-500", stroke: "#8b5cf6" },
-            ];
-            const color = colors[index % colors.length];
-
-            return {
-              label: stat.groupName || `Group ${index + 1}`,
-              percentage: Math.round(stat.percentage || 0),
-              color: `bg-${color.name}`,
-              strokeColor: color.stroke,
-              isPrimary: index === 0,
-            };
-          });
-          setGroupStats(processedStats);
-        }
-      } catch (e) {
-        console.error("Error fetching data:", e);
-        setEvents([]);
-        setGroups([]);
-        setTotalLiveEvents(0);
-        setGroupStats([]);
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      const [eventsRes, groupsRes, liveEventsRes, groupStatsRes] =
+        await Promise.all([
+          getMyEvents(),
+          getGroups(),
+          getMyLiveEvents(),
+          getGroupStatistics(),
+        ]);
+      // Properly handle events array
+      let eventsArray = [];
+      if (Array.isArray(eventsRes)) {
+        eventsArray = eventsRes;
+      } else if (eventsRes?.tickets) {
+        eventsArray = Array.isArray(eventsRes.tickets) ? eventsRes.tickets : [eventsRes.tickets];
+      } else if (eventsRes?.data) {
+        eventsArray = Array.isArray(eventsRes.data) ? eventsRes.data : [eventsRes.data];
       }
-    };
+      setEvents(eventsArray);
+      const groupsArray = Array.isArray(groupsRes) ? groupsRes : [];
+      setGroups(groupsArray);
+      // ... rest of the code
+    } catch (e) {
+      console.error("Error fetching data:", e);
+      setEvents([]);
+      setGroups([]);
+    }
+  };
 
-    fetchData();
-  }, []);
-
+  fetchData();
+}, []);
   useEffect(() => {
     if (events.length > 0 && groups.length > 0) {
       const stats = groups.map((group) => {
         const groupEvents = events.filter(
-          (event) => event.groupId === group._id,
+          (event) => event.groupId === group._id
         );
         const percentage =
           events.length > 0 ? (groupEvents.length / events.length) * 100 : 0;
@@ -748,53 +955,75 @@ const ViewGroups = () => {
   };
 
   useEffect(() => {
-    const fetchAndProcessGroups = async () => {
-      try {
-        setLoading(true);
-        const data = await getUserGroupCapabilities();
-        const { userGroups = [], userRole } = data;
-        const formattedGroups = userGroups.map((group) => ({
-          id: group._id,
-          name: group.name,
-          type: group.grp_type
-            ? group.grp_type.charAt(0).toUpperCase() + group.grp_type.slice(1)
-            : "General",
-          progress: group.progress || 50,
-          likes: group.likes || "0",
-          comments: group.comments || "0",
-          shares: group.shares || 0,
-          events: group.events || 0,
-        }));
-        setCreatedGroups(formattedGroups);
-
-        const groupCounts = formattedGroups.reduce(
-          (acc, group) => {
-            const type = group.type.toLowerCase();
-            acc[type] = (acc[type] || 0) + 1;
-            return acc;
-          },
-          { organisation: 0, admin: 0 },
-        );
-        let shouldShowAddCard = false;
-        if (userRole === "admin") {
-          if (groupCounts.organisation < 1 || groupCounts.admin < 1)
-            shouldShowAddCard = true;
-        } else if (userRole === "organisation") {
-          if (groupCounts.organisation < 6) shouldShowAddCard = true;
-        }
-
-        if (formattedGroups.length === 0) {
-          shouldShowAddCard = true;
-        }
-
-        setShowAddGroupCard(shouldShowAddCard);
-        setError("");
-      } catch (err) {
-        setError("Failed to fetch your groups. Please try again later.");
-      } finally {
-        setLoading(false);
+const fetchAndProcessGroups = async () => {
+  try {
+    setLoading(true);
+    const data = await getUserGroupCapabilities();
+    const { userGroups = [], userRole } = data;
+    
+    // Fetch group statistics
+    let groupStatsMap = {};
+    try {
+      const statsResponse = await getGroupStatistics();
+      if (Array.isArray(statsResponse)) {
+        groupStatsMap = statsResponse.reduce((acc, stat) => {
+          acc[stat.groupName] = stat.percentage || 0;
+          return acc;
+        }, {});
       }
-    };
+    } catch (error) {
+      console.error('Error fetching group statistics:', error);
+    }
+
+    const formattedGroups = userGroups.map((group) => {
+      const statPercentage = groupStatsMap[group.name] || 0;
+      
+      return {
+        id: group._id,
+        name: group.name,
+        type: group.grp_type
+          ? group.grp_type.charAt(0).toUpperCase() + group.grp_type.slice(1)
+          : "General",
+        progress: Math.round(statPercentage),
+        likes: group.likes || "0",
+        comments: group.comments || "0",
+        shares: group.shares || 0,
+        events: group.events || 0,
+        company_logo: group.company_logo || null,
+      };
+    });
+    
+    setCreatedGroups(formattedGroups);
+
+    const groupCounts = formattedGroups.reduce(
+      (acc, group) => {
+        const type = group.type.toLowerCase();
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      },
+      { organisation: 0, admin: 0 }
+    );
+    
+    let shouldShowAddCard = false;
+    if (userRole === "admin") {
+      if (groupCounts.organisation < 1 || groupCounts.admin < 1)
+        shouldShowAddCard = true;
+    } else if (userRole === "organisation") {
+      if (groupCounts.organisation < 6) shouldShowAddCard = true;
+    }
+
+    if (formattedGroups.length === 0) {
+      shouldShowAddCard = true;
+    }
+
+    setShowAddGroupCard(shouldShowAddCard);
+    setError("");
+  } catch (err) {
+    setError("Failed to fetch your groups. Please try again later.");
+  } finally {
+    setLoading(false);
+  }
+};
     fetchAndProcessGroups();
   }, []);
 
@@ -809,7 +1038,7 @@ const ViewGroups = () => {
     dots: true,
     infinite: false,
     speed: 500,
-    slidesToShow: 4,
+    slidesToShow: 5,
     slidesToScroll: 1,
     arrows: true,
     nextArrow: <CustomNextArrow isDark={isDark} />,
@@ -822,21 +1051,21 @@ const ViewGroups = () => {
       {
         breakpoint: 1280,
         settings: {
-          slidesToShow: 3,
+          slidesToShow: 4,
           slidesToScroll: 1,
         },
       },
       {
         breakpoint: 1024,
         settings: {
-          slidesToShow: 2,
+          slidesToShow: 3,
           slidesToScroll: 1,
         },
       },
       {
         breakpoint: 640,
         settings: {
-          slidesToShow: 1.5,
+          slidesToShow: 2,
           slidesToScroll: 1,
         },
       },
@@ -963,7 +1192,7 @@ const ViewGroups = () => {
     orange: { bg: "bg-orange-500/10", text: "text-orange-500" },
     blue: { bg: "bg-blue-500/10", text: "text-blue-500" },
     green: { bg: "bg-green-500/10", text: "text-green-500" },
-    red: { bg: "bg-red-500/10", text: "text-red-500"}
+    red: { bg: "bg-red-500/10", text: "text-red-500" },
   };
   const monthNames = [
     "January",
@@ -1033,7 +1262,10 @@ const ViewGroups = () => {
   };
 
   const handleDateClick = (dayInfo) => {
-    if (selectedDate && dayInfo.fullDate.toDateString() === selectedDate.toDateString()) {
+    if (
+      selectedDate &&
+      dayInfo.fullDate.toDateString() === selectedDate.toDateString()
+    ) {
       setSelectedDate(null);
     } else {
       setSelectedDate(dayInfo.fullDate);
@@ -1136,46 +1368,45 @@ const ViewGroups = () => {
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
               <div className="lg:col-span-3 flex flex-col gap-6">
                 {/* UPDATED: Using the new combinedShadow style */}
-<div
-  style={{
-    ...combinedShadow,
-    paddingBottom: "1.5rem",
-    paddingTop: "1.5rem",
-    marginTop: "1.5rem",
-    marginBottom: "1.5rem",
-  }}
-  className={`relative ${theme.bg} rounded-3xl`}
->
-  {allCards.length > 0 ? (
-    <Slider
-      {...sliderSettings}
-      key={isDark ? "dark-key" : "light-key"}
-    >
-      {allCards.map((card) => (
-        <div
-          key={card.id === "add-new-group" ? "add-card" : card.id}
-          className="px-2 py-4 flex justify-center"
-        >
-          <div
-            style={{
-              transform: "translateY(-10px)", // 👈 lifts only the card higher
-              transition: "transform 0.3s ease",
-            }}
-          >
-            <SvgGroupCard
-              isAddCard={card.id === "add-new-group"}
-              card={card}
-              isDark={isDark}
-              statsData={groupStats}
-            />
-          </div>
-        </div>
-      ))}
-    </Slider>
-  ) : (
-    <div className="h-[280px]"></div>
-  )}
-</div>
+                <div
+                  style={{
+                    ...combinedShadow,
+                    paddingBottom: "1.5rem",
+                    paddingTop: "1.5rem",
+                    marginTop: "1.5rem",
+                    marginBottom: "1.5rem",
+                  }}
+                  className={`relative ${theme.bg} rounded-3xl`}
+                >
+                  {allCards.length > 0 ? (
+                  <Slider {...sliderSettings} key={isDark ? "dark-key" : "light-key"}>
+                    {allCards.map((card) => (
+                      <div
+                        key={card.id === "add-new-group" ? "add-card" : card.id}
+                        className="px-3 py-4 flex justify-center"
+                      >
+                        <div
+                          style={{
+                            transform: "translateY(-10px)",
+                            transition: "transform 0.3s ease",
+                          }}
+                        >
+                          <SvgGroupCard
+                            isAddCard={card.id === "add-new-group"}
+                            card={card}
+                            isDark={isDark}
+                            statsData={groupStats}
+                            onViewClick={handleGroupViewClick}
+                            onAddClick={handleCreateGroupClick}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </Slider>
+                  ) : (
+                    <div className="h-[280px]"></div>
+                  )}
+                </div>
 
                 {/* UPDATED: Using the new combinedShadow style */}
                 <div
@@ -1208,7 +1439,7 @@ const ViewGroups = () => {
                   {totalLiveEvents > 0 ? (
                     <div
                       className="pt-2 pb-8 relative"
-                      style={{ margin: "0 20px" }}
+                      style={{ margin: "0 0px" }}
                     >
                       {/* Added margin for arrow space */}
                       <Slider
@@ -1217,7 +1448,7 @@ const ViewGroups = () => {
                         key={`live-events-${liveEvents.length}`}
                       >
                         {liveEvents.map((event) => (
-                          <div key={event._id} className="px-3">
+                          <div key={event._id} className="px-1">
                             <LiveEventCarouselCard
                               event={event}
                               outerShadow={outerShadow}
@@ -1242,7 +1473,9 @@ const ViewGroups = () => {
                           No Live Event
                         </h3>
                         <p className={`text-sm ${theme.subText}`}>
-                          {selectedDate ? "No live events on this date." : "There are no current live events."}
+                          {selectedDate
+                            ? "No live events on this date."
+                            : "There are no current live events."}
                         </p>
                       </div>
                     </div>
@@ -1272,30 +1505,32 @@ const ViewGroups = () => {
                         className={`${theme.bg} rounded-2xl p-4  xl:col-span-4`}
                       >
                         {selectedDate && (
-                            <div className="flex items-center justify-between mb-4 px-2">
-                                <div className="flex items-center gap-2">
-                                    <span className={`text-sm ${theme.subText}`}>
-                                    Events for:
-                                    </span>
-                                    <span className={`text-sm font-semibold ${theme.text}`}>
-                                    {selectedDate.toLocaleDateString("en-GB", {
-                                        day: "2-digit",
-                                        month: "short",
-                                        year: "numeric",
-                                    })}
-                                    </span>
-                                </div>
-                                <button
-                                    onClick={() => setSelectedDate(null)}
-                                    className={`text-xs font-bold px-4 py-1.5 rounded-full transition-colors ${
-                                    isDark
-                                        ? "bg-blue-600 hover:bg-blue-500 text-white"
-                                        : "bg-blue-500 hover:bg-blue-600 text-white"
-                                    }`}
-                                >
-                                    Clear filter
-                                </button>
+                          <div className="flex items-center justify-between mb-4 px-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm ${theme.subText}`}>
+                                Events for:
+                              </span>
+                              <span
+                                className={`text-sm font-semibold ${theme.text}`}
+                              >
+                                {selectedDate.toLocaleDateString("en-GB", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </span>
                             </div>
+                            <button
+                              onClick={() => setSelectedDate(null)}
+                              className={`text-xs font-bold px-4 py-1.5 rounded-full transition-colors ${
+                                isDark
+                                  ? "bg-blue-600 hover:bg-blue-500 text-white"
+                                  : "bg-blue-500 hover:bg-blue-600 text-white"
+                              }`}
+                            >
+                              Clear filter
+                            </button>
+                          </div>
                         )}
                         <div className="flex justify-between items-center mb-2 md:mb-8 py-4">
                           <button
@@ -1315,7 +1550,7 @@ const ViewGroups = () => {
                                 className={`flex items-center px-3 py-1.5 rounded-full font-semibold text-sm ${
                                   theme.text
                                 } ${theme.cardBg} ${getButtonNeumorphicShadows(
-                                  isDark,
+                                  isDark
                                 )}`}
                               >
                                 {monthNames[month]}
@@ -1343,7 +1578,7 @@ const ViewGroups = () => {
                                 className={`flex items-center px-3 py-1.5 rounded-full font-semibold text-sm ${
                                   theme.text
                                 } ${theme.cardBg} ${getButtonNeumorphicShadows(
-                                  isDark,
+                                  isDark
                                 )}`}
                               >
                                 {year}
@@ -1377,40 +1612,47 @@ const ViewGroups = () => {
                         <div className="grid grid-cols-7 text-center text-sm">
                           {generateCalendarDates.map((dayInfo, index) => {
                             const isSelected =
-                            selectedDate &&
-                            dayInfo.fullDate.toDateString() === selectedDate.toDateString();
+                              selectedDate &&
+                              dayInfo.fullDate.toDateString() ===
+                                selectedDate.toDateString();
                             const isToday = dayInfo.isToday;
                             const isCurrentMonth = dayInfo.isCurrentMonth;
 
-                            let textColorClass = isCurrentMonth ? theme.text : theme.subText;
+                            let textColorClass = isCurrentMonth
+                              ? theme.text
+                              : theme.subText;
                             let otherClasses = "cursor-pointer";
                             let fontClass = "";
                             let ringClass = "";
                             let bgColorClass = "";
 
                             if (isSelected) {
-                                textColorClass = isDark ? "text-purple-400" : "text-purple-600";
-                                ringClass = isDark
+                              textColorClass = isDark
+                                ? "text-purple-400"
+                                : "text-purple-600";
+                              ringClass = isDark
                                 ? "ring-2 ring-purple-400"
                                 : "ring-2 ring-purple-600";
-                                fontClass = "font-bold";
-                                bgColorClass = isDark ? "bg-gray-700" : "bg-white";
+                              fontClass = "font-bold";
+                              bgColorClass = isDark
+                                ? "bg-gray-700"
+                                : "bg-white";
                             } else if (isToday) {
-                                bgColorClass = "bg-[#6549B8]";
-                                textColorClass = "text-white";
-                                fontClass = "font-bold";
+                              bgColorClass = "bg-[#6549B8]";
+                              textColorClass = "text-white";
+                              fontClass = "font-bold";
                             }
 
                             return (
-                            <div
+                              <div
                                 key={index}
                                 className={`flex items-center justify-center h-8 w-8 md:h-9 md:w-9 mx-auto rounded-full text-xs md:text-sm transition-colors duration-200 ${bgColorClass} ${textColorClass} ${fontClass} ${ringClass} ${otherClasses}`}
                                 onClick={() => handleDateClick(dayInfo)}
-                            >
+                              >
                                 {dayInfo.date}
-                            </div>
+                              </div>
                             );
-                        })}
+                          })}
                         </div>
                       </div>
 
@@ -1452,6 +1694,17 @@ const ViewGroups = () => {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           onSelectGroup={handleSelectGroupForEvent}
+        />
+        <GroupViewModal
+          isOpen={isGroupViewModalOpen}
+          onClose={() => {
+            setIsGroupViewModalOpen(false);
+            setSelectedGroup(null);
+          }}
+          group={selectedGroup}
+          isDark={isDark}
+          theme={theme}
+          onUpdate={handleUpdateGroup}
         />
       </div>
     </>

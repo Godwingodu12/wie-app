@@ -10,7 +10,7 @@ import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import Alert from "../../components/CreateGroup/Alert";
 import TcIcon from "../../assets/Event/T&cIcon.svg?react";
-import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
+import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
 
 const getInitialTheme = () => {
   const savedTheme = localStorage.getItem("theme");
@@ -132,8 +132,10 @@ const EventTermsAndConditionsPage = () => {
 
   const handlePreview = useCallback(() => {
     // Opens the preview page in a new tab
-    navigate(`/ticket/ticket-preview/${ticketId}`);
-  }, [ticketId]);
+    navigate(`/ticket/ticket-preview/${ticketId}`, {
+      state: { isDark: darkMode },
+    });
+  }, [ticketId, darkMode, navigate]);
 
   const handleHostEvent = async (event) => {
     event.preventDefault();
@@ -209,7 +211,7 @@ const EventTermsAndConditionsPage = () => {
 
   return (
     <div className={darkMode ? "dark" : ""}>
-      <CustomScrollbarStyles isDark={darkMode} />
+      <ScrollBarStyle isDark={darkMode} />
       <Alert alert={alert} onClose={hideAlert} />
       <div className="bg-white dark:bg-[#111111] text-gray-800 dark:text-white min-h-screen flex flex-col md:flex-row">
         <EventSidebar

@@ -1,25 +1,19 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { updateTicketMedia, getTicketById } from "../../services/ticketService";
 import { getMe } from "../../services/userService";
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
-import Alert from "../../components/CreateGroup/Alert"; // Import the Alert component
+import Alert from "../../components/CreateGroup/Alert";
 
 import MediaIcon from "../../assets/Event/MediaIcon.svg?react";
 import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
 import FileInput from "../../components/CreateGroup/FileInput.jsx";
 import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
-
-const getInitialTheme = () => {
-  const savedTheme = localStorage.getItem("theme");
-  if (savedTheme) {
-    return savedTheme === "dark";
-  }
-
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-};
+// IMPORT the necessary utility function
+import { getTicketImageUrl } from "../../utils/imageUtils"; // Assuming imageUtils path
+import getInitialTheme from "../../components/CreateGroup/getIntialTheme.jsx";
 
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
@@ -35,7 +29,6 @@ const base64ToFile = (base64, filename) => {
   if (!mimeMatch) return null;
   const mime = mimeMatch[1];
 
-  // Map MIME types to extensions
   const mimeToExtension = {
     "image/jpeg": ".jpg",
     "image/jpg": ".jpg",
@@ -54,7 +47,6 @@ const base64ToFile = (base64, filename) => {
       ".docx",
   };
 
-  // Add proper extension if missing
   const extension = mimeToExtension[mime] || "";
   const finalFilename = filename.includes(".")
     ? filename
@@ -73,6 +65,7 @@ const base64ToFile = (base64, filename) => {
 const UpdateTicketMedia = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useSelector((state) => state.auth);
   const showAlert = location.state?.showAlert;
   const [darkMode, setDarkMode] = useState(getInitialTheme());
@@ -98,16 +91,16 @@ const UpdateTicketMedia = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [isExtraEventsModalOpen, setIsExtraEventsModalOpen] = useState(false);
   const [ticketData, setTicketData] = useState(null);
-
-  const [alert, setAlert] = useState(null); // State for local alert management
+  const [userDetails, setUserDetails] = useState(null); // Added for consistency
+  const [alert, setAlert] = useState(null);
 
   const storageKey = `ticketMediaFormData_${ticketId}`;
 
   const displayAlert =
     showAlert || ((data) => setAlert({ ...data, show: true }));
   const hideAlert = () => setAlert(null);
+
   // Fetch user details to determine organization type
   const fetchUserDetails = async () => {
     try {
@@ -121,8 +114,6 @@ const UpdateTicketMedia = () => {
         setIsEducationalOrg(isEdu);
       }
     } catch (error) {
-      console.error("Failed to fetch user details:", error);
-      // Fallback to Redux state if API call fails
       if (
         user?.role === "organisation" &&
         user?.organisation_type?.toLowerCase() === "educational"
@@ -136,9 +127,9 @@ const UpdateTicketMedia = () => {
     localStorage.setItem("theme", darkMode ? "dark" : "light");
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
+
   useEffect(() => {
     if (!initialLoading) {
-      // Only save new uploads to session storage, not existing server data
       const dataToSave = {
         event_logo: previews.event_logo?.startsWith("data:")
           ? previews.event_logo
@@ -157,7 +148,6 @@ const UpdateTicketMedia = () => {
           ) || [],
       };
 
-      // Only save if there's actual new data
       const hasNewData =
         dataToSave.event_logo ||
         dataToSave.event_banner ||
@@ -173,33 +163,26 @@ const UpdateTicketMedia = () => {
               event_logo: dataToSave.event_logo,
               event_banner: dataToSave.event_banner,
               college_authorisation: dataToSave.college_authorisation,
-              event_images: [], // Don't save images if quota exceeded
+              event_images: [],
             };
             try {
               sessionStorage.setItem(storageKey, JSON.stringify(reducedData));
             } catch (err) {
-              console.error(
-                "Could not save to session storage even after reducing data:",
-                err
-              );
               sessionStorage.removeItem(storageKey);
             }
-          } else {
-            console.error("Error saving to session storage:", e);
           }
         }
       }
     }
   }, [previews, storageKey, initialLoading]);
+
   useEffect(() => {
     const initializeState = async () => {
       setInitialLoading(true);
 
       try {
-        // Fetch user details first
         await fetchUserDetails();
 
-        // Step 1: Fetch the "source of truth" from the database
         const response = await getTicketById(ticketId);
         const ticket = response?.ticket;
         if (!ticket) {
@@ -212,37 +195,28 @@ const UpdateTicketMedia = () => {
           return;
         }
         setTicketData(ticket);
-        // Helper function to construct URLs - handle Windows backslashes
-        const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
-        const getUrl = (path) => {
-          if (!path) return null;
 
-          if (path.startsWith("http://") || path.startsWith("https://")) {
-            return path;
-          }
-          // Legacy: Handle old local paths (for backward compatibility)
-          const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
-          let cleanPath = path.replace(/\\/g, "/");
-          cleanPath = cleanPath.replace(/^src\//, "");
-          cleanPath = cleanPath.replace(/^\//, "");
-          return `${API_BASE_URL}/${cleanPath}`;
-        };
-
-        // Prepare server media data
+        // --- START OF REFACTORED IMAGE FETCHING ---
         const serverMedia = {
-          event_logo: ticket.event_logo ? getUrl(ticket.event_logo) : null,
-          event_banner: ticket.event_banner
-            ? getUrl(ticket.event_banner)
+          // Use getTicketImageUrl for event_logo
+          event_logo: ticket.event_logo
+            ? getTicketImageUrl(ticket.event_logo)
             : null,
+          // Use getTicketImageUrl for event_banner
+          event_banner: ticket.event_banner
+            ? getTicketImageUrl(ticket.event_banner)
+            : null,
+          // Use getTicketImageUrl for college_authorisation path
           college_authorisation: ticket.college_authorisation
             ? {
                 name: ticket.college_authorisation.split(/[/\\]/).pop(),
-                url: getUrl(ticket.college_authorisation),
+                url: getTicketImageUrl(ticket.college_authorisation),
               }
             : null,
+          // Use getTicketImageUrl for event_images paths
           event_images: (ticket.event_images || []).map((img, index) => ({
             id: img.path || `existing-${index}`,
-            preview: getUrl(img.path),
+            preview: getTicketImageUrl(img.path),
             name:
               img.originalName ||
               img.path?.split(/[/\\]/).pop() ||
@@ -251,6 +225,8 @@ const UpdateTicketMedia = () => {
             mimeType: img.mimeType,
           })),
         };
+        // --- END OF REFACTORED IMAGE FETCHING ---
+
         setExistingMedia(serverMedia);
         const savedStateJSON = sessionStorage.getItem(storageKey);
         if (savedStateJSON) {
@@ -268,9 +244,7 @@ const UpdateTicketMedia = () => {
                   ? savedPreviews.college_authorisation
                   : serverMedia.college_authorisation,
               event_images: [
-                // Keep existing server images
                 ...serverMedia.event_images,
-                // Add new unsaved images
                 ...(savedPreviews.event_images || []).filter(
                   (img) => !img.isExisting && img.preview?.startsWith("data:")
                 ),
@@ -279,7 +253,6 @@ const UpdateTicketMedia = () => {
 
             setPreviews(mergedPreviews);
 
-            // Re-create File objects for the formData state from the saved base64 data
             const newFormData = { event_images: [] };
 
             if (savedPreviews.event_logo?.startsWith("data:")) {
@@ -315,8 +288,6 @@ const UpdateTicketMedia = () => {
 
             setFormData((fd) => ({ ...fd, ...newFormData }));
           } catch (parseError) {
-            console.error("Failed to parse session storage:", parseError);
-            // If session data is corrupted, use server data
             setPreviews(serverMedia);
             sessionStorage.removeItem(storageKey);
           }
@@ -324,7 +295,6 @@ const UpdateTicketMedia = () => {
           setPreviews(serverMedia);
         }
       } catch (error) {
-        console.error("Failed to fetch initial ticket data:", error);
         displayAlert({
           type: "error",
           message: "Load Failed",
@@ -342,7 +312,6 @@ const UpdateTicketMedia = () => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Validate file types based on field
     const allowedTypes = {
       event_logo: [
         "image/jpeg",
@@ -381,7 +350,6 @@ const UpdateTicketMedia = () => {
       return;
     }
 
-    // Validate file size (50MB limit)
     const maxSize = 50 * 1024 * 1024; // 50MB
     if (file.size > maxSize) {
       setErrors((prev) => ({
@@ -420,13 +388,9 @@ const UpdateTicketMedia = () => {
     setErrors((prev) => ({ ...prev, [type]: null }));
     const savedStateJSON = sessionStorage.getItem(storageKey);
     if (savedStateJSON) {
-      try {
-        const savedState = JSON.parse(savedStateJSON);
-        savedState[type] = null;
-        sessionStorage.setItem(storageKey, JSON.stringify(savedState));
-      } catch (e) {
-        console.error("Error updating session storage:", e);
-      }
+      const savedState = JSON.parse(savedStateJSON);
+      savedState[type] = null;
+      sessionStorage.setItem(storageKey, JSON.stringify(savedState));
     }
   };
 
@@ -434,10 +398,8 @@ const UpdateTicketMedia = () => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
-    // Count existing images (both from server and newly added)
     const currentImages = previews.event_images || [];
     const currentCount = currentImages.length;
-    // Check total files limit
     if (currentCount + files.length > 10) {
       setErrors((prev) => ({
         ...prev,
@@ -472,7 +434,6 @@ const UpdateTicketMedia = () => {
       return;
     }
 
-    // Check video count limit
     const videoTypes = [
       "video/mp4",
       "video/avi",
@@ -485,7 +446,6 @@ const UpdateTicketMedia = () => {
       videoTypes.includes(file.type)
     ).length;
     const existingVideoCount = currentImages.filter((img) => {
-      // Check by mime type or file extension
       if (img.mimeType) {
         return videoTypes.includes(img.mimeType);
       }
@@ -504,7 +464,6 @@ const UpdateTicketMedia = () => {
       return;
     }
 
-    // Check file sizes
     const maxSize = 50 * 1024 * 1024; // 50MB
     const oversizedFiles = files.filter((file) => file.size > maxSize);
     if (oversizedFiles.length > 0) {
@@ -522,7 +481,7 @@ const UpdateTicketMedia = () => {
       try {
         const base64 = await fileToBase64(file);
         return {
-          id: `${file.name}-${file.lastModified}-${Date.now()}`, // More unique ID
+          id: `${file.name}-${file.lastModified}-${Date.now()}`,
           preview: base64,
           name: file.name,
           isExisting: false,
@@ -530,7 +489,6 @@ const UpdateTicketMedia = () => {
           originalFile: file,
         };
       } catch (error) {
-        console.error("Error processing file:", file.name, error);
         return null;
       }
     });
@@ -548,15 +506,11 @@ const UpdateTicketMedia = () => {
         return;
       }
 
-      console.log("Processed items:", validItems);
-
-      // Update previews - keep existing and add new
       setPreviews((prev) => ({
         ...prev,
         event_images: [...(prev.event_images || []), ...validItems],
       }));
 
-      // Update formData - keep existing File objects and add new ones
       setFormData((prev) => {
         const existingFiles = prev.event_images || [];
         const newFiles = validItems.map((item) => item.originalFile);
@@ -571,10 +525,9 @@ const UpdateTicketMedia = () => {
       displayAlert({
         type: "success",
         message: "Files Added",
-        description: `${validItems.length} file(s) added successfully`,
+        description: ` File added successfully`,
       });
     } catch (error) {
-      console.error("Error in file processing:", error);
       setErrors((prev) => ({
         ...prev,
         event_images: "Error processing one or more files.",
@@ -600,11 +553,10 @@ const UpdateTicketMedia = () => {
         ...prev,
         event_images: prev.event_images.filter((file) => {
           const fileId = `${file.name}-${file.lastModified}`;
-          return fileId !== idToRemove;
+          return fileId !== idToRemove.substring(0, fileId.length);
         }),
       }));
 
-      // Update session storage
       const savedStateJSON = sessionStorage.getItem(storageKey);
       if (savedStateJSON) {
         try {
@@ -616,21 +568,21 @@ const UpdateTicketMedia = () => {
             sessionStorage.setItem(storageKey, JSON.stringify(savedState));
           }
         } catch (e) {
-          console.error("Error updating session storage:", e);
+          return null;
         }
       }
     }
   };
+
   const handleBack = useCallback(() => {
     sessionStorage.removeItem(storageKey);
     if (ticketData?.groupId) {
       navigate(`/ticket/create-event/${ticketData.groupId}/${ticketId}`);
     } else {
-      // Fallback: try to navigate without groupId (will use the alternate route)
-      console.warn("No groupId found, navigating with ticketId only");
       navigate(`/ticket/create-event/${ticketId}`);
     }
   }, [navigate, ticketId, storageKey, ticketData]);
+
   const validateForm = async () => {
     const newErrors = {};
     if (isEducationalOrg && !previews.college_authorisation) {
@@ -645,10 +597,6 @@ const UpdateTicketMedia = () => {
         newErrors.general = "Event banner is required to proceed.";
       }
     } catch (err) {
-      console.error(
-        "Could not fetch form progress, performing fallback validation.",
-        err
-      );
       if (!hasBanner) {
         newErrors.general = "Event banner is required to proceed.";
       }
@@ -665,6 +613,7 @@ const UpdateTicketMedia = () => {
     }
     return true;
   };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -675,20 +624,16 @@ const UpdateTicketMedia = () => {
     setLoading(true);
     const submitData = new FormData();
 
-    // Track if we're uploading any new files
     let hasNewFiles = false;
 
-    // Only append NEW files (File objects), not existing server URLs
     if (formData.event_logo instanceof File) {
       submitData.append("event_logo", formData.event_logo);
       hasNewFiles = true;
-      console.log("Appending new event_logo file");
     }
 
     if (formData.event_banner instanceof File) {
       submitData.append("event_banner", formData.event_banner);
       hasNewFiles = true;
-      console.log("Appending new event_banner file");
     }
 
     if (formData.college_authorisation instanceof File) {
@@ -697,83 +642,40 @@ const UpdateTicketMedia = () => {
         formData.college_authorisation
       );
       hasNewFiles = true;
-      console.log("Appending new college_authorisation file");
     }
     if (
       formData.event_images &&
       Array.isArray(formData.event_images) &&
       formData.event_images.length > 0
     ) {
-      let imageCount = 0;
-      formData.event_images.forEach((file, index) => {
+      formData.event_images.forEach((file) => {
         if (file instanceof File) {
           submitData.append("event_images", file);
           hasNewFiles = true;
-          imageCount++;
-          console.log(
-            `Appending event_images[${index}]: ${file.name} (${file.type}, ${(
-              file.size /
-              1024 /
-              1024
-            ).toFixed(2)}MB)`
-          );
-        } else {
-          console.log(
-            `Skipping event_images[${index}]: Not a File object`,
-            typeof file
-          );
         }
       });
-      console.log(`Total new event_images to upload: ${imageCount}`);
-    } else {
-      console.log("No event_images to upload or invalid format:", {
-        exists: !!formData.event_images,
-        isArray: Array.isArray(formData.event_images),
-        length: formData.event_images?.length || 0,
-      });
     }
-    console.log("FormData contents:");
-    for (let pair of submitData.entries()) {
-      console.log(
-        pair[0],
-        pair[1] instanceof File ? `File: ${pair[1].name}` : pair[1]
-      );
-    }
+
     if (!hasNewFiles) {
-      console.log(
-        "No new files to upload. Checking if existing media meets requirements..."
-      );
       try {
-        // Step 1: Re-fetch the ticket to get the latest form_progress
         const updatedTicketResponse = await getTicketById(ticketId);
         const updatedTicket = updatedTicketResponse?.ticket;
         const progress = updatedTicket?.form_progress;
 
-        // Step 2: Check if a path for Step 4 has already been chosen
-        if (progress?.add_on_events) {
-          navigate(`/ticket/update-ticket-addons/${ticketId}`);
-        } else if (progress?.banking_tickets) {
+        if (progress?.banking_tickets) {
           navigate(`/ticket/update-ticket-details/${ticketId}`);
-        } else {
-          // If no path is chosen yet, show the modal
-          setIsExtraEventsModalOpen(true);
         }
 
         setLoading(false);
         return;
       } catch (error) {
-        console.error("Error checking progress:", error);
         setLoading(false);
         return;
       }
     }
 
-    console.log("Uploading new files...");
-
     try {
-      // Step 1: Upload the media
       const response = await updateTicketMedia(ticketId, submitData);
-      console.log("Upload response:", response);
 
       sessionStorage.removeItem(storageKey);
 
@@ -783,15 +685,11 @@ const UpdateTicketMedia = () => {
         description: "Your event visuals have been updated.",
       });
 
-      // Step 2: Re-fetch the ticket to get the latest form_progress and updated media
       const updatedTicketResponse = await getTicketById(ticketId);
       const updatedTicket = updatedTicketResponse?.ticket;
-      const progress = updatedTicket?.form_progress;
 
-      // Update the ticket data state with fresh data
       setTicketData(updatedTicket);
 
-      // Clear formData for newly uploaded files
       setFormData({
         event_logo: null,
         event_banner: null,
@@ -801,7 +699,6 @@ const UpdateTicketMedia = () => {
 
       navigate(`/ticket/update-ticket-details/${ticketId}`);
     } catch (error) {
-      console.error("Upload error:", error);
       const errorMessage =
         error.response?.data?.message ||
         error.message ||
@@ -827,12 +724,11 @@ const UpdateTicketMedia = () => {
   return (
     <div className={darkMode ? "dark" : ""}>
       <ScrollBarStyle isDark={darkMode} />
-      <Alert alert={alert} onClose={hideAlert} />
+      <Alert alert={alert} onClose={hideAlert} isDark={darkMode} />
       <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
         <EventSidebar
           onBackClick={handleBack}
           darkMode={darkMode}
-          // Pass props from your 'ticketData' state object
           formProgress={ticketData?.form_progress || {}}
           groupId={ticketData?.groupId}
           ticketId={ticketId}
@@ -885,7 +781,7 @@ const UpdateTicketMedia = () => {
               <div className="grid md:grid-cols-2 gap-8 ">
                 <FileInput
                   id="event_logo"
-                  label="Event or Organisation Logo" // No asterisk - optional
+                  label="Event or Organisation Logo"
                   onFileChange={handleSingleFileChange}
                   onRemove={removeSingleFile}
                   preview={previews.event_logo}
@@ -896,7 +792,7 @@ const UpdateTicketMedia = () => {
                 />
                 <FileInput
                   id="event_banner"
-                  label="Event Banner*" // Added asterisk to show it's required
+                  label="Event Banner*"
                   onFileChange={handleSingleFileChange}
                   onRemove={removeSingleFile}
                   preview={previews.event_banner}
@@ -914,7 +810,6 @@ const UpdateTicketMedia = () => {
                 {previews.event_images && previews.event_images.length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
                     {previews.event_images.map((img) => {
-                      // Determine if it's a video based on the name or MIME type
                       const isVideo =
                         img.name &&
                         (img.name.toLowerCase().endsWith(".mp4") ||
@@ -957,7 +852,6 @@ const UpdateTicketMedia = () => {
                           <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-2 py-1 rounded truncate max-w-[90%]">
                             {img.isExisting ? "Existing" : "New"}
                           </div>
-                          {/* Show filename on hover */}
                           <div className="absolute top-1 left-1 right-1 bg-black/70 text-white text-xs px-2 py-1 rounded truncate opacity-0 group-hover:opacity-100 transition-opacity">
                             {img.name || "Unknown"}
                           </div>
@@ -999,7 +893,6 @@ const UpdateTicketMedia = () => {
                     accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.avi,.mov,.wmv,.flv,.webm"
                     onChange={(e) => {
                       handleMultipleFileChange(e);
-                      // Clear the input so the same file can be selected again if needed
                       e.target.value = "";
                     }}
                     className="sr-only"

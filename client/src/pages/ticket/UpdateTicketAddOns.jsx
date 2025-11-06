@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+
+import { getTicketImageUrl } from "../../utils/imageUtils.js";
 import {
   updateTicketAddOns,
   getTicketById,
@@ -29,173 +31,11 @@ import Alert from "../../components/CreateGroup/Alert";
 import CreateTicketModal from "../../components/CreateGroup/CreateTicketModal.jsx";
 import ConfirmModal from "../../components/CreateGroup/ConfirmModal.jsx";
 import FileInput from "../../components/CreateGroup/FileInput.jsx";
+import getInitialTheme from "../../components/CreateGroup/getIntialTheme.jsx";
+import languageOptions from "../../components/CreateGroup/languageOption.jsx";
+import seatingOptions from "../../components/CreateGroup/seatingOption.jsx";
+import eventCategories from "../../components/CreateGroup/eventCategories.jsx";
 import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.jsx";
-
-const eventCategories = {
-  "Arts, Culture, & Literature": [
-    "Art Exhibitions",
-    "Cultural Festivals",
-    "Theater Performances",
-    "Literature Festivals",
-    "Historical Reenactments",
-    "Art Installations",
-    "Art Workshops & Competitions",
-    "Guided Art Walks",
-    "Printmaking & Conceptual Art",
-    "Residency Showcases",
-    "Art Auctions",
-  ],
-  Music: [
-    "Concerts",
-    "Music Festivals",
-    "Live Performances",
-    "Battle of the Bands",
-    "DJ Nights",
-  ],
-  "Entertainment & Performing Arts": [
-    "Comedy Shows",
-    "Magic Shows",
-    "Circus Performances",
-  ],
-  Dance: [
-    "Recitals & Showcases",
-    "Competitions & Galas",
-    "Social Dance Nights",
-    "Dance Workshops",
-    "Themed Dances",
-    "Classical Dance",
-    "Contemporary Dance",
-    "Street & Urban Dance",
-    "Bollywood & Tollywood Dance",
-    "Folk & Traditional Dance",
-    "K-pop Dance",
-  ],
-  "Sports, Fitness, & Adventure": [
-    "Sporting Competitions",
-    "Marathons & Races",
-    "Fitness Workshops",
-    "Adventure Sports",
-    "Camping & Hiking",
-    "Turf Booking",
-    "Esports",
-  ],
-  "Education & Learning": [
-    "Workshops & Seminars",
-    "Conferences & Summits",
-    "Academic Competitions & MUNs",
-    "Career Fairs & Counseling",
-    "Public Lectures",
-    "Bootcamps",
-    "Certification Programs",
-    "College Fests",
-    "Webinars",
-    "Startup Competitions",
-    "Quiz Sessions",
-  ],
-  "Business & Innovation": [
-    "Tech Expos",
-    "Hackathons",
-    "Product Launches",
-    "Robotics Competitions",
-    "Trade Shows",
-    "Networking Events",
-  ],
-  "Food, Lifestyle, & Wellness": [
-    "Food Festivals",
-    "Wine Tastings",
-    "Cooking Classes",
-    "Yoga & Spiritual Retreats",
-    "Mindfulness Workshops",
-    "Fashion Shows",
-  ],
-  "Film, Media, & Gaming": [
-    "Film Festivals & Screenings",
-    "Animation Showcases",
-    "Board Game Nights",
-    "Cosplay Conventions",
-  ],
-  "Travel, Holidays, & Tourism": [
-    "Travel Expos",
-    "Destination Showcases",
-    "Cruise Events",
-    "Holiday Events (e.g., Halloween, Christmas)",
-  ],
-  "Festivals & Celebrations": [
-    "National & Regional Festivals",
-    "Harvest Festivals",
-    "Lantern Festivals",
-    "Cultural Parades",
-    "Religious Festivals",
-  ],
-  "Environment, Sustainability, & Agriculture": [
-    "Eco-Festivals",
-    "Sustainable Living Workshops",
-    "Tree-Planting & Clean Energy Campaigns",
-    "Agricultural Fairs & Farmers' Markets",
-    "Green Hackathons",
-    "Cyclothons",
-    "Eco-Tourism Trails",
-    "Green Tech Conferences",
-  ],
-  "Religious & Spiritual Events": [
-    "Pilgrimages",
-    "Spiritual Retreats",
-    "Meditation Camps",
-  ],
-};
-
-const languageOptions = [
-  "English",
-  "Hindi",
-  "Malayalam",
-  "Tamil",
-  "Kannada",
-  "Telugu",
-  "Marathi",
-  "Gujarati",
-  "Punjabi",
-  "Urdu",
-  "Bengali",
-  "Spanish",
-  "French",
-  "German",
-  "Chinese",
-  "Japanese",
-  "Russian",
-  "Turkish",
-  "Korean",
-  "Portuguese",
-  "Arabic",
-  "Indonesian",
-  "Vietnamese",
-  "Other",
-].map((lang) => ({ value: lang, label: lang }));
-// Add these constants near your other dropdown data arrays
-const ageOptions = [
-  { value: "0", label: "All ages" },
-  { value: "13", label: "13+" },
-  { value: "16", label: "16+" },
-  { value: "18", label: "18+" },
-  { value: "21", label: "21+" },
-];
-
-const seatingOptions = [
-  { value: "seated", label: "Seated" },
-  { value: "standing", label: "Standing" },
-  { value: "seated and standing", label: "Seated and Standing" },
-  { value: "other", label: "Other" },
-];
-
-const getInitialTheme = () => {
-  // 1. Check for saved preference in localStorage
-  const savedTheme = localStorage.getItem("theme");
-  if (savedTheme) {
-    return savedTheme === "dark"; // Returns true or false based on saved value
-  }
-
-  // 2. Fallback to system preference
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-};
 
 const UpdateTicketAddOns = () => {
   const { ticketId } = useParams();
@@ -398,10 +238,6 @@ const UpdateTicketAddOns = () => {
             bank_ifsc: groupResponse.primary_bank_ifsc,
             bank_acc_type: groupResponse.primary_bank_acc_type,
           };
-          console.log(
-            "Found primary bank info directly in groupResponse:",
-            bankInfo
-          );
         }
 
         // If still not found, check traditional banking_details arrays and objects
@@ -427,7 +263,6 @@ const UpdateTicketAddOns = () => {
               // If it's an array, take the first element
               if (Array.isArray(path) && path.length > 0) {
                 bankInfo = path[0];
-                console.log(`Found bank info in array at path ${i}:`, bankInfo);
                 break;
               }
               // If it's an object with bank-related properties
@@ -442,7 +277,6 @@ const UpdateTicketAddOns = () => {
                 path.primary_bank_acc_no
               ) {
                 bankInfo = path;
-                console.log(`Found bank info object at path ${i}:`, bankInfo);
                 break;
               }
             }
@@ -450,7 +284,13 @@ const UpdateTicketAddOns = () => {
         }
 
         if (!bankInfo) {
-          console.warn("No bank information found in group data");
+          setGroupDefaults();
+          showAlert({
+            type: "warning",
+            message: "Group Data Incomplete",
+            description:
+              "No primary bank account found for this group. Please enter new banking details below.",
+          });
           setGroupDefaults();
           return;
         }
@@ -495,7 +335,14 @@ const UpdateTicketAddOns = () => {
         );
 
         if (!hasAnyBankData) {
-          console.warn("Bank info object exists but all fields are empty");
+          setGroupDefaults();
+          showAlert({
+            // <-- ADD THIS
+            type: "warning",
+            message: "Group Bank Account Incomplete",
+            description:
+              "Found bank entry, but it's missing critical fields (Holder, Number, or IFSC). You must enter valid details below.",
+          });
           setGroupDefaults();
           return;
         }
@@ -520,54 +367,25 @@ const UpdateTicketAddOns = () => {
             banking_details: [{ ...cleanBankInfo }],
           }));
         } else {
-          console.log("Bank details incomplete, keeping toggle OFF");
           setUseGroupBankAccount(false);
         }
       } catch (groupError) {
-        console.error("Error fetching group data:", groupError);
-
-        // Enhanced error logging
-        if (groupError.response) {
-          console.error("API Response Error:", {
-            status: groupError.response.status,
-            statusText: groupError.response.statusText,
-            data: groupError.response.data,
-            headers: groupError.response.headers,
-          });
-
-          // Check for specific error cases
-          if (groupError.response.status === 404) {
-            console.warn(
-              "Group not found (404) - this might be expected for some tickets"
-            );
-          } else if (groupError.response.status === 403) {
-            console.warn(
-              "Access denied (403) - check permissions for this ticket"
-            );
-          } else if (groupError.response.status === 500) {
-            console.error("Server error (500) - backend issue");
-          }
-        } else if (groupError.request) {
-          console.error(
-            "Network Error - no response received:",
-            groupError.request
-          );
-        } else {
-          console.error("Request Setup Error:", groupError.message);
-        }
-
+        showAlert({
+          type: "error",
+          message: "Group Data Error",
+          description:
+            "Could not fetch group bank details. Please enter them manually.",
+        });
         setGroupDefaults();
       }
     } catch (error) {
-      console.error("Failed to fetch main ticket data:", error);
-      if (error.response) {
-        console.error("Ticket API Error:", {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data,
-        });
-      }
       setGroupDefaults();
+      showAlert({
+        type: "error",
+        message: "Data Load Error",
+        description:
+          "Failed to load ticket or group details. Proceed with caution.",
+      });
     } finally {
       setPageLoading(false);
       setDataLoaded(true);
@@ -600,8 +418,6 @@ const UpdateTicketAddOns = () => {
   useEffect(() => {
     if (ticketId) {
       fetchData();
-    } else {
-      console.error("No ticketId available, skipping data fetch");
     }
   }, [ticketId]);
   const renderBankingSection = () => {
@@ -641,15 +457,12 @@ const UpdateTicketAddOns = () => {
               >
                 Do you want to use the bank account used for group creation?
               </label>
-              {/* ... rest of your existing JSX ... */}
             </div>
           </div>
-          {/* ... rest of your banking section JSX ... */}
         </section>
       </div>
     );
   };
-  // FIX: Refined useEffect to correctly apply group bank details when toggled
   useEffect(() => {
     if (
       useGroupBankAccount &&
@@ -662,9 +475,6 @@ const UpdateTicketAddOns = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    if (name === "total_capacity" || name === "min_age_allowed") {
-      console.log(`Input changed: ${name}, Raw value from input: '${value}'`);
-    }
 
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -763,17 +573,19 @@ const UpdateTicketAddOns = () => {
   };
 
   const handleAddPoc = () => {
-    // Trim input values once for consistency
     const trimmedName = poc.POC_name.trim();
     const trimmedEmail = poc.POC_email.trim();
     const trimmedContact = poc.POC_contact.trim();
 
     // 1. Check for empty fields
     if (!trimmedName || !trimmedEmail || !trimmedContact) {
-      alert(
-        "Please fill in all Point of Contact fields: Name, Email, and Contact Number."
-      );
-      return; // Exit if fields are empty
+      showAlert({
+        type: "error",
+        message: "Missing Fields",
+        description:
+          "Please fill in all Point of Contact fields: Name, Email, and Contact Number.",
+      });
+      return;
     }
 
     // 2. Check for duplicate email
@@ -781,9 +593,12 @@ const UpdateTicketAddOns = () => {
       (p) => p.POC_email === trimmedEmail
     );
     if (isDuplicateEmail) {
-      alert(
-        "This email address is already in use by another POC. Please use a different email."
-      );
+      showAlert({
+        type: "error",
+        message: "Duplicate POC Email",
+        description:
+          "This email address is already in use by another POC. Please use a different email.",
+      });
       return; // Exit if email is a duplicate
     }
 
@@ -792,9 +607,12 @@ const UpdateTicketAddOns = () => {
       (p) => p.POC_contact === trimmedContact
     );
     if (isDuplicateContact) {
-      alert(
-        "This contact number is already in use by another POC. Please use a different number."
-      );
+      showAlert({
+        type: "error",
+        message: "Duplicate POC contact number",
+        description:
+          "This contact number is already in use by another POC. Please use a different email.",
+      });
       return; // Exit if contact is a duplicate
     }
 
@@ -807,22 +625,7 @@ const UpdateTicketAddOns = () => {
     setFormData((prev) => ({ ...prev, POCS: [...prev.POCS, newPoc] }));
     setPoc({ POC_name: "", POC_email: "", POC_contact: "" }); // Reset form
   };
-  const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
-  const getImageUrl = (path) => {
-    if (!path) return null;
-    if (typeof path === "object") {
-      path = path.path || path.url || null;
-    }
-    if (typeof path !== "string") {
-      console.warn("Invalid path type:", typeof path, path);
-      return null;
-    }
-    let cleanPath = path.replace(/\\/g, "/");
-    cleanPath = cleanPath.replace(/^src\//, "");
-    cleanPath = cleanPath.replace(/^\//, "");
-    const fullUrl = `${API_BASE_URL}/${cleanPath}`;
-    return fullUrl;
-  };
+
   const handleRemovePoc = (indexToRemove) => {
     setFormData((prev) => ({
       ...prev,
@@ -858,9 +661,11 @@ const UpdateTicketAddOns = () => {
       const currentFiles = prev.event_images;
       const filesToAdd = newFiles.slice(0, 10 - currentFiles.length);
       if (newFiles.length > filesToAdd.length) {
-        alert(
-          `You can only upload a maximum of 10 images. ${filesToAdd.length} were added.`
-        );
+        showAlert({
+          type: "error",
+          message: "Limit Exceeded",
+          description: `You can only upload a maximum of 10 images. ${filesToAdd.length} were added.`,
+        });
       }
       return { ...prev, event_images: [...currentFiles, ...filesToAdd] };
     });
@@ -877,9 +682,7 @@ const UpdateTicketAddOns = () => {
           setShowExtraMedia(false);
         }
         return { ...prev, event_images: updatedImages };
-      }
-      // Otherwise remove from existing images
-      else if (prev.existing_event_images?.length > 0) {
+      } else if (prev.existing_event_images?.length > 0) {
         const updatedExisting = prev.existing_event_images.slice(0, -1);
         if (updatedExisting.length < 2) {
           setShowExtraMedia(false);
@@ -1074,9 +877,7 @@ const UpdateTicketAddOns = () => {
       }
     }
 
-    // CRITICAL FIX: Ensure prohibited_items is ALWAYS an array
     const ensureProhibitedItemsArray = () => {
-      // If it's already an array, clean it
       if (Array.isArray(formData.prohibited_items)) {
         const cleaned = formData.prohibited_items
           .map((item) => {
@@ -1096,7 +897,6 @@ const UpdateTicketAddOns = () => {
         return cleaned;
       }
 
-      // If it's a string, try to parse it
       if (typeof formData.prohibited_items === "string") {
         try {
           const parsed = JSON.parse(formData.prohibited_items);
@@ -1104,7 +904,7 @@ const UpdateTicketAddOns = () => {
             return parsed;
           }
         } catch (e) {
-          console.warn("Failed to parse prohibited_items string");
+          return null;
         }
         const split = formData.prohibited_items
           .split(",")
@@ -1121,10 +921,7 @@ const UpdateTicketAddOns = () => {
         formData.payment_type === "paid" &&
         formData.location_type !== "offline";
       if (!formData.ticket_types || formData.ticket_types.length === 0) {
-        // For paid non-offline events, we might have partial data in the inputs,
-        // so we need a fallback for the very first element if it's missing entirely.
         if (isSimplePaid) {
-          // Return an array with a single default ticket if capacity is set
           return [
             {
               ticket_type: "Standard Ticket",
@@ -1140,11 +937,9 @@ const UpdateTicketAddOns = () => {
       if (Array.isArray(formData.ticket_types)) {
         const processed = formData.ticket_types.map((t, index) => {
           const ticket = {
-            // Map UI fields (name, price, capacity) to Schema fields
             ticket_type: t.name || t.ticket_type || "Standard Ticket",
             ticket_price: Number(t.price || t.ticket_price || 0),
             max_capacity: Number(t.capacity || t.max_capacity || 0),
-            // Preserve existing path or get new file info later in buildFormData
             ticket_photo: t.existingPhotoPath || t.ticket_photo || "",
           };
           return ticket;
@@ -1194,7 +989,6 @@ const UpdateTicketAddOns = () => {
       event_rules_text: rulesEditorRef.current?.innerHTML || "",
       hashtag: Array.isArray(formData.hashtag) ? formData.hashtag : [],
 
-      // CRITICAL: ALWAYS include these arrays, processed with fallbacks
       prohibited_items: ensureProhibitedItemsArray(),
       ticket_types: ensureTicketTypesArray(),
 
@@ -1231,7 +1025,6 @@ const UpdateTicketAddOns = () => {
       submissionForm.append("editing_sub_event_id", editingSubEventId);
     }
 
-    // CRITICAL: Ensure arrays are properly formatted
     const subEventData = {
       ...payload,
       prohibited_items: Array.isArray(payload.prohibited_items)
@@ -1399,7 +1192,7 @@ const UpdateTicketAddOns = () => {
       const { ...dataToSave } = data; // File objects can't be stored
       localStorage.setItem(storageKey, JSON.stringify(dataToSave));
     } catch (error) {
-      console.error("Error saving data to localStorage:", error);
+      return null;
     }
   };
   useEffect(() => {
@@ -1449,7 +1242,6 @@ const UpdateTicketAddOns = () => {
     }
 
     const initializeMap = () => {
-      // Use form data coordinates if available, otherwise use initial location
       const initialCenter =
         formData.exact_map_location.latitude &&
         formData.exact_map_location.longitude
@@ -1588,7 +1380,6 @@ const UpdateTicketAddOns = () => {
   // Add this effect to handle visibility changes
   useEffect(() => {
     if (map && formData.location_type === "offline" && dataLoaded) {
-      // Small delay to ensure DOM is updated
       setTimeout(() => {
         window.google.maps.event.trigger(map, "resize");
 
@@ -1793,11 +1584,7 @@ const UpdateTicketAddOns = () => {
     try {
       const submissionForm = buildFormData(payload);
 
-      console.log("\n=== SAVE AND ADD MORE ===");
-      console.log("isEditingSubEvent:", isEditingSubEvent);
-
       if (isEditingSubEvent && editingSubEventId) {
-        console.log("Calling: updateSubEvent (EDIT)");
         await updateSubEvent(ticketId, editingSubEventId, submissionForm);
 
         showAlert({
@@ -1806,7 +1593,6 @@ const UpdateTicketAddOns = () => {
           description: "Your changes have been saved.",
         });
       } else {
-        console.log("Calling: updateTicketAddOns (CREATE)");
         await updateTicketAddOns(ticketId, submissionForm);
 
         showAlert({
@@ -1951,10 +1737,8 @@ const UpdateTicketAddOns = () => {
                 price: Number(ticketPrice),
                 capacity: Number(maxCapacity),
                 image: ticketPhoto
-                  ? getImageUrl(ticketPhoto)
-                  : `https://via.placeholder.com/150?text=${encodeURIComponent(
-                      ticketType || "Ticket"
-                    )}`,
+                  ? getTicketImageUrl(String(ticketPhoto))
+                  : null,
                 photoFile: null,
                 existingPhotoPath: ticketPhoto,
               };
@@ -1978,20 +1762,17 @@ const UpdateTicketAddOns = () => {
                       : t.capacity || 0
                   ),
                   image: t.ticket_photo
-                    ? getImageUrl(t.ticket_photo)
-                    : `https://via.placeholder.com/150?text=${encodeURIComponent(
-                        t.ticket_type || t.name || "Ticket"
-                      )}`,
+                    ? getTicketImageUrl(String(t.ticket_photo))
+                    : null,
                   photoFile: null,
                   existingPhotoPath: t.ticket_photo || "",
                 }));
               }
             } catch (e) {
-              console.warn("Failed to parse ticket_types string:", e);
+              return null;
             }
           }
 
-          console.log("Unknown type for ticket_types or parse failed");
           return [];
         })();
         setFormData((prev) => ({
@@ -2029,12 +1810,12 @@ const UpdateTicketAddOns = () => {
               name: g.guest_name,
               link: g.guest_link,
               image:
-                g.guest_image ||
-                g.guest_profile ||
-                `https://i.pravatar.cc/150?u=${Date.now()}`,
+                g.guest_image || g.guest_profile
+                  ? g.guest_image || g.guest_profile
+                  : null,
               rawFile: null,
             })) || [],
-          prohibited_items: parsedProhibitedItems, // CRITICAL: Use parsed array
+          prohibited_items: parsedProhibitedItems,
           POCS: subEvent.POCS || [],
           payment_type: subEvent.payment_type || "free",
           banking_details: subEvent.banking_details || [
@@ -2060,13 +1841,13 @@ const UpdateTicketAddOns = () => {
         setPreviews((prev) => ({
           ...prev,
           event_banner: subEvent.event_banner
-            ? getImageUrl(subEvent.event_banner)
+            ? getTicketImageUrl(String(subEvent.event_banner))
             : null,
           event_logo: subEvent.event_logo
-            ? getImageUrl(subEvent.event_logo)
+            ? getTicketImageUrl(String(subEvent.event_logo))
             : null,
           ticket_layout: subEvent.ticket_layout
-            ? getImageUrl(subEvent.ticket_layout)
+            ? getTicketImageUrl(String(subEvent.ticket_layout))
             : null,
         }));
 
@@ -2077,9 +1858,17 @@ const UpdateTicketAddOns = () => {
         }
 
         if (subEvent.event_images && subEvent.event_images.length > 0) {
-          const imageUrls = subEvent.event_images.map((img) =>
-            getImageUrl(img)
-          );
+          const imageUrls = subEvent.event_images
+            .map((img) => {
+              const imagePath =
+                typeof img === "object" && img !== null
+                  ? img.path || img.url || img.image
+                  : img;
+
+              return imagePath ? getTicketImageUrl(String(imagePath)) : null;
+            })
+            .filter((url) => url !== null);
+
           setFormData((prev) => ({
             ...prev,
             event_images: [],
@@ -2117,7 +1906,6 @@ const UpdateTicketAddOns = () => {
         }
       }
     } catch (error) {
-      console.error("Error loading sub-event data:", error);
       showAlert({
         type: "error",
         message: "Load Failed",
@@ -2164,17 +1952,13 @@ const UpdateTicketAddOns = () => {
       setSubEventEndDate(newEndDate);
 
       // 3. Log the value you just set
-      console.log("Setting new sub event end date:", newEndDate);
     }
   }, [formData.event_dates, setSubEventEndDate]);
-  console.log(subEventEndDate);
-
-  console.log(formData.booking_start_date);
 
   return (
     <>
       <ScrollBarStyle isDark={darkMode} />
-      <Alert alert={alert} onClose={hideAlert} />
+      <Alert alert={alert} onClose={hideAlert} darkMode={darkMode} />
       <ConfirmModal
         isOpen={confirmState.isOpen}
         onClose={() => setConfirmState({ isOpen: false })}
@@ -2251,7 +2035,6 @@ const UpdateTicketAddOns = () => {
           <EventSidebar
             darkMode={darkMode}
             onBackClick={handleBack} // Your existing back function
-            // Pass props from your 'mainEventData' state object
             formProgress={mainEventData?.form_progress || {}}
             groupId={mainEventData?.groupId}
             ticketId={ticketId}
@@ -3750,55 +3533,62 @@ const UpdateTicketAddOns = () => {
                                 />
                               </svg>
                             </button>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                              {formData.ticket_types.map((ticket) => (
-                                // ... your ticket mapping JSX here ...
-                                <div
-                                  key={ticket.id}
-                                  className="bg-white dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none"
-                                >
-                                  <div className="flex items-center space-x-3">
-                                    <img
-                                      src={ticket.image}
-                                      alt={ticket.name}
-                                      className="w-16 h-16 rounded-md object-cover"
-                                    />
-                                    <div>
-                                      <p className="font-semibold text-gray-900 dark:text-white">{`${
-                                        ticket.name
-                                      } - ₹${Number(
-                                        ticket.price
-                                      ).toLocaleString()}`}</p>
-                                      <p className="text-xs text-black dark:text-gray-400">
-                                        Capacity: {ticket.capacity}
-                                      </p>
+                            {formData.ticket_types.length > 0 && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
+                                {formData.ticket_types.map((ticket) => (
+                                  <div
+                                    key={ticket.id}
+                                    className="bg-white dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none"
+                                  >
+                                    <div className="flex items-center space-x-3">
+                                      <img
+                                        src={ticket.image}
+                                        alt={ticket.name}
+                                        className="w-16 h-16 rounded-md object-cover"
+                                      />
+                                      <div>
+                                        <p className="font-semibold text-gray-900 dark:text-white">{`${
+                                          ticket.name
+                                        } - ₹${Number(
+                                          ticket.price
+                                        ).toLocaleString()}`}</p>
+                                        <p className="text-xs text-black dark:text-gray-400">
+                                          Capacity: {ticket.capacity}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    {/* Edit/Delete Buttons */}
+                                    <div className="flex items-center space-x-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingTicket(ticket);
+                                          setIsTicketModalOpen(true);
+                                        }}
+                                        className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
+                                      >
+                                        ✏️
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleDeleteTicket(ticket.id);
+                                        }}
+                                        className="text-gray-400 hover:text-red-500 transition"
+                                      >
+                                        &times;
+                                      </button>
                                     </div>
                                   </div>
-                                  {/* Edit/Delete Buttons */}
-                                  <div className="flex items-center space-x-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setEditingTicket(ticket);
-                                        setIsTicketModalOpen(true);
-                                      }}
-                                      className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
-                                    >
-                                      ✏️
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        /* DELETE LOGIC HERE */
-                                      }}
-                                      className="text-gray-400 hover:text-red-500 transition"
-                                    >
-                                      &times;
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                                ))}
+                              </div>
+                            )}
+                            {formData.ticket_types.length === 0 && (
+                              <div className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                                No tickets added yet. Click "Add tickets" to
+                                create your first ticket type.
+                              </div>
+                            )}
                           </>
                         )}
 
