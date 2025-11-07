@@ -1520,16 +1520,13 @@ const handleUpdateGroup = async () => {
                                   : '-2px -2px 10px 0px #E0E0E0, 5px 6px 9px 0px #00000033',
                                 transform: 'translateX(6px)'  // <--- slight move right
                               }}
-                              onClick={() => handleViewEvent(event._id)}
                             >
                               {/* Event Image - Fixed height */}
                               <div className="mb-3">
                                 <img
                                   src={
                                     event.event_banner ||
-                                    event.event_logo ||
-                                    event.event_image ||
-                                    "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
+                                    event.event_logo
                                   }
                                   alt={event.event_name || "Event"}
                                   className="rounded-[1rem] w-full object-cover border-2 border-white border-opacity-50"
@@ -1596,15 +1593,7 @@ const handleUpdateGroup = async () => {
                                 {/* View button */}
                                 <div className="flex justify-center mt-auto">
                                   <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const eventId = event._id || event.id;
-                                      if (eventId) {
-                                        navigate(`/ticket/event/${eventId}`);
-                                      } else {
-                                        console.warn("No event ID found for navigation");
-                                      }
-                                    }}
+                                    onClick={() => handleViewEvent(event._id)}
                                     className="px-10 py-2 rounded-full text-white text-sm font-medium"
                                     style={{
                                       background: "linear-gradient(180deg, #2e1745 0%, #7f53e7 100%)"
@@ -1619,7 +1608,7 @@ const handleUpdateGroup = async () => {
                         </div>
 
                         {/* Mobile: 2 column grid */}
-                        <div className="md:hidden grid grid-cols-2 gap-3">
+                        <div className="md:hidden grid grid-cols-2 gap-3" >
                           {getCurrentEvents().map((event, index) => (
                             <div
                               key={event._id || `event-${index}`}
@@ -1630,10 +1619,10 @@ const handleUpdateGroup = async () => {
                                 boxShadow: isDark 
                                   ? '-2px -2px 10px 0px #63636336, 5px 6px 9px 0px #00000075'
                                   : '-2px -2px 10px 0px #E0E0E0, 5px 6px 9px 0px #00000033',
-                              }}
+                              }} 
                             >
                               {/* Event Image */}
-                              <div className="p-2">
+                              <div className="p-2" onClick={() => handleViewEvent(event._id)}>
                                 <img
                                   src={
                                     event.event_banner ||
