@@ -156,7 +156,7 @@ export const getGroupsTypes = async () => {
 }
 export const deleteTicket = async (ticketId) => {
   try {
-    const response = await api.post("ticket/delete-ticket", { data: { ticketId } });
+    const response = await api.post(`ticket/delete-ticket/${ticketId}`);
     return response.data;
   } catch (error) {
     throw error;
