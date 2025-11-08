@@ -141,8 +141,26 @@ const ProfilePage = () => {
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const hamburgerRef = useRef(null);
   const [groupEventCount, setGroupEventCount] = useState(0);
-  const handleViewEvent = (ticketId) => {
-    navigate(`/ticket/view-single-event/${ticketId}`);
+  const handleViewEvent = (event) => {
+    const ticketId = event._id;
+    const status = event.event_status?.toLowerCase();
+    switch (status) {
+      case "pending":
+        navigate(`/ticket/view-single-event/${ticketId}`);
+        break;
+      case "confirmed":
+        navigate(`/ticket/view-confirm-event/${ticketId}`);
+        break;
+      case "live":
+        navigate(`/ticket/live-event-view/${ticketId}`);
+        break;
+      case "completed":
+        navigate(`/ticket/previous-event-view/${ticketId}`);
+        break;
+      default:
+        // Fallback for unknown status
+        navigate(`/ticket/view-single-event/${ticketId}`);
+    }
   };
   // Helper function to parse API response and extract tickets/events
   const parseApiResponse = (response= 'events') => {
@@ -1596,7 +1614,7 @@ const handleUpdateGroup = async () => {
                                 {/* View button */}
                                 <div className="flex justify-center mt-auto">
                                   <button
-                                    onClick={() => handleViewEvent(event._id)}
+                                    onClick={() => handleViewEvent(event)}
                                     className="px-10 py-2 rounded-full text-white text-sm font-medium"
                                     style={{
                                       background: "linear-gradient(180deg, #2e1745 0%, #7f53e7 100%)"
@@ -1625,7 +1643,7 @@ const handleUpdateGroup = async () => {
                               }} 
                             >
                               {/* Event Image */}
-                              <div className="p-2" onClick={() => handleViewEvent(event._id)}>
+                              <div className="p-2" onClick={() => handleViewEvent(event)}>
                                 <img
                                   src={
                                     event.event_banner ||
@@ -1646,7 +1664,7 @@ const handleUpdateGroup = async () => {
                               {/* Event Info */}
                               <div
                                 className="flex flex-col flex-1 p-2 justify-between cursor-pointer"
-                                onClick={() => handleViewEvent(event._id)}
+                                onClick={() => handleViewEvent(event)}
                               >
                                 <div className="text-center mb-2">
                                   <h3 className={`font-bold text-sm ${theme.text} line-clamp-1`}>
