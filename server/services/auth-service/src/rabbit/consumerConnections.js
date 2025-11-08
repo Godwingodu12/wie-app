@@ -1,42 +1,40 @@
-import User from '../models/user.model.js';
 import { listenQueue } from './consumer.js';
+import { getUserData, getFollowersData } from '../services/auth.service.js';
 
 export const listenForUserRequests = async () => {
-  // Listen on 'auth-get-user' - this must match what ticket-service sends to
-  await listenQueue('auth-get-user', async (payload) => {
+  // LISTEN FOR: ticket-service, user-service (old queue name)
+  await listenQueue('get-user', async (payload) => {
     try {
-      console.log('📦 Auth service received user request:', JSON.stringify(payload));
-      
-      let userId;
-      if (typeof payload === 'string') {
-        userId = payload;
-      } else if (typeof payload === 'object' && payload !== null) {
-        userId = payload.userId || payload.id || payload._id;
-      }
-      
-      console.log(`🔍 Extracted userId: ${userId}`);
-      
-      if (!userId || typeof userId !== 'string') {
-        console.error('❌ Invalid userId:', userId);
-        return { error: 'Invalid userId format', payload };
-      }
-      
-      const user = await User.findById(userId).select('-password').lean();
-      
-      if (!user) {
-        console.warn(`⚠️ User not found: ${userId}`);
-        return { error: 'User not found', userId };
-      }
-      
-      console.log(`✅ User found and returning: ${user._id}`);
-      return user;
-      
-    } catch (err) {
-      console.error('❌ Error fetching user:', err.message);
-      return { 
-        error: err.message, 
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined 
-      };
+      const userData = await getUserData(payload);
+      return userData;
+    } catch (error) {
+      console.error('❌ Error in get-user handler:', error);
+      return { error: error.message };
     }
   });
+
+  // LISTEN FOR: chat-service (new queue name)
+  await listenQueue('auth-get-user', async (payload) => {
+    try {
+      console.log('📦 Received auth-get-user request:', payload);
+      const userData = await getUserData(payload);
+      console.log('✅ Sending user data response');
+      return userData;
+    } catch (error) {
+      console.error('❌ Error in auth-get-user handler:', error);
+      return { error: error.message };
+    }
+  });
+
+  // LISTEN FOR: chat-service followers
+  await listenQueue('auth-get-followers', async (payload) => {
+    try {
+      const followersData = await getFollowersData(payload);
+      return followersData;
+    } catch (error) {
+      console.error('❌ Error in auth-get-followers handler:', error);
+      return { error: error.message };
+    }
+  });
+  console.log('📡 Listening on: get-user, auth-get-user, auth-get-followers');
 };

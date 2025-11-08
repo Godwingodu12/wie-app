@@ -1,7 +1,6 @@
 import { sendRPC } from '../rabbit/producer.js';
 import { isChannelAvailable } from '../rabbit/connection.js';
-
-export const getProfile = async (req, res) => {
+export const getMe = async (req, res) => {
   try {
     // Check if RabbitMQ is available
     if (!isChannelAvailable()) {

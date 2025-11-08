@@ -148,6 +148,24 @@ export const getFollowers = async (userId) => {
     throw err;
   }
 };
+export const getAllFollowers = async () => {
+  try {
+    const res = await api.get(`/auth/get-all-followers`);
+    return res.data;
+    } catch (err) {
+    console.error('getAllFollowers error:', err);
+    throw err;
+  }
+};
+export const getAllFollowing = async () => {
+  try {
+    const res = await api.get(`/auth/get-all-following`);
+    return res.data;
+    } catch (err) {
+    console.error('getAllFollowing error:', err);
+    throw err;
+  }
+};
 export const getFollowing = async (userId) => {
   try {
     const res = await api.get(`/auth/get-following/${userId}`);
@@ -183,5 +201,63 @@ export const personalDetails = async (data) => {
   catch (error) {
     console.error('personalDetails error in Backend:', error);
     throw error;
+  }
+};
+export const getUserData = async () => {
+  try {
+    const res = await api.get('/auth/get-user-data');
+    return res.data;
+  } catch (err) {
+    console.error('getUserData error:', err);
+    throw err;
+  }
+};
+export const getFollowersData = async (payload) => {
+  try {
+    const res = await api.get(`/auth/get-followers-data/${payload}`);
+    return res.data;
+  } catch (err) {
+    console.error('getFollowersData error:', err);
+    throw err;
+  }
+};
+export const findAllActiveUsersService = async (userId,searchQuery) => {
+  try {
+    const res = await api.get(`/auth/find-all-active-users/${userId}/${searchQuery}`);
+    return res.data;
+  }catch (err) {
+    console.error('findAllActiveUsersService error:', err);
+    throw err;
+  }
+};
+export const getFollowersService = async (userId) => {
+  try {
+    const res = await api.get(`/auth/get-followers-service/${userId}`);
+    return res.data;
+  }catch(err){
+    console.error('getFollowersData error:',err);
+    throw err;
+  }
+};
+
+export const getFollowersDataHttp = async () => {
+  try {
+    const res = await api.get('/auth/get-followers-data');
+    return res.data;
+  }catch(err){
+    console.error('getFollowersData error:',err);
+    throw err;
+  }
+};
+export const AllActiveUsers = async (query = '') => {
+  try {
+    const url = query 
+      ? `/auth/users/active?query=${encodeURIComponent(query)}`
+      : '/auth/users/active';
+    const res = await api.get(url);
+    return res.data;
+  } catch (err) {
+    console.error('AllActiveUsers error:', err);
+    throw err;
   }
 };
