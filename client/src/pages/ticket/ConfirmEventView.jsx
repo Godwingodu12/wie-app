@@ -6,7 +6,14 @@ import React, {
   useCallback,
 } from "react";
 import GroupViewModal from "../../components/CreateGroup/GroupViewModal";
-import { ChevronRight, ChevronLeft, Phone, Play, Radio } from "lucide-react";
+import {
+  ChevronRight,
+  ChevronLeft,
+  Phone,
+  Play,
+  Bookmark,
+  Radio,
+} from "lucide-react";
 import { getImageUrl } from "../../utils/imageUtils";
 import Event_Days from "../../assets/ViewSingleEvent/Event_Days.svg";
 import Globe from "../../assets/ViewSingleEvent/Globe.svg";
@@ -32,9 +39,8 @@ import {
   getTicketById,
   getGroupView,
   deleteTicket,
-  confirmEvent,
+  getMyEvents,
   goLiveEvent,
-  getMyEvents
 } from "../../services/ticketService";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -60,9 +66,13 @@ import ConfirmModal from "../../components/Modal";
 import Alert from "../../components/Alert";
 import RulesModal from "../../components/ViewSingleEvent/RulesModal";
 import ScrollBarStyle from "../../components/ScrollBarStyle";
+
+import POCDetailModal from "../../components/ViewSingleEvent/POCDetailModal";
+import HashtagModal from "../../components/ViewSingleEvent/HashtagModal";
 import HostEventModal from "../../components/Event/HostEventModal";
+
 const darkTheme = {
-  isDark: true,  // This should already be here, but make sure it is
+  isDark: true,
   text: "text-white",
   mainBg: "#212426",
   cardBg: "rgba(33, 36, 38, 0.9)",
@@ -74,7 +84,7 @@ const darkTheme = {
   arrowColorClass: "text-white",
 };
 const lightTheme = {
-  isDark: false,  // This should already be here, but make sure it is
+  isDark: false,
   text: "text-gray-900",
   mainBg: "#e0e0e0",
   cardBg: "rgba(255, 255, 255, 0.9)",
@@ -97,7 +107,7 @@ const ConfirmEventView = () => {
   const [currentGuideIndex, setCurrentGuideIndex] = useState(0);
   const [currentBankIndex, setCurrentBankIndex] = useState(0);
   const [currentTicketIndex, setCurrentTicketIndex] = useState(0);
-  const [groupEventCount, setGroupEventCount] = useState(0);
+  const [isDarkMode, setIsDarkMode] = useState(initialThemeIsDark);
   const [eventData, setEventData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -105,7 +115,9 @@ const ConfirmEventView = () => {
   const [isApiReady, setIsApiReady] = useState(false);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
-
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [selectedGroupForModal, setSelectedGroupForModal] = useState(null);
+  const [groupEventCount, setGroupEventCount] = useState(0);
   const [groupData, setGroupData] = useState(null);
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -123,22 +135,62 @@ const ConfirmEventView = () => {
 
   const [showSubEventModal, setShowSubEventModal] = useState(false);
   const [selectedSubEvent, setSelectedSubEvent] = useState(null);
+  const [showConfirmSaveModal, setShowConfirmSaveModal] = useState(false);
+
+  const [currentSeatingIndex, setCurrentSeatingIndex] = useState(0);
+  const [showSeatingModal, setShowSeatingModal] = useState(false);
+
+  const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
+  const [appAlert, setAppAlert] = useState(null);
+
+  const [showRulesModal, setShowRulesModal] = useState(false);
+
+  const [showHashtagModal, setShowHashtagModal] = useState(false);
+
+  const [showPOCModal, setShowPOCModal] = useState(false);
+  const [selectedPOC, setSelectedPOC] = useState(null);
+
+  const groupId = eventData?.group_id || eventData?.groupId; // Derive groupId from fetched data
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [loadingCount, setLoadingCount] = useState(false);
 
   const [isHostModalOpen, setIsHostModalOpen] = useState(false);
   const [selectedEventToHost, setSelectedEventToHost] = useState(null);
   const [isHosting, setIsHosting] = useState(false);
-  const [currentSeatingIndex, setCurrentSeatingIndex] = useState(0);
-  const [showSeatingModal, setShowSeatingModal] = useState(false);
-  const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
-  const [appAlert, setAppAlert] = useState(null);
-  const [showRulesModal, setShowRulesModal] = useState(false);
-  const groupId = eventData?.group_id || eventData?.groupId; // Derive groupId from fetched data
-  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-  const [selectedGroupForModal, setSelectedGroupForModal] = useState(null);
-  const [selectedGroup, setSelectedGroup] = useState(null);
-  const [loadingCount, setLoadingCount] = useState(false);
+
+  const [allEvents, setAllEvents] = useState([]);
   const guidesToShow = viewportWidth >= 768 ? 3 : 1;
   const visibleTickets = viewportWidth >= 768 ? 3 : 1;
+
+  useEffect(() => {
+    const fetchAllEvents = async () => {
+      try {
+        const response = await getMyEvents();
+
+        // Parse the response to extract events/tickets
+        let events = [];
+        if (response?.data?.tickets) {
+          events = response.data.tickets;
+        } else if (response?.tickets) {
+          events = response.tickets;
+        } else if (response?.data?.events) {
+          events = response.data.events;
+        } else if (response?.events) {
+          events = response.events;
+        } else if (Array.isArray(response?.data)) {
+          events = response.data;
+        } else if (Array.isArray(response)) {
+          events = response;
+        }
+
+        setAllEvents(events);
+      } catch (err) {
+        setAllEvents([]);
+      }
+    };
+
+    fetchAllEvents();
+  }, []);
 
   const handleDeleteEvent = async () => {
     setShowConfirmDeleteModal(true);
@@ -152,30 +204,35 @@ const ConfirmEventView = () => {
       const response = await goLiveEvent(selectedEventToHost._id);
 
       if (response) {
-        // Show success message
-        alert(`"${selectedEventToHost.event_name}" is now live!`);
-
-        // Close modal
+        setAppAlert({
+          message: "Success!",
+          description: `"${selectedEventToHost.event_name}" is now live!`,
+          type: "success",
+          show: true,
+        });
         setIsHostModalOpen(false);
         setSelectedEventToHost(null);
 
-        // Navigate to live events page
         navigate("/ticket/live-events");
       }
     } catch (error) {
-      console.error("Error hosting event:", error);
-
-      // Check if error has expired dates information
       if (error.response?.data?.expiredDates) {
         const expiredDates = error.response.data.expiredDates.join("\n• ");
-        alert(
-          `Cannot host event. The following dates have expired:\n\n• ${expiredDates}\n\nPlease update these dates before hosting the event.`
-        );
+        setAppAlert({
+          message: "Hosting Failed: Expired Dates",
+          description: `Cannot host event. The following dates have expired:\n\n• ${expiredDates}\n\nPlease update these dates before hosting the event.`,
+          type: "error",
+          show: true,
+        });
       } else {
-        alert(
-          error.response?.data?.message ||
-            "Failed to host event. Please try again."
-        );
+        setAppAlert({
+          message: "Hosting Failed",
+          description:
+            error.response?.data?.message ||
+            "Failed to host event. Please try again.",
+          type: "error",
+          show: true,
+        });
       }
     } finally {
       setIsHosting(false);
@@ -185,6 +242,28 @@ const ConfirmEventView = () => {
   const openHostModal = (event) => {
     setSelectedEventToHost(event);
     setIsHostModalOpen(true);
+  };
+
+  const handleShowHashtagModal = () => {
+    if (hashtags.length > 0) {
+      setShowHashtagModal(true);
+    } else {
+      setAppAlert({
+        message: "Information",
+        description: "No hashtags available to show.",
+        type: "error",
+        show: true,
+      });
+    }
+  };
+  const handlePOCPersonClick = (person) => {
+    setSelectedPOC(person);
+    setShowPOCModal(true);
+  };
+
+  const handleClosePOCModal = () => {
+    setShowPOCModal(false);
+    setSelectedPOC(null);
   };
 
   const allEventsForBankView = useMemo(() => {
@@ -231,6 +310,10 @@ const ConfirmEventView = () => {
     return events;
   }, [eventData, groupData]);
 
+  const handleSaveEvent = () => {
+    setShowConfirmSaveModal(true);
+  };
+
   const handleConfirmDelete = async () => {
     setShowConfirmDeleteModal(false);
     if (!ticketId) return;
@@ -247,9 +330,8 @@ const ConfirmEventView = () => {
         show: true,
       });
 
-      setTimeout(() => navigate("/home"), 1000);
+      setTimeout(() => navigate("/ticket/deleted-events"), 1000);
     } catch (error) {
-      console.error("Failed to delete event:", error);
       setAppAlert({
         message: "Error Deleting Event",
         description: error.message || "Please check server connection.",
@@ -353,14 +435,13 @@ const ConfirmEventView = () => {
   };
 
   const handlePlayClick = () => {
-    console.log("Play clicked, eventData:", eventData);
-
     // Collect all images: banner, logo, and event_images
     const allImages = [];
 
     // Add banner if exists
     if (eventData?.event_banner) {
       const bannerUrl = getImageUrl(eventData.event_banner, "ticket");
+
       allImages.push({
         path: bannerUrl,
         type: "banner",
@@ -403,9 +484,6 @@ const ConfirmEventView = () => {
       });
     }
 
-    console.log("All collected images:", allImages);
-    console.log("Total images:", allImages.length);
-
     if (allImages.length > 0) {
       setCurrentImageIndex(0);
       setShowImageModal(true);
@@ -419,24 +497,25 @@ const ConfirmEventView = () => {
     }
   };
   // Inside ViewEvent component
-
   useEffect(() => {
-    const theme = localStorage.getItem("theme");
-    const d = theme
-      ? theme === "dark"
+    const themeValue = localStorage.getItem("theme");
+    const d = themeValue
+      ? themeValue === "dark"
       : window.matchMedia("(prefers-color-scheme: dark)").matches;
-    setTheme(d ? darkTheme : lightTheme);
+    const selectedTheme = d ? darkTheme : lightTheme;
+    setTheme(selectedTheme);
+    setIsDarkMode(d);
     document.documentElement.classList.toggle("dark", d);
   }, []);
-
   const handleThemeToggle = () => {
     const newDark = !theme.isDark;
+    const newTheme = newDark ? darkTheme : lightTheme;
 
-    setTheme(newDark ? darkTheme : lightTheme);
+    setTheme(newTheme);
+    setIsDarkMode(newDark);
     document.documentElement.classList.toggle("dark", newDark);
     localStorage.setItem("theme", newDark ? "dark" : "light");
   };
-
   useEffect(() => {
     const callbackName = "initViewMapCallback";
     const scriptId = "google-maps-view-script";
@@ -531,16 +610,13 @@ const ConfirmEventView = () => {
         // Test if logo URL is accessible
         if (data.event_logo) {
           const testImg = new Image();
-          testImg.onload = () =>
-          testImg.onerror = () =>
-            console.error("❌ Logo URL failed to load:", data.event_logo);
+          testImg.onload = () => (testImg.onerror = () => null);
           testImg.src = data.event_logo;
         }
 
         setEventData(data);
         setGroupData(fetchedGroupData);
       } catch (err) {
-        console.error("Failed to fetch event/group data:", err);
         setError(err.message || "Failed to load event details.");
       } finally {
         setLoading(false);
@@ -658,7 +734,6 @@ const ConfirmEventView = () => {
     }
   };
   const handleGuestClick = (guest) => {
-    console.log("Guest Clicked! Modal should open for:", guest.guest_name);
     setSelectedGuest(guest);
     setShowGuideModal(true);
   };
@@ -712,67 +787,65 @@ const ConfirmEventView = () => {
     if (totalImages === 0) return;
     setCurrentImageIndex((prevIndex) => (prevIndex + 1) % totalImages);
   };
-
   const handleBack = () => {
     navigate(-1);
   };
-const handleGroupLogoClick = async (groupData) => {
-  if (!groupData) {
-    console.error('No group data provided');
-    return;
-  }
-  setSelectedGroup(groupData);
-  setIsGroupModalOpen(true);
-  setLoadingCount(true);
-  try {
-    const groupId = groupData._id || groupData.id;    
-    // Fetch all events
-    const response = await getMyEvents();
-    
-    // Parse the response
-    let events = [];
-    if (response?.data?.tickets) {
-      events = response.data.tickets;
-    } else if (response?.tickets) {
-      events = response.tickets;
-    } else if (response?.data?.events) {
-      events = response.data.events;
-    } else if (response?.events) {
-      events = response.events;
-    } else if (Array.isArray(response?.data)) {
-      events = response.data;
-    } else if (Array.isArray(response)) {
-      events = response;
-    }    
-    // Filter events for this specific group
-    const groupEvents = events.filter(event => {
-      const eventGroupId = event.group_id || 
-                          event.groupId || 
-                          event.group?._id || 
-                          event.group?.id ||
-                          event.ticket_group_id ||
-                          event.ticketGroupId;
-      
-      const matches = eventGroupId === groupId;
-      return matches;
-    });
-    setGroupEventCount(groupEvents.length);
-  } catch (err) {
-    console.error("Failed to fetch group event count:", err);
-    setGroupEventCount(0);
-  } finally {
-    setLoadingCount(false);
-  }
-};
-const handleCloseGroupModal = () => {
-  setIsGroupModalOpen(false);
-  setSelectedGroup(null);
-};
-const handleUpdateGroupFromModal = () => {
-  console.log('Update group:', selectedGroup);
-  // Add your update logic here
-  handleCloseGroupModal();
-};
+  const handleGroupLogoClick = async (groupData) => {
+    if (!groupData) {
+      return;
+    }
+    setSelectedGroup(groupData);
+    setIsGroupModalOpen(true);
+    setLoadingCount(true);
+    try {
+      const groupId = groupData._id || groupData.id;
+
+      // Fetch all events
+      const response = await getMyEvents();
+
+      // Parse the response
+      let events = [];
+      if (response?.data?.tickets) {
+        events = response.data.tickets;
+      } else if (response?.tickets) {
+        events = response.tickets;
+      } else if (response?.data?.events) {
+        events = response.data.events;
+      } else if (response?.events) {
+        events = response.events;
+      } else if (Array.isArray(response?.data)) {
+        events = response.data;
+      } else if (Array.isArray(response)) {
+        events = response;
+      }
+
+      // Filter events for this specific group
+      const groupEvents = events.filter((event) => {
+        const eventGroupId =
+          event.group_id ||
+          event.groupId ||
+          event.group?._id ||
+          event.group?.id ||
+          event.ticket_group_id ||
+          event.ticketGroupId;
+
+        const matches = eventGroupId === groupId;
+        return matches;
+      });
+      setGroupEventCount(groupEvents.length);
+    } catch (err) {
+      setGroupEventCount(0);
+    } finally {
+      setLoadingCount(false);
+    }
+  };
+  const handleCloseGroupModal = () => {
+    setIsGroupModalOpen(false);
+    setSelectedGroup(null);
+  };
+  const handleUpdateGroupFromModal = () => {
+    handleCloseGroupModal();
+  };
   const handlePrevImage = () => {
     // Calculate total images: banner + logo + event_images
     let totalImages = 0;
@@ -809,16 +882,20 @@ const handleUpdateGroupFromModal = () => {
   eventData.sub_events[eventData.sub_events.length] = eventData;
   return (
     <div
+      key={`main-container-${theme.isDark ? "dark" : "light"}`}
       className={`min-h-screen md:p-8 p-2 ${theme.text}`}
       style={{ backgroundColor: theme.mainBg }}
     >
-      <ScrollBarStyle isDark={theme.isDark} key={theme.isDark ? 'dark' : 'light'}/>
+      <ScrollBarStyle
+        isDark={theme.isDark}
+        key={theme.isDark ? "dark" : "light"}
+      />
       <ConfirmModal
         isOpen={showConfirmDeleteModal}
         onClose={() => setShowConfirmDeleteModal(false)}
         onConfirm={handleConfirmDelete}
         title="Confirm Deletion"
-        message={`Are you sure you want to permanently delete event ID ${ticketId}? This action cannot be undone.`}
+        message={`Are you sure you want to permanently delete event : ${eventData.event_name} ? This action cannot be undone.`}
         darkMode={theme.isDark}
       />
       <HostEventModal
@@ -877,7 +954,7 @@ const handleUpdateGroupFromModal = () => {
               rounded-full flex items-center justify-center"
             style={{boxShadow: theme.shadowOutset,}}>
             <Radio size={20} />
-          </div>
+            </div>
           </div>
         </div>
         <div className=" md:flex hidden justify-start md:justify-center flex-grow">
@@ -933,7 +1010,7 @@ const handleUpdateGroupFromModal = () => {
       </div>
 
       <div className="md:relative">
-        <div className="grid md:grid-cols-2 gap-6 ">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <Card
             theme={theme}
             className="p-6 relative overflow-hidden"
@@ -950,15 +1027,17 @@ const handleUpdateGroupFromModal = () => {
               />
             </svg>
 
-            <div className="flex space-x-6 mb-4">
-              <h2 className={`text-xl font-semibold pb-1 ${theme.textColor}`}>
+            <div className="flex lg:space-x-6 space-x-3 mb-4">
+              <h2
+                className={`lg:text-xl text-lg  font-semibold pb-1 ${theme.textColor}`}
+              >
                 {eventData.event_category}
               </h2>
-              <h2 className="text-xl font-semibold text-gray-400">
+              <h2 className="lg:text-xl text-lg font-semibold text-gray-400">
                 {eventData.event_subcategory}
               </h2>
             </div>
-            <div className="md:flex space-y-4 md:space-y-0 md:space-x-6 mb-4">
+            <div className="md:flex space-y-4 md:space-y-0 lg:space-x-6 space-x-3  mb-4">
               <div
                 style={{
                   borderRadius: "31.15px",
@@ -972,7 +1051,7 @@ const handleUpdateGroupFromModal = () => {
               <div className="flex justify-between">
                 <Card
                   theme={theme}
-                  className="md:p-4 gap-x-4 flex md:flex-col justify-around items-center flex-shrink-0"
+                  className="lg:p-4 gap-x-4 flex md:flex-col justify-around items-center flex-shrink-0"
                   style={{
                     minWidth: "80px",
                     background: theme.isDark ? "#212426" : "A light mode color",
@@ -983,7 +1062,7 @@ const handleUpdateGroupFromModal = () => {
                     boxShadow: `5.24px 5.24px 7.86px 0px #00000029, -5.24px -5.24px 7.86px 0px #FFFFFF0A`,
                   }}
                 >
-                  <div className="text-center md:py-2">
+                  <div className="text-center lg:py-2">
                     <img
                       src={TypeIcon}
                       alt="Event Type Icon"
@@ -1002,7 +1081,7 @@ const handleUpdateGroupFromModal = () => {
                     }`}
                   ></div>
 
-                  <div className="text-center md:py-2">
+                  <div className="text-center lg:py-2">
                     <img
                       src={LocationIcon}
                       alt="Location Icon"
@@ -1015,27 +1094,23 @@ const handleUpdateGroupFromModal = () => {
                     </p>
                   </div>
                 </Card>
-               <div className="flex md:hidden pt-8">
-                <div
-                  onClick={() => handleGroupLogoClick(groupData)}
-                  className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0 cursor-pointer transition-transform duration-200 active:scale-95"
-                  style={{ boxShadow: theme.shadowOutset }}
-                >
-                  <img
-                    src={getImageUrl(groupData?.company_logo)}
-                    alt="Group Logo"
-                    className="w-full h-full rounded-full object-cover opacity-70 p-1"
-                    onError={(e) => {
-                      console.error("Logo failed to load:", e.target.src);
-                      e.target.src = "https://via.placeholder.com/96?text=Logo";
-                    }}
-                  />
+                <div className="flex md:hidden pt-8">
+                  <div
+                    onClick={() => handleGroupLogoClick(groupData)}
+                    className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0 cursor-pointer transition-transform duration-200 active:scale-95"
+                    style={{ boxShadow: theme.shadowOutset }}
+                  >
+                    <img
+                      src={getImageUrl(groupData?.company_logo)}
+                      alt="Group Logo"
+                      className="w-full h-full rounded-full object-cover opacity-70 p-1"
+                    />
+                  </div>
                 </div>
-              </div>
               </div>
             </div>
             <div className="md:flex items-start space-x-4">
-              <div className="md:w-3/5 space-y-4">
+              <div className="md:w-3/4 lg:3/5 space-y-4">
                 <h3 className={`text-md font-semibold pt-2 ${theme.textColor}`}>
                   Status: {eventData.event_status}
                   <span
@@ -1060,18 +1135,20 @@ const handleUpdateGroupFromModal = () => {
                         borderRadius: "30px",
                         boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                       }}
-                      className={`p-2 py-6 my-2 flex flex-col items-center justify-center w-2/5 rounded-3xl border ${
+                      className={`p-2 lg:py-5 my-2 flex flex-col items-center justify-center w-2/5 rounded-3xl border ${
                         theme.isDark ? "border-gray-700" : "border-gray-300"
                       }`}
                     >
                       <img
                         src={Event_Days}
                         alt="Event Days Icon"
-                        className={`mb-1 h-5 w-5 ${
+                        className={`mb-1 lg:h-5 lg:w-5  h-4 w-4${
                           theme.isDark ? "" : "filter invert"
                         }`}
                       />
-                      <p className={`text-3xl font-bold ${theme.textColor}`}>
+                      <p
+                        className={`lg:text-3xl text-lg font-bold ${theme.textColor}`}
+                      >
                         {eventData.event_dates.length}
                       </p>
                       <p className={`text-sm mt-1 ${theme.textColor}`}>
@@ -1086,7 +1163,7 @@ const handleUpdateGroupFromModal = () => {
                           borderRadius: "30px",
                           boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                         }}
-                        className={`p-2 py-6 my-2 flex flex-col border ${
+                        className={`p-2 lg:py-6 my-2 flex flex-col border ${
                           theme.isDark ? "border-gray-700" : "border-gray-300"
                         } items-center justify-center w-2/5 rounded-3xl  relative overflow-hidden`}
                       >
@@ -1132,7 +1209,9 @@ const handleUpdateGroupFromModal = () => {
                             theme.isDark ? "" : "filter invert"
                           }`}
                         />
-                        <p className={`text-3xl font-bold ${theme.textColor}`}>
+                        <p
+                          className={`lg:text-3xl text-lg font-bold ${theme.textColor}`}
+                        >
                           {formatCapacity(
                             eventData.sub_events[currentStatsEventIndex]
                               ?.total_capacity
@@ -1160,7 +1239,7 @@ const handleUpdateGroupFromModal = () => {
                           borderRadius: "30px",
                           boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                         }}
-                        className={`p-2 py-6 my-2 flex flex-col border ${
+                        className={`p-2 lg:py-6 my-2 flex flex-col border ${
                           theme.isDark ? "border-gray-700" : "border-gray-400"
                         } items-center justify-center w-2/5 rounded-3xl`}
                       >
@@ -1174,7 +1253,9 @@ const handleUpdateGroupFromModal = () => {
                         <p className={`text-3xl font-bold ${theme.textColor}`}>
                           {formatCapacity(eventStats.totalCapacity)}
                         </p>
-                        <p className={`text-sm mt-1 ${theme.textColor}`}>
+                        <p
+                          className={`text-xs lg:text-base mt-1 ${theme.textColor}`}
+                        >
                           Total Capacity
                         </p>
                       </Card>
@@ -1183,20 +1264,16 @@ const handleUpdateGroupFromModal = () => {
                 </div>
               </div>
               {/* Desktop logo */}
-              <div className="md:flex w-2/5  lg:px-10 lg:pt-10 px-7 pt-7">
-                <div 
+              <div className="hidden md:flex w-1/4 lg:2/5 lg:px-8 lg:pt-10  pt-7">
+                <div
                   onClick={() => handleGroupLogoClick(groupData)}
-                  className="lg:w-32 lg:h-32 h-28 w-28 rounded-full overflow-hidden flex-shrink-0"
+                  className="h-20 w-20 xl:h-28 xl:w-28 rounded-full overflow-hidden flex-shrink-0 cursor-pointer transition-transform duration-200 hover:scale-105"
                   style={{ boxShadow: theme.shadowOutset }}
                 >
                   <img
-                    src={getImageUrl(groupData.company_logo)}
-                    alt="Event Logo"
+                    src={getImageUrl(groupData?.company_logo)}
+                    alt="Group Logo"
                     className="w-full h-full rounded-full object-cover opacity-70 p-1"
-                    onError={(e) => {
-                      e.target.src =
-                        "https://via.placeholder.com/128?text=Logo";
-                    }}
                   />
                 </div>
               </div>
@@ -1228,7 +1305,7 @@ const handleUpdateGroupFromModal = () => {
                   ? `6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset `
                   : `6px 6px 12px 0px #FFFFFF inset,-6px -6px 12px 0px #A0A0A0 inset `,
               }}
-              className="md:p-5 md:mb-2 p-4 mb-1 rounded-3xl mt-6"
+              className="md:p-5 md:mb-2 p-5 mb-1 rounded-3xl lg:mt-6"
             >
               <div
                 style={{
@@ -1250,10 +1327,10 @@ const handleUpdateGroupFromModal = () => {
               >
                 <div
                   onClick={handleLocationClick}
-                  className="flex py-3 md:py-0 pr-1 justify-between items-center md:space-x-3 space-x-1 cursor-pointer"
+                  className="flex py-5 md:py-0 pr-1 justify-between items-center md:space-x-3 space-x-1 cursor-pointer"
                 >
                   <div
-                    className="!p-0 relative md:w-24 md:h-24 w-12 h-full md:rounded-3xl overflow-hidden flex-shrink-0"
+                    className="!p-0 relative lg:w-24 lg:h-24 w-16 h-full lg:rounded-3xl overflow-hidden flex-shrink-0"
                     ref={mapRef}
                   >
                     {!eventData.exact_map_location?.latitude && (
@@ -1269,24 +1346,24 @@ const handleUpdateGroupFromModal = () => {
 
                   <div className="flex-grow pl-2">
                     <p
-                      className={`md:text-xl text-sm md:font-bold mb-0.5 ${theme.textColor}`}
+                      className={`lg::text-xl text-sm md:font-bold mb-0.5 ${theme.textColor}`}
                     >
                       {formattedDateRange.dateText}
                     </p>
-                    <p className={`md:text-md text-xs ${theme.textColor}`}>
+                    <p className={`lg::text-md text-xs ${theme.textColor}`}>
                       {eventData.location}
                     </p>
-                    <p className="md:text-sm text-xs text-gray-400">
+                    <p className="lg::text-sm text-xs text-gray-400">
                       {eventData.venue}
                     </p>
                   </div>
 
                   <div className="md:w-[1px] h-10 bg-gray-700 md:mx-2 flex-shrink-0 hidden md:block"></div>
 
-                  <div className="text-right flex-shrink-0 pr-1 md:pr-3 w-1/4 md:w-1/3">
+                  <div className="text-right flex-shrink-0 pr-2 lg:pr-3 w-1/4 lg:w-1/3">
                     <p className="text-xs text-gray-500 mb-1">Gate opens at</p>
                     <p
-                      className={`md:text-xl text-xs md:font-bold ${theme.textColor}`}
+                      className={`lg:text-xl text-xs lg:font-bold ${theme.textColor}`}
                     >
                       {formattedDateRange.timeText}
                     </p>
@@ -1369,13 +1446,13 @@ const handleUpdateGroupFromModal = () => {
                                   setActiveCarouselIndex(index);
                                 }
                               }}
-                              className={`flex-shrink-0 w-24 h-36 p-2 rounded-xl transition-all duration-300 transform-gpu cursor-pointer`}
+                              className={`flex-shrink-0 lg:w-24 lg:h-36 w-20 h-28  p-2 rounded-xl transition-all duration-300 transform-gpu cursor-pointer`}
                               style={subEventCardStyle(isActive, theme.isDark)}
                             >
                               {/* Inner content remains the same */}
                               <div className="flex flex-col items-center justify-between h-full">
                                 <div
-                                  className="w-10 h-10 mt-4 rounded-full overflow-hidden flex items-center justify-center"
+                                  className="lg:w-10 lg:h-10 h-8 w-8 mt-4 rounded-full overflow-hidden flex items-center justify-center"
                                   style={{
                                     backgroundColor: isActive
                                       ? "transparent"
@@ -1389,7 +1466,7 @@ const handleUpdateGroupFromModal = () => {
                                   />
                                 </div>
                                 <div
-                                  className={`text-sm font-bold ${
+                                  className={`lg:text-sm text-xs font-bold ${
                                     isActive ? "text-white" : theme.textColor
                                   }`}
                                 >
@@ -1446,7 +1523,7 @@ const handleUpdateGroupFromModal = () => {
                 </div>
               </div>
             )}
-            <div className="flex items-end h-full md:w-4/5 mx-auto md:mx-0 md:ml-auto">
+            <div className="flex items-end h-full pl-3 md:w-4/5 mx-auto md:mx-0 md:ml-auto">
               <div
                 style={{
                   borderRadius: "22.44px",
@@ -1458,14 +1535,15 @@ const handleUpdateGroupFromModal = () => {
                     ? `4px 4px 6px 0px #0000001A, -4px -4px 6px 0px #FFFFFF08`
                     : `4px 4px 6px 0px #90909066, -4px -4px 6px 0px #FFFFFF08`,
                 }}
-                className="w-full p-2 rounded-3xl mt-4"
+                className="w-full p-2 cursor-pointer rounded-3xl mt-4"
+                onClick={handleShowHashtagModal}
               >
                 <div className="flex items-center h-12">
-                  <div className="flex items-center pr-2">
+                  <div className="flex items-center ">
                     <h3
-                      className={`text-xs font-semibold whitespace-nowrap ${theme.textColor}`}
+                      className={`text-xs lg:text-base lg:px-2 font-semibold whitespace-nowrap ${theme.textColor}`}
                     >
-                      Event hashtag
+                      Event<br className="lg:block hidden"></br> hashtag
                     </h3>
                   </div>
 
@@ -1473,21 +1551,23 @@ const handleUpdateGroupFromModal = () => {
                   <div
                     className={`border-l-2 border-dotted ${
                       theme.isDark ? "border-gray-700" : "border-gray-400"
-                    } h-full mx-1 overflow-y-auto custom-scrollbar`}
+                    } h-full mx-1 `}
                   ></div>
 
-                  <div className="flex pl-2 ">
+                  <div className="flex px-1 ">
                     {hashtags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {hashtags.slice(0, 4).map((tag, index) => (
-                          <span
-                            key={index}
-                            className="text-xs font-medium px-2.5 py-1 rounded-md text-white"
-                            style={{ backgroundColor: "#5E5CE6" }}
-                          >
-                            {tag}
-                          </span>
-                        ))}
+                      <div className="flex overflow-y-auto custom-scrollbar  flex-wrap gap-1.5 max-h-12">
+                        {hashtags
+                          .slice(0, hashtags.length)
+                          .map((tag, index) => (
+                            <span
+                              key={index}
+                              className="text-xs font-medium px-2.5 py-1 rounded-md text-white"
+                              style={{ backgroundColor: "#5E5CE6" }}
+                            >
+                              #{tag}
+                            </span>
+                          ))}
                       </div>
                     ) : (
                       <p className="text-sm text-gray-500 italic">
@@ -1512,8 +1592,8 @@ const handleUpdateGroupFromModal = () => {
             >
               <path d="M 200,0 L 200,100 Q 200,0 0,0 Z" fill={theme.mainBg} />
             </svg>
-            <div className="w-full flex md:gap-x-2 justify-between md:justify-start items-center px-6 md:px-0">
-              <div className="md:flex md:gap-x-2 space-y-4  md:space-y-0  ">
+            <div className="w-full flex md:gap-x-6 lg:gap-x-2 justify-between md:justify-start items-center px-6 md:px-0">
+              <div className="lg:flex lg:gap-x-2 space-y-4  lg:space-y-0  ">
                 <FeatureButton
                   Icon={Seat}
                   label="Seat"
@@ -1541,7 +1621,7 @@ const handleUpdateGroupFromModal = () => {
                 />
               </div>
 
-              <div className="md:flex md:gap-x-2 space-y-4  md:space-y-0">
+              <div className="lg:flex lg:gap-x-2 space-y-4  lg:space-y-0">
                 <FeatureButton
                   Icon={Preference}
                   label="Preference"
@@ -1576,20 +1656,20 @@ const handleUpdateGroupFromModal = () => {
               </Card>
             </div>
           </Card>
-          <div className="md:absolute mx-auto md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:z-30 md:pointer-events-none">
+          <div className="md:absolute mx-auto md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:z-30 md:pointer-events-none my-6 md:my-0">
             <div
-              className="xl:w-80 xl:h-80 w-72 h-72 rounded-full relative"
+              className="w-64 h-64 md:w-[300px] md:h-[300px] lg:w-72 lg:h-72 xl:w-80 xl:h-80 rounded-full relative mx-auto"
               style={{
                 boxShadow: theme.shadowInset,
                 backgroundColor: theme.insetBg,
               }}
             >
               <div
-                className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 xl:w-64 xl:h-64 h-60 w-60 rounded-full overflow-hidden"
+                className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 xl:w-64 xl:h-64 lg:h-60 lg:w-60 md:w-64 md:h-64  rounded-full overflow-hidden"
                 style={{ boxShadow: theme.shadowOutset }}
               >
                 <img
-                  src={ getImageUrl(eventData.event_banner, "ticket")}
+                  src={getImageUrl(eventData.event_banner, "ticket")}
                   alt={eventData.event_name}
                   className="w-full h-full object-cover"
                 />
@@ -1682,7 +1762,7 @@ const handleUpdateGroupFromModal = () => {
                 let labelColorClass;
 
                 if (currentEventForBankView.isPrimary) {
-                  accountLabel = "Primary Event";
+                  accountLabel = "Main Event";
                   labelColorClass = "text-gray-500";
                 } else {
                   accountLabel =
@@ -1710,8 +1790,8 @@ const handleUpdateGroupFromModal = () => {
 
               {currentEventForBankView.isPaid &&
               currentBankDetailsList.length > 0 ? (
-                <div className="flex flex-col h-full md:w-4/5 mx-auto">
-                  <dl className="text-sm space-y-2 px-2 md:w-3/4 mx-auto flex-grow">
+                <div className="flex flex-col h-full lg:w-4/5 mx-auto">
+                  <dl className="text-sm space-y-2 px-2 lg:w-3/4 mx-auto flex-grow">
                     <div className="flex justify-between ">
                       <dt className={`text-gray-400 ${theme.textColor}`}>
                         Account Holder :
@@ -1973,7 +2053,11 @@ const handleUpdateGroupFromModal = () => {
                 </div>
                 <div className="flex-grow flex items-center justify-center space-x-3 overflow-x-auto p-2">
                   {(eventData.POCS || []).map((person, index) => (
-                    <div key={index} className="text-center w-16">
+                    <div
+                      key={index}
+                      className="text-center w-16"
+                      onClick={() => handlePOCPersonClick(person)}
+                    >
                       <div className="w-12 h-12 rounded-full mx-auto mb-1 border-2 border-gray-700 overflow-hidden flex items-center justify-center bg-gray-700">
                         <span className="text-white text-lg">
                           {person.POC_name?.[0]?.toUpperCase() || "P"}
@@ -2023,47 +2107,57 @@ const handleUpdateGroupFromModal = () => {
                   />
                 </div>
                 {/* Guide Carousel Container */}
-                <div className="flex-grow flex items-center justify-center md:gap-x-6 overflow-x-hidden p-2">
-                  {eventData.guests
-                    .slice(currentGuideIndex, currentGuideIndex + guidesToShow)
-                    .map((guest, index) => (
-                      <div
-                        key={guest.guest_name}
-                        onClick={() => handleGuestClick(guest)}
-                        style={{
-                          borderRadius: "17.82px",
-                          background: theme.isDark ? "#212426" : "#E0E0E0",
-                          boxShadow: theme.isDark
-                            ? `3.71px 4.45px 6.68px 0px #00000075,-1.48px -1.48px 7.42px 0px #63636336 `
-                            : `3.71px 4.45px 6.68px 0px #A0A0A099, -1.48px -1.48px 7.42px 0px #FFFFFF `,
-                        }}
-                        // Retaining complex responsiveness and flow logic
-                        className={`p-2 text-center rounded-lg cursor-pointer relative flex-shrink-0 w-full md:w-1/4 ${
-                          currentGuideIndex % guidesToShow !== 0 &&
-                          index === 0 &&
-                          viewportWidth < 768
-                            ? "-translate-x-full"
-                            : ""
-                        }`}
-                      >
-                        <div
-                          className="relative w-28 md:w-32 rounded-lg mx-auto mb-2 overflow-hidden"
-                          style={{ paddingTop: "100%" }}
-                        >
-                          <img
-                            src={getImageUrl(guest.guest_profile, "ticket")}
-                            alt={guest.guest_name}
-                            className="absolute inset-0 w-full h-full object-cover"
-                          />
-                        </div>
-                        <p
-                          className={`text-sm ${theme.textColor} truncate px-1`}
-                        >
-                          {guest.guest_name}
-                        </p>
-                      </div>
-                    ))}
+                <div className="flex-grow overflow-x-hidden relative ">
+                  <div className="flex justify-center items-center h-full">
+                    <div
+                      className="flex items-center transition-transform duration-300"
+                      style={{
+                        transform: `translateX(calc(-${
+                          currentGuideIndex * (viewportWidth >= 768 ? 11 : 9)
+                        }rem))`,
+                      }}
+                    >
+                      {eventData.guests
+                        .slice(
+                          currentGuideIndex,
+                          currentGuideIndex + guidesToShow
+                        )
+                        .map((guest, index) => (
+                          <div
+                            key={guest.guest_name}
+                            onClick={() => handleGuestClick(guest)}
+                            style={{
+                              borderRadius: "17.82px",
+                              background: theme.isDark ? "#212426" : "#E0E0E0",
+                              boxShadow: theme.isDark
+                                ? `3.71px 4.45px 6.68px 0px #00000075,-1.48px -1.48px 7.42px 0px #63636336 `
+                                : `3.71px 4.45px 6.68px 0px #A0A0A099, -1.48px -1.48px 7.42px 0px #FFFFFF `,
+                            }}
+                            // Retaining complex responsiveness and flow logic
+                            className={`p-2 text-center rounded-lg cursor-pointer flex-shrink-0 
+                                w-[8rem] lg:w-[10rem] mr-4`}
+                          >
+                            <div
+                              className="relative w-28  lg:w-32 rounded-lg mx-auto mb-2 overflow-hidden"
+                              style={{ paddingTop: "100%" }}
+                            >
+                              <img
+                                src={getImageUrl(guest.guest_profile, "ticket")}
+                                alt={guest.guest_name}
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                            </div>
+                            <p
+                              className={`text-sm ${theme.textColor} truncate px-1`}
+                            >
+                              {guest.guest_name}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
                 </div>
+
                 {/* Next Button */}
 
                 <div>
@@ -2088,13 +2182,13 @@ const handleUpdateGroupFromModal = () => {
                 <img
                   src={NoGuide}
                   alt="No Guide Placeholder"
-                  className="h-36 w-36 md:h-64 md:w-64 "
+                  className="h-36 w-36 lg:h-64 lg:w-64 "
                 />
                 <p className="text-xl text-gray-500 font-medium flex items-center space-x-2">
                   <img
                     src={GuideVector}
                     alt="Guide Icon"
-                    className="md:w-6 md:h-6 h-4 w-4 opacity-70"
+                    className="lg:w-6 lg:h-6 h-4 w-4 opacity-70"
                   />
                   <span className="text-sm md:text-base">
                     No guide is added
@@ -2129,11 +2223,7 @@ const handleUpdateGroupFromModal = () => {
 
             // Add logo
             if (eventData?.event_logo) {
-              const logoUrl =
-                eventData.event_logo.startsWith("http://") ||
-                eventData.event_logo.startsWith("https://")
-                  ? eventData.event_logo
-                  : getImageUrl(eventData.event_logo, "ticket");
+              const logoUrl = getImageUrl(eventData.event_logo, "ticket");
               allImages.push({
                 path: logoUrl,
                 type: "logo",
@@ -2230,7 +2320,7 @@ const handleUpdateGroupFromModal = () => {
           formatImagePath={(path) => getImageUrl(path, "ticket")}
         />
       )}
-     {isGroupModalOpen && selectedGroup && (
+      {isGroupModalOpen && selectedGroup && (
         <GroupViewModal
           isOpen={isGroupModalOpen}
           onClose={handleCloseGroupModal}
@@ -2240,6 +2330,22 @@ const handleUpdateGroupFromModal = () => {
           onUpdate={handleUpdateGroupFromModal}
           totalEvents={groupEventCount}
           loadingCount={loadingCount}
+        />
+      )}
+      {showHashtagModal && (
+        <HashtagModal
+          isOpen={showHashtagModal}
+          hashtags={hashtags}
+          theme={theme}
+          onClose={() => setShowHashtagModal(false)}
+        />
+      )}
+      {showPOCModal && selectedPOC && (
+        <POCDetailModal
+          isOpen={showPOCModal}
+          person={selectedPOC}
+          theme={theme}
+          onClose={handleClosePOCModal} // Use the specific close handler
         />
       )}
     </div>
