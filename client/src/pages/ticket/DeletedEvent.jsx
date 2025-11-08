@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { getMe } from "../../services/userService";
-import { getAllDeletedEvents,getGroupView } from "../../services/ticketService.js";
+import { getAllDeletedEvents,getGroupView,deleteEventPermenently,recoverDeletedEvent,deleteAllEvents,getDeletedEventById } from "../../services/ticketService.js";
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import DeletedEventIcon from "../../assets/Event/DeletedEventIcon.svg";
+import { useNavigate } from "react-router-dom";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import { Trash2, RotateCcw, Eye, Search, Trash } from "lucide-react";
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
-
+import Alert from "../../components/Alert.jsx";
 const HEADER_HEIGHT = 72;
-
 const CustomScrollbarStyles = () => (
   <style>{`
     * {
@@ -34,13 +34,22 @@ const CustomScrollbarStyles = () => (
 const DeletedEvent = () => {
   const [user, setUser] = useState(null);
   const [isDark, setIsDark] = useState(true);
+  const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState("");
   const [deletedEvents, setDeletedEvents] = useState([]);
   const [groups, setGroups] = useState({}); // Store groups as an object with eventId as key
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
-
+  const [selectedEventToRecover, setSelectedEventToRecover] = useState(null);
+  const [isRecoverModalOpen, setIsRecoverModalOpen] = useState(false);
+  const [isRecovering, setisRecovering] = useState(false);  
+  const [alert, setAlert] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleteAllModalOpen, setIsDeleteAllModalOpen] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedEventToDelete, setSelectedEventToDelete] = useState(null);
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -48,7 +57,12 @@ const DeletedEvent = () => {
     setIsDark(shouldBeDark);
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
-
+  const showAlert = (alertData) => {
+    setAlert({ ...alertData, show: true });
+  };
+  const hideAlert = () => {
+    setAlert((prev) => (prev ? { ...prev, show: false } : null));
+  };
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -133,104 +147,143 @@ const fetchDeletedEvents = async () => {
     localStorage.setItem("theme", newTheme ? "dark" : "light");
   };
 
-  const handleDeleteAll = async () => {
-    if (window.confirm("Are you sure you want to permanently delete ALL events? This action cannot be undone.")) {
-      try {
-        // Add your delete all API call here
-        console.log("Deleting all events");
-        // After successful delete, refresh the list
-        await fetchDeletedEvents();
-      } catch (error) {
-        console.error("Error deleting all events:", error);
-        alert("Failed to delete all events");
-      }
-    }
-  };
-
-  const handlePermanentDelete = async (eventId) => {
-    if (window.confirm("Are you sure you want to permanently delete this event? This action cannot be undone.")) {
-      try {
-        // Add your permanent delete API call here
-        console.log("Permanently deleting event:", eventId);
-        // After successful delete, refresh the list
-        await fetchDeletedEvents();
-      } catch (error) {
-        console.error("Error permanently deleting event:", error);
-        alert("Failed to delete event");
-      }
-    }
-  };
-
-  const handleRecover = async (eventId) => {
-    if (window.confirm("Are you sure you want to recover this event?")) {
-      try {
-        // Add your recover API call here
-        console.log("Recovering event:", eventId);
-        // After successful recovery, refresh the list
-        await fetchDeletedEvents();
-      } catch (error) {
-        console.error("Error recovering event:", error);
-        alert("Failed to recover event");
-      }
-    }
-  };
-
-  const handleView = (eventId) => {
-    // Navigate to event view page
-    console.log("Viewing event:", eventId);
-    window.location.href = `/ticket/previous-event/${eventId}`;
-  };
-
-const formatDate = (event) => {
-  // Try multiple possible date field locations
-  const dateString = event?.start_date 
-    || event?.event_dates?.[0]?.start_date 
-    || event?.createdAt;
-  
-  if (!dateString) {
-    return "N/A";
-  }
-
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
-      return "Invalid Date";
-    }
-    return date.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  } catch (error) {
-    console.error("Error formatting date:", error);
-    return "N/A";
-  }
+const handleDeleteAll = async () => {
+  setIsDeleteAllModalOpen(true);
 };
 
+const confirmDeleteAll = async () => {
+  setIsDeletingAll(true);
+  try {
+    const response = await deleteAllEvents();
+    
+    if (response) {
+      showAlert({
+        type: "success",
+        message: "All events deleted permanently!",
+      });
+      setIsDeleteAllModalOpen(false);
+      await fetchDeletedEvents();
+    }
+  } catch (error) {
+    console.error("Error deleting all events:", error);
+    showAlert({
+      type: "error",
+      message: "Failed to delete all events",
+    });
+  } finally {
+    setIsDeletingAll(false);
+  }
+};
+const handlePermanentDelete = async (event) => {
+  setSelectedEventToDelete(event);
+  setIsDeleteModalOpen(true);
+};
+
+const confirmPermanentDelete = async () => {
+  if (!selectedEventToDelete) return;
+  setIsDeleting(true);
+  try {
+    const response = await deleteEventPermenently(selectedEventToDelete._id);
+    
+    if (response) {
+      showAlert({
+        type: "success",
+        message: `"${selectedEventToDelete.event_name}" deleted permanently!`,
+      });
+      setIsDeleteModalOpen(false);
+      setSelectedEventToDelete(null);
+      await fetchDeletedEvents();
+    }
+  } catch (error) {
+    console.error("Error permanently deleting event:", error);
+    showAlert({
+      type: "error",
+      message: "Failed to delete event",
+    });
+  } finally {
+    setIsDeleting(false);
+  }
+};
+const handleRecover = async (event) => {
+  setSelectedEventToRecover(event);
+  setIsRecoverModalOpen(true);
+};
+
+const confirmRecover = async () => {
+  if (!selectedEventToRecover) return;
+  setisRecovering(true);
+  try {
+    const response = await recoverDeletedEvent(selectedEventToRecover._id);
+    
+    if (response) {
+      showAlert({
+        type: "success",
+        message: `"${selectedEventToRecover.event_name}" recovered successfully!`,
+      });
+      setIsRecoverModalOpen(false);
+      setSelectedEventToRecover(null);
+      await fetchDeletedEvents();
+      setTimeout(() => {
+        navigate("/ticket/view-events");
+      }, 1500);
+    }
+  } catch (error) {
+    console.error("Error recovering event:", error);
+    showAlert({
+      type: "error",
+      message: "Failed to recover event",
+    });
+  } finally {
+    setisRecovering(false);
+  }
+};
+const handleView = (eventId) => {
+  navigate(`/ticket/deleted-event-view/${eventId}`);
+};
+  const formatDate = (event) => {
+    // Try multiple possible date field locations
+    const dateString = event?.start_date 
+      || event?.event_dates?.[0]?.start_date 
+      || event?.createdAt;
+    
+    if (!dateString) {
+      return "N/A";
+    }
+
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return "Invalid Date";
+      }
+      return date.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "N/A";
+    }
+  };
   const filteredEvents = useMemo(() => {
     if (!searchValue) return deletedEvents;
     return deletedEvents.filter((event) =>
       event.event_name?.toLowerCase().includes(searchValue.toLowerCase())
     );
   }, [deletedEvents, searchValue]);
-
   const paginatedEvents = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredEvents.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredEvents, currentPage]);
-
   const totalPages = Math.ceil(filteredEvents.length / itemsPerPage);
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
-
   const displayEvents = [...paginatedEvents];
   while (displayEvents.length < itemsPerPage) {
     displayEvents.push(null);
   }
-
   useEffect(() => {
     setCurrentPage(1);
   }, [searchValue]);
-
   const theme = isDark
     ? {
         bg: "bg-[#212426]",
@@ -447,7 +500,7 @@ const formatDate = (event) => {
                                     View
                                   </button>
                                   <button
-                                    onClick={() => handleRecover(event._id)}
+                                    onClick={() => handleRecover(event)}
                                     className="px-4 py-2 rounded-full text-xs font-semibold text-white shadow-md hover:shadow-lg transition-all duration-300 flex items-center gap-1"
                                     style={{
                                       background: "linear-gradient(180deg, #15803D 0%, #22C55E 100%)",
@@ -459,7 +512,7 @@ const formatDate = (event) => {
                                     Recover
                                   </button>
                                   <button
-                                    onClick={() => handlePermanentDelete(event._id)}
+                                    onClick={() => handlePermanentDelete(event)}
                                     className="px-4 py-2 rounded-full text-xs font-semibold text-white shadow-md hover:shadow-lg transition-all duration-300 flex items-center gap-1"
                                     style={{
                                       background: "linear-gradient(180deg, #991B1B 0%, #DC2626 100%)",
@@ -525,7 +578,7 @@ const formatDate = (event) => {
                             <span>View</span>
                           </button>
                           <button
-                            onClick={() => handleRecover(event._id)}
+                            onClick={() => handleRecover(event)}
                             className="px-3 py-2 rounded-lg text-xs font-semibold text-white shadow-md transition-all duration-300 flex flex-col items-center justify-center gap-1"
                             style={{
                               background: "linear-gradient(180deg, #15803D 0%, #22C55E 100%)",
@@ -535,7 +588,7 @@ const formatDate = (event) => {
                             <span>Recover</span>
                           </button>
                           <button
-                            onClick={() => handlePermanentDelete(event._id)}
+                            onClick={() => handlePermanentDelete(event)}
                             className="px-3 py-2 rounded-lg text-xs font-semibold text-white shadow-md transition-all duration-300 flex flex-col items-center justify-center gap-1"
                             style={{
                               background: "linear-gradient(180deg, #991B1B 0%, #DC2626 100%)",
@@ -597,6 +650,146 @@ const formatDate = (event) => {
             >
               <BottomNavigation theme={theme} user={user} />
             </nav>
+            {/* Alert Component */}
+      {alert && alert.show && (
+        <Alert
+          type={alert.type}
+          message={alert.message}
+          onClose={hideAlert}
+        />
+      )}
+
+      {/* Recover Modal */}
+      {isRecoverModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div
+            className={`${isDark ? "bg-gray-800" : "bg-white"} rounded-2xl p-6 max-w-md w-full shadow-xl`}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                <RotateCcw className="w-6 h-6 text-green-500" />
+              </div>
+              <h3 className={`text-xl font-bold ${theme.text}`}>Recover Event</h3>
+            </div>
+            <p className={`${theme.subText} mb-6`}>
+              Are you sure you want to recover <span className="font-semibold">{selectedEventToRecover?.event_name}</span>? This event will be restored to active events.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setIsRecoverModalOpen(false);
+                  setSelectedEventToRecover(null);
+                }}
+                disabled={isRecovering}
+                className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
+                  isDark
+                    ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRecover}
+                disabled={isRecovering}
+                className="flex-1 px-4 py-3 rounded-xl font-semibold text-white transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                style={{
+                  background: "linear-gradient(180deg, #15803D 0%, #22C55E 100%)",
+                }}
+              >
+                {isRecovering ? "Recovering..." : "Recover"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Single Event Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div
+            className={`${isDark ? "bg-gray-800" : "bg-white"} rounded-2xl p-6 max-w-md w-full shadow-xl`}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-red-500" />
+              </div>
+              <h3 className={`text-xl font-bold ${theme.text}`}>Delete Permanently</h3>
+            </div>
+            <p className={`${theme.subText} mb-6`}>
+              Are you sure you want to permanently delete <span className="font-semibold">{selectedEventToDelete?.event_name}</span>? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setSelectedEventToDelete(null);
+                }}
+                disabled={isDeleting}
+                className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
+                  isDark
+                    ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmPermanentDelete}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-3 rounded-xl font-semibold text-white transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                style={{
+                  background: "linear-gradient(180deg, #991B1B 0%, #DC2626 100%)",
+                }}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All Events Modal */}
+      {isDeleteAllModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div
+            className={`${isDark ? "bg-gray-800" : "bg-white"} rounded-2xl p-6 max-w-md w-full shadow-xl`}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                <Trash className="w-6 h-6 text-red-500" />
+              </div>
+              <h3 className={`text-xl font-bold ${theme.text}`}>Delete All Events</h3>
+            </div>
+            <p className={`${theme.subText} mb-6`}>
+              Are you sure you want to permanently delete <span className="font-semibold">all {filteredEvents.length} deleted events</span>? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsDeleteAllModalOpen(false)}
+                disabled={isDeletingAll}
+                className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
+                  isDark
+                    ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteAll}
+                disabled={isDeletingAll}
+                className="flex-1 px-4 py-3 rounded-xl font-semibold text-white transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                style={{
+                  background: "linear-gradient(180deg, #991B1B 0%, #DC2626 100%)",
+                }}
+              >
+                {isDeletingAll ? "Deleting..." : "Delete All"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
