@@ -4912,7 +4912,6 @@ export const deleteTicket = async (req, res) => {
         .status(404)
         .json({ message: "Ticket not found or unauthorized" });
     }
-
     deletedTicket.event_status = "cancelled";
     await deletedTicket.save({ validateBeforeSave: false });
     res.status(200).json({
@@ -4994,6 +4993,156 @@ export const getAllDeletedEvents = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching deleted events:", error);
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  }
+};
+export const deleteAllEvents = async (req, res) => {
+  try {
+      const userId = req.user._id || req.user.id;
+      if (!userId) {
+      return res.status(400).json({
+        message: "Missing required parameters",
+        required: "userId",
+      });
+    }
+    const deletedEvents = await Ticket.deleteMany({
+      event_status: "cancelled",
+      userId: userId,
+    });
+    const deletedCount = deletedEvents.length;
+    if (!deletedEvents || deletedCount === 0) {
+      return res
+          .status(404)
+          .json({ message: "All Tickets not found or empty tickets" });
+    }
+    res.status(200).json({
+      message: "All Tickets deleted successfully",
+      deletedEvents: deletedEvents,
+      count: deletedEvents.deletedCount,
+    });
+  } catch (error) {
+      console.error("Error deleting tickets:", error);
+  }
+};
+export const deleteEventPermenently = async (req, res) => {
+  try {
+    const ticketId = req.params.ticketId;
+    const userId = req.user._id || req.user.id;
+    if (!ticketId || !userId) {
+      return res.status(400).json({
+        message: "Missing required parameters",
+        required: ["ticketId", "subEventId", "userId"],
+      });
+    }
+    const deletedEvent = await Ticket.findOneAndDelete({
+      _id: ticketId,
+      userId: userId,
+      event_status: "cancelled",
+    });
+    if (!deletedEvent) {
+      return res
+        .status(404)
+        .json({ message: "Ticket not found or unauthorized" });
+    }
+    res.status(200).json({
+      message: "Event permanently deleted successfully",
+      ticket: deletedEvent,
+      ticketId: ticketId,
+      userId: userId,
+    });
+  } catch (error) {
+    console.error("Error permanent ticket:", error);
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  }
+};
+export const getDeletedEventById = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const ticketId = req.params.eventId; // Changed from ticketId to eventId to match route
+    if (!ticketId) {
+      return res.status(400).json({
+        message: "Missing required parameter: eventId in URL",
+      });
+    }
+    if(!userId){
+      return res.status(400).json({
+        message: "Missing required parameter: userId",
+      });
+    }
+    const deletedEvent = await Ticket.findOne({
+      _id: ticketId,
+      userId: userId,
+      event_status: "cancelled",
+    });
+
+    if (!deletedEvent) {
+      return res.status(404).json({
+        message: "Ticket not found or you don't have access to this ticket",
+      });
+    }
+    res.status(200).json({
+      message: "Deleted Ticket retrieved successfully",
+      ticket: deletedEvent, // Fixed: was just "ticket" without value
+      ticketId: ticketId,
+      userId: userId,
+    });
+  } catch (error) {
+    console.error("Error fetching deleted event:", error);
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        message:
+          "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
+      });
+    }
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  }
+};
+export const recoverDeletedEvent = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const ticketId = req.params.ticketId;
+    if (!ticketId) {
+      return res.status(400).json({
+        message: "Missing required parameter: ticketId in URL",
+      });
+    }
+    if(!userId){
+      return res.status(400).json({
+        message: "Missing required parameter: userId",
+      });
+    }
+    const recoveredTicket = await Ticket.findOneAndUpdate(
+      { _id: ticketId, userId: userId, event_status: "cancelled" },
+      { event_status: "confirmed" },
+      { new: true }
+    );
+    if (!recoveredTicket){
+      return res.status(404).json({
+        message: "Ticket not found or you don't have access to this ticket",
+      });
+    }
+    recoveredTicket.event_status = "pending";
+    await recoveredTicket.save();
+    res.status(200).json({
+      message: "Ticket recovered successfully",
+      ticket: recoveredTicket,
+      ticketId: ticketId,
+      userId: userId,
+    });
+  } catch (error) {
+    console.error("Error recovering deleted event:", error);
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        message:
+          "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
+      });
+    }
     res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
