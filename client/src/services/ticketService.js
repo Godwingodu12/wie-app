@@ -179,6 +179,39 @@ export const getAllDeletedEvents = async () => {
     throw error;
   }
 };
+export const deleteEventPermenently = async (ticketId) => {
+  try {
+    const response = await api.delete(`ticket/delete-event-permenently/${ticketId}`); // Changed from POST to DELETE
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+export const deleteAllEvents = async () => {
+  try {
+    const response = await api.post("ticket/delete-all-events");
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+export const getDeletedEventById = async (eventId) => {
+  try {
+    const response = await api.get(`ticket/get-deleted-event/${eventId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+export const recoverDeletedEvent = async (ticketId) => {
+  try {
+    const response = await api.put(`ticket/recover-deleted-event/${ticketId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error recovering deleted event:", error);
+    throw error;
+  }
+};
 export const getGroupView = async (ticketId) => {
   try {
     const response = await api.get(`ticket/get-group-view/${ticketId}`);
