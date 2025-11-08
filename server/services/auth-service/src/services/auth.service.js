@@ -1,5 +1,6 @@
 import User from "../models/user.model.js";
 import Follow from "../models/follow.model.js";
+import mongoose from 'mongoose';
 import { hashPassword, comparePassword } from "../utils/hash.js";
 import { generateToken, verifyResetToken } from "../utils/jwt.js";
 import otpService from "../reposetory/otp.js";
@@ -782,7 +783,6 @@ export const findAllActiveUsers = async (req, res) => {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     }));
-    
     res.status(200).json({
       message: "Active users retrieved successfully",
       users: formattedUsers,
@@ -807,7 +807,6 @@ export const editProfile = async (req, res) => {
         return resolve();
       });
     });
-    
     let userId;
     if (req.user) {
       userId = req.user._id || req.user.id || req.user.userId;
@@ -1050,5 +1049,260 @@ export const getOtherProfile = async (req, res) => {
       message: "Internal server error",
       error: error.message
     });
+  }
+};
+export const getUserData = async (payload) => {
+  try {
+    console.log('🔍 getUserData called with payload:', payload);
+    
+    const { userId, action, query, excludeUserId } = payload;
+
+    // Get single user by ID - RETURN ALL FIELDS
+    if (userId && !action) {
+      const user = await User.findOne({
+        _id: userId,
+        status: 'active'
+      })
+        .select('-password -__v') // Exclude only password and version
+        .lean();
+
+      if (!user) {
+        console.warn(`⚠️ User not found: ${userId}`);
+        return { error: 'User not found or inactive' };
+      }
+
+      // Get followers and following counts
+      const followersCount = await Follow.countDocuments({
+        following: userId,
+        status: 'active'
+      });
+
+      const followingCount = await Follow.countDocuments({
+        follower: userId,
+        status: 'active'
+      });
+
+      // Add counts to user object
+      const userWithCounts = {
+        ...user,
+        followers: followersCount,
+        following: followingCount
+      };
+
+      console.log(`✅ User found with full data: ${user._id}`);
+      return userWithCounts;
+    }
+
+    // Search users
+    if (action === 'search') {
+      if (!query || query.trim().length === 0) {
+        return { error: 'Search query is required' };
+      }
+
+      const searchRegex = new RegExp(query.trim(), 'i');
+      let filter = {
+        status: 'active',
+        $or: [
+          { name: searchRegex },
+          { email: searchRegex }
+        ]
+      };
+
+      if (excludeUserId && mongoose.Types.ObjectId.isValid(excludeUserId)) {
+        filter._id = { $ne: excludeUserId };
+      }
+
+      const users = await User.find(filter)
+        .select('name email image status contact_no bio')
+        .limit(50)
+        .lean();
+
+      console.log(`✅ Found ${users.length} users`);
+      return users;
+    }
+
+    return { error: 'Invalid request' };
+  } catch (error) {
+    console.error('❌ Error in getUserData:', error);
+    return { error: error.message };
+  }
+};
+export const getUser = async (payload) => {
+  try {
+    console.log('🔍 getUser called with payload:', JSON.stringify(payload));
+    const { userId, action, query, excludeUserId } = payload;
+    // Get single user by ID - RETURN ALL FIELDS
+    if (userId && !action) {
+      const user = await User.findOne({
+        _id: userId,
+        status: 'active'
+      })
+        .select('-password -__v') // Exclude only password and version
+        .lean();
+
+      if (!user) {
+        console.warn(`⚠️ User not found: ${userId}`);
+        return { error: 'User not found or inactive' };
+      }
+
+      // Get followers and following counts
+      const followersCount = await Follow.countDocuments({
+        following: userId,
+        status: 'active'
+      });
+
+      const followingCount = await Follow.countDocuments({
+        follower: userId,
+        status: 'active'
+      });
+
+      // Add counts to user object
+      const userWithCounts = {
+        ...user,
+        followers: followersCount,
+        following: followingCount
+      };
+
+      console.log(`✅ User found with full data: ${user._id}`);
+      return userWithCounts;
+    }
+
+    // Search users
+    if (action === 'search') {
+      if (!query || query.trim().length === 0) {
+        return { error: 'Search query is required' };
+      }
+
+      const searchRegex = new RegExp(query.trim(), 'i');
+      let filter = {
+        status: 'active',
+        $or: [
+          { name: searchRegex },
+          { email: searchRegex }
+        ]
+      };
+
+      if (excludeUserId && mongoose.Types.ObjectId.isValid(excludeUserId)) {
+        filter._id = { $ne: excludeUserId };
+      }
+
+      const users = await User.find(filter)
+        .select('name email image status contact_no bio organisation_type role')
+        .limit(50)
+        .lean();
+
+      console.log(`✅ Found ${users.length} users for search`);
+      return { users }; // Return as object with users array
+    }
+
+    return { error: 'Invalid request' };
+  } catch (error) {
+    console.error('❌ Error in getUser:', error);
+    return { error: error.message };
+  }
+};
+export const getFollowersData = async (payload) => {
+  try {    
+    const { userId } = payload;
+
+    if (!userId) {
+      console.error('❌ userId is missing in payload');
+      return { error: 'User ID is required' };
+    }
+
+    // Validate userId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error('❌ Invalid userId format:', userId);
+      return { error: 'Invalid user ID format' };
+    }
+    const followRelationships = await Follow.find({
+      following: userId,
+      status: 'active'
+    })
+      .populate({
+        path: 'follower',
+        select: '_id name email image status contact_no bio organisation_type role',
+        match: { status: 'active' }
+      })
+      .lean();
+    // Filter out null followers (users that might be inactive/deleted)
+    const activeFollowers = followRelationships
+      .filter(f => f.follower !== null)
+      .map(f => ({
+        _id: f.follower._id,
+        name: f.follower.name,
+        email: f.follower.email,
+        image: f.follower.image,
+        status: f.follower.status,
+        contact_no: f.follower.contact_no,
+        bio: f.follower.bio,
+        organisation_type: f.follower.organisation_type,
+        role: f.follower.role
+      }));
+    return {
+      followers: activeFollowers,
+      count: activeFollowers.length
+    };
+  } catch (error) {
+    console.error('❌ Error in getFollowersData:', error);
+    return { error: error.message };
+  }
+};
+export const findAllActiveUsersService = async (userId, searchQuery = null) => {
+  try {
+    let filter = { 
+      status: 'active',
+      _id: { $ne: userId } // Exclude current user
+    };
+
+    // Add search if provided
+    if (searchQuery && searchQuery.trim().length > 0) {
+      const searchRegex = new RegExp(searchQuery.trim(), 'i');
+      filter.$or = [
+        { name: searchRegex },
+        { email: searchRegex }
+      ];
+    }
+
+    const users = await User.find(filter)
+      .select('-password -__v')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return users;
+  } catch (error) {
+    console.error('❌ Error in findAllActiveUsersService:', error);
+    throw error;
+  }
+};
+export const getFollowersService = async (userId) => {
+  try {
+    const followers = await Follow.find({
+      following: userId,
+      status: 'active'
+    })
+      .populate({
+        path: 'follower',
+        select: '_id name image email status contact_no bio organisation_type role',
+        match: { status: 'active' }
+      })
+      .lean();
+
+    const activeFollowers = followers
+      .filter(f => f.follower !== null)
+      .map(f => ({
+        _id: f.follower._id,
+        name: f.follower.name,
+        image: f.follower.image,
+        email: f.follower.email,
+        contact_no: f.follower.contact_no,
+        bio: f.follower.bio,
+        organisation_type: f.follower.organisation_type,
+        role: f.follower.role
+      }));
+    return activeFollowers;
+  } catch (error) {
+    console.error('❌ Error in getFollowersService:', error);
+    throw error;
   }
 };
