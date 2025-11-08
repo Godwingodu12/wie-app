@@ -1,6 +1,7 @@
 import Chat from '../models/chat.model.js';
 import { getUserFromAuthService, getFollowersFromAuthService } from '../rabbit/consumerConnections.js';
 import { getChannel, isChannelAvailable } from '../rabbit/connection.js';
+import { getIO, emitToChat } from '../socket/socket.js';
 // Get chat suggestions (followers)
 export const getChatSuggestions = async (req, res) => {
   try {
@@ -275,8 +276,6 @@ export const getUserChats = async (req, res) => {
     });
   }
 };
-
-// Send message
 export const sendMessage = async (req, res) => {
   try {
     const { chatId, content } = req.body;
@@ -288,16 +287,13 @@ export const sendMessage = async (req, res) => {
         message: 'Chat ID and message content are required'
       });
     }
-
     const chat = await Chat.findById(chatId);
-
     if (!chat) {
       return res.status(404).json({
         success: false,
         message: 'Chat not found'
       });
     }
-
     // Verify user is a participant
     if (!chat.participants.some(id => id.toString() === userId.toString())) {
       return res.status(403).json({
@@ -305,7 +301,6 @@ export const sendMessage = async (req, res) => {
         message: 'You are not a participant in this chat'
       });
     }
-
     // Add message
     const message = {
       sender: userId,
@@ -313,23 +308,30 @@ export const sendMessage = async (req, res) => {
       readBy: [userId],
       isRead: false
     };
-
     chat.messages.push(message);
-
     // Update last message
     chat.lastMessage = {
       content: content.trim(),
       sender: userId,
       timestamp: new Date()
     };
-
     // Remove from deletedFor for both participants (restore chat if deleted)
     chat.deletedFor = [];
-
     await chat.save();
-
     const savedMessage = chat.messages[chat.messages.length - 1];
-
+    // SOCKET.IO: Emit real-time message to all participants in the chat
+    try {
+      const io = getIO();
+      emitToChat(chatId, 'new-message', {
+        chatId,
+        message: savedMessage,
+        sender: userId
+      });
+      console.log('✅ Real-time message emitted to chat:', chatId);
+    } catch (socketError) {
+      console.error('⚠️ Socket emit failed:', socketError.message);
+      // Continue even if socket fails
+    }
     res.status(201).json({
       success: true,
       message: savedMessage,
@@ -343,23 +345,18 @@ export const sendMessage = async (req, res) => {
     });
   }
 };
-
-// Get chat messages
 export const getChatMessages = async (req, res) => {
   try {
     const { chatId } = req.params;
     const userId = req.user._id || req.user.id;
     const { page = 1, limit = 50 } = req.query;
-
     const chat = await Chat.findById(chatId);
-
     if (!chat) {
       return res.status(404).json({
         success: false,
         message: 'Chat not found'
       });
     }
-
     // Verify user is a participant
     if (!chat.participants.some(id => id.toString() === userId.toString())) {
       return res.status(403).json({
@@ -367,27 +364,37 @@ export const getChatMessages = async (req, res) => {
         message: 'You are not a participant in this chat'
       });
     }
-
     // Mark messages as read
     let updated = false;
+    const readMessageIds = [];
     chat.messages.forEach(msg => {
       if (msg.sender.toString() !== userId.toString() && 
           !msg.readBy.some(id => id.toString() === userId.toString())) {
         msg.readBy.push(userId);
         msg.isRead = true;
+        readMessageIds.push(msg._id);
         updated = true;
       }
     });
-
     if (updated) {
       await chat.save();
+      // SOCKET.IO: Emit read receipts
+      try {
+        const io = getIO();
+        emitToChat(chatId, 'messages-read', {
+          chatId,
+          userId,
+          messageIds: readMessageIds
+        });
+        console.log('✅ Read receipts emitted for chat:', chatId);
+      } catch (socketError) {
+        console.error('⚠️ Socket emit failed:', socketError.message);
+      }
     }
-
     // Get participant info
     const otherParticipantId = chat.participants.find(
       id => id.toString() !== userId.toString()
     );
-
     let participant = null;
     try {
       participant = await getUserFromAuthService({ 
@@ -396,13 +403,11 @@ export const getChatMessages = async (req, res) => {
     } catch (error) {
       console.error('Error fetching participant:', error);
     }
-
     // Paginate messages (latest first approach)
     const totalMessages = chat.messages.length;
     const startIndex = Math.max(0, totalMessages - (parseInt(page) * parseInt(limit)));
     const endIndex = totalMessages - ((parseInt(page) - 1) * parseInt(limit));
     const paginatedMessages = chat.messages.slice(startIndex, endIndex);
-
     res.status(200).json({
       success: true,
       chat: {
