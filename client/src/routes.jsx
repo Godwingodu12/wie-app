@@ -40,6 +40,7 @@ import PreviousEventView from './pages/ticket/PreviousEventView';
 import LiveEventView from './pages/ticket/LiveEventView';
 import ConfirmEventView from './pages/ticket/ConfirmEventView';
 import PersonalDetails from './pages/settings/PersonalDetails';
+import DeletedEventView from './pages/ticket/DeletedEventView';
 // Protected Route - Only for authenticated users
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
@@ -346,6 +347,15 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />  
+      <Route
+        path="/ticket/deleted-event-view/:ticketId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <DeletedEventView/>
+          </ProtectedRoute>
+        }
+      />  
+      DeletedEventView
       <Route
         path="/settings/personal-details"
         element={

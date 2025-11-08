@@ -4,7 +4,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { getGroups } from "../../services/ticketService";
 import { getMe } from "../../services/userService.js";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
-
+import { getImageUrl } from "../../utils/imageUtils";
 // Icons
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
 import TicketIcon from "../../assets/HomePage/TicketIcon.svg";
@@ -43,7 +43,7 @@ const BottomNavigation = ({ theme }) => {
           sessionStorage.setItem("userData", JSON.stringify(res.data));
 
           if (res.data.image) {
-            const imageUrl = `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${res.data.image}`;
+            const imageUrl = getImageUrl(res.data.image);
             setUserImage(imageUrl);
             sessionStorage.setItem("userImage", imageUrl);
           } else {
