@@ -107,6 +107,8 @@ const OtherProfilePage = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [profileUser, setProfileUser] = useState(null);
   const [users, setUsers] = useState([]);
+  const [user, setUser] = useState(null);
+  const [userImage, setUserImage] = useState(null);
   const [profileUserEvents, setProfileUserEvents] = useState([]);
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
@@ -762,109 +764,81 @@ const OtherProfilePage = () => {
               {/* Profile Card */}
               <div className={`rounded-2xl md:rounded-3xl lg:rounded-[3rem] p-4 md:p-4 lg:p-6 mt-2 md:mt-4 lg:mt-8 ${theme.cardBg} nest-hub-card transition-all duration-300 w-full overflow-hidden`} style={{boxShadow: theme.cardShadow}}>
                 {/* Mobile Layout */}
-                <div className="flex md:hidden flex-col space-y-4">
-                  <div className="flex flex-col gap-4">
-                    {/* Top Row: Profile image + Name/Username */}
-                    <div className="flex items-center gap-4">
-                      {/* Profile Image */}
-                      <img
-                        src={getImageUrl(profileUser.image, 'auth') || ProfileImage}
-                        alt={profileUser.name}
-                        className={`w-24 h-24 rounded-full object-cover border-2 flex-shrink-0 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
-                      />
+                    <div className="flex md:hidden flex-col space-y-4">
+                      <div className="flex flex-col gap-4">
+                        {/* Top Row: Profile image + Name/Username */}
+                        <div className="flex items-center gap-4">
+                          {/* Profile Image */}
+                          <img
+                            src={userImage || ProfileImage}
+                            alt="Profile"
+                            className={`w-24 h-24 rounded-full object-cover border-2 flex-shrink-0 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
+                          />
 
-                      {/* Name + Username */}
-                      <div className="flex flex-col justify-center">
-                        <div className="flex items-center gap-1.5">
-                          <h1 className={`text-lg font-bold ${theme.text}`}>{profileUser.name}</h1>
-                          <img src={VerifiedIcon} alt="Verified" className="w-4 h-4" />
+                          {/* Name + Username */}
+                          <div className="flex flex-col justify-center">
+                            <div className="flex items-center gap-1.5">
+                              <h1 className={`text-lg font-bold ${theme.text}`}>{profileUser.name}</h1>
+                              <img src={VerifiedIcon} alt="Verified" className="w-4 h-4" />
+                            </div>
+                            <p className={`text-sm ${theme.subText}`}>{profileUser.username}</p>
+                            <p className={`text-sm font-medium ${theme.subText} whitespace-pre-line`}>
+                              {profileUser.organisation_type || profileUser.role}
+                            </p>
+                          </div>
                         </div>
-                        <p className={`text-sm ${theme.subText}`}>{profileUser.username}</p>
-                        <p className={`text-base leading-6 font-bold ${theme.subText} whitespace-pre-line`}>
-                          {profileUser.organisation_type}
-                        </p>
+
+                        {/* Bio Section (full width below image and name) */}
+                        <div className="w-full">
+                          <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
+                            {profileUser.bio}
+                          </p>
+                          {profileUser.website && (
+                            <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line mt-1`}>
+                              {profileUser.website}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {/* Stats - FIXED VERSION */}
+                      <div className="flex justify-center gap-6">
+                        <div className="text-center">
+                          <p className={`text-sm ${theme.text}`}>
+                            <span className="font-bold">{profileUser.eventsCount || profileUserEvents.length || 0}</span>
+                          </p>
+                          <p className={`text-xs ${theme.subText}`}>Event created</p>
+                        </div>
+
+                        <div className="text-center">
+                          <p className={`text-sm ${theme.text}`}>
+                            <span className="font-bold">{profileUser.followers || profileUser.followersCount || 0}</span>
+                          </p>
+                          <p className={`text-xs ${theme.subText}`}>Followers</p>
+                        </div>
+                        <div className="text-center">
+                          <p className={`text-sm ${theme.text}`}>
+                            <span className="font-bold">{profileUser.following || profileUser.followingCount || 0}</span>
+                          </p>
+                          <p className={`text-xs ${theme.subText}`}>Following</p>
+                        </div>
+                      </div>
+                      {/* Buttons */}
+                      <div className="flex gap-2 justify-start items-center flex-nowrap overflow-x-auto">
+                        {['Edit profile', 'Share profile', 'Insight profile'].map((label, index) => (
+                          <button
+                            key={index}
+                            onClick={label === 'Edit profile' ? () => navigate('/settings/editprofile') : undefined}
+                            className={`whitespace-nowrap flex-shrink-0 px-4 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
+                              isDark
+                                ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
+                                : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
                       </div>
                     </div>
-
-                    {/* Bio Section (full width below image and name) */}
-                    <div className="w-full">
-                      <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
-                        {profileUser.bio}
-                      </p>
-                      <p className={`text-xs leading-5 ${theme.subText} whitespace-pre-line`}>
-                        {profileUser.website}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="flex justify-start gap-4">
-                    <div className="text-left">
-                      <p className={` ${theme.subText}`}>
-                        <span className="text-md font-semibold text-white">{profileUser.eventsCount || profileUserEvents.length || 0}</span>
-                        <span className="text-md ml-1">Event created</span>
-                      </p>
-                    </div>
-                    <div className="text-left">
-                      <p className={` ${theme.subText}`}>
-                        <span className="text-md font-semibold text-white">{profileUser.followersCount || profileUser.followers || 0}</span>
-                        <span className="text-md ml-1">Followers</span>
-                      </p>
-                    </div>
-                    <div className="text-left">
-                      <p className={` ${theme.subText}`}>
-                        <span className="text-md font-semibold text-white">{profileUser.following || 0}</span>
-                        <span className="text-md ml-1">Following</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Buttons */}
-                  <div className="flex gap-2 justify-start items-center flex-nowrap">
-                    <button 
-                      onClick={handleFollowToggle} 
-                      disabled={followLoading}
-                      className={`whitespace-nowrap flex-shrink-0 px-3 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
-                        followLoading ? 'opacity-50 cursor-not-allowed' : ''
-                      } ${
-                        isFollowing
-                          ? isDark
-                            ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
-                            : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
-                          : 'text-white bg-gradient-to-b from-indigo-500 to-blue-500 shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
-                      }`}
-                    >
-                      {followLoading ? (
-                        <span className="flex items-center justify-center gap-1">
-                          <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                          <span className="truncate">{isFollowing ? "Unfollowing" : "Following"}</span>
-                        </span>
-                      ) : (
-                        isFollowing ? "Unfollow" : "Follow +"
-                      )}
-                    </button>
-                    <button
-                      onClick={handleShareProfile}
-                      className={`whitespace-nowrap flex-shrink-0 px-3 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
-                        isDark
-                          ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
-                          : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
-                      }`}
-                    >
-                      Share profile
-                    </button>
-                    <button
-                      onClick={handleInviteToGroup}
-                      className={`whitespace-nowrap flex-shrink-0 px-3 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
-                        isDark
-                          ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
-                          : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
-                      }`}
-                    >
-                      Invite to group
-                    </button>
-                  </div>
-                </div>
                 {/* Desktop Layout */}
                 <div className="hidden md:flex justify-between items-center gap-6">
                   {/* Left side */}
