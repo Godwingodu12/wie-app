@@ -15,7 +15,7 @@ const GuideModal = ({
   const profileUrl =
     formatImagePath(guest.guest_profile) ||
     "https://i.pravatar.cc/300?img=default";
-  const link = guest.social_media_link || "N/A";
+  const link = guest.guest_link || "N/A";
 
   // Use theme properties for background colors
   const modalBg = theme.mainBg;
@@ -188,27 +188,8 @@ const GuideModal = ({
             </div>
           </div>
         </div>
-
-        {/* Action Buttons - aligned to bottom right, smaller */}
-        <div className="flex justify-end gap-3 mt-8 w-full">
-          <button
-            className="py-2 px-5 rounded-full font-semibold text-white text-sm transition-all focus:outline-none focus:ring-2 focus:ring-purple-500"
-            style={editButtonGradient}
-            onClick={handleEdit}
-          >
-            Edit
-          </button>
-          <button
-            className="py-2 px-5 rounded-full font-semibold text-white text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
-            style={deleteButtonGradient}
-            onClick={handleDelete}
-          >
-            Delete
-          </button>
-        </div>
       </div>
     </div>
   );
 };
-
 export default GuideModal;
