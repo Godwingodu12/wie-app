@@ -2,12 +2,69 @@ import User from "../models/user.model.js";
 import Follow from "../models/follow.model.js";
 import { hashPassword, comparePassword } from "../utils/hash.js";
 import upload, { uploadToCloudinary, deleteFromCloudinary } from "../middlewares/upload.js";
+import { findAllActiveUsersService, getFollowersData,getFollowersService } from "../services/auth.service.js";
 const validatePassword = (password) => {
   return password && password.length >= 6;
 };
 const validateName = (name) => {
   return name && name.trim().length >= 2;
 };
+// Find all active users - HTTP ENDPOINT
+export const AllActiveUsers = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized. User authentication required."
+      });
+    }
+
+    const userId = req.user._id || req.user.id;
+    const { query } = req.query; // Get search query from URL params
+
+    console.log('🔍 Finding active users for:', userId);
+    console.log('🔍 Search query:', query);
+
+    // Call the service function
+    const users = await findAllActiveUsersService(userId, query);
+
+    // Format users
+    const formattedUsers = users.map(user => ({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      contact_no: user.contact_no,
+      organisation_type: user.organisation_type,
+      followers: user.followers,
+      following: user.following,
+      website: user.website,
+      bio: user.bio,
+      gender: user.gender,
+      status: user.status,
+      address: user.address,
+      image: user.image,
+      role: user.role,
+      isBlocked: user.isBlocked,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: "Active users retrieved successfully",
+      users: formattedUsers,
+      count: formattedUsers.length
+    });
+  } catch (err) {
+    console.error("❌ Find all users error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error during user retrieval",
+      error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    });
+  }
+};
+
 export const followUser = async (req, res) => {
   try {
     const userIdToFollow = req.params.otherId;
@@ -201,6 +258,72 @@ export const getFollowers = async (req, res) => {
   } catch (error) {
     console.error('Error fetching followers:', error);
     return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+export const getAllFollowers = async (req, res) => {
+  try {
+    const userId = req.params.userId || req.user._id || req.user.id;
+
+    console.log('🔍 Fetching followers for user:', userId);
+
+    const activeFollowers = await getFollowersService(userId);
+
+    return res.status(200).json({
+      success: true,
+      activeFollowers,
+      count: activeFollowers.length
+    });
+  } catch (error) {
+    console.error('❌ Error fetching followers:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch followers'
+    });
+  }
+};
+export const getAllFollowing = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id || req.user.userId;
+    const following = await Follow.find({ follower: userId, status: 'active' })
+      .select('following createdAt')
+      .populate({
+        path: 'following',
+        select: 'name image email isActive status bio location',
+        model: 'User'
+      })
+      .sort({ createdAt: -1 }) 
+      .lean();
+    const processedFollowing = following
+      .filter(f => f.following)
+      .map(f => ({
+        _id: f.following._id,
+        name: f.following.name,
+        image: f.following.image,
+        email: f.following.email,
+        bio: f.following.bio,
+        location: f.following.location,
+        followedAt: f.createdAt,
+        isActiveUser: f.following.isActive === true || f.following.status === 'active'
+      }));
+    // Separate active and inactive following users
+    const activeFollowing = processedFollowing.filter(f => f.isActiveUser);
+    const inactiveFollowing = processedFollowing.filter(f => !f.isActiveUser);
+
+    return res.status(200).json({
+      success: true,
+      totalCount: processedFollowing.length,
+      activeFollowingCount: activeFollowing.length,
+      inactiveFollowingCount: inactiveFollowing.length,
+      following: processedFollowing,
+      activeFollowing,
+      inactiveFollowing
+    });
+  } catch (error) {
+    console.error('Error fetching all following:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Internal server error' 
+    });
   }
 };
 export const getFollowing = async (req, res) => {
@@ -659,4 +782,32 @@ export const personalDetails = async(req, res) => {
     });
   }
 };
-    
+// Get followers data - HTTP ENDPOINT (alternative route)
+export const getFollowersDataHttp = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id || req.user.userId;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    console.log('🔍 Fetching followers for user:', userId);
+
+    const activeFollowers = await getFollowersService(userId);
+
+    return res.status(200).json({
+      success: true,
+      activeFollowers,
+      count: activeFollowers.length
+    });
+  } catch (error) {
+    console.error('❌ Error in getFollowersDataHttp:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch followers'
+    });
+  }
+};
