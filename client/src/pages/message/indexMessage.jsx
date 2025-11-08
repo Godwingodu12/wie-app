@@ -2,15 +2,17 @@ import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import SideBar from "../../components/HomePage/SideBar";
 import SearchBar from "../../components/HomePage/SearchBar";
-
 import ThemeToggle from "../../components/HomePage/ThemeToggle";
+import NewChatModal from "../../components/Message/NewChatModal";
+import ChatList from "../../components/Message/ChatList";
+import ChatWindow from "../../components/Message/ChatWindow";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import SearchIcon from "../../assets/HomePage/SearchIcon.svg";
 import SettingIcon from "../../assets/Message/settings_icon.png";
 import EditIcon from "../../assets/Message/edit_icon.png";
+import { getUserChats, createOrGetChat } from "../../services/chatService";
 
 const getNeumorphicStyle = (isPressed = false, isDark = true, theme) => {
-  // Match the SearchBar neumorphic inset style for consistent inner-depth
   const bg = isDark ? "#212426" : theme.inputBg.replace('bg-[', '').replace(']', '');
   const lightShadow = isDark
     ? "rgba(255,255,255,0.05)"
@@ -30,6 +32,11 @@ const IndexMessage = () => {
   const { user } = useSelector((state) => state.auth);
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [chats, setChats] = useState([]);
+  const [selectedChat, setSelectedChat] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [filteredChats, setFilteredChats] = useState([]);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -41,11 +48,74 @@ const IndexMessage = () => {
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
 
+  useEffect(() => {
+    if (user) {
+      fetchChats();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (searchValue.trim()) {
+      const filtered = chats.filter(chat =>
+        chat.participant?.name?.toLowerCase().includes(searchValue.toLowerCase()) ||
+        chat.participant?.email?.toLowerCase().includes(searchValue.toLowerCase())
+      );
+      setFilteredChats(filtered);
+    } else {
+      setFilteredChats(chats);
+    }
+  }, [searchValue, chats]);
+
+  const fetchChats = async () => {
+    setLoading(true);
+    try {
+      const response = await getUserChats();
+      setChats(response.chats || []);
+      setFilteredChats(response.chats || []);
+    } catch (error) {
+      console.error('Error fetching chats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleThemeToggle = () => {
     const newTheme = !isDark;
     setIsDark(newTheme);
     document.documentElement.classList.toggle("dark", newTheme);
     localStorage.setItem("theme", newTheme ? "dark" : "light");
+  };
+
+  const handleNewChat = () => {
+    setShowNewChatModal(true);
+  };
+
+  const handleSelectUser = async (selectedUser) => {
+    try {
+      const response = await createOrGetChat(selectedUser._id);
+      const newChat = {
+        ...response.chat,
+        participant: selectedUser
+      };
+      
+      if (response.isNew) {
+        setChats(prev => [newChat, ...prev]);
+      }
+      
+      setSelectedChat(newChat);
+      setShowNewChatModal(false);
+    } catch (error) {
+      console.error('Error creating chat:', error);
+    }
+  };
+
+  const handleSelectChat = (chat) => {
+    setSelectedChat(chat);
+  };
+
+  const handleBackFromChat = () => {
+    setSelectedChat(null);
+    fetchChats();
   };
 
   const theme = isDark
@@ -131,7 +201,6 @@ const IndexMessage = () => {
                 : "inset -5px -5px 10px rgba(0, 0, 0, 0.1)",
             }}
           >
-            {/* Left column (messages + icons) */}
             <aside
               className="flex flex-col w-full md:w-1/4 gap-2 flex-shrink-0"
             >
@@ -139,12 +208,13 @@ const IndexMessage = () => {
                 <div className="text-base font-medium">Messages</div>
                 <div className="flex items-center gap-2 ml-auto">
                   <button
+                    onClick={handleNewChat}
                     className="p-2 rounded-[10px] hover:bg-white/5"
-                    aria-label="Edit"
+                    aria-label="New Chat"
                   >
                     <img
                       src={EditIcon}
-                      alt="Edit"
+                      alt="New Chat"
                       className={`w-4 h-4 ${
                         isDark ? "" : "filter brightness-0"
                       }`}
@@ -164,11 +234,12 @@ const IndexMessage = () => {
                   </button>
                 </div>
               </div>
+              
               <div
-                className={`rounded-[20px] flex flex-col h-full ${theme.cardBg} pt-2 pb-5`}
+                className={`rounded-[20px] flex flex-col h-full ${theme.cardBg} pt-2`}
               >
                 <div
-                  className="relative w-full h-10 transition-all duration-150 rounded-full px-5"
+                  className="relative w-full h-10 transition-all duration-150 rounded-full px-5 mb-2"
                   style={{
                     ...getNeumorphicStyle(false, isDark, theme),
                     boxShadow: `${
@@ -180,7 +251,7 @@ const IndexMessage = () => {
                 >
                   <input
                     type="text"
-                    placeholder="Search here..."
+                    placeholder="Search conversations..."
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
                     className={`pl-10 pr-3 w-full h-10 rounded-full text-sm font-medium outline-none border-0 transition-colors duration-300`}
@@ -202,39 +273,48 @@ const IndexMessage = () => {
                   />
                 </div>
 
-                {/* Start card area centered inside aside */}
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="flex flex-col items-center text-center gap-3">
-                    <h4 className="font-bold text-xl">Start a New chat</h4>
-                    <p
-                      className={`${theme.subText} text-sm max-w-xs opacity-70`}
-                    >
-                      Begin a fresh conversation to connect with your
-                      collaborators, coordinators or editors.
-                    </p>
+                {loading ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div 
+                      className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin"
+                      style={{ borderColor: '#7263F3', borderTopColor: 'transparent' }}
+                    />
+                  </div>
+                ) : filteredChats.length === 0 ? (
+                  <div className="flex-1 flex items-center justify-center pb-5">
+                    <div className="flex flex-col items-center text-center gap-3 px-4">
+                      <h4 className="font-bold text-xl">Start a New chat</h4>
+                      <p
+                        className={`${theme.subText} text-sm max-w-xs opacity-70`}
+                      >
+                        Begin a fresh conversation to connect with your
+                        collaborators, coordinators or editors.
+                      </p>
 
-                    <div className="flex flex-col items-center gap-4 mt-6 w-full max-w-xs mx-auto">
-                      <button
-                        className="w-48 px-6 py-3 rounded-full font-semibold text-base text-white transition-colors shadow-lg"
-                        style={{ backgroundColor: "#7263F3" }}
-                        onClick={() => {}}
-                      >
-                        New chat
-                      </button>
-                      <button
-                        className="w-48 px-6 py-3 rounded-full font-semibold text-base text-white transition-colors"
-                        style={{ backgroundColor: "#68676C" }}
-                        onClick={() => {}}
-                      >
-                        Create group
-                      </button>
+                      <div className="flex flex-col items-center gap-4 mt-6 w-full max-w-xs mx-auto">
+                        <button
+                          className="w-48 px-6 py-3 rounded-full font-semibold text-base text-white transition-colors shadow-lg"
+                          style={{ backgroundColor: "#7263F3" }}
+                          onClick={handleNewChat}
+                        >
+                          New chat
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex-1 overflow-hidden">
+                    <ChatList
+                      chats={filteredChats}
+                      onSelectChat={handleSelectChat}
+                      isDark={isDark}
+                      selectedChatId={selectedChat?._id}
+                    />
+                  </div>
+                )}
               </div>
             </aside>
 
-            {/* Vertical Line Separator */}
             <div className="flex items-center">
               <div
                 className="w-px h-4/5"
@@ -248,26 +328,42 @@ const IndexMessage = () => {
               ></div>
             </div>
 
-            {/* Center: logo / placeholder - hidden on mobile */}
-                        <section className="hidden md:flex flex-1 items-center justify-center">
-              <div className="flex flex-col items-center justify-center text-center">
-                <img
-                  src={WieLogo}
-                  alt="Wie Logo"
-                  className={`w-32 h-auto mb-4 filter ${
-                    isDark ? "brightness-125" : "brightness-110"
-                  }`}
+            <section className="hidden md:flex flex-1">
+              {selectedChat ? (
+                <ChatWindow
+                  chat={selectedChat}
+                  onBack={handleBackFromChat}
+                  isDark={isDark}
+                  currentUserId={user?._id || user?.id}
                 />
-                <div className={`text-sm ${theme.subText}`}>
-                  Wie for windows
+              ) : (
+                <div className="flex items-center justify-center w-full">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <img
+                      src={WieLogo}
+                      alt="Wie Logo"
+                      className={`w-32 h-auto mb-4 filter ${
+                        isDark ? "brightness-125" : "brightness-110"
+                      }`}
+                    />
+                    <div className={`text-sm ${theme.subText}`}>
+                      Select a conversation to start messaging
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </section>
           </div>
         </main>
       </div>
+
+      <NewChatModal
+        isOpen={showNewChatModal}
+        onClose={() => setShowNewChatModal(false)}
+        isDark={isDark}
+        onSelectUser={handleSelectUser}
+      />
     </div>
   );
 };
-
 export default IndexMessage;
