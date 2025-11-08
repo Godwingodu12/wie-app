@@ -1,20 +1,110 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSelector } from 'react-redux';
 import { Send, ArrowLeft, MoreVertical } from 'lucide-react';
-import {getChatMessages, sendMessage} from '../../services/chatService';
-
-const ChatWindow = ({ chat, onBack, isDark, currentUserId }) => {
+import { getChatMessages, sendMessage } from '../../services/chatService';
+import { useSocket } from '../../context/SocketContext';
+const ChatWindow = ({ chat, onBack, isDark }) => {
+  const currentUser = useSelector((state) => state.auth.user);
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const [chatMessages, setChatMessages] = useState([]);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
-
-  useEffect(() => {
-    if (chat?._id) {
-      fetchMessages();
+  const typingTimeoutRef = useRef(null);
+  
+  const { socket, isConnected } = useSocket();
+// Add this to the useEffect that handles socket connection
+useEffect(() => {
+  if (chat?._id) {
+    fetchMessages();
+    
+    // Join chat room via socket - only if socket is available and connected
+    if (socket && isConnected) {
+      socket.emit('join-chat', chat._id);
+      console.log('📥 Joined chat room:', chat._id);
+      
+      // Listen for join confirmation
+      socket.once('joined-chat', (data) => {
+        console.log('✅ Successfully joined chat:', data.chatId);
+      });
+    } else {
+      console.warn('⚠️ Socket not available, cannot join chat room');
     }
-  }, [chat?._id]);
+  }
 
+  // Cleanup: leave chat room on unmount
+  return () => {
+    if (socket && chat?._id) {
+      socket.emit('leave-chat', chat._id);
+      console.log('📤 Left chat room:', chat._id);
+    }
+  };
+}, [chat?._id, socket, isConnected]);
+
+  // Socket event listeners
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    // Listen for new messages
+    const handleNewMessage = (data) => {
+      console.log('📨 New message received:', data);
+      
+      if (data.chatId === chat?._id) {
+        const transformedMessage = {
+          ...data.message,
+          isSender: data.sender === currentUserId
+        };
+        
+        setMessages(prev => {
+          // Avoid duplicates
+          const exists = prev.some(msg => msg._id === transformedMessage._id);
+          if (exists) return prev;
+          return [...prev, transformedMessage];
+        });
+      }
+    };
+
+    // Listen for typing indicator
+    const handleUserTyping = (data) => {
+      if (data.chatId === chat?._id && data.userId !== currentUserId) {
+        setIsTyping(data.isTyping);
+        
+        // Auto-hide typing after 3 seconds
+        if (data.isTyping) {
+          setTimeout(() => setIsTyping(false), 3000);
+        }
+      }
+    };
+
+    // Listen for read receipts
+    const handleMessagesRead = (data) => {
+      if (data.chatId === chat?._id && data.userId !== currentUserId) {
+        setMessages(prev => 
+          prev.map(msg => 
+            data.messageIds.includes(msg._id) 
+              ? { ...msg, isRead: true }
+              : msg
+          )
+        );
+      }
+    };
+
+    socket.on('new-message', handleNewMessage);
+    socket.on('user-typing', handleUserTyping);
+    socket.on('messages-read', handleMessagesRead);
+
+    // Cleanup
+    return () => {
+      socket.off('new-message', handleNewMessage);
+      socket.off('user-typing', handleUserTyping);
+      socket.off('messages-read', handleMessagesRead);
+    };
+  }, [socket, isConnected, chat?._id, currentUserId]);
+
+  // Auto-scroll to bottom
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -29,10 +119,8 @@ const ChatWindow = ({ chat, onBack, isDark, currentUserId }) => {
       const response = await getChatMessages(chat._id);
       console.log('📥 Fetched messages:', response);
       
-      // Fix: Access messages from the correct path
       const fetchedMessages = response.messages || [];
       
-      // Transform messages to include isSender flag
       const transformedMessages = fetchedMessages.map(msg => ({
         ...msg,
         isSender: msg.sender?.toString() === currentUserId || msg.sender === currentUserId
@@ -47,6 +135,22 @@ const ChatWindow = ({ chat, onBack, isDark, currentUserId }) => {
     }
   };
 
+  const handleTyping = () => {
+    if (socket && isConnected) {
+      socket.emit('typing', { chatId: chat._id, isTyping: true });
+      
+      // Clear previous timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      // Stop typing after 2 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit('typing', { chatId: chat._id, isTyping: false });
+      }, 2000);
+    }
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || sending) return;
@@ -55,14 +159,23 @@ const ChatWindow = ({ chat, onBack, isDark, currentUserId }) => {
     setNewMessage('');
     setSending(true);
 
-    // Optimistic update - add message immediately
+    // Stop typing indicator
+    if (socket && isConnected) {
+      socket.emit('typing', { chatId: chat._id, isTyping: false });
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    }
+
+    // Optimistic update
     const optimisticMessage = {
       _id: Date.now().toString(),
       content: messageContent,
       sender: currentUserId,
       isSender: true,
       createdAt: new Date().toISOString(),
-      isRead: false
+      isRead: false,
+      pending: true
     };
     
     setMessages(prev => [...prev, optimisticMessage]);
@@ -70,17 +183,9 @@ const ChatWindow = ({ chat, onBack, isDark, currentUserId }) => {
     try {
       const response = await sendMessage(chat._id, messageContent);
       
-      // Replace optimistic message with real one
-      setMessages(prev => 
-        prev.map(msg => 
-          msg._id === optimisticMessage._id 
-            ? {
-                ...response.message,
-                isSender: true
-              }
-            : msg
-        )
-      );
+      // Remove optimistic message and let socket event add the real one
+      setMessages(prev => prev.filter(msg => msg._id !== optimisticMessage._id));
+      
     } catch (error) {
       console.error('Error sending message:', error);
       
@@ -89,6 +194,7 @@ const ChatWindow = ({ chat, onBack, isDark, currentUserId }) => {
       
       // Restore message in input
       setNewMessage(messageContent);
+      alert('Failed to send message. Please try again.');
     } finally {
       setSending(false);
     }
@@ -122,7 +228,7 @@ const ChatWindow = ({ chat, onBack, isDark, currentUserId }) => {
         </button>
         
         <div 
-          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold"
+          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold relative"
           style={{ backgroundColor: '#7263F3' }}
         >
           {chat.participant?.image ? (
@@ -134,6 +240,11 @@ const ChatWindow = ({ chat, onBack, isDark, currentUserId }) => {
           ) : (
             chat.participant?.name?.charAt(0).toUpperCase()
           )}
+          
+          {/* Online indicator (you can integrate with socket later) */}
+          {isConnected && (
+            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+          )}
         </div>
 
         <div className="flex-1">
@@ -141,9 +252,16 @@ const ChatWindow = ({ chat, onBack, isDark, currentUserId }) => {
             {chat.participant?.name}
           </div>
           <div className="text-xs" style={{ color: theme.subText }}>
-            {chat.participant?.email}
+            {isTyping ? 'typing...' : chat.participant?.email}
           </div>
         </div>
+
+        {/* Connection status indicator */}
+        {!isConnected && (
+          <div className="text-xs text-orange-500">
+            Reconnecting...
+          </div>
+        )}
 
         <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
           <MoreVertical size={20} style={{ color: theme.text }} />
@@ -199,7 +317,7 @@ const ChatWindow = ({ chat, onBack, isDark, currentUserId }) => {
                   
                   <div className={`flex ${isSender ? 'justify-end' : 'justify-start'}`}>
                     <div 
-                      className="max-w-xs lg:max-w-md px-4 py-2 rounded-2xl"
+                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${message.pending ? 'opacity-60' : ''}`}
                       style={{
                         backgroundColor: isSender ? theme.senderBubble : theme.receiverBubble,
                         color: isSender ? '#ffffff' : theme.text
@@ -216,8 +334,11 @@ const ChatWindow = ({ chat, onBack, isDark, currentUserId }) => {
                           hour: '2-digit',
                           minute: '2-digit'
                         })}
-                        {isSender && message.isRead && (
-                          <span className="ml-1">✓✓</span>
+                        {isSender && !message.pending && (
+                          <span className="ml-1">{message.isRead ? '✓✓' : '✓'}</span>
+                        )}
+                        {message.pending && (
+                          <span className="ml-1">⏳</span>
                         )}
                       </div>
                     </div>
@@ -240,19 +361,27 @@ const ChatWindow = ({ chat, onBack, isDark, currentUserId }) => {
           <input
             type="text"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            disabled={sending}
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              handleTyping();
+            }}
+            placeholder={
+              !isConnected 
+                ? "Reconnecting..." 
+                : "Type a message..."
+            }
+            disabled={sending || !isConnected}
             className="flex-1 px-4 py-3 rounded-full outline-none transition-colors"
             style={{
               backgroundColor: theme.inputBg,
               color: theme.text,
-              border: `1px solid ${theme.border}`
+              border: `1px solid ${theme.border}`,
+              opacity: !isConnected ? 0.6 : 1
             }}
           />
           <button
             type="submit"
-            disabled={!newMessage.trim() || sending}
+            disabled={!newMessage.trim() || sending || !isConnected}
             className="p-3 rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#7263F3' }}
           >

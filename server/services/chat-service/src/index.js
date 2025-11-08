@@ -1,15 +1,15 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import http from 'http';
 import { connectDB } from './config/database.js';
 import { connectRabbitMQ, startConsumers } from './rabbit/index.js';
+import { initializeSocket } from './socket/socket.js';
 import chatRoutes from './routes/chat.routes.js';
-
 dotenv.config();
-
 const app = express();
+const server = http.createServer(app); // Create HTTP server
 const PORT = process.env.PORT || 5004;
-
 // Middleware
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
@@ -17,7 +17,6 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 // Health check route
 app.get('/health', (req, res) => {
   res.status(200).json({ 
@@ -36,7 +35,6 @@ app.use((err, req, res, next) => {
     message: err.message || 'Internal server error'
   });
 });
-
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({
@@ -48,20 +46,20 @@ app.use('*', (req, res) => {
 const startServer = async () => {
   try {
     await connectDB();
-    // Start Express server first
-    app.listen(PORT, () => {
+    // Initialize Socket.IO
+    initializeSocket(server);
+    // Start Express server
+    server.listen(PORT, () => {
       console.log(`🚀 Chat Service running on port ${PORT}`);
     });
     try {
       await connectRabbitMQ();
-      // Start RabbitMQ consumers only if connection succeeded
       await startConsumers();
       console.log('✅ RabbitMQ connected and consumers started');
     } catch (rabbitError) {
       console.error('⚠️ RabbitMQ connection failed, but server will continue running');
       console.error('⚠️ Chat features requiring auth-service communication will not work');
       console.log('⚠️ RabbitMQ will attempt to reconnect automatically...');
-      // Don't exit - let the auto-reconnect logic handle it
     }
   } catch (error) {
     console.error('❌ Failed to start server:', error);
