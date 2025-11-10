@@ -407,30 +407,60 @@ const subCategoryOptions = useMemo(
         if (!timeString) return "";
         return timeString;
       };
-
-      // When loading existing ticket data
+      // Helper to convert 24h to 12h format for display
+      const convertTo12HourFormat = (time24) => {
+          if (!time24) return { time: "", ampm: "" };
+          const [hours, minutes] = time24.split(':');
+          let hour = parseInt(hours, 10);
+          const ampm = hour >= 12 ? 'PM' : 'AM';
+          if (hour === 0) hour = 12;
+          else if (hour > 12) hour -= 12;
+          return { 
+              time: `${hour.toString().padStart(2, '0')}:${minutes}`,
+              ampm 
+          };
+      };
       const event_dates = ticketData.event_dates
-        ? ticketData.event_dates.map((d) => ({
-            date: formatDateForInput(d.start_date),
-            endDate: formatDateForInput(d.end_date),
-            startTime: formatTimeForInput(d.start_time),
-            endTime: formatTimeForInput(d.end_time),
-            // Add online/recorded specific fields
-            eventLink: d.event_link || "",
-            videoName: d.video_name || "",
-            verificationCode: d.verification_event_code || "",
-            videoFile: d.video_file_path || null,
-            previewImage: d.preview_image_path || null,
-          }))
-        : [];
+        ? ticketData.event_dates.map((d) => {
+            // Helper to convert 24h to 12h format
+            const convertTo12HourFormat = (time24) => {
+              if (!time24) return { time: "", ampm: "" };
+              const [hours, minutes] = time24.split(':');
+              let hour = parseInt(hours, 10);
+              const ampm = hour >= 12 ? 'PM' : 'AM';
+              if (hour === 0) hour = 12;
+              else if (hour > 12) hour -= 12;
+              return { 
+                time: `${hour.toString().padStart(2, '0')}:${minutes}`,
+                ampm 
+              };
+            };
 
+            const startTimeObj = convertTo12HourFormat(d.start_time);
+            const endTimeObj = convertTo12HourFormat(d.end_time);
+            
+            return {
+              date: formatDateForInput(d.start_date),
+              endDate: formatDateForInput(d.end_date),
+              startTime: startTimeObj.time,
+              startAmPm: startTimeObj.ampm,
+              endTime: endTimeObj.time,
+              endAmPm: endTimeObj.ampm,
+              // Add online/recorded specific fields
+              eventLink: d.event_link || "",
+              videoName: d.video_name || "",
+              verificationCode: d.verification_event_code || "",
+              videoFile: d.video_file_path || null,
+              previewImage: d.preview_image_path || null,
+            };
+          })
+        : [];
       let eventLanguage = "";
       if (Array.isArray(ticketData.event_language)) {
         eventLanguage = ticketData.event_language[0] || "";
       } else {
         eventLanguage = ticketData.event_language || "";
       }
-
       const loadedData = {
         event_name: ticketData.event_name || "",
         event_category: ticketData.event_category || "",
@@ -450,12 +480,7 @@ const subCategoryOptions = useMemo(
         event_youtube_link: ticketData.event_youtube_link || "",
         hashtag: ticketData.hashtag || [],
         event_dates: event_dates,
-        event_date_type:
-          ticketData.event_date_type === "one-day"
-            ? "one-day"
-            : ticketData.event_date_type === "weekly"
-            ? "weekly"
-            : "multi-day",
+        event_date_type: ticketData.event_date_type || "one-day",
         gate_open_time: formatTimeForInput(ticketData.gate_open_time) || "",
         gatesOpenEarly: !!ticketData.gate_open_time,
         // Parse gate opening time into separate fields
@@ -1052,7 +1077,7 @@ useEffect(() => {
         const cleanItem = { ...item };
 
         const convertTo24Hour = (time12h, ampm) => {
-          if (!time12h || !ampm) return "";
+          if (!time12h || !ampm) return undefined;
           const [hours, minutes] = time12h.split(":");
           let hour24 = parseInt(hours, 10);
           if (ampm === "AM" && hour24 === 12) hour24 = 0;
@@ -1060,6 +1085,20 @@ useEffect(() => {
           return `${hour24.toString().padStart(2, "0")}:${minutes}`;
         };
 
+        // Convert start time to 24-hour format
+        const convertedStartTime = convertTo24Hour(cleanItem.startTime, cleanItem.startAmPm);
+        if (convertedStartTime) {
+          cleanItem.start_time = convertedStartTime;
+        }
+        delete cleanItem.startTime;
+        delete cleanItem.startAmPm;
+        // Convert end time to 24-hour format
+        const convertedEndTime = convertTo24Hour(cleanItem.endTime, cleanItem.endAmPm);
+        if (convertedEndTime) {
+          cleanItem.end_time = convertedEndTime;
+        }
+        delete cleanItem.endTime;
+        delete cleanItem.endAmPm;
         if (cleanItem.startTime && cleanItem.startAmPm) {
           cleanItem.startTime = convertTo24Hour(
             cleanItem.startTime,
