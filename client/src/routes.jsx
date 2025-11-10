@@ -41,6 +41,8 @@ import LiveEventView from './pages/ticket/LiveEventView';
 import ConfirmEventView from './pages/ticket/ConfirmEventView';
 import PersonalDetails from './pages/settings/PersonalDetails';
 import DeletedEventView from './pages/ticket/DeletedEventView';
+import ViewSingleSubEvent from './pages/ticket/ViewSingleSubEvent';
+
 // Protected Route - Only for authenticated users
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
@@ -312,6 +314,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <ViewSingleEvent/>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/view-single-sub-event/:ticketId/:subEventId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <ViewSingleSubEvent/>
           </ProtectedRoute>
         }
       />

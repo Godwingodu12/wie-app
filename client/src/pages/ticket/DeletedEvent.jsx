@@ -79,32 +79,24 @@ const DeletedEvent = () => {
 const fetchGroupName = async (ticketId) => {
   try {
     const response = await getGroupView(ticketId);
-    console.log(`Group response for ticket ${ticketId}:`, response);
     return response?.group?.name || "N/A";
   } catch (error) {
-    console.error(`Error fetching group for ticket ${ticketId}:`, error);
     return "N/A";
   }
 };
 const fetchDeletedEvents = async () => {
   setLoading(true);
   try {
-    const response = await getAllDeletedEvents();
-    console.log("Full API Response:", response);
-    
+    const response = await getAllDeletedEvents();    
     const eventsArray = response?.deletedEvents 
       || response?.data?.deletedEvents 
       || [];
-    
-    console.log("Extracted events array:", eventsArray);
-    console.log("Number of events:", eventsArray.length);
     
     if (Array.isArray(eventsArray) && eventsArray.length > 0) {
       setDeletedEvents(eventsArray);
       
       // Fetch group names for all events using ticketId
       const groupPromises = eventsArray.map(async (event) => {
-        console.log(`Fetching group for ticket: ${event._id}`);
         const groupName = await fetchGroupName(event._id);
         return { eventId: event._id, groupName };
       });
@@ -116,8 +108,6 @@ const fetchDeletedEvents = async () => {
       groupResults.forEach(({ eventId, groupName }) => {
         groupsObj[eventId] = groupName;
       });
-      
-      console.log("Final groups object:", groupsObj);
       setGroups(groupsObj);
     } else {
       setDeletedEvents([]);

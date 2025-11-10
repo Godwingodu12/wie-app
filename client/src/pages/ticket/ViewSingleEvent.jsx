@@ -34,6 +34,7 @@ import {
   deleteTicket,
   confirmEvent,
   getMyEvents,
+  getUserData,
 } from "../../services/ticketService";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -49,7 +50,6 @@ import PreferenceModal from "../../components/ViewSingleEvent/PreferenceModal";
 import ImageModal from "../../components/ViewSingleEvent/ImageModal";
 import GuideModal from "../../components/ViewSingleEvent/GuideModal";
 import TopNavBar from "../../components/ViewSingleEvent/TopNavBar";
-import SubEventDetailModal from "../../components/ViewSingleEvent/SubEventDetailModal";
 import ActionCircleButton from "../../components/ViewSingleEvent/ActionCircleButton";
 import EventLocationModal from "../../components/ViewSingleEvent/EventLocationModal";
 import TicketDetailModal from "../../components/ViewSingleEvent/TicketDetailModal";
@@ -125,8 +125,6 @@ const ViewSingleEvent = () => {
 
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
 
-  const [showSubEventModal, setShowSubEventModal] = useState(false);
-  const [selectedSubEvent, setSelectedSubEvent] = useState(null);
   const [showConfirmSaveModal, setShowConfirmSaveModal] = useState(false);
 
   const [currentSeatingIndex, setCurrentSeatingIndex] = useState(0);
@@ -952,20 +950,22 @@ const ViewSingleEvent = () => {
         </div>
 
         {/* 2. Action Buttons - Always on the far right, never wraps */}
+
         <div className="flex items-center my-auto space-x-4 flex-shrink-0 ml-4">
           <ActionCircleButton
             theme={theme}
             type="edit"
             groupId={groupId}
             ticketId={ticketId}
-            setAppalert={setAppAlert}
+            // Note: Corrected prop name to setAppAlert (lowercase 'a' in Alert)
+            setAppAlert={setAppAlert}
           />
           <ActionCircleButton
             theme={theme}
             type="delete"
             ticketId={ticketId}
             onClick={handleDeleteEvent}
-            setAppalert={setAppAlert} // Use the new handler here
+            setAppAlert={setAppAlert}
           />
         </div>
       </div>
@@ -1414,11 +1414,31 @@ const ViewSingleEvent = () => {
                             <div
                               key={index}
                               onClick={() => {
+                                const subEvent = eventData.sub_events[index];
+                                const subEventId =
+                                  subEvent._id || subEvent.sub_event_id;
                                 if (isActive) {
-                                  setSelectedSubEvent(
-                                    eventData.sub_events[index]
+                                  if (!subEventId) {
+                                    setAppAlert({
+                                      message: "Error",
+                                      description:
+                                        "Sub-Event ID is missing for navigation.",
+                                      type: "error",
+                                      show: true,
+                                    });
+                                    return;
+                                  }
+
+                                  navigate(
+                                    `/ticket/view-single-sub-event/${ticketId}/${subEventId}`,
+                                    {
+                                      state: {
+                                        eventDetails: subEvent,
+                                        isSubEvent: true,
+                                        initialThemeIsDark: theme.isDark,
+                                      },
+                                    }
                                   );
-                                  setShowSubEventModal(true);
                                 } else {
                                   // This is the core logic for changing the centered item
                                   setActiveCarouselIndex(index);
@@ -2245,18 +2265,7 @@ const ViewSingleEvent = () => {
           setAppAlert={setAppAlert}
         />
       )}
-      {showSubEventModal && selectedSubEvent && (
-        <SubEventDetailModal
-          subEvent={selectedSubEvent}
-          theme={theme}
-          onClose={() => {
-            setShowSubEventModal(false);
-            setSelectedSubEvent(null);
-          }}
-          formatImagePath={(path) => getImageUrl(path, "ticket")}
-          setAppAlert={setAppAlert}
-        />
-      )}
+
       {showLocationModal && (
         <EventLocationModal
           eventData={eventData}

@@ -41,6 +41,7 @@ import {
   deleteTicket,
   getMyEvents,
   goLiveEvent,
+  getUserData,
 } from "../../services/ticketService";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -161,6 +162,13 @@ const ConfirmEventView = () => {
   const [allEvents, setAllEvents] = useState([]);
   const guidesToShow = viewportWidth >= 768 ? 3 : 1;
   const visibleTickets = viewportWidth >= 768 ? 3 : 1;
+
+
+  
+
+
+  
+  
 
   useEffect(() => {
     const fetchAllEvents = async () => {
@@ -949,11 +957,13 @@ const ConfirmEventView = () => {
             className="flex flex-col items-center cursor-pointer space-y-2 transition-transform duration-200 hover:scale-[1.02]"
             onClick={() => openHostModal(eventData)}
           >
-             <div className="w-10 h-10 bg-white text-red-600 border 
+            <div
+              className="w-10 h-10 bg-white text-red-600 border 
               dark:bg-[#1e1e1e] dark:text-red-400 dark:
               rounded-full flex items-center justify-center"
-            style={{boxShadow: theme.shadowOutset,}}>
-            <Radio size={20} />
+              style={{ boxShadow: theme.shadowOutset }}
+            >
+              <Radio size={20} />
             </div>
           </div>
         </div>
@@ -974,6 +984,7 @@ const ConfirmEventView = () => {
         </div>
 
         {/* 2. Action Buttons - Always on the far right, never wraps */}
+       
         <div className="flex items-center my-auto space-x-4 flex-shrink-0 ml-4">
           <ActionCircleButton
             theme={theme}
@@ -990,6 +1001,7 @@ const ConfirmEventView = () => {
             setAppalert={setAppAlert} // Use the new handler here
           />
         </div>
+        
       </div>
       <div className="flex  md:hidden justify-center items-center md:mb-10 mb-4 px-2 md:px-0">
         <div className=" md:hidden flex justify-center flex-grow">
@@ -1436,11 +1448,31 @@ const ConfirmEventView = () => {
                             <div
                               key={index}
                               onClick={() => {
+                                const subEvent = eventData.sub_events[index];
+                                const subEventId =
+                                  subEvent._id || subEvent.sub_event_id;
                                 if (isActive) {
-                                  setSelectedSubEvent(
-                                    eventData.sub_events[index]
+                                  if (!subEventId) {
+                                    setAppAlert({
+                                      message: "Error",
+                                      description:
+                                        "Sub-Event ID is missing for navigation.",
+                                      type: "error",
+                                      show: true,
+                                    });
+                                    return;
+                                  }
+
+                                  navigate(
+                                    `/ticket/view-single-sub-event/${ticketId}/${subEventId}`,
+                                    {
+                                      state: {
+                                        eventDetails: subEvent,
+                                        isSubEvent: true,
+                                        initialThemeIsDark: theme.isDark,
+                                      },
+                                    }
                                   );
-                                  setShowSubEventModal(true);
                                 } else {
                                   // This is the core logic for changing the centered item
                                   setActiveCarouselIndex(index);

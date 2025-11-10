@@ -9,6 +9,8 @@ const ActionCircleButton = ({
 
   ticketId,
   groupId,
+  subEventId,
+
   onClick,
   setAppAlert,
 }) => {
@@ -20,12 +22,15 @@ const ActionCircleButton = ({
 
   const handleAction = () => {
     if (type === "edit") {
-      if (groupId) {
+      if (subEventId) {
+        console.log("Navigating to Add-Ons with ticketId:", ticketId);
+        navigate(`/ticket/update-ticket-addons/${ticketId}`);
+      } else if (groupId) {
         navigate(`/ticket/create-event/${groupId}/${ticketId}`);
       } else {
         setAppAlert({
           message: "Cannot edit",
-          description: "Group ID is missing..",
+          description: "Group ID  is missing..",
           type: "error",
           show: true,
         });
@@ -33,7 +38,7 @@ const ActionCircleButton = ({
     } else if (type == "delete") {
       onClick();
     } else if (type == "save") {
-      onClick;
+      onClick();
     }
   };
 
