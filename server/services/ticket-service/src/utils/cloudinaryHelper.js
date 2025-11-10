@@ -65,7 +65,19 @@ export const processFileUploads = async (files) => {
           resourceType
         });
 
-        uploadedFiles[fieldName] = result.url;
+        // For event_rules and college_authorisation, return full file object
+        if (fieldName === 'event_rules' || fieldName === 'college_authorisation') {
+          uploadedFiles[fieldName] = [{
+            path: result.url,
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+            size: file.size,
+            public_id: result.public_id,
+            resource_type: result.resource_type
+          }];
+        } else {
+          uploadedFiles[fieldName] = result.url;
+        }
         console.log(`✅ ${fieldName} uploaded:`, result.url);
       }
     }
