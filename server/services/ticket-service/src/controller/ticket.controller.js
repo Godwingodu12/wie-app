@@ -42,7 +42,6 @@ export const getTicketSubEvents = async (req, res) => {
     if (!ticket) {
       return res.status(404).json({ message: "Ticket not found" });
     }
-
     res.status(200).json({
       message: "Sub-events retrieved successfully",
       eventName: ticket.event_name,
@@ -1196,23 +1195,18 @@ export const goLiveEvent = async(req, res) => {
     await ticket.populate('groupId');
     // Create notification for hosted event
     try {
-      const groupName = ticket.groupId?.name || 'Unknown Group';
-      
       await createNotification({
         userId: userId,
         type: 'event_hosted',
         title: 'Event Hosted Successfully',
-        message: `Your event "${ticket.event_name}" from ${groupName} is now live!`,
+        message: `Your event "${ticket.event_name}" is now live!`,
         ticketId: ticket._id,
         groupId: ticket.groupId?._id,
-        groupName: groupName,
         eventName: ticket.event_name
       });
-      
       console.log('Notification created for live event:', ticket.event_name);
     } catch (notifError) {
       console.error('Error creating notification:', notifError);
-      // Don't fail the request if notification fails
     }
     res.status(200).json({
       message: "Event went live successfully",
@@ -1361,20 +1355,15 @@ export const showAllBankDetails = async (req, res) => {
     const tickets = await Ticket.find({ userId: userId })
       .sort({ createdAt: -1 })
       .exec();
-    
     const groups = await Group.find({ userId: userId })
       .sort({ createdAt: -1 })
       .exec();
-    
     console.log("Total tickets found:", tickets.length);
     console.log("Total groups found:", groups.length);
-    
     const allBankDetails = [];
-
     // Process Main Events
     tickets.forEach(ticket => {
       const hasSubEvents = ticket.sub_events && ticket.sub_events.length > 0;
-      
       if (ticket.banking_details && ticket.banking_details.length > 0) {
         ticket.banking_details.forEach(bank => {
           allBankDetails.push({
@@ -1391,7 +1380,6 @@ export const showAllBankDetails = async (req, res) => {
           });
         });
       }
-
       // Process Sub Events
       if (hasSubEvents) {
         ticket.sub_events.forEach((subEvent) => {
@@ -1414,7 +1402,6 @@ export const showAllBankDetails = async (req, res) => {
         });
       }
     });
-
     // Process Groups - Bank details are stored as individual fields
     groups.forEach(group => {
       console.log("Processing group:", group.name);

@@ -1,22 +1,7 @@
-import { listenQueue, publishToQueue } from './consumer.js';
+import { publishToQueue } from './consumer.js';
 import { isChannelAvailable } from './connection.js';
 
-export const listenForUserRequests = async () => {
-  await listenQueue('get-user', async (payload) => {
-    try {
-      console.log('📦 Received get-user request:', payload);
-      
-      // Forward request to auth-service
-      const response = await publishToQueue('auth-get-user', payload, 10000);
-      return response;
-    } catch (error) {
-      console.error('❌ Error in get-user handler:', error.message);
-      return { error: error.message };
-    }
-  });
-};
-
-// Helper function with better error handling and retry logic
+// ✅ Helper function to get user data from auth-service
 export const getUserFromAuthService = async (userId, retries = 2) => {
   if (!isChannelAvailable()) {
     console.warn('⚠️ RabbitMQ not available, cannot fetch user');
@@ -29,7 +14,8 @@ export const getUserFromAuthService = async (userId, retries = 2) => {
     try {
       console.log(`🔄 Attempting to fetch user (attempt ${attempt}/${retries}):`, userId);
       
-      const user = await publishToQueue('auth-get-user', { userId }, 10000);
+      // Send request directly to auth-service queue
+      const user = await publishToQueue('get-user', { userId }, 10000);
       
       if (user && user.error) {
         throw new Error(user.error);
@@ -47,14 +33,12 @@ export const getUserFromAuthService = async (userId, retries = 2) => {
       console.error(`❌ Attempt ${attempt} failed:`, error.message);
       
       if (attempt < retries) {
-        // Wait before retrying (exponential backoff)
         const delay = 1000 * attempt;
         console.log(`⏳ Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }
-  
   console.error('❌ All retry attempts failed for user fetch');
   throw lastError;
 };

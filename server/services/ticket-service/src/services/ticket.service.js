@@ -7,10 +7,9 @@ import {
   deleteFromCloudinary,
   processGroupFileUploads,
 } from "../utils/cloudinaryHelper.js";
-import { createNotification } from "../controller/notification.controller.js";
+import { createNotification } from '../utils/notificationHelper.js';
 import multer from "multer";
 import { sendRPC } from "../rabbit/producer.js";
-
 function parseJSONSafely(value, defaultValue = []) {
   if (!value) return defaultValue;
   if (typeof value === "string") {
@@ -30,16 +29,28 @@ function parseJSONSafely(value, defaultValue = []) {
 export const getUserData = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    const userData = await sendRPC("get-user", userId);
+    
+    // ✅ Send as object with userId property
+    const userData = await sendRPC("get-user", { userId });
+    
+    // ✅ Check for error in response
+    if (userData?.error) {
+      return res.status(500).json({ 
+        message: "Error fetching user data", 
+        error: userData.error 
+      });
+    }
+    
     if (!userData) {
       return res.status(404).json({ message: "User not found" });
     }
+    
     res.status(200).json({
       message: "User retrieved successfully",
       user: userData,
     });
   } catch (error) {
-    console.error("Error fetching user:", error);
+    console.error("❌ Error fetching user:", error);
     res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -4693,7 +4704,6 @@ export const updateTicketTerms = async (req, res) => {
     if (updatedTicket.event_status === "confirmed") {
       try {
         const groupName = updatedTicket.groupId?.name || "Unknown Group";
-
         await createNotification({
           userId: userId,
           type: "event_created",
@@ -4704,11 +4714,6 @@ export const updateTicketTerms = async (req, res) => {
           groupName: groupName,
           eventName: updatedTicket.event_name,
         });
-
-        console.log(
-          "Notification created for event:",
-          updatedTicket.event_name
-        );
       } catch (notifError) {
         console.error("Error creating notification:", notifError);
         // Don't fail the request if notification fails
@@ -5112,7 +5117,7 @@ export const recoverDeletedEvent = async (req, res) => {
         message: "Missing required parameter: ticketId in URL",
       });
     }
-    if(!userId){
+    if (!userId) {
       return res.status(400).json({
         message: "Missing required parameter: userId",
       });
@@ -5122,13 +5127,29 @@ export const recoverDeletedEvent = async (req, res) => {
       { event_status: "confirmed" },
       { new: true }
     );
-    if (!recoveredTicket){
+    if (!recoveredTicket) {
       return res.status(404).json({
         message: "Ticket not found or you don't have access to this ticket",
       });
     }
     recoveredTicket.event_status = "pending";
     await recoveredTicket.save();
+    // Send notification via RabbitMQ to notification-service
+    try {
+      await createNotification({
+        userId: userId,
+        type: 'event_recovered',
+        title: 'Event Recovered Successfully',
+        message: `Your event "${recoveredTicket.event_name}" has been Recovered`,
+        ticketId: recoveredTicket._id,
+        groupId: recoveredTicket.groupId?._id,
+        eventName: recoveredTicket.event_name
+      });
+      console.log('✅ Notification sent via RabbitMQ');
+    } catch (notifError) {
+      console.error('❌ Error creating notification:', notifError);
+      // Don't fail the request if notification fails
+    }
     res.status(200).json({
       message: "Ticket recovered successfully",
       ticket: recoveredTicket,
@@ -5139,12 +5160,12 @@ export const recoverDeletedEvent = async (req, res) => {
     console.error("Error recovering deleted event:", error);
     if (error.name === "CastError") {
       return res.status(400).json({
-        message:
-          "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
+        message: "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
       });
     }
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message 
+    });
   }
 };
