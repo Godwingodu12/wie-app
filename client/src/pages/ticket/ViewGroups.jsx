@@ -32,7 +32,86 @@ import PlusIcon from "../../assets/HomePage/PlusIcon.svg";
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
 import LiveIcon from "../../assets/HomePage/LiveIcon.svg";
 import GroupStatisticsChart from "../../components/ViewPage/GroupStatisticsChart.jsx";
-import LiveEventCarouselCard from "../../components/ViewPage/LiveEventCarouselCard.jsx";
+const LiveEventCarouselCard = ({
+  event,
+  isDark,
+  theme,
+  outerShadow,
+  onClick,
+}) => {
+  const eventName = event.event_name || "Event Name Missing";
+  const eventSubcategory = event.event_subcategory || "Category";
+
+  const eventLogoPath = event.event_logo || event.event_banner;
+  const logoUrl = eventLogoPath ? getImageUrl(eventLogoPath) : null;
+
+  const cardBgColor = isDark ? "#212426" : theme.cardBg;
+  const textColor = isDark ? "text-white" : "text-gray-800";
+  const subTextColor = isDark ? "text-gray-400" : "text-gray-500";
+
+  const cardStyle = {
+    ...outerShadow,
+    backgroundColor: cardBgColor,
+    borderRadius: "30px",
+    border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"} `,
+    width: "100%",
+    paddingTop: "140%", // This creates the rectangular aspect ratio
+    position: "relative",
+  };
+
+  const buttonStyle = {
+    background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)",
+    color: "white",
+    transition: "all 0.3s ease",
+    boxShadow: "0 4px 12px rgba(101, 73, 184, 0.3)",
+  };
+
+  return (
+    <div style={cardStyle} className="mx-auto">
+      <div className="absolute inset-0 flex flex-col items-center justify-between p-4">
+        {/* 1. Logo/Image (Top Center) */}
+        <div className="flex justify-center mt-8">
+          <div
+            className="w-16 h-16 xl:w-20 xl:h-20 rounded-full bg-black flex items-center justify-center overflow-hidden flex-shrink-0"
+            style={{ boxShadow: "0 6px 20px rgba(0, 0, 0, 0.7)" }}
+          >
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={`${eventName} Logo`}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-xs font-normal text-white/60">logo</span>
+            )}
+          </div>
+        </div>
+
+        {/* 2. Event Name and Subtitle (Center) */}
+        <div className="flex flex-col items-center justify-center text-center flex-grow my-2 overflow-hidden">
+          <h4
+            className={`font-semibold text-sm xl:text-base ${textColor} leading-tight mb-0.5 px-1 truncate`}
+            title={eventName}
+          >
+            {eventName}
+          </h4>
+          <p className={`text-xs xl:text-sm ${subTextColor} leading-tight mt-0.5 truncate`} title={eventSubcategory}>
+            {eventSubcategory}
+          </p>
+        </div>
+
+        {/* 3. View Button (Bottom) */}
+        <button
+          onClick={onClick}
+          className="w-full text-center text-xs xl:text-sm font-semibold rounded-full py-1.5 xl:py-2 block hover:opacity-90 transition-opacity"
+          style={buttonStyle}
+        >
+          View
+        </button>
+      </div>
+    </div>
+  );
+};
 const SlickCarouselStyles = () => (
   <style>{`
         .slick-slider { position: relative; display: block; box-sizing: border-box; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; -webkit-touch-callout: none; -khtml-user-select: none; -ms-touch-action: pan-y; touch-action: pan-y; -webkit-tap-highlight-color: transparent; }
@@ -395,7 +474,14 @@ const CustomScrollbarStyles = ({ isDark }) => (
         }
     `}</style>
 );
-const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [], onViewClick, onAddClick }) => {
+const SvgGroupCard = ({
+  card,
+  isAddCard = false,
+  isDark,
+  statsData = [],
+  onViewClick,
+  onAddClick,
+}) => {
   const currentGroupStats = statsData.find((stat) => stat.label === card.name);
   const statPercentage = currentGroupStats?.percentage || card.progress || 50;
   const statColor = currentGroupStats?.color || "bg-cyan-400";
@@ -403,7 +489,7 @@ const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [], onViewC
 
   // Define original dimensions for viewBox and path calculations
   const cardWidth = 212.23;
-  const cardHeight = 295;
+  const cardHeight = 315;
 
   // The SVG path is based on the original card dimensions
   const cardPath = `
@@ -465,7 +551,10 @@ const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [], onViewC
       {/* ✅ Inner content stays the same */}
       <div className="relative w-full h-full flex flex-col items-center text-center">
         {isAddCard ? (
-        <div onClick={onAddClick} className="w-full h-full flex flex-col justify-center items-center group cursor-pointer px-4">
+          <div
+            onClick={onAddClick}
+            className="w-full h-full flex flex-col justify-center items-center group cursor-pointer px-4"
+          >
             <div className="w-14 h-14 rounded-full bg-gray-800 flex items-center justify-center border-4 border-[#2D3436] transition-transform duration-300 group-hover:scale-110">
               <Plus
                 className={`w-7 h-7 ${
@@ -486,13 +575,14 @@ const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [], onViewC
             <div className="text-center mb-2">
               <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center flex-shrink-0 mx-auto">
                 {card.company_logo ? (
-                  <img 
-                    src={getImageUrl(card.company_logo)} 
-                    alt={card.name} 
+                  <img
+                    src={getImageUrl(card.company_logo)}
+                    alt={card.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       e.target.onerror = null;
-                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkxvZ288L3RleHQ+PC9zdmc+';
+                      e.target.src =
+                        "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkxvZ288L3RleHQ+PC9zdmc+";
                     }}
                   />
                 ) : (
@@ -536,19 +626,19 @@ const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [], onViewC
                   {statPercentage}%
                 </span>
               </div>
-            <button 
-              className="py-0.5 px-6 rounded-full font-semibold text-[10px] bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 transition-all"
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewClick && onViewClick(card);
-              }}
-            >
-              View
-            </button>
+              <button
+                className="py-0.5 px-6 rounded-full font-semibold text-[10px] bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 transition-all"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewClick && onViewClick(card);
+                }}
+              >
+                View
+              </button>
             </div>
 
             <div
-              className={`w-full border-t pt-1.5 pb-1 mt-1 ${
+              className={`w-full border-t pt-1.5 pb-1 mt-2 lg:mt-4 ${
                 isDark ? "border-gray-700/50" : "border-gray-200"
               }`}
             >
@@ -581,9 +671,17 @@ const SvgGroupCard = ({ card, isAddCard = false, isDark, statsData = [], onViewC
     </div>
   );
 };
-const GroupViewModal = ({ isOpen, onClose, group, isDark, theme, onUpdate }) => {
+const GroupViewModal = ({
+  isOpen,
+  onClose,
+  group,
+  isDark,
+  theme,
+  onUpdate,
+}) => {
   if (!isOpen || !group) return null;
-  const totalEvents = group.totalEvents !== undefined ? group.totalEvents : (group.events || 0);
+  const totalEvents =
+    group.totalEvents !== undefined ? group.totalEvents : group.events || 0;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div
@@ -593,10 +691,10 @@ const GroupViewModal = ({ isOpen, onClose, group, isDark, theme, onUpdate }) => 
         }}
       >
         {/* Header */}
-          <div className="px-6 md:px-[103px] pt-6 md:pt-[34px]">
+        <div className="px-6 md:px-[103px] pt-6 md:pt-[34px]">
           <h2
             className={`${theme.text} font-semibold text-[32px] leading-[100%]`}
-            style={{ fontFamily: 'Inter' }}
+            style={{ fontFamily: "Inter" }}
           >
             Group Details
           </h2>
@@ -606,8 +704,9 @@ const GroupViewModal = ({ isOpen, onClose, group, isDark, theme, onUpdate }) => 
         <div
           className="mx-[2px] mt-[25px]"
           style={{
-            height: '1px',
-            background: 'linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #FFFFFF 50.73%, rgba(255, 255, 255, 0) 100%)',
+            height: "1px",
+            background:
+              "linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #FFFFFF 50.73%, rgba(255, 255, 255, 0) 100%)",
           }}
         />
 
@@ -617,140 +716,155 @@ const GroupViewModal = ({ isOpen, onClose, group, isDark, theme, onUpdate }) => 
           <div
             className={`${theme.bg} rounded-[30px] md:rounded-[40px] p-6 md:p-8 flex flex-col items-center justify-center w-full md:w-[298px]`}
             style={{
-              minHeight: '250px',
-              boxShadow: '8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A',
+              minHeight: "250px",
+              boxShadow:
+                "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
             }}
           >
             <div className="w-20 h-20 rounded-full bg-black flex items-center justify-center mb-4 overflow-hidden">
               {group.company_logo ? (
-                <img 
-                  src={getImageUrl(group.company_logo)} 
-                  alt="Logo" 
+                <img
+                  src={getImageUrl(group.company_logo)}
+                  alt="Logo"
                   className="w-full h-full rounded-full object-cover"
                   onError={(e) => {
                     e.target.onerror = null;
-                    e.target.style.display = 'none';
-                    e.target.parentElement.innerHTML = '<span class="text-white text-sm">Logo</span>';
+                    e.target.style.display = "none";
+                    e.target.parentElement.innerHTML =
+                      '<span class="text-white text-sm">Logo</span>';
                   }}
                 />
               ) : (
                 <span className="text-white text-sm">Logo</span>
               )}
             </div>
-            <h3 className={`${theme.text} font-semibold text-xl mb-2 text-center`}>
+            <h3
+              className={`${theme.text} font-semibold text-xl mb-2 text-center`}
+            >
               {group.name}
             </h3>
             <p className={`${theme.subText} text-sm capitalize`}>
-              {group.grp_type === 'organisation' ? group.organisation_type : group.grp_type}
+              {group.grp_type === "organisation"
+                ? group.organisation_type
+                : group.grp_type}
             </p>
           </div>
 
           {/* Right Card - Bank Details */}
-<div
-  className={`${theme.bg} flex flex-col`}
-  style={{
-    width: "360px",               // reduced from 439px
-    height: "auto",               // let height adjust naturally
-    borderRadius: "40px",         // slightly reduced corner radius
-    boxShadow: isDark
-      ? "6px 6px 10px 0px #00000029, -6px -6px 10px 0px #FFFFFF0A"
-      : "6px 6px 10px 0px #00000014, -6px -6px 10px 0px #FFFFFF33",
-    padding: "24px",              // reduced padding
-  }}
->
-  <h3
-    className={`${theme.text} font-medium text-base mb-4`}
-    style={{ fontFamily: "Inter" }}
-  >
-    Bank Details:
-  </h3>
+          <div
+            className={`${theme.bg} flex flex-col`}
+            style={{
+              width: "360px", // reduced from 439px
+              height: "auto", // let height adjust naturally
+              borderRadius: "40px", // slightly reduced corner radius
+              boxShadow: isDark
+                ? "6px 6px 10px 0px #00000029, -6px -6px 10px 0px #FFFFFF0A"
+                : "6px 6px 10px 0px #00000014, -6px -6px 10px 0px #FFFFFF33",
+              padding: "24px", // reduced padding
+            }}
+          >
+            <h3
+              className={`${theme.text} font-medium text-base mb-4`}
+              style={{ fontFamily: "Inter" }}
+            >
+              Bank Details:
+            </h3>
 
-  {/* Horizontal Bank Detail Rows */}
-  <div className="space-y-3">
-    {/* Account Type */}
-    <div className="flex items-center justify-between w-full">
-      <p className={`${theme.subText} text-sm`}>Account Type</p>
-      <p className={`${theme.text} font-medium`}>
-        {group.primary_bank_acc_type?.toUpperCase() || "N/A"}
-      </p>
-    </div>
+            {/* Horizontal Bank Detail Rows */}
+            <div className="space-y-3">
+              {/* Account Type */}
+              <div className="flex items-center justify-between w-full">
+                <p className={`${theme.subText} text-sm`}>Account Type</p>
+                <p className={`${theme.text} font-medium`}>
+                  {group.primary_bank_acc_type?.toUpperCase() || "N/A"}
+                </p>
+              </div>
 
-    {/* Account Holder */}
-    <div className="flex items-center justify-between w-full">
-      <p className={`${theme.subText} text-sm`}>Account Holder</p>
-      <p className={`${theme.text} font-medium`}>
-        {group.primary_bank_acc_holder || "N/A"}
-      </p>
-    </div>
+              {/* Account Holder */}
+              <div className="flex items-center justify-between w-full">
+                <p className={`${theme.subText} text-sm`}>Account Holder</p>
+                <p className={`${theme.text} font-medium`}>
+                  {group.primary_bank_acc_holder || "N/A"}
+                </p>
+              </div>
 
-    {/* Account Number */}
-    <div className="flex items-center justify-between w-full">
-      <p className={`${theme.subText} text-sm`}>Account Number</p>
-      <p className={`${theme.text} font-medium`}>
-        {group.primary_bank_acc_no || "N/A"}
-      </p>
-    </div>
+              {/* Account Number */}
+              <div className="flex items-center justify-between w-full">
+                <p className={`${theme.subText} text-sm`}>Account Number</p>
+                <p className={`${theme.text} font-medium`}>
+                  {group.primary_bank_acc_no || "N/A"}
+                </p>
+              </div>
 
-    {/* IFSC Code */}
-    <div className="flex items-center justify-between w-full">
-      <p className={`${theme.subText} text-sm`}>IFSC Code</p>
-      <p className={`${theme.text} font-medium`}>
-        {group.primary_bank_ifsc || "N/A"}
-      </p>
-    </div>
-  </div>
-</div>
+              {/* IFSC Code */}
+              <div className="flex items-center justify-between w-full">
+                <p className={`${theme.subText} text-sm`}>IFSC Code</p>
+                <p className={`${theme.text} font-medium`}>
+                  {group.primary_bank_ifsc || "N/A"}
+                </p>
+              </div>
+              <div className="flex items-center justify-between w-full">
+                <p className={`${theme.subText} text-sm`}>PAN Number</p>
+                <p className={`${theme.text} font-medium`}>{group.pan_no}</p>
+              </div>
+              {group.gst_no && (
+                <div className="flex items-center justify-between w-full">
+                  <p className={`${theme.subText} text-sm`}>GST Number</p>
+                  <p className={`${theme.text} font-medium`}>{group.gst_no}</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
         {/* Bottom Section */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-6 md:px-[51px] py-6 mt-6">
-        {/* Total Events Card */}
-        <div
-          className={`${theme.bg} rounded-2xl px-6 py-3 min-w-[150px]`}
-          style={{
-            boxShadow: isDark
-              ? "4px 4px 8px 0px #00000029, -4px -4px 8px 0px #FFFFFF0A"
-              : "4px 4px 8px 0px #00000014, -4px -4px 8px 0px #FFFFFF",
-          }}
-        >
-          <p className={`${theme.subText} text-sm mb-1`}>Total Events</p>
-          <p className={`${theme.text} font-bold text-2xl`}>
-            {totalEvents !== undefined ? totalEvents : 0}
-          </p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-4">
-          <button
-            onClick={onClose}
-            className="px-[20px] py-[8px] rounded-[50px] font-normal text-[20px] text-white transition-all hover:opacity-90"
+          {/* Total Events Card */}
+          <div
+            className={`${theme.bg} rounded-2xl px-6 py-3 min-w-[150px]`}
             style={{
-              width: "178px",
-              height: "45px",
-              background: "#44444D",
-              border: "0.5px solid",
-              borderImage:
-                "linear-gradient(0deg, rgba(255, 255, 255, 0) -8.33%, rgba(255, 255, 255, 0.5) 183.33%)",
-              boxShadow:
-                "0px 0px 0px 1px #2B2D43, 0px 4px 6px 0px #00000024, 0px 9px 14px -5px #FFFFFF4D inset",
+              boxShadow: isDark
+                ? "4px 4px 8px 0px #00000029, -4px -4px 8px 0px #FFFFFF0A"
+                : "4px 4px 8px 0px #00000014, -4px -4px 8px 0px #FFFFFF",
             }}
           >
-            Cancel
-          </button>
-          <button
-            onClick={onUpdate}
-            className="px-[20px] py-[8px] rounded-[50px] font-normal text-[20px] text-white transition-all hover:opacity-90"
-            style={{
-              width: "178px",
-              height: "45px",
-              background: "#5E5CE6",
-              boxShadow: "0px 4px 6px 0px #00000024",
-            }}
-          >
-            Update
-          </button>
-        </div>
+            <p className={`${theme.subText} text-sm mb-1`}>Total Events</p>
+            <p className={`${theme.text} font-bold text-2xl`}>
+              {totalEvents !== undefined ? totalEvents : 0}
+            </p>
+          </div>
 
-      </div>
+          {/* Action Buttons */}
+          <div className="flex gap-4">
+            <button
+              onClick={onClose}
+              className="px-[20px] py-[8px] rounded-[50px] font-normal text-[20px] text-white transition-all hover:opacity-90"
+              style={{
+                width: "178px",
+                height: "45px",
+                background: "#44444D",
+                border: "0.5px solid",
+                borderImage:
+                  "linear-gradient(0deg, rgba(255, 255, 255, 0) -8.33%, rgba(255, 255, 255, 0.5) 183.33%)",
+                boxShadow:
+                  "0px 0px 0px 1px #2B2D43, 0px 4px 6px 0px #00000024, 0px 9px 14px -5px #FFFFFF4D inset",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onUpdate}
+              className="px-[20px] py-[8px] rounded-[50px] font-normal text-[20px] text-white transition-all hover:opacity-90"
+              style={{
+                width: "178px",
+                height: "45px",
+                background: "#5E5CE6",
+                boxShadow: "0px 4px 6px 0px #00000024",
+              }}
+            >
+              Update
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -807,39 +921,41 @@ const ViewGroups = () => {
   };
   const confirmedEventsCount = events.length;
   const totalLiveEvents = liveEvents.length;
-const handleGroupViewClick = async (card) => {
-  try {
-    setLoading(true);
-    
-    // Fetch full group details
-    const groupsData = await getGroups();
-    const fullGroup = groupsData.find(g => g._id === card.id);
-    
-    if (fullGroup) {
-      // Count events from the local events state
-      const groupEvents = events.filter(event => {
-        // Check different possible property names for groupId
-        return event.groupId === fullGroup._id || 
-               event.group_id === fullGroup._id || 
-               event.group?._id === fullGroup._id;
-      });
-      
-      fullGroup.totalEvents = groupEvents.length;      
-      setSelectedGroup(fullGroup);
-      setIsGroupViewModalOpen(true);
-    }
-  } catch (error) {
-    console.error('Error fetching group details:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleGroupViewClick = async (card) => {
+    try {
+      setLoading(true);
 
-const handleUpdateGroup = () => {
-  if (selectedGroup) {
-    navigate(`/ticket/edit-group/${selectedGroup._id}`);
-  }
-};
+      // Fetch full group details
+      const groupsData = await getGroups();
+      const fullGroup = groupsData.find((g) => g._id === card.id);
+
+      if (fullGroup) {
+        // Count events from the local events state
+        const groupEvents = events.filter((event) => {
+          // Check different possible property names for groupId
+          return (
+            event.groupId === fullGroup._id ||
+            event.group_id === fullGroup._id ||
+            event.group?._id === fullGroup._id
+          );
+        });
+
+        fullGroup.totalEvents = groupEvents.length;
+        setSelectedGroup(fullGroup);
+        setIsGroupViewModalOpen(true);
+      }
+    } catch (error) {
+      console.error("Error fetching group details:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateGroup = () => {
+    if (selectedGroup) {
+      navigate(`/ticket/edit-group/${selectedGroup._id}`);
+    }
+  };
   useEffect(() => {
     const timer = setTimeout(() => {
       if (sliderRef.current) {
@@ -870,38 +986,42 @@ const handleUpdateGroup = () => {
     setIsDark(shouldBeDark);
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
-useEffect(() => {
-  const fetchData = async () => {
-    try {
-      const [eventsRes, groupsRes, liveEventsRes, groupStatsRes] =
-        await Promise.all([
-          getMyEvents(),
-          getGroups(),
-          getMyLiveEvents(),
-          getGroupStatistics(),
-        ]);
-      // Properly handle events array
-      let eventsArray = [];
-      if (Array.isArray(eventsRes)) {
-        eventsArray = eventsRes;
-      } else if (eventsRes?.tickets) {
-        eventsArray = Array.isArray(eventsRes.tickets) ? eventsRes.tickets : [eventsRes.tickets];
-      } else if (eventsRes?.data) {
-        eventsArray = Array.isArray(eventsRes.data) ? eventsRes.data : [eventsRes.data];
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [eventsRes, groupsRes, liveEventsRes, groupStatsRes] =
+          await Promise.all([
+            getMyEvents(),
+            getGroups(),
+            getMyLiveEvents(),
+            getGroupStatistics(),
+          ]);
+        // Properly handle events array
+        let eventsArray = [];
+        if (Array.isArray(eventsRes)) {
+          eventsArray = eventsRes;
+        } else if (eventsRes?.tickets) {
+          eventsArray = Array.isArray(eventsRes.tickets)
+            ? eventsRes.tickets
+            : [eventsRes.tickets];
+        } else if (eventsRes?.data) {
+          eventsArray = Array.isArray(eventsRes.data)
+            ? eventsRes.data
+            : [eventsRes.data];
+        }
+        setEvents(eventsArray);
+        const groupsArray = Array.isArray(groupsRes) ? groupsRes : [];
+        setGroups(groupsArray);
+        // ... rest of the code
+      } catch (e) {
+        console.error("Error fetching data:", e);
+        setEvents([]);
+        setGroups([]);
       }
-      setEvents(eventsArray);
-      const groupsArray = Array.isArray(groupsRes) ? groupsRes : [];
-      setGroups(groupsArray);
-      // ... rest of the code
-    } catch (e) {
-      console.error("Error fetching data:", e);
-      setEvents([]);
-      setGroups([]);
-    }
-  };
+    };
 
-  fetchData();
-}, []);
+    fetchData();
+  }, []);
   useEffect(() => {
     if (events.length > 0 && groups.length > 0) {
       const stats = groups.map((group) => {
@@ -955,75 +1075,75 @@ useEffect(() => {
   };
 
   useEffect(() => {
-const fetchAndProcessGroups = async () => {
-  try {
-    setLoading(true);
-    const data = await getUserGroupCapabilities();
-    const { userGroups = [], userRole } = data;
-    
-    // Fetch group statistics
-    let groupStatsMap = {};
-    try {
-      const statsResponse = await getGroupStatistics();
-      if (Array.isArray(statsResponse)) {
-        groupStatsMap = statsResponse.reduce((acc, stat) => {
-          acc[stat.groupName] = stat.percentage || 0;
-          return acc;
-        }, {});
+    const fetchAndProcessGroups = async () => {
+      try {
+        setLoading(true);
+        const data = await getUserGroupCapabilities();
+        const { userGroups = [], userRole } = data;
+
+        // Fetch group statistics
+        let groupStatsMap = {};
+        try {
+          const statsResponse = await getGroupStatistics();
+          if (Array.isArray(statsResponse)) {
+            groupStatsMap = statsResponse.reduce((acc, stat) => {
+              acc[stat.groupName] = stat.percentage || 0;
+              return acc;
+            }, {});
+          }
+        } catch (error) {
+          console.error("Error fetching group statistics:", error);
+        }
+
+        const formattedGroups = userGroups.map((group) => {
+          const statPercentage = groupStatsMap[group.name] || 0;
+
+          return {
+            id: group._id,
+            name: group.name,
+            type: group.grp_type
+              ? group.grp_type.charAt(0).toUpperCase() + group.grp_type.slice(1)
+              : "General",
+            progress: Math.round(statPercentage),
+            likes: group.likes || "0",
+            comments: group.comments || "0",
+            shares: group.shares || 0,
+            events: group.events || 0,
+            company_logo: group.company_logo || null,
+          };
+        });
+
+        setCreatedGroups(formattedGroups);
+
+        const groupCounts = formattedGroups.reduce(
+          (acc, group) => {
+            const type = group.type.toLowerCase();
+            acc[type] = (acc[type] || 0) + 1;
+            return acc;
+          },
+          { organisation: 0, admin: 0 }
+        );
+
+        let shouldShowAddCard = false;
+        if (userRole === "admin") {
+          if (groupCounts.organisation < 1 || groupCounts.admin < 1)
+            shouldShowAddCard = true;
+        } else if (userRole === "organisation") {
+          if (groupCounts.organisation < 6) shouldShowAddCard = true;
+        }
+
+        if (formattedGroups.length === 0) {
+          shouldShowAddCard = true;
+        }
+
+        setShowAddGroupCard(shouldShowAddCard);
+        setError("");
+      } catch (err) {
+        setError("Failed to fetch your groups. Please try again later.");
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching group statistics:', error);
-    }
-
-    const formattedGroups = userGroups.map((group) => {
-      const statPercentage = groupStatsMap[group.name] || 0;
-      
-      return {
-        id: group._id,
-        name: group.name,
-        type: group.grp_type
-          ? group.grp_type.charAt(0).toUpperCase() + group.grp_type.slice(1)
-          : "General",
-        progress: Math.round(statPercentage),
-        likes: group.likes || "0",
-        comments: group.comments || "0",
-        shares: group.shares || 0,
-        events: group.events || 0,
-        company_logo: group.company_logo || null,
-      };
-    });
-    
-    setCreatedGroups(formattedGroups);
-
-    const groupCounts = formattedGroups.reduce(
-      (acc, group) => {
-        const type = group.type.toLowerCase();
-        acc[type] = (acc[type] || 0) + 1;
-        return acc;
-      },
-      { organisation: 0, admin: 0 }
-    );
-    
-    let shouldShowAddCard = false;
-    if (userRole === "admin") {
-      if (groupCounts.organisation < 1 || groupCounts.admin < 1)
-        shouldShowAddCard = true;
-    } else if (userRole === "organisation") {
-      if (groupCounts.organisation < 6) shouldShowAddCard = true;
-    }
-
-    if (formattedGroups.length === 0) {
-      shouldShowAddCard = true;
-    }
-
-    setShowAddGroupCard(shouldShowAddCard);
-    setError("");
-  } catch (err) {
-    setError("Failed to fetch your groups. Please try again later.");
-  } finally {
-    setLoading(false);
-  }
-};
+    };
     fetchAndProcessGroups();
   }, []);
 
@@ -1038,40 +1158,51 @@ const fetchAndProcessGroups = async () => {
     dots: true,
     infinite: false,
     speed: 500,
-    slidesToShow: 5,
+    slidesToShow: 4, // Default for desktop
     slidesToScroll: 1,
     arrows: true,
     nextArrow: <CustomNextArrow isDark={isDark} />,
     prevArrow: <CustomPrevArrow isDark={isDark} />,
-    adaptiveHeight: false,
     lazyLoad: "ondemand",
-    centerMode: false,
-    variableWidth: false,
     responsive: [
       {
-        breakpoint: 1280,
+        breakpoint: 1536, // 2xl
         settings: {
           slidesToShow: 4,
-          slidesToScroll: 1,
         },
       },
       {
-        breakpoint: 1024,
+        breakpoint: 1280, // xl
         settings: {
-          slidesToShow: 3,
-          slidesToScroll: 1,
+          slidesToShow: 4,
         },
       },
       {
-        breakpoint: 640,
+        breakpoint: 1024, // lg
         settings: {
           slidesToShow: 2,
-          slidesToScroll: 1,
+        },
+      },
+      {
+        breakpoint: 768, // md
+        settings: {
+          slidesToShow: 2.5,
+        },
+      },
+      {
+        breakpoint: 640, // sm
+        settings: {
+          slidesToShow: 2,
+        },
+      },
+      {
+        breakpoint: 480, // xs
+        settings: {
+          slidesToShow: 1.5,
         },
       },
     ],
   };
-
   const handleCreateClick = async () => {
     setLoading(true);
     try {
@@ -1090,12 +1221,10 @@ const fetchAndProcessGroups = async () => {
       setLoading(false);
     }
   };
-
   const handleSelectGroupForEvent = (selectedGroup) => {
     setIsModalOpen(false);
     navigate(`/ticket/create-event/${selectedGroup._id}`);
   };
-
   const sliderSettings = {
     dots: false,
     arrows: false,
@@ -1109,8 +1238,12 @@ const fetchAndProcessGroups = async () => {
     slidesToShow: 3.5,
     responsive: [
       {
-        breakpoint: 1280,
+        breakpoint: 1536,
         settings: { slidesToShow: 3, infinite: allCards.length > 3 },
+      },
+      {
+        breakpoint: 1280,
+        settings: { slidesToShow: 2.5, infinite: allCards.length > 2 },
       },
       {
         breakpoint: 1024,
@@ -1118,7 +1251,7 @@ const fetchAndProcessGroups = async () => {
       },
       {
         breakpoint: 768,
-        settings: { slidesToShow: 3, infinite: allCards.length > 3 },
+        settings: { slidesToShow: 2.5, infinite: allCards.length > 2 },
       },
       {
         breakpoint: 640,
@@ -1379,30 +1512,35 @@ const fetchAndProcessGroups = async () => {
                   className={`relative ${theme.bg} rounded-3xl`}
                 >
                   {allCards.length > 0 ? (
-                  <Slider {...sliderSettings} key={isDark ? "dark-key" : "light-key"}>
-                    {allCards.map((card) => (
-                      <div
-                        key={card.id === "add-new-group" ? "add-card" : card.id}
-                        className="px-3 py-4 flex justify-center"
-                      >
+                    <Slider
+                      {...sliderSettings}
+                      key={isDark ? "dark-key" : "light-key"}
+                    >
+                      {allCards.map((card) => (
                         <div
-                          style={{
-                            transform: "translateY(-10px)",
-                            transition: "transform 0.3s ease",
-                          }}
+                          key={
+                            card.id === "add-new-group" ? "add-card" : card.id
+                          }
+                          className="px-3 py-4 flex justify-center"
                         >
-                          <SvgGroupCard
-                            isAddCard={card.id === "add-new-group"}
-                            card={card}
-                            isDark={isDark}
-                            statsData={groupStats}
-                            onViewClick={handleGroupViewClick}
-                            onAddClick={handleCreateGroupClick}
-                          />
+                          <div
+                            style={{
+                              transform: "translateY(-10px)",
+                              transition: "transform 0.3s ease",
+                            }}
+                          >
+                            <SvgGroupCard
+                              isAddCard={card.id === "add-new-group"}
+                              card={card}
+                              isDark={isDark}
+                              statsData={groupStats}
+                              onViewClick={handleGroupViewClick}
+                              onAddClick={handleCreateGroupClick}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </Slider>
+                      ))}
+                    </Slider>
                   ) : (
                     <div className="h-[280px]"></div>
                   )}
@@ -1455,6 +1593,9 @@ const fetchAndProcessGroups = async () => {
                               combinedShadow={combinedShadow}
                               theme={theme}
                               isDark={isDark}
+                              onClick={() =>
+                                navigate(`/ticket/live-event-view/${event._id}`)
+                              }
                             />
                           </div>
                         ))}
@@ -1656,7 +1797,7 @@ const fetchAndProcessGroups = async () => {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-4 xl:grid-cols-1 gap-2 xl:flex xl:flex-col xl:col-span-1">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-1 gap-2 xl:flex xl:flex-col xl:col-span-1">
                         {statCards.map((card) => (
                           <div
                             key={card.label}

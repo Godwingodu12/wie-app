@@ -1316,11 +1316,31 @@ const OtherEventViewDetails = () => {
                             <div
                               key={index}
                               onClick={() => {
+                                const subEvent = eventData.sub_events[index];
+                                const subEventId =
+                                  subEvent._id || subEvent.sub_event_id;
                                 if (isActive) {
-                                  setSelectedSubEvent(
-                                    eventData.sub_events[index]
+                                  if (!subEventId) {
+                                    setAppAlert({
+                                      message: "Error",
+                                      description:
+                                        "Sub-Event ID is missing for navigation.",
+                                      type: "error",
+                                      show: true,
+                                    });
+                                    return;
+                                  }
+
+                                  navigate(
+                                    `/ticket/view-single-sub-event/${ticketId}/${subEventId}`,
+                                    {
+                                      state: {
+                                        eventDetails: subEvent,
+                                        isSubEvent: true,
+                                        initialThemeIsDark: theme.isDark,
+                                      },
+                                    }
                                   );
-                                  setShowSubEventModal(true);
                                 } else {
                                   // This is the core logic for changing the centered item
                                   setActiveCarouselIndex(index);

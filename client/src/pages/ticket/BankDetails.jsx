@@ -65,9 +65,7 @@ const BankDetails = () => {
   const fetchBankDetails = async () => {
     setLoading(true);
     try {
-      const response = await showAllBankDetails();
-      console.log("Full API Response:", response);
-      
+      const response = await showAllBankDetails();      
       // Extract bank details from response
       let details = [];
       let summaryData = null;
