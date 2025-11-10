@@ -9,7 +9,6 @@ const ScrollBarStyle = ({ isDark }) => {
     const thumbHoverColor = darkMode ? "#6b7280" : "#94a3b8";
 
     React.useEffect(() => {
-        console.log('ScrollBarStyle - isDark:', isDark, 'darkMode:', darkMode);
     }, [isDark, darkMode]);
 
     return (

@@ -314,8 +314,25 @@ export const updateSubEvent = async (req, res) => {
       guests: processedGuests,
       banking_details: updateData.banking_details ? parseNestedData(updateData.banking_details, 'banking_details') : existingSubEvent.banking_details,
       POCS: updateData.POCS ? parseNestedData(updateData.POCS, 'POCS') : existingSubEvent.POCS,
-      event_dates: updateData.event_dates ? parseNestedData(updateData.event_dates, 'event_dates') : existingSubEvent.event_dates,
-      
+      event_dates: updateData.event_dates ? parseNestedData(updateData.event_dates, 'event_dates').map(date => {
+        const dateEntry = {
+          start_date: date.start_date,
+          end_date: date.end_date,
+          event_link: date.event_link || "",
+          video_name: date.video_name || "",
+          verification_event_code: date.verification_event_code || "",
+          video_file_path: date.video_file_path || "",
+          preview_image_path: date.preview_image_path || "",
+        };
+        if (date.start_time && String(date.start_time).trim() !== "") {
+          dateEntry.start_time = date.start_time;
+        }
+        if (date.end_time && String(date.end_time).trim() !== "") {
+          dateEntry.end_time = date.end_time;
+        }
+        
+        return dateEntry;
+      }) : existingSubEvent.event_dates,      
       // File uploads with fallback to existing
       event_banner: processedFiles.event_banner || existingSubEvent.event_banner,
       event_logo: processedFiles.event_logo || existingSubEvent.event_logo,
