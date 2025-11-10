@@ -4693,7 +4693,6 @@ export const updateTicketTerms = async (req, res) => {
     if (updatedTicket.event_status === "confirmed") {
       try {
         const groupName = updatedTicket.groupId?.name || "Unknown Group";
-
         await createNotification({
           userId: userId,
           type: "event_created",
@@ -4704,11 +4703,6 @@ export const updateTicketTerms = async (req, res) => {
           groupName: groupName,
           eventName: updatedTicket.event_name,
         });
-
-        console.log(
-          "Notification created for event:",
-          updatedTicket.event_name
-        );
       } catch (notifError) {
         console.error("Error creating notification:", notifError);
         // Don't fail the request if notification fails
@@ -5129,6 +5123,19 @@ export const recoverDeletedEvent = async (req, res) => {
     }
     recoveredTicket.event_status = "pending";
     await recoveredTicket.save();
+    try {
+      await createNotification({
+        userId: userId,
+        type: 'event_recovered',
+        title: 'Event Recovered Successfully',
+        message: `Your event "${recoveredTicket.event_name}" has been Recovered`,
+        ticketId: recoveredTicket._id,
+        groupId: recoveredTicket.groupId?._id,
+        eventName: recoveredTicket.event_name
+      });
+    } catch (notifError) {
+      console.error('Error creating notification:', notifError);
+    }
     res.status(200).json({
       message: "Ticket recovered successfully",
       ticket: recoveredTicket,
