@@ -1,0 +1,12 @@
+import express from 'express';
+import multer from 'multer';
+import {createNotification,getNotifications,markAsRead,markAllAsRead,deleteNotification} from '../controllers/notification.controller.js';
+import { authenticateToken } from '../middlewares/auth.middleware.js';
+const router = express.Router();
+router.use(authenticateToken);
+router.post('/create-notification', createNotification);
+router.get('/get-notifications', getNotifications);
+router.patch('/notification-read/:notificationId', markAsRead);
+router.patch('/mark-all-read', markAllAsRead);
+router.delete('/delete-notification/:notificationId', deleteNotification);
+export default router;
