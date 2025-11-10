@@ -1,5 +1,4 @@
 import { connectRabbitMQ, isChannelAvailable } from './connection.js';
-import { listenForUserRequests } from './consumerConnections.js';
 
 export const startConsumers = async () => {
   if (!isChannelAvailable()) {
@@ -7,12 +6,7 @@ export const startConsumers = async () => {
     return;
   }
 
-  try {
-    await listenForUserRequests();
-    console.log('✅ All RabbitMQ consumers started');
-  } catch (error) {
-    console.error('❌ Error starting consumers:', error);
-  }
+  console.log('✅ Ticket service acts as RPC client only - no consumers needed');
 };
 
 export { connectRabbitMQ };
