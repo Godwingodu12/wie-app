@@ -1124,21 +1124,23 @@ export const createTicketBasicInfo = async (req, res) => {
           const correspondingVideoFile = videoFiles[index];
           const correspondingPreviewImage = previewImageFiles[index];
 
-          return {
+          const dateEntry = {
             start_date: start_date.trim(),
             end_date: validatedEndDate.trim(),
-            start_time: start_time ? start_time.trim() : "",
-            end_time: end_time ? end_time.trim() : "",
-            event_link: actualEventLink.trim(),
-            video_name: actualVideoName.trim(),
-            verification_event_code: actualVerificationCode.trim(),
-            video_file_path: correspondingVideoFile
-              ? correspondingVideoFile.path
-              : "",
-            preview_image_path: correspondingPreviewImage
-              ? correspondingPreviewImage.path
-              : "",
+            event_link: actualEventLink ? actualEventLink.trim() : "",
+            video_name: actualVideoName ? actualVideoName.trim() : "",
+            verification_event_code: actualVerificationCode ? actualVerificationCode.trim() : "",
+            video_file_path: correspondingVideoFile ? correspondingVideoFile.path : "",
+            preview_image_path: correspondingPreviewImage ? correspondingPreviewImage.path : "",
           };
+          // Only add time fields if they have values
+          if (start_time && start_time.trim() !== "") {
+            dateEntry.start_time = start_time.trim();
+          }
+          if (end_time && end_time.trim() !== "") {
+            dateEntry.end_time = end_time.trim();
+          }
+          return dateEntry;
         });
       } catch (validationError) {
         return res.status(400).json({
@@ -1692,17 +1694,18 @@ export const createTicketBasicInfo = async (req, res) => {
       ticketData.event_rules = {
         type: "file",
         path: rulesFile.path, // Cloudinary URL
-        originalName: rulesFile.originalName,
-        mimeType: rulesFile.mimeType,
-        size: rulesFile.size,
-        public_id: rulesFile.public_id, // Store Cloudinary public_id for deletion
-        resource_type: rulesFile.resource_type,
+        originalName: rulesFile.originalName || rulesFile.originalname || "event_rules",
+        mimeType: rulesFile.mimeType || rulesFile.mimetype || "application/pdf",
+        size: rulesFile.size || 0,
+        public_id: rulesFile.public_id || "",
+        resource_type: rulesFile.resource_type || "raw",
         uploadedAt: new Date(),
       };
     } else if (event_rules_text && event_rules_text.trim()) {
       ticketData.event_rules = {
         type: "text",
         content: event_rules_text.trim(),
+        uploadedAt: new Date(),
       };
     }
     // Create and save ticket
@@ -3353,17 +3356,27 @@ export const updateTicketAddOns = async (req, res) => {
           POC_email: String(poc.POC_email || ""),
           POC_contact: String(poc.POC_contact || ""),
         })),
-        event_dates: eventDates.map((date) => ({
-          start_date: String(date.start_date || ""),
-          end_date: String(date.end_date || ""),
-          start_time: String(date.start_time || ""),
-          end_time: String(date.end_time || ""),
-          event_link: String(date.event_link || ""),
-          video_name: String(date.video_name || ""),
-          verification_event_code: String(date.verification_event_code || ""),
-          video_file_path: String(date.video_file_path || ""),
-          preview_image_path: String(date.preview_image_path || ""),
-        })),
+        event_dates: eventDates.map((date) => {
+  const dateEntry = {
+    start_date: String(date.start_date || ""),
+    end_date: String(date.end_date || ""),
+    event_link: String(date.event_link || ""),
+    video_name: String(date.video_name || ""),
+    verification_event_code: String(date.verification_event_code || ""),
+    video_file_path: String(date.video_file_path || ""),
+    preview_image_path: String(date.preview_image_path || ""),
+  };
+  
+  // Only add time fields if they have values
+  if (date.start_time && String(date.start_time).trim() !== "") {
+    dateEntry.start_time = String(date.start_time);
+  }
+  if (date.end_time && String(date.end_time).trim() !== "") {
+    dateEntry.end_time = String(date.end_time);
+  }
+  
+  return dateEntry;
+}),
         event_banner: String(
           processedFiles.event_banner || existingSubEvent.event_banner || ""
         ),
@@ -3718,17 +3731,25 @@ export const updateTicketAddOns = async (req, res) => {
         POC_email: String(poc.POC_email || ""),
         POC_contact: String(poc.POC_contact || ""),
       })),
-      event_dates: eventDates.map((date) => ({
+      event_dates: eventDates.map((date) => {
+      const dateEntry = {
         start_date: String(date.start_date || ""),
         end_date: String(date.end_date || ""),
-        start_time: String(date.start_time || ""),
-        end_time: String(date.end_time || ""),
         event_link: String(date.event_link || ""),
         video_name: String(date.video_name || ""),
         verification_event_code: String(date.verification_event_code || ""),
         video_file_path: String(date.video_file_path || ""),
         preview_image_path: String(date.preview_image_path || ""),
-      })),
+      };
+        // Only add time fields if they have values
+        if (date.start_time && String(date.start_time).trim() !== "") {
+          dateEntry.start_time = String(date.start_time);
+        }
+        if (date.end_time && String(date.end_time).trim() !== "") {
+          dateEntry.end_time = String(date.end_time);
+        }
+        return dateEntry;
+      }),
       event_banner: String(processedFiles.event_banner || ""),
       event_logo: String(processedFiles.event_logo || ""),
       event_images: (processedFiles.event_images || []).map((img) => ({
