@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { Send, ArrowLeft, MoreVertical } from 'lucide-react';
 import { getChatMessages, sendMessage } from '../../services/chatService';
+import ScrollBarStyle from '../ScrollBarStyle';
 import { useSocket } from '../../context/SocketContext';
 const ChatWindow = ({ chat, onBack, isDark }) => {
   const currentUser = useSelector((state) => state.auth.user);
@@ -14,8 +15,31 @@ const ChatWindow = ({ chat, onBack, isDark }) => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
-  
   const { socket, isConnected } = useSocket();
+  const darkTheme = {
+  isDark: true,
+  text: "text-white",
+  mainBg: "#212426",
+  cardBg: "rgba(33, 36, 38, 0.9)",
+  insetBg: "rgba(30, 33, 35, 0.9)",
+  shadowOutset: "7px 7px 14px #151515, -7px -7px 14px #2b2b2b",
+  shadowInset: "inset 7px 7px 14px #151515, inset -7px -7px 14px #2b2b2b",
+  textColor: "text-gray-300",
+  arrowBgClass: "bg-gray-700",
+  arrowColorClass: "text-white",
+};
+const lightTheme = {
+  isDark: false,
+  text: "text-gray-900",
+  mainBg: "#e0e0e0",
+  cardBg: "rgba(255, 255, 255, 0.9)",
+  insetBg: "rgba(230, 230, 230, 0.9)",
+  shadowOutset: "5px 5px 10px #c5c5c5, -5px -5px 10px #fbfbfb",
+  shadowInset: "inset 5px 5px 10px #c5c5c5, inset -5px -5px 10px #fbfbfb",
+  textColor: "text-gray-700",
+  arrowBgClass: "bg-gray-800",
+  arrowColorClass: "text-gray-200",
+};
 // Add this to the useEffect that handles socket connection
 useEffect(() => {
   if (chat?._id) {
@@ -214,7 +238,11 @@ useEffect(() => {
   if (!chat) return null;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col w-full h-full overflow-y-auto">
+      <ScrollBarStyle
+        isDark={darkTheme.isDark}
+        key={darkTheme.isDark ? "dark" : "light"}
+      />
       {/* Header */}
       <div 
         className="flex items-center gap-3 p-4 border-b"
