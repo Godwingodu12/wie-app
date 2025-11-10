@@ -66,6 +66,19 @@ const DatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode, show
     const [timeError, setTimeError] = useState("");
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [useSameDetails] = useState(true);
+    // Initialize date type from parent component
+    useEffect(() => {
+        if (isOpen && initialDates && initialDates.length > 0) {
+            // Determine date type from initial dates
+            if (initialDates.length === 1) {
+                setDateType("one-day");
+            } else {
+                // Check if dates are weekly pattern or just multi-day
+                // For now, default to multi-day if more than one date
+                setDateType("multi-day");
+            }
+        }
+    }, [isOpen, initialDates]);
 
     // Main initialization logic for reopening the modal
     useEffect(() => {
@@ -377,27 +390,33 @@ useEffect(() => {
                 return; 
             }
         }
-        
-        // Convert to 24-hour format and REMOVE redundant 12-hour fields
+       // Convert to 24-hour format but keep frontend field names for CreateTicket
         const convertedDates = selectedDates.map((dateEntry) => {
-            const { startAmPm, endAmPm, ...rest } = dateEntry;
-
-            return {
-                ...rest,
-                startTime: convertTo24Hour(dateEntry.startTime, dateEntry.startAmPm),
-                endTime: convertTo24Hour(dateEntry.endTime, dateEntry.endAmPm),
-            };
+        const start24 = convertTo24Hour(dateEntry.startTime, dateEntry.startAmPm);
+        const end24 = convertTo24Hour(dateEntry.endTime, dateEntry.endAmPm);
+        return {
+            date: dateEntry.date,
+            endDate: dateEntry.endDate,
+            // Keep these in 12-hour format for the parent component
+            startTime: dateEntry.startTime,
+            startAmPm: dateEntry.startAmPm,
+            endTime: dateEntry.endTime,
+            endAmPm: dateEntry.endAmPm,
+            // Keep other fields if they exist
+            ...(dateEntry.eventLink && { eventLink: dateEntry.eventLink }),
+            ...(dateEntry.videoName && { videoName: dateEntry.videoName }),
+            ...(dateEntry.verificationCode && { verificationCode: dateEntry.verificationCode }),
+        };
         });
-        
-        console.log("Saving Dates (24h format):", convertedDates);
-
         onSave(convertedDates, dateType);
-        onClose();
-    };
-    const removeDate = (dateToRemove) => {
-        setSelectedDates(prevDates => prevDates.filter(d => d.date !== dateToRemove));
-    };
-    
+
+                onSave(convertedDates, dateType);
+                        onSave(convertedDates, dateType);
+                        onClose();
+            };
+            const removeDate = (dateToRemove) => {
+                setSelectedDates(prevDates => prevDates.filter(d => d.date !== dateToRemove));
+            };
     if (!isOpen) return null;
 
     return (
