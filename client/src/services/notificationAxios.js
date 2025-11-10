@@ -2,7 +2,7 @@ import axios from 'axios';
 import { store } from '../features/store';
 import { logoutSuccess } from '../features/auth/authSlice';
 const notificationAPI = axios.create({
-  baseURL: 'http://localhost:5003/api', // TICKET-service
+  baseURL: 'http://localhost:5006/api', // TICKET-service
   withCredentials: true,
 });
 notificationAPI.interceptors.request.use((config) => {
@@ -23,4 +23,5 @@ notificationAPI.interceptors.response.use(
     return Promise.reject(err);
   }
 );
+
 export default notificationAPI;

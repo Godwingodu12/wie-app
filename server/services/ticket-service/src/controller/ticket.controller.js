@@ -1,7 +1,7 @@
 import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import TicketLike from '../models/ticketLike.model.js';
-import { createNotification } from './notification.controller.js';
+import { createNotification } from '../utils/notificationHelper.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
 import { processFileUploads, deleteFromCloudinary } from '../utils/cloudinaryHelper.js';
 import mongoose from 'mongoose';
