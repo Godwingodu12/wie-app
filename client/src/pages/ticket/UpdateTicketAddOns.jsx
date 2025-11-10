@@ -1205,27 +1205,70 @@ const UpdateTicketAddOns = () => {
       saveFormDataToStorage(formData);
     }
   }, [formData, pageLoading, isEditMode]);
-  useEffect(() => {
-    const callbackName = "initMapCallback";
-    window[callbackName] = () => setIsApiReady(true);
-    const scriptId = "google-maps-script";
+useEffect(() => {
+  const callbackName = "initMapCallbackAddOns";
+  const scriptId = "google-maps-script";
 
-    if (!document.getElementById(scriptId)) {
-      const script = document.createElement("script");
-      script.id = scriptId;
-      const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    } else if (window.google) {
+  // Set up callback FIRST, before any script checks
+  window[callbackName] = () => {
+    if (window.google && window.google.maps && window.google.maps.places) {
       setIsApiReady(true);
     }
+  };
 
+  // Check if already loaded
+  if (window.google && window.google.maps && window.google.maps.places) {
+    setIsApiReady(true);
     return () => {
       delete window[callbackName];
     };
-  }, []);
+  }
+
+  // Check if script already exists
+  const existingScript = document.getElementById(scriptId);
+  if (existingScript) {
+    // Script exists, wait for it to load
+    if (window.google && window.google.maps && window.google.maps.places) {
+      setIsApiReady(true);
+    } else {
+      // Set up a listener for when it loads
+      const checkInterval = setInterval(() => {
+        if (window.google && window.google.maps && window.google.maps.places) {
+          setIsApiReady(true);
+          clearInterval(checkInterval);
+        }
+      }, 100);
+      
+      // Clear interval after 10 seconds to prevent infinite checking
+      setTimeout(() => clearInterval(checkInterval), 10000);
+    }
+    
+    return () => {
+      delete window[callbackName];
+    };
+  }
+
+  // Create and load script
+  const script = document.createElement("script");
+  script.id = scriptId;
+  const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
+  script.async = true;
+  script.defer = true;
+
+  script.onerror = () => {
+    console.error("Failed to load Google Maps script");
+    setIsApiReady(false);
+    delete window[callbackName];
+  };
+
+  document.head.appendChild(script);
+
+  return () => {
+    // Cleanup: remove callback
+    delete window[callbackName];
+  };
+}, []);
   useEffect(() => {
     setDataLoaded(true);
   }, []);
@@ -1240,8 +1283,17 @@ const UpdateTicketAddOns = () => {
       }
       return;
     }
-
     const initializeMap = () => {
+      if (!window.google || !window.google.maps || !window.google.maps.Map) {
+        console.error("Google Maps API not fully loaded yet");
+        return;
+      }
+
+      // Check if places library is loaded
+      if (!window.google.maps.places || !window.google.maps.places.Autocomplete) {
+        console.error("Google Maps Places library not loaded yet");
+        return;
+      }
       const initialCenter =
         formData.exact_map_location.latitude &&
         formData.exact_map_location.longitude
@@ -1289,55 +1341,59 @@ const UpdateTicketAddOns = () => {
           }
         });
       };
-
       // Map click listener
       mapInstance.addListener("click", (e) => {
         markerInstance.setPosition(e.latLng);
         updateStateFromCoords(e.latLng.lat(), e.latLng.lng());
       });
-
       // Marker drag listener
       markerInstance.addListener("dragend", (e) => {
         updateStateFromCoords(e.latLng.lat(), e.latLng.lng());
       });
+      // Autocomplete setup with comprehensive null checks
+      if (
+        autocompleteRef.current && 
+        window.google && 
+        window.google.maps && 
+        window.google.maps.places && 
+        window.google.maps.places.Autocomplete
+      ) {
+        try {
+          const autocompleteInstance = new window.google.maps.places.Autocomplete(
+            autocompleteRef.current,
+            {
+              fields: ["geometry", "name", "formatted_address"],
+              types: ["establishment", "geocode"],
+            }
+          );
+          autocompleteInstance.addListener("place_changed", () => {
+            const place = autocompleteInstance.getPlace();
+            if (!place.geometry?.location) return;
 
-      // Autocomplete setup
-      if (autocompleteRef.current) {
-        const autocompleteInstance = new window.google.maps.places.Autocomplete(
-          autocompleteRef.current,
-          {
-            fields: ["geometry", "name", "formatted_address"],
-            types: ["establishment", "geocode"],
-          }
-        );
+            const { lat, lng } = place.geometry.location;
+            const newPosition = { lat: lat(), lng: lng() };
 
-        autocompleteInstance.addListener("place_changed", () => {
-          const place = autocompleteInstance.getPlace();
-          if (!place.geometry?.location) return;
+            setSubEventFormData((prev) => ({
+              ...prev,
+              location: place.formatted_address || "",
+              venue: place.name || prev.venue,
+              exact_map_location: {
+                latitude: lat().toString(),
+                longitude: lng().toString(),
+                address: place.formatted_address || "",
+              },
+            }));
 
-          const { lat, lng } = place.geometry.location;
-          const newPosition = { lat: lat(), lng: lng() };
-
-          setFormData((prev) => ({
-            ...prev,
-            location: place.formatted_address || "",
-            venue: place.name || prev.venue,
-            exact_map_location: {
-              latitude: lat().toString(),
-              longitude: lng().toString(),
-              address: place.formatted_address || "",
-            },
-          }));
-
-          mapInstance.setCenter(newPosition);
-          mapInstance.setZoom(15);
-          markerInstance.setPosition(newPosition);
-        });
+            mapInstance.setCenter(newPosition);
+            mapInstance.setZoom(15);
+            markerInstance.setPosition(newPosition);
+          });
+        } catch (autocompleteError) {
+          console.error("Error setting up autocomplete:", autocompleteError);
+        }
       }
-
       setMap(mapInstance);
       markerRef.current = markerInstance;
-
       // Ensure map renders properly with resize trigger
       setTimeout(() => {
         if (mapInstance && mapRef.current) {
