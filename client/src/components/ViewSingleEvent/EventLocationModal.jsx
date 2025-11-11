@@ -5,8 +5,13 @@ import Card from "./Card";
 import DirectionSubEvent from "../../assets/ViewSingleEvent/DirectionSubEvent.svg";
 import ShareSubEvent from "../../assets/ViewSingleEvent/ShareSubEvent.svg";
 import SaveSubEvent from "../../assets/ViewSingleEvent/SaveSubEvent.svg";
+import { getPostalDetailsFromCoords } from "../../services/ticketService";
 
 const EventLocationModal = ({ eventData, theme, onClose, setAppAlert }) => {
+
+
+  const [geocodedDetails, setGeocodedDetails] = useState(null);
+    const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   // --- Data Derivation ---
   const coords = eventData.exact_map_location || {};
   const hasLocation = coords.latitude && coords.longitude;
@@ -28,6 +33,38 @@ const EventLocationModal = ({ eventData, theme, onClose, setAppAlert }) => {
     lat: parseFloat(coords.latitude) || 10.5276,
     lng: parseFloat(coords.longitude) || 76.2144,
   };
+
+  const finalLocation = {
+        address: geocodedDetails?.formattedAddress || eventData.venue || eventData.location || "Address N/A",
+        pincode: geocodedDetails?.postalCode || eventData.pincode || (isLoadingDetails ? "Loading..." : "N/A"),
+        country: geocodedDetails?.country || eventData.country || (isLoadingDetails ? "Loading..." : "N/A"),
+        venueName: eventData.venue || eventData.location,
+    };
+
+    useEffect(() => {
+        const fetchGeocode = async () => {
+            if (
+                eventData.location_type === 'offline' && 
+                typeof coords.latitude === 'number' && 
+                typeof coords.longitude === 'number'
+            ) {
+                setIsLoadingDetails(true);
+                try {
+                    // Call the service function (backend returns { postalCode: '...', ...})
+                    const details = await getPostalDetailsFromCoords(coords.latitude, coords.longitude);
+                    if (details) {
+                        setGeocodedDetails(details);
+                    }
+                } catch (error) {
+                    console.error("Error fetching geocoded details in modal:", error);
+                } finally {
+                    setIsLoadingDetails(false);
+                }
+            }
+        };
+
+        fetchGeocode();
+    }, [eventData]);
 
   const formattedDate = eventData.event_dates?.[0]?.start_date
     ? new Date(eventData.event_dates[0].start_date).toLocaleDateString(
@@ -75,15 +112,14 @@ const EventLocationModal = ({ eventData, theme, onClose, setAppAlert }) => {
       });
       return;
     }
+    const destinationQuery = encodeURIComponent(finalLocation.address || finalLocation.venueName);
 
-    const mapsUrl = `https://www.google.com/maps/place/${
-      eventData.venue || eventData.location
-    }/@${initialCenter.lat},${initialCenter.lng},15z`;
+    const mapsUrl = `https://maps.google.com/?q=${destinationQuery}&ll=${initialCenter.lat},${initialCenter.lng}`;
 
     const shareData = {
-      title: `Event Location: ${eventData.venue || eventData.location}`,
-      text: `Check out the location for the ${eventData.name || "event"}!`,
-      url: mapsUrl,
+        title: `Event Location: ${finalLocation.venueName}`, // Use finalLocation
+        text: `Check out the location for the ${eventData.name || "event"}!`,
+        url: mapsUrl,
     };
 
     if (navigator.share) {
@@ -193,7 +229,7 @@ const EventLocationModal = ({ eventData, theme, onClose, setAppAlert }) => {
             <ArrowLeft size={20} className={textColor} />
           </button>
           <h2 className={`text-xl font-semibold ${textColor}`}>
-            Event Location - {eventData.location}
+            Event Location - {finalLocation.venueName}
           </h2>
         </div>
 
@@ -225,15 +261,15 @@ const EventLocationModal = ({ eventData, theme, onClose, setAppAlert }) => {
           <div className="space-y-3 flex-grow w-full md:w-auto">
             <p className={`text-sm ${textColor}`}>
               <span className="font-bold">Address : </span>
-              {eventData.venue || "Hilltop Road, Meppadi, Wayanad, Kerala"}
+              {finalLocation.address}
             </p>
             <p className={`text-sm ${textColor}`}>
               <span className="font-bold">Pincode : </span>
-              {eventData.pincode || "673577"}
+              {finalLocation.pincode}
             </p>
             <p className={`text-sm ${textColor}`}>
               <span className="font-bold">Country : </span>
-              {eventData.country || "India"}
+              {finalLocation.country}
             </p>
             <p className={`text-sm ${textColor}`}>
               <span className="font-bold">Coordinates : </span>

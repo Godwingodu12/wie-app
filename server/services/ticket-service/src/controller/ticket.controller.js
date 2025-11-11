@@ -2,6 +2,7 @@ import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import TicketLike from '../models/ticketLike.model.js';
 import { createNotification } from '../utils/notificationHelper.js';
+import axios from 'axios';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
 import { processFileUploads, deleteFromCloudinary } from '../utils/cloudinaryHelper.js';
 import mongoose from 'mongoose';
@@ -1742,3 +1743,93 @@ export const totalEventsCreatedCount = async (req, res) => {
     });
   }
 };
+
+
+
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAP_API || 'AIzaSyB5MQdwuxFIG6Msf_At0bV2vPXuFwEkVkI'; 
+
+export const getPostalDetailsFromCoords = async (req, res) => {
+    const { lat, lng } = req.query; 
+
+    if (!lat || !lng) {
+        return res.status(400).json({ 
+            message: "Missing latitude or longitude parameters" 
+        });
+    }
+
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+
+    if (isNaN(latitude) || isNaN(longitude)) {
+        return res.status(400).json({ 
+            message: "Invalid latitude or longitude format" 
+        });
+    }
+
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`;
+
+    try {
+        // 2. Make external API request
+        const response = await axios.get(url);
+        const data = response.data;
+
+        // 3. Handle API failure states
+        if (data.status !== 'OK' || data.results.length === 0) {
+            console.warn(`Geocoding failed for ${lat},${lng}. Status: ${data.status}`);
+            return res.status(404).json({ 
+                message: "Location details not found for these coordinates",
+                status: data.status 
+            });
+        }
+
+        // 4. Extract required fields (Postal Code, State, Country)
+        const addressComponents = data.results[0].address_components;
+
+        let postalCode = null;
+        let state = null;
+        let country = null;
+        let locality = null;
+
+        for (const component of addressComponents) {
+            if (component.types.includes('postal_code')) {
+                postalCode = component.long_name;
+            }
+            if (component.types.includes('administrative_area_level_1')) {
+                state = component.long_name; // E.g., "Kerala"
+            }
+            if (component.types.includes('country')) {
+                country = component.long_name; // E.g., "India"
+            }
+            if (component.types.includes('locality') && !locality) {
+                locality = component.long_name;
+            }
+            // Often, the city/town is administrative_area_level_2 if 'locality' is missing
+            if (component.types.includes('administrative_area_level_2') && !locality) {
+                locality = component.long_name;
+            }
+        }
+        
+        // 5. Respond with structured data
+        res.status(200).json({
+            message: "Location details retrieved successfully",
+            data: {
+                postalCode: postalCode || 'N/A',
+                state: state || 'N/A',
+                country: country || 'N/A',
+                locality: locality || 'N/A',
+                formattedAddress: data.results[0].formatted_address
+            }
+        });
+
+    } catch (error) {
+        console.error("Error performing reverse geocoding:", error.message);
+        
+        
+        res.status(500).json({
+            message: "Failed to retrieve postal details from external API",
+            error: error.message
+        });
+    }
+};
+
+// ... (Rest of your ticket.controller.js file)

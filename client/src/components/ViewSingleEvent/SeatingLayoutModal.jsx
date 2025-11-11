@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Card from "../../components/ViewSingleEvent/Card";
 import dayjs from "dayjs";
+import { getPostalDetailsFromCoords } from "../../services/ticketService";
 
 const SeatingLayoutModal = ({
   eventData,
@@ -34,6 +35,39 @@ const SeatingLayoutModal = ({
   const [zoom, setZoom] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
 
+  const [geocodedDetails, setGeocodedDetails] = useState(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+  useEffect(() => {
+    const fetchGeocode = async () => {
+      const coords = eventData.exact_map_location; // Only fetch if it's offline and has coordinates
+
+      if (
+        eventData.location_type === "offline" &&
+        typeof coords?.latitude === "number" &&
+        typeof coords?.longitude === "number"
+      ) {
+        setIsLoadingDetails(true);
+        try {
+          const details = await getPostalDetailsFromCoords(
+            coords.latitude,
+            coords.longitude
+          );
+          setGeocodedDetails(details);
+        } catch (error) {
+          console.error("Error fetching geocoded details in modal:", error);
+          setGeocodedDetails(null); // Clear on failure
+        } finally {
+          setIsLoadingDetails(false);
+        }
+      } else {
+        setGeocodedDetails(null);
+      }
+    };
+
+    fetchGeocode();
+  }, [eventData]);
+
   // --- ZOOM HANDLERS ---
   const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.2, 3.0));
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.2, 1.0)); // Don't zoom out beyond 100%
@@ -42,12 +76,19 @@ const SeatingLayoutModal = ({
     setPosition({ x: 0, y: 0 });
   };
 
-  // --- DATA DERIVATION ---
-  const venueData = eventData?.venue_details || {
-    name: "Seminar Hall",
-    address: eventData.venue || "The Government Engineering College...",
-    pincode: eventData.pincode || "670644",
-    country: eventData.country || "India",
+  const defaultLocation = {
+    address: eventData.location || "Venue Address",
+    pincode: eventData.pincode || (isLoadingDetails ? "Loading..." : "N/A"),
+    country: eventData.country || (isLoadingDetails ? "Loading..." : "N/A"),
+    locality:(isLoadingDetails ? "Loading..." : "N/A"),
+  };
+
+  const venueData = {
+    name: eventData.venue || "Seminar Hall", 
+    address: geocodedDetails?.formattedAddress || defaultLocation.address,
+    pincode: geocodedDetails?.postalCode || defaultLocation.pincode,
+    country: geocodedDetails?.country || defaultLocation.country,
+    locality:geocodedDetails?.locality||defaultLocation.locality,
   };
 
   const eventName = eventData.event_name || "Event Seating Layout";
@@ -244,7 +285,7 @@ const SeatingLayoutModal = ({
               <span
                 className={`text-sm font-medium ${textColor} leading-tight`}
               >
-                {location}
+                {venueData.locality}
               </span>
               <span className={`text-xs text-gray-400 leading-none`}>
                 {subLocation}
@@ -407,7 +448,7 @@ const SeatingLayoutModal = ({
                 <h4 className={`text-lg font-semibold mb-4 ${textColor}`}>
                   Venue
                 </h4>
-                <div className="max-h-[110px] overflow-y-auto">
+                <div className="max-h-[110px] overflow-y-auto p-1">
                   <div className="grid grid-cols-2 gap-y-2 text-sm">
                     <span className={`text-gray-400`}>Address</span>
                     <span className={`${textColor} text-right`}>

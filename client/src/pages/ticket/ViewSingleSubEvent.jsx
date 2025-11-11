@@ -44,10 +44,12 @@ import RulesSubModal from "../../components/ViewSingleEvent/RulesSubModal";
 import ActionCircleButton from "../../components/ViewSingleEvent/ActionCircleButton";
 import {
   deleteSubEvent,
+  getPostalDetailsFromCoords,
   getTicketById,
   getUserData,
 } from "../../services/ticketService";
 import ConfirmModal from "../../components/CreateGroup/ConfirmModal";
+import EventLocationModal from "../../components/ViewSingleEvent/EventLocationModal";
 
 const darkTheme = {
   isDark: true,
@@ -137,6 +139,47 @@ const ViewSingleSubEvent = () => {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [ticketData, setTicketData] = useState(null);
 
+  const [geocodedDetails, setGeocodedDetails] = useState(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+  // ViewSingleSubEvent.jsx (inside the geocoding useEffect)
+
+  // ViewSingleSubEvent.jsx (inside the geocoding useEffect)
+
+  useEffect(() => {
+    const fetchGeocode = async () => {
+      const coords = subEventData?.exact_map_location;
+      if (
+        subEventData?.location_type === "offline" &&
+        typeof coords?.latitude === "number" &&
+        typeof coords?.longitude === "number"
+      ) {
+        setIsLoadingDetails(true);
+        try {
+          const details = await getPostalDetailsFromCoords(
+            coords.latitude,
+            coords.longitude
+          );
+
+          if (details && details.postalCode) {
+            setGeocodedDetails(details);
+          }
+        } catch (error) {
+          // ...
+        } finally {
+          // ...
+        }
+      }
+      // ...
+    };
+
+    if (subEventData) {
+      fetchGeocode();
+    }
+  }, [subEventData]);
+
+
+
   useEffect(() => {
     // We assume eventData is fetched and POCS array is ready.
     if (subEventData?.POCS?.length) {
@@ -154,9 +197,7 @@ const ViewSingleSubEvent = () => {
             setCurrentUserId(retrievedId);
           }
         }
-      } catch (error) {
-        console.error("Authentication check failed (API/Network):", error);
-      } finally {
+      }  finally {
         setLoading(false);
       }
     };
@@ -173,19 +214,14 @@ const ViewSingleSubEvent = () => {
       try {
         const response = await getTicketById(ticketId);
 
-        // Assuming your API response wraps the ticket data, e.g., { message: "...", ticket: {...} }
         if (response && response.ticket) {
           setTicketData(response.ticket);
         } else {
-          // Handle unauthorized or not found tickets gracefully
-          console.error(
-            "Ticket fetch failed or unauthorized:",
-            response?.message || "Unknown error"
-          );
+          
           setTicketData(null);
         }
       } catch (error) {
-        console.error("Error fetching parent ticket:", error);
+
         setTicketData(null);
       } finally {
         setLoading(false);
@@ -199,7 +235,6 @@ const ViewSingleSubEvent = () => {
     if (!currentUserId || !ticketData) {
       return false;
     }
-    // Extract owner ID from the fetched ticket data, handling $oid object if present
     const ticketOwnerId = ticketData?.userId;
     console.log(ticketOwnerId);
 
@@ -448,7 +483,28 @@ const ViewSingleSubEvent = () => {
       datesRange = dates.length > 1 ? `${start} - ${end}` : end;
     }
 
-    const locationDisplay = formatLocationFromCoords(subEventData);
+    let locationDisplay;
+
+    if (subEventData.location_type !== "offline") {
+      locationDisplay =
+        subEventData.location_type === "online"
+          ? "Online Event"
+          : "Recorded Event";
+    } else if (geocodedDetails?.locality) {
+      // Use the precise locality (City/Town) and State from geocoding
+      locationDisplay = `${geocodedDetails.locality}, ${geocodedDetails.state}`;
+    } else if (
+      subEventData.location &&
+      typeof subEventData.location === "string"
+    ) {
+      // Fallback 1: Use the raw location string provided by the database
+      locationDisplay = subEventData.location;
+    } else {
+      // Fallback 2: Use the original State, Country fallback
+      const state = subEventData.location_state || "State N/A";
+      const country = subEventData.location_country || "Country N/A";
+      locationDisplay = `${state}, ${country}`;
+    }
 
     return {
       formattedDate: fDate,
@@ -463,7 +519,7 @@ const ViewSingleSubEvent = () => {
       formattedDatesRange: datesRange,
       locationChipLabel: locationDisplay, // Export the calculated value
     };
-  }, [subEventData, theme]);
+  }, [subEventData, theme, geocodedDetails]);
 
   const maskedAccountNo = useMemo(() => {
     const acc = currentBankInfo.bank_acc_no;
@@ -1475,6 +1531,14 @@ const ViewSingleSubEvent = () => {
           theme={theme}
           onClose={() => setShowRulesModal(false)}
           formatImagePath={getImageUrl}
+        />
+      )}
+      {showLocationModal && (
+        <EventLocationModal
+          eventData={subEventData}
+          theme={theme}
+          onClose={() => setShowLocationModal(false)}
+          setAppAlert={setAppAlert}
         />
       )}
     </div>
