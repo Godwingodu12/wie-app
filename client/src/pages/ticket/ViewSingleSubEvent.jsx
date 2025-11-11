@@ -42,8 +42,14 @@ import SeatingLayoutModal from "../../components/ViewSingleEvent/SeatingLayoutMo
 import TicketDetailModal from "../../components/ViewSingleEvent/TicketDetailModal";
 import RulesSubModal from "../../components/ViewSingleEvent/RulesSubModal";
 import ActionCircleButton from "../../components/ViewSingleEvent/ActionCircleButton";
-import { deleteSubEvent, getUserData } from "../../services/ticketService";
+import {
+  deleteSubEvent,
+  getPostalDetailsFromCoords,
+  getTicketById,
+  getUserData,
+} from "../../services/ticketService";
 import ConfirmModal from "../../components/CreateGroup/ConfirmModal";
+import EventLocationModal from "../../components/ViewSingleEvent/EventLocationModal";
 
 const darkTheme = {
   isDark: true,
@@ -130,6 +136,50 @@ const ViewSingleSubEvent = () => {
   const [isLoadingPOCs, setIsLoadingPOCs] = useState(true);
   const [showRulesModal, setShowRulesModal] = useState(false);
 
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [ticketData, setTicketData] = useState(null);
+
+  const [geocodedDetails, setGeocodedDetails] = useState(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+  // ViewSingleSubEvent.jsx (inside the geocoding useEffect)
+
+  // ViewSingleSubEvent.jsx (inside the geocoding useEffect)
+
+  useEffect(() => {
+    const fetchGeocode = async () => {
+      const coords = subEventData?.exact_map_location;
+      if (
+        subEventData?.location_type === "offline" &&
+        typeof coords?.latitude === "number" &&
+        typeof coords?.longitude === "number"
+      ) {
+        setIsLoadingDetails(true);
+        try {
+          const details = await getPostalDetailsFromCoords(
+            coords.latitude,
+            coords.longitude
+          );
+
+          if (details && details.postalCode) {
+            setGeocodedDetails(details);
+          }
+        } catch (error) {
+          // ...
+        } finally {
+          // ...
+        }
+      }
+      // ...
+    };
+
+    if (subEventData) {
+      fetchGeocode();
+    }
+  }, [subEventData]);
+
+
+
   useEffect(() => {
     // We assume eventData is fetched and POCS array is ready.
     if (subEventData?.POCS?.length) {
@@ -137,6 +187,60 @@ const ViewSingleSubEvent = () => {
     }
     setIsLoadingPOCs(false);
   }, [subEventData]);
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const response = await getUserData();
+        if (response && response.user && !response.user.error) {
+          const retrievedId = response.user._id || response.user.id;
+          if (retrievedId) {
+            setCurrentUserId(retrievedId);
+          }
+        }
+      }  finally {
+        setLoading(false);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  useEffect(() => {
+    if (!ticketId) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchTicket = async () => {
+      try {
+        const response = await getTicketById(ticketId);
+
+        if (response && response.ticket) {
+          setTicketData(response.ticket);
+        } else {
+          
+          setTicketData(null);
+        }
+      } catch (error) {
+
+        setTicketData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTicket();
+  }, [ticketId]);
+
+  const isTicketOwner = useMemo(() => {
+    if (!currentUserId || !ticketData) {
+      return false;
+    }
+    const ticketOwnerId = ticketData?.userId;
+    console.log(ticketOwnerId);
+
+    // Compare the IDs
+    return currentUserId === ticketOwnerId;
+  }, [currentUserId, ticketData]);
 
   const subEventTicketTypes = useMemo(() => {
     return subEventData?.ticket_types || [];
@@ -379,7 +483,28 @@ const ViewSingleSubEvent = () => {
       datesRange = dates.length > 1 ? `${start} - ${end}` : end;
     }
 
-    const locationDisplay = formatLocationFromCoords(subEventData);
+    let locationDisplay;
+
+    if (subEventData.location_type !== "offline") {
+      locationDisplay =
+        subEventData.location_type === "online"
+          ? "Online Event"
+          : "Recorded Event";
+    } else if (geocodedDetails?.locality) {
+      // Use the precise locality (City/Town) and State from geocoding
+      locationDisplay = `${geocodedDetails.locality}, ${geocodedDetails.state}`;
+    } else if (
+      subEventData.location &&
+      typeof subEventData.location === "string"
+    ) {
+      // Fallback 1: Use the raw location string provided by the database
+      locationDisplay = subEventData.location;
+    } else {
+      // Fallback 2: Use the original State, Country fallback
+      const state = subEventData.location_state || "State N/A";
+      const country = subEventData.location_country || "Country N/A";
+      locationDisplay = `${state}, ${country}`;
+    }
 
     return {
       formattedDate: fDate,
@@ -394,7 +519,7 @@ const ViewSingleSubEvent = () => {
       formattedDatesRange: datesRange,
       locationChipLabel: locationDisplay, // Export the calculated value
     };
-  }, [subEventData, theme]);
+  }, [subEventData, theme, geocodedDetails]);
 
   const maskedAccountNo = useMemo(() => {
     const acc = currentBankInfo.bank_acc_no;
@@ -509,7 +634,7 @@ const ViewSingleSubEvent = () => {
             <div className="flex justify-center flex-shrink-0">
               <Card
                 theme={theme}
-                className="flex items-center rounded-full relative overflow-visible h-10 pr-4 w-40" // Set a fixed width for stability on mobile
+                className="flex items-center rounded-full relative overflow-visible h-10 pr-4 w-46" // Set a fixed width for stability on mobile
                 customStyle={{ boxShadow: theme.shadowInset }}
               >
                 <div
@@ -524,7 +649,7 @@ const ViewSingleSubEvent = () => {
                 </div>
                 {/* RENDER UPDATED DATE FORMAT HERE */}
                 <p
-                  className={`text-sm ${eventTextColor} whitespace-nowrap overflow-hidden text-ellipsis w-32 pl-5`}
+                  className={`text-sm ${eventTextColor} whitespace-nowrap overflow-hidden text-ellipsis w-36 pl-5`}
                 >
                   {formattedDate}
                 </p>
@@ -568,23 +693,24 @@ const ViewSingleSubEvent = () => {
               </Card>
             </div>
           </div>
-
-          <div className="flex items-center my-auto space-x-4 flex-shrink-0 ml-4">
-            <ActionCircleButton
-              theme={theme}
-              type="edit"
-              ticketId={ticketId}
-              subEventId={subEventId}
-              setAppalert={setAppAlert}
-            />
-            <ActionCircleButton
-              theme={theme}
-              type="delete"
-              ticketId={ticketId}
-              onClick={handleDeleteSubEvent}
-              setAppalert={setAppAlert}
-            />
-          </div>
+          {isTicketOwner && (
+            <div className="flex items-center my-auto space-x-4 flex-shrink-0 ml-4">
+              <ActionCircleButton
+                theme={theme}
+                type="edit"
+                ticketId={ticketId}
+                subEventId={subEventId}
+                setAppalert={setAppAlert}
+              />
+              <ActionCircleButton
+                theme={theme}
+                type="delete"
+                ticketId={ticketId}
+                onClick={handleDeleteSubEvent}
+                setAppalert={setAppAlert}
+              />
+            </div>
+          )}
         </div>
 
         {/* Horizontal Rule Divider */}
@@ -1010,13 +1136,13 @@ const ViewSingleSubEvent = () => {
           </div>
         </div>
 
-        {/*  NEW BOTTOM ROW (Payment | Features | POC | Social Media) */}
+        {/* NEW BOTTOM ROW (Payment | Features | POC | Social Media) */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 h-full">
           {/* Left: Payment (2/5 width) */}
-          <div className="md:col-span-2 flex flex-col my-auto space-y-4">
+          <div className="md:col-span-2 flex h-full flex-col my-auto space-y-4">
             <Card
               theme={theme}
-              className="p-4 md:p-6 lg:p-8" // Adjusted padding
+              className="p-4 md:p-6 lg:p-8 flex-grow h-full" // Adjusted padding
               customStyle={{
                 borderRadius: "25px",
                 boxShadow: theme.isDark
@@ -1025,7 +1151,7 @@ const ViewSingleSubEvent = () => {
               }}
             >
               <h3
-                className={`text-lg font-semibold ${eventTextColor} flex items-center space-x-2 mb-4`}
+                className={`text-lg font-semibold  ${eventTextColor} flex items-center space-x-2 mb-4`}
               >
                 <img src={Bank_Details} alt="Payment" className="w-5 h-5" />
                 <span>Payment Details</span>
@@ -1088,7 +1214,7 @@ const ViewSingleSubEvent = () => {
           </div>
 
           {/* Right 3/5 (Features | POC | Social Media) */}
-          <div className="md:col-span-3 flex flex-col space-y-4 justify-center">
+          <div className="md:col-span-3 flex flex-col space-y-4 justify-center h-full">
             {/* 1. Feature Buttons Row (Now wraps on small screens) */}
             <div className="flex flex-wrap justify-center  gap-4 py-2 mx">
               <CustomStyledButton
@@ -1136,13 +1262,13 @@ const ViewSingleSubEvent = () => {
                 </h3>
 
                 {allPOCs && allPOCs.length > 0 ? (
-                  <div className="relative flex items-center justify-center flex-grow">
+                  <div className=" flex items-center justify-center flex-grow">
                     {/* 1. Prev Button */}
                     {allPOCs.length > 1 && (
                       <button
                         onClick={handlePrevPOC}
                         disabled={currentPOCIndex === 0}
-                        className={`absolute left-0 z-10 rounded-full disabled:opacity-30 disabled:cursor-not-allowed p-2`}
+                        className={` left-0 z-10 rounded-full disabled:opacity-30 disabled:cursor-not-allowed p-2`}
                         style={{ boxShadow: theme.shadowOutset }}
                       >
                         <img
@@ -1240,7 +1366,7 @@ const ViewSingleSubEvent = () => {
                       <button
                         onClick={handleNextPOC}
                         disabled={currentPOCIndex === allPOCs.length - 1}
-                        className={`absolute right-0 z-10 rounded-full disabled:opacity-30 disabled:cursor-not-allowed p-2`}
+                        className={` right-0 z-10 rounded-full disabled:opacity-30 disabled:cursor-not-allowed p-2`}
                         style={{ boxShadow: theme.shadowOutset }}
                       >
                         <img
@@ -1405,6 +1531,14 @@ const ViewSingleSubEvent = () => {
           theme={theme}
           onClose={() => setShowRulesModal(false)}
           formatImagePath={getImageUrl}
+        />
+      )}
+      {showLocationModal && (
+        <EventLocationModal
+          eventData={subEventData}
+          theme={theme}
+          onClose={() => setShowLocationModal(false)}
+          setAppAlert={setAppAlert}
         />
       )}
     </div>

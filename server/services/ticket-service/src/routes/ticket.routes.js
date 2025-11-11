@@ -5,7 +5,8 @@ import { uploadGroupFiles } from '../middlewares/upload.js';
 import {getUserData,CreateGroup, UpdateGroup,createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
 getTicketById,deleteTicket,deleteSubEvent,deleteEventPermenently,deleteAllEvents,viewTickets, getAllDeletedEvents,getDeletedEventById,recoverDeletedEvent} from '../services/ticket.service.js';
 import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getGroupById,getOtherGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getMyPreviousEventView,getOthersEvents,getOthersEventsById,getOtherLiveEvents,
-getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted } from '../controller/ticket.controller.js';
+getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted, 
+getPostalDetailsFromCoords} from '../controller/ticket.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);
@@ -61,4 +62,5 @@ router.post('/unlike-event/:ticketId',unlikeEvent);
 router.get('/check-user-liked/:ticketId',checkUserLiked);
 router.get('/group-event-count',protect, groupEventCount);
 router.get('/total-events-created-count',protect, totalEventsCreatedCount);
+router.get('/get-postal-details', getPostalDetailsFromCoords);
 export default router;
