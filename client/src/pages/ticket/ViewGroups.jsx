@@ -45,19 +45,9 @@ const LiveEventCarouselCard = ({
   const eventLogoPath = event.event_logo || event.event_banner;
   const logoUrl = eventLogoPath ? getImageUrl(eventLogoPath) : null;
 
-  const cardBgColor = isDark ? "#212426" : theme.cardBg;
+  const cardBgColor = isDark ? "#212426" : "#F9FAFB";
   const textColor = isDark ? "text-white" : "text-gray-800";
   const subTextColor = isDark ? "text-gray-400" : "text-gray-500";
-
-  const cardStyle = {
-    ...outerShadow,
-    backgroundColor: cardBgColor,
-    borderRadius: "30px",
-    border: `1px solid ${isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"} `,
-    width: "100%",
-    paddingTop: "140%", // This creates the rectangular aspect ratio
-    position: "relative",
-  };
 
   const buttonStyle = {
     background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)",
@@ -67,43 +57,49 @@ const LiveEventCarouselCard = ({
   };
 
   return (
-    <div style={cardStyle} className="mx-auto">
-      <div className="absolute inset-0 flex flex-col items-center justify-between p-4">
-        {/* 1. Logo/Image (Top Center) */}
-        <div className="flex justify-center mt-8">
-          <div
-            className="w-16 h-16 xl:w-20 xl:h-20 rounded-full bg-black flex items-center justify-center overflow-hidden flex-shrink-0"
-            style={{ boxShadow: "0 6px 20px rgba(0, 0, 0, 0.7)" }}
-          >
-            {logoUrl ? (
-              <img
-                src={logoUrl}
-                alt={`${eventName} Logo`}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-xs font-normal text-white/60">logo</span>
-            )}
-          </div>
+    <div
+      style={{ ...outerShadow, backgroundColor: cardBgColor }}
+      className="w-full aspect-[10/14] rounded-3xl flex flex-col p-2 sm:p-3"
+    >
+      <div className="flex-shrink-0 flex justify-center pt-1 sm:pt-2">
+        <div
+          className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full bg-black flex items-center justify-center overflow-hidden flex-shrink-0"
+          style={{ boxShadow: "0 4px 12px rgba(0, 0, 0, 0.7)" }}
+        >
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={`${eventName} Logo`}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <span className="text-[10px] sm:text-xs font-normal text-white/60">
+              logo
+            </span>
+          )}
         </div>
+      </div>
 
-        {/* 2. Event Name and Subtitle (Center) */}
-        <div className="flex flex-col items-center justify-center text-center flex-grow my-2 overflow-hidden">
-          <h4
-            className={`font-semibold text-sm xl:text-base ${textColor} leading-tight mb-0.5 px-1 truncate`}
-            title={eventName}
-          >
-            {eventName}
-          </h4>
-          <p className={`text-xs xl:text-sm ${subTextColor} leading-tight mt-0.5 truncate`} title={eventSubcategory}>
-            {eventSubcategory}
-          </p>
-        </div>
+      <div className="flex-grow flex flex-col items-center justify-center text-center overflow-hidden px-1 my-1 sm:my-2">
+        <h4
+          className={`font-semibold text-xs sm:text-sm md:text-base ${textColor} leading-tight line-clamp-2`}
+          title={eventName}
+        >
+          {eventName}
+        </h4>
+        <p
+          className={`text-[10px] sm:text-xs md:text-sm ${subTextColor} leading-tight mt-0.5 sm:mt-1 line-clamp-1`}
+          title={eventSubcategory}
+        >
+          {eventSubcategory}
+        </p>
+      </div>
 
-        {/* 3. View Button (Bottom) */}
+      <div className="flex-shrink-0">
         <button
           onClick={onClick}
-          className="w-full text-center text-xs xl:text-sm font-semibold rounded-full py-1.5 xl:py-2 block hover:opacity-90 transition-opacity"
+          className="w-full text-center text-xs py-1.5 sm:text-sm sm:py-2 font-semibold rounded-full block hover:opacity-90 transition-opacity"
           style={buttonStyle}
         >
           View
@@ -139,54 +135,26 @@ const SlickCarouselStyles = () => (
 const CustomPrevArrow = ({ onClick, isDark }) => (
   <button
     onClick={onClick}
-    className="absolute left-[-50px] top-1/2 transform -translate-y-1/2 z-10 w-12 h-12 rounded-full flex items-center justify-center transition-all hover:opacity-80"
+    className="absolute left-[-30px] lg:left-[-40px] xl:left-[-50px] top-1/2 transform -translate-y-1/2 z-10 w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center transition-all hover:opacity-80"
     style={{
       background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)",
       boxShadow: "0 4px 12px rgba(101, 73, 184, 0.4)",
     }}
   >
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M15 18L9 12L15 6"
-        stroke="white"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <ChevronLeft className="w-5 h-5 lg:w-6 lg:h-6 text-white" />
   </button>
 );
 
 const CustomNextArrow = ({ onClick, isDark }) => (
   <button
     onClick={onClick}
-    className="absolute right-[-50px] top-1/2 transform -translate-y-1/2 z-10 w-12 h-12 rounded-full flex items-center justify-center transition-all hover:opacity-80"
+    className="absolute right-[-30px] lg:right-[-40px] xl:right-[-50px] top-1/2 transform -translate-y-1/2 z-10 w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center transition-all hover:opacity-80"
     style={{
       background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)",
       boxShadow: "0 4px 12px rgba(101, 73, 184, 0.4)",
     }}
   >
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M9 18L15 12L9 6"
-        stroke="white"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <ChevronRight className="w-5 h-5 lg:w-6 lg:h-6 text-white" />
   </button>
 );
 const getButtonNeumorphicShadows = (isDark) =>
@@ -204,85 +172,6 @@ const formatNumber = (num) => {
   return number.toString();
 };
 
-function MonthSelector({
-  currentMonth,
-  onSelectMonth,
-  onClose,
-  isDark,
-  theme,
-}) {
-  const months = [
-    "JAN",
-    "FEB",
-    "MAR",
-    "APR",
-    "MAY",
-    "JUN",
-    "JUL",
-    "AUG",
-    "SEP",
-    "OCT",
-    "NOV",
-    "DEC",
-  ];
-  return (
-    <div
-      className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
-        isDark
-      )} p-1 flex flex-col gap-1 w-24 shadow-lg absolute z-20 top-full left-0 mt-2`}
-    >
-      {months.map((monthName, index) => (
-        <button
-          key={monthName}
-          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${
-            currentMonth === index
-              ? "bg-blue-600 text-blue-100"
-              : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
-          }`}
-          onClick={() => {
-            onSelectMonth(index);
-            onClose();
-          }}
-        >
-          {monthName}
-        </button>
-      ))}
-    </div>
-  );
-}
-// --- YearSelector Component ---
-function YearSelector({ currentYear, onSelectYear, onClose, isDark, theme }) {
-  const currentFullYear = new Date().getFullYear(); // Generates a range of years, e.g., 10 years before and 10 years after current year
-  const years = Array.from(
-    { length: 21 },
-    (_, i) => currentFullYear - 10 + i
-  ).sort((a, b) => b - a); // Sort descending to show newest first
-
-  return (
-    <div
-      className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
-        isDark
-      )} p-1 flex flex-col gap-1 w-24 shadow-lg max-h-[13.5rem] overflow-y-auto absolute z-20 top-full right-0 mt-2`}
-    >
-      {years.map((yearNum) => (
-        <button
-          key={yearNum}
-          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${
-            currentYear === yearNum
-              ? "bg-blue-600 text-blue-100"
-              : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
-          }`}
-          onClick={() => {
-            onSelectYear(yearNum);
-            onClose();
-          }}
-        >
-          {yearNum}
-        </button>
-      ))}
-    </div>
-  );
-}
 // --- SVG Icon components ---
 
 const TicketIcon = ({ className }) => (
@@ -487,131 +376,66 @@ const SvgGroupCard = ({
   const statColor = currentGroupStats?.color || "bg-cyan-400";
   const cardBgColor = isDark ? "#212426" : "#F1F1F1";
 
-  // Define original dimensions for viewBox and path calculations
-  const cardWidth = 212.23;
-  const cardHeight = 315;
+  const neumorphicShadow = isDark
+    ? "inset 4px 4px 8px rgba(0, 0, 0, 0.4), inset -4px -4px 8px rgba(60, 60, 60, 0.3)"
+    : "inset 4px 4px 8px rgba(0, 0, 0, 0.1), inset -4px -4px 8px rgba(255, 255, 255, 0.9)";
 
-  // The SVG path is based on the original card dimensions
-  const cardPath = `
-  M 30 0
-  L 66.33 0
-  Q 76 0 83.42 10
-  Q 90.84 20 108.585 21.93
-  Q 126.33 23.86 133.75 13.93
-  Q 141.17 4 151.17 0
-  L ${cardWidth - 30} 0
-  Q ${cardWidth} 0 ${cardWidth} 30
-  L ${cardWidth} ${cardHeight - 30}
-  Q ${cardWidth} ${cardHeight} ${cardWidth - 30} ${cardHeight}
-  L 30 ${cardHeight}
-  Q 0 ${cardHeight} 0 ${cardHeight - 30}
-  L 0 30
-  Q 0 0 30 0
-  Z
-`;
   return (
     <div
-      className="relative w-full"
-      style={{
-        aspectRatio: `${cardWidth} / ${cardHeight}`,
-        overflow: "hidden",
-        marginTop: "23px",
-        flexShrink: 0,
-      }}
+      className="relative w-full cursor-pointer"
       onClick={() => !isAddCard && onViewClick && onViewClick(card)}
     >
-      <svg
-        width="100%"
-        height="100%"
-        viewBox={`0 0 ${cardWidth} ${cardHeight}`}
-        className="absolute inset-0"
+      <div
+        className="w-full rounded-2xl sm:rounded-3xl flex flex-col p-2 sm:p-3"
         style={{
-          filter: isDark
-            ? "drop-shadow(8px 8px 12px rgba(0, 0, 0, 0.16))"
-            : "drop-shadow(8px 8px 12px rgba(0, 0, 0, 0.1))",
+          backgroundColor: cardBgColor,
+          boxShadow: neumorphicShadow,
+          aspectRatio: "3/4",
         }}
       >
-        <path
-          d={cardPath}
-          fill={cardBgColor}
-          style={{
-            boxShadow: isDark
-              ? "6px 6px 12px 0px rgba(0, 0, 0, 0.18) inset, -6px -6px 12px 0px rgba(255, 255, 255, 0.08) inset"
-              : "6px 6px 12px 0px rgba(0, 0, 0, 0.18) inset, -6px -6px 12px 0px rgba(255, 255, 255, 0.08) inset",
-          }}
-        />
-        <path
-          d={cardPath}
-          fill="none"
-          stroke={isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"}
-          strokeWidth="2"
-        />
-      </svg>
-
-      {/* ✅ Inner content stays the same */}
-      <div className="relative w-full h-full flex flex-col items-center text-center">
         {isAddCard ? (
           <div
             onClick={onAddClick}
-            className="w-full h-full flex flex-col justify-center items-center group cursor-pointer px-4"
+            className="w-full h-full flex flex-col justify-center items-center group"
           >
-            <div className="w-14 h-14 rounded-full bg-gray-800 flex items-center justify-center border-4 border-[#2D3436] transition-transform duration-300 group-hover:scale-110">
-              <Plus
-                className={`w-7 h-7 ${
-                  isDark ? "text-gray-400" : "text-gray-500"
-                }`}
-              />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gray-800 flex items-center justify-center border-2 border-[#2D3436] transition-transform duration-300 group-hover:scale-110">
+              <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
             </div>
             <h3
-              className={`font-semibold text-xs mt-3 ${
-                isDark ? "text-white" : "text-gray-800"
-              }`}
+              className={`font-semibold text-[10px] sm:text-xs mt-2 ${isDark ? "text-white" : "text-gray-800"}`}
             >
               Add New Group
             </h3>
           </div>
         ) : (
-          <div className="w-full h-full flex flex-col px-5 pt-14 pb-3">
-            <div className="text-center mb-2">
-              <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center flex-shrink-0 mx-auto">
-                {card.company_logo ? (
-                  <img
-                    src={getImageUrl(card.company_logo)}
-                    alt={card.name}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src =
-                        "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkxvZ288L3RleHQ+PC9zdmc+";
-                    }}
-                  />
-                ) : (
-                  <span className="text-xs text-white">Logo</span>
-                )}
+          <>
+            <div className="flex-shrink-0 text-center pt-1 sm:pt-2">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black flex items-center justify-center mx-auto">
+                <img
+                  src={getImageUrl(card.company_logo)}
+                  alt={card.name}
+                  className="w-full h-full object-cover rounded-full"
+                  loading="lazy"
+                />
               </div>
-              <div className="mt-1">
+              <div className="mt-1 px-1">
                 <h3
-                  className={`font-semibold text-xs truncate ${
-                    isDark ? "text-white" : "text-gray-800"
-                  }`}
+                  className={`font-semibold text-[10px] sm:text-xs line-clamp-1 ${isDark ? "text-white" : "text-gray-800"}`}
                 >
                   {card.name}
                 </h3>
                 <p
-                  className={`text-[10px] ${
-                    isDark ? "text-gray-400" : "text-gray-500"
-                  }`}
+                  className={`text-[8px] sm:text-[10px] ${isDark ? "text-gray-400" : "text-gray-500"}`}
                 >
                   {card.type}
                 </p>
               </div>
             </div>
-            <div className="flex-grow flex flex-col justify-center items-center w-full min-h-0">
-              <div className="w-3/4 flex items-center gap-1.5 mb-2">
+
+            <div className="flex-grow flex flex-col justify-center items-center w-full px-1 sm:px-2">
+              <div className="w-full flex items-center gap-1 mb-1 sm:mb-2">
                 <div
-                  className={`w-full ${
-                    isDark ? "bg-white/20" : "bg-gray-200"
-                  } rounded-full h-1`}
+                  className={`w-full ${isDark ? "bg-white/20" : "bg-gray-200"} rounded-full h-1`}
                 >
                   <div
                     className={`${statColor} h-1 rounded-full`}
@@ -619,15 +443,13 @@ const SvgGroupCard = ({
                   ></div>
                 </div>
                 <span
-                  className={`text-[10px] font-semibold ${
-                    isDark ? "text-white" : "text-gray-800"
-                  }`}
+                  className={`text-[8px] sm:text-[10px] font-semibold whitespace-nowrap ${isDark ? "text-white" : "text-gray-800"}`}
                 >
                   {statPercentage}%
                 </span>
               </div>
               <button
-                className="py-0.5 px-6 rounded-full font-semibold text-[10px] bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 transition-all"
+                className="py-0.5 px-3 text-[9px] sm:py-1 sm:px-4 sm:text-[10px] rounded-full font-semibold bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 transition-all"
                 onClick={(e) => {
                   e.stopPropagation();
                   onViewClick && onViewClick(card);
@@ -638,34 +460,38 @@ const SvgGroupCard = ({
             </div>
 
             <div
-              className={`w-full border-t pt-1.5 pb-1 mt-2 lg:mt-4 ${
-                isDark ? "border-gray-700/50" : "border-gray-200"
-              }`}
+              className={`flex-shrink-0 w-full border-t pt-1 pb-0.5 mt-auto ${isDark ? "border-gray-700/50" : "border-gray-200"}`}
             >
               <div
-                className={`flex justify-around items-center text-[10px] ${
-                  isDark ? "text-gray-300" : "text-gray-500"
-                }`}
+                className={`flex justify-around items-center ${isDark ? "text-gray-300" : "text-gray-500"}`}
               >
                 <div className="flex flex-col items-center space-y-0.5">
-                  <HeartIcon className="w-3.5 h-3.5 text-red-500" />
-                  <span>{formatNumber(card.likes)}</span>
+                  <HeartIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-red-500" />
+                  <span className="text-[8px] sm:text-[10px]">
+                    {formatNumber(card.likes)}
+                  </span>
                 </div>
                 <div className="flex flex-col items-center space-y-0.5">
-                  <TicketIcon className="w-3.5 h-3.5" />
-                  <span>{formatNumber(card.comments)}</span>
+                  <TicketIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  <span className="text-[8px] sm:text-[10px]">
+                    {formatNumber(card.comments)}
+                  </span>
                 </div>
                 <div className="flex flex-col items-center space-y-0.5">
-                  <ShareIcon className="w-3.5 h-3.5" />
-                  <span>{formatNumber(card.shares)}</span>
+                  <ShareIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  <span className="text-[8px] sm:text-[10px]">
+                    {formatNumber(card.shares)}
+                  </span>
                 </div>
                 <div className="flex flex-col items-center space-y-0.5">
-                  <CalendarIcon className="w-3.5 h-3.5" />
-                  <span>{formatNumber(card.events)}</span>
+                  <CalendarIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  <span className="text-[8px] sm:text-[10px]">
+                    {formatNumber(card.events)}
+                  </span>
                 </div>
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>
@@ -683,17 +509,17 @@ const GroupViewModal = ({
   const totalEvents =
     group.totalEvents !== undefined ? group.totalEvents : group.events || 0;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div
-        className={`relative ${theme.bg} rounded-[30px] md:rounded-[50px] shadow-2xl w-full md:w-[867px] h-auto`}
+        className={`relative ${theme.bg} rounded-2xl md:rounded-3xl shadow-2xl w-full max-w-4xl h-auto max-h-[90vh] overflow-y-auto`}
         style={{
-          paddingBottom: "40px", // space for bottom buttons
+          paddingBottom: "20px",
         }}
       >
         {/* Header */}
-        <div className="px-6 md:px-[103px] pt-6 md:pt-[34px]">
+        <div className="px-4 md:px-8 pt-4 md:pt-6">
           <h2
-            className={`${theme.text} font-semibold text-[32px] leading-[100%]`}
+            className={`${theme.text} font-semibold text-xl md:text-2xl leading-tight`}
             style={{ fontFamily: "Inter" }}
           >
             Group Details
@@ -702,7 +528,7 @@ const GroupViewModal = ({
 
         {/* Divider Line */}
         <div
-          className="mx-[2px] mt-[25px]"
+          className="mx-1 mt-4 md:mt-6"
           style={{
             height: "1px",
             background:
@@ -711,17 +537,17 @@ const GroupViewModal = ({
         />
 
         {/* Content Container */}
-        <div className="flex flex-col md:flex-row gap-6 md:gap-[34px] px-6 md:px-[51px] pt-6 md:pt-[49px]">
+        <div className="flex flex-col lg:flex-row gap-4 md:gap-6 px-4 md:px-8 pt-4 md:pt-6">
           {/* Left Card - Group Info */}
           <div
-            className={`${theme.bg} rounded-[30px] md:rounded-[40px] p-6 md:p-8 flex flex-col items-center justify-center w-full md:w-[298px]`}
+            className={`${theme.bg} rounded-2xl md:rounded-3xl p-4 md:p-6 flex flex-col items-center justify-center w-full lg:w-80`}
             style={{
-              minHeight: "250px",
+              minHeight: "200px",
               boxShadow:
-                "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
+                "6px 6px 10px 0px #00000029, -6px -6px 10px 0px #FFFFFF0A",
             }}
           >
-            <div className="w-20 h-20 rounded-full bg-black flex items-center justify-center mb-4 overflow-hidden">
+            <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-black flex items-center justify-center mb-3 md:mb-4 overflow-hidden">
               {group.company_logo ? (
                 <img
                   src={getImageUrl(group.company_logo)}
@@ -739,7 +565,7 @@ const GroupViewModal = ({
               )}
             </div>
             <h3
-              className={`${theme.text} font-semibold text-xl mb-2 text-center`}
+              className={`${theme.text} font-semibold text-lg md:text-xl mb-2 text-center`}
             >
               {group.name}
             </h3>
@@ -752,95 +578,108 @@ const GroupViewModal = ({
 
           {/* Right Card - Bank Details */}
           <div
-            className={`${theme.bg} flex flex-col`}
+            className={`${theme.bg} flex flex-col flex-1`}
             style={{
-              width: "360px", // reduced from 439px
-              height: "auto", // let height adjust naturally
-              borderRadius: "40px", // slightly reduced corner radius
+              borderRadius: "20px",
               boxShadow: isDark
-                ? "6px 6px 10px 0px #00000029, -6px -6px 10px 0px #FFFFFF0A"
-                : "6px 6px 10px 0px #00000014, -6px -6px 10px 0px #FFFFFF33",
-              padding: "24px", // reduced padding
+                ? "4px 4px 8px 0px #00000029, -4px -4px 8px 0px #FFFFFF0A"
+                : "4px 4px 8px 0px #00000014, -4px -4px 8px 0px #FFFFFF33",
+              padding: "16px",
             }}
           >
             <h3
-              className={`${theme.text} font-medium text-base mb-4`}
+              className={`${theme.text} font-medium text-base mb-3 md:mb-4`}
               style={{ fontFamily: "Inter" }}
             >
               Bank Details:
             </h3>
 
-            {/* Horizontal Bank Detail Rows */}
-            <div className="space-y-3">
-              {/* Account Type */}
-              <div className="flex items-center justify-between w-full">
-                <p className={`${theme.subText} text-sm`}>Account Type</p>
-                <p className={`${theme.text} font-medium`}>
+            {/* Bank Detail Rows */}
+            <div className="space-y-2 md:space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-1 sm:gap-2">
+                <p className={`${theme.subText} text-sm font-medium`}>
+                  Account Type
+                </p>
+                <p className={`${theme.text} font-medium text-sm`}>
                   {group.primary_bank_acc_type?.toUpperCase() || "N/A"}
                 </p>
               </div>
 
-              {/* Account Holder */}
-              <div className="flex items-center justify-between w-full">
-                <p className={`${theme.subText} text-sm`}>Account Holder</p>
-                <p className={`${theme.text} font-medium`}>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-1 sm:gap-2">
+                <p className={`${theme.subText} text-sm font-medium`}>
+                  Account Holder
+                </p>
+                <p className={`${theme.text} font-medium text-sm break-words`}>
                   {group.primary_bank_acc_holder || "N/A"}
                 </p>
               </div>
 
-              {/* Account Number */}
-              <div className="flex items-center justify-between w-full">
-                <p className={`${theme.subText} text-sm`}>Account Number</p>
-                <p className={`${theme.text} font-medium`}>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-1 sm:gap-2">
+                <p className={`${theme.subText} text-sm font-medium`}>
+                  Account Number
+                </p>
+                <p className={`${theme.text} font-medium text-sm`}>
                   {group.primary_bank_acc_no || "N/A"}
                 </p>
               </div>
 
-              {/* IFSC Code */}
-              <div className="flex items-center justify-between w-full">
-                <p className={`${theme.subText} text-sm`}>IFSC Code</p>
-                <p className={`${theme.text} font-medium`}>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-1 sm:gap-2">
+                <p className={`${theme.subText} text-sm font-medium`}>
+                  IFSC Code
+                </p>
+                <p className={`${theme.text} font-medium text-sm`}>
                   {group.primary_bank_ifsc || "N/A"}
                 </p>
               </div>
-              <div className="flex items-center justify-between w-full">
-                <p className={`${theme.subText} text-sm`}>PAN Number</p>
-                <p className={`${theme.text} font-medium`}>{group.pan_no}</p>
+
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-1 sm:gap-2">
+                <p className={`${theme.subText} text-sm font-medium`}>
+                  PAN Number
+                </p>
+                <p className={`${theme.text} font-medium text-sm`}>
+                  {group.pan_no}
+                </p>
               </div>
+
               {group.gst_no && (
-                <div className="flex items-center justify-between w-full">
-                  <p className={`${theme.subText} text-sm`}>GST Number</p>
-                  <p className={`${theme.text} font-medium`}>{group.gst_no}</p>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-1 sm:gap-2">
+                  <p className={`${theme.subText} text-sm font-medium`}>
+                    GST Number
+                  </p>
+                  <p className={`${theme.text} font-medium text-sm`}>
+                    {group.gst_no}
+                  </p>
                 </div>
               )}
             </div>
           </div>
         </div>
+
         {/* Bottom Section */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-6 md:px-[51px] py-6 mt-6">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 md:px-8 py-4 mt-4">
           {/* Total Events Card */}
           <div
-            className={`${theme.bg} rounded-2xl px-6 py-3 min-w-[150px]`}
+            className={`${theme.bg} rounded-xl px-4 py-3 min-w-[120px] text-center sm:text-left`}
             style={{
               boxShadow: isDark
-                ? "4px 4px 8px 0px #00000029, -4px -4px 8px 0px #FFFFFF0A"
-                : "4px 4px 8px 0px #00000014, -4px -4px 8px 0px #FFFFFF",
+                ? "3px 3px 6px 0px #00000029, -3px -3px 6px 0px #FFFFFF0A"
+                : "3px 3px 6px 0px #00000014, -3px -3px 6px 0px #FFFFFF",
             }}
           >
             <p className={`${theme.subText} text-sm mb-1`}>Total Events</p>
-            <p className={`${theme.text} font-bold text-2xl`}>
+            <p className={`${theme.text} font-bold text-xl md:text-2xl`}>
               {totalEvents !== undefined ? totalEvents : 0}
             </p>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <button
               onClick={onClose}
-              className="px-[20px] py-[8px] rounded-[50px] font-normal text-[20px] text-white transition-all hover:opacity-90"
+              className="px-6 py-2 rounded-full font-normal text-base text-white transition-all hover:opacity-90 w-full sm:w-auto"
               style={{
-                width: "178px",
-                height: "45px",
+                minWidth: "140px",
+                height: "40px",
                 background: "#44444D",
                 border: "0.5px solid",
                 borderImage:
@@ -853,10 +692,10 @@ const GroupViewModal = ({
             </button>
             <button
               onClick={onUpdate}
-              className="px-[20px] py-[8px] rounded-[50px] font-normal text-[20px] text-white transition-all hover:opacity-90"
+              className="px-6 py-2 rounded-full font-normal text-base text-white transition-all hover:opacity-90 w-full sm:w-auto"
               style={{
-                width: "178px",
-                height: "45px",
+                minWidth: "140px",
+                height: "40px",
                 background: "#5E5CE6",
                 boxShadow: "0px 4px 6px 0px #00000024",
               }}
@@ -869,6 +708,93 @@ const GroupViewModal = ({
     </div>
   );
 };
+
+const MonthSelector = ({
+  currentMonth,
+  onSelectMonth,
+  onClose,
+  isDark,
+  theme,
+}) => {
+  const months = [
+    "JAN",
+    "FEB",
+    "MAR",
+    "APR",
+    "MAY",
+    "JUN",
+    "JUL",
+    "AUG",
+    "SEP",
+    "OCT",
+    "NOV",
+    "DEC",
+  ];
+  return (
+    <div
+      className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
+        isDark,
+      )} p-1 flex flex-col gap-1 w-24 shadow-lg absolute z-20 top-full left-0 mt-2`}
+    >
+      {months.map((monthName, index) => (
+        <button
+          key={monthName}
+          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${
+            currentMonth === index
+              ? "bg-blue-600 text-blue-100"
+              : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
+          }`}
+          onClick={() => {
+            onSelectMonth(index);
+            onClose();
+          }}
+        >
+          {monthName}
+        </button>
+      ))}
+    </div>
+  );
+};
+
+const YearSelector = ({
+  currentYear,
+  onSelectYear,
+  onClose,
+  isDark,
+  theme,
+}) => {
+  const currentFullYear = new Date().getFullYear();
+  const years = Array.from(
+    { length: 21 },
+    (_, i) => currentFullYear - 10 + i,
+  ).sort((a, b) => b - a);
+
+  return (
+    <div
+      className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
+        isDark,
+      )} p-1 flex flex-col gap-1 w-24 shadow-lg max-h-[13.5rem] overflow-y-auto absolute z-20 top-full right-0 mt-2`}
+    >
+      {years.map((yearNum) => (
+        <button
+          key={yearNum}
+          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${
+            currentYear === yearNum
+              ? "bg-blue-600 text-blue-100"
+              : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
+          }`}
+          onClick={() => {
+            onSelectYear(yearNum);
+            onClose();
+          }}
+        >
+          {yearNum}
+        </button>
+      ))}
+    </div>
+  );
+};
+
 const ViewGroups = () => {
   const { user } = useSelector((state) => state.auth);
   const navigate = useNavigate();
@@ -903,12 +829,12 @@ const ViewGroups = () => {
         const selectedDateOnly = new Date(
           selectedDate.getFullYear(),
           selectedDate.getMonth(),
-          selectedDate.getDate()
+          selectedDate.getDate(),
         );
         const eventDateOnly = new Date(
           eventStartDate.getFullYear(),
           eventStartDate.getMonth(),
-          eventStartDate.getDate()
+          eventStartDate.getDate(),
         );
 
         return eventDateOnly.getTime() === selectedDateOnly.getTime();
@@ -956,31 +882,11 @@ const ViewGroups = () => {
       navigate(`/ticket/edit-group/${selectedGroup._id}`);
     }
   };
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (sliderRef.current) {
-        sliderRef.current.slickGoTo(0);
-      }
-    }, 100);
-
-    const handleResize = () => {
-      if (sliderRef.current) {
-        sliderRef.current.slickGoTo(0);
-      }
-    };
-
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [events, totalLiveEvents]);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)"
+      "(prefers-color-scheme: dark)",
     ).matches;
     const shouldBeDark = savedTheme ? savedTheme === "dark" : systemPrefersDark;
     setIsDark(shouldBeDark);
@@ -1026,7 +932,7 @@ const ViewGroups = () => {
     if (events.length > 0 && groups.length > 0) {
       const stats = groups.map((group) => {
         const groupEvents = events.filter(
-          (event) => event.groupId === group._id
+          (event) => event.groupId === group._id,
         );
         const percentage =
           events.length > 0 ? (groupEvents.length / events.length) * 100 : 0;
@@ -1121,7 +1027,7 @@ const ViewGroups = () => {
             acc[type] = (acc[type] || 0) + 1;
             return acc;
           },
-          { organisation: 0, admin: 0 }
+          { organisation: 0, admin: 0 },
         );
 
         let shouldShowAddCard = false;
@@ -1158,7 +1064,7 @@ const ViewGroups = () => {
     dots: true,
     infinite: false,
     speed: 500,
-    slidesToShow: 4, // Default for desktop
+    slidesToShow: 4,
     slidesToScroll: 1,
     arrows: true,
     nextArrow: <CustomNextArrow isDark={isDark} />,
@@ -1168,41 +1074,42 @@ const ViewGroups = () => {
       {
         breakpoint: 1536, // 2xl
         settings: {
-          slidesToShow: 4,
+          slidesToShow: 3,
         },
       },
       {
         breakpoint: 1280, // xl
         settings: {
-          slidesToShow: 4,
+          slidesToShow: 3,
         },
       },
       {
         breakpoint: 1024, // lg
         settings: {
-          slidesToShow: 2,
+          slidesToShow: 2.5,
+          arrows: false,
+          centerMode: true,
+          infinite: true,
         },
       },
       {
         breakpoint: 768, // md
         settings: {
-          slidesToShow: 2.5,
+          slidesToShow: 2,
+          arrows: false,
+          centerMode: false,
         },
       },
       {
         breakpoint: 640, // sm
         settings: {
-          slidesToShow: 2,
-        },
-      },
-      {
-        breakpoint: 480, // xs
-        settings: {
-          slidesToShow: 1.5,
+          slidesToShow: 1,
+          arrows: false,
         },
       },
     ],
   };
+
   const handleCreateClick = async () => {
     setLoading(true);
     try {
@@ -1221,12 +1128,14 @@ const ViewGroups = () => {
       setLoading(false);
     }
   };
+
   const handleSelectGroupForEvent = (selectedGroup) => {
     setIsModalOpen(false);
     navigate(`/ticket/create-event/${selectedGroup._id}`);
   };
+
   const sliderSettings = {
-    dots: false,
+    dots: true,
     arrows: false,
     infinite: true,
     speed: 5000,
@@ -1235,27 +1144,31 @@ const ViewGroups = () => {
     cssEase: "linear",
     pauseOnHover: true,
     slidesToScroll: 1,
-    slidesToShow: 3.5,
+    slidesToShow: 4, // Base for largest screens
+    lazyLoad: "ondemand",
     responsive: [
       {
-        breakpoint: 1536,
+        breakpoint: 1536, // 2xl
+        settings: { slidesToShow: 4, infinite: allCards.length > 4 },
+      },
+      {
+        breakpoint: 1280, // xl
         settings: { slidesToShow: 3, infinite: allCards.length > 3 },
       },
       {
-        breakpoint: 1280,
-        settings: { slidesToShow: 2.5, infinite: allCards.length > 2 },
+        breakpoint: 1024, // lg
+        settings: { slidesToShow: 2, infinite: allCards.length > 2 },
       },
       {
-        breakpoint: 1024,
-        settings: { slidesToShow: 3, infinite: allCards.length > 3 },
+        breakpoint: 768, // md
+        settings: { slidesToShow: 2, infinite: allCards.length > 2 },
       },
       {
-        breakpoint: 768,
-        settings: { slidesToShow: 2.5, infinite: allCards.length > 2 },
-      },
-      {
-        breakpoint: 640,
-        settings: { slidesToShow: 1.5, infinite: allCards.length > 1 },
+        breakpoint: 640, // sm
+        settings: {
+          slidesToShow: 1,
+          infinite: allCards.length > 1,
+        },
       },
     ],
   };
@@ -1390,7 +1303,6 @@ const ViewGroups = () => {
   }, [year, month]);
 
   const changeMonth = (offset) => {
-    setShowMonthSelector(false);
     setCurrentDate(new Date(year, month + offset, 1));
   };
 
@@ -1406,18 +1318,15 @@ const ViewGroups = () => {
     setCurrentDate(dayInfo.fullDate);
   };
 
-  const handleSelectMonth = (m) =>
-    setCurrentDate((d) => {
-      const n = new Date(d);
-      n.setMonth(m);
-      return n;
-    });
-  const handleSelectYear = (y) =>
-    setCurrentDate((d) => {
-      const n = new Date(d);
-      n.setFullYear(y);
-      return n;
-    });
+  const handleSelectMonth = (selectedMonth) => {
+    setCurrentDate(new Date(year, selectedMonth, 1));
+    setShowMonthSelector(false);
+  };
+
+  const handleSelectYear = (selectedYear) => {
+    setCurrentDate(new Date(selectedYear, month, 1));
+    setShowYearSelector(false);
+  };
 
   if (loading && createdGroups.length === 0)
     return (
@@ -1482,52 +1391,47 @@ const ViewGroups = () => {
           </header>
 
           <main
-            className={`main-scrollbar flex flex-col flex-1 p-4 overflow-y-auto pb-24 md:pb-4 ${theme.cardBg}`}
+            className={`main-scrollbar flex flex-col flex-1 p-4 overflow-y-auto pb-32 md:pb-4 ${theme.cardBg}`}
           >
-            <div className="flex items-center mb-4 flex-shrink-0">
-              <h1
-                className={`text-lg md:text-2xl font-semibold mr-4 ${theme.text}`}
-              >
+            <div className="flex flex-col sm:flex-row sm:items-center mb-4 flex-shrink-0 gap-2">
+              <h1 className={`text-lg md:text-2xl font-semibold ${theme.text}`}>
                 Created Groups
               </h1>
               <span
                 style={outerShadow}
-                className={`px-3 py-1.5 rounded-full text-xs flex items-center ${theme.bg} ${theme.text}`}
+                className={`px-3 py-1.5 rounded-full text-xs flex items-center w-fit ${theme.bg} ${theme.text}`}
               >
-                <Users className="w-4 h-4 mr-2" /> {createdGroups.length} Groups
+                <Users className="w-3 h-3 md:w-4 md:h-4 mr-2" />{" "}
+                {createdGroups.length} Groups
               </span>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-              <div className="lg:col-span-3 flex flex-col gap-6">
-                {/* UPDATED: Using the new combinedShadow style */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6">
+              <div className="lg:col-span-2 xl:col-span-3 flex flex-col gap-4 md:gap-6">
+                {/* Groups Carousel */}
                 <div
                   style={{
                     ...combinedShadow,
-                    paddingBottom: "1.5rem",
-                    paddingTop: "1.5rem",
-                    marginTop: "1.5rem",
-                    marginBottom: "1.5rem",
+                    paddingBottom: "1rem",
+                    paddingTop: "1rem",
+                    marginTop: "1rem",
+                    marginBottom: "1rem",
                   }}
-                  className={`relative ${theme.bg} rounded-3xl`}
+                  className={`relative ${theme.bg} rounded-2xl md:rounded-3xl`}
                 >
-                  {allCards.length > 0 ? (
-                    <Slider
-                      {...sliderSettings}
-                      key={isDark ? "dark-key" : "light-key"}
-                    >
-                      {allCards.map((card) => (
-                        <div
-                          key={
-                            card.id === "add-new-group" ? "add-card" : card.id
-                          }
-                          className="px-3 py-4 flex justify-center"
-                        >
+                  {/* Desktop Carousel */}
+                  <div className="hidden md:block px-4 lg:px-8">
+                    {allCards.length > 0 ? (
+                      <Slider
+                        {...sliderSettings}
+                        key={isDark ? "dark-key" : "light-key"}
+                      >
+                        {allCards.map((card) => (
                           <div
-                            style={{
-                              transform: "translateY(-10px)",
-                              transition: "transform 0.3s ease",
-                            }}
+                            key={
+                              card.id === "add-new-group" ? "add-card" : card.id
+                            }
+                            className="px-3 py-4"
                           >
                             <SvgGroupCard
                               isAddCard={card.id === "add-new-group"}
@@ -1538,31 +1442,53 @@ const ViewGroups = () => {
                               onAddClick={handleCreateGroupClick}
                             />
                           </div>
-                        </div>
-                      ))}
-                    </Slider>
-                  ) : (
-                    <div className="h-[280px]"></div>
-                  )}
+                        ))}
+                      </Slider>
+                    ) : (
+                      <div className="h-[280px]"></div>
+                    )}
+                  </div>
+                  {/* Mobile Grid */}
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 md:hidden px-4 py-4">
+                    {allCards.map((card) => (
+                      <div
+                        key={
+                          card.id === "add-new-group"
+                            ? "add-card-mobile"
+                            : card.id
+                        }
+                      >
+                        <SvgGroupCard
+                          isAddCard={card.id === "add-new-group"}
+                          card={card}
+                          isDark={isDark}
+                          statsData={groupStats}
+                          onViewClick={handleGroupViewClick}
+                          onAddClick={handleCreateGroupClick}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                {/* UPDATED: Using the new combinedShadow style */}
+                {/* Live Events Section */}
                 <div
                   style={combinedShadow}
-                  className={`${theme.bg} rounded-3xl p-6 flex-1`}
+                  className={`${theme.bg} rounded-2xl md:rounded-3xl p-4 md:p-6 flex-1`}
                 >
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center justify-between mb-4 md:mb-6">
                     <h2
-                      className={`text-xl font-bold flex items-center ${theme.text}`}
+                      className={`text-lg md:text-xl font-bold flex items-center ${theme.text}`}
                     >
-                      <span className="text-red-500 mr-3 text-2xl leading-none">
+                      <span className="text-red-500 mr-2 md:mr-3 text-xl md:text-2xl leading-none">
                         <img src={LiveIcon} alt="Live" className="w-4 h-4" />
                       </span>
                       Live Events
                     </h2>
                     {totalLiveEvents > 0 && (
                       <button
-                        className="px-6 py-2 rounded-full text-white text-sm font-medium transition-all hover:opacity-90"
+                        onClick={() => navigate('/ticket/live-events')}
+                        className="px-4 md:px-6 py-1.5 md:py-2 rounded-full text-white text-xs md:text-sm font-medium transition-all hover:opacity-90"
                         style={{
                           background:
                             "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)",
@@ -1575,18 +1501,41 @@ const ViewGroups = () => {
                   </div>
 
                   {totalLiveEvents > 0 ? (
-                    <div
-                      className="pt-2 pb-8 relative"
-                      style={{ margin: "0 0px" }}
-                    >
-                      {/* Added margin for arrow space */}
-                      <Slider
-                        ref={sliderRef}
-                        {...liveEventsSliderSettings}
-                        key={`live-events-${liveEvents.length}`}
-                      >
+                    <>
+                      {/* Desktop Carousel */}
+                      <div className="hidden md:block">
+                        <div
+                          className="pt-2 pb-8 relative"
+                          style={{ margin: "0 0px" }}
+                        >
+                          <Slider
+                            ref={sliderRef}
+                            {...liveEventsSliderSettings}
+                            key={`live-events-${liveEvents.length}`}
+                          >
+                            {liveEvents.map((event) => (
+                              <div key={event._id} className="px-2">
+                                <LiveEventCarouselCard
+                                  event={event}
+                                  outerShadow={outerShadow}
+                                  combinedShadow={combinedShadow}
+                                  theme={theme}
+                                  isDark={isDark}
+                                  onClick={() =>
+                                    navigate(
+                                      `/ticket/live-event-view/${event._id}`,
+                                    )
+                                  }
+                                />
+                              </div>
+                            ))}
+                          </Slider>
+                        </div>
+                      </div>
+                      {/* Mobile Grid */}
+                      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:hidden">
                         {liveEvents.map((event) => (
-                          <div key={event._id} className="px-1">
+                          <div key={event._id} className="w-full">
                             <LiveEventCarouselCard
                               event={event}
                               outerShadow={outerShadow}
@@ -1599,18 +1548,19 @@ const ViewGroups = () => {
                             />
                           </div>
                         ))}
-                      </Slider>
-                    </div>
+                      </div>
+                    </>
                   ) : (
-                    // --- NO LIVE EVENTS PLACEHOLDER ---
-                    <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-4 py-4 h-[200px] w-full">
+                    <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-4 py-4 h-[150px] md:h-[200px] w-full">
                       <img
                         src={no_event}
                         alt="No live event"
-                        className="w-auto h-24 md:h-28 object-contain"
+                        className="w-auto h-16 md:h-24 object-contain"
                       />
                       <div className="text-center md:text-left">
-                        <h3 className={`text-lg font-semibold ${theme.text}`}>
+                        <h3
+                          className={`text-base md:text-lg font-semibold ${theme.text}`}
+                        >
                           No Live Event
                         </h3>
                         <p className={`text-sm ${theme.subText}`}>
@@ -1624,203 +1574,403 @@ const ViewGroups = () => {
                 </div>
               </div>
 
-              <div className="lg:col-span-2">
-                {/* UPDATED: Using the new combinedShadow style */}
-                <div
-                  style={combinedShadow}
-                  className={`${theme.bg} rounded-3xl p-4 h-full`}
-                >
-                  <div className="flex flex-col gap-6 h-full">
-                    <div className={`${theme.bg} rounded-2xl p-2`}>
-                      <div className="w-full">
+              <div className="lg:col-span-1 xl:col-span-2">
+                {/* --- Mobile & Tablet View --- */}
+                <div className="block lg:hidden">
+                  <div className="flex flex-col gap-6">
+                    {/* Stats Chart */}
+                    <div
+                      style={combinedShadow}
+                      className={`${theme.bg} rounded-2xl md:rounded-3xl p-3 md:p-4`}
+                    >
+                      <div
+                        className={`${theme.bg} rounded-xl md:rounded-2xl p-2`}
+                      >
                         <GroupStatisticsChart
                           theme={theme}
                           statsData={groupStats}
                         />
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-                      <div
-                        style={outerShadow}
-                        className={`${theme.bg} rounded-2xl p-4  xl:col-span-4`}
-                      >
-                        {selectedDate && (
-                          <div className="flex items-center justify-between mb-4 px-2">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-sm ${theme.subText}`}>
-                                Events for:
-                              </span>
-                              <span
-                                className={`text-sm font-semibold ${theme.text}`}
-                              >
-                                {selectedDate.toLocaleDateString("en-GB", {
-                                  day: "2-digit",
-                                  month: "short",
-                                  year: "numeric",
-                                })}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => setSelectedDate(null)}
-                              className={`text-xs font-bold px-4 py-1.5 rounded-full transition-colors ${
-                                isDark
-                                  ? "bg-blue-600 hover:bg-blue-500 text-white"
-                                  : "bg-blue-500 hover:bg-blue-600 text-white"
-                              }`}
+                    {/* Calendar */}
+                    <div
+                      style={outerShadow}
+                      className={`${theme.bg} rounded-xl md:rounded-2xl p-3 md:p-4`}
+                    >
+                      {selectedDate && (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 md:mb-4 px-1 md:px-2 gap-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-xs md:text-sm ${theme.subText}`}
                             >
-                              Clear filter
+                              Events for:
+                            </span>
+                            <span
+                              className={`text-xs md:text-sm font-semibold ${theme.text}`}
+                            >
+                              {selectedDate.toLocaleDateString("en-GB", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => setSelectedDate(null)}
+                            className={`text-xs font-bold px-3 md:px-4 py-1 md:py-1.5 rounded-full transition-colors ${isDark ? "bg-blue-600 hover:bg-blue-500 text-white" : "bg-blue-500 hover:bg-blue-600 text-white"}`}
+                          >
+                            Clear filter
+                          </button>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center mb-2 md:mb-8 py-4">
+                        <button
+                          onClick={() => changeMonth(-1)}
+                          style={outerShadow}
+                          className={`p-1 md:p-1.5 rounded-md`}
+                        >
+                          <ChevronLeft
+                            className={`w-4 h-4 md:w-5 md:h-5 ${theme.text}`}
+                          />
+                        </button>
+                        <div className="flex items-center gap-1 mx-auto">
+                          <div className="relative">
+                            <button
+                              onClick={() => {
+                                setShowMonthSelector((s) => !s);
+                                setShowYearSelector(false);
+                              }}
+                              className={`flex items-center px-2 md:px-3 py-1 md:py-1.5 rounded-full font-semibold text-xs md:text-sm ${
+                                theme.text
+                              } ${theme.cardBg} ${getButtonNeumorphicShadows(
+                                isDark,
+                              )}`}
+                            >
+                              {monthNames[month]}
+                              <ChevronDown className="w-3 h-3 md:w-3.5 md:h-3.5 ml-1" />
                             </button>
+                            {showMonthSelector && (
+                              <MonthSelector
+                                currentMonth={month}
+                                onSelectMonth={handleSelectMonth}
+                                onClose={() => setShowMonthSelector(false)}
+                                isDark={isDark}
+                                theme={theme}
+                              />
+                            )}
                           </div>
-                        )}
-                        <div className="flex justify-between items-center mb-2 md:mb-8 py-4">
-                          <button
-                            onClick={() => changeMonth(-1)}
-                            style={outerShadow}
-                            className={`p-1.5 rounded-md`}
-                          >
-                            <ChevronLeft className={`w-5 h-5 ${theme.text}`} />
-                          </button>
-                          <div className="flex items-center gap-1">
-                            <div className="relative">
-                              <button
-                                onClick={() => {
-                                  setShowMonthSelector((s) => !s);
-                                  setShowYearSelector(false);
-                                }}
-                                className={`flex items-center px-3 py-1.5 rounded-full font-semibold text-sm ${
-                                  theme.text
-                                } ${theme.cardBg} ${getButtonNeumorphicShadows(
-                                  isDark
-                                )}`}
-                              >
-                                {monthNames[month]}
-
-                                <ChevronDown className="w-3.5 h-3.5 ml-1" />
-                              </button>
-
-                              {showMonthSelector && (
-                                <MonthSelector
-                                  currentMonth={month}
-                                  onSelectMonth={handleSelectMonth}
-                                  onClose={() => setShowMonthSelector(false)}
-                                  isDark={isDark}
-                                  theme={theme}
-                                />
-                              )}
-                            </div>
-
-                            <div className="relative">
-                              <button
-                                onClick={() => {
-                                  setShowYearSelector((s) => !s);
-                                  setShowMonthSelector(false);
-                                }}
-                                className={`flex items-center px-3 py-1.5 rounded-full font-semibold text-sm ${
-                                  theme.text
-                                } ${theme.cardBg} ${getButtonNeumorphicShadows(
-                                  isDark
-                                )}`}
-                              >
-                                {year}
-                                <ChevronDown className="w-3.5 h-3.5 ml-1" />
-                              </button>
-
-                              {showYearSelector && (
-                                <YearSelector
-                                  currentYear={year}
-                                  onSelectYear={handleSelectYear}
-                                  onClose={() => setShowYearSelector(false)}
-                                  isDark={isDark}
-                                  theme={theme}
-                                />
-                              )}
-                            </div>
+                          <div className="relative">
+                            <button
+                              onClick={() => {
+                                setShowYearSelector((s) => !s);
+                                setShowMonthSelector(false);
+                              }}
+                              className={`flex items-center px-2 md:px-3 py-1 md:py-1.5 rounded-full font-semibold text-xs md:text-sm ${
+                                theme.text
+                              } ${theme.cardBg} ${getButtonNeumorphicShadows(
+                                isDark,
+                              )}`}
+                            >
+                              {year}
+                              <ChevronDown className="w-3 h-3 md:w-3.5 md:h-3.5 ml-1" />
+                            </button>
+                            {showYearSelector && (
+                              <YearSelector
+                                currentYear={year}
+                                onSelectYear={handleSelectYear}
+                                onClose={() => setShowYearSelector(false)}
+                                isDark={isDark}
+                                theme={theme}
+                              />
+                            )}
                           </div>
-                          <button
-                            onClick={() => changeMonth(1)}
-                            style={outerShadow}
-                            className={`p-1.5 rounded-md`}
+                        </div>
+                        <button
+                          onClick={() => changeMonth(1)}
+                          style={outerShadow}
+                          className={`p-1 md:p-1.5 rounded-md`}
+                        >
+                          <ChevronRight
+                            className={`w-4 h-4 md:w-5 md:h-5 ${theme.text}`}
+                          />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-7 text-center text-xs font-semibold text-gray-400 mb-2">
+                        {daysOfWeek.map((day, index) => (
+                          <div key={`${day}-${index}`}>{day}</div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-7 text-center text-xs md:text-sm">
+                        {generateCalendarDates.map((dayInfo, index) => {
+                          const isSelected =
+                            selectedDate &&
+                            dayInfo.fullDate.toDateString() ===
+                              selectedDate.toDateString();
+                          const isToday = dayInfo.isToday;
+                          const isCurrentMonth = dayInfo.isCurrentMonth;
+                          let textColorClass = isCurrentMonth
+                            ? theme.text
+                            : theme.subText;
+                          let otherClasses = "cursor-pointer";
+                          let fontClass = "";
+                          let ringClass = "";
+                          let bgColorClass = "";
+                          if (isSelected) {
+                            textColorClass = isDark
+                              ? "text-purple-400"
+                              : "text-purple-600";
+                            ringClass = isDark
+                              ? "ring-2 ring-purple-400"
+                              : "ring-2 ring-purple-600";
+                            fontClass = "font-bold";
+                            bgColorClass = isDark ? "bg-gray-700" : "bg-white";
+                          } else if (isToday) {
+                            bgColorClass = "bg-[#6549B8]";
+                            textColorClass = "text-white";
+                            fontClass = "font-bold";
+                          }
+                          return (
+                            <div
+                              key={index}
+                              className={`flex items-center justify-center h-8 w-8 md:h-9 md:w-9 mx-auto rounded-full text-xs md:text-sm transition-colors duration-200 ${bgColorClass} ${textColorClass} ${fontClass} ${ringClass} ${otherClasses}`}
+                              onClick={() => handleDateClick(dayInfo)}
+                            >
+                              {dayInfo.date}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {/* Stat Cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      {statCards.map((card) => (
+                        <div
+                          key={card.label}
+                          style={outerShadow}
+                          className={`${theme.bg} rounded-xl md:rounded-2xl p-1 md:p-2 flex flex-col items-center justify-center text-center gap-1 flex-1`}
+                        >
+                          <div
+                            className={`p-1 rounded-full ${statCardStyles[card.color].bg} ${statCardStyles[card.color].text}`}
                           >
-                            <ChevronRight className={`w-5 h-5 ${theme.text}`} />
-                          </button>
+                            {card.icon}
+                          </div>
+                          <p
+                            className={`text-sm md:text-md font-bold ${theme.text}`}
+                          >
+                            {card.value}
+                          </p>
+                          <p className={`text-xs ${theme.subText}`}>
+                            {card.label}
+                          </p>
                         </div>
-                        <div className="grid grid-cols-7 text-center text-xs md:text-sm font-semibold text-gray-400 mb-2">
-                          {daysOfWeek.map((day, index) => (
-                            <div key={`${day}-${index}`}>{day}</div>
-                          ))}
-                        </div>
-                        <div className="grid grid-cols-7 text-center text-sm">
-                          {generateCalendarDates.map((dayInfo, index) => {
-                            const isSelected =
-                              selectedDate &&
-                              dayInfo.fullDate.toDateString() ===
-                                selectedDate.toDateString();
-                            const isToday = dayInfo.isToday;
-                            const isCurrentMonth = dayInfo.isCurrentMonth;
+                      ))}
+                    </div>
+                  </div>
+                </div>
 
-                            let textColorClass = isCurrentMonth
-                              ? theme.text
-                              : theme.subText;
-                            let otherClasses = "cursor-pointer";
-                            let fontClass = "";
-                            let ringClass = "";
-                            let bgColorClass = "";
-
-                            if (isSelected) {
-                              textColorClass = isDark
-                                ? "text-purple-400"
-                                : "text-purple-600";
-                              ringClass = isDark
-                                ? "ring-2 ring-purple-400"
-                                : "ring-2 ring-purple-600";
-                              fontClass = "font-bold";
-                              bgColorClass = isDark
-                                ? "bg-gray-700"
-                                : "bg-white";
-                            } else if (isToday) {
-                              bgColorClass = "bg-[#6549B8]";
-                              textColorClass = "text-white";
-                              fontClass = "font-bold";
-                            }
-
-                            return (
-                              <div
-                                key={index}
-                                className={`flex items-center justify-center h-8 w-8 md:h-9 md:w-9 mx-auto rounded-full text-xs md:text-sm transition-colors duration-200 ${bgColorClass} ${textColorClass} ${fontClass} ${ringClass} ${otherClasses}`}
-                                onClick={() => handleDateClick(dayInfo)}
-                              >
-                                {dayInfo.date}
-                              </div>
-                            );
-                          })}
+                {/* --- Desktop View --- */}
+                <div className="hidden lg:block h-full">
+                  <div
+                    style={combinedShadow}
+                    className={`${theme.bg} rounded-2xl md:rounded-3xl p-3 md:p-4 h-full`}
+                  >
+                    <div className="flex flex-col gap-4 md:gap-6 h-full">
+                      <div
+                        className={`${theme.bg} rounded-xl md:rounded-2xl p-2`}
+                      >
+                        <div className="w-full">
+                          <GroupStatisticsChart
+                            theme={theme}
+                            statsData={groupStats}
+                          />
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-1 gap-2 xl:flex xl:flex-col xl:col-span-1">
-                        {statCards.map((card) => (
-                          <div
-                            key={card.label}
-                            style={outerShadow}
-                            className={`${theme.bg} rounded-2xl p-1 flex flex-col items-center justify-center text-center gap-1 flex-1`}
-                          >
-                            <div
-                              className={`p-1 rounded-full ${
-                                statCardStyles[card.color].bg
-                              } ${statCardStyles[card.color].text}`}
-                            >
-                              {card.icon}
+                      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+                        <div
+                          style={outerShadow}
+                          className={`${theme.bg} rounded-2xl p-4  xl:col-span-4`}
+                        >
+                          {selectedDate && (
+                            <div className="flex items-center justify-between mb-4 px-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm ${theme.subText}`}>
+                                  Events for:
+                                </span>
+                                <span
+                                  className={`text-sm font-semibold ${theme.text}`}
+                                >
+                                  {selectedDate.toLocaleDateString("en-GB", {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                  })}
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => setSelectedDate(null)}
+                                className={`text-xs font-bold px-4 py-1.5 rounded-full transition-colors ${
+                                  isDark
+                                    ? "bg-blue-600 hover:bg-blue-500 text-white"
+                                    : "bg-blue-500 hover:bg-blue-600 text-white"
+                                }`}
+                              >
+                                Clear filter
+                              </button>
                             </div>
-                            <p className={`text-md font-bold ${theme.text}`}>
-                              {card.value}
-                            </p>
-                            <p
-                              className={`text-[10px] md:text-xs ${theme.subText}`}
+                          )}
+                          <div className="flex justify-between items-center mb-2 md:mb-8 py-4">
+                            <button
+                              onClick={() => changeMonth(-1)}
+                              style={outerShadow}
+                              className={`p-1.5 lg:p-1 rounded-md`}
                             >
-                              {card.label}
-                            </p>
+                              <ChevronLeft
+                                className={`w-5 h-5 lg:w-4 lg:h-4 ${theme.text}`}
+                              />
+                            </button>
+                            <div className="flex items-center gap-1">
+                              <div className="relative">
+                                <button
+                                  onClick={() => {
+                                    setShowMonthSelector((s) => !s);
+                                    setShowYearSelector(false);
+                                  }}
+                                  className={`flex items-center px-3 lg:px-2 py-1.5 lg:py-1 rounded-full font-semibold text-sm lg:text-xs ${
+                                    theme.text
+                                  } ${theme.cardBg} ${getButtonNeumorphicShadows(
+                                    isDark,
+                                  )}`}
+                                >
+                                  {monthNames[month]}
+
+                                  <ChevronDown className="w-3.5 h-3.5 lg:w-3 lg:h-3 ml-1" />
+                                </button>
+
+                                {showMonthSelector && (
+                                  <MonthSelector
+                                    currentMonth={month}
+                                    onSelectMonth={handleSelectMonth}
+                                    onClose={() => setShowMonthSelector(false)}
+                                    isDark={isDark}
+                                    theme={theme}
+                                  />
+                                )}
+                              </div>
+
+                              <div className="relative">
+                                <button
+                                  onClick={() => {
+                                    setShowYearSelector((s) => !s);
+                                    setShowMonthSelector(false);
+                                  }}
+                                  className={`flex items-center px-3 lg:px-2 py-1.5 lg:py-1 rounded-full font-semibold text-sm lg:text-xs ${
+                                    theme.text
+                                  } ${theme.cardBg} ${getButtonNeumorphicShadows(
+                                    isDark,
+                                  )}`}
+                                >
+                                  {year}
+                                  <ChevronDown className="w-3.5 h-3.5 lg:w-3 lg:h-3 ml-1" />
+                                </button>
+
+                                {showYearSelector && (
+                                  <YearSelector
+                                    currentYear={year}
+                                    onSelectYear={handleSelectYear}
+                                    onClose={() => setShowYearSelector(false)}
+                                    isDark={isDark}
+                                    theme={theme}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => changeMonth(1)}
+                              style={outerShadow}
+                              className={`p-1.5 lg:p-1 rounded-md`}
+                            >
+                              <ChevronRight
+                                className={`w-5 h-5 lg:w-4 lg:h-4 ${theme.text}`}
+                              />
+                            </button>
                           </div>
-                        ))}
+                          <div className="grid grid-cols-7 text-center text-xs md:text-sm font-semibold text-gray-400 mb-2">
+                            {daysOfWeek.map((day, index) => (
+                              <div key={`${day}-${index}`}>{day}</div>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-7 text-center text-sm">
+                            {generateCalendarDates.map((dayInfo, index) => {
+                              const isSelected =
+                                selectedDate &&
+                                dayInfo.fullDate.toDateString() ===
+                                  selectedDate.toDateString();
+                              const isToday = dayInfo.isToday;
+                              const isCurrentMonth = dayInfo.isCurrentMonth;
+
+                              let textColorClass = isCurrentMonth
+                                ? theme.text
+                                : theme.subText;
+                              let otherClasses = "cursor-pointer";
+                              let fontClass = "";
+                              let ringClass = "";
+                              let bgColorClass = "";
+
+                              if (isSelected) {
+                                textColorClass = isDark
+                                  ? "text-purple-400"
+                                  : "text-purple-600";
+                                ringClass = isDark
+                                  ? "ring-2 ring-purple-400"
+                                  : "ring-2 ring-purple-600";
+                                fontClass = "font-bold";
+                                bgColorClass = isDark
+                                  ? "bg-gray-700"
+                                  : "bg-white";
+                              } else if (isToday) {
+                                bgColorClass = "bg-[#6549B8]";
+                                textColorClass = "text-white";
+                                fontClass = "font-bold";
+                              }
+
+                              return (
+                                <div
+                                  key={index}
+                                  className={`flex items-center justify-center h-8 w-8 md:h-9 md:w-9 mx-auto rounded-full text-xs md:text-sm transition-colors duration-200 ${bgColorClass} ${textColorClass} ${fontClass} ${ringClass} ${otherClasses}`}
+                                  onClick={() => handleDateClick(dayInfo)}
+                                >
+                                  {dayInfo.date}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-1 gap-2 xl:flex xl:flex-col xl:col-span-1">
+                          {statCards.map((card) => (
+                            <div
+                              key={card.label}
+                              style={outerShadow}
+                              className={`${theme.bg} rounded-2xl p-1 flex flex-col items-center justify-center text-center gap-1 flex-1`}
+                            >
+                              <div
+                                className={`p-1 rounded-full ${
+                                  statCardStyles[card.color].bg
+                                } ${statCardStyles[card.color].text}`}
+                              >
+                                {card.icon}
+                              </div>
+                              <p className={`text-md font-bold ${theme.text}`}>
+                                {card.value}
+                              </p>
+                              <p
+                                className={`text-[10px] md:text-xs ${theme.subText}`}
+                              >
+                                {card.label}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
