@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Application } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import db from './config/db';
@@ -6,42 +6,37 @@ import userRoutes from './routes/user.routes';
 import otpService from './reposetory/otp';
 dotenv.config();
 
-const app = express();
+const app: Application = express();
+const PORT = process.env.PORT || 5005;
 
 // Middleware
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5174',
-    credentials: true,
-  })
-);
 
 // Routes
 app.use('/api/user', userRoutes);
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'WIE User Service' });
-});
-
-// Start function
-const PORT = process.env.PORT || 5005;
-
-const startServer = async () => {
+// Initialize services and start server
+async function startServer() {
   try {
+    // Connect to database
     await db.connect();
+    console.log('✅ PostgreSQL connected (WIE User Service)');
+
+    // Initialize OTP service
+    await otpService.initialize();
+
+    // Start server
     app.listen(PORT, () => {
       console.log(`✅ WIE User Service running on port ${PORT}`);
       console.log(`📍 API Base: http://localhost:${PORT}/api/user`);
     });
-  } catch (err) {
-    console.error('❌ Failed to start user service:', err);
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
-};
+}
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
@@ -59,3 +54,4 @@ process.on('SIGTERM', async () => {
 });
 
 startServer();
+export default app;

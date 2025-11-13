@@ -1,5 +1,4 @@
 import otpModel from '../models/otp.model';
-import { v4 as uuidv4 } from 'uuid';
 
 interface VerifyOtpResult {
   isValid: boolean;
@@ -14,10 +13,6 @@ class OtpService {
   constructor() {
     this.cleanupTimers = new Map();
   }
-
-  /**
-   * Initialize the OTP service after database connection
-   */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
       console.log('⚠️  OTP Service already initialized');
@@ -31,7 +26,7 @@ class OtpService {
         console.log(`🧹 Initial cleanup: Deleted ${initialCleanup} expired OTP(s)`);
       }
 
-      // Start periodic cleanup
+      // Start periodic cleanup every 1 minute
       this.startPeriodicCleanup();
       
       this.isInitialized = true;
@@ -43,46 +38,63 @@ class OtpService {
   }
 
   /**
-   * Insert a new OTP for a user
+   * Insert a new OTP for a user or temp ID
    */
-  async insertOTP(userId: string, otp: string, expirationMinutes: number): Promise<string> {
+  async insertOTP(
+    identifier: string, 
+    otp: string, 
+    expirationMinutes: number,
+    otpType: 'signup' | 'login' | 'reset' = 'signup'
+  ): Promise<string> {
     try {
-      // Delete all existing OTPs for this user
-      await this.deleteAllOtps(userId);
+      const isTemporary = identifier.startsWith('temp_');
+      
+      // Delete all existing OTPs for this identifier
+      const deletedCount = isTemporary 
+        ? await otpModel.deleteByTempId(identifier)
+        : await otpModel.deleteByUserId(identifier);
+
+      if (deletedCount > 0) {
+        console.log(`🗑️  Deleted ${deletedCount} existing OTP(s) for ${identifier}`);
+      }
 
       // Clear any existing cleanup timer
-      if (this.cleanupTimers.has(userId)) {
-        clearTimeout(this.cleanupTimers.get(userId)!);
-        this.cleanupTimers.delete(userId);
+      if (this.cleanupTimers.has(identifier)) {
+        clearTimeout(this.cleanupTimers.get(identifier)!);
+        this.cleanupTimers.delete(identifier);
       }
 
       const expiresAt = new Date(Date.now() + expirationMinutes * 60000);
 
       // Create OTP using model
       await otpModel.create({
-        user_id: userId,
+        user_id: isTemporary ? null : identifier,
+        temp_id: isTemporary ? identifier : null,
         otp_value: otp,
+        otp_type: otpType,
         expires_at: expiresAt,
       });
 
-      console.log(`✅ OTP created for user ${userId}, expires at: ${expiresAt.toISOString()}`);
+      console.log(`✅ OTP created for ${isTemporary ? 'temp' : 'user'} ${identifier}, expires at: ${expiresAt.toISOString()}`);
 
-      // Schedule cleanup after expiration (with 5-second buffer)
-      const cleanupDelay = expirationMinutes * 60000 + 5000;
+      // Schedule auto-cleanup after 1 minute of expiration
+      const cleanupDelay = (expirationMinutes + 1) * 60000;
       const timerId = setTimeout(async () => {
         try {
-          const deletedCount = await this.deleteAllOtps(userId);
+          const deletedCount = isTemporary 
+            ? await otpModel.deleteByTempId(identifier)
+            : await otpModel.deleteByUserId(identifier);
+          
           if (deletedCount > 0) {
-            console.log(`⏰ Auto-cleanup: Deleted ${deletedCount} expired OTP(s) for user: ${userId}`);
+            console.log(`⏰ Auto-cleanup: Deleted ${deletedCount} expired OTP(s) for ${identifier}`);
           }
-          this.cleanupTimers.delete(userId);
+          this.cleanupTimers.delete(identifier);
         } catch (error) {
           console.error('Error in scheduled cleanup:', error);
         }
       }, cleanupDelay);
 
-      this.cleanupTimers.set(userId, timerId);
-      console.log(`⏲️  Scheduled auto-cleanup for user ${userId} in ${expirationMinutes} minute(s)`);
+      this.cleanupTimers.set(identifier, timerId);
 
       return otp;
     } catch (error) {
@@ -92,123 +104,45 @@ class OtpService {
   }
 
   /**
-   * Start periodic cleanup of expired OTPs
+   * Start periodic cleanup of expired OTPs (every 1 minute)
    */
   private startPeriodicCleanup(): void {
-    // Run cleanup every 2 minutes
     this.cleanupIntervalId = setInterval(async () => {
       try {
         const deletedCount = await this.cleanupAllExpiredOtps();
         if (deletedCount > 0) {
-          console.log(`🧹 Periodic cleanup: Deleted ${deletedCount} expired OTP(s) at ${new Date().toISOString()}`);
+          console.log(`🧹 Periodic cleanup: Deleted ${deletedCount} expired OTP(s)`);
         }
       } catch (error) {
         console.error('❌ Periodic cleanup error:', error);
       }
-    }, 2 * 60 * 1000); // 2 minutes
+    }, 60 * 1000); // 1 minute
 
-    // Ensure cleanup doesn't prevent process from exiting
     if (this.cleanupIntervalId.unref) {
       this.cleanupIntervalId.unref();
     }
   }
 
   /**
-   * Delete expired OTPs for a specific user
+   * Verify OTP for a user or temp ID
    */
-  async deleteExpiredOtps(userId: string): Promise<number> {
+  async verifyOtp(identifier: string, otpValue: string): Promise<VerifyOtpResult> {
     try {
-      const deletedCount = await otpModel.deleteExpiredByUserId(userId);
-
-      if (deletedCount > 0) {
-        console.log(`🗑️  Deleted ${deletedCount} expired OTP(s) for user: ${userId}`);
-        
-        // Clear cleanup timer if exists
-        if (this.cleanupTimers.has(userId)) {
-          clearTimeout(this.cleanupTimers.get(userId)!);
-          this.cleanupTimers.delete(userId);
-        }
-      }
-
-      return deletedCount;
-    } catch (error) {
-      console.error('❌ Error deleting expired OTPs for user:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Cleanup all expired OTPs from database
-   */
-  async cleanupAllExpiredOtps(): Promise<number> {
-    try {
-      const deletedCount = await otpModel.deleteAllExpired();
-
-      if (deletedCount > 0) {
-        // Clear timers for users who no longer have OTPs
-        const activeUserIds = await otpModel.getActiveUserIds();
-        const activeUserSet = new Set(activeUserIds);
-
-        for (const [userId, timer] of this.cleanupTimers.entries()) {
-          if (!activeUserSet.has(userId)) {
-            clearTimeout(timer);
-            this.cleanupTimers.delete(userId);
-          }
-        }
-      }
-
-      return deletedCount;
-    } catch (error) {
-      console.error('❌ Error in cleanupAllExpiredOtps:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Delete all OTPs for a specific user
-   */
-  async deleteAllOtps(userId: string): Promise<number> {
-    try {
-      const deletedCount = await otpModel.deleteByUserId(userId);
-
-      if (deletedCount > 0) {
-        console.log(`🗑️  Deleted ${deletedCount} OTP(s) for user: ${userId}`);
-        
-        // Clear cleanup timer
-        if (this.cleanupTimers.has(userId)) {
-          clearTimeout(this.cleanupTimers.get(userId)!);
-          this.cleanupTimers.delete(userId);
-        }
-      }
-
-      return deletedCount;
-    } catch (error) {
-      console.error('❌ Error deleting all OTPs for user:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Verify OTP for a user
-   */
-  async verifyOtp(userId: string, otpValue: string): Promise<VerifyOtpResult> {
-    try {
-      // Clean up expired OTPs first
-      const expiredDeleted = await this.deleteExpiredOtps(userId);
-      if (expiredDeleted > 0) {
-        console.log(`🧹 Cleaned up ${expiredDeleted} expired OTP(s) before verification`);
-      }
-
+      const isTemporary = identifier.startsWith('temp_');
+      
       // Find valid OTP
-      const otpRecord = await otpModel.findByUserAndValue(userId, otpValue);
+      const otpRecord = isTemporary
+        ? await otpModel.findByTempIdAndValue(identifier, otpValue)
+        : await otpModel.findByUserAndValue(identifier, otpValue);
 
       if (!otpRecord) {
-        // Check if any OTP exists for this user (might be expired)
-        const latestOtp = await otpModel.findLatestByUser(userId);
+        // Check if any OTP exists (might be expired)
+        const latestOtp = isTemporary
+          ? await otpModel.findLatestByTempId(identifier)
+          : await otpModel.findLatestByUser(identifier);
 
         if (latestOtp && new Date() > new Date(latestOtp.expires_at)) {
-          console.log(`⚠️  OTP expired for user: ${userId}`);
-          await this.deleteAllOtps(userId);
+          await this.deleteAllOtps(identifier);
           return {
             isValid: false,
             message: 'OTP has expired. Please request a new one.',
@@ -221,30 +155,10 @@ class OtpService {
         };
       }
 
-      // Double-check expiration
-      if (new Date() > new Date(otpRecord.expires_at)) {
-        console.log(`⚠️  OTP expired (double-check) for user: ${userId}`);
-        await this.deleteAllOtps(userId);
-        return {
-          isValid: false,
-          message: 'OTP has expired. Please request a new one.',
-        };
-      }
+      // OTP is valid - delete all OTPs for this identifier
+      await this.deleteAllOtps(identifier);
 
-      // Verify this is the latest OTP
-      const latestOtp = await otpModel.findLatestByUser(userId);
-
-      if (latestOtp && latestOtp.id !== otpRecord.id) {
-        return {
-          isValid: false,
-          message: 'This OTP is no longer valid. Please use the latest OTP sent to you.',
-        };
-      }
-
-      // OTP is valid - delete all OTPs for this user
-      await this.deleteAllOtps(userId);
-
-      console.log(`✅ OTP verified successfully for user: ${userId}`);
+      console.log(`✅ OTP verified successfully for: ${identifier}`);
       return {
         isValid: true,
         message: 'OTP verified successfully',
@@ -259,49 +173,42 @@ class OtpService {
   }
 
   /**
-   * Manual cleanup trigger
+   * Delete all OTPs for a specific identifier
    */
-  async manualCleanup(): Promise<{ success: boolean; deletedCount?: number; error?: string }> {
+  async deleteAllOtps(identifier: string): Promise<number> {
     try {
-      const deletedCount = await this.cleanupAllExpiredOtps();
-      console.log(`🧹 Manual cleanup completed. Deleted ${deletedCount} expired OTP(s)`);
-      return { success: true, deletedCount };
-    } catch (error: any) {
-      console.error('❌ Manual cleanup error:', error);
-      return { success: false, error: error.message };
-    }
-  }
+      const isTemporary = identifier.startsWith('temp_');
+      const deletedCount = isTemporary
+        ? await otpModel.deleteByTempId(identifier)
+        : await otpModel.deleteByUserId(identifier);
 
-  /**
-   * Get all OTPs (for debugging/admin purposes)
-   */
-  async getAllOtps(): Promise<any[]> {
-    try {
-      const otps = await otpModel.findAll();
-      const now = new Date();
+      if (deletedCount > 0) {
+        console.log(`🗑️  Deleted ${deletedCount} OTP(s) for: ${identifier}`);
+        
+        if (this.cleanupTimers.has(identifier)) {
+          clearTimeout(this.cleanupTimers.get(identifier)!);
+          this.cleanupTimers.delete(identifier);
+        }
+      }
 
-      return otps.map((otp) => ({
-        ...otp,
-        isExpired: now > new Date(otp.expires_at),
-        timeUntilExpiry:
-          new Date(otp.expires_at) > now
-            ? Math.round((new Date(otp.expires_at).getTime() - now.getTime()) / 1000) + ' seconds'
-            : 'expired',
-      }));
+      return deletedCount;
     } catch (error) {
-      console.error('❌ Error getting all OTPs:', error);
-      return [];
+      console.error('❌ Error deleting all OTPs:', error);
+      return 0;
     }
   }
 
   /**
-   * Get cleanup status
+   * Cleanup all expired OTPs from database
    */
-  getCleanupStatus(): { activeTimers: number; userIds: string[] } {
-    return {
-      activeTimers: this.cleanupTimers.size,
-      userIds: Array.from(this.cleanupTimers.keys()),
-    };
+  async cleanupAllExpiredOtps(): Promise<number> {
+    try {
+      const deletedCount = await otpModel.deleteAllExpired();
+      return deletedCount;
+    } catch (error) {
+      console.error('❌ Error in cleanupAllExpiredOtps:', error);
+      return 0;
+    }
   }
 
   /**
@@ -310,13 +217,11 @@ class OtpService {
   cleanup(): void {
     console.log('🧹 Cleaning up OTP service...');
     
-    // Clear all timers
-    for (const [userId, timer] of this.cleanupTimers.entries()) {
+    for (const [identifier, timer] of this.cleanupTimers.entries()) {
       clearTimeout(timer);
     }
     this.cleanupTimers.clear();
 
-    // Clear periodic cleanup interval
     if (this.cleanupIntervalId) {
       clearInterval(this.cleanupIntervalId);
       this.cleanupIntervalId = undefined;
@@ -326,5 +231,4 @@ class OtpService {
     console.log('✅ OTP service cleanup completed');
   }
 }
-
 export default new OtpService();

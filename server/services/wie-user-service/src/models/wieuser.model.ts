@@ -1,12 +1,19 @@
-import db from '../config/db';
+import { PrismaClient } from '../generated/prisma';
+
+const prisma = new PrismaClient();
+
 export interface WieUser {
   id: string;
-  email?: string;
-  contact_no?: string;
+  email?: string | null;
+  contact_no?: string | null;
   password: string;
-  name: string;
-  profile_picture?: string;
+  name?: string | null;  // Made nullable
+  username?: string | null;
+  profile_picture?: string | null;
+  country_id?: string | null;
   role: string;
+  status: string;
+  bio?: string | null;
   is_blocked: boolean;
   is_verified: boolean;
   created_at: Date;
@@ -17,99 +24,150 @@ export interface CreateUserInput {
   email?: string;
   contact_no?: string;
   password: string;
-  name: string;
+  name?: string;  // Made optional
+  username?: string;
   profile_picture?: string;
+  country_id?: string;
 }
+
+// Helper function to convert Prisma camelCase to snake_case
+const toDatabaseFormat = (user: any): WieUser => {
+  return {
+    id: user.id,
+    email: user.email,
+    contact_no: user.contactNo,
+    password: user.password,
+    name: user.name,
+    username: user.username,
+    profile_picture: user.profilePicture,
+    country_id: user.countryId,
+    role: user.role,
+    status: user.status,
+    bio: user.bio,
+    is_blocked: user.isBlocked,
+    is_verified: user.isVerified,
+    created_at: user.createdAt,
+    updated_at: user.updatedAt,
+  };
+};
 
 class WieUserModel {
   async create(userData: CreateUserInput): Promise<WieUser> {
-    const query = `
-      INSERT INTO wie_users (email, contact_no, password, name, profile_picture)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING *
-    `;
-    
-    const values = [
-      userData.email || null,
-      userData.contact_no || null,
-      userData.password,
-      userData.name,
-      userData.profile_picture || null,
-    ];
-
-    const result = await db.query(query, values);
-    return result.rows[0];
+    const user = await prisma.wieUser.create({
+      data: {
+        email: userData.email || null,
+        contactNo: userData.contact_no || null,
+        password: userData.password,
+        name: userData.name || null,  // Can be null
+        username: userData.username || null,
+        profilePicture: userData.profile_picture || null,
+        countryId: userData.country_id || null,
+        status: 'pending',
+      },
+    });
+    return toDatabaseFormat(user);
   }
 
   async findByEmail(email: string): Promise<WieUser | null> {
-    const query = 'SELECT * FROM wie_users WHERE email = $1';
-    const result = await db.query(query, [email]);
-    return result.rows[0] || null;
+    const user = await prisma.wieUser.findUnique({
+      where: { email },
+    });
+    return user ? toDatabaseFormat(user) : null;
   }
 
   async findByContactNo(contact_no: string): Promise<WieUser | null> {
-    const query = 'SELECT * FROM wie_users WHERE contact_no = $1';
-    const result = await db.query(query, [contact_no]);
-    return result.rows[0] || null;
+    const user = await prisma.wieUser.findUnique({
+      where: { contactNo: contact_no },
+    });
+    return user ? toDatabaseFormat(user) : null;
+  }
+
+  async findByUsername(username: string): Promise<WieUser | null> {
+    const user = await prisma.wieUser.findUnique({
+      where: { username },
+    });
+    return user ? toDatabaseFormat(user) : null;
   }
 
   async findById(id: string): Promise<WieUser | null> {
-    const query = 'SELECT * FROM wie_users WHERE id = $1';
-    const result = await db.query(query, [id]);
-    return result.rows[0] || null;
+    const user = await prisma.wieUser.findUnique({
+      where: { id },
+    });
+    return user ? toDatabaseFormat(user) : null;
   }
 
   async findByEmailOrContactNo(identifier: string): Promise<WieUser | null> {
-    const query = 'SELECT * FROM wie_users WHERE email = $1 OR contact_no = $1';
-    const result = await db.query(query, [identifier]);
-    return result.rows[0] || null;
-  }
-
-  async updateVerificationStatus(id: string, isVerified: boolean): Promise<void> {
-    const query = `
-      UPDATE wie_users 
-      SET is_verified = $1, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = $2
-    `;
-    await db.query(query, [isVerified, id]);
-  }
-
-  async updateProfile(id: string, updates: Partial<WieUser>): Promise<WieUser> {
-    const allowedFields = ['name', 'profile_picture', 'email', 'contact_no'];
-    const setClauses: string[] = [];
-    const values: any[] = [];
-    let paramIndex = 1;
-
-    Object.entries(updates).forEach(([key, value]) => {
-      if (allowedFields.includes(key)) {
-        setClauses.push(`${key} = $${paramIndex}`);
-        values.push(value);
-        paramIndex++;
-      }
+    const user = await prisma.wieUser.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { contactNo: identifier },
+        ],
+      },
     });
+    return user ? toDatabaseFormat(user) : null;
+  }
 
-    if (setClauses.length === 0) {
-      throw new Error('No valid fields to update');
-    }
+  async updateVerificationStatus(id: string, is_verified: boolean): Promise<WieUser> {
+    const user = await prisma.wieUser.update({
+      where: { id },
+      data: { 
+        isVerified: is_verified,
+        status: is_verified ? 'active' : 'pending',
+      },
+    });
+    return toDatabaseFormat(user);
+  }
 
-    setClauses.push(`updated_at = CURRENT_TIMESTAMP`);
-    values.push(id);
-
-    const query = `
-      UPDATE wie_users 
-      SET ${setClauses.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING *
-    `;
-
-    const result = await db.query(query, values);
-    return result.rows[0];
+  async updateProfile(id: string, updates: {
+    name?: string;
+    profile_picture?: string;
+    email?: string;
+    contact_no?: string;
+    username?: string;
+    country_id?: string;
+    bio?: string;
+  }): Promise<WieUser> {
+    const user = await prisma.wieUser.update({
+      where: { id },
+      data: {
+        name: updates.name,
+        profilePicture: updates.profile_picture,
+        email: updates.email,
+        contactNo: updates.contact_no,
+        username: updates.username,
+        countryId: updates.country_id,
+        bio: updates.bio,
+      },
+    });
+    return toDatabaseFormat(user);
   }
 
   async deleteUser(id: string): Promise<void> {
-    const query = 'DELETE FROM wie_users WHERE id = $1';
-    await db.query(query, [id]);
+    await prisma.wieUser.delete({
+      where: { id },
+    });
+  }
+
+  // Delete unverified users older than specified minutes
+  async deleteUnverifiedUsers(olderThanMinutes: number): Promise<number> {
+    const cutoffDate = new Date(Date.now() - olderThanMinutes * 60000);
+    
+    const result = await prisma.wieUser.deleteMany({
+      where: {
+        isVerified: false,
+        status: 'pending',
+        createdAt: {
+          lt: cutoffDate,
+        },
+      },
+    });
+    
+    return result.count;
+  }
+
+  async disconnect(): Promise<void> {
+    await prisma.$disconnect();
   }
 }
-
 export default new WieUserModel();

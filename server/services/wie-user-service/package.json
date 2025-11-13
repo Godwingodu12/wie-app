@@ -2,13 +2,19 @@
   "name": "wie-user-service",
   "version": "1.0.0",
   "type": "module",
-	"scripts": {
-		"dev": "nodemon --exec tsx src/index.ts",
-		"build": "tsc",
-		"start": "node dist/index.js",
-		"migrate": "tsx src/migrate.ts",
-		"migrate:reset": "tsx src/migrate.ts"
-	},
+  "scripts": {
+    "dev": "nodemon --exec tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate:generate": "prisma migrate generate",
+    "prisma:migrate:reset": "prisma migrate reset",
+    "prisma:studio": "prisma studio",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts"
+  },
   "dependencies": {
     "@prisma/client": "^6.19.0",
     "amqplib": "^0.10.9",
@@ -30,7 +36,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.25",
     "@types/nodemailer": "^6.4.14",
     "@types/pg": "^8.10.9",

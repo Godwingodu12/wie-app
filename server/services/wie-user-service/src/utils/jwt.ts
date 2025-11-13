@@ -1,35 +1,43 @@
 import jwt from 'jsonwebtoken';
-import { WieUser } from '../models/wieuser.model.js';
+import { WieUser } from '../models/wieuser.model';
 
-interface TokenPayload {
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+
+export interface TokenPayload {
   id: string;
+  email?: string | null;
+  contact_no?: string | null;
+  name?: string | null;
   role: string;
-  isBlocked: boolean;
 }
 
 export const generateToken = (user: WieUser): string => {
-  return jwt.sign(
-    { 
-      id: user.id, 
-      role: user.role, 
-      isBlocked: user.is_blocked 
-    },
-    process.env.JWT_SECRET || 'supersecretkey',
-    { expiresIn: '1d' }
-  );
+  const payload: TokenPayload = {
+    id: user.id,
+    email: user.email,
+    contact_no: user.contact_no,
+    name: user.name,
+    role: user.role,
+  };
+
+  // @ts-ignore - Ignore TypeScript error for expiresIn
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 };
 
-export const verifyResetToken = (token: string): TokenPayload => {
+export const verifyToken = (token: string): TokenPayload => {
   try {
-    console.log('Verifying token:', token);
-    const decoded = jwt.verify(
-      token, 
-      process.env.JWT_SECRET || 'supersecretkey'
-    ) as TokenPayload;
-    console.log('Token decoded successfully:', decoded);
-    return decoded;
+    // @ts-ignore
+    return jwt.verify(token, JWT_SECRET) as TokenPayload;
   } catch (error) {
-    console.error('Token verification failed:', error);
-    throw error;
+    throw new Error('Invalid or expired token');
+  }
+};
+
+export const decodeToken = (token: string): TokenPayload | null => {
+  try {
+    return jwt.decode(token) as TokenPayload;
+  } catch (error) {
+    return null;
   }
 };
