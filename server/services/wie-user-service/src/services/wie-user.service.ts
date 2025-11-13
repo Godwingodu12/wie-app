@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import WIEUSER from '../models/wieuser.model';
+import COUNTRY from '../models/country.model';
 import { hashPassword, comparePassword } from '../utils/hash';
 import { generateToken } from '../utils/jwt';
 import otpService from '../reposetory/otp';
@@ -12,21 +13,50 @@ import {
   validatePassword,
   validateName,
 } from '../utils/validation.js';
+
 // Store temporary signup data in memory (in production, use Redis)
 const tempUserStore = new Map<string, any>();
+
+// Auto-delete unverified users after 15 minutes
+const UNVERIFIED_USER_EXPIRY_MINUTES = 15;
+
+// Start periodic cleanup of unverified users
+setInterval(async () => {
+  try {
+    const deletedCount = await WIEUSER.deleteUnverifiedUsers(UNVERIFIED_USER_EXPIRY_MINUTES);
+    if (deletedCount > 0) {
+      console.log(`🧹 Auto-cleanup: Deleted ${deletedCount} unverified user(s)`);
+    }
+  } catch (error) {
+    console.error('❌ Error in unverified users cleanup:', error);
+  }
+}, 5 * 60 * 1000); // Run every 5 minutes
+
 export const index = (req: Request, res: Response): void => {
   res.json({ message: 'Welcome to the WIE User Service' });
 };
+
+export const getCountries = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const countries = await COUNTRY.findAll();
+    res.status(200).json({
+      success: true,
+      data: countries,
+    });
+  } catch (error: any) {
+    console.error('Get countries error:', error);
+    res.status(500).json({ message: 'Failed to fetch countries', error: error.message });
+  }
+};
+
+/**
+ * Step 1: Send OTP - Only requires email/contact_no, password, and country
+ */
 export const signupSendOtp = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, contact_no, name, password } = req.body;
+    const { email, contact_no, password, country_id } = req.body;
 
     // Validation
-    if (!name || !validateName(name)) {
-      res.status(400).json({ message: 'Name must be at least 2 characters' });
-      return;
-    }
-
     if (!password || !validatePassword(password)) {
       res.status(400).json({ message: 'Password must be at least 6 characters' });
       return;
@@ -44,6 +74,18 @@ export const signupSendOtp = async (req: Request, res: Response): Promise<void> 
 
     if (contact_no && !validateContactNo(contact_no)) {
       res.status(400).json({ message: 'Invalid contact number format' });
+      return;
+    }
+
+    // Validate country (required)
+    if (!country_id) {
+      res.status(400).json({ message: 'Country is required' });
+      return;
+    }
+
+    const country = await COUNTRY.findById(country_id);
+    if (!country) {
+      res.status(400).json({ message: 'Invalid country selected' });
       return;
     }
 
@@ -73,19 +115,20 @@ export const signupSendOtp = async (req: Request, res: Response): Promise<void> 
     tempUserStore.set(tempUserId, {
       email: email || null,
       contact_no: contact_no || null,
-      name,
       hashedPassword,
+      country_id: country_id,
       createdAt: Date.now(),
     });
 
     // Clean up after 15 minutes
     setTimeout(() => {
       tempUserStore.delete(tempUserId);
+      console.log(`⏰ Temp user data expired: ${tempUserId}`);
     }, 15 * 60 * 1000);
 
     // Generate and send OTP
     const otp = generateOtp();
-    await otpService.insertOTP(tempUserId, otp, 5); // 5 minutes expiration
+    await otpService.insertOTP(tempUserId, otp, 5, 'signup'); // 5 minutes expiration
 
     if (email) {
       await sendEmail(email, otp);
@@ -100,19 +143,26 @@ export const signupSendOtp = async (req: Request, res: Response): Promise<void> 
     res.status(200).json({
       message: 'OTP sent successfully',
       tempUserId,
-      // Don't send userData back for security
+      expiresIn: '5 minutes',
     });
   } catch (error: any) {
     console.error('Signup OTP error:', error);
     res.status(500).json({ message: 'Failed to send OTP', error: error.message });
   }
 };
+
 export const signupVerifyOtp = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { tempUserId, otp } = req.body;
+    const { tempUserId, otp, name } = req.body;
 
     if (!tempUserId || !otp) {
       res.status(400).json({ message: 'Temporary user ID and OTP are required' });
+      return;
+    }
+
+    // Validate name only if provided
+    if (name && !validateName(name)) {
+      res.status(400).json({ message: 'Name must be at least 2 characters' });
       return;
     }
 
@@ -134,19 +184,21 @@ export const signupVerifyOtp = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Create user
+    // Create user (name is optional)
     const newUser = await WIEUSER.create({
       email: userData.email || undefined,
       contact_no: userData.contact_no || undefined,
-      name: userData.name,
+      name: name || undefined,  // Optional now
       password: userData.hashedPassword,
+      country_id: userData.country_id,
     });
 
-    // Mark as verified
+    // Mark as verified and set status to active
     await WIEUSER.updateVerificationStatus(newUser.id, true);
 
     // Clean up temporary data
     tempUserStore.delete(tempUserId);
+    console.log(`✅ User registered and temp data cleaned: ${tempUserId}`);
 
     // Generate token
     const token = generateToken(newUser);
@@ -159,7 +211,15 @@ export const signupVerifyOtp = async (req: Request, res: Response): Promise<void
         email: newUser.email,
         contact_no: newUser.contact_no,
         name: newUser.name,
+        username: newUser.username,
+        profile_picture: newUser.profile_picture,
+        country_id: newUser.country_id,
         role: newUser.role,
+        status: newUser.status,
+        is_blocked: newUser.is_blocked,
+        is_verified: newUser.is_verified,
+        created_at: newUser.created_at,
+        updated_at: newUser.updated_at,
       },
     });
   } catch (error: any) {
@@ -169,7 +229,7 @@ export const signupVerifyOtp = async (req: Request, res: Response): Promise<void
 };
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { identifier, password } = req.body; // identifier can be email or contact_no
+    const { identifier, password } = req.body;
 
     if (!identifier || !password) {
       res.status(400).json({ message: 'Email/Contact number and password are required' });
@@ -218,9 +278,15 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         email: user.email,
         contact_no: user.contact_no,
         name: user.name,
-        role: user.role,
+        username: user.username,
         profile_picture: user.profile_picture,
+        country_id: user.country_id,
+        role: user.role,
+        status: user.status,
+        is_blocked: user.is_blocked,
         is_verified: user.is_verified,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
       },
     });
   } catch (error: any) {
@@ -228,6 +294,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ message: 'Login failed', error: error.message });
   }
 };
+
 export const resendOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { userId } = req.body; // Can be tempUserId or real userId
@@ -239,9 +306,11 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
 
     let email = null;
     let contact_no = null;
+    let isTemp = false;
 
     // Check if it's a temporary user ID (for signup)
     if (userId.startsWith('temp_')) {
+      isTemp = true;
       const userData = tempUserStore.get(userId);
       
       if (!userData) {
@@ -254,7 +323,7 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
       email = userData.email;
       contact_no = userData.contact_no;
     } else {
-      // Real user (for login)
+      // Real user (for login or re-verification)
       const user = await WIEUSER.findById(userId);
       
       if (!user) {
@@ -268,7 +337,7 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
 
     // Generate and send new OTP
     const otp = generateOtp();
-    await otpService.insertOTP(userId, otp, 5);
+    await otpService.insertOTP(userId, otp, 5, isTemp ? 'signup' : 'login');
 
     if (email) {
       await sendEmail(email, otp);
@@ -280,9 +349,95 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
       console.log(`✅ OTP resent to contact: ${contact_no}`);
     }
 
-    res.status(200).json({ message: 'OTP resent successfully' });
+    res.status(200).json({ 
+      message: 'OTP resent successfully',
+      expiresIn: '5 minutes'
+    });
   } catch (error: any) {
     console.error('Resend OTP error:', error);
     res.status(500).json({ message: 'Failed to resend OTP', error: error.message });
+  }
+};
+
+export const updateProfile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const { name, username, country_id, bio, profile_picture } = req.body;
+
+    // Validate country if provided
+    if (country_id) {
+      const country = await COUNTRY.findById(country_id);
+      if (!country) {
+        res.status(400).json({ message: 'Invalid country selected' });
+        return;
+      }
+    }
+
+    const updatedUser = await WIEUSER.updateProfile(userId, {
+      name,
+      username,
+      country_id,
+      bio,
+      profile_picture,
+    });
+
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        contact_no: updatedUser.contact_no,
+        name: updatedUser.name,
+        username: updatedUser.username,
+        profile_picture: updatedUser.profile_picture,
+        country_id: updatedUser.country_id,
+        bio: updatedUser.bio,
+        role: updatedUser.role,
+        status: updatedUser.status,
+        is_blocked: updatedUser.is_blocked,
+        is_verified: updatedUser.is_verified,
+        created_at: updatedUser.created_at,
+        updated_at: updatedUser.updated_at,
+      },
+    });
+  } catch (error: any) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: 'Failed to update profile', error: error.message });
+  }
+};
+
+export const getProfile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+
+    const user = await WIEUSER.findById(userId);
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        contact_no: user.contact_no,
+        name: user.name,
+        username: user.username,
+        profile_picture: user.profile_picture,
+        country_id: user.country_id,
+        bio: user.bio,
+        role: user.role,
+        status: user.status,
+        is_blocked: user.is_blocked,
+        is_verified: user.is_verified,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ message: 'Failed to get profile', error: error.message });
   }
 };
