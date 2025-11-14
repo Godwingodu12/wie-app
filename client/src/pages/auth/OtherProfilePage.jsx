@@ -247,25 +247,25 @@ const OtherProfilePage = () => {
       fetchActiveUsers();
     }
   }, [userId, currentUser]);
-useEffect(() => {
-  const fetchUser = async () => {
-    try {
-      const userData = await getUserData(); // Now this is the user object directly
-      setUser(userData);
-      if (userData.image) {
-        const imageUrl = getImageUrl(userData.image, "auth");
-        setUserImage(imageUrl);
-        sessionStorage.setItem("userImage", imageUrl);
-      } else {
-        setUserImage(null);
-        sessionStorage.removeItem("userImage");
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const userData = await getUserData(); // Now this is the user object directly
+        setUser(userData);
+        if (userData.image) {
+          const imageUrl = getImageUrl(userData.image, "auth");
+          setUserImage(imageUrl);
+          sessionStorage.setItem("userImage", imageUrl);
+        } else {
+          setUserImage(null);
+          sessionStorage.removeItem("userImage");
+        }
+      } catch (err) {
+        console.error("Failed to fetch user", err);
       }
-    } catch (err) {
-      console.error("Failed to fetch user", err);
-    }
-  };
-  fetchUser();
-}, []);
+    };
+    fetchUser();
+  }, []);
   // Update arrow visibility
   useEffect(() => {
     const checkScrollArrows = () => {
@@ -850,7 +850,7 @@ useEffect(() => {
                         <div className="flex items-center gap-4">
                           {/* Profile Image */}
                           <img
-                            src={userImage || ProfileImage}
+                            src={getImageUrl(profileUser.image, 'auth') || ProfileImage}
                             alt="Profile"
                             className={`w-24 h-24 rounded-full object-cover border-2 flex-shrink-0 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
                           />
@@ -1077,7 +1077,7 @@ useEffect(() => {
                           <div className="flex flex-col">
                             <div className="relative mb-4">
                               <img
-                                src={suggestedUser.image? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}`: ProfileImage}
+                                src={getImageUrl(suggestedUser.image, 'auth') || ProfileImage}
                                 alt={suggestedUser.name}
                                 className="w-full h-[120px] md:h-[160px] object-cover rounded-2xl"
                               />
