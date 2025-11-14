@@ -6,8 +6,8 @@ export interface WieUser {
   id: string;
   email?: string | null;
   contact_no?: string | null;
-  password: string;
-  name?: string | null;  // Made nullable
+  password?: string | null;  // Made nullable for OAuth
+  name?: string | null;
   username?: string | null;
   profile_picture?: string | null;
   country_id?: string | null;
@@ -16,6 +16,8 @@ export interface WieUser {
   bio?: string | null;
   is_blocked: boolean;
   is_verified: boolean;
+  google_id?: string | null;  // NEW
+  auth_provider: string;  // NEW
   created_at: Date;
   updated_at: Date;
 }
@@ -23,11 +25,13 @@ export interface WieUser {
 export interface CreateUserInput {
   email?: string;
   contact_no?: string;
-  password: string;
-  name?: string;  // Made optional
+  password?: string;  // Made optional for OAuth
+  name?: string;
   username?: string;
   profile_picture?: string;
   country_id?: string;
+  google_id?: string;  // NEW
+  auth_provider?: string;  // NEW
 }
 
 // Helper function to convert Prisma camelCase to snake_case
@@ -46,6 +50,8 @@ const toDatabaseFormat = (user: any): WieUser => {
     bio: user.bio,
     is_blocked: user.isBlocked,
     is_verified: user.isVerified,
+    google_id: user.googleId,  // NEW
+    auth_provider: user.authProvider,  // NEW
     created_at: user.createdAt,
     updated_at: user.updatedAt,
   };
@@ -57,12 +63,15 @@ class WieUserModel {
       data: {
         email: userData.email || null,
         contactNo: userData.contact_no || null,
-        password: userData.password,
-        name: userData.name || null,  // Can be null
+        password: userData.password || null,
+        name: userData.name || null,
         username: userData.username || null,
         profilePicture: userData.profile_picture || null,
         countryId: userData.country_id || null,
-        status: 'pending',
+        googleId: userData.google_id || null,  // NEW
+        authProvider: userData.auth_provider || 'local',  // NEW
+        status: userData.auth_provider === 'google' ? 'active' : 'pending',  // Auto-activate Google users
+        isVerified: userData.auth_provider === 'google' ? true : false,  // Auto-verify Google users
       },
     });
     return toDatabaseFormat(user);
@@ -92,6 +101,13 @@ class WieUserModel {
   async findById(id: string): Promise<WieUser | null> {
     const user = await prisma.wieUser.findUnique({
       where: { id },
+    });
+    return user ? toDatabaseFormat(user) : null;
+  }
+
+  async findByGoogleId(google_id: string): Promise<WieUser | null> {  // NEW
+    const user = await prisma.wieUser.findUnique({
+      where: { googleId: google_id },
     });
     return user ? toDatabaseFormat(user) : null;
   }
@@ -170,4 +186,5 @@ class WieUserModel {
     await prisma.$disconnect();
   }
 }
+
 export default new WieUserModel();

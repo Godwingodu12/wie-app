@@ -7,19 +7,18 @@ import otpService from '../reposetory/otp';
 import { generateOtp } from '../utils/otp';
 import { sendEmail } from '../utils/sendMail';
 import { sendSMSOTP } from '../utils/sendSMS';
+import { isLocalAuthUser } from '../utils/password';
+import { getGoogleAuthUrl, getGoogleUserInfo } from '../utils/google-oauth';
 import {
   validateEmail,
   validateContactNo,
   validatePassword,
   validateName,
 } from '../utils/validation.js';
-
 // Store temporary signup data in memory (in production, use Redis)
 const tempUserStore = new Map<string, any>();
-
 // Auto-delete unverified users after 15 minutes
 const UNVERIFIED_USER_EXPIRY_MINUTES = 15;
-
 // Start periodic cleanup of unverified users
 setInterval(async () => {
   try {
@@ -48,10 +47,6 @@ export const getCountries = async (req: Request, res: Response): Promise<void> =
     res.status(500).json({ message: 'Failed to fetch countries', error: error.message });
   }
 };
-
-/**
- * Step 1: Send OTP - Only requires email/contact_no, password, and country
- */
 export const signupSendOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, contact_no, password, country_id } = req.body;
@@ -139,7 +134,6 @@ export const signupSendOtp = async (req: Request, res: Response): Promise<void> 
       await sendSMSOTP(contact_no, otp);
       console.log(`✅ OTP sent to contact: ${contact_no}`);
     }
-
     res.status(200).json({
       message: 'OTP sent successfully',
       tempUserId,
@@ -150,7 +144,6 @@ export const signupSendOtp = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ message: 'Failed to send OTP', error: error.message });
   }
 };
-
 export const signupVerifyOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { tempUserId, otp, name } = req.body;
@@ -227,6 +220,102 @@ export const signupVerifyOtp = async (req: Request, res: Response): Promise<void
     res.status(500).json({ message: 'Registration failed', error: error.message });
   }
 };
+export const googleAuth = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authUrl = getGoogleAuthUrl();
+    res.status(200).json({
+      success: true,
+      message: 'Google OAuth URL generated',
+      data: { authUrl },
+    });
+  } catch (error: any) {
+    console.error('Google Auth Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate Google OAuth URL',
+      error: error.message,
+    });
+  }
+};
+export const googleCallback = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { code } = req.query;
+
+    if (!code || typeof code !== 'string') {
+      res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Authorization code is required')}`);
+      return;
+    }
+
+    // Get user info from Google
+    const googleUser = await getGoogleUserInfo(code);
+
+    if (!googleUser.verified_email) {
+      res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Google email is not verified')}`);
+      return;
+    }
+
+    // Check if user exists
+    let user = await WIEUSER.findByGoogleId(googleUser.id);
+
+    if (!user) {
+      // Check if email already exists with different auth provider
+      const existingUser = await WIEUSER.findByEmail(googleUser.email);
+      
+      if (existingUser && existingUser.auth_provider !== 'google') {
+        res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('An account with this email already exists. Please login with your email/phone and password.')}`);
+        return;
+      }
+
+      // Create new user
+      user = await WIEUSER.create({
+        email: googleUser.email,
+        name: googleUser.name,
+        profile_picture: googleUser.picture,
+        google_id: googleUser.id,
+        auth_provider: 'google',
+        password: undefined,
+      });
+    } else {
+      // Update existing user's profile picture if changed
+      if (googleUser.picture && user.profile_picture !== googleUser.picture) {
+        user = await WIEUSER.updateProfile(user.id, {
+          profile_picture: googleUser.picture,
+        });
+      }
+    }
+
+    // Check if user is blocked
+    if (user.is_blocked) {
+      res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Your account has been blocked. Please contact support.')}`);
+      return;
+    }
+
+    // Generate JWT token
+    const token = generateToken(user);
+
+    // Prepare user data
+    const userData = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      username: user.username,
+      profile_picture: user.profile_picture,
+      role: user.role,
+      status: user.status,
+      is_verified: user.is_verified,
+      auth_provider: user.auth_provider,
+    };
+
+    // Encode data for URL
+    const encodedUser = encodeURIComponent(JSON.stringify(userData));
+
+    // IMPORTANT: Use res.redirect() instead of res.json()
+    res.redirect(`${process.env.CORS_ORIGIN}/auth/google/callback?token=${token}&user=${encodedUser}`);
+  } catch (error: any) {
+    console.error('Google Callback Error:', error);
+    res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Google authentication failed')}`);
+  }
+};
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { identifier, password } = req.body;
@@ -235,30 +324,30 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ message: 'Email/Contact number and password are required' });
       return;
     }
-
-    // Find user by email or contact number
     const user = await WIEUSER.findByEmailOrContactNo(identifier);
-
     if (!user) {
       res.status(401).json({ message: 'Invalid credentials' });
       return;
     }
-
-    // Verify password
+    // Check if user has local authentication (password-based)
+    if (!isLocalAuthUser(user.password)) {
+      res.status(400).json({ 
+        message: user.auth_provider === 'google' 
+          ? 'This account uses Google Sign-In. Please login with Google.'
+          : 'Invalid authentication method for this account.',
+        auth_provider: user.auth_provider
+      });
+      return;
+    }
     const isPasswordValid = await comparePassword(password, user.password);
-
     if (!isPasswordValid) {
       res.status(401).json({ message: 'Invalid credentials' });
       return;
     }
-
-    // Check if user is blocked
     if (user.is_blocked) {
       res.status(403).json({ message: 'Your account has been blocked' });
       return;
     }
-
-    // Check if user is verified
     if (!user.is_verified) {
       res.status(403).json({ 
         message: 'Please verify your account first',
@@ -266,10 +355,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       });
       return;
     }
-
-    // Generate token
     const token = generateToken(user);
-
     res.status(200).json({
       message: 'Login successful',
       token,
@@ -285,6 +371,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         status: user.status,
         is_blocked: user.is_blocked,
         is_verified: user.is_verified,
+        auth_provider: user.auth_provider,
         created_at: user.created_at,
         updated_at: user.updated_at,
       },
@@ -294,7 +381,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ message: 'Login failed', error: error.message });
   }
 };
-
 export const resendOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { userId } = req.body; // Can be tempUserId or real userId
@@ -358,13 +444,14 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ message: 'Failed to resend OTP', error: error.message });
   }
 };
-
 export const updateProfile = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { userId } = req.params;
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized: User not authenticated' });
+      return;
+    }
+    const userId = req.user.id;
     const { name, username, country_id, bio, profile_picture } = req.body;
-
-    // Validate country if provided
     if (country_id) {
       const country = await COUNTRY.findById(country_id);
       if (!country) {
@@ -372,7 +459,6 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         return;
       }
     }
-
     const updatedUser = await WIEUSER.updateProfile(userId, {
       name,
       username,
@@ -380,7 +466,6 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       bio,
       profile_picture,
     });
-
     res.status(200).json({
       message: 'Profile updated successfully',
       user: {
@@ -405,18 +490,18 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ message: 'Failed to update profile', error: error.message });
   }
 };
-
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { userId } = req.params;
-
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized: User not authenticated' });
+      return;
+    }
+    const userId = req.user.id;
     const user = await WIEUSER.findById(userId);
-
     if (!user) {
       res.status(404).json({ message: 'User not found' });
       return;
     }
-
     res.status(200).json({
       success: true,
       user: {
