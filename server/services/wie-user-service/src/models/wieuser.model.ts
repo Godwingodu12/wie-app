@@ -1,5 +1,5 @@
 import { PrismaClient } from '../generated/prisma';
-
+import bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 export interface WieUser {
@@ -164,7 +164,20 @@ class WieUserModel {
       where: { id },
     });
   }
-
+  async updatePassword(id: string, newPassword: string): Promise<WieUser> {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const user = await prisma.wieUser.update({
+      where: { id },
+      data: { 
+        password: hashedPassword,
+        updatedAt: new Date(), // Explicitly update the timestamp
+      },
+    });
+    if (!user) {
+      throw new Error('Failed to update password');
+    }
+    return toDatabaseFormat(user);
+  }
   // Delete unverified users older than specified minutes
   async deleteUnverifiedUsers(olderThanMinutes: number): Promise<number> {
     const cutoffDate = new Date(Date.now() - olderThanMinutes * 60000);
