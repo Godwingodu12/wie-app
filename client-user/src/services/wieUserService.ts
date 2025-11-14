@@ -124,4 +124,38 @@ export const getGoogleAuthUrl = async (): Promise<string> => {
     throw err;
   }
 };
+// Forgot Password APIs
+export const forgotPassword = async (identifier: { email?: string; contact_no?: string }): Promise<ApiResponse> => {
+  try {
+    const res = await api.post<ApiResponse>('/user/forgot-password', identifier);
+    return res.data;
+  } catch (err) {
+    console.error('forgotPassword error:', err);
+    throw err;
+  }
+};
+export const verifyResetOTP = async (userId: string, otp: string): Promise<ApiResponse> => {
+  try {
+    const res = await api.post<ApiResponse>('/user/verify-reset-otp', {
+      userId,
+      otp,
+    });
+    return res.data;
+  } catch (err) {
+    console.error('verifyResetOTP error:', err);
+    throw err;
+  }
+};
+export const resetPassword = async (userId: string, newPassword: string): Promise<ApiResponse> => {
+  try {
+    const res = await api.post<ApiResponse>('/user/reset-password', {
+      userId,
+      newPassword,
+    });
+    return res.data;
+  } catch (err) {
+    console.error('resetPassword error:', err);
+    throw err;
+  }
+};
 

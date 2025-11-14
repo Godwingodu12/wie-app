@@ -526,3 +526,176 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
     res.status(500).json({ message: 'Failed to get profile', error: error.message });
   }
 };
+// Forgot Password - Send OTP
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, contact_no } = req.body;
+
+    // Validate input
+    if (!email && !contact_no) {
+      res.status(400).json({
+        success: false,
+        message: 'Please provide either email or contact number',
+      });
+      return;
+    }
+
+    // Find user by either email or contact_no
+    let user;
+    if (email) {
+      user = await WIEUSER.findByEmail(email);
+    } else if (contact_no) {
+      user = await WIEUSER.findByContactNo(contact_no);
+    }
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+      return;
+    }
+
+    // Check if user is blocked
+    if (user.is_blocked) {
+      res.status(403).json({
+        success: false,
+        message: 'Your account has been blocked. Please contact support.',
+      });
+      return;
+    }
+    // Generate OTP
+    const otp = generateOtp();
+    // Save OTP to database with 10 minute expiry
+    await otpService.insertOTP(user.id, otp, 10);
+    // Send OTP via email or SMS
+    if (email) {
+      await sendEmail(email, otp);
+    } else if (contact_no) {
+      await sendSMSOTP(contact_no, otp);
+    }
+    res.status(200).json({
+      success: true,
+      message: 'OTP sent successfully for password reset',
+      data: {
+        userId: user.id,
+      },
+    });
+  } catch (error: any) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process forgot password request',
+      error: error.message,
+    });
+  }
+};
+// Verify OTP for Password Reset
+export const verifyResetOTP = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId, otp } = req.body;
+    if (!userId || !otp) {
+      res.status(400).json({
+        success: false,
+        message: 'User ID and OTP are required',
+      });
+      return;
+    }
+    const user = await WIEUSER.findById(userId);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+      return;
+    }
+    const isValid = await otpService.verifyOtp(userId, otp);
+    if (!isValid) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid or expired OTP',
+      });
+      return;
+    }
+    // Generate temporary token for password reset using the actual user data
+    const resetToken = generateToken(user);
+    res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully',
+      data: {
+        resetToken,
+        userId,
+      },
+    });
+  } catch (error: any) {
+    console.error('Verify reset OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify OTP',
+      error: error.message,
+    });
+  }
+};
+// Reset Password
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId, newPassword } = req.body;
+
+    if (!userId || !newPassword) {
+      res.status(400).json({
+        success: false,
+        message: 'User ID and new password are required',
+      });
+      return;
+    }
+
+    // Validate password strength
+    if (newPassword.length < 6) {
+      res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long',
+      });
+      return;
+    }
+
+    // Find user
+    const user = await WIEUSER.findById(userId);
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+      return;
+    }
+    // Update password
+    const updatedUser = await WIEUSER.updatePassword(userId, newPassword);
+    // Generate new token
+    const token = generateToken(updatedUser);
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successfully',
+      data: {
+        token,
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          username: updatedUser.username,
+          profile_picture: updatedUser.profile_picture,
+          role: updatedUser.role,
+          status: updatedUser.status,
+          is_verified: updatedUser.is_verified,
+          auth_provider: updatedUser.auth_provider,
+        },
+      },
+    });
+  } catch (error: any) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reset password',
+      error: error.message,
+    });
+  }
+};

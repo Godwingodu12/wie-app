@@ -25,21 +25,14 @@ class OtpService {
       if (initialCleanup > 0) {
         console.log(`🧹 Initial cleanup: Deleted ${initialCleanup} expired OTP(s)`);
       }
-
       // Start periodic cleanup every 1 minute
       this.startPeriodicCleanup();
-      
       this.isInitialized = true;
-      console.log('✅ OTP Service initialized successfully');
     } catch (error) {
       console.error('❌ Error initializing OTP service:', error);
       throw error;
     }
   }
-
-  /**
-   * Insert a new OTP for a user or temp ID
-   */
   async insertOTP(
     identifier: string, 
     otp: string, 
