@@ -2,7 +2,7 @@ import api from "./ticketAxiox";
 export const getUserData = async () => {
   try {
     const response = await api.get("ticket/get-user-data");
-    return response.data;
+    return response.data.user;
   } catch (error) {
     throw error;
   }
@@ -477,3 +477,4 @@ export const getPostalDetailsFromCoords = async (lat, lng) => {
     throw error;
   }
 };
+

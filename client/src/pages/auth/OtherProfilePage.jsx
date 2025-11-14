@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getMe } from "../../services/userService";
-import { getOtherProfile, findAllActiveUsers, followUser, unfollowUser, checkIsFollowing} from "../../services/authService";
+import { getUserData } from "../../services/ticketService";
+import { getOtherProfile, findAllActiveUsers, followUser, unfollowUser, checkIsFollowing, logout} from "../../services/authService";
 import { getOthersEvents, totalEventsCreatedCount } from "../../services/ticketService";
 import { getImageUrl } from "../../utils/imageUtils.js";
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
+import { useDispatch } from "react-redux";
+import { logoutSuccess } from "../../features/auth/authSlice.js";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import WieText from "../../assets/HomePage/WieText.svg";
 import ChatIcon from "../../assets/HomePage/ChatIcon.svg";
@@ -21,7 +23,7 @@ import LiveEventIcon from "../../assets/PROFILEPAGE/LiveEventIcon.svg";
 import LikeIcon from "../../assets/PROFILEPAGE/LikeIcon.svg";
 import SendIcon from "../../assets/PROFILEPAGE/SendIcon.svg";
 import RightArrowIcon from "../../assets/PROFILEPAGE/RightArrowIcon.svg"
-import HandBurgerIcon from "../../assets/PROFILEPAGE/HandburgerIcon.svg"
+import HandburgerIcon from "../../assets/PROFILEPAGE/HandburgerIcon.svg"
 import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
 import GroupIcon from "../../assets/PROFILEPAGE/GroupIcon.svg";
 
@@ -104,6 +106,7 @@ const CustomScrollbarStyles = () => (
 const OtherProfilePage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [currentUser, setCurrentUser] = useState(null);
   const [profileUser, setProfileUser] = useState(null);
   const [users, setUsers] = useState([]);
@@ -123,6 +126,8 @@ const OtherProfilePage = () => {
   const [followingMap, setFollowingMap] = useState({});
   const [followingStates, setFollowingStates] = useState({});
   const [eventCountsMap, setEventCountsMap] = useState({});
+  const [showMobileHamburgerMenu, setShowMobileHamburgerMenu] = useState(false);
+  const mobileHamburgerRef = useRef(null);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -136,8 +141,8 @@ const OtherProfilePage = () => {
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
-        const res = await getMe();
-        setCurrentUser(res.data);
+        const userData = await getUserData();
+        setCurrentUser(userData);
       } catch (err) {
         console.error("Failed to fetch current user", err);
       }
@@ -245,15 +250,15 @@ const OtherProfilePage = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await getMe();
-        setUser(res.data);
-        if (res.data.image) {
-            const imageUrl = getImageUrl(res.data.image, 'auth');
-            setUserImage(imageUrl);
-            sessionStorage.setItem('userImage', imageUrl);
+        const userData = await getUserData(); // Now this is the user object directly
+        setUser(userData);
+        if (userData.image) {
+          const imageUrl = getImageUrl(userData.image, "auth");
+          setUserImage(imageUrl);
+          sessionStorage.setItem("userImage", imageUrl);
         } else {
-            setUserImage(null);
-            sessionStorage.removeItem('userImage');
+          setUserImage(null);
+          sessionStorage.removeItem("userImage");
         }
       } catch (err) {
         console.error("Failed to fetch user", err);
@@ -356,7 +361,6 @@ const OtherProfilePage = () => {
         }));
 
         const response = await unfollowUser(userId);
-        console.log("Unfollow response", response);
       } else {
         // Optimistic update for follow
         setIsFollowing(true);
@@ -365,11 +369,8 @@ const OtherProfilePage = () => {
           followers: (originalCount + 1).toString(),
           followersCount: originalCount + 1,
         }));
-
         const response = await followUser(userId);
-        console.log("Follow response", response);
       }
-
       // Refresh profile data
       setTimeout(async () => {
         try {
@@ -378,7 +379,6 @@ const OtherProfilePage = () => {
             const userData = Array.isArray(refreshed.user) ? refreshed.user[0] : refreshed.user;
             setProfileUser(userData);
             setIsFollowing(userData.isFollowing === true);
-            console.log("Refreshed - isFollowing:", userData.isFollowing);
           }
         } catch (refreshErr) {
           console.error("Failed to refresh profile", refreshErr);
@@ -453,9 +453,7 @@ const OtherProfilePage = () => {
         }));
         
         // Make API call
-        const response = await unfollowUser(suggestedUserId);
-        console.log("Unfollow response:", response);
-        
+        const response = await unfollowUser(suggestedUserId);        
       } else {
         // FOLLOW FLOW
         // Optimistic update - update UI immediately
@@ -473,10 +471,8 @@ const OtherProfilePage = () => {
           }
           return u;
         }));
-        
         // Make API call
         const response = await followUser(suggestedUserId);
-        console.log("Follow response:", response);
       }
     } catch (err) {
       console.error('Error toggling follow status:', err);
@@ -556,6 +552,84 @@ const OtherProfilePage = () => {
     }
     handleCloseModal();
   };
+
+  const handleLogout = async () => {
+    try {
+      sessionStorage.removeItem("userData");
+      sessionStorage.removeItem("userImage");
+      await logout();
+    } catch (err) {
+      console.error("Logout failed", err);
+    } finally {
+      dispatch(logoutSuccess());
+      localStorage.clear();
+      navigate("/login");
+    }
+  };
+
+  const handleMobileHamburgerClick = () => {
+    setShowMobileHamburgerMenu(!showMobileHamburgerMenu);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        mobileHamburgerRef.current &&
+        !mobileHamburgerRef.current.contains(event.target)
+      ) {
+        setShowMobileHamburgerMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const HamburgerMenu = ({
+    isDesktop = false,
+    showMenu,
+    handleToggle,
+    menuRef,
+  }) => (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={handleToggle}
+        className={`${
+          isDesktop ? "p-2" : "p-2"
+        } rounded-full transition-colors duration-200 ${theme.buttonHoverBg}`}
+      >
+        <img
+          src={HandburgerIcon}
+          alt="Menu"
+          className={`${isDesktop ? "w-8 h-8" : "w-6 h-6"} ${
+            !isDark ? "filter brightness-0" : ""
+          }`}
+        />
+      </button>
+
+      {showMenu && (
+        <div
+          className={`absolute ${
+            isDesktop ? "right-0 top-12" : "right-0 top-10"
+          } z-50 ${theme.cardBg} rounded-lg ${theme.border} min-w-[150px] py-2`}
+          style={{ boxShadow: theme.smallCardShadow }}
+        >
+          <button
+            onClick={handleLogout}
+            className={`w-full text-left px-4 py-2 text-sm ${
+              theme.text
+            } hover:bg-red-50 hover:text-red-600 transition-colors duration-200 ${
+              isDark ? "hover:bg-red-900/20" : "hover:bg-red-50"
+            }`}
+          >
+            Logout
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   const handleSendMessage = () => {
     alert("Send message feature coming soon!");
@@ -726,7 +800,7 @@ const OtherProfilePage = () => {
         {/* Main Content */}
         <div className="flex flex-col flex-1 md:ml-20 lg:ml-20 overflow-x-hidden">
           {/* Top Header */}
-          <header className="flex items-center justify-between px-3 md:px-4 lg:px-6 w-full overflow-hidden" style={{ height: HEADER_HEIGHT }}>
+          <header className="flex items-center justify-between px-3 md:px-4 lg:px-6 w-full" style={{ height: HEADER_HEIGHT }}>
             {/* Mobile Header */}
             <div className="flex md:hidden items-center justify-between w-full">
               <div className="flex items-center gap-2">
@@ -734,7 +808,8 @@ const OtherProfilePage = () => {
                 <img src={WieText} alt="WIE" className="h-5 object-contain" />
               </div>
               <div className="flex items-center gap-3">
-                <button 
+                <button
+                  onClick={() => navigate("/message")}
                   style={{ 
                     boxShadow: isDark ? 'inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)' : 'inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)' 
                   }} 
@@ -742,6 +817,11 @@ const OtherProfilePage = () => {
                 >
                   <img src={ChatIcon} alt="chats" className={`w-6 h-6 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
                 </button>
+                <HamburgerMenu
+                  showMenu={showMobileHamburgerMenu}
+                  handleToggle={handleMobileHamburgerClick}
+                  menuRef={mobileHamburgerRef}
+                />
               </div>
             </div>
 
@@ -770,7 +850,7 @@ const OtherProfilePage = () => {
                         <div className="flex items-center gap-4">
                           {/* Profile Image */}
                           <img
-                            src={userImage || ProfileImage}
+                            src={getImageUrl(profileUser.image, 'auth') || ProfileImage}
                             alt="Profile"
                             className={`w-24 h-24 rounded-full object-cover border-2 flex-shrink-0 ${isDark ? 'border-gray-600' : 'border-gray-300'}`}
                           />
@@ -908,7 +988,7 @@ const OtherProfilePage = () => {
                         onClick={handleHandburgerClick}
                         className={`w-10 h-10 flex items-center justify-center ${theme.bg}`}
                       >
-                        <img src={HandBurgerIcon} alt="Menu" className={`w-10 h-10 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
+                        <img src={HandburgerIcon} alt="Menu" className={`w-10 h-10 ${isDark ? 'filter brightness-0 invert' : 'filter brightness-0'}`} />
                       </button>
                     </div>
                     {/* Stats */}
@@ -947,7 +1027,7 @@ const OtherProfilePage = () => {
                       <button className="w-full py-3.5 text-[#ed4956] font-semibold hover:bg-[#232526] transition text-center border-b border-[#363636]" onClick={handleReport}>Report</button>
                       <button className="w-full py-3.5 text-white font-normal hover:bg-[#232526] transition text-center border-b border-[#363636]" onClick={handleShare}>Share to...</button>
                       <button className="w-full py-3.5 text-white font-normal hover:bg-[#232526] transition text-center border-b border-[#363636]" onClick={handleSendMessage}>Send message</button>
-                      <button className="w-full py-3.5 text-white font-normal hover:bg-[#232526] transition text-center" onClick={handleCloseModal}>Cancel</button>
+                      <button className="w-full py-3.5 text-white font-normal hover:bg-[#232526] transition text-center hidden md:block" onClick={handleCloseModal}>Cancel</button>
                     </div>
                   </div>
                 )}
@@ -997,7 +1077,7 @@ const OtherProfilePage = () => {
                           <div className="flex flex-col">
                             <div className="relative mb-4">
                               <img
-                                src={suggestedUser.image? `${import.meta.env.VITE_AUTH_API_BASE_URL}/uploads/${suggestedUser.image}`: ProfileImage}
+                                src={getImageUrl(suggestedUser.image, 'auth') || ProfileImage}
                                 alt={suggestedUser.name}
                                 className="w-full h-[120px] md:h-[160px] object-cover rounded-2xl"
                               />
