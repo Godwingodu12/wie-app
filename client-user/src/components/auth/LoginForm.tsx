@@ -77,6 +77,14 @@ export const LoginForm: React.FC = () => {
           placeholder="Enter password"
           required
         />
+        <div className="flex justify-end">
+          <Link 
+            href="/forgot-password" 
+            className="text-sm text-blue-600 hover:underline"
+          >
+            Forgot Password?
+          </Link>
+        </div>
 
         {error && (
           <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
