@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
-import { getMe } from "../../services/userService";
+import { getUserData } from "../../services/ticketService";
 import { getImageUrl } from "../../utils/imageUtils.js";
 import { findAllActiveUsers, followUser, unfollowUser, checkIsFollowing } from "../../services/authService";
 import { totalEventsCreatedCount } from "../../services/ticketService";
@@ -58,27 +58,25 @@ const SuggestionsPage = () => {
     setIsDark(shouldBeDark);
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const res = await getMe();
-        setUser(res.data);
-        if (res.data.image) {
-            const imageUrl = getImageUrl(res.data.image, 'auth');
-            setUserImage(imageUrl);
-            sessionStorage.setItem('userImage', imageUrl);
-        } else {
-            setUserImage(null);
-            sessionStorage.removeItem('userImage');
-        }
-      } catch (err) {
-        console.error("Failed to fetch user", err);
+useEffect(() => {
+  const fetchUser = async () => {
+    try {
+      const userData = await getUserData(); // Now this is the user object directly
+      setUser(userData);
+      if (userData.image) {
+        const imageUrl = getImageUrl(userData.image, "auth");
+        setUserImage(imageUrl);
+        sessionStorage.setItem("userImage", imageUrl);
+      } else {
+        setUserImage(null);
+        sessionStorage.removeItem("userImage");
       }
-    };
-    fetchUser();
-  }, []);
-
+    } catch (err) {
+      console.error("Failed to fetch user", err);
+    }
+  };
+  fetchUser();
+}, []);
   useEffect(() => {
     const fetchActiveUsers = async () => {
       setLoading(true);
@@ -213,9 +211,7 @@ const SuggestionsPage = () => {
           followingCount: Math.max(0, parseInt(prev.followingCount || prev.following || 0) - 1)
         }));
         
-        const response = await unfollowUser(suggestedUserId);
-        console.log("Unfollow response:", response);
-        
+        const response = await unfollowUser(suggestedUserId);        
       } else {
         setFollowingMap(prev => ({ ...prev, [key]: true }));
         
@@ -250,7 +246,6 @@ const SuggestionsPage = () => {
         }));
         
         const response = await followUser(suggestedUserId);
-        console.log("Follow response:", response);
       }
     } catch (err) {
       console.error('Error toggling follow status:', err);
@@ -277,7 +272,7 @@ const SuggestionsPage = () => {
         
         setUsers(allUsers);
         
-        const userResponse = await getMe();
+        const userResponse = await getUserData();
         setUser(userResponse.data);
         
       } catch (rollbackErr) {
