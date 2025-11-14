@@ -9,8 +9,16 @@ dotenv.config();
 const app: Application = express();
 const PORT = process.env.PORT || 5005;
 
-// Middleware
-app.use(cors());
+// CORS Configuration - MUST BE BEFORE OTHER MIDDLEWARE
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  credentials: true,
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -22,8 +30,6 @@ async function startServer() {
   try {
     // Connect to database
     await db.connect();
-    console.log('✅ PostgreSQL connected (WIE User Service)');
-
     // Initialize OTP service
     await otpService.initialize();
 
