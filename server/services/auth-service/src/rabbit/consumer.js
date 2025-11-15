@@ -15,7 +15,7 @@ export const listenQueue = async (queueName, handler) => {
 
     await channel.prefetch(1); // Process one message at a time
 
-    channel.consume(queueName, async (msg) => {
+    await channel.consume(queueName, async (msg) => {
       if (!msg) return;
       
       const startTime = Date.now();
@@ -36,7 +36,7 @@ export const listenQueue = async (queueName, handler) => {
               correlationId: msg.properties.correlationId,
             }
           );
-          console.log(`✅ Processed ${queueName} in ${elapsedTime}ms`);
+          console.log(`✅ Processed ${queueName} in ${elapsedTime}ms, sent response`);
         }
 
         channel.ack(msg);
@@ -53,6 +53,7 @@ export const listenQueue = async (queueName, handler) => {
                 correlationId: msg.properties.correlationId,
               }
             );
+            console.log(`📤 Sent error response to ${msg.properties.replyTo}`);
           } catch (sendError) {
             console.error(`❌ Error sending error response:`, sendError);
           }
