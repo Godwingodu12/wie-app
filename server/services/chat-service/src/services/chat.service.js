@@ -1,15 +1,12 @@
 import Chat from '../models/chat.model.js';
 import { getUserFromAuthService, getFollowersFromAuthService } from '../rabbit/consumerConnections.js';
-import { getChannel, isChannelAvailable } from '../rabbit/connection.js';
+import { isChannelAvailable } from '../rabbit/connection.js';
 import { getIO, emitToChat } from '../socket/socket.js';
 // Get chat suggestions (followers)
 export const getChatSuggestions = async (req, res) => {
   try {
     // Extract userId from token - support both formats
-    const userId = req.user?.userId || req.user?.id;
-    
-    console.log('👤 Getting chat suggestions for user:', userId);
-    
+    const userId = req.user?.userId || req.user?.id;    
     if (!userId) {
       return res.status(400).json({
         success: false,
@@ -29,9 +26,6 @@ export const getChatSuggestions = async (req, res) => {
     try {
       // Get followers from auth-service
       const followersData = await getFollowersFromAuthService(userId);
-      
-      console.log('✅ Received followers data:', followersData);
-
       // Handle different response formats
       let followers = [];
       if (followersData?.followers) {
@@ -63,11 +57,8 @@ export const getChatSuggestions = async (req, res) => {
 // Search users for chat
 export const searchUsersForChat = async (req, res) => {
   try {
-    const userId = req.user?.userId || req.user?.id;
+    const userId = req.user?.userId || req.user?.id || req.user?._id;
     const { query } = req.query;
-
-    console.log('🔍 Searching users for:', query, 'by user:', userId);
-
     if (!query || query.trim().length === 0) {
       return res.status(400).json({
         success: false,
@@ -96,23 +87,34 @@ export const searchUsersForChat = async (req, res) => {
       const result = await getUserFromAuthService({
         action: 'search',
         query: query.trim(),
-        excludeUserId: userId
+        excludeUserId: userId.toString() // FIXED: Ensure it's a string
       });
-
-      console.log('✅ Search results received:', JSON.stringify(result));
-
-      // Handle different response formats
+      // FIXED: Handle different response formats
       let users = [];
-      if (result?.users) {
-        users = result.users;
-      } else if (Array.isArray(result)) {
+      
+      if (Array.isArray(result)) {
         users = result;
+      } else if (result?.users && Array.isArray(result.users)) {
+        users = result.users;
+      } else if (result?.data && Array.isArray(result.data)) {
+        users = result.data;
       }
+
+      // Format users to ensure consistent structure
+      const formattedUsers = users.map(user => ({
+        _id: user._id || user.id,
+        name: user.name,
+        email: user.email,
+        image: user.image,
+        organisation_type: user.organisation_type,
+        role: user.role,
+        bio: user.bio
+      }));
 
       return res.status(200).json({
         success: true,
-        users: users,
-        count: users.length
+        users: formattedUsers,
+        count: formattedUsers.length
       });
     } catch (rabbitError) {
       console.error('❌ RabbitMQ search error:', rabbitError);
@@ -327,7 +329,6 @@ export const sendMessage = async (req, res) => {
         message: savedMessage,
         sender: userId
       });
-      console.log('✅ Real-time message emitted to chat:', chatId);
     } catch (socketError) {
       console.error('⚠️ Socket emit failed:', socketError.message);
       // Continue even if socket fails
@@ -386,7 +387,6 @@ export const getChatMessages = async (req, res) => {
           userId,
           messageIds: readMessageIds
         });
-        console.log('✅ Read receipts emitted for chat:', chatId);
       } catch (socketError) {
         console.error('⚠️ Socket emit failed:', socketError.message);
       }

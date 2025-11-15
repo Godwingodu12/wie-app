@@ -34,13 +34,10 @@ export const listenQueue = async (queueName, handler) => {
         channel.nack(msg, false, false);
       }
     });
-
-    console.log(`👂 Listening on ${queueName}`);
   } catch (error) {
     console.error(`❌ Error setting up listener for ${queueName}:`, error);
   }
 };
-
 export const publishToQueue = async (queueName, message, timeout = 10000) => {
   if (!isChannelAvailable()) {
     console.error('❌ RabbitMQ channel is not available');

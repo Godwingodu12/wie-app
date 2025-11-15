@@ -123,12 +123,10 @@ const ProfilePage = () => {
   });
   const [users, setUsers] = useState([]);
   const [groups, setGroups] = useState([]);
-
   // Separate state for different event types
   const [allEvents, setAllEvents] = useState([]);
   const [liveEvents, setLiveEvents] = useState([]);
   const [pastEvents, setPastEvents] = useState([]);
-
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
   const [loading, setLoading] = useState(false);
@@ -145,9 +143,7 @@ const ProfilePage = () => {
   const [followingStates, setFollowingStates] = useState({});
   const [userId, setUserId] = useState(null);
   const [eventCountsMap, setEventCountsMap] = useState({});
-  // Active tab state: 'all', 'live', 'past'
   const [activeTab, setActiveTab] = useState("all");
-
   // State for hamburger menu dropdown
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const hamburgerRef = useRef(null);
@@ -562,12 +558,8 @@ useEffect(() => {
           }));
         }
       } else {
-        // FOLLOW FLOW
         const response = await followUser(suggestedUserId);
-        // Update state AFTER successful API call
         setFollowingMap((prev) => ({ ...prev, [key]: true }));
-
-        // Update users list - increment follower count
         setUsers((prev) =>
           prev.map((u) => {
             if ((u._id || u.id) === suggestedUserId) {
@@ -583,7 +575,6 @@ useEffect(() => {
             return u;
           })
         );
-
         // Update current user's following count from API response
         if (response?.following) {
           setUser((prev) => ({
@@ -665,38 +656,38 @@ useEffect(() => {
   };
 
   const theme = isDark
-    ? {
-        bg: "bg-[#212426]",
-        text: "text-white",
-        subText: "text-[#c9c9cf]",
-        cardBg: "bg-[#212426]",
-        subCardBg: "bg-[#1c1e20]",
-        border: "border-gray-700",
-        buttonBg: "bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30]",
-        buttonShadow:
-          "shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)]",
-        cardShadow: "7px 7px 14px #1c1f20,-7px -7px 14px #26292c",
-        smallCardShadow: "7px 7px 14px #1c1f20,-7px -7px 14px #26292c",
-        buttonHoverBg: "hover:bg-gray-700",
-        notificationShadow:
-          "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)",
-      }
-    : {
-        bg: "#f9f9f9",
-        text: "text-gray-900",
-        subText: "text-gray-600",
-        cardBg: "#f2f2f2",
-        subCardBg: "#f2f2f2",
-        border: "border-gray-300",
-        buttonBg: "bg-gradient-to-b from-gray-100 to-gray-200",
-        buttonShadow: "shadow-md hover:shadow-lg",
-        cardShadow:
-          "8px 8px 24px rgba(0,0,0,0.1), -8px -8px 24px rgba(255,255,255,0.8)",
-        smallCardShadow: "6px 6px 12px #6a6a6a,-6px -6px 12px #ffffff",
-        buttonHoverBg: "hover:bg-gray-100",
-        notificationShadow:
-          "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
-      };
+  ? {
+      bg: "bg-[#212426]",
+      text: "text-white",
+      subText: "text-[#c9c9cf]",
+      cardBg: "bg-[#212426]",
+      subCardBg: "bg-[#1c1e20]",
+      border: "border-gray-700",
+      buttonBg: "bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30]",
+      buttonShadow:
+        "shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)]",
+      cardShadow: "7px 7px 14px #1c1f20,-7px -7px 14px #26292c",
+      smallCardShadow: "7px 7px 14px #1c1f20,-7px -7px 14px #26292c",
+      buttonHoverBg: "hover:bg-gray-700",
+      notificationShadow:
+        "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)",
+    }
+  : {
+      bg: "#f9f9f9",
+      text: "text-gray-900",
+      subText: "text-gray-600",
+      cardBg: "#f2f2f2",
+      subCardBg: "#f2f2f2",
+      border: "border-gray-300",
+      buttonBg: "bg-gradient-to-b from-gray-100 to-gray-200",
+      buttonShadow: "shadow-md hover:shadow-lg",
+      cardShadow:
+        "8px 8px 24px rgba(0,0,0,0.1), -8px -8px 24px rgba(255,255,255,0.8)",
+      smallCardShadow: "6px 6px 12px #6a6a6a,-6px -6px 12px #ffffff",
+      buttonHoverBg: "hover:bg-gray-100",
+      notificationShadow:
+        "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
+    };
 
   const displayName = user?.name || "User";
   const getMaxAllowedGroups = () => {
@@ -1036,7 +1027,10 @@ useEffect(() => {
                       </div>
                       {/* Stats - FIXED VERSION */}
                       <div className="flex justify-center gap-6">
-                        <div className="text-center">
+                        <div 
+                          className="text-center cursor-pointer"
+                          onClick={() => navigate("/auth/get-ffe", { state: { activeTab: "events" } })}
+                        >
                           <p className={`text-sm ${theme.text}`}>
                             <span className="font-bold">
                               {allEvents.length}
@@ -1047,7 +1041,10 @@ useEffect(() => {
                           </p>
                         </div>
 
-                        <div className="text-center">
+                        <div 
+                          className="text-center cursor-pointer" 
+                          onClick={() => navigate("/auth/get-ffe", { state: { activeTab: "followers" } })}
+                        >
                           <p className={`text-sm ${theme.text}`}>
                             <span className="font-bold">
                               {user.followers || user.followersCount || 0}
@@ -1058,7 +1055,10 @@ useEffect(() => {
                           </p>
                         </div>
 
-                        <div className="text-center">
+                        <div 
+                          className="text-center cursor-pointer" 
+                          onClick={() => navigate("/auth/get-ffe", { state: { activeTab: "following" } })}
+                        >
                           <p className={`text-sm ${theme.text}`}>
                             <span className="font-bold">
                               {user.following || user.followingCount || 0}
@@ -1209,7 +1209,7 @@ useEffect(() => {
                           }}
                         >
                           {/* Event Created */}
-                          <div className="text-center flex flex-col items-center gap-1">
+                          <div className="text-center flex flex-col items-center gap-1" onClick={() => navigate("/auth/get-ffe", { state: { activeTab: "events" } })}>
                             <img
                               src={EventIcon}
                               alt="Event"
@@ -1224,9 +1224,7 @@ useEffect(() => {
                               Event created
                             </p>
                           </div>
-
-                          {/* Followers */}
-                          <div className="text-center flex flex-col items-center gap-1">
+                          <div className="text-center flex flex-col items-center gap-1" onClick={() => navigate("/auth/get-ffe", { state: { activeTab: "followers" } })}>
                             <img
                               src={FollowersIcon}
                               alt="Followers"
@@ -1238,12 +1236,11 @@ useEffect(() => {
                               {user.followers || 0}
                             </p>
                             <p className={`text-xs ${theme.subText}`}>
-                              Follower
+                              Followers
                             </p>
                           </div>
-
                           {/* Following */}
-                          <div className="text-center flex flex-col items-center gap-1">
+                          <div className="text-center flex flex-col items-center gap-1" onClick={() => navigate("/auth/get-ffe", { state: { activeTab: "following" } })}>
                             <img
                               src={FollowingIcon}
                               alt="Following"

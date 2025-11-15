@@ -61,5 +61,4 @@ export const listenForNotificationRequests = async () => {
       return { success: false, error: error.message };
     }
   });
-  console.log('📡 Listening on: notification-create, notification-get, notification-mark-read, notification-mark-all-read, notification-delete');
 };

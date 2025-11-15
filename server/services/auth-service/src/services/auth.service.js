@@ -1053,10 +1053,7 @@ export const getOtherProfile = async (req, res) => {
 };
 export const getUserData = async (payload) => {
   try {
-    console.log('🔍 getUserData called with payload:', payload);
-    
     const { userId, action, query, excludeUserId } = payload;
-
     // Get single user by ID - RETURN ALL FIELDS
     if (userId && !action) {
       const user = await User.findOne({
@@ -1070,7 +1067,6 @@ export const getUserData = async (payload) => {
         console.warn(`⚠️ User not found: ${userId}`);
         return { error: 'User not found or inactive' };
       }
-
       // Get followers and following counts
       const followersCount = await Follow.countDocuments({
         following: userId,
@@ -1254,7 +1250,6 @@ export const findAllActiveUsersService = async (userId, searchQuery = null) => {
       status: 'active',
       _id: { $ne: userId } // Exclude current user
     };
-
     // Add search if provided
     if (searchQuery && searchQuery.trim().length > 0) {
       const searchRegex = new RegExp(searchQuery.trim(), 'i');
@@ -1263,12 +1258,10 @@ export const findAllActiveUsersService = async (userId, searchQuery = null) => {
         { email: searchRegex }
       ];
     }
-
     const users = await User.find(filter)
       .select('-password -__v')
       .sort({ createdAt: -1 })
       .lean();
-
     return users;
   } catch (error) {
     console.error('❌ Error in findAllActiveUsersService:', error);
@@ -1287,7 +1280,6 @@ export const getFollowersService = async (userId) => {
         match: { status: 'active' }
       })
       .lean();
-
     const activeFollowers = followers
       .filter(f => f.follower !== null)
       .map(f => ({
