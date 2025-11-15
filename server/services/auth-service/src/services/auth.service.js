@@ -1200,7 +1200,6 @@ export const getUser = async (payload) => {
 export const getFollowersData = async (payload) => {
   try {    
     const { userId } = payload;
-
     if (!userId) {
       console.error('❌ userId is missing in payload');
       return { error: 'User ID is required' };
