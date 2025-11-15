@@ -18,16 +18,10 @@ export const AllActiveUsers = async (req, res) => {
         message: "Unauthorized. User authentication required."
       });
     }
-
     const userId = req.user._id || req.user.id;
     const { query } = req.query; // Get search query from URL params
-
-    console.log('🔍 Finding active users for:', userId);
-    console.log('🔍 Search query:', query);
-
     // Call the service function
     const users = await findAllActiveUsersService(userId, query);
-
     // Format users
     const formattedUsers = users.map(user => ({
       _id: user._id,
@@ -263,11 +257,7 @@ export const getFollowers = async (req, res) => {
 export const getAllFollowers = async (req, res) => {
   try {
     const userId = req.params.userId || req.user._id || req.user.id;
-
-    console.log('🔍 Fetching followers for user:', userId);
-
     const activeFollowers = await getFollowersService(userId);
-
     return res.status(200).json({
       success: true,
       activeFollowers,
