@@ -439,7 +439,7 @@ const AppRoutes = () => {
         }
       />
       <Route
-        path="/auth/others-ffe"
+        path="/auth/others-ffe/:otherId"
         element={
           <ProtectedRoute allowedRoles={["admin", "organisation"]}>
           <OthersFFE/>

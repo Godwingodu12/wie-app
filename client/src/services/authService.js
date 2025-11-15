@@ -175,6 +175,26 @@ export const getFollowing = async (userId) => {
     throw err;
   }
 };
+export const getOthersFollowers = async (userId) => {
+  try {
+    console.log('🔍 Calling getOthersFollowers for userId:', userId);
+    const res = await api.get(`/auth/get-followers/${userId}`);
+    console.log('✅ getOthersFollowers response:', res.data);
+    return res.data;
+  } catch (err) {
+    console.error('getOthersFollowers error:', err);
+    throw err;
+  }
+};
+export const othersAllFollowing = async (otherId) => {
+  try {
+    const res = await api.get(`/auth/get-following/${otherId}`);
+    return res.data;
+  } catch (err) {
+    console.error('othersAllFollowing error:', err);
+    throw err;
+  }
+};
 export const checkIsFollowing = async (otherId) => {
   try {
     const res = await api.get(`/auth/get-is-following/${otherId}`);

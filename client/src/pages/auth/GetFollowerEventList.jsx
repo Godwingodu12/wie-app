@@ -61,6 +61,7 @@ const GetFollowerEventList = () => {
   const [activeTab, setActiveTab] = useState("events");
   const [followingMap, setFollowingMap] = useState({});
   const [followingStates, setFollowingStates] = useState({});
+  const [unfollowedUsers, setUnfollowedUsers] = useState(new Set());
 
   // Parse API response helper
   const parseApiResponse = (response) => {
@@ -147,101 +148,133 @@ const parseUsersResponse = (response) => {
     };
     fetchUser();
   }, []);
-    useEffect(() => {
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-        if (activeTab === "followers") {
-            const response = await getAllFollowers();            
-            const followersList = parseUsersResponse(response);            
-            if (followersList.length === 0) {
-            console.warn("No followers found. Check API response structure.");
-            }
-            setFollowers(followersList);
-            const statuses = {};
-            for (const follower of followersList) {
-            try {
-                const userId = follower._id || follower.id || follower.userId;
-                if (userId) {
-                const followStatus = await checkIsFollowing(userId);
-                statuses[userId] = followStatus.isFollowing || false;
-                }
-            } catch (err) {
-                console.error(`Error checking follow status for follower:`, err);
-                const userId = follower._id || follower.id || follower.userId;
-                if (userId) {
-                statuses[userId] = false;
-                }
-            }
-            }
-            setFollowingMap(statuses);
-        } else if (activeTab === "following") {
-            const response = await getAllFollowing();
-            const followingList = parseUsersResponse(response);           
-            if (followingList.length === 0) {
-            console.warn("No following found. Check API response structure.");
-            } 
-            setFollowing(followingList);          
-            // All following users are already followed
-            const statuses = {};
-            followingList.forEach(user => {
-            const userId = user._id || user.id || user.userId;
+useEffect(() => {
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      if (activeTab === "followers") {
+        const response = await getAllFollowers();
+        const followersList = parseUsersResponse(response);
+        if (followersList.length === 0) {
+          console.warn("No followers found. Check API response structure.");
+        }
+        setFollowers(followersList);
+        const statuses = {};
+        for (const follower of followersList) {
+          try {
+            const userId = follower._id || follower.id || follower.userId;
             if (userId) {
-                statuses[userId] = true;
+              const followStatus = await checkIsFollowing(userId);
+              statuses[userId] = followStatus.isFollowing || false;
             }
-            });
-            setFollowingMap(statuses);
-        } else if (activeTab === "events") {
-            const response = await getMyEvents();
-            const eventsList = parseApiResponse(response);
-            setEvents(eventsList);
+          } catch (err) {
+            console.error(`Error checking follow status for follower:`, err);
+            const userId = follower._id || follower.id || follower.userId;
+            if (userId) {
+              statuses[userId] = false;
+            }
+          }
         }
-        } catch (err) {
-        console.error(`Failed to fetch ${activeTab}:`, err);
-        console.error("Error details:", err.response?.data || err.message);
-        } finally {
-        setLoading(false);
+        setFollowingMap(statuses);
+      } else if (activeTab === "following") {
+        const response = await getAllFollowing();
+        const followingList = parseUsersResponse(response);
+        if (followingList.length === 0) {
+          console.warn("No following found. Check API response structure.");
         }
-    };
+        
+        // Filter out users that were unfollowed in this session
+        const filteredFollowingList = followingList.filter(user => {
+          const userId = user._id || user.id || user.userId;
+          return !unfollowedUsers.has(userId);
+        });
+        
+        // DON'T sort here - just set the list
+        setFollowing(filteredFollowingList);
+        
+        // All following users are already followed initially
+        const statuses = {};
+        filteredFollowingList.forEach(user => {
+          const userId = user._id || user.id || user.userId;
+          if (userId) {
+            statuses[userId] = true;
+          }
+        });
+        setFollowingMap(statuses);
+      } else if (activeTab === "events") {
+        const response = await getMyEvents();
+        const eventsList = parseApiResponse(response);
+        setEvents(eventsList);
+      }
+    } catch (err) {
+      console.error(`Failed to fetch ${activeTab}:`, err);
+      console.error("Error details:", err.response?.data || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchData();
-    }, [activeTab]);
+  fetchData();
+}, [activeTab, unfollowedUsers]);
+
   const handleThemeToggle = () => {
     const newTheme = !isDark;
     setIsDark(newTheme);
     document.documentElement.classList.toggle("dark", newTheme);
     localStorage.setItem("theme", newTheme ? "dark" : "light");
   };
+const handleFollowToggle = async (userId) => {
+  if (!userId || !user) return;
 
-  const handleFollowToggle = async (userId) => {
-    if (!userId || !user) return;
+  setFollowingStates((prev) => ({ ...prev, [userId]: true }));
+  const isCurrentlyFollowing = followingMap[userId] || false;
 
-    setFollowingStates((prev) => ({ ...prev, [userId]: true }));
-    const isCurrentlyFollowing = followingMap[userId] || false;
-
-    try {
-      if (isCurrentlyFollowing) {
-        await unfollowUser(userId);
-        // Update the following map but DON'T remove from list immediately
-        setFollowingMap((prev) => ({ ...prev, [userId]: false }));
-        
-        // If we're on the following tab, remove from the list after unfollow
-        if (activeTab === "following") {
-          setFollowing((prev) => prev.filter((u) => (u._id || u.id) !== userId));
-        }
-        // If we're on followers tab, just update the button state
-      } else {
-        await followUser(userId);
-        setFollowingMap((prev) => ({ ...prev, [userId]: true }));
-      }
-    } catch (err) {
-      console.error("Error toggling follow status:", err);
-      alert(err.response?.data?.message || "Failed to update follow status");
-    } finally {
-      setFollowingStates((prev) => ({ ...prev, [userId]: false }));
+  try {
+    if (isCurrentlyFollowing) {
+      await unfollowUser(userId);
+      // Update the following map - user stays in list but button changes
+      setFollowingMap((prev) => ({ ...prev, [userId]: false }));
+      
+      // Mark this user as unfollowed for this session
+      // They will be hidden when page is refreshed/navigated away and back
+      setUnfollowedUsers((prev) => new Set([...prev, userId]));
+      
+      // DON'T remove from list - user stays visible with "Follow" button
+      // DON'T filter the following array
+    } else {
+      await followUser(userId);
+      setFollowingMap((prev) => ({ ...prev, [userId]: true }));
+      
+      // Remove from unfollowed set if they re-follow
+      setUnfollowedUsers((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
     }
-  };
+  } catch (err) {
+    console.error("Error toggling follow status:", err);
+    alert(err.response?.data?.message || "Failed to update follow status");
+  } finally {
+    setFollowingStates((prev) => ({ ...prev, [userId]: false }));
+  }
+};
+const sortUsersByFollowStatus = (usersList) => {
+  if (!usersList || usersList.length === 0) return usersList;
 
+  return [...usersList].sort((a, b) => {
+    const aId = a._id || a.id;
+    const bId = b._id || b.id;
+    
+    const aIsFollowing = followingMap[aId] !== false;
+    const bIsFollowing = followingMap[bId] !== false;
+    
+    // Following users first
+    if (aIsFollowing && !bIsFollowing) return -1;
+    if (!aIsFollowing && bIsFollowing) return 1;
+    return 0;
+  });
+};
   const handleViewEvent = (event) => {
     const ticketId = event._id;
     const status = event.event_status?.toLowerCase();
@@ -450,10 +483,8 @@ const parseUsersResponse = (response) => {
         </div>
       );
     }
-
-    // Followers and Following UI - ALL IN ONE CONTAINER
-    const users = activeTab === "followers" ? followers : following;
-    
+const users = activeTab === "followers" ? followers : following;
+const sortedUsers = activeTab === "following" ? sortUsersByFollowStatus(users) : users;
     return (
       <div className="w-full">
         {users.length === 0 ? (
@@ -667,6 +698,33 @@ const parseUsersResponse = (response) => {
                   margin: "0 auto",
                 }}
               >
+                <button
+  onClick={() => navigate(-1)}
+  className={`mb-4 flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 ${
+    isDark
+      ? "bg-[#2a2d30] hover:bg-[#35383b] text-white"
+      : "bg-white hover:bg-gray-100 text-gray-900"
+  }`}
+  style={{
+    boxShadow: theme.itemShadow,
+  }}
+>
+  <svg
+    className="w-5 h-5"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M15 19l-7-7 7-7"
+    />
+  </svg>
+  <span className="font-medium">Back</span>
+</button>
                 {/* Tab Buttons - Reduced mobile text size */}
                 <div
                   className="flex justify-between mb-6 md:mb-10"
