@@ -1,6 +1,6 @@
 // Replace the entire consumerConnections.js file in ticket-service
 
-import { publishToQueue } from './consumer.js';
+import { sendRPC } from './producer.js';
 import { isChannelAvailable } from './connection.js';
 
 // Cache for user data
@@ -36,8 +36,8 @@ export const getUserFromAuthService = async (userId, retries = 3) => {
       
       const startTime = Date.now();
       
-      // Send request to auth-service queue
-      const user = await publishToQueue('get-user', { userId }, 8000);
+      // Use sendRPC instead of publishToQueue
+      const user = await sendRPC('get-user', { userId }, 8000);
       
       const elapsedTime = Date.now() - startTime;
       console.log(`⏱️ Auth-service responded in ${elapsedTime}ms`);
