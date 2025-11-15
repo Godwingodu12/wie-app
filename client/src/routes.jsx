@@ -42,8 +42,8 @@ import ConfirmEventView from './pages/ticket/ConfirmEventView';
 import PersonalDetails from './pages/settings/PersonalDetails';
 import DeletedEventView from './pages/ticket/DeletedEventView';
 import ViewSingleSubEvent from './pages/ticket/ViewSingleSubEvent';
-
-// Protected Route - Only for authenticated users
+import OthersFFE from './pages/auth/OthersFFE';
+import GetFollowerEventList from './pages/auth/GetFollowerEventList';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
   if (!token || !user) {
@@ -430,7 +430,22 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      {/* Catch-all route - redirect to appropriate page based on auth status */}
+      <Route
+        path="/auth/get-ffe"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "organisation"]}>
+          <GetFollowerEventList/>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/auth/others-ffe"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "organisation"]}>
+          <OthersFFE/>
+          </ProtectedRoute>
+        }
+      />
       <Route 
         path="*" 
         element={
