@@ -882,20 +882,19 @@ const OtherProfilePage = () => {
                       </div>
                       {/* Stats - FIXED VERSION */}
                       <div className="flex justify-center gap-6">
-                        <div className="text-center">
+                        <div className="text-center" onClick={() => navigate(`/auth/others-ffe/${profileUser._id}`, { state: { activeTab: "events" } })}>
                           <p className={`text-sm ${theme.text}`}>
                             <span className="font-bold">{profileUser.eventsCount || profileUserEvents.length || 0}</span>
                           </p>
                           <p className={`text-xs ${theme.subText}`}>Event created</p>
                         </div>
-
-                        <div className="text-center">
+                        <div className="text-center" onClick={() => navigate(`/auth/others-ffe/${profileUser._id}`, { state: { activeTab: "followers" } })}>
                           <p className={`text-sm ${theme.text}`}>
                             <span className="font-bold">{profileUser.followers || profileUser.followersCount || 0}</span>
                           </p>
                           <p className={`text-xs ${theme.subText}`}>Followers</p>
                         </div>
-                        <div className="text-center">
+                        <div className="text-center" onClick={() => navigate(`/auth/others-ffe/${profileUser._id}`, { state: { activeTab: "following" } })}>
                           <p className={`text-sm ${theme.text}`}>
                             <span className="font-bold">{profileUser.following || profileUser.followingCount || 0}</span>
                           </p>
@@ -993,17 +992,17 @@ const OtherProfilePage = () => {
                     </div>
                     {/* Stats */}
                     <div className={`rounded-[2rem] md:rounded-[2.5rem] px-6 md:px-8 lg:px-10 py-3 md:py-3.5 lg:py-4 flex gap-4 md:gap-6 lg:gap-8 transition-all duration-300 ${theme.cardBg}`} style={{boxShadow: theme.smallCardShadow}}>
-                      <div className="text-center flex flex-col items-center gap-1 md:gap-1.5">
+                      <div className="text-center flex flex-col items-center gap-1 md:gap-1.5" onClick={() =>navigate(`/auth/others-ffe/${profileUser._id}`, { state: { activeTab: "events" } })}>
                         <img src={EventIcon} alt="Event" className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`} />
                         <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{profileUser.eventsCount || profileUserEvents.length || 0}</p>
                         <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Event created</p>
                       </div>
-                      <div className="text-center flex flex-col items-center gap-1 md:gap-1.5">
+                      <div className="text-center flex flex-col items-center gap-1 md:gap-1.5" onClick={() => navigate(`/auth/others-ffe/${profileUser._id}`, { state: { activeTab: "followers" } })}>
                         <img src={FollowersIcon} alt="Followers" className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`} />
                         <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{profileUser.followersCount || profileUser.followers || 0}</p>
                         <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Follower</p>
                       </div>
-                      <div className="text-center flex flex-col items-center gap-1 md:gap-1.5">
+                      <div className="text-center flex flex-col items-center gap-1 md:gap-1.5" onClick={() => navigate(`/auth/others-ffe/${profileUser._id}`, { state: { activeTab: "following" } })}>
                         <img src={FollowingIcon} alt="Following" className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`} />
                         <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{profileUser.following || 0}</p>
                         <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Following</p>
@@ -1011,7 +1010,6 @@ const OtherProfilePage = () => {
                     </div>
                   </div>
                 </div>
-                
                 {/* Modal */}
                 {isModalOpen && (
                   <div 
