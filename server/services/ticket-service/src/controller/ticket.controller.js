@@ -2,7 +2,6 @@ import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import TicketLike from '../models/ticketLike.model.js';
 import { createNotification } from '../utils/notificationHelper.js';
-import axios from 'axios';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
 import { processFileUploads, deleteFromCloudinary } from '../utils/cloudinaryHelper.js';
 import mongoose from 'mongoose';
@@ -829,23 +828,34 @@ export const getMyUpcomingEvents = async (req, res) => {
         });
     }
 };
-export const getOthersEvents = async(req, res)=>{
+export const getOthersEvents = async (req, res) => {
   try {
-      const other = req.params.otherId;
-      const tickets = await Ticket.find({ 
-                userId: other,
-                event_status: ['completed','live']
-            });
-      res.status(200).json({
-            message: "Other User Tickets retrieved successfully",
-            tickets: tickets
-        });
+    const other = req.params.otherId;
+
+    let tickets = await Ticket.find({
+      userId: other,
+      event_status: ['completed', 'live']
+    });
+    tickets = tickets.sort((a, b) => {
+      const aDates = a.event_dates || [];
+      const bDates = b.event_dates || [];
+      const aLastEnd = aDates.length > 0 ? aDates[aDates.length - 1].end_date : null;
+      const bLastEnd = bDates.length > 0 ? bDates[bDates.length - 1].end_date : null;
+      const aDate = aLastEnd ? new Date(aLastEnd) : new Date(0);
+      const bDate = bLastEnd ? new Date(bLastEnd) : new Date(0);
+      return bDate - aDate; 
+    });
+    res.status(200).json({
+      message: "Other User Tickets retrieved successfully",
+      tickets: tickets
+    });
+
   } catch (error) {
     console.error("Error fetching Others tickets:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
   }
 };
 export const getOthersEventsById = async(req, res)=>{
@@ -1743,9 +1753,6 @@ export const totalEventsCreatedCount = async (req, res) => {
     });
   }
 };
-
-
-
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAP_API || 'AIzaSyB5MQdwuxFIG6Msf_At0bV2vPXuFwEkVkI'; 
 
 export const getPostalDetailsFromCoords = async (req, res) => {
@@ -1831,5 +1838,3 @@ export const getPostalDetailsFromCoords = async (req, res) => {
         });
     }
 };
-
-// ... (Rest of your ticket.controller.js file)
