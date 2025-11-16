@@ -284,7 +284,6 @@ const OtherProfilePage = () => {
   useEffect(() => {
     const checkFollowStatuses = async () => {
       if (!users || !Array.isArray(users) || users.length === 0) {
-        console.log('No users to check follow status for');
         return;
       }
       
