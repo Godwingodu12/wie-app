@@ -54,13 +54,13 @@ const OthersFFE = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { otherId } = useParams();
-  const [user, setUser] = useState(null); // Current logged-in user
-  const [otherUser, setOtherUser] = useState(null); // The user whose profile we're viewing
+  const [user, setUser] = useState(null);
+  const [otherUser, setOtherUser] = useState(null);
   const [userImage, setUserImage] = useState(null);
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
-  const [myFollowers, setMyFollowers] = useState([]); // NEW: Track my followers
-  const [myFollowing, setMyFollowing] = useState([]); // NEW: Track my following
+  const [myFollowers, setMyFollowers] = useState([]);
+  const [myFollowing, setMyFollowing] = useState([]);
   const [events, setEvents] = useState([]);
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
@@ -68,8 +68,8 @@ const OthersFFE = () => {
   const [activeTab, setActiveTab] = useState("events");
   const [followingMap, setFollowingMap] = useState({});
   const [followingStates, setFollowingStates] = useState({});
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Parse API response helper
   const parseApiResponse = (response) => {
     let data = [];
     if (response?.data?.tickets) {
@@ -89,24 +89,15 @@ const OthersFFE = () => {
   };
 
   const parseUsersResponse = (response) => {
-    console.log("Raw API Response:", response);
-
-    // Handle activeFollowers (for followers endpoint)
     if (Array.isArray(response?.data?.activeFollowers)) {
       return response.data.activeFollowers;
     } else if (Array.isArray(response?.activeFollowers)) {
       return response.activeFollowers;
-    }
-
-    // Handle activeFollowing (for following endpoint)
-    if (Array.isArray(response?.data?.activeFollowing)) {
+    } else if (Array.isArray(response?.data?.activeFollowing)) {
       return response.data.activeFollowing;
     } else if (Array.isArray(response?.activeFollowing)) {
       return response.activeFollowing;
-    }
-
-    // Fallback to generic keys
-    if (Array.isArray(response?.data?.followers)) {
+    } else if (Array.isArray(response?.data?.followers)) {
       return response.data.followers;
     } else if (Array.isArray(response?.followers)) {
       return response.followers;
@@ -123,29 +114,22 @@ const OthersFFE = () => {
     } else if (Array.isArray(response)) {
       return response;
     }
-
-    console.warn("Could not parse users response, returning empty array");
     return [];
   };
 
-  // Fetch other user profile
   useEffect(() => {
     const fetchOtherUser = async () => {
       if (!otherId) return;
-
       try {
-        console.log("🔍 Fetching profile for otherId:", otherId);
         const otherUserData = await getOtherProfile(otherId);
-        console.log("✅ Other user data:", otherUserData);
         setOtherUser(otherUserData);
       } catch (err) {
-        console.error("Failed to fetch other user profile", err);
+        // Silent error
       }
     };
     fetchOtherUser();
   }, [otherId]);
 
-  // Initialize theme
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -154,14 +138,12 @@ const OthersFFE = () => {
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
 
-  // Get active tab from navigation state
   useEffect(() => {
     if (location.state?.activeTab) {
       setActiveTab(location.state.activeTab);
     }
   }, [location]);
 
-  // Fetch current logged-in user data
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -172,13 +154,12 @@ const OthersFFE = () => {
           setUserImage(imageUrl);
         }
       } catch (err) {
-        console.error("Failed to fetch user", err);
+        // Silent error
       }
     };
     fetchUser();
   }, []);
 
-  // NEW: Fetch my followers and following for mutual detection
   useEffect(() => {
     const fetchMyConnections = async () => {
       try {
@@ -186,115 +167,150 @@ const OthersFFE = () => {
           getAllFollowers(),
           getAllFollowing(),
         ]);
-
         const myFollowersList = parseUsersResponse(myFollowersRes);
         const myFollowingList = parseUsersResponse(myFollowingRes);
-
         setMyFollowers(myFollowersList);
         setMyFollowing(myFollowingList);
-
-        console.log("✅ My followers:", myFollowersList);
-        console.log("✅ My following:", myFollowingList);
       } catch (err) {
-        console.error("Failed to fetch my connections", err);
+        // Silent error
       }
     };
     fetchMyConnections();
   }, []);
 
-  // Fetch followers, following, or events based on active tab
   useEffect(() => {
     const fetchData = async () => {
-      if (!otherId) {
-        console.error("❌ No otherId provided");
-        return;
-      }
+      if (!otherId) return;
 
       setLoading(true);
       try {
         if (activeTab === "followers") {
-          console.log("📋 Fetching followers for:", otherId);
           const response = await getOthersFollowers(otherId);
-          console.log("📦 Followers response:", response);
+          let followersList = parseUsersResponse(response);
 
-          const followersList = parseUsersResponse(response);
-          console.log("✅ Parsed followers:", followersList);
-
-          if (followersList.length === 0) {
-            console.warn("No followers found.");
+          if (user && myFollowing.length >= 0) {
+            const myId = user._id || user.id;
+            const myFollowingIds = myFollowing.map((u) => u._id || u.id);
+            
+            followersList = [...followersList].sort((a, b) => {
+              const aId = a._id || a.id;
+              const bId = b._id || b.id;
+              if (aId === myId) return -1;
+              if (bId === myId) return 1;
+              const aIsMutual = myFollowingIds.includes(aId);
+              const bIsMutual = myFollowingIds.includes(bId);
+              if (aIsMutual && !bIsMutual) return -1;
+              if (!aIsMutual && bIsMutual) return 1;
+              return 0;
+            });
           }
 
-          // Check following status for each follower
-          const statuses = {};
-          for (const follower of followersList) {
-            try {
-              const followerId = follower._id || follower.id;
-              if (followerId) {
-                const followStatus = await checkIsFollowing(followerId);
-                statuses[followerId] = followStatus.isFollowing || false;
-                console.log(`Follow status for ${follower.name}:`, statuses[followerId]);
-              }
-            } catch (err) {
-              console.error(`Error checking follow status:`, err);
-              const followerId = follower._id || follower.id;
-              if (followerId) {
-                statuses[followerId] = false;
-              }
-            }
-          }
-          setFollowingMap(statuses);
           setFollowers(followersList);
-        } else if (activeTab === "following") {
-          console.log("📋 Fetching following for:", otherId);
-          const response = await othersAllFollowing(otherId);
-          console.log("📦 Following response:", response);
 
-          const followingList = parseUsersResponse(response);
-          console.log("✅ Parsed following:", followingList);
-
-          if (followingList.length === 0) {
-            console.warn("No following found.");
-          }
-
-          // Check following status for each user
-          const statuses = {};
-          for (const followedUser of followingList) {
-            try {
-              const followedUserId = followedUser._id || followedUser.id;
-              if (followedUserId) {
-                const followStatus = await checkIsFollowing(followedUserId);
-                statuses[followedUserId] = followStatus.isFollowing || false;
-                console.log(`Follow status for ${followedUser.name}:`, statuses[followedUserId]);
-              }
-            } catch (err) {
-              console.error(`Error checking follow status:`, err);
-              const followedUserId = followedUser._id || followedUser.id;
-              if (followedUserId) {
-                statuses[followedUserId] = false;
+          if (user) {
+            const myId = user._id || user.id;
+            const statuses = {};
+            for (const follower of followersList) {
+              const followerId = follower._id || follower.id;
+              if (followerId && followerId !== myId) {
+                try {
+                  const followStatus = await checkIsFollowing(followerId);
+                  statuses[followerId] = followStatus.isFollowing || false;
+                } catch (err) {
+                  statuses[followerId] = false;
+                }
               }
             }
+            setFollowingMap(statuses);
           }
-          setFollowingMap(statuses);
-          setFollowing(followingList);
-        } else if (activeTab === "events") {
-          console.log("📋 Fetching events for:", otherId);
-          const response = await getOthersEvents(otherId);
-          console.log("📦 Events response:", response);
 
+        } else if (activeTab === "following") {
+          const response = await othersAllFollowing(otherId);
+          let followingList = parseUsersResponse(response);
+
+          if (user && myFollowing.length >= 0) {
+            const myId = user._id || user.id;
+            const myFollowingIds = myFollowing.map((u) => u._id || u.id);
+            
+            followingList = [...followingList].sort((a, b) => {
+              const aId = a._id || a.id;
+              const bId = b._id || b.id;
+              if (aId === myId) return -1;
+              if (bId === myId) return 1;
+              const aIsMutual = myFollowingIds.includes(aId);
+              const bIsMutual = myFollowingIds.includes(bId);
+              if (aIsMutual && !bIsMutual) return -1;
+              if (!aIsMutual && bIsMutual) return 1;
+              return 0;
+            });
+          }
+
+          setFollowing(followingList);
+
+          if (user) {
+            const myId = user._id || user.id;
+            const statuses = {};
+            for (const followedUser of followingList) {
+              const followedUserId = followedUser._id || followedUser.id;
+              if (followedUserId && followedUserId !== myId) {
+                try {
+                  const followStatus = await checkIsFollowing(followedUserId);
+                  statuses[followedUserId] = followStatus.isFollowing || false;
+                } catch (err) {
+                  statuses[followedUserId] = false;
+                }
+              }
+            }
+            setFollowingMap(statuses);
+          }
+
+        } else if (activeTab === "events") {
+          const response = await getOthersEvents(otherId);
           const eventsList = parseApiResponse(response);
-          console.log("✅ Parsed events:", eventsList);
           setEvents(eventsList);
         }
       } catch (err) {
-        console.error(`❌ Failed to fetch ${activeTab}:`, err);
-        console.error("Error details:", err.response?.data || err.message);
+        // Silent error
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [activeTab, otherId]);
+  }, [activeTab, otherId, user, myFollowing]);
+
+  useEffect(() => {
+    if (!user || myFollowing.length === 0) return;
+
+    const myId = user._id || user.id;
+    const myFollowingIds = myFollowing.map((u) => u._id || u.id);
+
+    const sortList = (list) => {
+      return [...list].sort((a, b) => {
+        const aId = a._id || a.id;
+        const bId = b._id || b.id;
+        if (aId === myId) return -1;
+        if (bId === myId) return 1;
+        const aIsMutual = myFollowingIds.includes(aId);
+        const bIsMutual = myFollowingIds.includes(bId);
+        if (aIsMutual && !bIsMutual) return -1;
+        if (!aIsMutual && bIsMutual) return 1;
+        return 0;
+      });
+    };
+
+    if (followers.length > 0 && activeTab === "followers") {
+      setFollowers(sortList(followers));
+    }
+
+    if (following.length > 0 && activeTab === "following") {
+      setFollowing(sortList(following));
+    }
+  }, [user, myFollowing]);
+
+  useEffect(() => {
+    setSearchQuery("");
+  }, [activeTab]);
 
   const handleThemeToggle = () => {
     const newTheme = !isDark;
@@ -312,14 +328,12 @@ const OthersFFE = () => {
     try {
       if (isCurrentlyFollowing) {
         await unfollowUser(userId);
-        // Update the following map - user stays in list
         setFollowingMap((prev) => ({ ...prev, [userId]: false }));
       } else {
         await followUser(userId);
         setFollowingMap((prev) => ({ ...prev, [userId]: true }));
       }
     } catch (err) {
-      console.error("Error toggling follow status:", err);
       alert(err.response?.data?.message || "Failed to update follow status");
     } finally {
       setFollowingStates((prev) => ({ ...prev, [userId]: false }));
@@ -331,24 +345,25 @@ const OthersFFE = () => {
     navigate(`/ticket/other-event-view/${otherId}/${ticketId}`);
   };
 
-  // NEW: Sort users with mutual connections first
-  const sortUsersByMutual = (usersList) => {
-    if (!user || !usersList || usersList.length === 0) return usersList;
-
-    const myFollowingIds = myFollowing.map((u) => u._id || u.id);
-
-    return [...usersList].sort((a, b) => {
-      const aId = a._id || a.id;
-      const bId = b._id || b.id;
-
-      const aIsMutual = myFollowingIds.includes(aId);
-      const bIsMutual = myFollowingIds.includes(bId);
-
-      // Mutual connections first
-      if (aIsMutual && !bIsMutual) return -1;
-      if (!aIsMutual && bIsMutual) return 1;
-      return 0;
-    });
+  const filterBySearch = (items, query, isEvent = false) => {
+    if (!query.trim()) return items;
+    
+    const lowerQuery = query.toLowerCase().trim();
+    
+    if (isEvent) {
+      return items.filter(event => 
+        event.event_name?.toLowerCase().includes(lowerQuery) ||
+        event.event_category?.toLowerCase().includes(lowerQuery)
+      );
+    } else {
+      return items.filter(user => 
+        user.name?.toLowerCase().includes(lowerQuery) ||
+        user.username?.toLowerCase().includes(lowerQuery) ||
+        user.email?.toLowerCase().includes(lowerQuery) ||
+        user.organisation_type?.toLowerCase().includes(lowerQuery) ||
+        user.role?.toLowerCase().includes(lowerQuery)
+      );
+    }
   };
 
   const theme = isDark
@@ -383,17 +398,55 @@ const OthersFFE = () => {
     }
 
     if (activeTab === "events") {
+      const filteredEvents = filterBySearch(events, searchQuery, true);
+      
       return (
         <div className="w-full space-y-6">
-          {events.length === 0 ? (
+          <div className="mb-6">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search events by name or category..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`w-full px-4 py-3 rounded-xl ${
+                  isDark 
+                    ? "bg-[#2a2d30] text-white placeholder-gray-500" 
+                    : "bg-white text-gray-900 placeholder-gray-400"
+                } border ${isDark ? "border-gray-700" : "border-gray-300"} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                style={{ boxShadow: theme.itemShadow }}
+              />
+              <svg
+                className={`absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 ${theme.subText}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+            {searchQuery && (
+              <p className={`mt-2 text-sm ${theme.subText}`}>
+                Found {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+
+          {filteredEvents.length === 0 ? (
             <div className="text-center py-16">
-              <p className={`text-lg ${theme.subText}`}>No events created yet</p>
+              <p className={`text-lg ${theme.subText}`}>
+                {searchQuery ? "No events found matching your search" : "No events created yet"}
+              </p>
             </div>
           ) : (
             <>
-              {/* Desktop: 3 columns */}
               <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {events.map((event, index) => (
+                {filteredEvents.map((event, index) => (
                   <div
                     key={event._id || `event-${index}`}
                     className="cursor-pointer hover:scale-[1.02] transition-transform duration-200"
@@ -468,9 +521,8 @@ const OthersFFE = () => {
                 ))}
               </div>
 
-              {/* Mobile: 2 columns */}
               <div className="md:hidden grid grid-cols-2 gap-3">
-                {events.map((event, index) => (
+                {filteredEvents.map((event, index) => (
                   <div
                     key={event._id || `event-${index}`}
                     className="rounded-2xl overflow-hidden cursor-pointer"
@@ -539,17 +591,56 @@ const OthersFFE = () => {
       );
     }
 
-    // Followers and Following UI
     const users = activeTab === "followers" ? followers : following;
-    const sortedUsers = sortUsersByMutual(users);
+    const filteredUsers = filterBySearch(users, searchQuery, false);
     const myFollowingIds = myFollowing.map((u) => u._id || u.id);
+    const myId = user?._id || user?.id;
 
     return (
       <div className="w-full">
-        {sortedUsers.length === 0 ? (
+        <div className="mb-6">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder={`Search ${activeTab} by name, username, or email...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`w-full px-4 py-3 rounded-xl ${
+                isDark 
+                  ? "bg-[#2a2d30] text-white placeholder-gray-500" 
+                  : "bg-white text-gray-900 placeholder-gray-400"
+              } border ${isDark ? "border-gray-700" : "border-gray-300"} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              style={{ boxShadow: theme.itemShadow }}
+            />
+            <svg
+              className={`absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 ${theme.subText}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+          {searchQuery && (
+            <p className={`mt-2 text-sm ${theme.subText}`}>
+              Found {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+
+        {filteredUsers.length === 0 ? (
           <div className="text-center py-16">
             <p className={`text-lg ${theme.subText}`}>
-              {activeTab === "followers" ? "No followers yet" : "Not following anyone yet"}
+              {searchQuery 
+                ? "No users found matching your search" 
+                : activeTab === "followers" 
+                  ? "No followers yet" 
+                  : "Not following anyone yet"}
             </p>
           </div>
         ) : (
@@ -561,16 +652,15 @@ const OthersFFE = () => {
             }}
           >
             <div className="space-y-3 md:space-y-4">
-              {sortedUsers.map((userData, index) => {
+              {filteredUsers.map((userData, index) => {
                 const userId = userData._id || userData.id;
                 const isFollowing = followingMap[userId] || false;
                 const isProcessing = followingStates[userId] || false;
-                const isCurrentUser = user && userId === user._id; // Check if it's the current logged-in user
+                const isCurrentUser = myId && userId && (userId === myId);
                 const isMutual = myFollowingIds.includes(userId);
-
+                
                 return (
-                  <div key={userId}>
-                    {/* Desktop Layout */}
+                  <div key={userId || index}>
                     <div
                       className="hidden md:flex items-center justify-between p-4 cursor-pointer hover:opacity-90 transition-opacity"
                       onClick={() => navigate(`/profile/${userId}`)}
@@ -589,7 +679,7 @@ const OthersFFE = () => {
                               {userData.name}
                             </h3>
                             <img src={VerifiedIcon} alt="Verified" className="w-4 h-4" />
-                            {isMutual && (
+                            {isMutual && !isCurrentUser && (
                               <span
                                 className={`text-xs px-2 py-0.5 rounded-full ${
                                   isDark ? "bg-blue-900 text-blue-200" : "bg-blue-100 text-blue-600"
@@ -628,8 +718,7 @@ const OthersFFE = () => {
                         </button>
                       )}
                     </div>
-
-                    {/* Mobile Layout */}
+                    
                     <div
                       className="md:hidden flex items-center justify-between p-3 cursor-pointer"
                       onClick={() => navigate(`/profile/${userId}`)}
@@ -638,7 +727,7 @@ const OthersFFE = () => {
                         <img
                           src={getImageUrl(userData.image, "auth") || ProfileImage}
                           alt={userData.name}
-                          className={`w-12 h-12 rounded-full object-cover border-2 ${
+                          className={`w-12 h-12rounded-full object-cover border-2 ${
                             isDark ? "border-gray-600" : "border-gray-300"
                           }`}
                         />
@@ -648,7 +737,7 @@ const OthersFFE = () => {
                               {userData.name}
                             </h3>
                             <img src={VerifiedIcon} alt="Verified" className="w-3 h-3" />
-                            {isMutual && (
+                            {isMutual && !isCurrentUser && (
                               <span
                                 className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                                   isDark ? "bg-blue-900 text-blue-200" : "bg-blue-100 text-blue-600"
@@ -698,7 +787,6 @@ const OthersFFE = () => {
     <>
       <CustomScrollbarStyles />
       <div className={`${theme.bg} ${theme.text} min-h-screen flex overflow-hidden transition-colors duration-300`}>
-        {/* Sidebar - Desktop */}
         <div
           className="hidden md:flex flex-col flex-shrink-0 transition-colors duration-300"
           style={{
@@ -720,14 +808,11 @@ const OthersFFE = () => {
           </div>
         </div>
 
-        {/* Main Content */}
         <div className="flex flex-col flex-1 md:ml-20 lg:ml-20 overflow-x-hidden">
-          {/* Top Header */}
           <header
             className="flex items-center justify-between px-3 md:px-4 lg:px-6 w-full"
             style={{ height: HEADER_HEIGHT }}
           >
-            {/* Mobile Header */}
             <div className="flex md:hidden items-center justify-between w-full">
               <div className="flex items-center gap-2">
                 <img src={WieLogo} alt="WIE Logo" className="w-8 h-8 object-contain" />
@@ -754,7 +839,6 @@ const OthersFFE = () => {
               </button>
             </div>
 
-            {/* Desktop Header */}
             <div className="hidden md:flex items-center gap-4 w-full">
               <div className="flex-1 min-w-0">
                 <SearchBar
@@ -767,10 +851,8 @@ const OthersFFE = () => {
             </div>
           </header>
 
-          {/* Main Content Area */}
           <main className="flex-1 p-3 md:p-4 lg:p-6 overflow-y-auto pb-32 md:pb-4">
             <div className="max-w-7xl mx-auto">
-              {/* Back Button */}
               <button
                 onClick={() => navigate(-1)}
                 className={`mb-4 flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 ${
@@ -778,9 +860,7 @@ const OthersFFE = () => {
                     ? "bg-[#2a2d30] hover:bg-[#35383b] text-white"
                     : "bg-white hover:bg-gray-100 text-gray-900"
                 }`}
-                style={{
-                  boxShadow: theme.itemShadow,
-                }}
+                style={{ boxShadow: theme.itemShadow }}
               >
                 <svg
                   className="w-5 h-5"
@@ -799,7 +879,6 @@ const OthersFFE = () => {
                 <span className="font-medium">Back</span>
               </button>
 
-              {/* Main Container */}
               <div
                 className="rounded-[30px] md:rounded-[50px] p-4 md:p-8"
                 style={{
@@ -809,14 +888,10 @@ const OthersFFE = () => {
                   margin: "0 auto",
                 }}
               >
-                {/* Tab Buttons - Reduced mobile text size */}
                 <div
                   className="flex justify-between mb-6 md:mb-10"
-                  style={{
-                    gap: "6px",
-                  }}
+                  style={{ gap: "6px" }}
                 >
-                  {/* Events Tab */}
                   <button
                     onClick={() => setActiveTab("events")}
                     className={`flex items-center gap-1.5 md:gap-3 rounded-xl px-2 md:px-6 py-2 md:py-4 transition-all duration-200 flex-1 justify-center ${
@@ -836,7 +911,6 @@ const OthersFFE = () => {
                     </span>
                   </button>
 
-                  {/* Followers Tab */}
                   <button
                     onClick={() => setActiveTab("followers")}
                     className={`flex items-center gap-1.5 md:gap-3 rounded-xl px-2 md:px-6 py-2 md:py-4 transition-all duration-200 flex-1 justify-center ${
@@ -856,7 +930,6 @@ const OthersFFE = () => {
                     </span>
                   </button>
 
-                  {/* Following Tab */}
                   <button
                     onClick={() => setActiveTab("following")}
                     className={`flex items-center gap-1.5 md:gap-3 rounded-xl px-2 md:px-6 py-2 md:py-4 transition-all duration-200 flex-1 justify-center ${
@@ -876,7 +949,7 @@ const OthersFFE = () => {
                     </span>
                   </button>
                 </div>
-                {/* Content Area */}
+
                 <div className="overflow-y-auto min-h-[120vh] md:min-h-[150vh] scrollbar-hide">
                   {renderContent()}
                 </div>
@@ -885,7 +958,6 @@ const OthersFFE = () => {
           </main>
         </div>
       </div>
-      {/* Bottom Navigation */}
       <BottomNavigation theme={theme} user={user} />
     </>
   );
