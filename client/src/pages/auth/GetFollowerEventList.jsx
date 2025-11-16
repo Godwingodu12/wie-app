@@ -61,7 +61,17 @@ const GetFollowerEventList = () => {
   const [activeTab, setActiveTab] = useState("events");
   const [followingMap, setFollowingMap] = useState({});
   const [followingStates, setFollowingStates] = useState({});
-  const [unfollowedUsers, setUnfollowedUsers] = useState(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  // Initialize unfollowedUsers from sessionStorage
+  const [unfollowedUsers, setUnfollowedUsers] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem('unfollowedUsers');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch (error) {
+      console.error('Error loading unfollowed users from session:', error);
+      return new Set();
+    }
+  });
 
   // Parse API response helper
   const parseApiResponse = (response) => {
@@ -81,41 +91,52 @@ const GetFollowerEventList = () => {
     }
     return Array.isArray(data) ? data : [];
   };
-const parseUsersResponse = (response) => {
-  if (Array.isArray(response?.data?.activeFollowers)) {
-    return response.data.activeFollowers;
-  } else if (Array.isArray(response?.activeFollowers)) {
-    return response.activeFollowers;
-  } else if (Array.isArray(response?.data?.followers)) {
-    return response.data.followers;
-  } else if (Array.isArray(response?.followers)) {
-    return response.followers;
-  } else if (Array.isArray(response?.data?.following)) {
-    return response.data.following;
-  } else if (Array.isArray(response?.following)) {
-    return response.following;
-  } else if (Array.isArray(response?.data?.users)) {
-    return response.data.users;
-  } else if (Array.isArray(response?.users)) {
-    return response.users;
-  } else if (Array.isArray(response?.data)) {
-    return response.data;
-  } else if (Array.isArray(response)) {
-    return response;
-  }
 
-  // If it's an object with user data inside
-  if (response?.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
-    const keys = Object.keys(response.data);
-    for (const key of keys) {
-      if (Array.isArray(response.data[key])) {
-        return response.data[key];
+  const parseUsersResponse = (response) => {
+    if (Array.isArray(response?.data?.activeFollowers)) {
+      return response.data.activeFollowers;
+    } else if (Array.isArray(response?.activeFollowers)) {
+      return response.activeFollowers;
+    } else if (Array.isArray(response?.data?.followers)) {
+      return response.data.followers;
+    } else if (Array.isArray(response?.followers)) {
+      return response.followers;
+    } else if (Array.isArray(response?.data?.following)) {
+      return response.data.following;
+    } else if (Array.isArray(response?.following)) {
+      return response.following;
+    } else if (Array.isArray(response?.data?.users)) {
+      return response.data.users;
+    } else if (Array.isArray(response?.users)) {
+      return response.users;
+    } else if (Array.isArray(response?.data)) {
+      return response.data;
+    } else if (Array.isArray(response)) {
+      return response;
+    }
+
+    // If it's an object with user data inside
+    if (response?.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
+      const keys = Object.keys(response.data);
+      for (const key of keys) {
+        if (Array.isArray(response.data[key])) {
+          return response.data[key];
+        }
       }
     }
-  }
 
-  return [];
-};
+    return [];
+  };
+
+  // Sync unfollowedUsers to sessionStorage whenever it changes
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('unfollowedUsers', JSON.stringify([...unfollowedUsers]));
+    } catch (error) {
+      console.error('Error saving unfollowed users to session:', error);
+    }
+  }, [unfollowedUsers]);
+
   // Initialize theme
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -148,74 +169,150 @@ const parseUsersResponse = (response) => {
     };
     fetchUser();
   }, []);
-useEffect(() => {
-  const fetchData = async () => {
-    setLoading(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+          if (activeTab === "followers") {
+  const response = await getAllFollowers();
+  const apiFollowers = parseUsersResponse(response);
+
+  // ---- Load stored order ----
+  let stored = [];
+  try {
+    const s = sessionStorage.getItem("followersList");
+    stored = s ? JSON.parse(s) : [];
+  } catch (e) {
+    console.error("Session parse error", e);
+  }
+
+  let finalList = [];
+
+  if (stored.length === 0) {
+    // ---- First Visit ----
+    finalList = apiFollowers;
+    sessionStorage.setItem("followersList", JSON.stringify(finalList));
+  } else {
+    // ---- Subsequent Visits: Merge With Order Preservation ----
+    const apiMap = new Map();
+    apiFollowers.forEach(u => {
+      apiMap.set(u._id || u.id || u.userId, u);
+    });
+
+    // 1) Keep stored order + update user details
+    stored.forEach(storedUser => {
+      const id = storedUser._id || storedUser.id || storedUser.userId;
+      if (apiMap.has(id)) {
+        finalList.push(apiMap.get(id)); // updated data
+        apiMap.delete(id);
+      }
+    });
+
+    // 2) Add new followers at END
+    apiMap.forEach(user => finalList.push(user));
+
+    // 3) Update stored list
+    sessionStorage.setItem("followersList", JSON.stringify(finalList));
+  }
+
+  // ---- Set state ----
+  setFollowers(finalList);
+
+  // ---- Follow Status ----
+  const statusMap = {};
+  for (const user of finalList) {
+    const id = user._id || user.id || user.userId;
     try {
-      if (activeTab === "followers") {
-        const response = await getAllFollowers();
-        const followersList = parseUsersResponse(response);
-        if (followersList.length === 0) {
-          console.warn("No followers found. Check API response structure.");
-        }
-        setFollowers(followersList);
-        const statuses = {};
-        for (const follower of followersList) {
+      const res = await checkIsFollowing(id);
+      statusMap[id] = res.isFollowing || false;
+    } catch {
+      statusMap[id] = false;
+    }
+  }
+  setFollowingMap(statusMap);
+} else if (activeTab === "following") {
+          const response = await getAllFollowing();
+          const followingList = parseUsersResponse(response);
+          if (followingList.length === 0) {
+            console.warn("No following found. Check API response structure.");
+          }
+          
+          // Get previously stored following list from sessionStorage
+          let storedFollowingList = [];
           try {
-            const userId = follower._id || follower.id || follower.userId;
-            if (userId) {
-              const followStatus = await checkIsFollowing(userId);
-              statuses[userId] = followStatus.isFollowing || false;
+            const stored = sessionStorage.getItem('followingList');
+            if (stored) {
+              storedFollowingList = JSON.parse(stored);
             }
           } catch (err) {
-            console.error(`Error checking follow status for follower:`, err);
-            const userId = follower._id || follower.id || follower.userId;
+            console.error('Error loading following list from session:', err);
+          }
+          
+          let mergedFollowingList;
+          
+          if (unfollowedUsers.size === 0) {
+            // No unfollowed users - just use the API response and store it
+            mergedFollowingList = followingList;
+            sessionStorage.setItem('followingList', JSON.stringify(followingList));
+          } else {
+            // There are unfollowed users - preserve order from stored list
+            // Create a map for quick lookup
+            const apiUserMap = new Map();
+            followingList.forEach(user => {
+              const userId = user._id || user.id || user.userId;
+              if (userId) {
+                apiUserMap.set(userId, user);
+              }
+            });
+            
+            // Start with the stored list order
+            mergedFollowingList = storedFollowingList.map(user => {
+              const userId = user._id || user.id || user.userId;
+              // If user is in API response, use updated data; otherwise keep stored data
+              return apiUserMap.has(userId) ? apiUserMap.get(userId) : user;
+            });
+            
+            // Add any new users from API that aren't in stored list (at the end)
+            followingList.forEach(user => {
+              const userId = user._id || user.id || user.userId;
+              const existsInStored = storedFollowingList.some(
+                storedUser => (storedUser._id || storedUser.id || storedUser.userId) === userId
+              );
+              if (!existsInStored) {
+                mergedFollowingList.push(user);
+              }
+            });
+          }
+          
+          setFollowing(mergedFollowingList);
+          
+          // Set button status based on unfollowedUsers
+          const statuses = {};
+          mergedFollowingList.forEach(user => {
+            const userId = user._id || user.id || user.userId;
             if (userId) {
-              statuses[userId] = false;
+              // If user is in unfollowedUsers, show "Follow" button (false)
+              // If user is NOT in unfollowedUsers, show "Unfollow" button (true)
+              statuses[userId] = !unfollowedUsers.has(userId);
             }
-          }
+          });
+          setFollowingMap(statuses);
+        }else if (activeTab === "events") {
+          const response = await getMyEvents();
+          const eventsList = parseApiResponse(response);
+          setEvents(eventsList);
         }
-        setFollowingMap(statuses);
-      } else if (activeTab === "following") {
-        const response = await getAllFollowing();
-        const followingList = parseUsersResponse(response);
-        if (followingList.length === 0) {
-          console.warn("No following found. Check API response structure.");
-        }
-        
-        // Filter out users that were unfollowed in this session
-        const filteredFollowingList = followingList.filter(user => {
-          const userId = user._id || user.id || user.userId;
-          return !unfollowedUsers.has(userId);
-        });
-        
-        // DON'T sort here - just set the list
-        setFollowing(filteredFollowingList);
-        
-        // All following users are already followed initially
-        const statuses = {};
-        filteredFollowingList.forEach(user => {
-          const userId = user._id || user.id || user.userId;
-          if (userId) {
-            statuses[userId] = true;
-          }
-        });
-        setFollowingMap(statuses);
-      } else if (activeTab === "events") {
-        const response = await getMyEvents();
-        const eventsList = parseApiResponse(response);
-        setEvents(eventsList);
+      } catch (err) {
+        console.error(`Failed to fetch ${activeTab}:`, err);
+        console.error("Error details:", err.response?.data || err.message);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error(`Failed to fetch ${activeTab}:`, err);
-      console.error("Error details:", err.response?.data || err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  fetchData();
-}, [activeTab, unfollowedUsers]);
+    fetchData();
+  }, [activeTab, unfollowedUsers]);
 
   const handleThemeToggle = () => {
     const newTheme = !isDark;
@@ -223,58 +320,77 @@ useEffect(() => {
     document.documentElement.classList.toggle("dark", newTheme);
     localStorage.setItem("theme", newTheme ? "dark" : "light");
   };
+  useEffect(() => {
+    const previousTab = activeTab;
+    
+    return () => {
+      // Clear session storage when switching away from tabs
+      if (previousTab === "following" && unfollowedUsers.size > 0) {
+        sessionStorage.removeItem('unfollowedUsers');
+        sessionStorage.removeItem('followingList');
+        setUnfollowedUsers(new Set());
+      }
+      if (previousTab === "followers") {
+        sessionStorage.removeItem('followersList');
+      }
+    };
+  }, [activeTab, unfollowedUsers]);
+  useEffect(() => {
+    return () => {
+      // Clear all session storage when component unmounts
+      if (unfollowedUsers.size > 0) {
+        sessionStorage.removeItem('unfollowedUsers');
+        sessionStorage.removeItem('followingList');
+      }
+      sessionStorage.removeItem('followersList');
+    };
+  }, []);
 const handleFollowToggle = async (userId) => {
-  if (!userId || !user) return;
+  if (!userId) return;
 
-  setFollowingStates((prev) => ({ ...prev, [userId]: true }));
-  const isCurrentlyFollowing = followingMap[userId] || false;
+  setFollowingStates(prev => ({ ...prev, [userId]: true }));
+  const isFollowingNow = followingMap[userId];
 
   try {
-    if (isCurrentlyFollowing) {
+    if (isFollowingNow) {
       await unfollowUser(userId);
-      // Update the following map - user stays in list but button changes
-      setFollowingMap((prev) => ({ ...prev, [userId]: false }));
-      
-      // Mark this user as unfollowed for this session
-      // They will be hidden when page is refreshed/navigated away and back
-      setUnfollowedUsers((prev) => new Set([...prev, userId]));
-      
-      // DON'T remove from list - user stays visible with "Follow" button
-      // DON'T filter the following array
+
+      // Button only changes
+      setFollowingMap(prev => ({
+        ...prev,
+        [userId]: false
+      }));
     } else {
       await followUser(userId);
-      setFollowingMap((prev) => ({ ...prev, [userId]: true }));
-      
-      // Remove from unfollowed set if they re-follow
-      setUnfollowedUsers((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(userId);
-        return newSet;
-      });
+      setFollowingMap(prev => ({
+        ...prev,
+        [userId]: true
+      }));
     }
   } catch (err) {
-    console.error("Error toggling follow status:", err);
-    alert(err.response?.data?.message || "Failed to update follow status");
+    console.error(err);
   } finally {
-    setFollowingStates((prev) => ({ ...prev, [userId]: false }));
+    setFollowingStates(prev => ({ ...prev, [userId]: false }));
   }
 };
-const sortUsersByFollowStatus = (usersList) => {
-  if (!usersList || usersList.length === 0) return usersList;
+  const sortUsersByFollowStatus = (usersList) => {
+    if (!usersList || usersList.length === 0) return usersList;
 
-  return [...usersList].sort((a, b) => {
-    const aId = a._id || a.id;
-    const bId = b._id || b.id;
-    
-    const aIsFollowing = followingMap[aId] !== false;
-    const bIsFollowing = followingMap[bId] !== false;
-    
-    // Following users first
-    if (aIsFollowing && !bIsFollowing) return -1;
-    if (!aIsFollowing && bIsFollowing) return 1;
-    return 0;
-  });
-};
+    return [...usersList].sort((a, b) => {
+      const aId = a._id || a.id;
+      const bId = b._id || b.id;
+      
+      // Get follow status - true means following, false means not following
+      const aIsFollowing = followingMap[aId] !== false;
+      const bIsFollowing = followingMap[bId] !== false;
+      
+      // Following users first (return -1 to put 'a' before 'b')
+      if (aIsFollowing && !bIsFollowing) return -1;
+      if (!aIsFollowing && bIsFollowing) return 1;
+      return 0; // Keep original order if both have same follow status
+    });
+  };
+
   const handleViewEvent = (event) => {
     const ticketId = event._id;
     const status = event.event_status?.toLowerCase();
@@ -317,7 +433,29 @@ const sortUsersByFollowStatus = (usersList) => {
         buttonShadow: "6px 6px 12px 0px #0000001A inset, -6px -6px 12px 0px #FFFFFF80 inset",
         itemShadow: "-2px -2px 10px 0px #E0E0E0, 5px 6px 9px 0px #00000033",
       };
-
+  // Search filter function
+  const filterBySearch = (items, query, isEvent = false) => {
+    if (!query.trim()) return items;
+    
+    const lowerQuery = query.toLowerCase().trim();
+    
+    if (isEvent) {
+      // Search in events
+      return items.filter(event => 
+        event.event_name?.toLowerCase().includes(lowerQuery) ||
+        event.event_category?.toLowerCase().includes(lowerQuery)
+      );
+    } else {
+      // Search in users
+      return items.filter(user => 
+        user.name?.toLowerCase().includes(lowerQuery) ||
+        user.username?.toLowerCase().includes(lowerQuery) ||
+        user.email?.toLowerCase().includes(lowerQuery) ||
+        user.organisation_type?.toLowerCase().includes(lowerQuery) ||
+        user.role?.toLowerCase().includes(lowerQuery)
+      );
+    }
+  };
   const renderContent = () => {
     if (loading) {
       return (
@@ -328,17 +466,59 @@ const sortUsersByFollowStatus = (usersList) => {
     }
 
     if (activeTab === "events") {
+      const filteredEvents = filterBySearch(events, searchQuery, true);
+      
       return (
         <div className="w-full space-y-6">
-          {events.length === 0 ? (
+          {/* Search Bar for Events */}
+          <div className="mb-6">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search events by name or category..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`w-full px-4 py-3 rounded-xl ${
+                  isDark 
+                    ? "bg-[#2a2d30] text-white placeholder-gray-500" 
+                    : "bg-white text-gray-900 placeholder-gray-400"
+                } border ${isDark ? "border-gray-700" : "border-gray-300"} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                style={{
+                  boxShadow: theme.itemShadow,
+                }}
+              />
+              <svg
+                className={`absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 ${theme.subText}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+            {searchQuery && (
+              <p className={`mt-2 text-sm ${theme.subText}`}>
+                Found {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+
+          {filteredEvents.length === 0 ? (
             <div className="text-center py-16">
-              <p className={`text-lg ${theme.subText}`}>No events created yet</p>
+              <p className={`text-lg ${theme.subText}`}>
+                {searchQuery ? "No events found matching your search" : "No events created yet"}
+              </p>
             </div>
           ) : (
             <>
               {/* Desktop: 3 columns */}
               <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {events.map((event, index) => (
+                {filteredEvents.map((event, index) => (
                   <div
                     key={event._id || `event-${index}`}
                     className="cursor-pointer hover:scale-[1.02] transition-transform duration-200"
@@ -415,7 +595,7 @@ const sortUsersByFollowStatus = (usersList) => {
 
               {/* Mobile: 2 columns */}
               <div className="md:hidden grid grid-cols-2 gap-3">
-                {events.map((event, index) => (
+                {filteredEvents.map((event, index) => (
                   <div
                     key={event._id || `event-${index}`}
                     className="rounded-2xl overflow-hidden cursor-pointer"
@@ -483,14 +663,60 @@ const sortUsersByFollowStatus = (usersList) => {
         </div>
       );
     }
-const users = activeTab === "followers" ? followers : following;
-const sortedUsers = activeTab === "following" ? sortUsersByFollowStatus(users) : users;
+
+    // Followers and Following UI with Search
+    const users = activeTab === "followers" ? followers : following;
+    const filteredUsers = filterBySearch(users, searchQuery, false);
+    const sortedUsers = filteredUsers;
+
     return (
       <div className="w-full">
-        {users.length === 0 ? (
+        {/* Search Bar for Users */}
+        <div className="mb-6">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder={`Search ${activeTab} by name, username, or email...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`w-full px-4 py-3 rounded-xl ${
+                isDark 
+                  ? "bg-[#2a2d30] text-white placeholder-gray-500" 
+                  : "bg-white text-gray-900 placeholder-gray-400"
+              } border ${isDark ? "border-gray-700" : "border-gray-300"} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              style={{
+                boxShadow: theme.itemShadow,
+              }}
+            />
+            <svg
+              className={`absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 ${theme.subText}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+          {searchQuery && (
+            <p className={`mt-2 text-sm ${theme.subText}`}>
+              Found {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+
+        {filteredUsers.length === 0 ? (
           <div className="text-center py-16">
             <p className={`text-lg ${theme.subText}`}>
-              {activeTab === "followers" ? "No followers yet" : "Not following anyone yet"}
+              {searchQuery 
+                ? "No users found matching your search" 
+                : activeTab === "followers" 
+                  ? "No followers yet" 
+                  : "Not following anyone yet"}
             </p>
           </div>
         ) : (
@@ -503,7 +729,7 @@ const sortedUsers = activeTab === "following" ? sortUsersByFollowStatus(users) :
             }}
           >
             <div className="space-y-3 md:space-y-4">
-              {users.map((userData, index) => {
+              {sortedUsers.map((userData, index) => {
                 const userId = userData._id || userData.id;
                 const isFollowing = followingMap[userId] || false;
                 const isProcessing = followingStates[userId] || false;
@@ -611,7 +837,9 @@ const sortedUsers = activeTab === "following" ? sortUsersByFollowStatus(users) :
       </div>
     );
   };
-
+  useEffect(() => {
+    setSearchQuery("");
+  }, [activeTab]);
   return (
     <>
       <CustomScrollbarStyles />
@@ -699,32 +927,32 @@ const sortedUsers = activeTab === "following" ? sortUsersByFollowStatus(users) :
                 }}
               >
                 <button
-  onClick={() => navigate(-1)}
-  className={`mb-4 flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-    isDark
-      ? "bg-[#2a2d30] hover:bg-[#35383b] text-white"
-      : "bg-white hover:bg-gray-100 text-gray-900"
-  }`}
-  style={{
-    boxShadow: theme.itemShadow,
-  }}
->
-  <svg
-    className="w-5 h-5"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M15 19l-7-7 7-7"
-    />
-  </svg>
-  <span className="font-medium">Back</span>
-</button>
+                  onClick={() => navigate(-1)}
+                  className={`mb-4 flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 ${
+                    isDark
+                      ? "bg-[#2a2d30] hover:bg-[#35383b] text-white"
+                      : "bg-white hover:bg-gray-100 text-gray-900"
+                  }`}
+                  style={{
+                    boxShadow: theme.itemShadow,
+                  }}
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
+                  </svg>
+                  <span className="font-medium">Back</span>
+                </button>
                 {/* Tab Buttons - Reduced mobile text size */}
                 <div
                   className="flex justify-between mb-6 md:mb-10"
