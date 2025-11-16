@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { getUserData } from "../../services/ticketService";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -59,16 +59,21 @@ const OthersFFE = () => {
   const [userImage, setUserImage] = useState(null);
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
-  const [myFollowers, setMyFollowers] = useState([]);
   const [myFollowing, setMyFollowing] = useState([]);
   const [events, setEvents] = useState([]);
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with true
   const [activeTab, setActiveTab] = useState("events");
   const [followingMap, setFollowingMap] = useState({});
   const [followingStates, setFollowingStates] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [myId, setMyId] = useState(null);
+  const [dataFetched, setDataFetched] = useState({
+    events: false,
+    followers: false,
+    following: false,
+  });
 
   const parseApiResponse = (response) => {
     let data = [];
@@ -117,6 +122,60 @@ const OthersFFE = () => {
     return [];
   };
 
+  // Helper function to sort users with logged-in user first, then mutuals
+  const sortUsersByPriority = (usersList, myUserId, myFollowingIds = []) => {
+    if (!myUserId) return usersList;
+    
+    return [...usersList].sort((a, b) => {
+      const aId = a._id || a.id;
+      const bId = b._id || b.id;
+      
+      // Logged-in user always first
+      if (aId === myUserId) return -1;
+      if (bId === myUserId) return 1;
+      
+      // Then mutual follows
+      if (myFollowingIds.length > 0) {
+        const aIsMutual = myFollowingIds.includes(aId);
+        const bIsMutual = myFollowingIds.includes(bId);
+        if (aIsMutual && !bIsMutual) return -1;
+        if (!aIsMutual && bIsMutual) return 1;
+      }
+      
+      return 0;
+    });
+  };
+
+  // Fetch user data ONCE on mount - this is critical!
+  useEffect(() => {
+    const fetchUserAndConnections = async () => {
+      try {
+        const [userData, myFollowingRes] = await Promise.all([
+          getUserData(),
+          getAllFollowing(),
+        ]);
+        
+        setUser(userData);
+        const userId = userData._id || userData.id;
+        setMyId(userId);
+        
+        if (userData.image) {
+          const imageUrl = getImageUrl(userData.image, "auth");
+          setUserImage(imageUrl);
+        }
+
+        const myFollowingList = parseUsersResponse(myFollowingRes);
+        setMyFollowing(myFollowingList);
+        
+      } catch (err) {
+        console.error('Error fetching user data:', err);
+      }
+    };
+    
+    fetchUserAndConnections();
+  }, []);
+
+  // Fetch other user profile
   useEffect(() => {
     const fetchOtherUser = async () => {
       if (!otherId) return;
@@ -124,7 +183,7 @@ const OthersFFE = () => {
         const otherUserData = await getOtherProfile(otherId);
         setOtherUser(otherUserData);
       } catch (err) {
-        // Silent error
+        console.error('Error fetching other user:', err);
       }
     };
     fetchOtherUser();
@@ -144,169 +203,99 @@ const OthersFFE = () => {
     }
   }, [location]);
 
+  // CRITICAL: Fetch ALL data immediately when myId is available
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const userData = await getUserData();
-        setUser(userData);
-        if (userData.image) {
-          const imageUrl = getImageUrl(userData.image, "auth");
-          setUserImage(imageUrl);
-        }
-      } catch (err) {
-        // Silent error
-      }
-    };
-    fetchUser();
-  }, []);
+    const fetchAllData = async () => {
+      if (!otherId || !myId) return;
 
-  useEffect(() => {
-    const fetchMyConnections = async () => {
+      const myFollowingIds = myFollowing.map((u) => u._id || u.id);
+
       try {
-        const [myFollowersRes, myFollowingRes] = await Promise.all([
-          getAllFollowers(),
-          getAllFollowing(),
+        // Fetch ALL THREE tabs data in PARALLEL - no waiting!
+        const [eventsRes, followersRes, followingRes] = await Promise.all([
+          getOthersEvents(otherId).catch(err => {
+            console.error('Events fetch error:', err);
+            return [];
+          }),
+          getOthersFollowers(otherId).catch(err => {
+            console.error('Followers fetch error:', err);
+            return [];
+          }),
+          othersAllFollowing(otherId).catch(err => {
+            console.error('Following fetch error:', err);
+            return [];
+          }),
         ]);
-        const myFollowersList = parseUsersResponse(myFollowersRes);
-        const myFollowingList = parseUsersResponse(myFollowingRes);
-        setMyFollowers(myFollowersList);
-        setMyFollowing(myFollowingList);
-      } catch (err) {
-        // Silent error
-      }
-    };
-    fetchMyConnections();
-  }, []);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!otherId) return;
+        // Process events
+        const eventsList = parseApiResponse(eventsRes);
+        setEvents(eventsList);
+        setDataFetched(prev => ({ ...prev, events: true }));
 
-      setLoading(true);
-      try {
-        if (activeTab === "followers") {
-          const response = await getOthersFollowers(otherId);
-          let followersList = parseUsersResponse(response);
+        // Process and sort followers
+        let followersList = parseUsersResponse(followersRes);
+        followersList = sortUsersByPriority(followersList, myId, myFollowingIds);
+        setFollowers(followersList);
+        setDataFetched(prev => ({ ...prev, followers: true }));
 
-          if (user && myFollowing.length >= 0) {
-            const myId = user._id || user.id;
-            const myFollowingIds = myFollowing.map((u) => u._id || u.id);
-            
-            followersList = [...followersList].sort((a, b) => {
-              const aId = a._id || a.id;
-              const bId = b._id || b.id;
-              if (aId === myId) return -1;
-              if (bId === myId) return 1;
-              const aIsMutual = myFollowingIds.includes(aId);
-              const bIsMutual = myFollowingIds.includes(bId);
-              if (aIsMutual && !bIsMutual) return -1;
-              if (!aIsMutual && bIsMutual) return 1;
-              return 0;
-            });
-          }
+        // Process and sort following
+        let followingList = parseUsersResponse(followingRes);
+        followingList = sortUsersByPriority(followingList, myId, myFollowingIds);
+        setFollowing(followingList);
+        setDataFetched(prev => ({ ...prev, following: true }));
 
-          setFollowers(followersList);
+        // End loading immediately after setting data
+        setLoading(false);
 
-          if (user) {
-            const myId = user._id || user.id;
-            const statuses = {};
-            for (const follower of followersList) {
+        // Background: Check follow statuses for followers (non-blocking)
+        const followersStatuses = {};
+        await Promise.all(
+          followersList
+            .filter(follower => {
               const followerId = follower._id || follower.id;
-              if (followerId && followerId !== myId) {
-                try {
-                  const followStatus = await checkIsFollowing(followerId);
-                  statuses[followerId] = followStatus.isFollowing || false;
-                } catch (err) {
-                  statuses[followerId] = false;
-                }
+              return followerId && followerId !== myId;
+            })
+            .map(async (follower) => {
+              const followerId = follower._id || follower.id;
+              try {
+                const followStatus = await checkIsFollowing(followerId);
+                followersStatuses[followerId] = followStatus.isFollowing || false;
+              } catch (err) {
+                followersStatuses[followerId] = false;
               }
-            }
-            setFollowingMap(statuses);
-          }
+            })
+        );
 
-        } else if (activeTab === "following") {
-          const response = await othersAllFollowing(otherId);
-          let followingList = parseUsersResponse(response);
-
-          if (user && myFollowing.length >= 0) {
-            const myId = user._id || user.id;
-            const myFollowingIds = myFollowing.map((u) => u._id || u.id);
-            
-            followingList = [...followingList].sort((a, b) => {
-              const aId = a._id || a.id;
-              const bId = b._id || b.id;
-              if (aId === myId) return -1;
-              if (bId === myId) return 1;
-              const aIsMutual = myFollowingIds.includes(aId);
-              const bIsMutual = myFollowingIds.includes(bId);
-              if (aIsMutual && !bIsMutual) return -1;
-              if (!aIsMutual && bIsMutual) return 1;
-              return 0;
-            });
-          }
-
-          setFollowing(followingList);
-
-          if (user) {
-            const myId = user._id || user.id;
-            const statuses = {};
-            for (const followedUser of followingList) {
+        // Background: Check follow statuses for following (non-blocking)
+        const followingStatuses = {};
+        await Promise.all(
+          followingList
+            .filter(followedUser => {
               const followedUserId = followedUser._id || followedUser.id;
-              if (followedUserId && followedUserId !== myId) {
-                try {
-                  const followStatus = await checkIsFollowing(followedUserId);
-                  statuses[followedUserId] = followStatus.isFollowing || false;
-                } catch (err) {
-                  statuses[followedUserId] = false;
-                }
+              return followedUserId && followedUserId !== myId;
+            })
+            .map(async (followedUser) => {
+              const followedUserId = followedUser._id || followedUser.id;
+              try {
+                const followStatus = await checkIsFollowing(followedUserId);
+                followingStatuses[followedUserId] = followStatus.isFollowing || false;
+              } catch (err) {
+                followingStatuses[followedUserId] = false;
               }
-            }
-            setFollowingMap(statuses);
-          }
+            })
+        );
 
-        } else if (activeTab === "events") {
-          const response = await getOthersEvents(otherId);
-          const eventsList = parseApiResponse(response);
-          setEvents(eventsList);
-        }
+        // Merge all follow statuses
+        setFollowingMap({ ...followersStatuses, ...followingStatuses });
+
       } catch (err) {
-        // Silent error
-      } finally {
+        console.error('Error fetching all data:', err);
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, [activeTab, otherId, user, myFollowing]);
-
-  useEffect(() => {
-    if (!user || myFollowing.length === 0) return;
-
-    const myId = user._id || user.id;
-    const myFollowingIds = myFollowing.map((u) => u._id || u.id);
-
-    const sortList = (list) => {
-      return [...list].sort((a, b) => {
-        const aId = a._id || a.id;
-        const bId = b._id || b.id;
-        if (aId === myId) return -1;
-        if (bId === myId) return 1;
-        const aIsMutual = myFollowingIds.includes(aId);
-        const bIsMutual = myFollowingIds.includes(bId);
-        if (aIsMutual && !bIsMutual) return -1;
-        if (!aIsMutual && bIsMutual) return 1;
-        return 0;
-      });
-    };
-
-    if (followers.length > 0 && activeTab === "followers") {
-      setFollowers(sortList(followers));
-    }
-
-    if (following.length > 0 && activeTab === "following") {
-      setFollowing(sortList(following));
-    }
-  }, [user, myFollowing]);
+    fetchAllData();
+  }, [otherId, myId, myFollowing]);
 
   useEffect(() => {
     setSearchQuery("");
@@ -389,6 +378,7 @@ const OthersFFE = () => {
       };
 
   const renderContent = () => {
+    // Show loading only if data hasn't been fetched yet
     if (loading) {
       return (
         <div className="flex justify-center items-center py-16">
@@ -591,10 +581,10 @@ const OthersFFE = () => {
       );
     }
 
+    // Followers/Following rendering
     const users = activeTab === "followers" ? followers : following;
     const filteredUsers = filterBySearch(users, searchQuery, false);
     const myFollowingIds = myFollowing.map((u) => u._id || u.id);
-    const myId = user?._id || user?.id;
 
     return (
       <div className="w-full">
@@ -654,13 +644,14 @@ const OthersFFE = () => {
             <div className="space-y-3 md:space-y-4">
               {filteredUsers.map((userData, index) => {
                 const userId = userData._id || userData.id;
+                const isCurrentUser = myId && userId && (userId === myId);
                 const isFollowing = followingMap[userId] || false;
                 const isProcessing = followingStates[userId] || false;
-                const isCurrentUser = myId && userId && (userId === myId);
                 const isMutual = myFollowingIds.includes(userId);
                 
                 return (
                   <div key={userId || index}>
+                    {/* Desktop view */}
                     <div
                       className="hidden md:flex items-center justify-between p-4 cursor-pointer hover:opacity-90 transition-opacity"
                       onClick={() => navigate(`/profile/${userId}`)}
@@ -718,7 +709,8 @@ const OthersFFE = () => {
                         </button>
                       )}
                     </div>
-                    
+
+                    {/* Mobile view */}
                     <div
                       className="md:hidden flex items-center justify-between p-3 cursor-pointer"
                       onClick={() => navigate(`/profile/${userId}`)}
@@ -727,7 +719,7 @@ const OthersFFE = () => {
                         <img
                           src={getImageUrl(userData.image, "auth") || ProfileImage}
                           alt={userData.name}
-                          className={`w-12 h-12rounded-full object-cover border-2 ${
+                          className={`w-12 h-12 rounded-full object-cover border-2 ${
                             isDark ? "border-gray-600" : "border-gray-300"
                           }`}
                         />
