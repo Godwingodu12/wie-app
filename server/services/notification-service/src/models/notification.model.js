@@ -11,6 +11,7 @@ const notificationSchema = new mongoose.Schema({
     required: true,
     enum: [
       'event_created',
+      'group_updated',
       'event_hosted',
       'event_recovered',
       'event_invite',
