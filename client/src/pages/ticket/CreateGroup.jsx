@@ -167,7 +167,7 @@ const customSelectStyles = (isDark) => ({
 });
 const CreateGroup = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [capabilities, setCapabilities] = useState(null);
   const [userData, setUserData] = useState(null);
   const [darkMode, setDarkMode] = useState(true);
@@ -216,12 +216,9 @@ const hideAlert = () => setAlert(null);
     }
     styleSheet.innerText = darkMode ? darkThemeStyles : lightThemeStyles;
   }, [darkMode]);
-
-  useEffect(() => {
+useEffect(() => {
     fetchUserCapabilities();
-    fetchUserData();
-  }, []);
-
+}, [groupId]);
   useEffect(() => {
     if (capabilities?.userRole === 'admin' && Array.isArray(existingGroups)) {
       const creatableTypes = ['admin', 'organisation'].filter(type => canCreateGroupType(type));
@@ -231,38 +228,42 @@ const hideAlert = () => setAlert(null);
       }
     }
   }, [capabilities, existingGroups]);
-
-  useEffect(() => {
-    if (
-      userData &&
-      capabilities &&
-      capabilities.userRole === 'organisation' &&
-      existingGroups.length === 0
-    ) {
-      setFormData(prev => ({
-        ...prev,
-        name: userData.name || '',
-        email: userData.email || '',
-        contact_no: userData.contact_no || '',
-        address: userData.address || '',
-        organisation_type: userData.organisation_type || ''
-      }));
-    }
-  }, [userData, capabilities, existingGroups]);
+useEffect(() => {
+  if (
+    userData &&
+    capabilities &&
+    capabilities.userRole === 'organisation' &&
+    existingGroups.length === 0 &&
+    !isEditMode
+  ) {
+    setFormData(prev => ({
+      ...prev,
+      name: userData.name || '',
+      email: userData.email || '',
+      contact_no: userData.contact_no || '',
+      address: userData.address || '',
+      organisation_type: userData.organisation_type || ''
+    }));
+  }
+}, [userData, capabilities, existingGroups, isEditMode]);
 const fetchUserCapabilities = async () => {
   try {
     setLoading(true);
-    const caps = await getUserGroupCapabilities();
+    // Fetch both capabilities and user data in parallel
+    const [caps, userData] = await Promise.all([
+      getUserGroupCapabilities(),
+      getUserData()
+    ]);
     const userGroups = caps.userGroups || [];
     setCapabilities(caps);
     setExistingGroups(userGroups);
-    
-    // Fetch group data if in edit mode
+    if (userData) {
+      setUserData(userData);
+    }
     if (groupId) {
       try {
         const groupResponse = await getGroupById(groupId);
-        const groupToEdit = groupResponse.group;
-        
+        const groupToEdit = groupResponse.group;        
         if (groupToEdit) {
           // Set form data
           setFormData({
@@ -278,15 +279,13 @@ const fetchUserCapabilities = async () => {
             primary_bank_acc_holder: groupToEdit.primary_bank_acc_holder || '',
             primary_bank_acc_no: groupToEdit.primary_bank_acc_no || '',
             primary_bank_ifsc: groupToEdit.primary_bank_ifsc || '',
-          });
-          
+          });          
           // Set GST status
           if (groupToEdit.gst_no) {
             setHasGst('Yes');
           } else {
             setHasGst('No');
           }
-          
           // Set file previews for existing files
           const newPreviews = {};
           if (groupToEdit.id_proof) {
@@ -305,13 +304,20 @@ const fetchUserCapabilities = async () => {
         }
       } catch (error) {
         console.error("Error fetching group data:", error);
+        console.error("Full error:", error.response?.data);
         showAlert({ 
           type: 'error', 
           message: 'Error', 
-          description: 'Failed to load group data. Please try again.' 
+          description: error.response?.data?.message || 'Failed to load group data. Please try again.' 
         });
+        setLoading(false); // Set loading false before navigating
+        setTimeout(() => {
+          navigate('/ticket/groups');
+        }, 2000);
+        return;
       }
     }
+    setLoading(false);
   } catch (error) {
     console.error("Error fetching capabilities:", error);
     showAlert({ 
@@ -319,21 +325,12 @@ const fetchUserCapabilities = async () => {
       message: 'Error', 
       description: 'Failed to load data. Please try again.' 
     });
-  } finally {
     setLoading(false);
+    setTimeout(() => {
+      navigate('/ticket/groups');
+    }, 2000);
   }
 };
-  const fetchUserData = async () => {
-    try {
-      const response = await getUserData();
-      if (response && response.user) {
-        setUserData(response.user);
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-    }
-  };
-
   const canCreateGroupType = (groupType) => {
     if (!capabilities || !existingGroups) return false;
     
@@ -445,11 +442,10 @@ const validateForm = () => {
         if (!formData.contact_no.trim()) addError('contact_no', 'Contact number is required.');
         if (!formData.organisation_type) addError('organisation_type', 'Organisation type is required.');
         if (!formData.address.trim()) addError('address', 'Address is required.');
-
         if (formData.organisation_type && formData.organisation_type.toLowerCase() !== 'educational') {
             if (!formData.gst_no.trim()) addError('gst_no', 'GST number is required for non-educational organisations.');
             if (!files.bank_check && !filePreviews.bank_check) addError('bank_check', 'Bank check is required for non-educational organisations.');
-            if (!files.company_logo) addError('company_logo', 'Company logo is required for non-educational organisations.');
+            if (!files.company_logo && !filePreviews.company_logo) addError('company_logo', 'Company logo is required for non-educational organisations.');
         }
     }
     if (!files.id_proof && !filePreviews.id_proof) {
@@ -538,16 +534,17 @@ const handleSubmit = async (e) => {
     setLoading(false);
   }
 };
-  const handleBack = () => navigate(-1);
-
-  if (!capabilities || !userData) {
+const handleBack = () => navigate(-1);
+if (loading || !capabilities || !userData) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-black'}`}>
-        <div className="text-lg">Loading...</div>
+      <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-[#212426] text-white' : 'bg-gray-100 text-black'}`}>
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+          <div className="text-lg">{isEditMode ? 'Loading group data...' : 'Loading...'}</div>
+        </div>
       </div>
     );
   }
-  
 const handleFileUpload = (name, file) => {
     setFiles(prev => ({ ...prev, [name]: file }));
 

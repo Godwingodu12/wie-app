@@ -623,7 +623,6 @@ export const UpdateGroup = async (req, res) => {
     if (uploadedFiles.company_logo) {
       updateData.company_logo = uploadedFiles.company_logo;
     }
-
     // Validation for organisation groups
     if (existingGroup.grp_type === "organisation") {
       const finalOrgType = organisation_type || existingGroup.organisation_type;
@@ -631,15 +630,21 @@ export const UpdateGroup = async (req, res) => {
       if (finalOrgType && finalOrgType.toLowerCase() !== "educational") {
         // Check if required fields are present (either in update or existing data)
         const finalGst = gst_no !== undefined ? gst_no : existingGroup.gst_no;
-        const finalBankCheck =
-          uploadedFiles.bank_check || existingGroup.bank_check;
-        const finalLogo =
-          uploadedFiles.company_logo || existingGroup.company_logo;
+        const finalBankCheck = uploadedFiles.bank_check || existingGroup.bank_check;
+        const finalLogo = uploadedFiles.company_logo || existingGroup.company_logo;
 
         const missingFields = [];
-        if (!finalGst) missingFields.push("gst_no");
-        if (!finalBankCheck) missingFields.push("bank_check file");
-        if (!finalLogo) missingFields.push("company_logo file");
+        
+        // Only validate if the fields are truly missing (empty string or null/undefined)
+        if (!finalGst || (typeof finalGst === 'string' && finalGst.trim() === '')) {
+          missingFields.push("gst_no");
+        }
+        if (!finalBankCheck || (typeof finalBankCheck === 'string' && finalBankCheck.trim() === '')) {
+          missingFields.push("bank_check file");
+        }
+        if (!finalLogo || (typeof finalLogo === 'string' && finalLogo.trim() === '')) {
+          missingFields.push("company_logo file");
+        }
 
         if (missingFields.length > 0) {
           return res.status(400).json({
@@ -651,7 +656,6 @@ export const UpdateGroup = async (req, res) => {
         }
       }
     }
-
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({

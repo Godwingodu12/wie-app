@@ -1,9 +1,6 @@
 import cron from 'node-cron';
 import Ticket from "../models/ticket.model.js";
 import { createNotification } from '../utils/notificationHelper.js';
-import { createNotification } from '../utils/notificationHelper.js';
-import cron from 'node-cron';
-import Ticket from '../models/ticket.model.js';
 export const startEventStatusScheduler = () => {
   cron.schedule('* * * * *', async () => {
     try {
