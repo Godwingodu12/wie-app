@@ -1,10 +1,12 @@
 import cron from 'node-cron';
 import Ticket from "../models/ticket.model.js";
 import { createNotification } from '../utils/notificationHelper.js';
+import { createNotification } from '../utils/notificationHelper.js';
+import cron from 'node-cron';
+import Ticket from '../models/ticket.model.js';
 export const startEventStatusScheduler = () => {
   cron.schedule('* * * * *', async () => {
     try {
-      console.log('Running scheduled event status update at:', new Date().toISOString());
       const currentDate = new Date();
       currentDate.setHours(0, 0, 0, 0);
       const liveTickets = await Ticket.find({ event_status: 'live' });
@@ -19,20 +21,25 @@ export const startEventStatusScheduler = () => {
               ticket.event_status = 'completed';
               await ticket.save();
               completedCount++;
-              console.log(`Auto-completed: ${ticket.event_name} (${ticket._id})`);
               try {
+                const eventHostId = ticket.userId || ticket.createdBy || ticket.hostId;
+                if (!eventHostId) {
+                  console.error(`No host/creator ID found for ticket: ${ticket._id}`);
+                  return;
+                }
                 await createNotification({
-                  userId: userId,
+                  userId: eventHostId,
                   type: 'event_completed',
                   title: 'Event Completed Successfully',
-                  message: `Your event "${ticket.event_name}" has been Completed Successfully`,
+                  message: `Your event "${ticket.event_name}" has been completed successfully`,
                   ticketId: ticket._id,
-                  groupId: ticket.groupId?._id,
+                  eventId: ticket._id, 
+                  groupId: ticket.groupId || null,
                   eventName: ticket.event_name
                 });
-                console.log('Notification created for confirmed event:', ticket.event_name);
+                console.log('Notification created for completed event:', ticket.event_name);
               } catch (notifError) {
-                console.error('Error creating notification:', notifError);
+                console.error('Error creating notification for ticket:', ticket._id, notifError);
               }
             }
           }
