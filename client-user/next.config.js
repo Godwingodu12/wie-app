@@ -1,11 +1,8 @@
-/** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
     domains: ['localhost', 'lh3.googleusercontent.com', 'res.cloudinary.com'],
   },
   reactStrictMode: true,
-  experimental: {
-    appDir: true,
-  },
+  // Remove the experimental.appDir - it's no longer needed in Next.js 14
 };
 module.exports = nextConfig;

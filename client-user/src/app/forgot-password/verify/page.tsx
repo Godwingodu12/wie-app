@@ -16,4 +16,3 @@ export default function VerifyResetOTPPage() {
     </div>
   );
 }
-export { VerifyResetOTPForm };
