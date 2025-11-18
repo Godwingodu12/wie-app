@@ -161,10 +161,10 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
   const handleMarkAllAsRead = async () => {
     try {
       await markAllNotificationsAsRead();
-      
+
       // Update local state (real-time event will also update it)
-      setAllNotifications(prev =>
-        prev.map(notif => ({ ...notif, isRead: true }))
+      setAllNotifications((prev) =>
+        prev.map((notif) => ({ ...notif, isRead: true })),
       );
     } catch (error) {
       console.error("❌ Error marking all as read:", error);
@@ -209,6 +209,13 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
         border: "border-gray-800",
         hover: "hover:bg-[#2a2d2f]",
         unreadBg: "bg-[#2a2d2f]",
+        iconBg: "bg-gray-700",
+        iconText: "text-gray-300",
+        activeTabBg: "#212426",
+        activeTabBorder: '#343434',
+        activeTabBorderImage: 'linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%) 1',
+        tabCountBgInactive: "bg-gray-700",
+        headerBorderImage: "linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #FFFFFF 50.73%, rgba(255, 255, 255, 0) 100%) 1",
       }
     : {
         bg: "bg-white",
@@ -217,6 +224,13 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
         border: "border-gray-200",
         hover: "hover:bg-gray-50",
         unreadBg: "bg-gray-50",
+        iconBg: "bg-gray-200",
+        iconText: "text-gray-700",
+        activeTabBg: "#f0f0f0",
+        activeTabBorder: '#e0e0e0',
+        activeTabBorderImage: 'linear-gradient(286.41deg, #e0e0e0 -2.79%, #ffffff 101.27%) 1',
+        tabCountBgInactive: "bg-gray-200",
+        headerBorderImage: "linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #000000 50.73%, rgba(0, 0, 0, 0) 100%) 1",
       };
 
   const filteredNotifications = getFilteredNotifications();
@@ -281,9 +295,7 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
     if (notification.type === "event_invite") {
       return (
         <div
-          className={`${iconBaseStyle} ${
-            isDark ? "bg-gray-700 text-gray-300" : "bg-gray-200 text-gray-700"
-          }`}
+          className={`${iconBaseStyle} ${theme.iconBg} ${theme.iconText}`}
         >
           <Bell size={20} />
         </div>
@@ -296,9 +308,7 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
     ) {
       return (
         <div
-          className={`${iconBaseStyle} ${
-            isDark ? "bg-gray-700 text-gray-300" : "bg-gray-200 text-gray-700"
-          }`}
+          className={`${iconBaseStyle} ${theme.iconBg} ${theme.iconText}`}
         >
           <CalendarDays size={20} />
         </div>
@@ -308,7 +318,7 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
     if (notification.type === "general") {
       if (notification.title?.toLowerCase().includes("alert")) {
         return (
-          <div className={`${iconBaseStyle} bg-gray-700 text-gray-300`}>
+          <div className={`${iconBaseStyle} ${theme.iconBg} ${theme.iconText}`}>
             <Phone size={20} />
           </div>
         );
@@ -322,9 +332,7 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
 
     return (
       <div
-        className={`${iconBaseStyle} ${
-          isDark ? "bg-gray-700 text-gray-300" : "bg-gray-200 text-gray-700"
-        }`}
+        className={`${iconBaseStyle} ${theme.iconBg} ${theme.iconText}`}
       >
         <AlertTriangle size={20} />
       </div>
@@ -428,30 +436,44 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
     );
   };
 
-  const TabItem = ({ label, count, isActive, onClick }) => (
-    <button
-      onClick={onClick}
-      className={`relative pb-2 font-medium text-sm transition-colors ${
-        isActive ? theme.text : theme.subText
-      } hover:${theme.text}`}
-    >
-      <span className="mr-1.5">{label}</span>
-      {count > 0 && (
-        <span
-          className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold rounded-full ${
-            isActive
-              ? "bg-indigo-600 text-white"
-              : (isDark ? "bg-gray-700" : "bg-gray-200") + " " + theme.text
-          }`}
-        >
-          {count}
-        </span>
-      )}
-      {isActive && (
-        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full"></span>
-      )}
-    </button>
-  );
+  const TabItem = ({ label, count, isActive, onClick }) => {
+    const activeTabStyle = {
+      height: '44px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '10px',
+      borderRadius: '16px',
+      border: `0.5px solid ${theme.activeTabBorder}`,
+      padding: '12px 16px',
+      background: theme.activeTabBg,
+      boxShadow: '8px 8px 12px 0px #00000029, inset -3px -2px 12px 0px #FFFFFF14',
+      marginTop: '-8px',
+    };
+
+    return (
+      <button
+        onClick={onClick}
+        className={`relative font-medium text-sm transition-colors ${
+          isActive ? theme.text : theme.subText
+        } hover:${theme.text}`}
+        style={isActive ? activeTabStyle : {}}
+      >
+        <span className="mr-1.5" style={isActive ? { paddingTop: '2px' } : {}}>{label}</span>
+        {count > 0 && (
+          <span
+            className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold rounded-full ${
+              isActive
+                ? "bg-indigo-600 text-white"
+                : theme.tabCountBgInactive + " " + theme.text
+            }`}
+          >
+            {count}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   if (!isOpen) return null;
 
@@ -467,9 +489,12 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
       />
 
       <div
-        className={`absolute top-0 right-0 h-full w-full md:w-[486px] ${theme.bg} shadow-2xl flex flex-col transition-transform duration-300 ease-in-out transform ${
+        className={`absolute top-0 right-0 h-full w-full md:w-[455px] ${theme.bg} shadow-2xl flex flex-col transition-transform duration-300 ease-in-out transform ${
           isOpen ? "translate-x-0" : "translate-x-full"
-        }`}
+        } ${theme.border}`}
+        style={{
+          borderLeftWidth: '0.5px',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -489,12 +514,17 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
               className="w-full max-w-[390px] h-0 mt-2 mx-auto md:mx-0"
               style={{
                 borderBottom: "1px solid transparent",
-                borderImage:
-                  "linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #FFFFFF 50.73%, rgba(255, 255, 255, 0) 100%) 1",
+                borderImage: theme.headerBorderImage,
               }}
             ></div>
           </div>
 
+          <button
+            onClick={handleMarkAllAsRead}
+            className={`text-xs font-medium ${theme.subText} hover:${theme.text} transition-colors hidden md:block mr-4`}
+          >
+            Mark all as read
+          </button>
           <button
             onClick={onClose}
             className={`p-1 rounded-full ${theme.subText} hover:${theme.text} transition-colors hidden md:block`}
@@ -505,7 +535,12 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
         </div>
 
         {/* Tabs */}
-        <div className={`flex justify-around p-4 ${theme.border} border-b`}>
+        <div
+          className={`flex justify-around p-4 mx-4 ${theme.border} border rounded-xl ${theme.bg}`}
+          style={{
+            boxShadow: 'inset 6px 6px 12px 0px #0000002E, inset -3px -2px 12px 0px #FFFFFF14',
+          }}
+        >
           <TabItem
             label="View all"
             count={getTabCount("all")}
