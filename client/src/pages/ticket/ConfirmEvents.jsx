@@ -41,7 +41,7 @@ const MyGroupsCard = ({ theme, groups, isDark }) => {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [groupEventCount, setGroupEventCount] = useState(0);
   const [loadingCount, setLoadingCount] = useState(false);
-
+  const navigate = useNavigate();
   const handleGroupClick = async (group) => {
     setSelectedGroup(group);
     setIsModalOpen(true);
@@ -106,7 +106,7 @@ const MyGroupsCard = ({ theme, groups, isDark }) => {
             </p>
           </div>
           {groups.length > 2 && (
-            <button
+            <button onClick={()=> navigate("/ticket/groups")}
               className={`text-xs md:text-sm ${theme.subText} hover:underline flex-shrink-0`}
             >
               See more
