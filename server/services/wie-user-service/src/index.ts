@@ -27,7 +27,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/user', userRoutes);
-app.use('/api/tickets', ticketRoutes); // ADD THIS - Public ticket routes
+app.use('/api/tickets', ticketRoutes); 
 
 // Health check
 app.get('/health', (req, res) => {
