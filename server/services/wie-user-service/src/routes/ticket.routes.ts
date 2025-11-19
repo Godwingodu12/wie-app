@@ -3,13 +3,13 @@ import {
   getLiveEvents,
   getActiveGroups,
   getTicket,
-  getGroup,
+  getGroup,getNearbyEvents,
 } from '../controllers/ticket.controller';
 const router: express.Router = express.Router();
 // PUBLIC routes - No authentication required
 router.get('/live-events', getLiveEvents);
-router.get('/groups', getActiveGroups);
-router.get('/ticket/:ticketId', getTicket);
+router.get('/get-active-groups', getActiveGroups);
+router.get('/event/:ticketId', getTicket);
 router.get('/group/:groupId', getGroup);
-
+router.get('/nearby-events', getNearbyEvents);
 export default router;
