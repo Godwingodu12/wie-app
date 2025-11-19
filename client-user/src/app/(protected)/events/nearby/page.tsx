@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
+import { useRouter } from 'next/navigation';
 import {
   getNearbyEventsFromCurrentLocation,
   getNearbyEventsByLocation,
@@ -14,7 +15,7 @@ import { MapPin, Calendar, Users, Loader2, AlertCircle, Navigation, CheckCircle 
 import axios from 'axios';
 export default function NearbyEventsPage() {
   useAuth(true);
-
+  const router = useRouter();
   const [events, setEvents] = useState<NearbyEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +28,30 @@ export default function NearbyEventsPage() {
     address: string;
   } | null>(null);
   const [fetchingLocation, setFetchingLocation] = useState(false);
+  // Add after existing useState declarations
+useEffect(() => {
+  // Load previous search from sessionStorage
+  const savedSearch = sessionStorage.getItem('nearbyEventsSearch');
+  if (savedSearch) {
+    const parsed = JSON.parse(savedSearch);
+    setEvents(parsed.events || []);
+    setCurrentLocation(parsed.currentLocation || null);
+    setRadius(parsed.radius || 30);
+    setSearchLocation(parsed.searchLocation || '');
+  }
+}, []);
+
+// Save search results whenever they change
+useEffect(() => {
+  if (events.length > 0) {
+    sessionStorage.setItem('nearbyEventsSearch', JSON.stringify({
+      events,
+      currentLocation,
+      radius,
+      searchLocation,
+    }));
+  }
+}, [events, currentLocation, radius, searchLocation]);
 
   // Reverse geocode coordinates to get address
   const getAddressFromCoordinates = async (lat: number, lng: number): Promise<string> => {
@@ -270,7 +295,24 @@ export default function NearbyEventsPage() {
             </div>
           </div>
         </Card>
-
+        {/* Clear Search Button */}
+        {events.length > 0 && (
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={() => {
+                setEvents([]);
+                setCurrentLocation(null);
+                setSearchLocation('');
+                setError(null);
+                sessionStorage.removeItem('nearbyEventsSearch');
+              }}
+              className="flex items-center gap-2 text-gray-600 hover:text-red-600 px-4 py-2 rounded-lg border border-gray-300 hover:border-red-300 transition-colors"
+            >
+              <AlertCircle className="w-4 h-4" />
+              Clear Search
+            </button>
+          </div>
+        )}
         {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
@@ -370,9 +412,10 @@ export default function NearbyEventsPage() {
                     </p>
                   </div>
                 )}
-
-                {/* View Button */}
-                <button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2.5 rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all font-medium">
+                <button 
+                  onClick={() => router.push(`/events/${event._id}`)}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2.5 rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all font-medium"
+                >
                   View Details
                 </button>
               </div>
