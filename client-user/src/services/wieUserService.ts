@@ -9,7 +9,6 @@ import {
   Country,
   User,
 } from '@/types';
-
 export const getIndex = async (): Promise<ApiResponse> => {
   try {
     const res = await api.get('/user');
