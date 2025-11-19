@@ -47,35 +47,6 @@ export const getActiveGroups = async (
     });
   }
 };
-export const getTicket = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const { ticketId } = req.params;
-
-    if (!ticketId) {
-      res.status(400).json({
-        success: false,
-        message: 'Ticket ID is required',
-      });
-      return;
-    }    
-    const ticket = await getTicketById(ticketId);
-    res.status(200).json({
-      success: true,
-      message: 'Ticket fetched successfully',
-      data: ticket,
-    });
-  } catch (error: any) {
-    console.error('❌ Error in getTicket controller:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch ticket',
-      error: error.message,
-    });
-  }
-};
 export const getGroup = async (
   req: Request,
   res: Response
@@ -385,6 +356,94 @@ export const getNearbyEvents = async (
     res.status(500).json({
       success: false,
       message: 'Failed to fetch nearby events',
+      error: error.message,
+    });
+  }
+};
+export const getTicket = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { ticketId } = req.params;
+
+    if (!ticketId) {
+      res.status(400).json({
+        success: false,
+        message: 'Ticket ID is required',
+      });
+      return;
+    }
+
+    let isSubEvent = false;
+    let parentEvent = null;
+    let eventData: any = null;
+
+    // Fetch all live events first
+    const allTickets = await getAllLiveEvents();
+    const events = Array.isArray(allTickets) ? allTickets : (allTickets?.tickets || []);
+
+    // Search through all events
+    for (const event of events) {
+      // Check if this is the main event
+      if (event._id?.toString() === ticketId) {
+        eventData = event;
+        isSubEvent = false;
+        break;
+      }
+
+      // Check sub-events
+      if (event.sub_events && Array.isArray(event.sub_events)) {
+        const foundSubEvent = event.sub_events.find((sub: any) => 
+          sub._id?.toString() === ticketId
+        );
+        
+        if (foundSubEvent) {
+          isSubEvent = true;
+          eventData = foundSubEvent;
+          parentEvent = {
+            _id: event._id,
+            event_name: event.event_name,
+            event_category: event.event_category,
+            event_banner: event.event_banner,
+            event_logo: event.event_logo,
+            location: event.location,
+            event_dates: event.event_dates,
+          };
+          break;
+        }
+      }
+    }
+
+    // If not found in events array, try to fetch directly from ticket service
+    if (!eventData) {
+      try {
+        const ticket = await getTicketById(ticketId);
+        eventData = ticket;
+      } catch (ticketError) {
+        console.error('❌ Ticket not found in main events or ticket service:', ticketError);
+        res.status(404).json({
+          success: false,
+          message: 'Event not found',
+        });
+        return;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Ticket fetched successfully',
+      data: {
+        event: eventData,
+        isSubEvent,
+        parentEvent,
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ Error in getTicket controller:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch ticket',
       error: error.message,
     });
   }

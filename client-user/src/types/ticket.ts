@@ -75,7 +75,7 @@ export interface SubEvent {
   event_type: string;
   subevent: string;
   event_language: string[];
-  location_type: 'online' | 'offline';
+  location_type: 'online' | 'offline' | 'recorded';
   location: string;
   venue: string;
   seating_arrangement?: string;
@@ -126,7 +126,7 @@ export interface Event {
   seating_arrangement?: string | null;
   kids_friendly: boolean;
   pet_friendly: boolean;
-  location_type: 'online' | 'offline';
+  location_type: 'online' | 'offline' | 'recorded';
   location: string;
   venue: string;
   event_date_type: 'one-day' | 'multi-day';
@@ -260,7 +260,43 @@ export interface EventFilters {
   kids_friendly?: boolean;
   pet_friendly?: boolean;
 }
+export interface ParentEventSummary {
+  _id: string;
+  event_name: string;
+  event_category: string;
+  event_banner?: string;
+  event_logo?: string;
+  location: string;
+  event_dates: EventDate[];
+}
 
+export interface EventDetailResponse {
+  success: boolean;
+  message: string;
+  data: {
+    event: Event | SubEvent;
+    isSubEvent: boolean;
+    parentEvent: ParentEventSummary | null;
+  };
+}
+export interface NearbySubEvent extends SubEvent {
+  distance: number;
+  distance_unit: string;
+  is_nearby: boolean;
+  location_note?: string;
+}
+
+export interface EventWithLocation extends Event {
+  distance?: number;
+  distance_unit?: string;
+  main_event_distance?: number | null;
+  is_main_event_nearby?: boolean;
+  has_nearby_sub_events?: boolean;
+  nearby_sub_events_count?: number;
+  nearby_sub_events?: NearbySubEvent[];
+  total_sub_events?: number;
+  all_sub_events_with_distance?: NearbySubEvent[];
+}
 export type EventSortBy = 'distance' | 'date' | 'price' | 'popularity';
 export type SortOrder = 'asc' | 'desc';
 export type EventStatus = 'pending' | 'live' | 'completed' | 'cancelled';
