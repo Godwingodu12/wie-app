@@ -13,7 +13,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.push('/home');
+      router.push('/protected/home');
     }
   }, [isAuthenticated, loading, router]);
 
