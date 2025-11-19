@@ -7,6 +7,7 @@ import {
   ActiveGroupsResponse,
   Coordinates,
   TicketApiResponse,
+  EventDetailResponse
 } from '@/types/ticket';
 export const getLiveEvents = async (): Promise<LiveEventsResponse> => {
   try {
@@ -26,7 +27,7 @@ export const getActiveGroups = async (): Promise<ActiveGroupsResponse> => {
     throw err;
   }
 };
-export const getEventById = async (ticketId: string): Promise<SingleEventResponse> => {
+export const getEventById = async (ticketId: string): Promise<EventDetailResponse> => {
   try {
     const res = await api.get(`/tickets/event/${ticketId}`);
     return res.data;
