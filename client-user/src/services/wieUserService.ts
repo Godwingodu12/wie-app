@@ -80,7 +80,6 @@ export const resendOtp = async (
     throw err;
   }
 };
-
 export const getProfile = async (): Promise<User> => {
   try {
     const res = await api.get<ApiResponse>('/user/get-profile');
@@ -94,7 +93,6 @@ export const getProfile = async (): Promise<User> => {
     throw err;
   }
 };
-
 export const updateProfile = async (
   data: UpdateProfileRequest
 ): Promise<User> => {
@@ -157,4 +155,29 @@ export const resetPassword = async (userId: string, newPassword: string): Promis
     throw err;
   }
 };
-
+export const getUserLocation = async (): Promise<{
+  location?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}> => {
+  try {
+    const res = await api.get<ApiResponse>('/user/location');
+    return res.data.data;
+  } catch (err) {
+    console.error('getUserLocation error:', err);
+    throw err;
+  }
+};
+export const updateUserLocation = async (locationData: {
+  location?: string;
+  latitude?: number;
+  longitude?: number;
+}): Promise<any> => {
+  try {
+    const res = await api.put<ApiResponse>('/user/location', locationData);
+    return res.data.data;
+  } catch (err) {
+    console.error('updateUserLocation error:', err);
+    throw err;
+  }
+};

@@ -502,6 +502,17 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
       res.status(404).json({ message: 'User not found' });
       return;
     }
+
+    // Fetch country details if country_id exists
+    let country = null;
+    if (user.country_id) {
+      try {
+        country = await COUNTRY.findById(user.country_id);
+      } catch (err) {
+        console.warn('Failed to fetch country details:', err);
+      }
+    }
+
     res.status(200).json({
       success: true,
       user: {
@@ -512,7 +523,13 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
         username: user.username,
         profile_picture: user.profile_picture,
         country_id: user.country_id,
+        country_code: country?.country_code || null,
+        country_name: country?.country_name || null,
         bio: user.bio,
+        latitude: user.latitude,
+        longitude: user.longitude,
+        location: user.location,
+        isOnline: user.isOnline,
         role: user.role,
         status: user.status,
         is_blocked: user.is_blocked,
@@ -526,7 +543,51 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
     res.status(500).json({ message: 'Failed to get profile', error: error.message });
   }
 };
-// Forgot Password - Send OTP
+// Add this NEW function - don't replace the existing getProfile
+export const getUserProfile = async (userId: string) => {
+  try {
+    const user = await WIEUSER.findById(userId);
+    if (!user) {
+      return null;
+    }
+
+    // Fetch country details if country_id exists
+    let country = null;
+    if (user.country_id) {
+      try {
+        country = await COUNTRY.findById(user.country_id);
+      } catch (err) {
+        console.warn('Failed to fetch country details:', err);
+      }
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      contact_no: user.contact_no,
+      name: user.name,
+      username: user.username,
+      profile_picture: user.profile_picture,
+      country_id: user.country_id,
+      country_code: country?.country_code || null,
+      country_name: country?.country_name || null,
+      bio: user.bio,
+      latitude: user.latitude,
+      longitude: user.longitude,
+      location: user.location,
+      isOnline: user.isOnline,
+      role: user.role,
+      status: user.status,
+      is_blocked: user.is_blocked,
+      is_verified: user.is_verified,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+    };
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return null;
+  }
+};
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, contact_no } = req.body;
@@ -697,5 +758,56 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       message: 'Failed to reset password',
       error: error.message,
     });
+  }
+};
+export const getUserLocation = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+    const location = await WIEUSER.getLocation(req.user.id);
+    if (!location) {
+      res.status(404).json({ message: 'User location not found' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: location,
+    });
+  } catch (error: any) {
+    console.error('Get location error:', error);
+    res.status(500).json({ message: 'Failed to get location', error: error.message });
+  }
+};
+export const updateUserLocation = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+    const { location, latitude, longitude } = req.body;
+    if (latitude !== undefined && longitude !== undefined) {
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+      if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        res.status(400).json({ message: 'Invalid coordinates' });
+        return;
+      }
+    }
+    const updatedLocation = await WIEUSER.updateLocation(req.user.id, {
+      location: location || null,
+      latitude: latitude !== undefined ? parseFloat(latitude) : null,
+      longitude: longitude !== undefined ? parseFloat(longitude) : null,
+    });
+    res.status(200).json({
+      success: true,
+      message: 'Location updated successfully',
+      data: updatedLocation,
+    });
+  } catch (error: any) {
+    console.error('Update location error:', error);
+    res.status(500).json({ message: 'Failed to update location', error: error.message });
   }
 };

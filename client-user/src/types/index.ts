@@ -5,8 +5,14 @@ export interface User {
   name?: string | null;
   username?: string | null;
   bio?: string | null;
+  location?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  isOnline: boolean;
   profile_picture?: string | null;
   country_id?: string | null;
+  country_code?: string | null; 
+  country_name?: string | null;
   role: string;
   status: string;
   is_blocked: boolean;

@@ -7,7 +7,9 @@ import {
   ActiveGroupsResponse,
   Coordinates,
   TicketApiResponse,
-  EventDetailResponse
+  EventDetailResponse,
+  CategoryEventsParams,
+  CategoryEventsResponse,
 } from '@/types/ticket';
 export const getLiveEvents = async (): Promise<LiveEventsResponse> => {
   try {
@@ -154,4 +156,15 @@ export const sortEventsByDistance = (events: any[]): any[] => {
 };
 export const filterEventsByDistance = (events: any[], maxDistance: number): any[] => {
   return events.filter((event) => event.distance && event.distance <= maxDistance);
+};
+export const getCategoryBasedEvents = async (
+  params: CategoryEventsParams
+): Promise<CategoryEventsResponse> => {
+  try {
+    const res = await api.get('/tickets/category-events', { params });
+    return res.data;
+  } catch (err) {
+    console.error('❌ getCategoryBasedEvents error:', err);
+    throw err;
+  }
 };
