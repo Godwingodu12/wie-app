@@ -297,6 +297,49 @@ export interface EventWithLocation extends Event {
   total_sub_events?: number;
   all_sub_events_with_distance?: NearbySubEvent[];
 }
+export interface CategoryEventsParams {
+  category?: string;
+  latitude?: number;
+  longitude?: number;
+  location?: string;
+  userId?: string;
+  countryCode?: string;
+}
+export interface CategoryEventsResponse {
+  success: boolean;
+  message: string;
+  data: {
+    locationAvailable: boolean;
+    locationSource: 'gps' | 'manual' | 'saved' | 'country' | 'none';
+    searchLocation?: {
+      latitude: number;
+      longitude: number;
+    } | string;
+    searchRadius?: number;
+    categories: string[];
+    eventsByCategory: Record<string, EventWithLocation[]>;
+    eventsByDistanceAndCategory?: Record<string, Record<string, EventWithLocation[]>>;
+    totalEvents: number;
+    eventsWithLocation?: number;
+    totalEventsBeforeFilter?: number;
+    countryCode?: string | null;
+    countryName?: string | null;
+  };
+}
+export const EVENT_CATEGORIES = [
+  'Sports, Fitness, & Adventure',
+  'Music',
+  'Arts, Culture, & Literature',
+  'Dance',
+  'Business & Innovation',
+  'Food, Lifestyle, & Wellness',
+  'Film, Media, & Gaming',
+  'Travel, Holidays, & Tourism',
+  'Festivals & Celebrations',
+  'Environment, Sustainability, & Agriculture',
+  'Religious & Spiritual Events',
+] as const;
+export type EventCategory = typeof EVENT_CATEGORIES[number];
 export type EventSortBy = 'distance' | 'date' | 'price' | 'popularity';
 export type SortOrder = 'asc' | 'desc';
 export type EventStatus = 'pending' | 'live' | 'completed' | 'cancelled';
