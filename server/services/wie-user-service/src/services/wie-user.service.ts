@@ -788,19 +788,50 @@ export const updateUserLocation = async (req: Request, res: Response): Promise<v
       return;
     }
     const { location, latitude, longitude } = req.body;
-    if (latitude !== undefined && longitude !== undefined) {
+
+    // Build update object based on what's provided
+    const updateData: {
+      location?: string | null;
+      latitude?: number | null;
+      longitude?: number | null;
+    } = {};
+
+    // Handle location field (string)
+    if (location !== undefined) {
+      updateData.location = location ? location.trim() : null;
+    }
+
+    // Handle coordinates - only validate if they are actual numbers
+    if (latitude !== undefined && latitude !== null) {
       const lat = parseFloat(latitude);
-      const lng = parseFloat(longitude);
-      if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        res.status(400).json({ message: 'Invalid coordinates' });
+      if (isNaN(lat) || lat < -90 || lat > 90) {
+        res.status(400).json({ message: 'Invalid latitude' });
         return;
       }
+      updateData.latitude = lat;
+    } else if (latitude === null) {
+      updateData.latitude = null;
     }
-    const updatedLocation = await WIEUSER.updateLocation(req.user.id, {
-      location: location || null,
-      latitude: latitude !== undefined ? parseFloat(latitude) : null,
-      longitude: longitude !== undefined ? parseFloat(longitude) : null,
-    });
+
+    if (longitude !== undefined && longitude !== null) {
+      const lng = parseFloat(longitude);
+      if (isNaN(lng) || lng < -180 || lng > 180) {
+        res.status(400).json({ message: 'Invalid longitude' });
+        return;
+      }
+      updateData.longitude = lng;
+    } else if (longitude === null) {
+      updateData.longitude = null;
+    }
+
+    // Check if there's anything to update
+    if (Object.keys(updateData).length === 0) {
+      res.status(400).json({ message: 'No location data provided' });
+      return;
+    }
+
+    const updatedLocation = await WIEUSER.updateLocation(req.user.id, updateData);
+    
     res.status(200).json({
       success: true,
       message: 'Location updated successfully',
