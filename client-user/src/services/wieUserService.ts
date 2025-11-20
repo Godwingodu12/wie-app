@@ -155,29 +155,44 @@ export const resetPassword = async (userId: string, newPassword: string): Promis
     throw err;
   }
 };
-export const getUserLocation = async (): Promise<{
+export const updateUserLocation = async (data: {
   location?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-}> => {
+}): Promise<any> => {
   try {
-    const res = await api.get<ApiResponse>('/user/location');
-    return res.data.data;
+    // Only send fields that are explicitly set
+    const payload: Record<string, any> = {};
+    
+    if (data.location !== undefined) {
+      payload.location = data.location;
+    }
+    
+    if (data.latitude !== undefined) {
+      payload.latitude = data.latitude;
+    }
+    
+    if (data.longitude !== undefined) {
+      payload.longitude = data.longitude;
+    }
+
+    const res = await api.put<ApiResponse>('/user/update-location', payload);
+    return res.data;
   } catch (err) {
-    console.error('getUserLocation error:', err);
+    console.error('updateUserLocation error:', err);
     throw err;
   }
 };
-export const updateUserLocation = async (locationData: {
-  location?: string;
-  latitude?: number;
-  longitude?: number;
-}): Promise<any> => {
+export const getUserLocation = async (): Promise<{
+  location: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}> => {
   try {
-    const res = await api.put<ApiResponse>('/user/location', locationData);
+    const res = await api.get<ApiResponse>('/user/get-location');
     return res.data.data;
   } catch (err) {
-    console.error('updateUserLocation error:', err);
+    console.error('getUserLocation error:', err);
     throw err;
   }
 };
