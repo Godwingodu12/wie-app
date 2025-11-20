@@ -195,25 +195,21 @@ const UpdateTicketMedia = () => {
           return;
         }
         setTicketData(ticket);
-
-        // --- START OF REFACTORED IMAGE FETCHING ---
         const serverMedia = {
-          // Use getTicketImageUrl for event_logo
           event_logo: ticket.event_logo
             ? getTicketImageUrl(ticket.event_logo)
             : null,
-          // Use getTicketImageUrl for event_banner
           event_banner: ticket.event_banner
             ? getTicketImageUrl(ticket.event_banner)
             : null,
-          // Use getTicketImageUrl for college_authorisation path
+          // FIX: Handle college_authorisation consistently
           college_authorisation: ticket.college_authorisation
             ? {
                 name: ticket.college_authorisation.split(/[/\\]/).pop(),
                 url: getTicketImageUrl(ticket.college_authorisation),
+                data: getTicketImageUrl(ticket.college_authorisation), // Add data property for consistency
               }
             : null,
-          // Use getTicketImageUrl for event_images paths
           event_images: (ticket.event_images || []).map((img, index) => ({
             id: img.path || `existing-${index}`,
             preview: getTicketImageUrl(img.path),
@@ -225,8 +221,6 @@ const UpdateTicketMedia = () => {
             mimeType: img.mimeType,
           })),
         };
-        // --- END OF REFACTORED IMAGE FETCHING ---
-
         setExistingMedia(serverMedia);
         const savedStateJSON = sessionStorage.getItem(storageKey);
         if (savedStateJSON) {
@@ -239,6 +233,7 @@ const UpdateTicketMedia = () => {
               event_banner: savedPreviews.event_banner?.startsWith("data:")
                 ? savedPreviews.event_banner
                 : serverMedia.event_banner,
+              // FIX: Properly handle college_authorisation preview
               college_authorisation:
                 savedPreviews.college_authorisation?.data?.startsWith("data:")
                   ? savedPreviews.college_authorisation
@@ -250,18 +245,14 @@ const UpdateTicketMedia = () => {
                 ),
               ],
             };
-
             setPreviews(mergedPreviews);
-
             const newFormData = { event_images: [] };
-
             if (savedPreviews.event_logo?.startsWith("data:")) {
               newFormData.event_logo = base64ToFile(
                 savedPreviews.event_logo,
                 "event_logo"
               );
             }
-
             if (savedPreviews.event_banner?.startsWith("data:")) {
               newFormData.event_banner = base64ToFile(
                 savedPreviews.event_banner,
@@ -613,7 +604,6 @@ const UpdateTicketMedia = () => {
     }
     return true;
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -627,33 +617,45 @@ const UpdateTicketMedia = () => {
     let hasNewFiles = false;
 
     if (formData.event_logo instanceof File) {
+      console.log('Adding event_logo:', formData.event_logo.name, formData.event_logo.size);
       submitData.append("event_logo", formData.event_logo);
       hasNewFiles = true;
     }
 
     if (formData.event_banner instanceof File) {
+      console.log('Adding event_banner:', formData.event_banner.name, formData.event_banner.size);
       submitData.append("event_banner", formData.event_banner);
       hasNewFiles = true;
     }
 
     if (formData.college_authorisation instanceof File) {
-      submitData.append(
-        "college_authorisation",
-        formData.college_authorisation
-      );
+      console.log('Adding college_authorisation:', formData.college_authorisation.name, formData.college_authorisation.size);
+      submitData.append("college_authorisation", formData.college_authorisation);
       hasNewFiles = true;
     }
+    
     if (
       formData.event_images &&
       Array.isArray(formData.event_images) &&
       formData.event_images.length > 0
     ) {
-      formData.event_images.forEach((file) => {
+      formData.event_images.forEach((file, index) => {
         if (file instanceof File) {
+          console.log(`Adding event_images[${index}]:`, file.name, file.size);
           submitData.append("event_images", file);
           hasNewFiles = true;
         }
       });
+    }
+
+    // Log FormData contents for debugging
+    console.log('📦 FormData contents:');
+    for (let [key, value] of submitData.entries()) {
+      if (value instanceof File) {
+        console.log(`  ${key}: ${value.name} (${value.size} bytes, type: ${value.type})`);
+      } else {
+        console.log(`  ${key}:`, value);
+      }
     }
 
     if (!hasNewFiles) {
@@ -675,6 +677,7 @@ const UpdateTicketMedia = () => {
     }
 
     try {
+      console.log('🚀 Sending request to update ticket media...');
       const response = await updateTicketMedia(ticketId, submitData);
 
       sessionStorage.removeItem(storageKey);
@@ -699,6 +702,7 @@ const UpdateTicketMedia = () => {
 
       navigate(`/ticket/update-ticket-details/${ticketId}`);
     } catch (error) {
+      console.error('❌ Upload error:', error);
       const errorMessage =
         error.response?.data?.message ||
         error.message ||
@@ -712,7 +716,6 @@ const UpdateTicketMedia = () => {
       setLoading(false);
     }
   };
-
   if (initialLoading) {
     return (
       <div className="dark bg-[#212426] min-h-screen flex items-center justify-center text-white">
