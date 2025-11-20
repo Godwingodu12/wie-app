@@ -56,37 +56,46 @@ export const processFileUploads = async (files) => {
     for (const fieldName of singleFileFields) {
       if (files[fieldName] && files[fieldName][0]) {
         const file = files[fieldName][0];
+        // Enhanced validation
+        console.log(`📋 Processing ${fieldName}:`, {
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          bufferLength: file.buffer?.length || 0,
+          hasBuffer: !!file.buffer
+        });
+        // Validate file exists and has content
+        if (!file.buffer) {
+          console.error(`❌ No buffer for ${fieldName}`);
+          throw new Error(`File ${fieldName} has no buffer. Please ensure file is properly uploaded.`);
+        }
+        
+        if (file.buffer.length === 0) {
+          console.error(`❌ Empty buffer for ${fieldName}`);
+          throw new Error(`File ${fieldName} is empty (0 bytes). Please upload a valid file.`);
+        }
+        if (file.size === 0) {
+          console.error(`❌ Zero size for ${fieldName}`);
+          throw new Error(`File ${fieldName} has zero size. Please upload a valid file.`);
+        }
         const folder = getCloudinaryFolder(fieldName);
-        const resourceType = getResourceType(fieldName, file.mimetype);
-
-        console.log(`Uploading ${fieldName} to Cloudinary...`);
+        const resourceType = getResourceType(fieldName, file.mimetype);  
         const result = await uploadToCloudinary(file.buffer, {
           folder,
           resourceType
         });
-
-        // For event_rules and college_authorisation, return full file object
-        if (fieldName === 'event_rules' || fieldName === 'college_authorisation') {
-          uploadedFiles[fieldName] = [{
-            path: result.url,
-            originalName: file.originalname,
-            mimeType: file.mimetype,
-            size: file.size,
-            public_id: result.public_id,
-            resource_type: result.resource_type
-          }];
-        } else {
-          uploadedFiles[fieldName] = result.url;
-        }
-        console.log(`✅ ${fieldName} uploaded:`, result.url);
+        // Store just the URL for all single file fields
+        uploadedFiles[fieldName] = result.url;
       }
     }
+    // Process ticket_layout
     if (files.ticket_layout && files.ticket_layout[0]) {
       const file = files.ticket_layout[0];
+      if (!file.buffer || file.buffer.length === 0) {
+        throw new Error('Ticket layout file is empty. Please upload a valid file.');
+      }
       const folder = getCloudinaryFolder('ticket_layout');
       const resourceType = getResourceType('ticket_layout', file.mimetype);
-
-      console.log(`Uploading ticket_layout to Cloudinary...`);
       const result = await uploadToCloudinary(file.buffer, {
         folder,
         resourceType
@@ -100,16 +109,17 @@ export const processFileUploads = async (files) => {
         public_id: result.public_id,
         resource_type: result.resource_type
       }];
-      
-      console.log(`✅ ticket_layout uploaded:`, result.url);
     }
-
     // Process event_images (multiple files)
     if (files.event_images && files.event_images.length > 0) {
-      console.log(`Uploading ${files.event_images.length} event images/videos...`);
+      console.log(`📸 Uploading ${files.event_images.length} event images/videos...`);
       uploadedFiles.event_images = [];
-
       for (const file of files.event_images) {
+        if (!file.buffer || file.buffer.length === 0) {
+          console.warn(`⚠️ Skipping empty event image: ${file.originalname}`);
+          continue;
+        }
+        
         const folder = getCloudinaryFolder('event_images');
         const resourceType = getResourceType('event_images', file.mimetype);
 
@@ -126,21 +136,24 @@ export const processFileUploads = async (files) => {
           public_id: result.public_id,
           resource_type: result.resource_type
         });
-
-        console.log(`✅ Event image uploaded:`, result.url);
       }
     }
+    // Process guest profiles
     for (let i = 0; i < 10; i++) {
       const fieldName = `guest_profile_${i}`;
       if (files[fieldName] && files[fieldName][0]) {
         const file = files[fieldName][0];
+        if (!file.buffer || file.buffer.length === 0) {
+          console.warn(`⚠️ Skipping empty ${fieldName}`);
+          continue;
+        }
         const folder = getCloudinaryFolder('guest_profile');
         const resourceType = 'image';
-        console.log(`Uploading ${fieldName} to Cloudinary...`);
         const result = await uploadToCloudinary(file.buffer, {
           folder,
           resourceType
         });
+        
         uploadedFiles[fieldName] = [{
           path: result.url,
           originalName: file.originalname,
@@ -149,18 +162,20 @@ export const processFileUploads = async (files) => {
           public_id: result.public_id,
           resource_type: result.resource_type
         }];
-        console.log(`✅ ${fieldName} uploaded:`, result.url);
       }
     }
+    
     // Process ticket photos (ticket_photo_0, ticket_photo_1, etc.)
     for (let i = 0; i < 20; i++) {
       const fieldName = `ticket_photo_${i}`;
       if (files[fieldName] && files[fieldName][0]) {
         const file = files[fieldName][0];
+        if (!file.buffer || file.buffer.length === 0) {
+          console.warn(`⚠️ Skipping empty ${fieldName}`);
+          continue;
+        }
         const folder = getCloudinaryFolder('ticket_photo');
         const resourceType = 'image';
-
-        console.log(`Uploading ${fieldName} to Cloudinary...`);
         const result = await uploadToCloudinary(file.buffer, {
           folder,
           resourceType
@@ -174,8 +189,6 @@ export const processFileUploads = async (files) => {
           public_id: result.public_id,
           resource_type: result.resource_type
         }];
-        
-        console.log(`✅ ${fieldName} uploaded:`, result.url);
       }
     }
 
@@ -183,13 +196,14 @@ export const processFileUploads = async (files) => {
     for (let i = 0; i < 30; i++) {
       const videoFieldName = `video_file_${i}`;
       const previewFieldName = `preview_image_${i}`;
-
       if (files[videoFieldName] && files[videoFieldName][0]) {
         const file = files[videoFieldName][0];
+        if (!file.buffer || file.buffer.length === 0) {
+          console.warn(`⚠️ Skipping empty ${videoFieldName}`);
+          continue;
+        }
         const folder = getCloudinaryFolder('video_file');
         const resourceType = 'video';
-
-        console.log(`Uploading ${videoFieldName} to Cloudinary...`);
         const result = await uploadToCloudinary(file.buffer, {
           folder,
           resourceType
@@ -203,16 +217,16 @@ export const processFileUploads = async (files) => {
           public_id: result.public_id,
           resource_type: result.resource_type
         }];
-        
-        console.log(`✅ ${videoFieldName} uploaded:`, result.url);
       }
-
       if (files[previewFieldName] && files[previewFieldName][0]) {
         const file = files[previewFieldName][0];
+        
+        if (!file.buffer || file.buffer.length === 0) {
+          continue;
+        }
+        
         const folder = getCloudinaryFolder('preview_image');
         const resourceType = 'image';
-
-        console.log(`Uploading ${previewFieldName} to Cloudinary...`);
         const result = await uploadToCloudinary(file.buffer, {
           folder,
           resourceType
@@ -226,14 +240,12 @@ export const processFileUploads = async (files) => {
           public_id: result.public_id,
           resource_type: result.resource_type
         }];
-        
         console.log(`✅ ${previewFieldName} uploaded:`, result.url);
       }
     }
-
     return uploadedFiles;
   } catch (error) {
-    console.error('Error processing file uploads:', error);
+    console.error('❌ Error processing file uploads:', error);
     throw new Error(`File upload failed: ${error.message}`);
   }
 };

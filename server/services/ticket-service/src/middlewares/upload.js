@@ -350,7 +350,6 @@ const uploadFields = upload.fields([
 
 export default upload;
 export { uploadFields };
-
 export const uploadTicketMedia = (req, res, next) => {
   const upload = ticketMediaUpload.fields([
     { name: 'event_logo', maxCount: 1 },
@@ -453,6 +452,7 @@ export const uploadTicketMedia = (req, res, next) => {
 
   upload(req, res, (err) => {
     if (err) {
+      console.error('❌ Multer upload error:', err);
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({
           message: 'File too large',
@@ -477,10 +477,17 @@ export const uploadTicketMedia = (req, res, next) => {
         error: err.message
       });
     }
+    if (req.files) {
+      console.log('📦 Uploaded files:', Object.keys(req.files));
+      Object.entries(req.files).forEach(([fieldname, files]) => {
+        files.forEach(file => {
+          console.log(`  - ${fieldname}: ${file.originalname} (${file.size} bytes, buffer: ${file.buffer?.length || 0} bytes)`);
+        });
+      });
+    }
     next();
   });
 };
-
 export const uploadSingleTicketMedia = ticketMediaUpload.single('file');
 export const uploadMultipleTicketMedia = ticketMediaUpload.array('files', 10);
 

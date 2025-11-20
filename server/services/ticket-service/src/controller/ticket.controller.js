@@ -1080,7 +1080,6 @@ export const confirmEvent = async (req, res) => {
         message: "Missing required parameter: ticketId"
       });
     }
-    // Update ticket to confirmed status
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId, userId: userId },
       { 
@@ -1095,25 +1094,7 @@ export const confirmEvent = async (req, res) => {
         message: "Ticket not found or unauthorized" 
       });
     }
-    // Populate groupId
     await updatedTicket.populate('groupId');
-    // Create notification
-    try {
-      const groupName = updatedTicket.groupId?.name || 'Unknown Group';
-      await createNotification({
-        userId: userId,
-        type: 'event_created',
-        title: 'Event Created Successfully',
-        message: `Your event "${updatedTicket.event_name}" has been created in ${groupName}`,
-        ticketId: updatedTicket._id,
-        groupId: updatedTicket.groupId?._id,
-        groupName: groupName,
-        eventName: updatedTicket.event_name
-      });
-      console.log('Notification created for confirmed event:', updatedTicket.event_name);
-    } catch (notifError) {
-      console.error('Error creating notification:', notifError);
-    }
     res.status(200).json({
       message: "Event confirmed successfully",
       ticket: updatedTicket
