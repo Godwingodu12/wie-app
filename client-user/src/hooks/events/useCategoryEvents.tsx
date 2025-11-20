@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getCategoryBasedEvents } from '@/services/ticketUserService';
+import { updateUserLocation } from '@/services/wieUserService';
 import { CategoryEventsParams, EventWithLocation } from '@/types/ticket';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -9,23 +10,18 @@ export const useCategoryEvents = (category?: string, autoLoad: boolean = false) 
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchRadius, setSearchRadius] = useState<number>(100);
   const [locationSource, setLocationSource] = useState<'gps' | 'manual' | 'saved' | 'country' | 'none'>('none');
+  const [searchRadius, setSearchRadius] = useState<number>(100);
+
   const fetchCategoryEvents = async (params: CategoryEventsParams = {}) => {
     try {
       setLoading(true);
       setError(null);
 
-      // Add userId to params
       if (user?.id) {
         params.userId = user.id;
       }
 
-      // Add country code if available and no location
-      if (!params.latitude && !params.longitude && !params.location && user?.country_code) {
-        params.countryCode = user.country_code;
-      }
-      // Add category to params
       if (category) {
         params.category = category;
       }
@@ -54,9 +50,25 @@ export const useCategoryEvents = (category?: string, autoLoad: boolean = false) 
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           try {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+
+            // Save GPS coordinates and clear manual location
+            if (user?.id) {
+              try {
+                await updateUserLocation({
+                  latitude: lat,
+                  longitude: lng,
+                  location: null,
+                });
+              } catch (err) {
+                console.warn('Failed to save GPS location:', err);
+              }
+            }
+
             const params: CategoryEventsParams = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
+              latitude: lat,
+              longitude: lng,
             };
 
             if (category) {
@@ -78,6 +90,60 @@ export const useCategoryEvents = (category?: string, autoLoad: boolean = false) 
     });
   };
 
+  const searchByManualLocation = async (locationText: string) => {
+    try {
+      // Save manual location and clear coordinates
+      if (user?.id && locationText.trim()) {
+        try {
+          await updateUserLocation({
+            location: locationText.trim(),
+            latitude: null,
+            longitude: null,
+          });
+        } catch (err) {
+          console.warn('Failed to save manual location:', err);
+        }
+      }
+
+      const params: CategoryEventsParams = {
+        location: locationText,
+      };
+
+      if (category) {
+        params.category = category;
+      }
+
+      if (user?.id) {
+        params.userId = user.id;
+      }
+
+      await fetchCategoryEvents(params);
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const clearLocationAndFetch = async () => {
+    try {
+      // Clear all location data
+      if (user?.id) {
+        try {
+          await updateUserLocation({
+            location: null,
+            latitude: null,
+            longitude: null,
+          });
+        } catch (err) {
+          console.warn('Failed to clear location:', err);
+        }
+      }
+
+      await fetchCategoryEvents({ userId: user?.id });
+    } catch (err) {
+      throw err;
+    }
+  };
+
   useEffect(() => {
     if (autoLoad) {
       fetchCategoryEvents();
@@ -93,5 +159,7 @@ export const useCategoryEvents = (category?: string, autoLoad: boolean = false) 
     searchRadius,
     fetchCategoryEvents,
     getCurrentLocationAndFetch,
+    searchByManualLocation,
+    clearLocationAndFetch,
   };
 };

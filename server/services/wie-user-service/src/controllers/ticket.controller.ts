@@ -479,7 +479,6 @@ export const getCategoryBasedEvents = async (
         if (userProfile) {
           userCountryCode = userProfile.country_code;
           userCountryName = userProfile.country_name;
-          
           // Get saved location from user profile
           if (userProfile.latitude && userProfile.longitude) {
             userLat = userProfile.latitude;
@@ -493,7 +492,6 @@ export const getCategoryBasedEvents = async (
         console.warn('Failed to fetch user profile:', err);
       }
     }
-
     // Priority 1: GPS coordinates from query (overrides saved location)
     if (latitude && longitude) {
       const lat = parseFloat(latitude as string);
@@ -504,19 +502,6 @@ export const getCategoryBasedEvents = async (
         userLng = lng;
         locationSource = 'gps';
         userLocation = null;
-        
-        // Save GPS location to user
-        if (userId) {
-          try {
-            await WIEUSER.updateLocation(userId as string, {
-              latitude: userLat,
-              longitude: userLng,
-              location: null,
-            });
-          } catch (err) {
-            console.warn('Failed to save GPS location:', err);
-          }
-        }
       }
     }
 
@@ -531,19 +516,6 @@ export const getCategoryBasedEvents = async (
         if (coordinates) {
           userLat = coordinates.lat;
           userLng = coordinates.lng;
-          
-          // Save location to user
-          if (userId) {
-            try {
-              await WIEUSER.updateLocation(userId as string, {
-                latitude: userLat,
-                longitude: userLng,
-                location: userLocation,
-              });
-            } catch (err) {
-              console.warn('Failed to save manual location:', err);
-            }
-          }
         }
       } catch (err) {
         console.warn('Failed to geocode location:', err);
