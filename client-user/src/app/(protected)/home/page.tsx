@@ -26,6 +26,32 @@ export default function DashboardPage() {
 
         {/* Featured Action Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {/* Category Events Card - Add after All Events Card */}
+          <Card className="hover:shadow-xl transition-shadow cursor-pointer bg-gradient-to-br from-green-50 to-teal-50 border-2 border-green-200">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-green-600 rounded-full">
+                  <BookOpen className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Browse by Category</h3>
+                  <p className="text-sm text-gray-600">Explore events by your interests</p>
+                </div>
+              </div>
+              
+              <p className="text-gray-700 mb-4">
+                Discover events organized by categories like Sports, Music, Arts, and more.
+              </p>
+              
+              <button
+                onClick={() => router.push('/events/categories')}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <BookOpen className="w-5 h-5" />
+                Explore Categories
+              </button>
+            </div>
+          </Card>
           {/* Nearby Events Card */}
           <Card className="hover:shadow-xl transition-shadow cursor-pointer bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200">
             <div className="p-6">
@@ -52,7 +78,6 @@ export default function DashboardPage() {
               </button>
             </div>
           </Card>
-
           {/* All Events Card */}
           <Card className="hover:shadow-xl transition-shadow cursor-pointer bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200">
             <div className="p-6">
@@ -88,13 +113,12 @@ export default function DashboardPage() {
                 <div className="p-2 bg-green-100 rounded-lg">
                   <Calendar className="w-5 h-5 text-green-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Upcoming Events</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Event Categories</h3>
               </div>
               <p className="text-3xl font-bold text-gray-900 mb-2">0</p>
               <p className="text-gray-600 text-sm">No upcoming events registered</p>
             </div>
           </Card>
-
           <Card className="hover:shadow-lg transition-shadow">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-3">
