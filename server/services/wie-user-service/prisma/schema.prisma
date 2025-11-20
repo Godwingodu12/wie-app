@@ -32,6 +32,10 @@ model WieUser {
   role            String    @default("user") @db.VarChar(50)
   status          String    @default("pending") @db.VarChar(20)
   bio             String?   @db.Text
+  location        String?   @db.Text
+  latitude        Float?    @map("latitude")  @db.DoublePrecision
+  longitude       Float?    @map("longitude") @db.DoublePrecision
+  isOnline        Boolean   @default(false) @map("is_online")
   isBlocked       Boolean   @default(false) @map("is_blocked")
   isVerified      Boolean   @default(false) @map("is_verified")
   googleId        String?   @unique @map("google_id") @db.VarChar(255)  // NEW: Google OAuth ID
