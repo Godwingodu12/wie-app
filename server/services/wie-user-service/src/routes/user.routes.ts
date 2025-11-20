@@ -1,5 +1,5 @@
 import express from 'express';
-import { index,getCountries,signupSendOtp,signupVerifyOtp,login,resendOtp,getProfile,updateProfile,googleAuth,googleCallback,forgotPassword,verifyResetOTP,resetPassword  } from '../services/wie-user.service';
+import { index,getCountries,signupSendOtp,signupVerifyOtp,login,resendOtp,getProfile,updateProfile,googleAuth,googleCallback,forgotPassword,verifyResetOTP,resetPassword,getUserLocation,updateUserLocation } from '../services/wie-user.service';
 import { authenticateToken } from '../middlewares/auth.middleware';
 const router: express.Router = express.Router();
 router.get('/', index);
@@ -15,4 +15,6 @@ router.put('/update-profile', authenticateToken, updateProfile);
 router.post('/forgot-password', forgotPassword);
 router.post('/verify-reset-otp', verifyResetOTP);
 router.post('/reset-password', resetPassword);
+router.get('/location', authenticateToken, getUserLocation);
+router.put('/location', authenticateToken, updateUserLocation);
 export default router;
