@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { useCategoryEvents } from '@/hooks/events/useCategoryEvents';
-import { MapPin, Navigation, Search, Filter } from 'lucide-react';
+import { MapPin, Navigation, Search, Filter, X } from 'lucide-react';
 import { EVENT_CATEGORIES } from '@/types/ticket';
 import { EventCard } from '@/components/events/EventCard';
 
@@ -24,10 +24,12 @@ export default function CategoryEventsPage() {
     searchRadius,
     fetchCategoryEvents,
     getCurrentLocationAndFetch,
+    searchByManualLocation,
+    clearLocationAndFetch,
   } = useCategoryEvents(selectedCategory, false);
 
   useEffect(() => {
-    // Auto-load events on mount with user's country
+    // Auto-load events on mount with user's saved location/country
     fetchCategoryEvents().then(() => {
       setHasActiveSearch(false);
     });
@@ -43,6 +45,7 @@ export default function CategoryEventsPage() {
   const handleUseCurrentLocation = async () => {
     try {
       await getCurrentLocationAndFetch();
+      setLocationInput(''); // Clear manual input when using GPS
       setHasActiveSearch(true);
     } catch (err: any) {
       alert(err.message || 'Failed to get location');
@@ -52,11 +55,7 @@ export default function CategoryEventsPage() {
   const handleManualLocationSearch = async () => {
     if (!locationInput.trim()) return;
     try {
-      await fetchCategoryEvents({ 
-        location: locationInput,
-        category: selectedCategory,
-        userId: user?.id 
-      });
+      await searchByManualLocation(locationInput.trim());
       setHasActiveSearch(true);
     } catch (err: any) {
       alert(err.message || 'Failed to search location');
@@ -75,9 +74,24 @@ export default function CategoryEventsPage() {
     setHasActiveSearch(false);
     
     try {
-      await fetchCategoryEvents({ userId: user?.id });
+      await clearLocationAndFetch();
     } catch (err: any) {
       alert(err.message || 'Failed to reset search');
+    }
+  };
+
+  const getLocationStatusText = () => {
+    switch (locationSource) {
+      case 'gps':
+        return 'Using GPS location - Events sorted by distance';
+      case 'saved':
+        return 'Using saved location - Events sorted by distance';
+      case 'manual':
+        return `Searching in: ${locationInput || user?.location || 'your location'}`;
+      case 'country':
+        return `Showing events in ${user?.country_name || 'your country'}`;
+      default:
+        return '';
     }
   };
 
@@ -85,17 +99,18 @@ export default function CategoryEventsPage() {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Header
-        title="Explore Events by Category"
-        subtitle={
+          title="Explore Events by Category"
+          subtitle={
             locationSource === 'gps' || locationSource === 'saved'
-            ? `Discover events near you within ${searchRadius}km, organized by interest`
-            : locationSource === 'manual'
-            ? `Discover events in your selected location, organized by interest`
-            : locationSource === 'country' && user?.country_name
-            ? `Discover events in ${user.country_name}, organized by interest`
-            : `Discover events organized by interest`
-        }
+              ? `Discover events near you, sorted by distance`
+              : locationSource === 'manual'
+              ? `Discover events in your selected location`
+              : locationSource === 'country' && user?.country_name
+              ? `Discover events in ${user.country_name}`
+              : `Discover events organized by interest`
+          }
         />
+
         {/* Location Search - Always Visible */}
         <Card className="mb-6 bg-blue-50 border-blue-200">
           <div className="p-6">
@@ -139,19 +154,12 @@ export default function CategoryEventsPage() {
 
         {/* Location Status */}
         {locationSource !== 'none' && (
-        <div className="mb-6 flex items-center gap-2 text-sm text-green-600">
+          <div className="mb-6 flex items-center gap-2 text-sm text-green-600">
             <MapPin className="w-4 h-4" />
-            <span>
-            {locationSource === 'gps' || locationSource === 'saved'
-                ? `Location active (${locationSource}) - Showing events within ${searchRadius}km sorted by distance`
-                : locationSource === 'manual'
-                ? `Searching in your selected location`
-                : locationSource === 'country' && user?.country_name
-                ? `Showing events in ${user.country_name}`
-                : 'Location filter active'}
-            </span>
-        </div>
+            <span>{getLocationStatusText()}</span>
+          </div>
         )}
+
         {/* Clear Search Button */}
         {hasActiveSearch && (
           <div className="mb-6">
@@ -160,18 +168,7 @@ export default function CategoryEventsPage() {
               disabled={loading}
               className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                className="h-5 w-5" 
-                viewBox="0 0 20 20" 
-                fill="currentColor"
-              >
-                <path 
-                  fillRule="evenodd" 
-                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" 
-                  clipRule="evenodd" 
-                />
-              </svg>
+              <X className="h-5 w-5" />
               Clear All Filters
             </button>
           </div>
@@ -237,7 +234,7 @@ export default function CategoryEventsPage() {
                   <div className="flex gap-4" style={{ minWidth: 'min-content' }}>
                     {events.map((event) => (
                       <div key={event._id} className="w-80 flex-shrink-0">
-                        <EventCard event={event} showDistance={locationSource !== 'none'} />
+                        <EventCard event={event} showDistance={locationSource === 'gps' || locationSource === 'saved'} />
                       </div>
                     ))}
                   </div>
@@ -246,35 +243,36 @@ export default function CategoryEventsPage() {
             ))}
           </div>
         )}
+
         {/* Empty State */}
         {!loading && Object.keys(eventsByCategory).length === 0 && (
-        <Card className="text-center py-12">
+          <Card className="text-center py-12">
             <div className="max-w-md mx-auto">
-            <p className="text-gray-600 text-lg mb-2">
+              <p className="text-gray-600 text-lg mb-2">
                 {selectedCategory 
-                ? `No events found for "${selectedCategory}"`
-                : 'No events found'}
-            </p>
-            {user?.country_name && (
+                  ? `No events found for "${selectedCategory}"`
+                  : 'No events found'}
+              </p>
+              {user?.country_name && (
                 <p className="text-gray-500 text-sm mb-4">
-                in {user.country_name}
-                {locationSource === 'saved' || locationSource === 'gps' 
+                  in {user.country_name}
+                  {locationSource === 'saved' || locationSource === 'gps' 
                     ? ' near your location' 
                     : locationSource === 'manual' && locationInput
                     ? ` in ${locationInput}`
                     : ''}
                 </p>
-            )}
-            {selectedCategory && (
+              )}
+              {selectedCategory && (
                 <button
-                onClick={() => setSelectedCategory(undefined)}
-                className="mt-4 text-blue-600 hover:text-blue-700 font-semibold"
+                  onClick={() => setSelectedCategory(undefined)}
+                  className="mt-4 text-blue-600 hover:text-blue-700 font-semibold"
                 >
-                View all categories
+                  View all categories
                 </button>
-            )}
+              )}
             </div>
-        </Card>
+          </Card>
         )}
       </div>
     </div>
