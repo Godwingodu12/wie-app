@@ -24,7 +24,6 @@ export const useNearbyEvents = (autoLoad: boolean = false) => {
       setLoading(false);
     }
   };
-
   const fetchFromCurrentLocation = async (radius: number = 30) => {
     try {
       setLoading(true);
