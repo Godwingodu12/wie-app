@@ -14,10 +14,14 @@ export interface WieUser {
   role: string;
   status: string;
   bio?: string | null;
+  location: string;
+  latitude?: number | null;     
+  longitude?: number | null;
+  isOnline: boolean; 
   is_blocked: boolean;
   is_verified: boolean;
-  google_id?: string | null;  // NEW
-  auth_provider: string;  // NEW
+  google_id?: string | null;  
+  auth_provider: string;  
   created_at: Date;
   updated_at: Date;
 }
@@ -48,6 +52,10 @@ const toDatabaseFormat = (user: any): WieUser => {
     role: user.role,
     status: user.status,
     bio: user.bio,
+    location: user.location,          
+    latitude: user.latitude,          
+    longitude: user.longitude, 
+    isOnline: user.isOnline, 
     is_blocked: user.isBlocked,
     is_verified: user.isVerified,
     google_id: user.googleId,  // NEW
@@ -158,7 +166,48 @@ class WieUserModel {
     });
     return toDatabaseFormat(user);
   }
+  async getLocation(id: string): Promise<{ location?: string | null; latitude?: number | null; longitude?: number | null } | null> {
+    const user = await prisma.wieUser.findUnique({
+      where: { id },
+      select: {
+        location: true,
+        latitude: true,
+        longitude: true,
+      },
+    });
 
+    if (!user) return null;
+    return {
+      location: user.location,
+      latitude: user.latitude ?? null,
+      longitude: user.longitude ?? null,
+    };
+  }
+  async updateLocation(id: string, updates: {
+    location?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+  }): Promise<{ location?: string | null; latitude?: number | null; longitude?: number | null }> {
+    const user = await prisma.wieUser.update({
+      where: { id },
+      data: {
+        location: updates.location ?? undefined,
+        latitude: updates.latitude ?? undefined,
+        longitude: updates.longitude ?? undefined,
+      },
+      select: {
+        location: true,
+        latitude: true,
+        longitude: true,
+      },
+    });
+
+    return {
+      location: user.location,
+      latitude: user.latitude ?? null,
+      longitude: user.longitude ?? null,
+    };
+  }
   async deleteUser(id: string): Promise<void> {
     await prisma.wieUser.delete({
       where: { id },
