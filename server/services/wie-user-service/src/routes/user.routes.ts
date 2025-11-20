@@ -15,6 +15,6 @@ router.put('/update-profile', authenticateToken, updateProfile);
 router.post('/forgot-password', forgotPassword);
 router.post('/verify-reset-otp', verifyResetOTP);
 router.post('/reset-password', resetPassword);
-router.get('/location', authenticateToken, getUserLocation);
-router.put('/location', authenticateToken, updateUserLocation);
+router.get('/get-location', authenticateToken, getUserLocation);
+router.put('/update-location', authenticateToken, updateUserLocation);
 export default router;
