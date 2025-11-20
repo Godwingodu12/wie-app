@@ -1951,38 +1951,20 @@ export const updateTicketMedia = async (req, res) => {
       event_banner: uploadedFiles.event_banner,
       college_authorisation: uploadedFiles.college_authorisation,
     });
-
     // Extract URLs directly - these are already complete Cloudinary URLs
     const eventLogoUrl = uploadedFiles.event_logo || null;
     const eventBannerUrl = uploadedFiles.event_banner || null;
     const collegeAuthorisationUrl = uploadedFiles.college_authorisation || null;
     const event_images = uploadedFiles.event_images || [];
-
-    // Log extracted URLs for debugging
-    console.log("📸 Extracted URLs:", {
-      event_logo: eventLogoUrl,
-      event_banner: eventBannerUrl,
-      college_authorisation: collegeAuthorisationUrl,
-      event_images_count: event_images.length,
-    });
-
-    // Get organization_type - Enhanced validation
     const userRole = req.user?.role;
     let organisation_type = null;
-
     if (userRole === "organisation") {
       organisation_type = req.user?.organisation_type;
-      console.log("🏢 Organization type detected:", organisation_type);
-
       // College authorization validation for educational organizations
       if (
         organisation_type &&
         organisation_type.toLowerCase() === "educational"
       ) {
-        console.log(
-          "🎓 Educational organization detected, checking college authorization..."
-        );
-
         if (!collegeAuthorisationUrl) {
           // Check if existing ticket has college authorization
           const existingTicket = await Ticket.findById(ticketId);
@@ -1997,11 +1979,6 @@ export const updateTicketMedia = async (req, res) => {
               organization_type: organisation_type,
             });
           }
-        } else {
-          console.log(
-            "✅ College authorization uploaded to Cloudinary:",
-            collegeAuthorisationUrl
-          );
         }
       }
     } else {
@@ -2050,10 +2027,6 @@ export const updateTicketMedia = async (req, res) => {
           organization_type: organisation_type,
         });
       }
-
-      console.log(
-        "✅ Existing media found and validated, updating progress only"
-      );
       const userId = req.user._id || req.user.id;
 
       const updatedTicket = await Ticket.findOneAndUpdate(
@@ -2065,7 +2038,6 @@ export const updateTicketMedia = async (req, res) => {
         },
         { new: true, runValidators: true }
       );
-
       return res.status(200).json({
         message: "Media step completed (no new files uploaded)",
         ticket: updatedTicket,
@@ -2073,9 +2045,6 @@ export const updateTicketMedia = async (req, res) => {
         note: "Existing media retained",
       });
     }
-
-    console.log("✅ All validations passed, preparing update data...");
-
     const userId = req.user._id || req.user.id;
     const updateData = {
       "form_progress.media": true,
@@ -2199,16 +2168,10 @@ export const updateTicketMedia = async (req, res) => {
         "total"
       );
     }
-
     // Add college authorization file if uploaded
     if (collegeAuthorisationUrl) {
       updateData.college_authorisation = collegeAuthorisationUrl;
-      console.log(
-        "✅ College authorization will be updated to:",
-        collegeAuthorisationUrl
-      );
     }
-
     console.log("📝 Final update data:", {
       has_event_logo: !!updateData.event_logo,
       has_event_banner: !!updateData.event_banner,
@@ -2217,19 +2180,14 @@ export const updateTicketMedia = async (req, res) => {
       event_logo_url: updateData.event_logo,
       event_banner_url: updateData.event_banner,
     });
-
-    console.log("💾 Updating ticket in database...");
-
     // Find and update the ticket
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
       updateData,
       { new: true, runValidators: true }
     );
-
     if (!updatedTicket) {
       console.error("❌ Ticket not found:", ticketId);
-
       // Cleanup uploaded files
       const filesToDelete = [];
       if (eventLogoUrl) filesToDelete.push(eventLogoUrl);
@@ -2238,7 +2196,6 @@ export const updateTicketMedia = async (req, res) => {
       if (event_images && event_images.length > 0) {
         event_images.forEach((img) => filesToDelete.push(img.path));
       }
-
       if (filesToDelete.length > 0) {
         await Promise.all(
           filesToDelete.map((url) =>
@@ -2248,15 +2205,12 @@ export const updateTicketMedia = async (req, res) => {
           )
         );
       }
-
       return res.status(404).json({
         message: "Ticket not found or unauthorized",
         ticketId: ticketId,
       });
     }
-
-    console.log("✅ Ticket updated successfully");
-
+    console.log("✅ Ticket Media updated successfully");
     res.status(200).json({
       message: "Ticket media updated successfully",
       ticket: updatedTicket,
@@ -2299,7 +2253,6 @@ export const updateTicketMedia = async (req, res) => {
       ) {
         event_images.forEach((img) => filesToDelete.push(img.path));
       }
-
       if (filesToDelete.length > 0) {
         console.log("🧹 Cleaning up uploaded files due to error...");
         await Promise.all(
