@@ -132,7 +132,6 @@ const EventTermsAndConditionsPage = () => {
 
   const handleHostEvent = async (event) => {
     event.preventDefault();
-
     if (!isChecked) {
       showAlert({
         type: "error",
@@ -142,7 +141,6 @@ const EventTermsAndConditionsPage = () => {
       });
       return;
     }
-
     if (!isPreviewChecked) {
       showAlert({
         type: "error",
@@ -152,7 +150,6 @@ const EventTermsAndConditionsPage = () => {
       });
       return;
     }
-
     if (!ticketId) {
       showAlert({
         type: "error",
@@ -161,9 +158,7 @@ const EventTermsAndConditionsPage = () => {
       });
       return;
     }
-
     setIsLoading(true);
-
     try {
       const updateData = {
         terms_accepted: true,
@@ -171,15 +166,13 @@ const EventTermsAndConditionsPage = () => {
       };
       await updateTicketTerms(ticketId, updateData);
       await goLiveEvent(ticketId);
-
       showAlert({
         type: "success",
         message: "Event Created!",
         description: "Your event is now successfully hosted.",
       });
-
       setTimeout(() => {
-        navigate("/ticket/confirm-events");
+        navigate("/ticket/live-events");
       }, 1500);
     } catch (err) {
       const errorMessage =
@@ -193,7 +186,6 @@ const EventTermsAndConditionsPage = () => {
       setIsLoading(false);
     }
   };
-
   if (dataLoading) {
     return (
       <div className="dark bg-[#111111] min-h-screen flex items-center justify-center text-white">
@@ -201,7 +193,6 @@ const EventTermsAndConditionsPage = () => {
       </div>
     );
   }
-
   return (
     <div className={darkMode ? "dark" : ""}>
       <ScrollBarStyle isDark={darkMode} />
