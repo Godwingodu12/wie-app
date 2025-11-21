@@ -11,7 +11,7 @@ import SearchIcon from "../../assets/HomePage/SearchIcon.svg";
 import SettingIcon from "../../assets/Message/settings_icon.png";
 import EditIcon from "../../assets/Message/edit_icon.png";
 import { getUserChats, createOrGetChat } from "../../services/chatService";
-
+import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 const getNeumorphicStyle = (isPressed = false, isDark = true, theme) => {
   const bg = isDark ? "#212426" : theme.inputBg.replace('bg-[', '').replace(']', '');
   const lightShadow = isDark
@@ -137,6 +137,7 @@ const IndexMessage = () => {
       };
 
   return (
+    <>
     <div
       className={`${theme.bg} ${theme.text} h-screen flex overflow-hidden transition-colors duration-300 max-w-full`}
     >
@@ -364,6 +365,19 @@ const IndexMessage = () => {
         onSelectUser={handleSelectUser}
       />
     </div>
+    <nav 
+      className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t"
+      style={{
+        backgroundColor: isDark ? '#212426' : '#f5f5f5',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        boxShadow: isDark 
+          ? '0 -4px 6px -1px rgba(0, 0, 0, 0.3)' 
+          : '0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
+      }}
+    >
+      <BottomNavigation theme={theme} user={user} />
+    </nav>
+    </>
   );
 };
 export default IndexMessage;
