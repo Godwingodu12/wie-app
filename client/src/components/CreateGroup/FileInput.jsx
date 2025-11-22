@@ -24,21 +24,36 @@ const FileInput = ({
       setPreviewData(null);
     }
   }, [preview]);
-
-  // Function to determine file type from preview
   const getFileType = () => {
     if (!preview) return null;
     
     // Handle object with data property
     if (typeof preview === 'object' && preview !== null) {
+      // Check if type is explicitly set
+      if (preview.type === 'image') return 'image';
+      if (preview.type === 'video') return 'video';
+      if (preview.type === 'pdf') return 'pdf';
+      
       const data = preview.data || preview.url || preview;
       
       if (typeof data === 'string') {
-        if (data.includes('data:application/pdf') || data.includes('.pdf')) return 'pdf';
-        if (data.includes('data:application/vnd.openxmlformats-officedocument.wordprocessingml.document') || data.includes('.docx')) return 'docx';
-        if (data.includes('data:application/msword') || data.includes('.doc')) return 'doc';
-        if (data.includes('data:image') || data.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) return 'image';
-        if (data.includes('data:video') || data.match(/\.(mp4|webm|ogg|mov)$/i)) return 'video';
+        // Check for data URIs first
+        if (data.startsWith('data:application/pdf')) return 'pdf';
+        if (data.startsWith('data:application/vnd.openxmlformats-officedocument.wordprocessingml.document')) return 'docx';
+        if (data.startsWith('data:application/msword')) return 'docx';
+        if (data.startsWith('data:image')) return 'image';
+        if (data.startsWith('data:video')) return 'video';
+        
+        // Check for file extensions
+        if (data.match(/\.(pdf)(\?|$)/i)) return 'pdf';
+        if (data.match(/\.(docx?)(\?|$)/i)) return 'docx';
+        if (data.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i)) return 'image';
+        if (data.match(/\.(mp4|webm|ogg|mov)(\?|$)/i)) return 'video';
+        
+        // If it's a URL without clear extension, assume it's an image if it contains common image hosting patterns
+        if (data.includes('/uploads/') || data.includes('/images/') || data.includes('/media/')) {
+          return 'image';
+        }
       }
       
       return 'document';
@@ -46,22 +61,23 @@ const FileInput = ({
     
     // Handle string preview (URL or data URI)
     if (typeof preview === 'string') {
-      if (preview.includes('data:image') || preview.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) return 'image';
-      if (preview.includes('data:video') || preview.match(/\.(mp4|webm|ogg|mov)$/i)) return 'video';
-      if (preview.includes('data:application/pdf') || preview.includes('.pdf')) return 'pdf';
-      if (preview.includes('.docx')) return 'docx';
-      if (preview.includes('.doc')) return 'doc';
+      if (preview.startsWith('data:image') || preview.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i)) return 'image';
+      if (preview.startsWith('data:video') || preview.match(/\.(mp4|webm|ogg|mov)(\?|$)/i)) return 'video';
+      if (preview.startsWith('data:application/pdf') || preview.match(/\.pdf(\?|$)/i)) return 'pdf';
+      if (preview.match(/\.docx?(\?|$)/i)) return 'docx';
+      
+      // Default to image for URLs without clear extensions
+      if (preview.startsWith('http') || preview.startsWith('blob:')) {
+        return 'image';
+      }
     }
     
     return 'unknown';
   };
-
   const openPreviewModal = () => {
     setPreviewData(preview);
     setShowPreviewModal(true);
   };
-
-  // Safely extract preview URL
   const getPreviewUrl = () => {
     if (!preview) return null;
     
@@ -70,12 +86,12 @@ const FileInput = ({
     }
     
     if (typeof preview === 'object' && preview !== null) {
-      return preview.data || preview.url || null;
+      // Try multiple possible property names
+      return preview.data || preview.url || preview.src || preview.path || null;
     }
     
     return null;
   };
-
   // Safely extract file name
   const getFileName = () => {
     if (!preview) return 'File';
