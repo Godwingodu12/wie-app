@@ -576,23 +576,21 @@ const UpdateTicketMedia = () => {
 
   const validateForm = async () => {
     const newErrors = {};
+    
     if (isEducationalOrg && !previews.college_authorisation) {
       newErrors.college_authorisation =
         "College authorization file is required for educational organizations.";
     }
+
+    // Check for banner - either existing or new upload
     const hasBanner = !!previews.event_banner;
-    try {
-      const response = await getTicketById(ticketId);
-      const progress = response?.ticket?.form_progress;
-      if (!progress?.media && !hasBanner) {
-        newErrors.general = "Event banner is required to proceed.";
-      }
-    } catch (err) {
-      if (!hasBanner) {
-        newErrors.general = "Event banner is required to proceed.";
-      }
+    
+    if (!hasBanner) {
+      newErrors.event_banner = "Event banner is required to proceed.";
     }
+
     setErrors(newErrors);
+    
     if (Object.keys(newErrors).length > 0) {
       const firstError = Object.values(newErrors)[0];
       displayAlert({
@@ -602,6 +600,7 @@ const UpdateTicketMedia = () => {
       });
       return false;
     }
+    
     return true;
   };
   const handleSubmit = async (e) => {
@@ -617,23 +616,19 @@ const UpdateTicketMedia = () => {
     let hasNewFiles = false;
 
     if (formData.event_logo instanceof File) {
-      console.log('Adding event_logo:', formData.event_logo.name, formData.event_logo.size);
       submitData.append("event_logo", formData.event_logo);
       hasNewFiles = true;
     }
 
     if (formData.event_banner instanceof File) {
-      console.log('Adding event_banner:', formData.event_banner.name, formData.event_banner.size);
       submitData.append("event_banner", formData.event_banner);
       hasNewFiles = true;
     }
 
     if (formData.college_authorisation instanceof File) {
-      console.log('Adding college_authorisation:', formData.college_authorisation.name, formData.college_authorisation.size);
       submitData.append("college_authorisation", formData.college_authorisation);
       hasNewFiles = true;
     }
-    
     if (
       formData.event_images &&
       Array.isArray(formData.event_images) &&
@@ -641,15 +636,11 @@ const UpdateTicketMedia = () => {
     ) {
       formData.event_images.forEach((file, index) => {
         if (file instanceof File) {
-          console.log(`Adding event_images[${index}]:`, file.name, file.size);
           submitData.append("event_images", file);
           hasNewFiles = true;
         }
       });
     }
-
-    // Log FormData contents for debugging
-    console.log('📦 FormData contents:');
     for (let [key, value] of submitData.entries()) {
       if (value instanceof File) {
         console.log(`  ${key}: ${value.name} (${value.size} bytes, type: ${value.type})`);
@@ -658,28 +649,39 @@ const UpdateTicketMedia = () => {
       }
     }
 
-    if (!hasNewFiles) {
-      try {
-        const updatedTicketResponse = await getTicketById(ticketId);
-        const updatedTicket = updatedTicketResponse?.ticket;
-        const progress = updatedTicket?.form_progress;
-
-        if (progress?.banking_tickets) {
+    // FIX: If no new files but have existing banner, allow navigation
+    if (!hasNewFiles) {      
+      // Check if we have existing banner (required field)
+      if (previews.event_banner) {
+        sessionStorage.removeItem(storageKey);
+        try {
+          const updatedTicketResponse = await getTicketById(ticketId);
+          const updatedTicket = updatedTicketResponse?.ticket;
+          setTicketData(updatedTicket);
+          
+          navigate(`/ticket/update-ticket-details/${ticketId}`);
+        } catch (error) {
+          console.error('Error fetching ticket:', error);
           navigate(`/ticket/update-ticket-details/${ticketId}`);
         }
-
+        
         setLoading(false);
         return;
-      } catch (error) {
+      } else {
+        // No existing banner and no new banner uploaded
+        displayAlert({
+          type: "error",
+          message: "Missing Required File",
+          description: "Event banner is required. Please upload a banner image.",
+        });
         setLoading(false);
         return;
       }
     }
 
+    // If we have new files, upload them
     try {
-      console.log('🚀 Sending request to update ticket media...');
       const response = await updateTicketMedia(ticketId, submitData);
-
       sessionStorage.removeItem(storageKey);
 
       displayAlert({
