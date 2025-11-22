@@ -1892,27 +1892,36 @@ useEffect(() => {
             address: INITIAL_MAP_LOCATION.address,
           },
         }));
-
-        // Set previews
+       // Set previews - ensuring proper format
         setPreviews((prev) => ({
           ...prev,
           event_banner: subEvent.event_banner
-            ? getTicketImageUrl(String(subEvent.event_banner))
+            ? {
+                data: getTicketImageUrl(String(subEvent.event_banner)),
+                name: 'event_banner.jpg',
+                type: 'image'
+              }
             : null,
           event_logo: subEvent.event_logo
-            ? getTicketImageUrl(String(subEvent.event_logo))
+            ? {
+                data: getTicketImageUrl(String(subEvent.event_logo)),
+                name: 'event_logo.jpg',
+                type: 'image'
+              }
             : null,
           ticket_layout: subEvent.ticket_layout
-            ? getTicketImageUrl(String(subEvent.ticket_layout))
+            ? {
+                data: getTicketImageUrl(String(subEvent.ticket_layout)),
+                name: 'ticket_layout.jpg',
+                type: 'image'
+              }
             : null,
         }));
-
         if (subEvent.ticket_layout) {
           setHasSeatingLayout(true);
         } else {
           setHasSeatingLayout(false);
         }
-
         if (subEvent.event_images && subEvent.event_images.length > 0) {
           const imageUrls = subEvent.event_images
             .map((img) => {
