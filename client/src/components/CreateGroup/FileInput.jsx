@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import InfoTooltip from "./InfoTooltip";
 
 const FileInput = ({ 
@@ -16,23 +16,41 @@ const FileInput = ({
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewData, setPreviewData] = useState(null);
 
+  // Update previewData when preview prop changes
+  useEffect(() => {
+    if (preview) {
+      setPreviewData(preview);
+    } else {
+      setPreviewData(null);
+    }
+  }, [preview]);
+
   // Function to determine file type from preview
   const getFileType = () => {
     if (!preview) return null;
     
-    if (typeof preview === 'object' && preview.data) {
-      const data = preview.data;
-      if (data.includes('data:application/pdf')) return 'pdf';
-      if (data.includes('data:application/vnd.openxmlformats-officedocument.wordprocessingml.document')) return 'docx';
-      if (data.includes('data:application/msword')) return 'doc';
+    // Handle object with data property
+    if (typeof preview === 'object' && preview !== null) {
+      const data = preview.data || preview.url || preview;
+      
+      if (typeof data === 'string') {
+        if (data.includes('data:application/pdf') || data.includes('.pdf')) return 'pdf';
+        if (data.includes('data:application/vnd.openxmlformats-officedocument.wordprocessingml.document') || data.includes('.docx')) return 'docx';
+        if (data.includes('data:application/msword') || data.includes('.doc')) return 'doc';
+        if (data.includes('data:image') || data.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) return 'image';
+        if (data.includes('data:video') || data.match(/\.(mp4|webm|ogg|mov)$/i)) return 'video';
+      }
+      
       return 'document';
     }
     
+    // Handle string preview (URL or data URI)
     if (typeof preview === 'string') {
-      if (preview.includes('data:image')) return 'image';
-      if (preview.includes('data:video')) return 'video';
-      if (preview.includes('data:application/pdf')) return 'pdf';
-      if (preview.includes('.pdf')) return 'pdf';
+      if (preview.includes('data:image') || preview.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) return 'image';
+      if (preview.includes('data:video') || preview.match(/\.(mp4|webm|ogg|mov)$/i)) return 'video';
+      if (preview.includes('data:application/pdf') || preview.includes('.pdf')) return 'pdf';
+      if (preview.includes('.docx')) return 'docx';
+      if (preview.includes('.doc')) return 'doc';
     }
     
     return 'unknown';
@@ -43,9 +61,42 @@ const FileInput = ({
     setShowPreviewModal(true);
   };
 
+  // Safely extract preview URL
+  const getPreviewUrl = () => {
+    if (!preview) return null;
+    
+    if (typeof preview === 'string') {
+      return preview;
+    }
+    
+    if (typeof preview === 'object' && preview !== null) {
+      return preview.data || preview.url || null;
+    }
+    
+    return null;
+  };
+
+  // Safely extract file name
+  const getFileName = () => {
+    if (!preview) return 'File';
+    
+    if (typeof preview === 'object' && preview !== null) {
+      return preview.name || 'File';
+    }
+    
+    if (typeof preview === 'string') {
+      // Extract filename from URL
+      const urlParts = preview.split('/');
+      const filename = urlParts[urlParts.length - 1];
+      return filename || 'File';
+    }
+    
+    return 'File';
+  };
+
   const fileType = getFileType();
-  const previewUrl = typeof preview === 'object' ? preview.data || preview.url : preview;
-  const fileName = typeof preview === 'object' ? preview.name : 'File';
+  const previewUrl = getPreviewUrl();
+  const fileName = getFileName();
 
   return (
     <>
@@ -54,7 +105,7 @@ const FileInput = ({
           {label}{info && <InfoTooltip note={info} />}
         </label>
         <div className={`relative rounded-lg p-5 text-center bg-gray-100 dark:bg-[#2B2B2B] min-h-[280px] flex justify-center items-center border-2 border-dashed border-gray-300 dark:border-gray-600`}>
-          {preview ? (
+          {preview && previewUrl ? (
             <div className="w-full h-full min-h-[240px] flex flex-col justify-center items-center gap-3">
               {/* IMAGE PREVIEW */}
               {fileType === 'image' && (
@@ -63,6 +114,10 @@ const FileInput = ({
                     src={previewUrl} 
                     alt={`${label} preview`} 
                     className="max-w-full max-h-[240px] object-contain rounded-lg shadow-md" 
+                    onError={(e) => {
+                      console.error('Image failed to load:', previewUrl);
+                      e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImage%3C/text%3E%3C/svg%3E';
+                    }}
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 truncate max-w-[90%]">
                     {fileName}
@@ -85,6 +140,9 @@ const FileInput = ({
                     className="max-w-full max-h-[240px] rounded-lg shadow-md bg-black"
                     controls
                     preload="metadata"
+                    onError={(e) => {
+                      console.error('Video failed to load:', previewUrl);
+                    }}
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 truncate max-w-[90%]">
                     {fileName}
@@ -124,7 +182,7 @@ const FileInput = ({
                 <div className="relative w-full h-full flex flex-col items-center justify-center gap-3">
                   <div className="text-6xl">📋</div>
                   <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    {fileType === 'docx' ? 'Word Document (.docx)' : 'Document (.doc)'}
+                    {fileType === 'docx' ? 'Word Document (.docx)' : fileType === 'doc' ? 'Document (.doc)' : 'Document'}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 break-all max-w-[90%]">
                     {fileName}
@@ -178,10 +236,10 @@ const FileInput = ({
       {/* FULL-SIZE PREVIEW MODAL */}
       {showPreviewModal && previewData && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setShowPreviewModal(false)}>
-          <div className="bg-white dark:bg-[#1a1a1a] rounded-lg shadow-2xl max-w-4xl max-h-[90vh] w-full overflow-auto flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-lg shadow-2xl max-w-6xl max-h-[90vh] w-full overflow-auto flex flex-col" onClick={(e) => e.stopPropagation()}>
             
             {/* MODAL HEADER */}
-            <div className="flex justify-between items-center p-4 border-b border-gray-300 dark:border-gray-600 sticky top-0 bg-white dark:bg-[#1a1a1a]">
+            <div className="flex justify-between items-center p-4 border-b border-gray-300 dark:border-gray-600 sticky top-0 bg-white dark:bg-[#1a1a1a] z-10">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
                 {fileName}
               </h2>
@@ -195,24 +253,31 @@ const FileInput = ({
             </div>
 
             {/* MODAL CONTENT */}
-            <div className="p-6 flex-1 overflow-auto">
-              {fileType === 'image' && (
-                <div className="flex justify-center">
+            <div className="p-6 flex-1 overflow-auto flex items-center justify-center">
+              {fileType === 'image' && previewUrl && (
+                <div className="w-full h-full flex items-center justify-center">
                   <img 
                     src={previewUrl} 
                     alt="Full size preview" 
-                    className="max-w-full h-auto rounded-lg"
+                    className="w-auto h-auto max-w-full max-h-[calc(90vh-120px)] object-contain"
+                    onError={(e) => {
+                      console.error('Full size image failed to load:', previewUrl);
+                      e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23ddd" width="400" height="300"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImage failed to load%3C/text%3E%3C/svg%3E';
+                    }}
                   />
                 </div>
               )}
 
-              {fileType === 'video' && (
-                <div className="flex justify-center">
+              {fileType === 'video' && previewUrl && (
+                <div className="w-full h-full flex items-center justify-center">
                   <video 
                     src={previewUrl} 
-                    className="max-w-full h-auto rounded-lg bg-black"
+                    className="w-auto h-auto max-w-full max-h-[calc(90vh-120px)] object-contain bg-black"
                     controls
                     preload="metadata"
+                    onError={(e) => {
+                      console.error('Full size video failed to load:', previewUrl);
+                    }}
                   />
                 </div>
               )}
@@ -222,7 +287,7 @@ const FileInput = ({
                   <div className="text-8xl">📄</div>
                   <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">PDF Document</p>
                   <p className="text-sm text-gray-600 dark:text-gray-400 break-all">{fileName}</p>
-                  {previewUrl && previewUrl.includes('http') ? (
+                  {previewUrl && (previewUrl.startsWith('http') || previewUrl.startsWith('blob:')) ? (
                     <a 
                       href={previewUrl} 
                       target="_blank" 
@@ -243,7 +308,7 @@ const FileInput = ({
                 <div className="flex flex-col items-center gap-4">
                   <div className="text-8xl">📋</div>
                   <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">
-                    {fileType === 'docx' ? 'Word Document' : 'Document'}
+                    {fileType === 'docx' ? 'Word Document' : fileType === 'doc' ? 'Document' : 'Document'}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400 break-all">{fileName}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 text-center max-w-md mt-4">
