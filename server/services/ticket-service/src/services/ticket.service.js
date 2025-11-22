@@ -4231,86 +4231,91 @@ export const updateTicketDetails = async (req, res) => {
       });
     }
     let finalBankingDetails = [];
-    if (use_group_bank_account === "true" || use_group_bank_account === true) {
-      // Use group bank account
-      if (
-        !GroupBank.primary_bank_acc_no ||
-        !GroupBank.primary_bank_ifsc ||
-        !GroupBank.primary_bank_acc_holder ||
-        !GroupBank.primary_bank_acc_type
-      ) {
-        return res.status(400).json({
-          message:
-            "Group banking details are incomplete. Please update your group banking details before proceeding",
-          missingFields: {
-            bank_acc_no: !GroupBank.primary_bank_acc_no,
-            bank_ifsc: !GroupBank.primary_bank_ifsc,
-            bank_acc_holder: !GroupBank.primary_bank_acc_holder,
-            bank_acc_type: !GroupBank.primary_bank_acc_type,
-          },
-        });
-      }
-
-      finalBankingDetails = [
-        {
-          bank_acc_type: String(GroupBank.primary_bank_acc_type),
-          bank_acc_no: String(GroupBank.primary_bank_acc_no),
-          bank_ifsc: String(GroupBank.primary_bank_ifsc),
-          bank_acc_holder: String(GroupBank.primary_bank_acc_holder),
-          is_group_account: true,
-        },
-      ];
-    } else {
-      // Use custom banking details
-      console.log(
-        "Using custom banking details. Received data:",
-        req.body.banking_details
-      );
-
-      const customBankingDetails = parseNestedData(
-        req.body.banking_details,
-        "banking_details"
-      );
-
-      if (!customBankingDetails || customBankingDetails.length === 0) {
-        return res.status(400).json({
-          message:
-            "Custom banking details are required when not using group bank account",
-          receivedData: req.body.banking_details,
-          hint: "Ensure banking_details is sent as a JSON stringified array",
-        });
-      }
-
-      // Validate custom banking details
-      finalBankingDetails = customBankingDetails.map((banking, index) => {
-        const requiredBankFields = [
-          "bank_acc_type",
-          "bank_acc_no",
-          "bank_ifsc",
-          "bank_acc_holder",
-        ];
-        const missingBankFields = requiredBankFields.filter(
-          (field) => !banking[field]
-        );
-
-        if (missingBankFields.length > 0) {
-          throw new Error(
-            `Missing required banking fields for account ${
-              index + 1
-            }: ${missingBankFields.join(", ")}`
-          );
+    if (payment_type === "paid") {
+      if (use_group_bank_account === "true" || use_group_bank_account === true) {
+        // Use group bank account
+        if (
+          !GroupBank.primary_bank_acc_no ||
+          !GroupBank.primary_bank_ifsc ||
+          !GroupBank.primary_bank_acc_holder ||
+          !GroupBank.primary_bank_acc_type
+        ) {
+          return res.status(400).json({
+            message:
+              "Group banking details are incomplete. Please update your group banking details before proceeding",
+            missingFields: {
+              bank_acc_no: !GroupBank.primary_bank_acc_no,
+              bank_ifsc: !GroupBank.primary_bank_ifsc,
+              bank_acc_holder: !GroupBank.primary_bank_acc_holder,
+              bank_acc_type: !GroupBank.primary_bank_acc_type,
+            },
+          });
         }
 
-        return {
-          bank_acc_type: String(banking.bank_acc_type).trim().toLowerCase(),
-          bank_acc_no: String(banking.bank_acc_no).trim(),
-          bank_ifsc: String(banking.bank_ifsc).trim().toUpperCase(),
-          bank_acc_holder: String(banking.bank_acc_holder).trim(),
-          is_group_account: false,
-        };
-      });
-    }
+        finalBankingDetails = [
+          {
+            bank_acc_type: String(GroupBank.primary_bank_acc_type),
+            bank_acc_no: String(GroupBank.primary_bank_acc_no),
+            bank_ifsc: String(GroupBank.primary_bank_ifsc),
+            bank_acc_holder: String(GroupBank.primary_bank_acc_holder),
+            is_group_account: true,
+          },
+        ];
+      } else {
+        // Use custom banking details
+        console.log(
+          "Using custom banking details. Received data:",
+          req.body.banking_details
+        );
 
+        const customBankingDetails = parseNestedData(
+          req.body.banking_details,
+          "banking_details"
+        );
+
+        if (!customBankingDetails || customBankingDetails.length === 0) {
+          return res.status(400).json({
+            message:
+              "Custom banking details are required when not using group bank account",
+            receivedData: req.body.banking_details,
+            hint: "Ensure banking_details is sent as a JSON stringified array",
+          });
+        }
+
+        // Validate custom banking details
+        finalBankingDetails = customBankingDetails.map((banking, index) => {
+          const requiredBankFields = [
+            "bank_acc_type",
+            "bank_acc_no",
+            "bank_ifsc",
+            "bank_acc_holder",
+          ];
+          const missingBankFields = requiredBankFields.filter(
+            (field) => !banking[field]
+          );
+
+          if (missingBankFields.length > 0) {
+            throw new Error(
+              `Missing required banking fields for account ${
+                index + 1
+              }: ${missingBankFields.join(", ")}`
+            );
+          }
+
+          return {
+            bank_acc_type: String(banking.bank_acc_type).trim().toLowerCase(),
+            bank_acc_no: String(banking.bank_acc_no).trim(),
+            bank_ifsc: String(banking.bank_ifsc).trim().toUpperCase(),
+            bank_acc_holder: String(banking.bank_acc_holder).trim(),
+            is_group_account: false,
+          };
+        });
+      }
+    } else {
+      // For free events, banking details are empty
+      finalBankingDetails = [];
+      console.log("Payment type is 'free'. Skipping banking details validation.");
+    }
     // Validate dates if provided
     if (booking_start_date && booking_end_date) {
       const startDate = new Date(booking_start_date);
