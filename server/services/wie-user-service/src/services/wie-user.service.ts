@@ -34,7 +34,6 @@ setInterval(async () => {
 export const index = (req: Request, res: Response): void => {
   res.json({ message: 'Welcome to the WIE User Service' });
 };
-
 export const getCountries = async (req: Request, res: Response): Promise<void> => {
   try {
     const countries = await COUNTRY.findAll();
@@ -452,12 +451,16 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     }
     const userId = req.user.id;
     const { name, username, country_id, bio, profile_picture } = req.body;
+    let countryName = null;
+    let countryCode = null;
     if (country_id) {
       const country = await COUNTRY.findById(country_id);
       if (!country) {
         res.status(400).json({ message: 'Invalid country selected' });
         return;
       }
+      countryName = country.country_name;
+      countryCode = country.country_code;
     }
     const updatedUser = await WIEUSER.updateProfile(userId, {
       name,
@@ -466,6 +469,15 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       bio,
       profile_picture,
     });
+
+    // If country_id exists but we didn't fetch it above, get it now
+    if (updatedUser.country_id && !countryName) {
+      const country = await COUNTRY.findById(updatedUser.country_id);
+      if (country) {
+        countryName = country.country_name;
+        countryCode = country.country_code;
+      }
+    }
     res.status(200).json({
       message: 'Profile updated successfully',
       user: {
@@ -476,11 +488,17 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         username: updatedUser.username,
         profile_picture: updatedUser.profile_picture,
         country_id: updatedUser.country_id,
+        country_name: countryName,
+        country_code: countryCode,
         bio: updatedUser.bio,
+        location: updatedUser.location,
+        latitude: updatedUser.latitude,
+        longitude: updatedUser.longitude,
         role: updatedUser.role,
         status: updatedUser.status,
         is_blocked: updatedUser.is_blocked,
         is_verified: updatedUser.is_verified,
+        auth_provider: updatedUser.auth_provider,
         created_at: updatedUser.created_at,
         updated_at: updatedUser.updated_at,
       },
@@ -496,23 +514,23 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
       res.status(401).json({ message: 'Unauthorized: User not authenticated' });
       return;
     }
+
     const userId = req.user.id;
     const user = await WIEUSER.findById(userId);
+
     if (!user) {
       res.status(404).json({ message: 'User not found' });
       return;
     }
-
-    // Fetch country details if country_id exists
-    let country = null;
+    let countryName = null;
+    let countryCode = null;
     if (user.country_id) {
-      try {
-        country = await COUNTRY.findById(user.country_id);
-      } catch (err) {
-        console.warn('Failed to fetch country details:', err);
+      const country = await COUNTRY.findById(user.country_id);
+      if (country) {
+        countryName = country.country_name;
+        countryCode = country.country_code;
       }
     }
-
     res.status(200).json({
       success: true,
       user: {
@@ -523,17 +541,17 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
         username: user.username,
         profile_picture: user.profile_picture,
         country_id: user.country_id,
-        country_code: country?.country_code || null,
-        country_name: country?.country_name || null,
+        country_name: countryName,
+        country_code: countryCode,
         bio: user.bio,
+        location: user.location,
         latitude: user.latitude,
         longitude: user.longitude,
-        location: user.location,
-        isOnline: user.isOnline,
         role: user.role,
         status: user.status,
         is_blocked: user.is_blocked,
         is_verified: user.is_verified,
+        auth_provider: user.auth_provider,
         created_at: user.created_at,
         updated_at: user.updated_at,
       },
@@ -543,7 +561,6 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
     res.status(500).json({ message: 'Failed to get profile', error: error.message });
   }
 };
-// Add this NEW function - don't replace the existing getProfile
 export const getUserProfile = async (userId: string) => {
   try {
     const user = await WIEUSER.findById(userId);
