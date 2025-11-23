@@ -31,7 +31,7 @@ export default function GoogleCallbackPage() {
         }));
         
         // Navigate to home page
-        router.push('/protected/home');
+        router.push('/home');
       } catch (error: any) {
         console.error('Google callback error:', error);
         const errorMessage = error.message || 'Google login failed';
