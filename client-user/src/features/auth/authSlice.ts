@@ -5,7 +5,23 @@ const initialState: AuthState = {
   user: null,
   token: null,
   isAuthenticated: false,
-  loading: false,
+  loading: true, // Start with loading: true
+};
+
+// Helper to set cookie
+const setCookie = (name: string, value: string, days: number = 7) => {
+  if (typeof window !== 'undefined') {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+  }
+};
+
+// Helper to delete cookie
+const deleteCookie = (name: string) => {
+  if (typeof window !== 'undefined') {
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+  }
 };
 
 const authSlice = createSlice({
@@ -21,10 +37,11 @@ const authSlice = createSlice({
       state.isAuthenticated = true;
       state.loading = false;
       
-      // Store token in localStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem('token', action.payload.token);
         localStorage.setItem('user', JSON.stringify(action.payload.user));
+        // Also set cookie for middleware
+        setCookie('token', action.payload.token, 7);
       }
     },
     loginFailure: (state) => {
@@ -36,36 +53,49 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.loading = false;
       
-      // Clear localStorage
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        // Also delete cookie
+        deleteCookie('token');
       }
     },
     updateUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
-      
-      // Update user in localStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem('user', JSON.stringify(action.payload));
+        const token = state.token || localStorage.getItem('token');
+        if (token) {
+          const expires = new Date();
+          expires.setTime(expires.getTime() + 7 * 24 * 60 * 60 * 1000);
+          document.cookie = `token=${token};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+        }
       }
     },
     restoreAuth: (state) => {
-      // Restore auth from localStorage
       if (typeof window !== 'undefined') {
         const token = localStorage.getItem('token');
         const userStr = localStorage.getItem('user');
         
         if (token && userStr) {
-          state.token = token;
-          state.user = JSON.parse(userStr);
-          state.isAuthenticated = true;
+          try {
+            state.token = token;
+            state.user = JSON.parse(userStr);
+            state.isAuthenticated = true;
+            // Ensure cookie is also set
+            setCookie('token', token, 7);
+          } catch (e) {
+            console.error('Failed to parse user from localStorage:', e);
+            state.isAuthenticated = false;
+          }
+        } else {
+          state.isAuthenticated = false;
         }
       }
+      state.loading = false; // Important: set loading to false after restore
     },
   },
 });
-
 export const {
   loginStart,
   loginSuccess,

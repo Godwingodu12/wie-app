@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -7,17 +8,25 @@ import { SignupForm } from '@/components/auth/SignupForm';
 import { Card } from '@/components/ui/Card';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
-export default function SignupPage() {
-  const { isAuthenticated, loading } = useAuth();
+function SignupContent() {
+  const { isAuthenticated, loading } = useAuth(false);
   const router = useRouter();
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.push('/home');
+      router.replace('/home');
     }
   }, [isAuthenticated, loading, router]);
 
   if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <LoadingSpinner size="lg" />
@@ -35,5 +44,16 @@ export default function SignupPage() {
         <SignupForm />
       </Card>
     </div>
+  );
+}
+export default function SignupPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    }>
+      <SignupContent />
+    </Suspense>
   );
 }

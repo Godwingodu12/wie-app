@@ -146,6 +146,12 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
         <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold text-gray-700">
           {event.event_type === 'public' ? 'Public' : 'Private'}
         </div>
+        {/* Sub-Event Badge */}
+        {'isSubEvent' in event && event.isSubEvent && (
+          <div className="absolute top-3 left-3 mt-8 bg-purple-600/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold text-white">
+            Sub Event
+          </div>
+        )}
 
         {/* Like Badge */}
         {event.like > 0 && (
@@ -170,7 +176,13 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
         <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
           {event.event_name}
         </h3>
-
+        {/* Show parent event name if it's a sub-event */}
+        {'isSubEvent' in event && event.isSubEvent && event.parentEventName && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
+            <span>Part of:</span>
+            <span className="font-medium text-purple-600">{event.parentEventName}</span>
+          </p>
+        )}
         {/* Event Description */}
         {event.event_description && (
           <p className="text-sm text-gray-600 mb-3 line-clamp-2">
@@ -219,8 +231,15 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
           {event.sub_events && event.sub_events.length > 0 && (
             <div className="flex items-center gap-2 text-sm text-blue-600 font-medium">
               <TrendingUp className="w-4 h-4" />
-              <span>{event.sub_events.length} Sub-events</span>
+              <span>{event.sub_events.length} Sub events</span>
             </div>
+          )}      
+          {/* NEW: Show parent event name if it's a sub-event */}
+          {event.isSubEvent && event.parentEventName && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
+              <span>Part of:</span>
+              <span className="font-medium text-purple-600">{event.parentEventName}</span>
+            </p>
           )}
         </div>
 

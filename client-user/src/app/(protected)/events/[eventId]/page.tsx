@@ -106,16 +106,22 @@ export default function EventDetailPage() {
             )}
           </div>
         )}
-
         {/* Sub-Event Badge */}
-        {isSubEvent && parentEvent && (
-          <div className="mb-4">
-            <span className="bg-purple-100 text-purple-800 px-4 py-2 rounded-full text-sm font-semibold">
-              📌 Sub-Event of {parentEvent.event_name}
-            </span>
-          </div>
-        )}
-
+        {(() => {
+          const hasParentFromEvent = 'isSubEvent' in event && event.isSubEvent && event.parentEventName;
+          const hasParentFromResponse = isSubEvent && parentEvent;
+          if (!hasParentFromEvent && !hasParentFromResponse) {
+            return null;
+          }
+          const parentName = hasParentFromEvent ? event.parentEventName : parentEvent?.event_name;
+          return (
+            <div className="mb-4">
+              <span className="bg-purple-100 text-purple-800 px-4 py-2 rounded-full text-sm font-semibold">
+                Sub Event of {parentName}
+              </span>
+            </div>
+          );
+        })()}
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
@@ -343,7 +349,7 @@ export default function EventDetailPage() {
             <Card>
                 <div className="p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                    Related Sub-Events ({event.sub_events.length})
+                    Related Sub Events ({event.sub_events.length})
                 </h2>
                 <div className="grid md:grid-cols-2 gap-4">
                     {event.sub_events.map((subEvent) => (
@@ -379,7 +385,7 @@ export default function EventDetailPage() {
                         {/* Badge */}
                         <div className="mb-2">
                             <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-1 rounded-full">
-                            Sub-Event
+                            Sub Event
                             </span>
                         </div>
 
@@ -442,97 +448,120 @@ export default function EventDetailPage() {
                 </div>
             </Card>
             )}
-            {/* Parent Event (for sub-events) */}
-            {isSubEvent && parentEvent && (
-            <Card>
-                <div className="p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                    🎯 Main Event
-                </h2>
-                <div
-                    onClick={() => router.push(`/events/${parentEvent._id}`)}
-                    className="group relative bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl overflow-hidden hover:border-blue-500 hover:shadow-xl transition-all cursor-pointer"
-                >
-                    {/* Main Event Image */}
-                    {parentEvent.event_banner ? (
-                    <div className="relative h-56 w-full overflow-hidden">
-                        <img
-                        src={parentEvent.event_banner}
-                        alt={parentEvent.event_name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                        />
-                        {parentEvent.event_logo && (
-                        <img
-                            src={parentEvent.event_logo}
-                            alt="logo"
-                            className="absolute bottom-3 right-3 w-16 h-16 rounded-full border-4 border-white shadow-lg"
-                        />
+            {/* Parent Event Display - handles both API response types */}
+            {(() => {
+              const hasParentFromEvent = 'isSubEvent' in event && event.isSubEvent && event.parentEventId;
+              const hasParentFromResponse = isSubEvent && parentEvent;
+              if (!hasParentFromEvent && !hasParentFromResponse) {
+                return null;
+              }
+              // Use parent data from event if available, otherwise use parentEvent
+              const parentData = hasParentFromEvent ? {
+                _id: event.parentEventId!,
+                event_name: event.parentEventName!,
+                event_category: event.parentEventCategory,
+                event_banner: event.parentEventBanner,
+                event_logo: event.parentEventLogo,
+              } : parentEvent;
+
+              // Add null check - this should never happen due to the guard above, but TypeScript needs it
+              if (!parentData) {
+                return null;
+              }
+
+              return (
+                <Card>
+                  <div className="p-6">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                      🎯 Main Event
+                    </h2>
+                    <div
+                      onClick={() => router.push(`/events/${parentData._id}`)}
+                      className="group relative bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl overflow-hidden hover:border-blue-500 hover:shadow-xl transition-all cursor-pointer"
+                    >
+                      {/* Main Event Image */}
+                      {parentData.event_banner ? (
+                        <div className="relative h-56 w-full overflow-hidden">
+                          <img
+                            src={parentData.event_banner}
+                            alt={parentData.event_name}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          />
+                          {parentData.event_logo && (
+                            <img
+                              src={parentData.event_logo}
+                              alt="logo"
+                              className="absolute bottom-3 right-3 w-16 h-16 rounded-full border-4 border-white shadow-lg"
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <div className="h-56 w-full bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center">
+                          <Calendar className="w-20 h-20 text-white" />
+                        </div>
+                      )}
+
+                      {/* Main Event Content */}
+                      <div className="p-5">
+                        {/* Badge */}
+                        <div className="mb-3">
+                          <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                            MAIN EVENT
+                          </span>
+                        </div>
+
+                        {/* Title */}
+                        <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
+                          {parentData.event_name}
+                        </h3>
+
+                        {/* Category */}
+                        {parentData.event_category && (
+                          <p className="text-sm text-gray-700 mb-3 font-medium flex items-center gap-2">
+                            <span className="bg-white px-2 py-1 rounded">📂 {parentData.event_category}</span>
+                          </p>
                         )}
-                    </div>
-                    ) : (
-                    <div className="h-56 w-full bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center">
-                        <Calendar className="w-20 h-20 text-white" />
-                    </div>
-                    )}
 
-                    {/* Main Event Content */}
-                    <div className="p-5">
-                    {/* Badge */}
-                    <div className="mb-3">
-                        <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full">
-                        MAIN EVENT
-                        </span>
-                    </div>
+                        {/* Location - only available in traditional parentEvent */}
+                        {'location' in parentData && parentData.location && (
+                          <div className="flex items-start gap-2 mb-3">
+                            <MapPin className="w-4 h-4 text-gray-600 mt-0.5 flex-shrink-0" />
+                            <p className="text-sm text-gray-600">
+                              {parentData.location}
+                            </p>
+                          </div>
+                        )}
 
-                    {/* Title */}
-                    <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
-                        {parentEvent.event_name}
-                    </h3>
+                        {/* Date - only available in traditional parentEvent */}
+                        {'event_dates' in parentData && parentData.event_dates?.[0] && (
+                          <div className="flex items-center gap-2 mb-4">
+                            <Calendar className="w-4 h-4 text-gray-600" />
+                            <p className="text-sm text-gray-600">
+                              {new Date(parentData.event_dates[0].start_date).toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                month: 'long',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
+                            </p>
+                          </div>
+                        )}
 
-                    {/* Category */}
-                    <p className="text-sm text-gray-700 mb-3 font-medium flex items-center gap-2">
-                        <span className="bg-white px-2 py-1 rounded">📂 {parentEvent.event_category}</span>
-                    </p>
-
-                    {/* Location */}
-                    {parentEvent.location && (
-                        <div className="flex items-start gap-2 mb-3">
-                        <MapPin className="w-4 h-4 text-gray-600 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-gray-600">
-                            {parentEvent.location}
-                        </p>
+                        {/* CTA */}
+                        <div className="flex items-center justify-between mt-4">
+                          <span className="text-blue-600 font-semibold group-hover:text-blue-700">
+                            View Main Event Details
+                          </span>
+                          <div className="bg-blue-600 text-white rounded-full p-2 group-hover:bg-blue-700 transition-colors">
+                            <ArrowLeft className="w-4 h-4 rotate-180" />
+                          </div>
                         </div>
-                    )}
-
-                    {/* Date */}
-                    {parentEvent.event_dates?.[0] && (
-                        <div className="flex items-center gap-2 mb-4">
-                        <Calendar className="w-4 h-4 text-gray-600" />
-                        <p className="text-sm text-gray-600">
-                            {new Date(parentEvent.event_dates[0].start_date).toLocaleDateString('en-US', {
-                            weekday: 'long',
-                            month: 'long',
-                            day: 'numeric',
-                            year: 'numeric',
-                            })}
-                        </p>
-                        </div>
-                    )}
-
-                    {/* CTA */}
-                    <div className="flex items-center justify-between">
-                        <span className="text-blue-600 font-semibold group-hover:text-blue-700">
-                        View Main Event Details
-                        </span>
-                        <div className="bg-blue-600 text-white rounded-full p-2 group-hover:bg-blue-700 transition-colors">
-                        <ArrowLeft className="w-4 h-4 rotate-180" />
-                        </div>
+                      </div>
                     </div>
-                    </div>
-                </div>
-                </div>
-            </Card>
-            )}
+                  </div>
+                </Card>
+              );
+            })()}
             {/* Event Images Gallery */}
             {event.event_images && event.event_images.length > 0 && (
               <Card>

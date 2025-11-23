@@ -10,6 +10,14 @@ import {
   EventDetailResponse,
   CategoryEventsParams,
   CategoryEventsResponse,
+  FilterEventsParams,
+  FilteredEventsResponse,
+  InitialEventsResponse,
+  NameSearchParams,
+  NameSearchResponse,
+  LocationSearchParams,
+  LocationSearchResponse,
+  CategorySearchParams
 } from '@/types/ticket';
 export const getLiveEvents = async (): Promise<LiveEventsResponse> => {
   try {
@@ -157,11 +165,127 @@ export const sortEventsByDistance = (events: any[]): any[] => {
 export const filterEventsByDistance = (events: any[], maxDistance: number): any[] => {
   return events.filter((event) => event.distance && event.distance <= maxDistance);
 };
+export const getFilteredEvents = async (
+  params: FilterEventsParams
+): Promise<FilteredEventsResponse> => {
+  try {
+    const queryParams = new URLSearchParams();
+    // Category - preserve special characters like &
+    if (params.category) {
+      queryParams.append('category', params.category);
+    }
+    if (params.subcategory) {
+      queryParams.append('subcategory', params.subcategory);
+    }
+    if (params.location) {
+      queryParams.append('location', params.location);
+    }
+    if (params.latitude !== undefined) {
+      queryParams.append('latitude', params.latitude.toString());
+    }
+    if (params.longitude !== undefined) {
+      queryParams.append('longitude', params.longitude.toString());
+    }
+    if (params.searchQuery) {
+      queryParams.append('searchQuery', params.searchQuery);
+    }
+    if (params.radius !== undefined) {
+      queryParams.append('radius', params.radius.toString());
+    }
+    if (params.locationType) {
+      queryParams.append('locationType', params.locationType);
+    }
+    if (params.eventLanguage) {
+      queryParams.append('eventLanguage', params.eventLanguage);
+    }
+    if (params.startDate) {
+      queryParams.append('startDate', params.startDate);
+    }
+    if (params.endDate) {
+      queryParams.append('endDate', params.endDate);
+    }
+    if (params.bookingStartDate) {
+      queryParams.append('bookingStartDate', params.bookingStartDate);
+    }
+    if (params.bookingEndDate) {
+      queryParams.append('bookingEndDate', params.bookingEndDate);
+    }
+    if (params.userId) {
+      queryParams.append('userId', params.userId);
+    }
+    const queryString = queryParams.toString();
+    const url = queryString 
+      ? `/tickets/filtered-events?${queryString}` 
+      : '/tickets/filtered-events';    
+    const res = await api.get(url);
+    return res.data;
+  } catch (err) {
+    console.error('❌ getFilteredEvents error:', err);
+    throw err;
+  }
+};
+export const getInitialEvents = async (
+  userId?: string
+): Promise<InitialEventsResponse> => {
+  try {
+    const queryParams = new URLSearchParams();
+    if (userId) queryParams.append('userId', userId);
+    
+    const queryString = queryParams.toString();
+    const url = queryString ? `/tickets/initial-events?${queryString}` : '/tickets/initial-events';
+    
+    const res = await api.get(url);
+    return res.data;
+  } catch (err) {
+    console.error('❌ getInitialEvents error:', err);
+    throw err;
+  }
+};
+export const searchEventsByName = async (
+  params: NameSearchParams
+): Promise<NameSearchResponse> => {
+  try {
+    const queryParams = new URLSearchParams();
+    queryParams.append('searchQuery', params.searchQuery);
+    if (params.userId) queryParams.append('userId', params.userId);
+    
+    const url = `/tickets/search-by-name?${queryParams.toString()}`;
+    
+    const res = await api.get(url);
+    return res.data;
+    } catch (err) {
+    console.error('❌ searchEventsByName error:', err);
+    throw err;
+  }
+};
+export const searchEventsByLocation = async (
+  params: LocationSearchParams
+): Promise<LocationSearchResponse> => {
+  try {
+    const queryParams = new URLSearchParams();
+    if (params.latitude !== undefined) queryParams.append('latitude', params.latitude.toString());
+    if (params.longitude !== undefined) queryParams.append('longitude', params.longitude.toString());
+    if (params.location) queryParams.append('location', params.location);
+    if (params.radius !== undefined) queryParams.append('radius', params.radius.toString());
+    if (params.userId) queryParams.append('userId', params.userId);
+    const url = `/tickets/search-by-location?${queryParams.toString()}`;
+    const res = await api.get(url);
+    return res.data;
+  } catch (err) {
+    console.error('❌ searchEventsByLocation error:', err);
+    throw err;
+  }
+};
 export const getCategoryBasedEvents = async (
-  params: CategoryEventsParams
+  params: CategorySearchParams
 ): Promise<CategoryEventsResponse> => {
   try {
-    const res = await api.get('/tickets/category-events', { params });
+    const queryParams = new URLSearchParams();
+    if (params.category) queryParams.append('category', params.category);
+    if (params.userId) queryParams.append('userId', params.userId);
+    const queryString = queryParams.toString();
+    const url = queryString ? `/tickets/category-events?${queryString}` : '/tickets/category-events';
+    const res = await api.get(url);
     return res.data;
   } catch (err) {
     console.error('❌ getCategoryBasedEvents error:', err);

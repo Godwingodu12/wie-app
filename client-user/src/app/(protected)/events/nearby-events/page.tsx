@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   getNearbyEventsFromCurrentLocation,
   getNearbyEventsByLocation,
@@ -13,7 +14,7 @@ export default function NearbyEventsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchLocation, setSearchLocation] = useState('');
   const [radius, setRadius] = useState(30);
-
+  const router = useRouter();
   // Load nearby events using GPS
   const loadNearbyEventsGPS = async () => {
     try {
@@ -141,7 +142,7 @@ export default function NearbyEventsPage() {
                 </span>
                 {event.has_nearby_sub_events && (
                   <span className="bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full">
-                    +{event.nearby_sub_events_count} sub-events
+                    +{event.nearby_sub_events_count} sub events
                   </span>
                 )}
               </div>
@@ -155,7 +156,7 @@ export default function NearbyEventsPage() {
               </p>
 
               {/* View Button */}
-              <button className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+              <button onClick={() => router.push(`/events/${event._id}`)} className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
                 View Details
               </button>
             </div>

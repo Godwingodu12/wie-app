@@ -12,34 +12,76 @@ export const useCategoryEvents = (category?: string, autoLoad: boolean = false) 
   const [error, setError] = useState<string | null>(null);
   const [locationSource, setLocationSource] = useState<'gps' | 'manual' | 'saved' | 'country' | 'none'>('none');
   const [searchRadius, setSearchRadius] = useState<number>(100);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const fetchCategoryEvents = async (params: CategoryEventsParams = {}) => {
     try {
       setLoading(true);
       setError(null);
 
+      // Build params
+      const fetchParams: CategoryEventsParams = { ...params };
+
       if (user?.id) {
-        params.userId = user.id;
+        fetchParams.userId = user.id;
       }
 
-      if (category) {
-        params.category = category;
+      // Use provided category or hook's category
+      if (params.category) {
+        fetchParams.category = params.category;
+      } else if (category) {
+        fetchParams.category = category;
       }
 
-      const response = await getCategoryBasedEvents(params);
+      // Add search query if exists
+      if (searchQuery.trim() && !fetchParams.searchQuery) {
+        fetchParams.searchQuery = searchQuery.trim();
+      }
+
+      console.log('🔍 fetchCategoryEvents params:', fetchParams);
+
+      const response = await getCategoryBasedEvents(fetchParams);
+      
       setEventsByCategory(response.data.eventsByCategory);
       setCategories(response.data.categories);
       setLocationSource(response.data.locationSource);
       setSearchRadius(response.data.searchRadius || 100);
+      
       return response;
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch category events');
+      const errorMsg = err.message || 'Failed to fetch category events';
+      setError(errorMsg);
+      console.error('❌ fetchCategoryEvents error:', err);
       throw err;
     } finally {
       setLoading(false);
     }
   };
 
+  // Search by event name
+  const searchByEventName = async (query: string) => {
+    try {
+      setSearchQuery(query);
+      
+      const params: CategoryEventsParams = {
+        searchQuery: query,
+      };
+
+      if (category) {
+        params.category = category;
+      }
+
+      if (user?.id) {
+        params.userId = user.id;
+      }
+
+      await fetchCategoryEvents(params);
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  // Get current GPS location and fetch
   const getCurrentLocationAndFetch = async () => {
     return new Promise<void>((resolve, reject) => {
       if (!navigator.geolocation) {
@@ -53,7 +95,7 @@ export const useCategoryEvents = (category?: string, autoLoad: boolean = false) 
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
 
-            // Save GPS coordinates and clear manual location
+            // Save location to user profile
             if (user?.id) {
               try {
                 await updateUserLocation({
@@ -79,24 +121,32 @@ export const useCategoryEvents = (category?: string, autoLoad: boolean = false) 
               params.userId = user.id;
             }
 
+            if (searchQuery.trim()) {
+              params.searchQuery = searchQuery.trim();
+            }
+
             await fetchCategoryEvents(params);
             resolve();
           } catch (err) {
             reject(err);
           }
         },
-        (err) => reject(new Error(err.message))
+        (err) => reject(new Error(err.message)),
+        { enableHighAccuracy: true, timeout: 10000 }
       );
     });
   };
 
+  // Search by manual location text
   const searchByManualLocation = async (locationText: string) => {
     try {
-      // Save manual location and clear coordinates
-      if (user?.id && locationText.trim()) {
+      const trimmedLocation = locationText.trim();
+      
+      // Save to user profile
+      if (user?.id && trimmedLocation) {
         try {
           await updateUserLocation({
-            location: locationText.trim(),
+            location: trimmedLocation,
             latitude: null,
             longitude: null,
           });
@@ -106,7 +156,7 @@ export const useCategoryEvents = (category?: string, autoLoad: boolean = false) 
       }
 
       const params: CategoryEventsParams = {
-        location: locationText,
+        location: trimmedLocation,
       };
 
       if (category) {
@@ -117,15 +167,19 @@ export const useCategoryEvents = (category?: string, autoLoad: boolean = false) 
         params.userId = user.id;
       }
 
+      if (searchQuery.trim()) {
+        params.searchQuery = searchQuery.trim();
+      }
+
       await fetchCategoryEvents(params);
     } catch (err) {
       throw err;
     }
   };
 
+  // Clear location and fetch all events
   const clearLocationAndFetch = async () => {
     try {
-      // Clear all location data
       if (user?.id) {
         try {
           await updateUserLocation({
@@ -138,18 +192,25 @@ export const useCategoryEvents = (category?: string, autoLoad: boolean = false) 
         }
       }
 
+      // Fetch without location params
       await fetchCategoryEvents({ userId: user?.id });
     } catch (err) {
       throw err;
     }
   };
 
+  // Clear search query
+  const clearSearch = async () => {
+    setSearchQuery('');
+    // Don't refetch here - let the parent component decide
+  };
+
+  // Auto-load on mount if enabled
   useEffect(() => {
     if (autoLoad) {
       fetchCategoryEvents();
     }
-  }, [autoLoad, category]);
-
+  }, [autoLoad]);
   return {
     eventsByCategory,
     categories,
@@ -157,9 +218,13 @@ export const useCategoryEvents = (category?: string, autoLoad: boolean = false) 
     error,
     locationSource,
     searchRadius,
+    searchQuery,
     fetchCategoryEvents,
     getCurrentLocationAndFetch,
     searchByManualLocation,
     clearLocationAndFetch,
+    searchByEventName,
+    setSearchQuery,
+    clearSearch,
   };
 };

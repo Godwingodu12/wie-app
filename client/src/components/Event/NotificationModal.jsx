@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Phone, Bell, CalendarDays, AlertTriangle, ArrowLeft } from "lucide-react";
+import {
+  X,
+  Phone,
+  Bell,
+  CalendarDays,
+  AlertTriangle,
+  ArrowLeft,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   getNotifications,
@@ -11,6 +18,7 @@ import notificationService from "../../context/notificationService";
 const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
   const navigate = useNavigate();
   const [allNotifications, setAllNotifications] = useState([]);
+  const [unreadIds, setUnreadIds] = useState(new Set());
   const [activeTab, setActiveTab] = useState("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -18,18 +26,32 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
   // Fetch notifications from API
   const fetchNotifications = useCallback(async () => {
     if (!isOpen) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      const response = await getNotifications('all', 50, 0);
-      console.log('📬 Fetched notifications:', response);
-      
+      const response = await getNotifications("all", 50, 0);
+      console.log("📬 Fetched notifications:", response);
+
       // Handle different response structures
-      const notifications = response?.notifications || response?.data?.notifications || response?.data || [];
-      
-      setAllNotifications(Array.isArray(notifications) ? notifications : []);
+      const notifications =
+        response?.notifications ||
+        response?.data?.notifications ||
+        response?.data ||
+        [];
+
+      if (Array.isArray(notifications)) {
+        setAllNotifications(notifications);
+        const newUnread = notifications
+          .filter((n) => !n.isRead)
+          .map((n) => n._id);
+        if (newUnread.length > 0) {
+          setUnreadIds((prev) => new Set([...prev, ...newUnread]));
+        }
+      } else {
+        setAllNotifications([]);
+      }
     } catch (error) {
       console.error("❌ Error fetching notifications:", error);
       setError(error.message || "Failed to load notifications");
@@ -39,10 +61,32 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
     }
   }, [isOpen]);
 
+  const handleMarkAllAsRead = useCallback(async () => {
+    try {
+      await markAllNotificationsAsRead();
+      setAllNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadIds(new Set());
+    } catch (error) {
+      console.error("❌ Error marking all as read:", error);
+    }
+  }, []);
+
   // Initial fetch when modal opens
   useEffect(() => {
     if (isOpen) {
-      fetchNotifications();
+      const loadAndClearBell = async () => {
+        await fetchNotifications();
+        try {
+          // On modal open, mark all notifications as read on the backend.
+          // This clears the global notification count on the bell icon.
+          // We do NOT update the local state here, so the user can still see
+          // which notifications were new when they opened the modal.
+          await markAllNotificationsAsRead();
+        } catch (error) {
+          console.error("❌ Error marking all as read on modal open:", error);
+        }
+      };
+      loadAndClearBell();
     }
   }, [isOpen, fetchNotifications]);
 
@@ -52,104 +96,123 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
 
     // Handler for new notifications
     const handleNewNotification = (data) => {
-      console.log('📬 Real-time notification received:', data);
-      
+      console.log("📬 Real-time notification received:", data);
+      const newNotification = data.notification || data;
+
       // Add new notification to the top of the list
-      setAllNotifications(prev => [data.notification || data, ...prev]);
+      setAllNotifications((prev) => [newNotification, ...prev]);
+
+      // Add to unread set
+      if (newNotification?._id && !newNotification.isRead) {
+        setUnreadIds((prev) => {
+          const newSet = new Set(prev);
+          newSet.add(newNotification._id);
+          return newSet;
+        });
+      }
     };
 
     // Handler for notification read
     const handleNotificationRead = (data) => {
-      console.log('✅ Notification marked as read:', data);
-      
-      setAllNotifications(prev =>
-        prev.map(notif =>
-          notif._id === data.notificationId ? { ...notif, isRead: true } : notif
-        )
+      console.log("✅ Notification marked as read:", data);
+
+      setAllNotifications((prev) =>
+        prev.map((notif) =>
+          notif._id === data.notificationId
+            ? { ...notif, isRead: true }
+            : notif,
+        ),
       );
     };
 
     // Handler for all notifications read
     const handleAllNotificationsRead = () => {
-      console.log('✅ All notifications marked as read');
-      
-      setAllNotifications(prev =>
-        prev.map(notif => ({ ...notif, isRead: true }))
-      );
-    };
-
-    // Handler for notification deleted
-    const handleNotificationDeleted = (data) => {
-      console.log('🗑️ Notification deleted:', data);
-      
-      setAllNotifications(prev =>
-        prev.filter(notif => notif._id !== data.notificationId)
-      );
+      console.log("✅ All notifications marked as read");
+      // We do nothing here to preserve the unread indicators locally
     };
 
     // Subscribe to real-time events
-    notificationService.on('new-notification', handleNewNotification);
-    notificationService.on('notification-read', handleNotificationRead);
-    notificationService.on('all-notifications-read', handleAllNotificationsRead);
-    notificationService.on('notification-deleted', handleNotificationDeleted);
+    notificationService.on("new-notification", handleNewNotification);
+    notificationService.on("notification-read", handleNotificationRead);
+    notificationService.on(
+      "all-notifications-read",
+      handleAllNotificationsRead,
+    );
 
     // Cleanup subscriptions
     return () => {
-      notificationService.off('new-notification', handleNewNotification);
-      notificationService.off('notification-read', handleNotificationRead);
-      notificationService.off('all-notifications-read', handleAllNotificationsRead);
-      notificationService.off('notification-deleted', handleNotificationDeleted);
+      notificationService.off("new-notification", handleNewNotification);
+      notificationService.off("notification-read", handleNotificationRead);
+      notificationService.off(
+        "all-notifications-read",
+        handleAllNotificationsRead,
+      );
     };
   }, [isOpen]);
 
   const handleMarkAsRead = async (notificationId) => {
     try {
       await markNotificationAsRead(notificationId);
-      
+
       // Update local state (real-time event will also update it)
-      setAllNotifications(prev =>
-        prev.map(notif =>
-          notif._id === notificationId ? { ...notif, isRead: true } : notif
-        )
+      setAllNotifications((prev) =>
+        prev.map((notif) =>
+          notif._id === notificationId ? { ...notif, isRead: true } : notif,
+        ),
       );
+      setUnreadIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(notificationId);
+        return newSet;
+      });
     } catch (error) {
       console.error("❌ Error marking notification as read:", error);
     }
   };
 
   const handleNotificationClick = async (notification) => {
+    notificationService.lastClickedId = notification._id;
+
     try {
-      // Mark as read if unread
-      if (!notification.isRead) {
+      const isUnread = unreadIds.has(notification._id);
+      if (isUnread) {
         await handleMarkAsRead(notification._id);
       }
 
-      // Navigate based on notification type
+      const eventId =
+        notification.data?.ticketId ||
+        notification.data?.eventId ||
+        notification.ticketId ||
+        notification.eventId ||
+        notification.entityId ||
+        notification.data?.entityId;
+      const groupId =
+        notification.data?.groupId ||
+        notification.groupId ||
+        notification.entityId ||
+        notification.data?.entityId;
+
       if (
-        notification.type === "event_created" ||
-        notification.type === "event_hosted"
+        (notification.type === "event_created" ||
+          notification.type === "event_hosted" ||
+          notification.type === "event_invite") &&
+        eventId
       ) {
-        if (notification.ticketId) {
-          navigate(`/ticket/view-single-event/${notification.ticketId}`);
+        navigate(`/ticket/live-event-view/${eventId}`);
+        onClose();
+      } else if (notification.type === "group_updated" && groupId) {
+        navigate(`/ticket/edit-group/${groupId}`);
+        onClose();
+      } else if (eventId) {
+        if (notification.type === "event_completed") {
+          navigate(`/ticket/previous-event-view/${eventId}`);
+          onClose();
+        } else if (notification.type === "event_recovered") {
+          navigate(`/ticket/view-single-event/${eventId}`);
           onClose();
         } else {
-          navigate("/ticket/view-events");
-          onClose();
-        }
-      } else if (notification.type === "event_invite") {
-        if (notification.ticketId) {
-          navigate(`/ticket/view-single-event/${notification.ticketId}`);
-          onClose();
-        } else {
-          navigate("/ticket/live-events");
-          onClose();
-        }
-      } else if (notification.type === "general") {
-        if (notification.ticketId) {
-          navigate(`/ticket/view-single-event/${notification.ticketId}`);
-          onClose();
-        } else if (notification.groupId) {
-          navigate(`/ticket/group/${notification.groupId}`);
+          // Default fallback for other event-related notifications like updated, cancelled
+          navigate(`/ticket/view-single-event/${eventId}`);
           onClose();
         }
       }
@@ -157,33 +220,32 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
       console.error("❌ Error handling notification click:", error);
     }
   };
-
-  const handleMarkAllAsRead = async () => {
-    try {
-      await markAllNotificationsAsRead();
-
-      // Update local state (real-time event will also update it)
-      setAllNotifications((prev) =>
-        prev.map((notif) => ({ ...notif, isRead: true })),
-      );
-    } catch (error) {
-      console.error("❌ Error marking all as read:", error);
-    }
-  };
-
   const getTabCount = (tab) => {
-    const unreadNotifications = allNotifications.filter(n => !n.isRead);
-    
+    const unreadNotifications = allNotifications.filter((n) =>
+      unreadIds.has(n._id),
+    );
     if (tab === "all") {
       return unreadNotifications.length;
     }
     if (tab === "events") {
-      return unreadNotifications.filter(n =>
-        ["event_created", "event_hosted"].includes(n.type)
+      return unreadNotifications.filter((n) =>
+        [
+          "event_created",
+          "event_hosted",
+          "event_updated",
+          "event_cancelled",
+          "event_completed",
+          "event_recovered",
+          "group_updated",
+          "ticket_purchased",
+          "ticket_cancelled",
+        ].includes(n.type),
       ).length;
     }
     if (tab === "invites") {
-      return unreadNotifications.filter(n => n.type === "event_invite").length;
+      return unreadNotifications.filter((n) =>
+        ["event_invite", "follow_request"].includes(n.type),
+      ).length;
     }
     return 0;
   };
@@ -191,12 +253,24 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
   const getFilteredNotifications = () => {
     if (activeTab === "all") return allNotifications;
     if (activeTab === "events") {
-      return allNotifications.filter(n =>
-        ["event_created", "event_hosted"].includes(n.type)
+      return allNotifications.filter((n) =>
+        [
+          "event_created",
+          "event_hosted",
+          "event_updated",
+          "event_cancelled",
+          "event_completed",
+          "event_recovered",
+          "group_updated",
+          "ticket_purchased",
+          "ticket_cancelled",
+        ].includes(n.type),
       );
     }
     if (activeTab === "invites") {
-      return allNotifications.filter(n => n.type === "event_invite");
+      return allNotifications.filter((n) =>
+        ["event_invite", "follow_request"].includes(n.type),
+      );
     }
     return allNotifications;
   };
@@ -212,10 +286,12 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
         iconBg: "bg-gray-700",
         iconText: "text-gray-300",
         activeTabBg: "#212426",
-        activeTabBorder: '#343434',
-        activeTabBorderImage: 'linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%) 1',
+        activeTabBorder: "#343434",
+        activeTabBorderImage:
+          "linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%) 1",
         tabCountBgInactive: "bg-gray-700",
-        headerBorderImage: "linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #FFFFFF 50.73%, rgba(255, 255, 255, 0) 100%) 1",
+        headerBorderImage:
+          "linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #FFFFFF 50.73%, rgba(255, 255, 255, 0) 100%) 1",
       }
     : {
         bg: "bg-white",
@@ -227,10 +303,12 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
         iconBg: "bg-gray-200",
         iconText: "text-gray-700",
         activeTabBg: "#f0f0f0",
-        activeTabBorder: '#e0e0e0',
-        activeTabBorderImage: 'linear-gradient(286.41deg, #e0e0e0 -2.79%, #ffffff 101.27%) 1',
+        activeTabBorder: "#e0e0e0",
+        activeTabBorderImage:
+          "linear-gradient(286.41deg, #e0e0e0 -2.79%, #ffffff 101.27%) 1",
         tabCountBgInactive: "bg-gray-200",
-        headerBorderImage: "linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #000000 50.73%, rgba(0, 0, 0, 0) 100%) 1",
+        headerBorderImage:
+          "linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #000000 50.73%, rgba(0, 0, 0, 0) 100%) 1",
       };
 
   const filteredNotifications = getFilteredNotifications();
@@ -292,24 +370,27 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
     const iconBaseStyle =
       "w-10 h-10 rounded-full flex items-center justify-center";
 
-    if (notification.type === "event_invite") {
+    if (["event_invite", "follow_request"].includes(notification.type)) {
       return (
-        <div
-          className={`${iconBaseStyle} ${theme.iconBg} ${theme.iconText}`}
-        >
+        <div className={`${iconBaseStyle} ${theme.iconBg} ${theme.iconText}`}>
           <Bell size={20} />
         </div>
       );
     }
 
     if (
-      notification.type === "event_created" ||
-      notification.type === "event_hosted"
+      [
+        "event_created",
+        "event_hosted",
+        "event_updated",
+        "event_cancelled",
+        "event_completed",
+        "event_recovered",
+        "group_updated",
+      ].includes(notification.type)
     ) {
       return (
-        <div
-          className={`${iconBaseStyle} ${theme.iconBg} ${theme.iconText}`}
-        >
+        <div className={`${iconBaseStyle} ${theme.iconBg} ${theme.iconText}`}>
           <CalendarDays size={20} />
         </div>
       );
@@ -331,9 +412,7 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
     }
 
     return (
-      <div
-        className={`${iconBaseStyle} ${theme.iconBg} ${theme.iconText}`}
-      >
+      <div className={`${iconBaseStyle} ${theme.iconBg} ${theme.iconText}`}>
         <AlertTriangle size={20} />
       </div>
     );
@@ -341,7 +420,7 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
 
   const formatDate = (date) => {
     if (!date) return "";
-    
+
     const now = new Date();
     const notifDate = new Date(date);
     const diffInSeconds = Math.floor((now - notifDate) / 1000);
@@ -360,7 +439,7 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
   };
 
   const NotificationItem = ({ notification }) => {
-    const unread = !notification.isRead;
+    const unread = unreadIds.has(notification._id);
 
     return (
       <div
@@ -375,26 +454,23 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex justify-between items-start">
-              <div className="flex-1">
+              <div className="flex-1 flex items-center">
                 <p className={`font-medium ${theme.text}`}>
                   {notification.title}{" "}
                   <span className={`text-sm ${theme.subText} font-normal`}>
                     {notification.message}
                   </span>
                 </p>
-              </div>
-              <div className="flex-shrink-0 flex flex-col items-end ml-2">
-                <span className={`text-xs ${theme.subText}`}>
-                  {formatDate(notification.createdAt)}
-                </span>
                 {unread && (
-                  <span className="w-2 h-2 bg-indigo-500 rounded-full mt-2"></span>
+                  <span className="w-2 h-2 bg-indigo-500 rounded-full ml-2 flex-shrink-0"></span>
                 )}
               </div>
             </div>
 
             <div className="mt-3 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-              {notification.type === "event_invite" && (
+              {["event_invite", "follow_request"].includes(
+                notification.type,
+              ) && (
                 <>
                   <ActionButton
                     variant="primary"
@@ -416,8 +492,12 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
                   </ActionButton>
                 </>
               )}
-              {(notification.type === "event_created" ||
-                notification.type === "event_hosted") && (
+              {[
+                "event_created",
+                "event_hosted",
+                "event_updated",
+                "event_recovered",
+              ].includes(notification.type) && (
                 <ActionButton
                   variant="primary"
                   hasBorder={false}
@@ -438,17 +518,18 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
 
   const TabItem = ({ label, count, isActive, onClick }) => {
     const activeTabStyle = {
-      height: '44px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '10px',
-      borderRadius: '16px',
+      height: "44px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "10px",
+      borderRadius: "16px",
       border: `0.5px solid ${theme.activeTabBorder}`,
-      padding: '12px 16px',
+      padding: "12px 16px",
       background: theme.activeTabBg,
-      boxShadow: '8px 8px 12px 0px #00000029, inset -3px -2px 12px 0px #FFFFFF14',
-      marginTop: '-8px',
+      boxShadow:
+        "8px 8px 12px 0px #00000029, inset -3px -2px 12px 0px #FFFFFF14",
+      marginTop: "-8px",
     };
 
     return (
@@ -459,7 +540,9 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
         } hover:${theme.text}`}
         style={isActive ? activeTabStyle : {}}
       >
-        <span className="mr-1.5" style={isActive ? { paddingTop: '2px' } : {}}>{label}</span>
+        <span className="mr-1.5" style={isActive ? { paddingTop: "2px" } : {}}>
+          {label}
+        </span>
         {count > 0 && (
           <span
             className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold rounded-full ${
@@ -493,12 +576,14 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
           isOpen ? "translate-x-0" : "translate-x-full"
         } ${theme.border}`}
         style={{
-          borderLeftWidth: '0.5px',
+          borderLeftWidth: "0.5px",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className={`flex items-center justify-between p-4 ${theme.border} border-b`}>
+        <div
+          className={`flex items-center justify-between p-4 ${theme.border} border-b`}
+        >
           <button
             onClick={onClose}
             className={`p-1 rounded-full ${theme.subText} hover:${theme.text} transition-colors md:hidden`}
@@ -507,7 +592,9 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
           </button>
 
           <div className="flex-1">
-            <h2 className={`text-xl font-semibold ${theme.text} text-center md:text-left`}>
+            <h2
+              className={`text-xl font-semibold ${theme.text} text-center md:text-left`}
+            >
               Notifications
             </h2>
             <div
@@ -538,7 +625,8 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
         <div
           className={`flex justify-around p-4 mx-4 ${theme.border} border rounded-xl ${theme.bg}`}
           style={{
-            boxShadow: 'inset 6px 6px 12px 0px #0000002E, inset -3px -2px 12px 0px #FFFFFF14',
+            boxShadow:
+              "inset 6px 6px 12px 0px #0000002E, inset -3px -2px 12px 0px #FFFFFF14",
           }}
         >
           <TabItem
@@ -583,7 +671,9 @@ const NotificationModal = ({ isOpen, onClose, isDark = true }) => {
           ) : error ? (
             <div className={`text-center py-12 ${theme.subText}`}>
               <AlertTriangle size={32} className="mx-auto mb-2 text-red-500" />
-              <p className="font-medium text-red-500">Error loading notifications</p>
+              <p className="font-medium text-red-500">
+                Error loading notifications
+              </p>
               <p className="text-sm mt-1">{error}</p>
               <button
                 onClick={fetchNotifications}

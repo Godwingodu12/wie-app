@@ -1,10 +1,8 @@
 import React from 'react';
-
 interface HeaderProps {
   title: string;
   subtitle?: string;
 }
-
 export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   return (
     <div className="mb-8">

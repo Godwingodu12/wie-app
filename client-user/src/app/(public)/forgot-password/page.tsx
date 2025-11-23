@@ -1,7 +1,11 @@
 'use client';
+
+import { Suspense } from 'react';
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
 import { Card } from '@/components/ui/Card';
-export default function ForgotPasswordPage() {
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+
+function ForgotPasswordContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
@@ -12,5 +16,16 @@ export default function ForgotPasswordPage() {
         <ForgotPasswordForm />
       </Card>
     </div>
+  );
+}
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    }>
+      <ForgotPasswordContent />
+    </Suspense>
   );
 }

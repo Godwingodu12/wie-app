@@ -8,16 +8,26 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 
 export default function HomePage() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading } = useAuth(false); // Don't require auth
   const router = useRouter();
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.push('/protected/home');
+      router.replace('/home');
     }
   }, [isAuthenticated, loading, router]);
 
+  // Show loading while checking auth
   if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  // If authenticated, show loading while redirecting
+  if (isAuthenticated) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <LoadingSpinner size="lg" />

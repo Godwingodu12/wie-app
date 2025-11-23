@@ -374,7 +374,7 @@ useEffect(() => {
                   
                   {event.has_nearby_sub_events && (
                     <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">
-                      +{event.nearby_sub_events_count} sub-event
+                      +{event.nearby_sub_events_count} sub event
                       {event.nearby_sub_events_count !== 1 ? 's' : ''}
                     </span>
                   )}

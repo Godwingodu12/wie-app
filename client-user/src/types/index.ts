@@ -4,24 +4,29 @@ export interface User {
   contact_no?: string | null;
   name?: string | null;
   username?: string | null;
+  profile_picture?: string | null;
+  country_id?: string | null;
+  country_name?: string | null;
+  country_code?: string | null;
+  role?: string;
+  status?: string;
   bio?: string | null;
   location?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-  isOnline: boolean;
-  profile_picture?: string | null;
-  country_id?: string | null;
-  country_code?: string | null; 
-  country_name?: string | null;
-  role: string;
-  status: string;
-  is_blocked: boolean;
-  is_verified: boolean;
-  auth_provider: string;
-  created_at: string;
-  updated_at: string;
+  is_blocked?: boolean;
+  is_verified?: boolean;
+  auth_provider?: string;
+  created_at?: string | Date;
+  updated_at?: string | Date;
 }
-
+export interface UpdateProfileRequest {
+  name?: string;
+  username?: string;
+  bio?: string;
+  country_id?: string;
+  profile_picture?: string;
+}
 export interface AuthState {
   user: User | null;
   token: string | null;
@@ -44,26 +49,15 @@ export interface SignupVerifyOtpRequest {
   otp: string;
   name?: string;  
 }
-
 export interface ResendOtpRequest {
   userId: string; 
 }
-
-export interface UpdateProfileRequest {
-  name?: string;
-  username?: string;
-  bio?: string;
-  profile_picture?: string;
-  country_id?: string;
-}
-
 export interface Country {
   id: string;
   country_code: string;  
   country_name: string;  
   created_at: string;
 }
-
 export interface ApiResponse<T = any> {
   success?: boolean;
   message?: string;
