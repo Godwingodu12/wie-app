@@ -368,25 +368,21 @@ export const UpdateGroup = async (req, res) => {
     const { groupId } = req.params;
     const userId = req.user._id || req.user.id;
     const userRole = req.user.role;
-
     // Validate groupId
     if (!groupId) {
       return res.status(400).json({ message: "Group ID is required" });
     }
-
     // Find the existing group
     const existingGroup = await Group.findById(groupId);
     if (!existingGroup) {
       return res.status(404).json({ message: "Group not found" });
     }
-
     // Authorization check - ensure user owns this group
     if (existingGroup.userId.toString() !== userId.toString()) {
       return res.status(403).json({
         message: "You are not authorized to update this group",
       });
     }
-
     // Extract update data from request body
     const {
       name,
@@ -402,7 +398,6 @@ export const UpdateGroup = async (req, res) => {
       primary_bank_acc_holder,
       status,
     } = req.body;
-
     // Process new file uploads to Cloudinary
     let uploadedFiles = {};
     const filesToDelete = []; // Track old files to delete from Cloudinary
@@ -867,11 +862,6 @@ export const createTicketBasicInfo = async (req, res) => {
         const index = fieldName.split("_")[2];
         if (!isNaN(index) && parseInt(index) >= 0 && parseInt(index) <= 9) {
           const fileData = uploadedFiles[fieldName];
-          console.log(
-            `Processing guest_profile_${index}:`,
-            typeof fileData,
-            Array.isArray(fileData)
-          );
           if (typeof fileData === "string") {
             guestProfileFiles[parseInt(index)] = { path: fileData };
           } else if (Array.isArray(fileData) && fileData.length > 0) {
@@ -883,11 +873,6 @@ export const createTicketBasicInfo = async (req, res) => {
           ) {
             guestProfileFiles[parseInt(index)] = fileData;
           }
-
-          console.log(
-            `✅ Guest profile ${index} stored:`,
-            guestProfileFiles[parseInt(index)]?.path
-          );
         }
       }
       if (fieldName === "event_rules") {
@@ -1526,10 +1511,6 @@ export const createTicketBasicInfo = async (req, res) => {
           message: "Maximum 10 guests allowed",
         });
       }
-      console.log(
-        `Processing ${guestsArray.length} guests with profile files:`,
-        Object.keys(guestProfileFiles)
-      );
       processedGuests = guestsArray.map((guest, index) => {
         let guestData = {
           guest_name: "",
@@ -1550,23 +1531,11 @@ export const createTicketBasicInfo = async (req, res) => {
         // Add uploaded profile image Cloudinary URL if available
         if (guestProfileFiles[index] && guestProfileFiles[index].path) {
           guestData.guest_profile = guestProfileFiles[index].path; // Cloudinary URL
-          console.log(
-            `✅ Guest ${index} profile set:`,
-            guestData.guest_profile
-          );
         } else {
           console.log(`⚠️ No profile file for guest ${index}`);
         }
-
         return guestData;
       });
-      console.log(
-        `Processed ${processedGuests.length} guests:`,
-        processedGuests.map((g) => ({
-          name: g.guest_name,
-          has_profile: !!g.guest_profile,
-        }))
-      );
     }
 
     // Create ticket data object with location-type specific fields
@@ -1881,12 +1850,8 @@ export const createTicketBasicInfo = async (req, res) => {
           if (file && file.public_id) filesToDelete.push(file.public_id);
         });
       }
-
       // Delete files from Cloudinary
       if (filesToDelete.length > 0) {
-        console.log(
-          `Cleaning up ${filesToDelete.length} uploaded files due to error...`
-        );
         for (const publicId of filesToDelete) {
           try {
             await deleteFromCloudinary(publicId, "auto");
@@ -1907,16 +1872,6 @@ export const createTicketBasicInfo = async (req, res) => {
 };
 export const updateTicketMedia = async (req, res) => {
   try {
-    // Enhanced logging for debugging
-    console.log("🚀 Starting ticket media update process...");
-    console.log("📋 Request params:", req.params);
-    console.log("👤 User info:", {
-      role: req.user?.role,
-      organisation_type: req.user?.organisation_type,
-      id: req.user?._id || req.user?.id,
-    });
-
-    // Handle file upload with multer
     await new Promise((resolve, reject) => {
       uploadTicketMedia(req, res, (err) => {
         if (err) {
@@ -1941,16 +1896,8 @@ export const updateTicketMedia = async (req, res) => {
         ticketId: ticketId,
       });
     }
-
     // Upload files to Cloudinary
-    console.log("☁️ Uploading files to Cloudinary...");
     const uploadedFiles = await processFileUploads(req.files || {});
-    console.log("✅ Cloudinary upload completed:", {
-      files: Object.keys(uploadedFiles),
-      event_logo: uploadedFiles.event_logo,
-      event_banner: uploadedFiles.event_banner,
-      college_authorisation: uploadedFiles.college_authorisation,
-    });
     // Extract URLs directly - these are already complete Cloudinary URLs
     const eventLogoUrl = uploadedFiles.event_logo || null;
     const eventBannerUrl = uploadedFiles.event_banner || null;
@@ -2051,18 +1998,13 @@ export const updateTicketMedia = async (req, res) => {
       updated_by: userId,
       updated_at: new Date(),
     };
-
     // Process uploaded files - Use the URLs directly
     if (eventLogoUrl) {
       updateData.event_logo = eventLogoUrl;
-      console.log("✅ Event logo will be updated to:", eventLogoUrl);
     }
-
     if (eventBannerUrl) {
       updateData.event_banner = eventBannerUrl;
-      console.log("✅ Event banner will be updated to:", eventBannerUrl);
     }
-
     // Process event_images with append logic
     if (event_images.length > 0) {
       // Fetch existing ticket to get current event_images
@@ -2158,28 +2100,11 @@ export const updateTicketMedia = async (req, res) => {
       }));
 
       updateData.event_images = [...existingImages, ...newImages];
-      console.log(
-        "✅ Event images will be updated:",
-        existingImages.length,
-        "existing +",
-        event_images.length,
-        "new =",
-        updateData.event_images.length,
-        "total"
-      );
     }
     // Add college authorization file if uploaded
     if (collegeAuthorisationUrl) {
       updateData.college_authorisation = collegeAuthorisationUrl;
     }
-    console.log("📝 Final update data:", {
-      has_event_logo: !!updateData.event_logo,
-      has_event_banner: !!updateData.event_banner,
-      has_college_auth: !!updateData.college_authorisation,
-      event_images_count: updateData.event_images?.length,
-      event_logo_url: updateData.event_logo,
-      event_banner_url: updateData.event_banner,
-    });
     // Find and update the ticket
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
@@ -2210,7 +2135,6 @@ export const updateTicketMedia = async (req, res) => {
         ticketId: ticketId,
       });
     }
-    console.log("✅ Ticket Media updated successfully");
     res.status(200).json({
       message: "Ticket media updated successfully",
       ticket: updatedTicket,
@@ -2254,7 +2178,6 @@ export const updateTicketMedia = async (req, res) => {
         event_images.forEach((img) => filesToDelete.push(img.path));
       }
       if (filesToDelete.length > 0) {
-        console.log("🧹 Cleaning up uploaded files due to error...");
         await Promise.all(
           filesToDelete.map((url) =>
             deleteFromCloudinary(url).catch((err) =>
@@ -2683,33 +2606,17 @@ export const updateTicketAddOns = async (req, res) => {
         const index = fieldName.split("_")[2];
         if (!isNaN(index) && parseInt(index) >= 0 && parseInt(index) <= 9) {
           const fileData = uploadedFiles[fieldName];
-
-          console.log(
-            `Processing guest_profile_${index} in addons:`,
-            typeof fileData,
-            Array.isArray(fileData)
-          );
-
-          // Handle different return formats from processFileUploads
           if (typeof fileData === "string") {
-            // Direct Cloudinary URL
             guestProfileFiles[parseInt(index)] = { path: fileData };
           } else if (Array.isArray(fileData) && fileData.length > 0) {
-            // Array of file objects
             guestProfileFiles[parseInt(index)] = fileData[0];
           } else if (
             fileData &&
             typeof fileData === "object" &&
             fileData.path
           ) {
-            // Single file object
             guestProfileFiles[parseInt(index)] = fileData;
           }
-
-          console.log(
-            `✅ Guest profile ${index} stored in addons:`,
-            guestProfileFiles[parseInt(index)]?.path
-          );
         }
       }
       if (fieldName.startsWith("ticket_photo_")) {
@@ -2746,14 +2653,9 @@ export const updateTicketAddOns = async (req, res) => {
         let bannerFile = uploadedFiles.event_banner;
         let bannerUrl = null;
         let bannerPublicId = null;
-
-        console.log("🔍 event_banner type:", typeof bannerFile);
-        console.log("🔍 event_banner is array?", Array.isArray(bannerFile));
-
         // Case 1: It's already a string URL (Cloudinary direct return)
         if (typeof bannerFile === "string") {
           bannerUrl = bannerFile;
-          console.log("✓ Event banner is direct URL string:", bannerUrl);
         }
         // Case 2: It's an array with object
         else if (Array.isArray(bannerFile) && bannerFile.length > 0) {
@@ -2764,7 +2666,6 @@ export const updateTicketAddOns = async (req, res) => {
             bannerUrl = firstFile.path;
             bannerPublicId = firstFile.public_id;
           }
-          console.log("✓ Event banner from array:", bannerUrl);
         }
         // Case 3: It's an object with path property
         else if (
@@ -2774,13 +2675,10 @@ export const updateTicketAddOns = async (req, res) => {
         ) {
           bannerUrl = bannerFile.path;
           bannerPublicId = bannerFile.public_id;
-          console.log("✓ Event banner from object:", bannerUrl);
         }
-
         if (bannerUrl) {
           processedFiles.event_banner = bannerUrl; // Cloudinary URL (String)
           processedFiles.event_banner_public_id = bannerPublicId || "";
-          console.log("✅ Event banner processed successfully:", bannerUrl);
         } else {
           console.error("❌ Event banner upload failed:", {
             type: typeof bannerFile,
@@ -2832,7 +2730,6 @@ export const updateTicketAddOns = async (req, res) => {
         if (logoUrl) {
           processedFiles.event_logo = logoUrl;
           processedFiles.event_logo_public_id = logoPublicId || "";
-          console.log("✅ Event logo processed:", logoUrl);
         }
       }
 
@@ -2869,9 +2766,6 @@ export const updateTicketAddOns = async (req, res) => {
             };
           }
         });
-        console.log(
-          `✅ ${processedFiles.event_images.length} event images processed`
-        );
       }
 
       // Handle event rules
@@ -2918,7 +2812,6 @@ export const updateTicketAddOns = async (req, res) => {
             resource_type: "raw",
             uploadedAt: new Date(),
           };
-          console.log("✅ Event rules processed:", rulesUrl);
         }
       }
 
@@ -2951,7 +2844,6 @@ export const updateTicketAddOns = async (req, res) => {
         if (layoutUrl) {
           processedFiles.ticket_layout = layoutUrl;
           processedFiles.ticket_layout_public_id = layoutPublicId || "";
-          console.log("✅ Ticket layout processed:", layoutUrl);
         }
       }
 
@@ -2975,11 +2867,9 @@ export const updateTicketAddOns = async (req, res) => {
     const ticketTypes = (() => {
       const rawTickets = subEventData.ticket_types || req.body.ticket_types;
       if (!rawTickets) {
-        console.log("No ticket_types found");
         return [];
       }
       if (Array.isArray(rawTickets)) {
-        console.log("ticket_types is already an array");
         return rawTickets;
       }
       if (typeof rawTickets === "string") {
@@ -3009,7 +2899,6 @@ export const updateTicketAddOns = async (req, res) => {
       }
 
       if (Array.isArray(rawItems)) {
-        console.log("✓ prohibited_items is already an array");
         return rawItems;
       }
 
@@ -3060,10 +2949,6 @@ export const updateTicketAddOns = async (req, res) => {
           message: "Maximum 10 guests allowed",
         });
       }
-      console.log(
-        `Processing ${guests.length} guests in addons with profile files:`,
-        Object.keys(guestProfileFiles)
-      );
       processedGuests = guests.map((guest, index) => {
         let guestData = {
           guest_name: "",
@@ -3081,22 +2966,11 @@ export const updateTicketAddOns = async (req, res) => {
         }
         if (guestProfileFiles[index] && guestProfileFiles[index].path) {
           guestData.guest_profile = guestProfileFiles[index].path;
-          console.log(
-            `✅ Guest ${index} profile set in addons:`,
-            guestData.guest_profile
-          );
         } else {
           console.log(`⚠️ No profile file for guest ${index} in addons`);
         }
         return guestData;
       });
-      console.log(
-        `Processed ${processedGuests.length} guests in addons:`,
-        processedGuests.map((g) => ({
-          name: g.guest_name,
-          has_profile: !!g.guest_profile,
-        }))
-      );
     }
     let processedTicketTypes = [];
     if (ticketTypes && ticketTypes.length > 0) {
@@ -4090,7 +3964,6 @@ export const updateTicketDetails = async (req, res) => {
       try {
         if (typeof data === "string") {
           const parsed = JSON.parse(data);
-          console.log(`Successfully parsed ${fieldName}:`, parsed);
           return Array.isArray(parsed) ? parsed : [parsed];
         }
         if (Array.isArray(data)) {
@@ -4262,17 +4135,10 @@ export const updateTicketDetails = async (req, res) => {
           },
         ];
       } else {
-        // Use custom banking details
-        console.log(
-          "Using custom banking details. Received data:",
-          req.body.banking_details
-        );
-
         const customBankingDetails = parseNestedData(
           req.body.banking_details,
           "banking_details"
         );
-
         if (!customBankingDetails || customBankingDetails.length === 0) {
           return res.status(400).json({
             message:
@@ -4314,7 +4180,6 @@ export const updateTicketDetails = async (req, res) => {
     } else {
       // For free events, banking details are empty
       finalBankingDetails = [];
-      console.log("Payment type is 'free'. Skipping banking details validation.");
     }
     // Validate dates if provided
     if (booking_start_date && booking_end_date) {
@@ -4592,7 +4457,6 @@ export const updateTicketDetails = async (req, res) => {
           for (const publicId of filesToDelete) {
             try {
               await deleteFromCloudinary(publicId);
-              console.log(`Successfully deleted file: ${publicId}`);
             } catch (deleteError) {
               console.error(
                 `Failed to delete file ${publicId}:`,
@@ -4600,10 +4464,6 @@ export const updateTicketDetails = async (req, res) => {
               );
             }
           }
-
-          console.log(
-            `Cleaned up ${filesToDelete.length} file(s) from Cloudinary due to error`
-          );
         } else {
           console.log("No Cloudinary files to clean up");
         }
@@ -4625,30 +4485,18 @@ export const updateTicketTerms = async (req, res) => {
   try {
     const ticketId = req.params.ticketId || req.body.ticketId;
     const { terms_accepted, company_terms_version } = req.body;
-
-    console.log("updateTicketTerms called with:", {
-      ticketId,
-      terms_accepted,
-      company_terms_version,
-    });
-
     if (!ticketId) {
       return res.status(400).json({
         message: "Missing required parameters",
         required: ["ticketId"],
       });
     }
-
     if (!terms_accepted) {
       return res.status(400).json({
         message: "Company terms and conditions must be accepted",
       });
     }
-
     const userId = req.user._id || req.user.id;
-
-    console.log("Updating ticket with ID:", ticketId);
-
     // First update the ticket
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
@@ -4664,17 +4512,11 @@ export const updateTicketTerms = async (req, res) => {
     );
 
     if (!updatedTicket) {
-      console.log("Ticket not found for ID:", ticketId);
       return res
         .status(404)
         .json({ message: "Ticket not found or unauthorized" });
     }
-
-    console.log("Ticket updated successfully:", updatedTicket._id);
-
-    // Populate groupId to get group details
     await updatedTicket.populate("groupId");
-
     // Create notification only if event_status is 'confirmed'
     if (updatedTicket.event_status === "confirmed") {
       try {
@@ -5120,7 +4962,6 @@ export const recoverDeletedEvent = async (req, res) => {
         groupId: recoveredTicket.groupId?._id,
         eventName: recoveredTicket.event_name
       });
-      console.log('✅ Notification sent via RabbitMQ');
     } catch (notifError) {
       console.error('❌ Error creating notification:', notifError);
       // Don't fail the request if notification fails
