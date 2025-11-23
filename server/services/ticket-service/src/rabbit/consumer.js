@@ -19,9 +19,7 @@ export const listenQueue = async (queueName, handler) => {
       if (!msg) return;
       
       try {
-        const content = JSON.parse(msg.content.toString());
-        console.log(`📥 Received message on ${queueName}:`, content);
-        
+        const content = JSON.parse(msg.content.toString());        
         const response = await handler(content);
 
         if (msg.properties.replyTo) {
@@ -32,17 +30,13 @@ export const listenQueue = async (queueName, handler) => {
               correlationId: msg.properties.correlationId,
             }
           );
-          console.log(`📤 Sent response to ${msg.properties.replyTo}`);
         }
-
         channel.ack(msg);
       } catch (error) {
         console.error(`❌ Error processing message from ${queueName}:`, error);
         channel.nack(msg, false, false);
       }
     });
-
-    console.log(`✅ Listening on queue: ${queueName}`);
   } catch (error) {
     console.error(`❌ Error setting up listener for ${queueName}:`, error);
   }
@@ -80,9 +74,7 @@ export const publishToQueue = async (queueName, message, timeout = 10000) => {
         resolved = true;
         
         const elapsedTime = Date.now() - startTime;
-        console.error(`⏱️ Timeout after ${elapsedTime}ms waiting for response from ${queueName}`);
-        console.log(`📋 Request details:`, { queueName, correlationId, message });
-        
+        console.error(`⏱️ Timeout after ${elapsedTime}ms waiting for response from ${queueName}`);        
         // Cancel consumer if it exists
         if (consumerTag) {
           channel.cancel(consumerTag).catch((err) => {
@@ -107,9 +99,7 @@ export const publishToQueue = async (queueName, message, timeout = 10000) => {
             clearTimeout(timeoutId);
             
             try {
-              const response = JSON.parse(msg.content.toString());
-              console.log(`✅ Received response from ${queueName} in ${elapsedTime}ms`);
-              
+              const response = JSON.parse(msg.content.toString());              
               // Check if response contains an error
               if (response && response.error) {
                 console.error(`❌ Error in response from ${queueName}:`, response.error);
@@ -147,10 +137,7 @@ export const publishToQueue = async (queueName, message, timeout = 10000) => {
           persistent: true,
           timestamp: Date.now()
         }
-      );
-      
-      console.log(`📤 Sent request to ${queueName} with correlationId: ${correlationId}`);
-      
+      );      
     } catch (error) {
       if (!resolved) {
         resolved = true;
