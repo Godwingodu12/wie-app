@@ -113,6 +113,12 @@ export interface SubEvent {
   distance_unit?: string;
   is_nearby?: boolean;
   location_note?: string;
+  isSubEvent?: boolean;
+  parentEventId?: string;
+  parentEventName?: string;
+  parentEventCategory?: string;
+  parentEventBanner?: string;
+  parentEventLogo?: string;
 }
 export interface Event {
   _id: string;
@@ -285,7 +291,6 @@ export interface NearbySubEvent extends SubEvent {
   is_nearby: boolean;
   location_note?: string;
 }
-
 export interface EventWithLocation extends Event {
   distance?: number;
   distance_unit?: string;
@@ -296,6 +301,12 @@ export interface EventWithLocation extends Event {
   nearby_sub_events?: NearbySubEvent[];
   total_sub_events?: number;
   all_sub_events_with_distance?: NearbySubEvent[];
+  isSubEvent?: boolean;
+  parentEventId?: string | null;
+  parentEventName?: string | null;
+  parentEventCategory?: string | null;
+  parentEventBanner?: string | null;
+  parentEventLogo?: string | null;
 }
 export interface CategoryEventsParams {
   category?: string;
@@ -304,8 +315,89 @@ export interface CategoryEventsParams {
   location?: string;
   userId?: string;
   countryCode?: string;
+  searchQuery?: string; 
 }
-export interface CategoryEventsResponse {
+export interface LocationSearchResponse {
+  success: boolean;
+  message: string;
+  data: {
+    locationAvailable: boolean;
+    locationSource: 'gps' | 'manual' | 'none';
+    searchLocation?: { latitude: number; longitude: number } | string | null;
+    searchedLocationName?: string | null;
+    searchRadius: number;
+    categories: string[];
+    eventsByCategory: Record<string, EventWithLocation[]>;
+    totalEvents: number;
+    hasSuggestions: boolean;
+    suggestionCategories: string[];
+    suggestionsByCategory: Record<string, EventWithLocation[]>;
+    totalSuggestions: number;
+    suggestionRadius?: number;
+    countryCode?: string | null;
+    countryName?: string | null;
+  };
+}
+export interface NameSearchResponse {
+  success: boolean;
+  message: string;
+  data: {
+    searchQuery: string;
+    categories: string[];
+    eventsByCategory: Record<string, EventWithLocation[]>;
+    totalEvents: number;
+    countryCode?: string | null;
+    countryName?: string | null;
+  };
+}
+export interface InitialEventsResponse {
+  success: boolean;
+  message: string;
+  data: {
+    locationAvailable: boolean;
+    locationSource: 'gps' | 'manual' | 'saved' | 'country' | 'none';
+    searchLocation?: { latitude: number; longitude: number } | string | null;
+    searchRadius?: number | null;
+    categories: string[];
+    eventsByCategory: Record<string, EventWithLocation[]>;
+    totalEvents: number;
+    countryCode?: string | null;
+    countryName?: string | null;
+  };
+}
+export interface CategorySearchParams {
+  category?: string;
+  userId?: string;
+}
+export interface LocationSearchParams {
+  latitude?: number;
+  longitude?: number;
+  location?: string;
+  radius?: number;
+  userId?: string;
+}
+export interface NameSearchParams {
+  searchQuery: string;
+  userId?: string;
+}
+export interface FilterEventsParams {
+  category?: string;
+  subcategory?: string;
+  location?: string;
+  latitude?: number;
+  longitude?: number;
+  searchQuery?: string;
+  radius?: number; // in kilometers (1-500)
+  locationType?: 'online' | 'offline' | 'recorded';
+  eventLanguage?: string;
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+  bookingStartDate?: string; // YYYY-MM-DD
+  bookingEndDate?: string; // YYYY-MM-DD
+  userId?: string;
+}
+
+export interface FilteredEventsResponse {
   success: boolean;
   message: string;
   data: {
@@ -315,7 +407,64 @@ export interface CategoryEventsResponse {
       latitude: number;
       longitude: number;
     } | string;
-    searchRadius?: number;
+    searchRadius?: number | null;
+    appliedFilters: {
+      category: string | null;
+      subcategory: string | null;
+      searchQuery: string | null;
+      locationType: string | null;
+      eventLanguage: string | null;
+      startDate: string | null;
+      endDate: string | null;
+      bookingStartDate: string | null;
+      bookingEndDate: string | null;
+    };
+    categories: string[];
+    eventsByCategory: Record<string, EventWithLocation[]>;
+    totalEvents: number;
+    countryCode?: string | null;
+    countryName?: string | null;
+  };
+}
+export const EVENT_LANGUAGES = [
+  'English',
+  'Hindi',
+  'Malayalam',
+  'Tamil',
+  'Kannada',
+  'Telugu',
+  'Marathi',
+  'Gujarati',
+  'Punjabi',
+  'Urdu',
+  'Bengali',
+  'Spanish',
+  'French',
+  'German',
+  'Chinese',
+  'Japanese',
+  'Russian',
+  'Turkish',
+  'Korean',
+  'Portuguese',
+  'Arabic',
+  'Indonesian',
+  'Vietnamese',
+  'Other',
+] as const;
+export type EventLanguage = typeof EVENT_LANGUAGES[number];
+export interface CategoryEventsResponse {
+  success: boolean;
+  message: string;
+  data: {
+    locationAvailable: boolean;
+    locationSource: 'gps' | 'manual' | 'saved' | 'country' | 'none';
+    searchLocation?: {
+      latitude: number;
+      longitude: number;
+    } | string | null;
+    searchQuery?: string | null;
+    searchRadius?: number | null;
     categories: string[];
     eventsByCategory: Record<string, EventWithLocation[]>;
     eventsByDistanceAndCategory?: Record<string, Record<string, EventWithLocation[]>>;
@@ -324,6 +473,11 @@ export interface CategoryEventsResponse {
     totalEventsBeforeFilter?: number;
     countryCode?: string | null;
     countryName?: string | null;
+    hasSuggestions?: boolean;
+    suggestionCategories?: string[];
+    suggestionsByCategory?: Record<string, EventWithLocation[]>;
+    totalSuggestions?: number;
+    suggestionRadius?: number;
   };
 }
 export const EVENT_CATEGORIES = [
@@ -338,6 +492,8 @@ export const EVENT_CATEGORIES = [
   'Festivals & Celebrations',
   'Environment, Sustainability, & Agriculture',
   'Religious & Spiritual Events',
+  'Education & Learning',
+
 ] as const;
 export type EventCategory = typeof EVENT_CATEGORIES[number];
 export type EventSortBy = 'distance' | 'date' | 'price' | 'popularity';
