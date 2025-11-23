@@ -83,7 +83,6 @@ export const resendOtp = async (
 export const getProfile = async (): Promise<User> => {
   try {
     const res = await api.get<ApiResponse>('/user/get-profile');
-    // Backend returns { success: true, user: {...} }
     if (!res.data.user) {
       throw new Error('User data not found in response');
     }
@@ -98,7 +97,6 @@ export const updateProfile = async (
 ): Promise<User> => {
   try {
     const res = await api.put<ApiResponse>('/user/update-profile', data);
-    // Backend returns { message: "...", user: {...} }
     if (!res.data.user) {
       throw new Error('User data not found in response');
     }
@@ -108,7 +106,6 @@ export const updateProfile = async (
     throw err;
   }
 };
-
 // Google OAuth
 export const getGoogleAuthUrl = async (): Promise<string> => {
   try {

@@ -13,7 +13,13 @@ const userAPI = axios.create({
 // Request interceptor
 userAPI.interceptors.request.use(
   (config) => {
-    const token = store.getState().auth.token;
+    // Try to get token from store first, then localStorage
+    let token = store.getState().auth.token;
+    
+    if (!token && typeof window !== 'undefined') {
+      token = localStorage.getItem('token');
+    }
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -29,15 +35,21 @@ userAPI.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      store.dispatch(logoutSuccess());
+      // Only logout and redirect if we're on a protected route
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      const publicPaths = ['/', '/login', '/signup', '/verify-otp', '/forgot-password'];
+      const isPublicPath = publicPaths.some(path => currentPath === path || currentPath.startsWith(`${path}/`));
       
-      // Redirect to login only on client side
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+      if (!isPublicPath) {
+        store.dispatch(logoutSuccess());
+        
+        if (typeof window !== 'undefined') {
+          // Use router-friendly navigation instead of hard redirect
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);
   }
 );
-
 export default userAPI;
