@@ -1,9 +1,9 @@
 'use client';
-
+import { Suspense } from 'react';
 import { ResetPasswordForm } from '@/components/auth/ResetPasswordForm';
 import { Card } from '@/components/ui/Card';
-
-export default function ResetPasswordPage() {
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+function ResetContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
@@ -16,3 +16,15 @@ export default function ResetPasswordPage() {
     </div>
   );
 }
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    }>
+      <ResetContent />
+    </Suspense>
+  );
+}
+export const dynamic = 'force-dynamic';
