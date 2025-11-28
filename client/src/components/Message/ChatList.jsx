@@ -1,6 +1,11 @@
-import React from 'react';
-
+import React, { useEffect, useState } from 'react';
+import { useSocket } from '../../context/SocketContext';
 const ChatList = ({ chats, onSelectChat, isDark, selectedChatId }) => {
+  const { unreadChats } = useSocket();
+  const [localChats, setLocalChats] = useState(chats);
+  useEffect(() => {
+    setLocalChats(chats);
+  }, [chats]);
   const theme = {
     text: isDark ? '#ffffff' : '#111827',
     subText: isDark ? '#c9c9cf' : '#6b7280',
@@ -9,6 +14,7 @@ const ChatList = ({ chats, onSelectChat, isDark, selectedChatId }) => {
   };
 
   const formatTime = (timestamp) => {
+    if (!timestamp) return '';
     const now = new Date();
     const messageDate = new Date(timestamp);
     const diffInHours = (now - messageDate) / (1000 * 60 * 60);
@@ -33,7 +39,7 @@ const ChatList = ({ chats, onSelectChat, isDark, selectedChatId }) => {
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   };
 
-  if (chats.length === 0) {
+  if (localChats.length === 0) {
     return (
       <div className="flex items-center justify-center h-full p-4">
         <p style={{ color: theme.subText }} className="text-center">
@@ -45,8 +51,13 @@ const ChatList = ({ chats, onSelectChat, isDark, selectedChatId }) => {
 
   return (
     <div className="flex flex-col overflow-y-auto">
-      {chats.map((chat) => {
+      {localChats.map((chat) => {
         const isSelected = chat._id === selectedChatId;
+        const contextUnreadCount = unreadChats.get(chat._id);
+        const unreadCount = isSelected 
+          ? 0 
+          : (contextUnreadCount !== undefined ? contextUnreadCount : 0);
+        const hasUnread = unreadCount > 0;
         
         return (
           <button
@@ -64,7 +75,6 @@ const ChatList = ({ chats, onSelectChat, isDark, selectedChatId }) => {
               if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
             }}
           >
-            {/* Avatar */}
             <div className="relative flex-shrink-0">
               <div
                 className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
@@ -73,35 +83,33 @@ const ChatList = ({ chats, onSelectChat, isDark, selectedChatId }) => {
                 {chat.participant?.image ? (
                   <img
                     src={chat.participant.image}
-                    alt={chat.participant.name}
+                    alt={chat.participant?.name || 'User'}
                     className="w-full h-full rounded-full object-cover"
                   />
                 ) : (
-                  chat.participant?.name?.charAt(0).toUpperCase()
+                  (chat.participant?.name?.charAt(0) || '?').toUpperCase()
                 )}
               </div>
               
-              {/* Unread badge */}
-              {chat.unreadCount > 0 && (
+              {hasUnread && (
                 <div
-                  className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                  className="absolute -top-1 -right-1 min-w-[20px] h-5 rounded-full flex items-center justify-center text-xs font-bold text-white px-1 shadow-lg"
                   style={{ backgroundColor: '#7263F3' }}
                 >
-                  {chat.unreadCount > 9 ? '9+' : chat.unreadCount}
+                  {unreadCount > 99 ? '99+' : unreadCount}
                 </div>
               )}
             </div>
 
-            {/* Chat info */}
             <div className="flex-1 min-w-0 text-left">
               <div className="flex items-center justify-between mb-1">
                 <span
                   className="font-medium truncate"
                   style={{ color: theme.text }}
                 >
-                  {chat.participant?.name}
+                  {chat.participant?.name || 'Unknown User'}
                 </span>
-                {chat.lastMessage && (
+                {chat.lastMessage?.timestamp && (
                   <span
                     className="text-xs flex-shrink-0 ml-2"
                     style={{ color: theme.subText }}
@@ -113,14 +121,14 @@ const ChatList = ({ chats, onSelectChat, isDark, selectedChatId }) => {
               
               {chat.lastMessage ? (
                 <div className="flex items-center gap-1">
-                  {chat.lastMessage.isSender && (
+                  {chat.lastMessage.sender === chat.participant?._id ? null : (
                     <span style={{ color: theme.subText }}>You: </span>
                   )}
                   <span
                     className="text-sm truncate"
                     style={{
-                      color: chat.unreadCount > 0 ? theme.text : theme.subText,
-                      fontWeight: chat.unreadCount > 0 ? '500' : 'normal'
+                      color: hasUnread ? theme.text : theme.subText,
+                      fontWeight: hasUnread ? '500' : 'normal'
                     }}
                   >
                     {truncateMessage(chat.lastMessage.content)}
