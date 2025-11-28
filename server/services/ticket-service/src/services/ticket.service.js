@@ -802,6 +802,7 @@ export const createTicketBasicInfo = async (req, res) => {
     const eventRulesFiles = [];
     const videoFiles = {};
     const previewImageFiles = {};
+    
     // Handle file upload first using Promise wrapper
     await new Promise((resolve, reject) => {
       uploadFields(req, res, (err) => {
@@ -839,7 +840,6 @@ export const createTicketBasicInfo = async (req, res) => {
       prohibited_items,
 
       // Online/Recorded specific fields
-
       verification_event_code,
 
       // Social Media and Rules
@@ -849,13 +849,15 @@ export const createTicketBasicInfo = async (req, res) => {
       hashtag,
 
       // Guests or Guides
-      guests, // This will contain guest data as JSON string
+      guests,
       POCS,
       event_description,
       groupId: bodyGroupId,
     } = req.body;
-    // Get uploaded file
+
+    // Get uploaded files
     const uploadedFiles = await processFileUploads(req.files || {});
+
     // Handle multiple guest profile uploads and event rules
     Object.keys(uploadedFiles).forEach((fieldName) => {
       if (fieldName.startsWith("guest_profile_")) {
@@ -866,21 +868,19 @@ export const createTicketBasicInfo = async (req, res) => {
             guestProfileFiles[parseInt(index)] = { path: fileData };
           } else if (Array.isArray(fileData) && fileData.length > 0) {
             guestProfileFiles[parseInt(index)] = fileData[0];
-          } else if (
-            fileData &&
-            typeof fileData === "object" &&
-            fileData.path
-          ) {
+          } else if (fileData && typeof fileData === "object" && fileData.path) {
             guestProfileFiles[parseInt(index)] = fileData;
           }
         }
       }
+      
       if (fieldName === "event_rules") {
         const fileData = uploadedFiles[fieldName];
         if (Array.isArray(fileData) && fileData.length > 0) {
           eventRulesFiles.push(fileData[0]);
         }
       }
+      
       if (fieldName.startsWith("video_file_")) {
         const index = fieldName.split("_")[2];
         if (!isNaN(index)) {
@@ -891,10 +891,9 @@ export const createTicketBasicInfo = async (req, res) => {
         }
       }
 
-      // Handle preview images
       if (fieldName.startsWith("preview_image_")) {
         const parts = fieldName.split("_");
-        const index = parts[2]; // Get index from preview_image_X
+        const index = parts[2];
         if (!isNaN(index)) {
           const fileData = uploadedFiles[fieldName];
           if (Array.isArray(fileData) && fileData.length > 0) {
@@ -903,22 +902,353 @@ export const createTicketBasicInfo = async (req, res) => {
         }
       }
     });
+
+    // ==================== CONSOLIDATED FIELD VALIDATION ====================
+
+    // 1. Basic Required Fields Validation
+    const requiredBasicFields = {
+      event_name: event_name,
+      event_category: event_category,
+      event_type: event_type,
+      event_language: event_language,
+      location_type: location_type,
+      event_date_type: event_date_type,
+      event_dates: event_dates,
+      event_description: event_description,
+      min_age_allowed: min_age_allowed,
+    };
+
+    const missingBasicFields = Object.entries(requiredBasicFields)
+      .filter(([key, value]) => !value || (typeof value === 'string' && value.trim() === ''))
+      .map(([key]) => key);
+
+    if (missingBasicFields.length > 0) {
+      return res.status(400).json({
+        message: `Missing required basic fields: ${missingBasicFields.join(', ')}`,
+        missingFields: missingBasicFields,
+      });
+    }
+
+    // 2. Enum Validations (do this early to validate type before other checks)
+    const validEventTypes = ['private', 'public'];
+    if (!validEventTypes.includes(event_type)) {
+      return res.status(400).json({
+        message: 'Invalid event_type',
+        provided: event_type,
+        validOptions: validEventTypes,
+      });
+    }
+
+    const validLocationTypes = ['offline', 'online', 'recorded'];
+    if (!validLocationTypes.includes(location_type)) {
+      return res.status(400).json({
+        message: 'Invalid location_type',
+        provided: location_type,
+        validOptions: validLocationTypes,
+      });
+    }
+
+    const validDateTypes = ['one-day', 'multi-day', 'weekly'];
+    if (!validDateTypes.includes(event_date_type)) {
+      return res.status(400).json({
+        message: 'Invalid event_date_type',
+        provided: event_date_type,
+        validOptions: validDateTypes,
+      });
+    }
+
+    // 3. Location Type Specific Required Fields
+    if (location_type === 'offline') {
+      const offlineRequiredFields = {
+        location: location,
+        venue: venue,
+        seating_arrangement: seating_arrangement,
+        exact_map_location: exact_map_location,
+      };
+
+      const missingOfflineFields = Object.entries(offlineRequiredFields)
+        .filter(([key, value]) => !value || (typeof value === 'string' && value.trim() === ''))
+        .map(([key]) => key);
+
+      if (missingOfflineFields.length > 0) {
+        return res.status(400).json({
+          message: `Missing required fields for offline event: ${missingOfflineFields.join(', ')}`,
+          missingFields: missingOfflineFields,
+        });
+      }
+
+      // Validate seating_arrangement for offline events
+      const validSeatingArrangements = ['seated', 'standing', 'seated and standing', 'other'];
+      if (!validSeatingArrangements.includes(seating_arrangement)) {
+        return res.status(400).json({
+          message: 'Invalid seating_arrangement',
+          provided: seating_arrangement,
+          validOptions: validSeatingArrangements,
+        });
+      }
+
+      // Validate location and venue length
+      if (location.trim().length < 2 || location.trim().length > 200) {
+        return res.status(400).json({
+          message: 'Location must be between 2 and 200 characters',
+        });
+      }
+
+      if (venue.trim().length < 2 || venue.trim().length > 200) {
+        return res.status(400).json({
+          message: 'Venue must be between 2 and 200 characters',
+        });
+      }
+    }
+
+    // 4. Event Language Validation
+    const validLanguages = [
+      'English', 'Hindi', 'Malayalam', 'Tamil', 'Kannada', 'Telugu',
+      'Marathi', 'Gujarati', 'Punjabi', 'Urdu', 'Bengali', 'Spanish',
+      'French', 'German', 'Chinese', 'Japanese', 'Russian', 'Turkish',
+      'Korean', 'Portuguese', 'Arabic', 'Indonesian', 'Vietnamese', 'Other'
+    ];
+
+    let languageArray = [];
+    if (Array.isArray(event_language)) {
+      languageArray = event_language;
+    } else if (typeof event_language === 'string') {
+      try {
+        const parsed = JSON.parse(event_language);
+        languageArray = Array.isArray(parsed) ? parsed : [parsed];
+      } catch {
+        languageArray = event_language.split(',').map(lang => lang.trim()).filter(Boolean);
+      }
+    }
+
+    if (languageArray.length === 0) {
+      return res.status(400).json({
+        message: 'At least one event language is required',
+      });
+    }
+
+    const invalidLanguages = languageArray.filter(lang => !validLanguages.includes(lang));
+    if (invalidLanguages.length > 0) {
+      return res.status(400).json({
+        message: 'Invalid event_language(s)',
+        provided: invalidLanguages,
+        validOptions: validLanguages,
+      });
+    }
+
+    // 5. Age Validation
+    const ageNum = Number(min_age_allowed);
+    if (isNaN(ageNum) || ageNum < 0 || ageNum > 100) {
+      return res.status(400).json({
+        message: 'Minimum age allowed must be between 0 and 100',
+      });
+    }
+
+    let ageMax;
+    if (max_age_allowed && String(max_age_allowed).trim() !== '') {
+      const parsedAgeMax = Number(max_age_allowed);
+      if (isNaN(parsedAgeMax) || parsedAgeMax < 0 || parsedAgeMax > 100) {
+        return res.status(400).json({
+          message: 'Maximum age allowed must be between 0 and 100 if provided',
+        });
+      }
+      if (parsedAgeMax < ageNum) {
+        return res.status(400).json({
+          message: 'Maximum age allowed cannot be less than minimum age allowed',
+        });
+      }
+      ageMax = parsedAgeMax;
+    }
+
+    // 6. String Length Validations
+    if (event_name.trim().length < 3 || event_name.trim().length > 200) {
+      return res.status(400).json({
+        message: 'Event name must be between 3 and 200 characters',
+      });
+    }
+
+    if (event_description.trim().length < 10 || event_description.trim().length > 5000) {
+      return res.status(400).json({
+        message: 'Event description must be between 10 and 5000 characters',
+      });
+    }
+
+    // Validate event_category length
+    if (event_category && (event_category.trim().length < 2 || event_category.trim().length > 100)) {
+      return res.status(400).json({
+        message: 'Event category must be between 2 and 100 characters',
+      });
+    }
+
+    // Validate event_subcategory length (optional field)
+    if (event_subcategory && event_subcategory.trim() && 
+        (event_subcategory.trim().length < 2 || event_subcategory.trim().length > 100)) {
+      return res.status(400).json({
+        message: 'Event subcategory must be between 2 and 100 characters if provided',
+      });
+    }
+
+    // 7. Optional Field Validations
+    if (event_instagram_link && event_instagram_link.trim()) {
+      const instagramRegex = /^https?:\/\/(www\.)?instagram\.com\/.+/i;
+      if (!instagramRegex.test(event_instagram_link.trim())) {
+        return res.status(400).json({
+          message: 'Invalid Instagram link format. Must be a valid Instagram URL.',
+        });
+      }
+    }
+
+    if (event_youtube_link && event_youtube_link.trim()) {
+      const youtubeRegex = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/.+/i;
+      if (!youtubeRegex.test(event_youtube_link.trim())) {
+        return res.status(400).json({
+          message: 'Invalid YouTube link format. Must be a valid YouTube URL.',
+        });
+      }
+    }
+
+    // 8. Guest Validation
+    if (guests) {
+      const guestsArray = parseJSONSafely(guests, []);
+      if (guestsArray.length > 10) {
+        return res.status(400).json({
+          message: 'Maximum 10 guests allowed',
+        });
+      }
+
+      // Validate each guest if it's an object
+      for (let i = 0; i < guestsArray.length; i++) {
+        const guest = guestsArray[i];
+        if (typeof guest === 'object' && guest !== null) {
+          if (guest.guest_name && guest.guest_name.length > 100) {
+            return res.status(400).json({
+              message: `Guest ${i + 1} name must not exceed 100 characters`,
+            });
+          }
+          if (guest.guest_link && guest.guest_link.trim()) {
+            const urlRegex = /^https?:\/\/.+/i;
+            if (!urlRegex.test(guest.guest_link.trim())) {
+              return res.status(400).json({
+                message: `Guest ${i + 1} link must be a valid URL`,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // 9. POCs Validation
+    if (POCS) {
+      const pocsArray = parseJSONSafely(POCS, []);
+      if (pocsArray.length > 10) {
+        return res.status(400).json({
+          message: 'Maximum 10 POCs allowed',
+        });
+      }
+
+      // Validate each POC
+      for (let i = 0; i < pocsArray.length; i++) {
+        const poc = pocsArray[i];
+        if (typeof poc === 'object' && poc !== null) {
+          if (poc.POC_name && poc.POC_name.length > 100) {
+            return res.status(400).json({
+              message: `POC ${i + 1} name must not exceed 100 characters`,
+            });
+          }
+          if (poc.POC_email && poc.POC_email.trim()) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(poc.POC_email.trim())) {
+              return res.status(400).json({
+                message: `POC ${i + 1} email is invalid`,
+              });
+            }
+          }
+          if (poc.POC_contact && poc.POC_contact.trim()) {
+            const phoneRegex = /^\+?[\d\s\-()]{10,15}$/;
+            if (!phoneRegex.test(poc.POC_contact.trim())) {
+              return res.status(400).json({
+                message: `POC ${i + 1} contact number is invalid`,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // 10. Hashtag Validation
+    if (hashtag) {
+      const hashtagArray = parseJSONSafely(hashtag, []);
+      if (hashtagArray.length > 20) {
+        return res.status(400).json({
+          message: 'Maximum 20 hashtags allowed',
+        });
+      }
+      
+      const invalidHashtags = hashtagArray.filter(tag => 
+        typeof tag !== 'string' || tag.length > 50 || tag.length < 1
+      );
+      
+      if (invalidHashtags.length > 0) {
+        return res.status(400).json({
+          message: 'Each hashtag must be a string between 1 and 50 characters',
+        });
+      }
+    }
+
+    // 11. Time Format Validation
+    if (gate_open_time && gate_open_time.trim()) {
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(gate_open_time.trim())) {
+        return res.status(400).json({
+          message: 'gate_open_time must be in HH:MM format (24-hour)',
+        });
+      }
+    }
+
+    // 12. File Upload Validation
+    for (const [index, file] of Object.entries(guestProfileFiles)) {
+      if (!file.path) {
+        return res.status(400).json({
+          message: `Guest profile ${index} upload failed or is invalid`,
+        });
+      }
+    }
+
+    if (eventRulesFiles.length > 0) {
+      const rulesFile = eventRulesFiles[0];
+      if (!rulesFile.path) {
+        return res.status(400).json({
+          message: "Event rules file upload failed or is invalid",
+        });
+      }
+    }
+
+    // ==================== END OF VALIDATION ====================
+
     // Get IDs
     const groupId = req.params.groupId || bodyGroupId;
     const ticketId = req.params.ticketId;
     const userId = req.user?._id || req.user?.id;
+
     if (!groupId || !groupId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
-        message:
-          "Invalid group ID format. Please provide a valid MongoDB ObjectId.",
+        message: "Invalid group ID format. Please provide a valid MongoDB ObjectId.",
         groupId: groupId,
       });
     }
+
+    // Validate that the group exists and user has permission
+    const group = await Group.findOne({ _id: groupId, userId: userId });
+    if (!group) {
+      return res.status(404).json({
+        message: "Group not found or you don't have permission to create events for this group",
+      });
+    }
+
     // Helper function to validate date format and check if it's not in the past
     const validateDate = (dateString, fieldName) => {
       if (!dateString) return false;
 
-      // Check if date is in YYYY-MM-DD format
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
       if (!dateRegex.test(dateString)) {
         throw new Error(`${fieldName} must be in YYYY-MM-DD format`);
@@ -926,14 +1256,12 @@ export const createTicketBasicInfo = async (req, res) => {
 
       const date = new Date(dateString);
       const today = new Date();
-      today.setHours(0, 0, 0, 0); // Reset time to start of day
+      today.setHours(0, 0, 0, 0);
 
-      // Check if date is valid
       if (isNaN(date.getTime())) {
         throw new Error(`${fieldName} is not a valid date`);
       }
 
-      // Check if date is not in the past
       if (date < today) {
         throw new Error(`${fieldName} cannot be a past date`);
       }
@@ -943,9 +1271,8 @@ export const createTicketBasicInfo = async (req, res) => {
 
     // Helper function to validate time format
     const validateTime = (timeString, fieldName) => {
-      if (!timeString) return true; // Time is optional
+      if (!timeString) return true;
 
-      // Check if time is in HH:MM format (24-hour)
       const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
       if (!timeRegex.test(timeString)) {
         throw new Error(`${fieldName} must be in HH:MM format (24-hour)`);
@@ -954,19 +1281,16 @@ export const createTicketBasicInfo = async (req, res) => {
       return true;
     };
 
-    // Process event dates with validation - FIXED for multipart/form-data
+    // Process event dates with validation
     let totalEventDates = [];
     if (event_dates) {
       let eventDatesArray;
 
-      // In multipart/form-data, everything comes as string, so we need to parse it
       if (typeof event_dates === "string") {
         try {
-          // Clean the string first (remove any extra whitespace, newlines)
           const cleanedEventDates = event_dates.trim();
           eventDatesArray = JSON.parse(cleanedEventDates);
 
-          // Ensure it's an array after parsing
           if (!Array.isArray(eventDatesArray)) {
             return res.status(400).json({
               message: "event_dates must be an array of date objects",
@@ -974,32 +1298,27 @@ export const createTicketBasicInfo = async (req, res) => {
           }
         } catch (error) {
           return res.status(400).json({
-            message:
-              "Invalid event_dates format. Must be valid JSON array string in multipart form.",
+            message: "Invalid event_dates format. Must be valid JSON array string in multipart form.",
             error: error.message,
             received: typeof event_dates,
-            sample_format:
-              '[{"start_date":"2025-07-15","end_date":"2025-07-17","start_time":"18:00","end_time":"23:00"}]',
+            sample_format: '[{"start_date":"2025-07-15","end_date":"2025-07-17","start_time":"18:00","end_time":"23:00"}]',
           });
         }
       } else if (Array.isArray(event_dates)) {
         eventDatesArray = event_dates;
       } else {
         return res.status(400).json({
-          message:
-            "event_dates must be a JSON array string (for multipart form) or array",
+          message: "event_dates must be a JSON array string (for multipart form) or array",
           received: typeof event_dates,
         });
       }
 
-      // Validate array is not empty
       if (!eventDatesArray || eventDatesArray.length === 0) {
         return res.status(400).json({
           message: "event_dates array cannot be empty",
         });
       }
 
-      // Validate based on event_date_type
       if (event_date_type === "one-day" && eventDatesArray.length > 1) {
         return res.status(400).json({
           message: "One-day events can only have one date entry",
@@ -1008,7 +1327,6 @@ export const createTicketBasicInfo = async (req, res) => {
 
       try {
         totalEventDates = eventDatesArray.map((eventDate, index) => {
-          // Ensure eventDate is an object
           if (typeof eventDate !== "object" || eventDate === null) {
             throw new Error(`Event date entry ${index + 1} must be an object`);
           }
@@ -1018,87 +1336,52 @@ export const createTicketBasicInfo = async (req, res) => {
             end_date,
             start_time,
             end_time,
-            eventLink, // From OnlineDatePickerModal
-            event_link, // Alternative field name
-            videoLink, // From RecordedDatePickerModal (legacy)
-            video_name, // From RecordedDatePickerModal
-            videoName, // Alternative field name
-            verificationCode, // From both modals
-            verification_event_code, // Alternative field name
+            eventLink,
+            event_link,
+            videoLink,
+            video_name,
+            videoName,
+            verificationCode,
+            verification_event_code,
           } = eventDate;
 
-          // Determine the actual event link from various possible field names
           const actualEventLink = event_link || eventLink || videoLink || "";
           const actualVideoName = video_name || videoName || "";
-          const actualVerificationCode =
-            verification_event_code || verificationCode || "";
+          const actualVerificationCode = verification_event_code || verificationCode || "";
 
-          // Validate event_link for online/recorded events
-          if (
-            (location_type === "online" || location_type === "recorded") &&
-            !actualEventLink
-          ) {
-            throw new Error(
-              `Event date entry ${
-                index + 1
-              }: event_link is required for online/recorded events`
-            );
+          if ((location_type === "online" || location_type === "recorded") && !actualEventLink) {
+            throw new Error(`Event date entry ${index + 1}: event_link is required for online/recorded events`);
           }
 
-          // Validate required start_date
           if (!start_date) {
-            throw new Error(
-              `Event date entry ${index + 1}: start_date is required`
-            );
+            throw new Error(`Event date entry ${index + 1}: start_date is required`);
           }
 
-          // Validate start_date
           validateDate(start_date, `Event date entry ${index + 1}: start_date`);
 
-          // Validate end_date if provided, otherwise set to start_date
           let validatedEndDate = start_date;
           if (end_date) {
             validateDate(end_date, `Event date entry ${index + 1}: end_date`);
 
             if (new Date(end_date) < new Date(start_date)) {
-              throw new Error(
-                `Event date entry ${
-                  index + 1
-                }: end_date cannot be before start_date`
-              );
+              throw new Error(`Event date entry ${index + 1}: end_date cannot be before start_date`);
             }
             validatedEndDate = end_date;
           }
 
-          // Validate times if provided
           if (start_time) {
-            validateTime(
-              start_time,
-              `Event date entry ${index + 1}: start_time`
-            );
+            validateTime(start_time, `Event date entry ${index + 1}: start_time`);
           }
           if (end_time) {
             validateTime(end_time, `Event date entry ${index + 1}: end_time`);
           }
 
-          // Validate time logic
           if (start_time && end_time) {
-            const startTimeMinutes = start_time
-              .split(":")
-              .reduce((acc, time) => 60 * acc + +time, 0);
-            const endTimeMinutes = end_time
-              .split(":")
-              .reduce((acc, time) => 60 * acc + +time, 0);
+            const startTimeMinutes = start_time.split(":").reduce((acc, time) => 60 * acc + +time, 0);
+            const endTimeMinutes = end_time.split(":").reduce((acc, time) => 60 * acc + +time, 0);
 
-            if (
-              start_date === validatedEndDate &&
-              endTimeMinutes <= startTimeMinutes
-            ) {
-              throw new Error(
-                `Event date entry ${
-                  index + 1
-                }: end_time must be after start_time for same-day events`
-              );
+            if (start_date === validatedEndDate && endTimeMinutes <= startTimeMinutes) {
+              throw new Error(`Event date entry ${index + 1}: end_time must be after start_time for same-day events`);
             }
           }
 
@@ -1114,13 +1397,14 @@ export const createTicketBasicInfo = async (req, res) => {
             video_file_path: correspondingVideoFile ? correspondingVideoFile.path : "",
             preview_image_path: correspondingPreviewImage ? correspondingPreviewImage.path : "",
           };
-          // Only add time fields if they have values
+
           if (start_time && start_time.trim() !== "") {
             dateEntry.start_time = start_time.trim();
           }
           if (end_time && end_time.trim() !== "") {
             dateEntry.end_time = end_time.trim();
           }
+          
           return dateEntry;
         });
       } catch (validationError) {
@@ -1134,12 +1418,14 @@ export const createTicketBasicInfo = async (req, res) => {
         message: "event_dates is required",
       });
     }
+
+    // Normalize string helper
     const normalizeString = (str) => {
       if (!str) return "";
       return str.toLowerCase().trim().replace(/\s+/g, " ");
     };
 
-    // Helper function to create date ranges for comparison
+    // Create date ranges helper
     const createDateRanges = (dates) => {
       return dates.map((date) => ({
         start: new Date(`${date.start_date}T${date.start_time || "00:00"}:00`),
@@ -1148,27 +1434,29 @@ export const createTicketBasicInfo = async (req, res) => {
       }));
     };
 
-    // Helper function to check if date ranges overlap
+    // Check if date ranges overlap helper
     const doDateRangesOverlap = (range1, range2) => {
       return range1.start <= range2.end && range2.start <= range1.end;
     };
+
     const normalizedEventName = normalizeString(event_name);
     const normalizedLocation = normalizeString(location);
     const normalizedVenue = normalizeString(venue);
     const currentEventDateRanges = createDateRanges(totalEventDates);
+
+    // Build duplicate check query
     let duplicateCheckQuery = {
       userId: userId,
       event_status: { $ne: "cancelled" },
       event_name: {
-        $regex: new RegExp(
-          `^${normalizedEventName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-          "i"
-        ),
+        $regex: new RegExp(`^${normalizedEventName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
       },
     };
+
     if (ticketId) {
       duplicateCheckQuery._id = { $ne: ticketId };
     }
+
     if (location_type === "offline") {
       duplicateCheckQuery.location_type = "offline";
       duplicateCheckQuery.$or = [
@@ -1176,36 +1464,23 @@ export const createTicketBasicInfo = async (req, res) => {
           $and: [
             {
               location: {
-                $regex: new RegExp(
-                  `^${normalizedLocation.replace(
-                    /[.*+?^${}()|[\]\\]/g,
-                    "\\$&"
-                  )}$`,
-                  "i"
-                ),
+                $regex: new RegExp(`^${normalizedLocation.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
               },
             },
             {
               venue: {
-                $regex: new RegExp(
-                  `^${normalizedVenue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-                  "i"
-                ),
+                $regex: new RegExp(`^${normalizedVenue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
               },
             },
           ],
         },
         {
           venue: {
-            $regex: new RegExp(
-              `^${normalizedVenue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-              "i"
-            ),
+            $regex: new RegExp(`^${normalizedVenue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
           },
         },
       ];
     } else if (location_type === "online" || location_type === "recorded") {
-      // For online/recorded events: check event links within event_dates
       const eventLinksFromDates = totalEventDates
         .map((date) => (date.event_link || "").toLowerCase().trim())
         .filter((link) => link.length > 0);
@@ -1217,15 +1492,17 @@ export const createTicketBasicInfo = async (req, res) => {
         };
       }
     }
+
+    // Check for existing events
     const existingEvents = await Ticket.find(duplicateCheckQuery).lean();
     const conflictingEvents = [];
+
     for (const existingEvent of existingEvents) {
-      if (!existingEvent.event_dates || existingEvent.event_dates.length === 0)
-        continue;
-      const existingEventDateRanges = createDateRanges(
-        existingEvent.event_dates
-      );
+      if (!existingEvent.event_dates || existingEvent.event_dates.length === 0) continue;
+
+      const existingEventDateRanges = createDateRanges(existingEvent.event_dates);
       let hasOverlap = false;
+
       for (const currentRange of currentEventDateRanges) {
         for (const existingRange of existingEventDateRanges) {
           if (doDateRangesOverlap(currentRange, existingRange)) {
@@ -1243,49 +1520,38 @@ export const createTicketBasicInfo = async (req, res) => {
           location:
             location_type === "offline"
               ? `${existingEvent.location} - ${existingEvent.venue}`
-              : existingEvent.event_dates
-                  ?.map((date) => date.event_link)
-                  .filter((link) => link)
-                  .join(", ") || "No link provided",
+              : existingEvent.event_dates?.map((date) => date.event_link).filter((link) => link).join(", ") || "No link provided",
           dates: existingEvent.event_dates,
           createdAt: existingEvent.created_at,
         });
       }
     }
+
     if (conflictingEvents.length > 0) {
       return res.status(409).json({
         message: "Duplicate event detected",
-        error:
-          "An event with the same name, location, and overlapping date/time already exists",
+        error: "An event with the same name, location, and overlapping date/time already exists",
         conflictDetails: {
           attempted: {
             eventName: event_name,
             location:
               location_type === "offline"
                 ? `${location} - ${venue}`
-                : totalEventDates
-                    .map((date) => date.event_link)
-                    .filter((link) => link)
-                    .join(", ") || "No link provided",
+                : totalEventDates.map((date) => date.event_link).filter((link) => link).join(", ") || "No link provided",
             dates: totalEventDates,
             locationType: location_type,
           },
           existing: conflictingEvents,
-          suggestion:
-            "Please check your existing events or modify the event name, location, or schedule to avoid conflicts.",
+          suggestion: "Please check your existing events or modify the event name, location, or schedule to avoid conflicts.",
         },
       });
     }
-    // Check for internal date conflicts within the current request
+
+    // Check for internal date conflicts
     const internalConflicts = [];
     for (let i = 0; i < currentEventDateRanges.length; i++) {
       for (let j = i + 1; j < currentEventDateRanges.length; j++) {
-        if (
-          doDateRangesOverlap(
-            currentEventDateRanges[i],
-            currentEventDateRanges[j]
-          )
-        ) {
+        if (doDateRangesOverlap(currentEventDateRanges[i], currentEventDateRanges[j])) {
           internalConflicts.push({
             conflict1: totalEventDates[i],
             conflict2: totalEventDates[j],
@@ -1293,6 +1559,7 @@ export const createTicketBasicInfo = async (req, res) => {
         }
       }
     }
+
     if (internalConflicts.length > 0) {
       return res.status(400).json({
         message: "Date conflicts within the event",
@@ -1300,217 +1567,22 @@ export const createTicketBasicInfo = async (req, res) => {
         conflicts: internalConflicts,
       });
     }
-    const baseRequiredFields = [
-      { key: "event_name", value: event_name },
-      { key: "event_category", value: event_category },
-      { key: "event_subcategory", value: event_subcategory },
-      { key: "event_type", value: event_type },
-      { key: "event_language", value: event_language },
-      { key: "location_type", value: location_type },
-      { key: "event_date_type", value: event_date_type },
-      { key: "event_dates", value: event_dates },
-      { key: "event_description", value: event_description },
-      { key: "groupId", value: groupId },
-      { key: "min_age_allowed", value: min_age_allowed },
-      { key: "userId", value: userId },
-    ];
 
-    // Location-type specific required fields
-    let locationSpecificRequiredFields = [];
-
-    if (location_type === "offline") {
-      locationSpecificRequiredFields = [
-        { key: "seating_arrangement", value: seating_arrangement },
-        { key: "location", value: location },
-        { key: "venue", value: venue },
-        { key: "exact_map_location", value: exact_map_location },
-      ];
-    }
-    // Validate that the group exists and user has permission
-    const group = await Group.findOne({ _id: groupId, userId: userId });
-    if (!group) {
-      return res.status(404).json({
-        message:
-          "Group not found or you don't have permission to create events for this group",
-      });
-    }
-    // Check all required fields for ticket creation
-    const allRequiredFields = [
-      ...baseRequiredFields,
-      ...locationSpecificRequiredFields,
-    ];
-    const missingTicketFields = allRequiredFields
-      .filter(
-        (field) =>
-          !field.value ||
-          (typeof field.value === "string" && field.value.trim() === "")
-      )
-      .map((field) => field.key);
-
-    if (missingTicketFields.length > 0) {
-      return res.status(400).json({
-        message: `Missing required fields: ${missingTicketFields.join(", ")}`,
-        missingFields: missingTicketFields,
-      });
-    }
-    // Validation: Enum fields
-    const validEventTypes = ["private", "public"];
-    if (event_type && !validEventTypes.includes(event_type)) {
-      return res.status(400).json({
-        message: "Invalid event_type",
-        provided: event_type,
-        validOptions: validEventTypes,
-      });
-    }
-
-    const validLanguages = [
-      "English",
-      "Hindi",
-      "Malayalam",
-      "Tamil",
-      "Kannada",
-      "Telugu",
-      "Marathi",
-      "Gujarati",
-      "Punjabi",
-      "Urdu",
-      "Bengali",
-      "Spanish",
-      "French",
-      "German",
-      "Chinese",
-      "Japanese",
-      "Russian",
-      "Turkish",
-      "Korean",
-      "Portuguese",
-      "Arabic",
-      "Indonesian",
-      "Vietnamese",
-      "Other",
-    ];
-    let languageArray = [];
-    if (Array.isArray(event_language)) {
-      languageArray = event_language;
-    } else if (typeof event_language === "string") {
-      try {
-        const parsed = JSON.parse(event_language);
-        languageArray = Array.isArray(parsed) ? parsed : [parsed];
-      } catch {
-        languageArray = event_language
-          .split(",")
-          .map((lang) => lang.trim())
-          .filter(Boolean);
-      }
-    }
-    if (languageArray.length > 0) {
-      const invalidLanguages = languageArray.filter(
-        (lang) => !validLanguages.includes(lang)
-      );
-      if (invalidLanguages.length > 0) {
-        return res.status(400).json({
-          message: "Invalid event_language(s)",
-          provided: invalidLanguages,
-          validOptions: validLanguages,
-        });
-      }
-    }
-    const validLocationTypes = ["offline", "online", "recorded"];
-    if (!validLocationTypes.includes(location_type)) {
-      return res.status(400).json({
-        message: "Invalid location_type",
-        provided: location_type,
-        validOptions: validLocationTypes,
-      });
-    }
-
-    // Validate seating_arrangement only for offline events
-    if (location_type === "offline") {
-      const validSeatingArrangements = [
-        "seated",
-        "standing",
-        "seated and standing",
-        "other",
-      ];
-      if (
-        seating_arrangement &&
-        !validSeatingArrangements.includes(seating_arrangement)
-      ) {
-        return res.status(400).json({
-          message: "Invalid seating_arrangement",
-          provided: seating_arrangement,
-          validOptions: validSeatingArrangements,
-        });
-      }
-    }
-
-    const validDateTypes = ["one-day", "multi-day", "weekly"];
-    if (!validDateTypes.includes(event_date_type)) {
-      return res.status(400).json({
-        message: "Invalid event_date_type",
-        provided: event_date_type,
-        validOptions: validDateTypes,
-      });
-    }
-
-    const ageNum = Number(min_age_allowed);
-    if (isNaN(ageNum) || ageNum < 0 || ageNum > 100) {
-      return res.status(400).json({
-        message: "Minimum age allowed must be between 0 and 100",
-      });
-    }
-    let ageMax;
-    if (max_age_allowed && String(max_age_allowed).trim() !== "") {
-      const parsedAgeMax = Number(max_age_allowed);
-      if (isNaN(parsedAgeMax) || parsedAgeMax < 0 || parsedAgeMax > 100) {
-        return res.status(400).json({
-          message: "Maximum age allowed must be between 0 and 100 if provided",
-        });
-      }
-      if (parsedAgeMax < ageNum) {
-        return res.status(400).json({
-          message:
-            "Maximum age allowed cannot be less than minimum age allowed",
-        });
-      }
-      ageMax = parsedAgeMax;
-    }
-    const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
-    for (const [index, file] of Object.entries(guestProfileFiles)) {
-      if (!file.path || !file.originalName) {
-        return res.status(400).json({
-          message: `Guest profile ${index} upload failed or is invalid`,
-        });
-      }
-    }
-    if (eventRulesFiles.length > 0) {
-      const rulesFile = eventRulesFiles[0];
-      if (!rulesFile.path || !rulesFile.originalName) {
-        return res.status(400).json({
-          message: "Event rules file upload failed or is invalid",
-        });
-      }
-    }
-    // Process exact_map_location only for offline events
+    // Process exact_map_location for offline events
     let mapLocation = {};
     if (location_type === "offline" && exact_map_location) {
       try {
-        mapLocation =
-          typeof exact_map_location === "string"
-            ? JSON.parse(exact_map_location)
-            : exact_map_location;
+        mapLocation = typeof exact_map_location === "string" ? JSON.parse(exact_map_location) : exact_map_location;
       } catch {
         mapLocation = {};
       }
     }
+
+    // Process guests
     let processedGuests = [];
     if (guests) {
       const guestsArray = parseJSONSafely(guests, []);
-      if (guestsArray.length > 10) {
-        return res.status(400).json({
-          message: "Maximum 10 guests allowed",
-        });
-      }
+      
       processedGuests = guestsArray.map((guest, index) => {
         let guestData = {
           guest_name: "",
@@ -1528,18 +1600,15 @@ export const createTicketBasicInfo = async (req, res) => {
           };
         }
 
-        // Add uploaded profile image Cloudinary URL if available
         if (guestProfileFiles[index] && guestProfileFiles[index].path) {
-          guestData.guest_profile = guestProfileFiles[index].path; // Cloudinary URL
-        } else {
-          console.log(`⚠️ No profile file for guest ${index}`);
+          guestData.guest_profile = guestProfileFiles[index].path;
         }
+
         return guestData;
       });
     }
 
-    // Create ticket data object with location-type specific fields
-    let ticket;
+    // Create ticket data object
     const ticketData = {
       event_name: event_name.trim(),
       event_category: event_category.trim(),
@@ -1548,29 +1617,17 @@ export const createTicketBasicInfo = async (req, res) => {
       event_language: languageArray,
       min_age_allowed: ageNum,
       max_age_allowed: ageMax,
-      kids_friendly: Boolean(
-        kids_friendly === "true" || kids_friendly === true
-      ),
+      kids_friendly: Boolean(kids_friendly === "true" || kids_friendly === true),
       pet_friendly: Boolean(pet_friendly === "true" || pet_friendly === true),
-
-      // Location
       location_type: location_type,
-
-      // Date and Time - FIXED: Properly assign the processed dates
       event_date_type,
-      event_dates: totalEventDates, // This now contains properly validated dates
-
-      // Social Media and Rules
+      event_dates: totalEventDates,
       event_instagram_link: event_instagram_link?.trim() || "",
       event_youtube_link: event_youtube_link?.trim() || "",
       hashtag: parseJSONSafely(hashtag, []),
       event_description: event_description.trim(),
-
-      // Guests and Contacts with profile images
       guests: processedGuests,
       POCS: parseJSONSafely(POCS, []),
-
-      // System fields
       groupId,
       userId,
       event_status: "pending",
@@ -1578,8 +1635,6 @@ export const createTicketBasicInfo = async (req, res) => {
       updated_by: userId,
       created_at: new Date(),
       updated_at: new Date(),
-
-      // Form progress
       form_progress: {
         basic_info: true,
         media: false,
@@ -1587,15 +1642,15 @@ export const createTicketBasicInfo = async (req, res) => {
         additional_info: false,
       },
     };
+
+    // Process prohibited items
     const processedProhibitedItems = (() => {
       const rawItems = prohibited_items;
 
       if (!rawItems) return [];
 
       if (Array.isArray(rawItems)) {
-        return rawItems
-          .map((item) => String(item).trim())
-          .filter((item) => item !== "");
+        return rawItems.map((item) => String(item).trim()).filter((item) => item !== "");
       }
 
       if (typeof rawItems === "string") {
@@ -1609,35 +1664,28 @@ export const createTicketBasicInfo = async (req, res) => {
           const parsed = JSON.parse(trimmed);
 
           if (Array.isArray(parsed)) {
-            return parsed
-              .map((item) => String(item).trim())
-              .filter((item) => item !== "");
+            return parsed.map((item) => String(item).trim()).filter((item) => item !== "");
           } else if (typeof parsed === "object" && parsed !== null) {
-            return Object.values(parsed)
-              .map((item) => String(item).trim())
-              .filter((item) => item !== "");
+            return Object.values(parsed).map((item) => String(item).trim()).filter((item) => item !== "");
           } else {
             return [String(parsed).trim()].filter((item) => item !== "");
           }
         } catch (e) {
-          console.log("Failed to parse prohibited_items:", e.message);
           if (trimmed.includes(",")) {
-            return trimmed
-              .split(",")
-              .map((item) => item.trim())
-              .filter((item) => item !== "");
+            return trimmed.split(",").map((item) => item.trim()).filter((item) => item !== "");
           }
           return [];
         }
       }
 
       if (typeof rawItems === "object" && rawItems !== null) {
-        return Object.values(rawItems)
-          .map((item) => String(item).trim())
-          .filter((item) => item !== "");
+        return Object.values(rawItems).map((item) => String(item).trim()).filter((item) => item !== "");
       }
+
       return [];
     })();
+
+    // Add location-specific fields
     if (location_type === "offline") {
       ticketData.seating_arrangement = seating_arrangement || "other";
       ticketData.location = location.trim();
@@ -1653,12 +1701,13 @@ export const createTicketBasicInfo = async (req, res) => {
       ticketData.gate_open_time = "";
       ticketData.prohibited_items = processedProhibitedItems;
     }
-    // Handle event rules (text or file)
+
+    // Handle event rules
     if (eventRulesFiles.length > 0) {
       const rulesFile = eventRulesFiles[0];
       ticketData.event_rules = {
         type: "file",
-        path: rulesFile.path, // Cloudinary URL
+        path: rulesFile.path,
         originalName: rulesFile.originalName || rulesFile.originalname || "event_rules",
         mimeType: rulesFile.mimeType || rulesFile.mimetype || "application/pdf",
         size: rulesFile.size || 0,
@@ -1673,7 +1722,11 @@ export const createTicketBasicInfo = async (req, res) => {
         uploadedAt: new Date(),
       };
     }
-    // Create and save ticket
+
+    // Create or update ticket
+    let ticket;
+    let responseMessage;
+
     if (ticketId) {
       ticket = await Ticket.findById(ticketId);
       if (!ticket) {
@@ -1681,28 +1734,27 @@ export const createTicketBasicInfo = async (req, res) => {
           message: "Ticket not found",
         });
       }
-      // Verify ownership
+
       if (ticket.userId.toString() !== userId.toString()) {
         return res.status(403).json({
           message: "You don't have permission to update this ticket",
         });
       }
-      // Update ticket fields
+
       Object.assign(ticket, ticketData);
       ticket.updated_by = userId;
       ticket.updated_at = new Date();
       await ticket.save();
-      const responseMessage = "Event updated successfully";
+      responseMessage = "Event updated successfully";
     } else {
-      // CREATE new ticket
       ticket = new Ticket(ticketData);
       await ticket.save();
-      var responseMessage = "Event created successfully";
+      responseMessage = "Event created successfully";
     }
 
-    // Success response with location-type specific information
+    // Build response
     const responseData = {
-      message: "Event created successfully",
+      message: responseMessage,
       ticket: ticket,
       ticketId: ticket._id,
       userId,
@@ -1715,159 +1767,126 @@ export const createTicketBasicInfo = async (req, res) => {
       },
       processedGuests: processedGuests.length,
       eventDatesCount: totalEventDates.length,
-      eventDates: totalEventDates, // Include the processed dates in response
+      eventDates: totalEventDates,
       duplicationCheck: "Passed - No conflicts found",
     };
 
-    // Add location-specific response information
     if (location_type === "offline") {
       responseData.offline_fields = {
         seating_arrangement: ticket.seating_arrangement,
         location: ticket.location,
         venue: ticket.venue,
-        has_map_location:
-          Object.keys(ticket.exact_map_location || {}).length > 0,
+        has_map_location: Object.keys(ticket.exact_map_location || {}).length > 0,
       };
     } else if (location_type === "online" || location_type === "recorded") {
       responseData.online_fields = {
-        event_links: totalEventDates
-          .map((date) => date.event_link)
-          .filter((link) => !!link), // array of links
-        verification_codes: totalEventDates
-          .map((date) => date.verification_event_code)
-          .filter((code) => !!code),
+        event_links: totalEventDates.map((date) => date.event_link).filter((link) => !!link),
+        verification_codes: totalEventDates.map((date) => date.verification_event_code).filter((code) => !!code),
       };
     }
+
     res.status(201).json(responseData);
-  } catch (error) {
-    console.error("Error creating event:", error);
-    // Handle multer errors
-    if (error.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({
-        message: "File size too large. Maximum 10MB allowed per file.",
-      });
-    }
-    if (error.code === "LIMIT_FILE_COUNT") {
-      return res.status(400).json({
-        message:
-          "Too many files uploaded. Maximum limits: 10 guest profiles, 1 event rules file.",
-      });
-    }
-    if (error.code === "LIMIT_UNEXPECTED_FILE") {
-      return res.status(400).json({
-        message:
-          "Unexpected file field. Only 'guest_profile_0' to 'guest_profile_9' and 'event_rules' are allowed.",
-      });
-    }
-    // Handle file type errors
-    if (
-      error.message &&
-      (error.message.includes("Guest profile") ||
-        error.message.includes("Event rules file must be a document") ||
-        error.message.includes(
-          "Only PDF, DOC, DOCX, JPG, JPEG, and PNG files are allowed"
-        ))
-    ) {
-      return res.status(400).json({
-        message: "Invalid file type",
-        error: error.message,
-      });
-    }
-    // Handle specific MongoDB errors
-    if (error.name === "CastError") {
-      return res.status(400).json({
-        message: "Data type casting error. Check your data format.",
-        error: error.message,
-        field: error.path,
-      });
-    }
-    if (error.name === "ValidationError") {
-      const validationErrors = Object.keys(error.errors).map((key) => ({
-        field: key,
-        message: error.errors[key].message,
-      }));
-
-      return res.status(400).json({
-        message: "Validation error",
-        errors: validationErrors,
-      });
-    }
-    // Handle duplicate key errors from MongoDB level
-    if (error.code === 11000) {
-      return res.status(409).json({
-        message: "Duplicate entry found",
-        error: "Event with similar details already exists at database level",
-      });
-    }
-    // Cleanup: Delete uploaded Cloudinary files if database operation fails
-    try {
-      const filesToDelete = [];
-      // Collect all uploaded file public_ids
-      Object.values(guestProfileFiles).forEach((file) => {
-        if (file.public_id) filesToDelete.push(file.public_id);
-      });
-      eventRulesFiles.forEach((file) => {
-        if (file.public_id) filesToDelete.push(file.public_id);
-      });
-      Object.values(videoFiles).forEach((file) => {
-        if (file.public_id) filesToDelete.push(file.public_id);
-      });
-      Object.values(previewImageFiles).forEach((file) => {
-        if (file.public_id) filesToDelete.push(file.public_id);
-      });
-      // Delete files from Cloudinary
-      for (const publicId of filesToDelete) {
-        await deleteFromCloudinary(publicId);
+    } catch (error) {
+      console.error("Error creating event:", error);
+      // Handle multer errors
+      if (error.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({
+          message: "File size too large. Maximum 10MB allowed per file.",
+        });
       }
-    } catch (cleanupError) {
-      console.error("Error cleaning up Cloudinary files:", cleanupError);
-    }
-    // Cleanup: Delete uploaded Cloudinary files if database operation fails
-    try {
-      const filesToDelete = [];
-
-      // Collect all uploaded file public_ids
-      if (guestProfileFiles && typeof guestProfileFiles === "object") {
-        Object.values(guestProfileFiles).forEach((file) => {
-          if (file && file.public_id) filesToDelete.push(file.public_id);
+      if (error.code === "LIMIT_FILE_COUNT") {
+        return res.status(400).json({
+          message: "Too many files uploaded. Maximum limits: 10 guest profiles, 1 event rules file.",
+        });
+      }
+      if (error.code === "LIMIT_UNEXPECTED_FILE") {
+        return res.status(400).json({
+          message: "Unexpected file field. Only 'guest_profile_0' to 'guest_profile_9' and 'event_rules' are allowed.",
         });
       }
 
-      if (eventRulesFiles && Array.isArray(eventRulesFiles)) {
-        eventRulesFiles.forEach((file) => {
-          if (file && file.public_id) filesToDelete.push(file.public_id);
+      // Handle file type errors
+      if (
+        error.message &&
+        (error.message.includes("Guest profile") ||
+          error.message.includes("Event rules file must be a document") ||
+          error.message.includes("Only PDF, DOC, DOCX, JPG, JPEG, and PNG files are allowed"))
+      ) {
+        return res.status(400).json({
+          message: "Invalid file type",
+          error: error.message,
         });
       }
 
-      if (videoFiles && typeof videoFiles === "object") {
-        Object.values(videoFiles).forEach((file) => {
-          if (file && file.public_id) filesToDelete.push(file.public_id);
+      // Handle MongoDB errors
+      if (error.name === "CastError") {
+        return res.status(400).json({
+          message: "Data type casting error. Check your data format.",
+          error: error.message,
+          field: error.path,
         });
       }
 
-      if (previewImageFiles && typeof previewImageFiles === "object") {
-        Object.values(previewImageFiles).forEach((file) => {
-          if (file && file.public_id) filesToDelete.push(file.public_id);
+      if (error.name === "ValidationError") {
+        const validationErrors = Object.keys(error.errors).map((key) => ({
+          field: key,
+          message: error.errors[key].message,
+        }));
+
+        return res.status(400).json({
+          message: "Validation error",
+          errors: validationErrors,
         });
       }
-      // Delete files from Cloudinary
-      if (filesToDelete.length > 0) {
-        for (const publicId of filesToDelete) {
-          try {
-            await deleteFromCloudinary(publicId, "auto");
-          } catch (deleteErr) {
-            console.error(`Failed to delete file ${publicId}:`, deleteErr);
+
+      if (error.code === 11000) {
+        return res.status(409).json({
+          message: "Duplicate entry found",
+          error: "Event with similar details already exists at database level",
+        });
+      }
+      // Cleanup: Delete uploaded Cloudinary files if database operation fails
+      try {
+        const filesToDelete = [];
+        if (guestProfileFiles && typeof guestProfileFiles === "object") {
+          Object.values(guestProfileFiles).forEach((file) => {
+            if (file && file.public_id) filesToDelete.push(file.public_id);
+          });
+        }
+        if (eventRulesFiles && Array.isArray(eventRulesFiles)) {
+          eventRulesFiles.forEach((file) => {
+            if (file && file.public_id) filesToDelete.push(file.public_id);
+          });
+        }
+
+        if (videoFiles && typeof videoFiles === "object") {
+          Object.values(videoFiles).forEach((file) => {
+            if (file && file.public_id) filesToDelete.push(file.public_id);
+          });
+        }
+
+        if (previewImageFiles && typeof previewImageFiles === "object") {
+          Object.values(previewImageFiles).forEach((file) => {
+            if (file && file.public_id) filesToDelete.push(file.public_id);
+          });
+        }
+
+        if (filesToDelete.length > 0) {
+          for (const publicId of filesToDelete) {
+            try {
+              await deleteFromCloudinary(publicId, "auto");
+            } catch (deleteErr) {
+              console.error(`Failed to delete file ${publicId}:`, deleteErr);
+            }
           }
         }
+      } catch (cleanupError) {
+        console.error("Error cleaning up Cloudinary files:", cleanupError);
       }
-    } catch (cleanupError) {
-      console.error("Error cleaning up Cloudinary files:", cleanupError);
-    }
-    // Generic error response
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message,
-    });
+      res.status(500).json({
+        message: "Internal server error",
+        error: error.message,
+      });
   }
 };
 export const updateTicketMedia = async (req, res) => {
