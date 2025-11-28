@@ -1,5 +1,14 @@
 'use client';
-
+import { 
+  createBooking, 
+  toggleLike, 
+  shareEvent, 
+  getEventStats,
+  recordView ,
+  registerFreeEvent,
+  verifyPayment,
+  checkUserBooking
+} from '@/services/transactionService';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -7,12 +16,17 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { getEventById } from '@/services/ticketUserService';
 import { Event, SubEvent, ParentEventSummary } from '@/types/ticket';
+import { Alert } from "@/components/events/Alert";
 import { 
   MapPin, Calendar, Users, Clock, DollarSign, 
   Loader2, AlertCircle, ArrowLeft, ExternalLink,
   User, Phone, Mail, Tag, Info, ShoppingCart
 } from 'lucide-react';
-
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 export default function EventDetailPage() {
   useAuth(true);
   const params = useParams();
@@ -24,7 +38,183 @@ export default function EventDetailPage() {
   const [parentEvent, setParentEvent] = useState<ParentEventSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTicketType, setSelectedTicketType] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [isBooking, setIsBooking] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [eventStats, setEventStats] = useState<any>(null);
+  const [userLiked, setUserLiked] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [hasBooked, setHasBooked] = useState(false);
+  const [userBooking, setUserBooking] = useState<any>(null);
+  // Load Razorpay script
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    document.body.appendChild(script);
 
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+  useEffect(() => {
+    const fetchEventStats = async () => {
+      try {
+        const response = await getEventStats(eventId);
+        if (response.success) {
+          setEventStats(response.data.stats);
+        }
+      } catch (error) {
+        console.error('Error fetching event stats:', error);
+      }
+    };
+
+    if (eventId) {
+      fetchEventStats();
+    }
+  }, [eventId]);
+
+  // Record view and load stats
+  useEffect(() => {
+    if (eventId && !loading) {
+      recordView(eventId as string).catch(console.error);
+      loadEventStats();
+    }
+  }, [eventId, loading]);
+  useEffect(() => {
+  const checkBookingStatus = async () => {
+    if (eventId && event?.payment_type === 'free') {
+      try {
+        const result = await checkUserBooking(eventId);
+        setHasBooked(result.hasBooked);
+        setUserBooking(result.booking);
+      } catch (error) {
+        console.error('Error checking booking status:', error);
+      }
+    }
+  };
+
+  if (event) {
+    checkBookingStatus();
+  }
+}, [eventId, event]);
+  const loadEventStats = async () => {
+    try {
+      const statsData = await getEventStats(eventId as string);
+
+      setEventStats(statsData?.data?.stats || null);
+      setUserLiked(statsData?.data?.userInteractions?.liked ?? false);
+
+    } catch (error) {
+      console.error("Failed to load stats:", error);
+    }
+  };
+  const handleLike = async () => {
+    try {
+      await toggleLike(eventId as string);
+      setUserLiked(!userLiked);
+      loadEventStats();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to like event');
+    }
+  };
+
+  const handleShare = async (method: string) => {
+    try {
+      await shareEvent(eventId as string, method);
+      alert('Event shared successfully!');
+      loadEventStats();
+    } catch (error: any) {
+      console.error('Failed to share:', error);
+    }
+  };
+
+
+  const initiateBooking = async () => {
+    if (!selectedTicketType) {
+      alert('Please select a ticket type');
+      return;
+    }
+
+    setIsBooking(true);
+
+    try {
+      // Create booking
+      const bookingResponse = await createBooking({
+        ticketId: eventId as string,
+        ticketTypeId: selectedTicketType,
+        quantity,
+      });
+
+      const { booking, razorpayOrder, razorpayKeyId } = bookingResponse.data;
+
+      // Initialize Razorpay payment
+      const options = {
+        key: razorpayKeyId,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        name: event?.event_name || 'Event Booking',
+        description: `Booking for ${event?.event_name}`,
+        order_id: razorpayOrder.id,
+        handler: async function (response: any) {
+  try {
+    // ✅ Verify payment using transaction service directly
+    const verifyData = await verifyPayment({
+      razorpayOrderId: response.razorpay_order_id,
+      razorpayPaymentId: response.razorpay_payment_id,
+      razorpaySignature: response.razorpay_signature,
+    });
+
+    if (verifyData.success) {
+      setShowSuccessModal(true);
+      setShowBookingModal(false);
+      
+      // Refresh booking status for free events
+      if (event?.payment_type === 'free') {
+        setHasBooked(true);
+        setUserBooking(verifyData.data.booking);
+      }
+      loadEventStats();
+      
+      // Optional: Navigate to booking details after a delay
+      setTimeout(() => {
+        router.push(`/bookings/${verifyData.data.booking.id}`);
+      }, 2000);
+    } else {
+      setAlertMessage('Payment verification failed. Please contact support.');
+    }
+  } catch (error: any) {
+    console.error('Payment verification error:', error);
+    const errorMsg = error.response?.data?.message || 'Payment verification failed';
+    setAlertMessage(errorMsg);
+  }
+},
+        prefill: {
+          name: '',
+          email: '',
+          contact: '',
+        },
+        theme: {
+          color: '#5E5CE6',
+        },
+        modal: {
+          ondismiss: function () {
+            setIsBooking(false);
+            setShowBookingModal(false);
+          },
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (error: any) {
+      console.error('Booking error:', error);
+      alert(error.response?.data?.message || 'Failed to create booking');
+      setIsBooking(false);
+    }
+  };
   useEffect(() => {
     loadEventDetails();
   }, [eventId]);
@@ -44,12 +234,184 @@ export default function EventDetailPage() {
       setLoading(false);
     }
   };
-
   const handleBookEvent = () => {
-    // Navigate to booking page or show booking modal
-    router.push(`/booking/${eventId}`);
+      if (event?.payment_type === 'free') {
+        handleFreeRegistration();
+      } else {
+        if (!event?.ticket_types || event.ticket_types.length === 0) {
+          alert('No tickets available for this event');
+          return;
+        }
+        setShowBookingModal(true);
+      }
   };
+  const handleFreeRegistration = async () => {
+    setIsBooking(true);
+    try {
+      const data = await registerFreeEvent(eventId as string, 1);
 
+      if (data.success) {
+        setShowSuccessModal(true);
+        setHasBooked(true); // ✅ Update status
+        setUserBooking(data.data.booking); // ✅ Store booking
+        loadEventStats();
+      } else {
+        setAlertMessage(data.message || 'Registration failed');
+      }
+    } catch (error: any) {
+      console.error('Free registration error:', error);
+      const errorMsg = error.response?.data?.message || 'Failed to register for event';
+      setAlertMessage(errorMsg);
+    } finally {
+      setIsBooking(false);
+    }
+  };
+  const SuccessModal = () => {
+    if (!showSuccessModal) return null;
+
+    const isPaidEvent = event?.payment_type === 'paid';
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
+          <div className="mb-6">
+            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+              <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          </div>
+          
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            {isPaidEvent ? 'Booking Confirmed! 🎉' : 'Registration Successful! 🎉'}
+          </h2>
+          <p className="text-gray-600 mb-6">
+            {isPaidEvent 
+              ? `Your booking for ${event?.event_name} is confirmed. Payment received successfully.`
+              : `You've successfully registered for ${event?.event_name}. Check your bookings to view your ticket.`
+            }
+          </p>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setShowSuccessModal(false);
+                router.push('/events/nearby');
+              }}
+              className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+            >
+              Browse Events
+            </button>
+            <button
+              onClick={() => {
+                setShowSuccessModal(false);
+                router.push('/bookings');
+              }}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              View Bookings
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+const BookingModal = () => {
+  if (!showBookingModal) return null;
+
+  // ✅ Calculate pricing with platform fee
+  const selectedTicket = event?.ticket_types?.find(t => t._id === selectedTicketType);
+  const subtotal = selectedTicket ? selectedTicket.ticket_price * quantity : 0;
+  const platformFee = quantity * 1; // ₹1 per ticket
+  const total = subtotal + platformFee;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Book Tickets</h2>
+        
+        {/* Ticket Type Selection */}
+        <div className="mb-4">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Select Ticket Type
+          </label>
+          <select
+            value={selectedTicketType || ''}
+            onChange={(e) => setSelectedTicketType(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Choose a ticket type</option>
+            {event?.ticket_types?.map((ticket) => (
+              <option key={ticket._id} value={ticket._id}>
+                {ticket.ticket_type} - ₹{ticket.ticket_price}
+                {ticket.max_capacity && ` (${ticket.max_capacity} available)`}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Quantity Selection */}
+        <div className="mb-4">
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Quantity (Max 50 per event)
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="50"
+            value={quantity}
+            onChange={(e) => {
+              const val = parseInt(e.target.value) || 1;
+              setQuantity(Math.min(50, Math.max(1, val)));
+            }}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+          <p className="text-xs text-gray-500 mt-1">Maximum 50 tickets per event</p>
+        </div>
+
+        {/* ✅ Price Breakdown */}
+        {selectedTicketType && (
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600">Ticket Price ({quantity}x ₹{selectedTicket?.ticket_price})</span>
+              <span className="font-medium">₹{subtotal}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600">Platform Fee ({quantity}x ₹1)</span>
+              <span className="font-medium">₹{platformFee}</span>
+            </div>
+            <div className="border-t pt-2 flex justify-between font-bold">
+              <span>Total Amount</span>
+              <span className="text-blue-600">₹{total}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => {
+              setShowBookingModal(false);
+              setSelectedTicketType(null);
+              setQuantity(1);
+            }}
+            className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+            disabled={isBooking}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={initiateBooking}
+            disabled={isBooking || !selectedTicketType}
+            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+          >
+            {isBooking ? 'Processing...' : `Pay ₹${total}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -57,7 +419,6 @@ export default function EventDetailPage() {
       </div>
     );
   }
-
   if (error || !event) {
     return (
       <div className="min-h-screen bg-gray-50 py-8">
@@ -80,6 +441,17 @@ export default function EventDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
+      {alertMessage && (
+      <Alert
+        alert={{
+          message: alertMessage,
+          type: "error",
+          show: true,
+        }}
+        onClose={() => setAlertMessage(null)}
+        darkMode={false}
+      />
+    )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Back Button */}
         <button
@@ -620,6 +992,26 @@ export default function EventDetailPage() {
                     <ShoppingCart className="w-5 h-5" />
                     Book Event Now
                   </button>
+
+                  {/* ADD THESE BUTTONS */}
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={handleLike}
+                      className={`flex-1 py-2 rounded-lg border-2 transition-all ${
+                        userLiked
+                          ? 'bg-red-50 border-red-500 text-red-600'
+                          : 'border-gray-300 text-gray-600 hover:border-red-500 hover:text-red-600'
+                      }`}
+                    >
+                      ❤️ {userLiked ? 'Liked' : 'Like'} {eventStats?.like > 0 && `(${eventStats.like})`}
+                    </button>
+                    <button
+                      onClick={() => handleShare('general')}
+                      className="flex-1 py-2 rounded-lg border-2 border-gray-300 text-gray-600 hover:border-blue-500 hover:text-blue-600"
+                    >
+                      🔗 Share {eventStats?.share > 0 && `(${eventStats.share})`}
+                    </button>
+                  </div>
                 </div>
               </Card>
             )}
@@ -754,6 +1146,8 @@ export default function EventDetailPage() {
             </Card>
           </div>
         </div>
+         <BookingModal />
+         <SuccessModal />
       </div>
     </div>
   );
