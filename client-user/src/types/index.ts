@@ -68,3 +68,29 @@ export interface ApiResponse<T = any> {
   expiresIn?: string;
   error?: string;
 }
+export interface CheckPasswordResponse {
+  success: boolean;
+  canSetPassword: boolean;
+  authProvider: string;
+  hasPassword: boolean;
+}
+export interface SetPasswordRequest {
+  password: string;
+  confirmPassword: string;
+}
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+export interface ForgotPasswordRequest {
+  email?: string;
+  contact_no?: string;
+}
+export interface VerifyResetOTPRequest {
+  userId: string;
+  otp: string;
+}
+export interface ResetPasswordRequest {
+  userId: string;
+  newPassword: string;
+} 
