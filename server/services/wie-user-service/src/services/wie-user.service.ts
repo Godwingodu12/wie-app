@@ -30,7 +30,6 @@ setInterval(async () => {
     console.error('❌ Error in unverified users cleanup:', error);
   }
 }, 5 * 60 * 1000); // Run every 5 minutes
-
 export const index = (req: Request, res: Response): void => {
   res.json({ message: 'Welcome to the WIE User Service' });
 };
@@ -239,60 +238,61 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
 export const googleCallback = async (req: Request, res: Response): Promise<void> => {
   try {
     const { code } = req.query;
-
     if (!code || typeof code !== 'string') {
       res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Authorization code is required')}`);
       return;
     }
-
-    // Get user info from Google
     const googleUser = await getGoogleUserInfo(code);
-
     if (!googleUser.verified_email) {
       res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Google email is not verified')}`);
       return;
     }
-
-    // Check if user exists
     let user = await WIEUSER.findByGoogleId(googleUser.id);
-
     if (!user) {
-      // Check if email already exists with different auth provider
       const existingUser = await WIEUSER.findByEmail(googleUser.email);
-      
-      if (existingUser && existingUser.auth_provider !== 'google') {
-        res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('An account with this email already exists. Please login with your email/phone and password.')}`);
-        return;
+      if (existingUser) {
+        if (existingUser.auth_provider === 'local' || !existingUser.auth_provider) {
+          user = await WIEUSER.linkGoogleAccount(existingUser.id, {
+            google_id: googleUser.id,
+            profile_picture: googleUser.picture || existingUser.profile_picture || undefined,
+            auth_provider: 'hybrid', 
+          });
+        } else if (existingUser.auth_provider === 'google') {
+          user = existingUser;
+        } else if (existingUser.auth_provider === 'hybrid') {
+          user = existingUser;
+          if (googleUser.picture && user.profile_picture !== googleUser.picture) {
+            user = await WIEUSER.updateProfile(user.id, {
+              profile_picture: googleUser.picture,
+            });
+          }
+        } else {
+          res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('An account with this email already exists with a different login method.')}`);
+          return;
+        }
+      } else {
+        user = await WIEUSER.create({
+          email: googleUser.email,
+          name: googleUser.name,
+          profile_picture: googleUser.picture,
+          google_id: googleUser.id,
+          auth_provider: 'google',
+          password: undefined,
+        });
       }
-
-      // Create new user
-      user = await WIEUSER.create({
-        email: googleUser.email,
-        name: googleUser.name,
-        profile_picture: googleUser.picture,
-        google_id: googleUser.id,
-        auth_provider: 'google',
-        password: undefined,
-      });
     } else {
-      // Update existing user's profile picture if changed
+      // Update existing Google user's profile picture if changed
       if (googleUser.picture && user.profile_picture !== googleUser.picture) {
         user = await WIEUSER.updateProfile(user.id, {
           profile_picture: googleUser.picture,
         });
       }
     }
-
-    // Check if user is blocked
     if (user.is_blocked) {
       res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Your account has been blocked. Please contact support.')}`);
       return;
     }
-
-    // Generate JWT token
     const token = generateToken(user);
-
-    // Prepare user data
     const userData = {
       id: user.id,
       email: user.email,
@@ -304,15 +304,111 @@ export const googleCallback = async (req: Request, res: Response): Promise<void>
       is_verified: user.is_verified,
       auth_provider: user.auth_provider,
     };
-
-    // Encode data for URL
     const encodedUser = encodeURIComponent(JSON.stringify(userData));
-
-    // IMPORTANT: Use res.redirect() instead of res.json()
     res.redirect(`${process.env.CORS_ORIGIN}/auth/google/callback?token=${token}&user=${encodedUser}`);
   } catch (error: any) {
     console.error('Google Callback Error:', error);
     res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Google authentication failed')}`);
+  }
+};
+export const checkCanSetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id; 
+
+    if (!userId) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    const user = await WIEUSER.findById(userId);
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    // Check if user is Google user without password
+    const canSetPassword = user.auth_provider === 'google' && !user.password;
+
+    res.status(200).json({
+      success: true,
+      canSetPassword,
+      authProvider: user.auth_provider,
+      hasPassword: !!user.password,
+    });
+  } catch (error: any) {
+    console.error('Check Can Set Password Error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to check password status', 
+      error: error.message 
+    });
+  }
+};
+export const setPasswordForGoogleUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id; // From JWT middleware
+    const { password, confirmPassword } = req.body;
+
+    if (!userId) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    // Validate password
+    if (!password || !validatePassword(password)) {
+      res.status(400).json({ 
+        message: 'Password must be at least 6 characters' 
+      });
+      return;
+    }
+
+    // Check if passwords match
+    if (password !== confirmPassword) {
+      res.status(400).json({ 
+        message: 'Passwords do not match' 
+      });
+      return;
+    }
+
+    const user = await WIEUSER.findById(userId);
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    // Check if user is eligible to set password
+    if (user.auth_provider !== 'google' || user.password) {
+      res.status(400).json({ 
+        message: user.password 
+          ? 'Password already set. Use change password instead.'
+          : 'Only Google users can set a password this way.'
+      });
+      return;
+    }
+
+    // Hash password
+    const hashedPassword = await hashPassword(password);
+
+    // Update user with password and change auth_provider to hybrid
+    const updatedUser = await WIEUSER.setPasswordForOAuthUser(userId, hashedPassword);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password set successfully. You can now login with email and password.',
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        auth_provider: updatedUser.auth_provider,
+      },
+    });
+  } catch (error: any) {
+    console.error('Set Password Error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to set password', 
+      error: error.message 
+    });
   }
 };
 export const login = async (req: Request, res: Response): Promise<void> => {
@@ -323,30 +419,42 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ message: 'Email/Contact number and password are required' });
       return;
     }
+
     const user = await WIEUSER.findByEmailOrContactNo(identifier);
     if (!user) {
       res.status(401).json({ message: 'Invalid credentials' });
       return;
     }
+
     // Check if user has local authentication (password-based)
-    if (!isLocalAuthUser(user.password)) {
-      res.status(400).json({ 
-        message: user.auth_provider === 'google' 
-          ? 'This account uses Google Sign-In. Please login with Google.'
-          : 'Invalid authentication method for this account.',
-        auth_provider: user.auth_provider
-      });
-      return;
+    if (!user.password || !isLocalAuthUser(user.password)) {
+      // Pure Google user (no password set)
+      if (user.auth_provider === 'google') {
+        res.status(400).json({ 
+          message: 'This account uses Google Sign-In. Please login with Google.',
+          auth_provider: user.auth_provider
+        });
+        return;
+      }
     }
-    const isPasswordValid = await comparePassword(password, user.password);
-    if (!isPasswordValid) {
+
+    // Validate password (for local or hybrid users)
+    if (user.password) {
+      const isPasswordValid = await comparePassword(password, user.password);
+      if (!isPasswordValid) {
+        res.status(401).json({ message: 'Invalid credentials' });
+        return;
+      }
+    } else {
       res.status(401).json({ message: 'Invalid credentials' });
       return;
     }
+
     if (user.is_blocked) {
       res.status(403).json({ message: 'Your account has been blocked' });
       return;
     }
+
     if (!user.is_verified) {
       res.status(403).json({ 
         message: 'Please verify your account first',
@@ -354,6 +462,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       });
       return;
     }
+
     const token = generateToken(user);
     res.status(200).json({
       message: 'Login successful',
@@ -774,6 +883,50 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       success: false,
       message: 'Failed to reset password',
       error: error.message,
+    });
+  }
+};
+export const changePassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id; 
+    const { currentPassword, newPassword } = req.body;
+    if (!userId) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+    if (!newPassword || !validatePassword(newPassword)) {
+      res.status(400).json({ 
+        message: 'New password must be at least 6 characters' 
+      });
+      return;
+    }
+    const user = await WIEUSER.findById(userId);
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+    if (!user.password) {
+      res.status(400).json({ 
+        message: 'No password set. Please use set password instead.' 
+      });
+      return;
+    }
+    const isPasswordValid = await comparePassword(currentPassword, user.password);
+    if (!isPasswordValid) {
+      res.status(401).json({ message: 'Current password is incorrect' });
+      return;
+    }
+    await WIEUSER.updatePassword(userId, newPassword);
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully',
+    });
+  } catch (error: any) {
+    console.error('Change Password Error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to change password', 
+      error: error.message 
     });
   }
 };
