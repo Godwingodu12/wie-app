@@ -6,6 +6,12 @@ import {
   SignupVerifyOtpRequest,
   ResendOtpRequest,
   UpdateProfileRequest,
+  SetPasswordRequest,
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
+  VerifyResetOTPRequest,
+  ResetPasswordRequest,
+  CheckPasswordResponse,
   Country,
   User,
 } from '@/types';
@@ -56,7 +62,24 @@ export const signupVerifyOtp = async (
     throw err;
   }
 };
-
+export const checkCanSetPassword = async (): Promise<CheckPasswordResponse> => {
+  try {
+    const res = await api.get<CheckPasswordResponse>('/user/check-can-set-password');
+    return res.data; // NOT res.data.data
+  } catch (err) {
+    console.error('checkCanSetPassword error:', err);
+    throw err;
+  }
+};
+export const setPasswordForGoogleUser = async (data: SetPasswordRequest): Promise<ApiResponse> => {
+  try {
+    const res = await api.post<ApiResponse>('/user/set-password-for-google-user', data);
+    return res.data;
+  } catch (err) {
+    console.error('setPasswordForGoogleUser error:', err);
+    throw err;
+  }
+};
 export const login = async (data: LoginRequest): Promise<ApiResponse> => {
   try {
     const res = await api.post<ApiResponse>('/user/login', data);
@@ -190,6 +213,17 @@ export const getUserLocation = async (): Promise<{
     return res.data.data;
   } catch (err) {
     console.error('getUserLocation error:', err);
+    throw err;
+  }
+};
+export const changePassword = async (
+  payload: ChangePasswordRequest
+): Promise<ApiResponse> => {
+  try {
+    const res = await api.post<ApiResponse>('/user/change-password', payload);
+    return res.data;
+  } catch (err) {
+    console.error('changePassword error:', err);
     throw err;
   }
 };

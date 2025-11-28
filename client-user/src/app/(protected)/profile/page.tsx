@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useDispatch } from 'react-redux';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { updateUser, logoutSuccess } from '@/features/auth/authSlice';
 import { getProfile, updateProfile, getCountries } from '@/services/wieUserService';
@@ -14,9 +14,11 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Country } from '@/types';
 import SideBar from '@/components/home/SideBar';
 import DummyAvatar from '@/assets/Home/dummypost.png';
-
+import { Alert } from "@/components/events/Alert";
 function ProfileContent() {
   const { user, loading: authLoading } = useAuth(true);
+  const searchParams = useSearchParams();
+  const passwordSet = searchParams.get("password-set");
   const dispatch = useDispatch();
   const router = useRouter();
   
@@ -51,7 +53,6 @@ function ProfileContent() {
     
     initPage();
   }, []);
-
   const fetchUserProfile = async () => {
     try {
       const profile = await getProfile();
@@ -164,7 +165,16 @@ function ProfileContent() {
             title="Your Profile"
             subtitle="Manage your account settings"
           />
-
+          {passwordSet === "1" && (
+            <Alert
+              alert={{
+                message: "Password set successfully!",
+                type: "success",
+                show: true,
+              }}
+              onClose={() => router.replace('/profile')} 
+            />
+          )}
           <Card className="bg-[#1a1a1a] border border-[#2D2F39]">
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Profile Header */}
@@ -287,14 +297,23 @@ function ProfileContent() {
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                {/* Set Password Button - Only visible for Google users */}
+                {displayUser?.auth_provider === 'google' && (
+                  <Button
+                    type="button"
+                    onClick={() => router.push('/profile/set-password')}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Set Password
+                  </Button>
+                )}
                 <Button 
                   type="submit" 
                   loading={loading} 
                   className="flex-1 bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] hover:opacity-90"
                 >
                   {loading ? 'Updating...' : 'Update Profile'}
-                </Button>
-                
+                </Button>      
                 <Button
                   type="button"
                   variant="outline"
@@ -304,6 +323,7 @@ function ProfileContent() {
                   Logout
                 </Button>
               </div>
+
             </form>
           </Card>
         </div>
@@ -311,7 +331,6 @@ function ProfileContent() {
     </div>
   );
 }
-
 export default function ProfilePage() {
   return (
     <Suspense fallback={

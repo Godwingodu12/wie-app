@@ -166,6 +166,33 @@ class WieUserModel {
     });
     return toDatabaseFormat(user);
   }
+  async linkGoogleAccount(
+    id: string,
+    googleData: {
+      google_id: string;
+      profile_picture?: string;
+      auth_provider: string;
+    }
+  ): Promise<WieUser> {
+    const updateData: any = {
+      googleId: googleData.google_id,
+      authProvider: googleData.auth_provider,
+      isVerified: true, // Auto-verify when linking Google
+      status: 'active', // Auto-activate when linking Google
+      updatedAt: new Date(),
+    };
+
+    // Only update profile picture if it's defined
+    if (googleData.profile_picture) {
+      updateData.profilePicture = googleData.profile_picture;
+    }
+
+    const user = await prisma.wieUser.update({
+      where: { id },
+      data: updateData,
+    });
+    return toDatabaseFormat(user);
+  }
   async getLocation(id: string): Promise<{ location?: string | null; latitude?: number | null; longitude?: number | null } | null> {
     const user = await prisma.wieUser.findUnique({
       where: { id },
@@ -225,6 +252,17 @@ class WieUserModel {
     if (!user) {
       throw new Error('Failed to update password');
     }
+    return toDatabaseFormat(user);
+  }
+  async setPasswordForOAuthUser(id: string, hashedPassword: string): Promise<WieUser> {
+    const user = await prisma.wieUser.update({
+      where: { id },
+      data: {
+        password: hashedPassword,
+        authProvider: 'hybrid', // Now supports both OAuth and password login
+        updatedAt: new Date(),
+      },
+    });
     return toDatabaseFormat(user);
   }
   // Delete unverified users older than specified minutes
