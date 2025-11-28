@@ -6,9 +6,9 @@ import { store, persistor } from './features/store';
 import { PersistGate } from 'redux-persist/integration/react';
 import { SocketProvider } from './context/SocketContext';
 import notificationService from './context/notificationService';
+import ChatInitializer from './components/Message/ChatInitializer.jsx';
 import './index.css';
 import App from './App.jsx';
-// Wrapper component to initialize notification service
 function NotificationInitializer({ children }) {
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -31,12 +31,12 @@ if (!rootElement._reactRoot) {
 } else {
   root = rootElement._reactRoot;
 }
-// Single render call
 root.render(
   <StrictMode>
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
         <SocketProvider>
+          <ChatInitializer />
           <NotificationInitializer>
             <App />
           </NotificationInitializer>
