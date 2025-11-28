@@ -1,0 +1,226 @@
+import axios from 'axios';
+const TRANSACTION_API_URL = process.env.NEXT_PUBLIC_TRANSACTION_API_URL || 'http://localhost:5007/api';
+// Create axios instance
+const transactionApi = axios.create({
+  baseURL: TRANSACTION_API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+// Add auth token to requests
+transactionApi.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor
+transactionApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('Transaction API Error:', error.response?.data || error.message);
+    return Promise.reject(error);
+  }
+);
+
+// Types
+export interface CreateBookingRequest {
+  ticketId: string;
+  ticketTypeId: string;
+  quantity: number;
+}
+
+export interface CreateBookingResponse {
+  success: boolean;
+  message: string;
+  data: {
+    booking: {
+      id: string;
+      bookingId: string;
+      totalAmount: number;
+      currency: string;
+    };
+    razorpayOrder: {
+      id: string;
+      amount: number;
+      currency: string;
+    };
+    razorpayKeyId: string;
+  };
+}
+
+export interface VerifyPaymentRequest {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+}
+
+export interface Booking {
+  id: string;
+  bookingId: string;
+  userId: string;
+  ticketId: string;
+  groupId: string;
+  ticketType: string;
+  quantity: number;
+  pricePerTicket: number;
+  subtotal: number;
+  tax: number;
+  platformFee: number;
+  totalAmount: number;
+  currency: string;
+  paymentStatus: string;
+  paymentMethod?: string;
+  bookingStatus: string;
+  userDetails: any;
+  eventDetails: any;
+  qrCode?: string;
+  isVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+export const registerFreeEvent = async (ticketId: string, quantity: number) => {
+  const response = await transactionApi.post('/bookings/register-free', {
+    ticketId,
+    quantity,
+  });
+  return response.data;
+};
+// Booking APIs
+export const createBooking = async (data: CreateBookingRequest): Promise<CreateBookingResponse> => {
+  const response = await transactionApi.post('/bookings/create', data);
+  return response.data;
+};
+export const verifyPayment = async (data: VerifyPaymentRequest) => {
+  const response = await transactionApi.post('/bookings/verify-payment', data);
+  return response.data;
+};
+export const getUserBookings = async (params?: { status?: string; limit?: number; skip?: number }) => {
+  const response = await transactionApi.get('/bookings/my-bookings', { params });
+  return response.data;
+};
+export const getBookingById = async (bookingId: string) => {
+  const response = await transactionApi.get(`/bookings/${bookingId}`);
+  return response.data;
+};
+export const getGroupBookings = async (
+  groupId: string,
+  params?: {
+    ticketId?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    skip?: number;
+  }
+) => {
+  const response = await transactionApi.get(`/admin/group/${groupId}/bookings`, { params });
+  return response.data;
+};
+
+export const getEventStatistics = async (ticketId: string) => {
+  const response = await transactionApi.get(`/admin/event/${ticketId}/statistics`);
+  return response.data;
+};
+
+export const verifyTicketQR = async (qrData: string) => {
+  const response = await transactionApi.post('/admin/verify-qr', { qrData });
+  return response.data;
+};
+
+export const getEventFeedback = async (
+  ticketId: string,
+  params?: { limit?: number; skip?: number }
+) => {
+  const response = await transactionApi.get(`/admin/event/${ticketId}/feedback`, { params });
+  return response.data;
+};
+
+export const exportBookings = async (params: { groupId?: string; ticketId?: string }) => {
+  const response = await transactionApi.get('/admin/export-bookings', {
+    params,
+    responseType: 'blob',
+  });
+  return response.data;
+};
+
+export const getBookingAnalytics = async (params: {
+  groupId?: string;
+  ticketId?: string;
+  startDate?: string;
+  endDate?: string;
+}) => {
+  const response = await transactionApi.get('/admin/analytics', { params });
+  return response.data;
+};
+
+export const getTopEventsByRevenue = async (groupId: string, limit?: number) => {
+  const response = await transactionApi.get(`/admin/group/${groupId}/top-events`, {
+    params: { limit },
+  });
+  return response.data;
+};
+export const cancelBooking = async (bookingId: string, cancellationReason: string) => {
+  const response = await transactionApi.post(`/bookings/${bookingId}/cancel`, {
+    cancellationReason,
+  });
+  return response.data;
+};
+
+// Interaction APIs
+export const toggleLike = async (ticketId: string) => {
+  const response = await transactionApi.post(`/interactions/${ticketId}/like`);
+  return response.data;
+};
+
+export const shareEvent = async (ticketId: string, shareMethod: string) => {
+  const response = await transactionApi.post(`/interactions/${ticketId}/share`, {
+    shareMethod,
+  });
+  return response.data;
+};
+
+export const recordView = async (ticketId: string) => {
+  const response = await transactionApi.post(`/interactions/${ticketId}/view`);
+  return response.data;
+};
+
+export const toggleSave = async (ticketId: string) => {
+  const response = await transactionApi.post(`/interactions/${ticketId}/save`);
+  return response.data;
+};
+
+export const getEventStats = async (ticketId: string) => {
+  const response = await transactionApi.get(`/interactions/${ticketId}/stats`);
+  return response.data;
+};
+
+export const submitFeedback = async (ticketId: string, rating: number, comment: string) => {
+  const response = await transactionApi.post(`/interactions/${ticketId}/feedback`, {
+    rating,
+    comment,
+  });
+  return response.data;
+};
+
+export const getUserLikedEvents = async (params?: { limit?: number; skip?: number }) => {
+  const response = await transactionApi.get('/interactions/liked-events', { params });
+  return response.data;
+};
+
+export const getUserSavedEvents = async (params?: { limit?: number; skip?: number }) => {
+  const response = await transactionApi.get('/interactions/saved-events', { params });
+  return response.data;
+};
+export const checkUserBooking = async (ticketId: string) => {
+  const response = await transactionApi.get(`/bookings/check-booking/${ticketId}`);
+  return response.data;
+};
+export default transactionApi;
