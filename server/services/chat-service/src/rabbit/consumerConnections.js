@@ -1,13 +1,8 @@
-// Add this NEW function to chat-service consumerConnections.js
-// Keep your existing getUserFromAuthService and getFollowersFromAuthService functions
-
 import { listenQueue, publishToQueue } from './consumer.js';
 import { isChannelAvailable } from './connection.js';
-
 // Helper to get user from auth-service with caching
 const userCache = new Map();
 const CACHE_TTL = 60000; // 1 minute cache
-
 export const getUserFromAuthService = async (payload, retries = 2) => {
   if (!isChannelAvailable()) {
     console.warn('⚠️ RabbitMQ not available, cannot fetch user');
