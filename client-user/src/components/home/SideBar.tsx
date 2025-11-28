@@ -131,7 +131,6 @@ const SideBar: React.FC<SideBarProps> = ({ userName = 'User Name', userAvatar })
 
       {/* Divider */}
       <div className="w-full max-w-[233px] h-px rounded bg-gradient-to-r from-transparent via-[#3f3f3f]/60 to-transparent" />
-
       {/* Secondary Navigation */}
       <div className="flex flex-col gap-2 w-full max-w-[233px] mt-auto">
         {/* Settings */}
