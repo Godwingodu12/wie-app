@@ -1,11 +1,11 @@
-// src/components/HomePage/SideBar.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { getMe } from "../../services/userService.js";
 import { getGroups } from "../../services/ticketService";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
 import { getImageUrl, getOptimizedImageUrl } from '../../utils/imageUtils.js';
+import { useSocket } from "../../context/SocketContext";
 // ICONS
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
 import TicketIcon from "../../assets/HomePage/TicketIcon.svg";
@@ -22,12 +22,18 @@ import PreviousIcon  from "../../assets/HomePage/PreviousIcon.svg";
 import DeletedIcon from "../../assets/HomePage/DeletedIcon.svg";
 import BankIcon from "../../assets/HomePage/BankIcon.svg";
 import createTicketicon from "../../assets/HomePage/createTicketicon.svg";
+
 const SIDEBAR_WIDTH = 80;
+
 const Sidebar = ({ theme }) => {
   const { user } = useSelector((state) => state.auth);
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
+  
+  // ADD THIS: Get unread chats from Socket context
+  const { unreadChats } = useSocket();
+  
   const [userImage, setUserImage] = useState(() => {
     return sessionStorage.getItem('userImage') || null;
   });
@@ -36,9 +42,23 @@ const Sidebar = ({ theme }) => {
   const [groups, setGroups] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userData, setUserData] = useState(() => {
-  const cached = sessionStorage.getItem('userData');
+    const cached = sessionStorage.getItem('userData');
     return cached ? JSON.parse(cached) : null;
   });
+const totalUnreadCount = useMemo(() => {
+  if (!unreadChats || !(unreadChats instanceof Map)) {
+    return 0;
+  }
+  
+  let count = 0;
+  unreadChats.forEach((value) => {
+    if (typeof value === 'number' && value > 0) {
+      count += value;
+    }
+  });
+  
+  return count;
+}, [unreadChats]);
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -51,14 +71,12 @@ const Sidebar = ({ theme }) => {
             setUserImage(imageUrl);
             sessionStorage.setItem('userImage', imageUrl);
           } else {
-            // Clear image if user has no image
             setUserImage(null);
             sessionStorage.removeItem('userImage');
           }
         }
       } catch (err) {
         console.error("Failed to fetch user", err);
-        // Clear cached data on error (user might be logged out)
         sessionStorage.removeItem('userData');
         sessionStorage.removeItem('userImage');
         setUserData(null);
@@ -66,17 +84,16 @@ const Sidebar = ({ theme }) => {
       }
     };
 
-    // Always fetch fresh data when user changes
     if (user) {
       fetchUser();
     } else {
-      // Clear data when no user
       sessionStorage.removeItem('userData');
       sessionStorage.removeItem('userImage');
       setUserData(null);
       setUserImage(null);
     }
   }, [user]);
+
   const isHomePage = currentPath === "/home";
   const isDark = theme.bg === "bg-[#212426]";
   
@@ -224,9 +241,10 @@ const Sidebar = ({ theme }) => {
                 }`}
               />
             </Link>
+            {/* Chat Icon with Badge */}
             <Link
               to="/message"
-              className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full hover:opacity-80 transition-opacity"
+              className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full hover:opacity-80 transition-opacity relative"
             >
               <img
                 src={ChatIcon}
@@ -235,6 +253,14 @@ const Sidebar = ({ theme }) => {
                   isDark ? "" : "filter brightness-0 opacity-70"
                 }`}
               />
+              {totalUnreadCount > 0 && (
+                <div
+                  className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1 shadow-lg"
+                  style={{ backgroundColor: '#7263F3' }}
+                >
+                  {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                </div>
+              )}
             </Link>
             <div className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full hover:opacity-80 transition-opacity cursor-pointer">
               <img
@@ -247,7 +273,9 @@ const Sidebar = ({ theme }) => {
             </div>
           </div>
         </div>
+
         <div className="flex-1 min-h-4 max-h-12 lg:max-h-4"></div>
+
         <div className="flex flex-col items-center w-full mb-4">
           <div
             className={`${theme.cardBg} rounded-full flex flex-col items-center py-2 sm:py-3 w-10 sm:w-12 lg:w-14 transition-all duration-300`}
@@ -372,5 +400,4 @@ const Sidebar = ({ theme }) => {
     </>
   );
 };
-
 export default Sidebar;
