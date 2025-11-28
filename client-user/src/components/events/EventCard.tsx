@@ -1,7 +1,8 @@
 'use client';
-
+import { useState, useEffect} from 'react';
 import { useRouter } from 'next/navigation';
 import { EventWithLocation } from '@/types/ticket';
+import { getEventStats } from '@/services/transactionService';
 import { 
   MapPin, 
   Calendar, 
@@ -23,7 +24,8 @@ interface EventCardProps {
 
 export function EventCard({ event, showDistance = false }: EventCardProps) {
   const router = useRouter();
-
+  const [eventStats, setEventStats] = useState<any>(null);
+  const [isLiked, setIsLiked] = useState(false);
   const handleCardClick = () => {
     router.push(`/events/${event._id}`);
   };
@@ -40,6 +42,20 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
       return dateString;
     }
   };
+  useEffect(() => {
+  const fetchStats = async () => {
+    try {
+      const response = await getEventStats(event._id);
+      if (response.success) {
+        setEventStats(response.data.stats);
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
+  fetchStats();
+}, [event._id]);
 
   // Get event start date
   const getEventStartDate = () => {
@@ -152,16 +168,14 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
             Sub Event
           </div>
         )}
-
         {/* Like Badge */}
-        {event.like > 0 && (
+        {eventStats && eventStats.likes > 0 && (
           <div className="absolute bottom-3 right-3 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
             <Heart className="w-3 h-3 fill-current" />
-            {event.like}
+            {eventStats.likes}
           </div>
         )}
       </div>
-
       {/* Event Details */}
       <div className="p-4 flex-1 flex flex-col">
         {/* Category */}
