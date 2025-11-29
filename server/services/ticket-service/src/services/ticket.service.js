@@ -2,6 +2,7 @@ import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import upload from "../middlewares/upload.js";
 import { uploadTicketMedia, uploadFields } from "../middlewares/upload.js";
+import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
 import {
   processFileUploads,
   deleteFromCloudinary,
@@ -81,6 +82,37 @@ export const CreateGroup = async (req, res) => {
       primary_bank_ifsc,
       primary_bank_acc_holder,
     } = req.body;
+
+    // VALIDATE IFSC CODE IF PROVIDED (before file upload)
+    if (primary_bank_ifsc) {
+      const ifscValidation = await validateIFSCCode(primary_bank_ifsc);
+      
+      if (!ifscValidation.isValid) {
+        return res.status(400).json({
+          message: "Invalid bank IFSC code",
+          error: ifscValidation.error,
+        });
+      }
+
+      console.log('Bank details verified:', ifscValidation.bankDetails);
+    }
+
+    // VALIDATE AADHAAR CARD IF UPLOADED (BEFORE CLOUDINARY UPLOAD)
+    if (req.files?.id_proof?.[0]) {
+      console.log('Validating Aadhaar card...');
+      const aadhaarValidation = await validateAadhaarDocument(req.files.id_proof[0]);
+      
+      if (!aadhaarValidation.isValid) {
+        return res.status(400).json({
+          message: "Aadhaar card validation failed",
+          error: aadhaarValidation.error,
+        });
+      }
+
+      console.log('Aadhaar verified:', aadhaarValidation.aadhaarNumber);
+    }
+
+    // NOW PROCESS FILE UPLOADS TO CLOUDINARY (after validation passes)
     let uploadedFiles = {};
     if (req.files) {
       try {
@@ -93,12 +125,14 @@ export const CreateGroup = async (req, res) => {
         });
       }
     }
+
     const filePaths = {
       id_proof: uploadedFiles.id_proof || null,
       bank_check: uploadedFiles.bank_check || null,
       company_certificate: uploadedFiles.company_certificate || null,
       company_logo: uploadedFiles.company_logo || null,
     };
+
     // Determine actual group type
     let actualGroupType;
     if (userRole === "admin") {
@@ -111,6 +145,7 @@ export const CreateGroup = async (req, res) => {
     } else {
       actualGroupType = "organisation";
     }
+
     // Check group creation limits
     const existingGroups = await Group.find({ userId: userId });
     if (userRole === "admin") {
@@ -137,6 +172,7 @@ export const CreateGroup = async (req, res) => {
         });
       }
     }
+
     // Prepare data for duplication checking
     let checkName, checkEmail, checkContact, checkPan, checkGst;
     if (actualGroupType === "admin") {
@@ -154,6 +190,7 @@ export const CreateGroup = async (req, res) => {
       checkPan = pan_no;
       checkGst = gst_no || null;
     }
+
     // COMPREHENSIVE DUPLICATION CHECK
     const duplicateQuery = {
       $or: [
@@ -183,12 +220,30 @@ export const CreateGroup = async (req, res) => {
         },
       ],
     };
+
     // Add GST number to duplication check if provided
     if (checkGst && checkGst.trim()) {
       duplicateQuery.$or.push({ gst_no: checkGst.trim() });
     }
+
     const existingGroup = await Group.findOne(duplicateQuery);
     if (existingGroup) {
+      // Delete uploaded files if duplicate found
+      if (Object.keys(uploadedFiles).length > 0) {
+        for (const fileUrl of Object.values(uploadedFiles)) {
+          if (fileUrl) {
+            try {
+              const publicId = extractPublicId(fileUrl);
+              if (publicId) {
+                await deleteFromCloudinary(publicId, "image");
+              }
+            } catch (deleteError) {
+              console.error('Error deleting uploaded file:', deleteError);
+            }
+          }
+        }
+      }
+
       // Determine which field(s) caused the duplication
       let duplicateFields = [];
 
@@ -207,6 +262,7 @@ export const CreateGroup = async (req, res) => {
       if (checkGst && existingGroup.gst_no === checkGst) {
         duplicateFields.push("GST number");
       }
+
       return res.status(409).json({
         message: `Group with the same ${duplicateFields.join(
           ", "
@@ -215,6 +271,7 @@ export const CreateGroup = async (req, res) => {
         existingGroupId: existingGroup._id,
       });
     }
+
     // Validation based on group type
     if (actualGroupType === "admin") {
       // For admin groups, use user data from auth service
@@ -265,6 +322,14 @@ export const CreateGroup = async (req, res) => {
         }
       }
     }
+
+    // Additional validation: If bank account details are provided, IFSC is required
+    if ((primary_bank_acc_no || primary_bank_acc_type || primary_bank_acc_holder) && !primary_bank_ifsc) {
+      return res.status(400).json({
+        message: "Bank IFSC code is required when providing bank account details",
+      });
+    }
+
     // Build group data
     const groupData = {
       pan_no: checkPan,
@@ -272,6 +337,7 @@ export const CreateGroup = async (req, res) => {
       grp_type: actualGroupType,
       status: "active",
     };
+
     if (primary_bank_acc_type)
       groupData.primary_bank_acc_type = primary_bank_acc_type;
     if (primary_bank_acc_no)
@@ -279,6 +345,7 @@ export const CreateGroup = async (req, res) => {
     if (primary_bank_ifsc) groupData.primary_bank_ifsc = primary_bank_ifsc;
     if (primary_bank_acc_holder)
       groupData.primary_bank_acc_holder = primary_bank_acc_holder;
+
     if (actualGroupType === "admin") {
       // Use admin user data from auth service
       groupData.name = userData.name;
@@ -309,6 +376,7 @@ export const CreateGroup = async (req, res) => {
       if (filePaths.company_logo)
         groupData.company_logo = filePaths.company_logo;
     }
+
     // Helper function to determine file type from mimetype
     const getFileType = (mimetype) => {
       if (mimetype?.startsWith("image/")) return "image";
@@ -317,6 +385,7 @@ export const CreateGroup = async (req, res) => {
         return "doc";
       return "unknown";
     };
+
     // Add file types to groupData
     if (filePaths.id_proof && req.files?.id_proof?.[0]) {
       groupData.id_proof_type = getFileType(req.files.id_proof[0].mimetype);
@@ -329,8 +398,10 @@ export const CreateGroup = async (req, res) => {
         req.files.company_certificate[0].mimetype
       );
     }
+
     const newGroup = new Group(groupData);
     await newGroup.save();
+
     res.status(201).json({
       message: "Group created successfully",
       group: newGroup,
@@ -368,21 +439,25 @@ export const UpdateGroup = async (req, res) => {
     const { groupId } = req.params;
     const userId = req.user._id || req.user.id;
     const userRole = req.user.role;
+    
     // Validate groupId
     if (!groupId) {
       return res.status(400).json({ message: "Group ID is required" });
     }
+    
     // Find the existing group
     const existingGroup = await Group.findById(groupId);
     if (!existingGroup) {
       return res.status(404).json({ message: "Group not found" });
     }
+    
     // Authorization check - ensure user owns this group
     if (existingGroup.userId.toString() !== userId.toString()) {
       return res.status(403).json({
         message: "You are not authorized to update this group",
       });
     }
+    
     // Extract update data from request body
     const {
       name,
@@ -398,10 +473,37 @@ export const UpdateGroup = async (req, res) => {
       primary_bank_acc_holder,
       status,
     } = req.body;
-    // Process new file uploads to Cloudinary
+    
+    // VALIDATE IFSC CODE IF PROVIDED AND CHANGED
+    if (primary_bank_ifsc !== undefined && primary_bank_ifsc && primary_bank_ifsc !== existingGroup.primary_bank_ifsc) {
+      const ifscValidation = await validateIFSCCode(primary_bank_ifsc);
+      if (!ifscValidation.isValid) {
+        return res.status(400).json({
+          message: "Invalid bank IFSC code",
+          error: ifscValidation.error,
+        });
+      }
+      console.log('Bank details verified:', ifscValidation.bankDetails);
+    }
+    
+    // VALIDATE AADHAAR CARD IF NEW FILE IS UPLOADED (BEFORE CLOUDINARY UPLOAD)
+    if (req.files?.id_proof?.[0]) {
+      console.log('Validating new Aadhaar card...');
+      const aadhaarValidation = await validateAadhaarDocument(req.files.id_proof[0]);
+      
+      if (!aadhaarValidation.isValid) {
+        return res.status(400).json({
+          message: "Aadhaar card validation failed",
+          error: aadhaarValidation.error,
+        });
+      }
+      console.log('Aadhaar verified:', aadhaarValidation.aadhaarNumber);
+    }
+    
+    // NOW PROCESS FILE UPLOADS TO CLOUDINARY (after validation passes)
     let uploadedFiles = {};
-    const filesToDelete = []; // Track old files to delete from Cloudinary
-
+    const filesToDelete = [];
+    
     if (req.files && Object.keys(req.files).length > 0) {
       try {
         uploadedFiles = await processGroupFileUploads(req.files);
@@ -413,10 +515,7 @@ export const UpdateGroup = async (req, res) => {
         if (uploadedFiles.bank_check && existingGroup.bank_check) {
           filesToDelete.push(existingGroup.bank_check);
         }
-        if (
-          uploadedFiles.company_certificate &&
-          existingGroup.company_certificate
-        ) {
+        if (uploadedFiles.company_certificate && existingGroup.company_certificate) {
           filesToDelete.push(existingGroup.company_certificate);
         }
         if (uploadedFiles.company_logo && existingGroup.company_logo) {
@@ -517,10 +616,7 @@ export const UpdateGroup = async (req, res) => {
         if (name && duplicateGroup.name.toLowerCase() === name.toLowerCase()) {
           duplicateFields.push("name");
         }
-        if (
-          email &&
-          duplicateGroup.email.toLowerCase() === email.toLowerCase()
-        ) {
+        if (email && duplicateGroup.email.toLowerCase() === email.toLowerCase()) {
           duplicateFields.push("email");
         }
         if (contact_no && duplicateGroup.contact_no === contact_no) {
@@ -530,10 +626,24 @@ export const UpdateGroup = async (req, res) => {
           duplicateFields.push("GST number");
         }
 
+        // Delete newly uploaded files if duplicate found
+        if (Object.keys(uploadedFiles).length > 0) {
+          for (const fileUrl of Object.values(uploadedFiles)) {
+            if (fileUrl) {
+              try {
+                const publicId = extractPublicId(fileUrl);
+                if (publicId) {
+                  await deleteFromCloudinary(publicId, "image");
+                }
+              } catch (deleteError) {
+                console.error('Error deleting uploaded file:', deleteError);
+              }
+            }
+          }
+        }
+
         return res.status(409).json({
-          message: `Another group with the same ${duplicateFields.join(
-            ", "
-          )} already exists`,
+          message: `Another group with the same ${duplicateFields.join(", ")} already exists`,
           duplicateFields: duplicateFields,
           existingGroupId: duplicateGroup._id,
         });
@@ -543,16 +653,16 @@ export const UpdateGroup = async (req, res) => {
     // Build update data object
     const updateData = {};
 
-    // Update basic fields if provided
-    if (name) updateData.name = name;
-    if (email) updateData.email = email;
-    if (contact_no) updateData.contact_no = contact_no;
-    if (pan_no) updateData.pan_no = pan_no;
+    // Update basic fields if provided (not undefined)
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (contact_no !== undefined) updateData.contact_no = contact_no;
+    if (pan_no !== undefined) updateData.pan_no = pan_no;
 
     // Organisation-specific fields
     if (existingGroup.grp_type === "organisation") {
-      if (address) updateData.address = address;
-      if (organisation_type) updateData.organisation_type = organisation_type;
+      if (address !== undefined) updateData.address = address;
+      if (organisation_type !== undefined) updateData.organisation_type = organisation_type;
     }
 
     if (gst_no !== undefined) updateData.gst_no = gst_no; // Allow empty string to clear
@@ -594,9 +704,7 @@ export const UpdateGroup = async (req, res) => {
     if (uploadedFiles.bank_check) {
       updateData.bank_check = uploadedFiles.bank_check;
       if (req.files?.bank_check?.[0]) {
-        updateData.bank_check_type = getFileType(
-          req.files.bank_check[0].mimetype
-        );
+        updateData.bank_check_type = getFileType(req.files.bank_check[0].mimetype);
       }
     }
 
@@ -612,9 +720,10 @@ export const UpdateGroup = async (req, res) => {
     if (uploadedFiles.company_logo) {
       updateData.company_logo = uploadedFiles.company_logo;
     }
+    
     // Validation for organisation groups
     if (existingGroup.grp_type === "organisation") {
-      const finalOrgType = organisation_type || existingGroup.organisation_type;
+      const finalOrgType = organisation_type !== undefined ? organisation_type : existingGroup.organisation_type;
 
       if (finalOrgType && finalOrgType.toLowerCase() !== "educational") {
         // Check if required fields are present (either in update or existing data)
@@ -637,14 +746,13 @@ export const UpdateGroup = async (req, res) => {
 
         if (missingFields.length > 0) {
           return res.status(400).json({
-            message: `Non-educational organisations require: ${missingFields.join(
-              ", "
-            )}`,
+            message: `Non-educational organisations require: ${missingFields.join(", ")}`,
             missingFields: missingFields,
           });
         }
       }
     }
+    
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({
