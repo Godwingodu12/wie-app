@@ -175,6 +175,7 @@ const CreateGroup = () => {
   const [hasGst, setHasGst] = useState('');
   const [existingGroups, setExistingGroups] = useState([]);
   const [ticketData, setTicketData] = useState(null);
+  const [validatingFile, setValidatingFile] = useState(false);
   const { groupId } = useParams();
   const isEditMode = !!groupId;
   const [formData, setFormData] = useState({
@@ -499,6 +500,15 @@ const handleSubmit = async (e) => {
       }
     });
 
+    // Show validation message if Aadhaar card is being uploaded
+    if (files.id_proof) {
+      showAlert({
+        type: 'info',
+        message: 'Validating Documents',
+        description: 'Please wait while we verify your Aadhaar card and bank details...'
+      });
+    }
+
     if (isEditMode) {
       // Update existing group
       await UpdateGroup(groupId, submitData);
@@ -524,10 +534,15 @@ const handleSubmit = async (e) => {
     }
   } catch (error) {
     console.error('Error saving group:', error);
-    const errorMessage = error.response?.data?.message || 'An unexpected error occurred. Please try again.';
+    // Enhanced error handling for validation errors
+    const errorMessage = error.response?.data?.error || 
+                        error.response?.data?.message || 
+                        'An unexpected error occurred. Please try again.';
+    const isValidationError = errorMessage.toLowerCase().includes('aadhaar') || 
+                              errorMessage.toLowerCase().includes('ifsc');
     showAlert({ 
       type: 'error', 
-      message: isEditMode ? 'Update Failed' : 'Creation Failed', 
+      message: isValidationError ? 'Validation Failed' : (isEditMode ? 'Update Failed' : 'Creation Failed'), 
       description: errorMessage 
     });
   } finally {
@@ -567,11 +582,9 @@ const FileUploadArea = ({ label, name }) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
-
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-
       const allowedTypes = [
         'application/pdf',
         'application/msword',
@@ -580,7 +593,6 @@ const FileUploadArea = ({ label, name }) => {
         'image/png',
         'image/jpg',
       ];
-
       if (!allowedTypes.includes(file.type)) {
         showAlert({ 
           type: 'error', 
@@ -589,7 +601,6 @@ const FileUploadArea = ({ label, name }) => {
         });
         return;
       }
-
       if (file.size > 10 * 1024 * 1024) {
         showAlert({ 
           type: 'error', 
@@ -598,13 +609,10 @@ const FileUploadArea = ({ label, name }) => {
         });
         return;
       }
-
       handleFileUpload(name, file);
     };
-    
     input.click();
   };
-  
   const handleRemoveFile = (e) => {
     e.stopPropagation();
     setFiles(prev => ({ ...prev, [name]: null }));
@@ -613,7 +621,6 @@ const FileUploadArea = ({ label, name }) => {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
-  
   const hasError = !!errors[name];
   const hasFile = !!files[name];
   const previewUrl = filePreviews[name];
