@@ -264,7 +264,32 @@ export const getUserChats = async (req, res) => {
           console.error('Error fetching participant:', error);
         }
 
-        const unreadCount = chat.messages?.filter(
+        // ADDED: Check if user cleared this chat
+        let lastMessage = chat.lastMessage;
+        let filteredMessages = chat.messages || [];
+        
+        if (chat.clearedBy && chat.clearedBy.length > 0) {
+          const userClearRecord = chat.clearedBy.find(
+            item => item.user.toString() === userId.toString()
+          );
+          
+          if (userClearRecord) {
+            const clearTime = new Date(userClearRecord.clearedAt);
+            
+            // Filter messages after clear time
+            filteredMessages = chat.messages.filter(msg => 
+              new Date(msg.createdAt || msg.timestamp) > clearTime
+            );
+            
+            // If last message was before clear time, don't show it
+            if (lastMessage && new Date(lastMessage.timestamp) <= clearTime) {
+              lastMessage = null;
+            }
+          }
+        }
+
+        // CHANGED: Calculate unread count from filtered messages only
+        const unreadCount = filteredMessages.filter(
           msg => 
             msg.sender.toString() !== userId.toString() &&
             !msg.readBy?.some(id => id.toString() === userId.toString())
@@ -273,7 +298,7 @@ export const getUserChats = async (req, res) => {
         return {
           _id: chat._id,
           participant: participant && !participant.error ? participant : null,
-          lastMessage: chat.lastMessage || null,
+          lastMessage: lastMessage || null,
           unreadCount: unreadCount,
           updatedAt: chat.updatedAt
         };
@@ -301,7 +326,6 @@ export const getUserChats = async (req, res) => {
     });
   }
 };
-
 export const sendMessage = async (req, res) => {
   try {
     const { chatId, content } = req.body;
@@ -344,6 +368,7 @@ export const sendMessage = async (req, res) => {
     const receiverId = chat.participants.find(
       id => id.toString() !== userId.toString()
     );
+    
     const { isUserOnline } = await import('../socket/socket.js');
     const receiverOnline = isUserOnline(receiverId);
     const receiverViewingChat = receiverOnline && 
@@ -353,7 +378,6 @@ export const sendMessage = async (req, res) => {
           const sockets = io.sockets.sockets;
           for (const [socketId, socket] of sockets) {
             if (socket.userId === receiverId.toString()) {
-              // Check if this socket is in the chat room
               resolve(socket.rooms.has(chatId.toString()));
               return;
             }
@@ -363,56 +387,78 @@ export const sendMessage = async (req, res) => {
           resolve(false);
         }
       }));
-      const message = {
-        sender: userId,
-        content: content.trim(),
-        readBy: receiverViewingChat ? [userId, receiverId] : [userId], // FIXED: Auto-mark as read if viewing
-        isRead: receiverViewingChat, // FIXED: Set isRead if receiver is viewing
-        deliveredTo: receiverOnline ? [receiverId] : [],
-        timestamp: new Date()
-      };
-      chat.messages.push(message);
-      chat.lastMessage = {
-        content: content.trim(),
-        sender: userId,
-        timestamp: new Date()
-      };
-      chat.deletedFor = [];
-      chat.updatedAt = new Date();
-      await chat.save();
-      const savedMessage = chat.messages[chat.messages.length - 1];
-      const messageDataForSender = {
-        _id: savedMessage._id,
-        content: savedMessage.content,
-        sender: userId.toString(),
-        timestamp: savedMessage.timestamp,
-        createdAt: savedMessage.timestamp,
-        readBy: savedMessage.readBy.map(id => id.toString()),
-        deliveredTo: savedMessage.deliveredTo?.map(id => id.toString()) || [],
-        isRead: savedMessage.isRead, // FIXED: Include actual read status
-        isSender: true,
-        receiverOnline
-      };
-      const messageDataForReceiver = {
-        _id: savedMessage._id,
-        content: savedMessage.content,
-        sender: userId.toString(),
-        timestamp: savedMessage.timestamp,
-        createdAt: savedMessage.timestamp,
-        readBy: savedMessage.readBy.map(id => id.toString()),
-        deliveredTo: savedMessage.deliveredTo?.map(id => id.toString()) || [],
-        isRead: savedMessage.isRead, // FIXED: Include actual read status
-        isSender: false
-      };
+
+    const message = {
+      sender: userId,
+      content: content.trim(),
+      readBy: receiverViewingChat ? [userId, receiverId] : [userId], 
+      isRead: receiverViewingChat,
+      deliveredTo: receiverOnline ? [receiverId] : [],
+      timestamp: new Date()
+    };
+    
+    chat.messages.push(message);
+    chat.lastMessage = {
+      content: content.trim(),
+      sender: userId,
+      timestamp: new Date()
+    };
+    
+    if (chat.deletedFor && chat.deletedFor.length > 0) {
+      chat.deletedFor = chat.deletedFor.filter(
+        id => id.toString() !== receiverId.toString()
+      );
+    }
+    
+    chat.updatedAt = new Date();
+    await chat.save();
+    
+    const savedMessage = chat.messages[chat.messages.length - 1];
+    
+    const messageDataForSender = {
+      _id: savedMessage._id.toString(), // CHANGED: Ensure string
+      content: savedMessage.content,
+      sender: userId.toString(),
+      timestamp: savedMessage.timestamp,
+      createdAt: savedMessage.timestamp,
+      readBy: savedMessage.readBy.map(id => id.toString()),
+      deliveredTo: savedMessage.deliveredTo?.map(id => id.toString()) || [],
+      isRead: savedMessage.isRead,
+      isSender: true,
+      receiverOnline
+    };
+    
+    const messageDataForReceiver = {
+      _id: savedMessage._id.toString(), // CHANGED: Ensure string
+      content: savedMessage.content,
+      sender: userId.toString(),
+      timestamp: savedMessage.timestamp,
+      createdAt: savedMessage.timestamp,
+      readBy: savedMessage.readBy.map(id => id.toString()),
+      deliveredTo: savedMessage.deliveredTo?.map(id => id.toString()) || [],
+      isRead: savedMessage.isRead,
+      isSender: false
+    };
+    
+    // CHANGED: Send HTTP response FIRST before socket emissions
+    res.status(201).json({
+      success: true,
+      message: messageDataForSender,
+      chatId: chat._id
+    });
+    
+    // CHANGED: Then emit socket events (non-blocking)
+    setImmediate(() => {
       try {
         const io = getIO();
         
+        // Emit to chat room (receiver)
         io.to(chatId.toString()).emit('new-message', {
           chatId: chatId.toString(),
           message: messageDataForReceiver,
           sender: userId.toString(),
           timestamp: new Date(),
-          autoRead: receiverViewingChat // FIXED: Tell client message was auto-read
+          autoRead: receiverViewingChat
         });
 
         const notificationData = {
@@ -425,7 +471,7 @@ export const sendMessage = async (req, res) => {
             senderImage: senderInfo?.image || null,
             timestamp: new Date(),
             deliveredTo: savedMessage.deliveredTo?.map(id => id.toString()) || [],
-            isRead: savedMessage.isRead // FIXED: Include read status
+            isRead: savedMessage.isRead
           },
           lastMessage: {
             content: content.trim(),
@@ -438,10 +484,10 @@ export const sendMessage = async (req, res) => {
             image: senderInfo?.image || null,
             email: senderInfo?.email || ''
           },
-          unreadCount: receiverViewingChat ? 0 : 1, // FIXED: 0 if viewing, 1 if not
+          unreadCount: receiverViewingChat ? 0 : 1,
           timestamp: new Date(),
           isFirstMessage: chat.messages.length === 1,
-          autoRead: receiverViewingChat // FIXED: Inform about auto-read
+          autoRead: receiverViewingChat
         };
 
         io.to(receiverId.toString()).emit('new-message-notification', notificationData);
@@ -453,7 +499,7 @@ export const sendMessage = async (req, res) => {
             sender: userId.toString(),
             timestamp: new Date()
           },
-          unreadCount: receiverViewingChat ? 0 : 1, // FIXED: Correct unread count
+          unreadCount: receiverViewingChat ? 0 : 1,
           participant: {
             _id: senderInfo?._id || userId.toString(),
             name: senderInfo?.name || 'Someone',
@@ -462,14 +508,20 @@ export const sendMessage = async (req, res) => {
           isFirstMessage: chat.messages.length === 1
         });
 
+        // Emit to sender (for confirmation)
+        io.to(userId.toString()).emit('new-message', {
+          chatId: chatId.toString(),
+          message: messageDataForSender,
+          sender: userId.toString(),
+          timestamp: new Date(),
+          autoRead: false
+        });
+
       } catch (socketError) {
         console.error('Socket emit failed:', socketError.message);
       }
-      res.status(201).json({
-        success: true,
-        message: messageDataForSender,
-        chatId: chat._id
-      });
+    });
+    
   } catch (error) {
     console.error('Error sending message:', error);
     res.status(500).json({
@@ -515,16 +567,36 @@ export const getChatMessages = async (req, res) => {
       // Silent fail
     }
     
-    // Mark messages as read BEFORE returning
+    // ADDED: Filter messages based on when user cleared the chat
+    let filteredMessages = chat.messages;
+    
+    if (chat.clearedBy && chat.clearedBy.length > 0) {
+      const userClearRecord = chat.clearedBy.find(
+        item => item.user.toString() === userId.toString()
+      );
+      
+      if (userClearRecord) {
+        // Only show messages sent after the user cleared the chat
+        filteredMessages = chat.messages.filter(
+          msg => new Date(msg.createdAt || msg.timestamp) > new Date(userClearRecord.clearedAt)
+        );
+      }
+    }
+    
+    // Mark messages as read BEFORE returning (only filtered messages)
     let updated = false;
     const unreadMessageIds = [];
     
-    chat.messages.forEach(msg => {
-      if (msg.sender.toString() !== userId.toString() && 
-          !msg.readBy.some(id => id.toString() === userId.toString())) {
-        msg.readBy.push(userId);
-        msg.isRead = true;
-        unreadMessageIds.push(msg._id);
+    filteredMessages.forEach(msg => {
+      // Find the actual message in chat.messages to update it
+      const actualMsg = chat.messages.find(m => m._id.toString() === msg._id.toString());
+      
+      if (actualMsg && 
+          actualMsg.sender.toString() !== userId.toString() && 
+          !actualMsg.readBy.some(id => id.toString() === userId.toString())) {
+        actualMsg.readBy.push(userId);
+        actualMsg.isRead = true;
+        unreadMessageIds.push(actualMsg._id);
         updated = true;
       }
     });
@@ -559,13 +631,13 @@ export const getChatMessages = async (req, res) => {
       }
     }
     
-    // Paginate messages (latest first approach)
-    const totalMessages = chat.messages.length;
+    // Paginate FILTERED messages (latest first approach)
+    const totalMessages = filteredMessages.length;
     const startIndex = Math.max(0, totalMessages - (parseInt(page) * parseInt(limit)));
     const endIndex = totalMessages - ((parseInt(page) - 1) * parseInt(limit));
-    const paginatedMessages = chat.messages.slice(startIndex, endIndex);
+    const paginatedMessages = filteredMessages.slice(startIndex, endIndex);
     
-    // CRITICAL FIX: Convert to plain objects to ensure all fields are sent
+    // Convert to plain objects to ensure all fields are sent
     const messagesWithAllFields = paginatedMessages.map(msg => ({
       _id: msg._id,
       sender: msg.sender,
@@ -617,25 +689,44 @@ export const clearChatMessages = async (req, res) => {
       });
     }
     
-    // Clear all messages
-    chat.messages = [];
-    chat.lastMessage = null;
+    // CHANGED: Instead of deleting messages, mark when user cleared their view
+    if (!chat.clearedBy) {
+      chat.clearedBy = [];
+    }
+    
+    // Remove existing clear record for this user if any
+    chat.clearedBy = chat.clearedBy.filter(
+      item => item.user.toString() !== userId.toString()
+    );
+    
+    // Add new clear record
+    chat.clearedBy.push({
+      user: userId,
+      clearedAt: new Date()
+    });
+    
     await chat.save();
     
-    // Notify other participant
+    // CHANGED: Only notify the user who cleared, not others
     try {
       const io = getIO();
-      io.to(chatId.toString()).emit('chat-cleared', {
-        chatId: chatId.toString(),
-        clearedBy: userId.toString()
-      });
+      // Emit to the specific user's socket only
+      const userSockets = await io.in(chatId.toString()).fetchSockets();
+      for (const socket of userSockets) {
+        if (socket.data?.userId?.toString() === userId.toString()) {
+          socket.emit('chat-cleared', {
+            chatId: chatId.toString(),
+            clearedBy: userId.toString()
+          });
+        }
+      }
     } catch (socketError) {
       console.error('Socket emit failed:', socketError.message);
     }
     
     res.status(200).json({
       success: true,
-      message: 'Chat cleared successfully'
+      message: 'Chat cleared successfully for you'
     });
   } catch (error) {
     console.error('❌ Error clearing chat:', error);
@@ -812,42 +903,67 @@ export const clearAndDeleteChat = async (req, res) => {
         message: 'Chat not found'
       });
     }
+    
     if (!chat.participants.some(id => id.toString() === userId.toString())) {
       return res.status(403).json({
         success: false,
         message: 'You are not a participant in this chat'
       });
     }
+    
     const otherParticipantId = chat.participants.find(
       id => id.toString() !== userId.toString()
     );
-    await Chat.deleteOne({ _id: chatId });
+    
+    // CHANGED: Instead of deleting, mark as cleared AND deleted for this user
+    
+    // 1. Add to clearedBy array
+    if (!chat.clearedBy) {
+      chat.clearedBy = [];
+    }
+    chat.clearedBy = chat.clearedBy.filter(
+      item => item.user.toString() !== userId.toString()
+    );
+    chat.clearedBy.push({
+      user: userId,
+      clearedAt: new Date()
+    });
+    
+    // 2. Add to deletedFor array
+    if (!chat.deletedFor) {
+      chat.deletedFor = [];
+    }
+    if (!chat.deletedFor.some(id => id.toString() === userId.toString())) {
+      chat.deletedFor.push(userId);
+    }
+    
+    await chat.save();
+    
+    // CHANGED: Only emit to the user who deleted, not to other participant
     try {
       const io = getIO();
+      
+      // Only notify the user who performed the action
       io.to(userId.toString()).emit('chat-deleted', {
         chatId: chatId.toString(),
         deletedBy: userId.toString()
       });
-      io.to(otherParticipantId.toString()).emit('chat-deleted', {
-        chatId: chatId.toString(),
-        deletedBy: userId.toString()
-      });
-      // Emit to chat room
-      emitToChat(chatId, 'chat-deleted', {
-        chatId: chatId.toString(),
-        deletedBy: userId.toString()
-      });
+      
+      // DO NOT emit to other participant - they should still see the chat
+      
     } catch (socketError) {
-      // Silent fail
+      console.error('Socket emit failed:', socketError.message);
     }
+    
     res.status(200).json({
       success: true,
-      message: 'Chat permanently deleted'
+      message: 'Chat cleared and hidden for you'
     });
   } catch (error) {
+    console.error('❌ Error in clearAndDeleteChat:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete chat'
+      message: 'Failed to clear and delete chat'
     });
   }
 };
