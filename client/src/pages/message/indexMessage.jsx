@@ -112,12 +112,12 @@ const IndexMessage = () => {
       const isThisSpecificChatOpen = selectedChat?._id === chatId || currentChatId === chatId;
       const isMessageFromMe = message?.sender === currentUserId;
       
-      // FIXED: Use setTimeout to avoid setState during render
       setTimeout(() => {
         setChats(prevChats => {
           const chatIndex = prevChats.findIndex(c => c._id === chatId);
           
           if (chatIndex !== -1) {
+            // Chat exists in list - update it
             const updatedChats = [...prevChats];
             const existingChat = updatedChats[chatIndex];
             
@@ -137,7 +137,6 @@ const IndexMessage = () => {
               newUnreadCount = contextCount;
             }
             
-            // FIXED: Create updated chat with new timestamp
             const updatedChat = {
               ...existingChat,
               lastMessage: lastMessage || {
@@ -146,14 +145,14 @@ const IndexMessage = () => {
                 timestamp: message?.timestamp || timestamp
               },
               unreadCount: newUnreadCount,
-              updatedAt: timestamp || new Date(), // Use message timestamp
+              updatedAt: timestamp || new Date(),
               participant: participant || existingChat.participant
             };
             
-            // FIXED: Remove from current position and add to top
             updatedChats.splice(chatIndex, 1);
             return [updatedChat, ...updatedChats];
-          } else if (isFirstMessage && !isMessageFromMe) {
+          } else {
+            // CHANGED: Chat doesn't exist in list - add it (handles deleted chat receiving new message)
             const newChat = {
               _id: chatId,
               participant: participant,
@@ -162,13 +161,11 @@ const IndexMessage = () => {
                 sender: message?.sender,
                 timestamp: message?.timestamp || timestamp
               },
-              unreadCount: (isThisSpecificChatOpen || autoRead) ? 0 : 1,
+              unreadCount: (isThisSpecificChatOpen || autoRead || isMessageFromMe) ? 0 : 1,
               updatedAt: timestamp || new Date()
             };
             return [newChat, ...prevChats];
           }
-          
-          return prevChats;
         });
       }, 0);
     }, [user, selectedChat?._id, markChatAsRead, unreadChats]);
@@ -190,7 +187,7 @@ const IndexMessage = () => {
       }, 0);
     }, [markChatAsRead]);
     const handleChatListUpdate = useCallback((event) => {
-      const { chatId, lastMessage, unreadCount, participant, updatedAt } = event.detail;
+      const { chatId, lastMessage, unreadCount, participant, updatedAt, isFirstMessage } = event.detail;
       
       setTimeout(() => {
         setChats(prevChats => {
@@ -203,7 +200,7 @@ const IndexMessage = () => {
             // Update the chat
             const updatedChat = {
               ...existingChat,
-              lastMessage: lastMessage || existingChat.lastMessage,
+              lastMessage: lastMessage !== undefined ? lastMessage : existingChat.lastMessage, // CHANGED: Allow null
               unreadCount: unreadCount !== undefined ? unreadCount : existingChat.unreadCount,
               participant: participant || existingChat.participant,
               updatedAt: updatedAt || new Date()
@@ -212,6 +209,16 @@ const IndexMessage = () => {
             // Move to top
             updatedChats.splice(chatIndex, 1);
             return [updatedChat, ...updatedChats];
+          } else if (isFirstMessage) {
+            // ADDED: Chat doesn't exist in list, add it (handles deleted chat case)
+            const newChat = {
+              _id: chatId,
+              participant: participant,
+              lastMessage: lastMessage,
+              unreadCount: unreadCount || 0,
+              updatedAt: updatedAt || new Date()
+            };
+            return [newChat, ...prevChats];
           }
           
           return prevChats;

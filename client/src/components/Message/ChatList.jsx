@@ -118,7 +118,6 @@ const ChatList = ({ chats, onSelectChat, isDark, selectedChatId }) => {
                   </span>
                 )}
               </div>
-              
               {chat.lastMessage ? (
                 <div className="flex items-center gap-1">
                   {chat.lastMessage.sender === chat.participant?._id ? null : (

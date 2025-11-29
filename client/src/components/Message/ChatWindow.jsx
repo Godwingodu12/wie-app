@@ -26,6 +26,10 @@ const ChatWindow = ({ chat, onBack, isDark }) => {
   const [messageToDelete, setMessageToDelete] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const optionsMenuRef = useRef(null);
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   const darkTheme = {
     isDark: true,
     text: "text-white",
@@ -104,30 +108,57 @@ const ChatWindow = ({ chat, onBack, isDark }) => {
       if (data.chatId === chat._id) {
         const transformedMessage = {
           ...data.message,
-          isSender: data.sender === currentUserId || data.message.sender === currentUserId
-        };        
+          _id: data.message._id.toString(), // ENSURE STRING ID
+          isSender: data.sender === currentUserId || data.message.sender === currentUserId,
+          pending: false
+        };
+        
         const wasAtBottom = checkIfAtBottom();
         
         setMessages(prev => {
-          // Check for duplicates
-          const exists = prev.some(msg => msg._id === transformedMessage._id);
-          if (exists) {
+          // IMPROVED: Check by string ID
+          const messageId = transformedMessage._id.toString();
+          
+          // Check if real message already exists
+          const existsById = prev.some(msg => {
+            const existingId = msg._id.toString();
+            return existingId === messageId && !existingId.startsWith('temp-');
+          });
+          
+          if (existsById) {
             return prev;
           }
+          
+          // Remove optimistic message if this is sender's message
+          if (transformedMessage.isSender) {
+            // Remove any temp message with same content from last 5 seconds
+            const filtered = prev.filter(msg => {
+              if (!msg._id.toString().startsWith('temp-')) return true;
+              if (msg.content !== transformedMessage.content) return true;
+              if (msg.sender !== currentUserId) return true;
+              
+              const msgTime = new Date(msg.timestamp).getTime();
+              const now = new Date().getTime();
+              return (now - msgTime) > 5000; // Keep if older than 5 seconds
+            });
+            
+            return [...filtered, transformedMessage];
+          }
+          
+          // For receiver's message, just add
           return [...prev, transformedMessage];
         });
 
         if (transformedMessage.isSender || wasAtBottom) {
           setTimeout(() => scrollToBottom(), 100);
         }
+        
         if (markChatAsRead && !transformedMessage.isSender) {
           const atBottom = checkIfAtBottom();
           
           if (atBottom && document.hasFocus()) {
-            // Mark as read immediately
             markChatAsRead(chat._id);
             
-            // Send read receipt to server
             if (socket && isConnected) {
               setTimeout(() => {
                 socket.emit('mark-read', {
@@ -140,7 +171,6 @@ const ChatWindow = ({ chat, onBack, isDark }) => {
         }
       }
     };
-
     const handleUserTyping = (data) => {
       if (data.chatId === chat._id && data.userId !== currentUserId) {
         setIsTyping(data.isTyping);
@@ -188,16 +218,39 @@ const ChatWindow = ({ chat, onBack, isDark }) => {
         }
       }
     };
+    const handleMessageSentConfirmation = (data) => {
+      if (data.chatId === chat._id && data.message) {
+        setMessages(prev => {
+          // Remove optimistic message and add confirmed one
+          const withoutOptimistic = prev.filter(msg => !msg.pending);
+          
+          // Check if already exists
+          const exists = withoutOptimistic.some(msg => msg._id === data.message._id);
+          
+          if (!exists) {
+            return [...withoutOptimistic, {
+              ...data.message,
+              isSender: true,
+              pending: false
+            }];
+          }
+          
+          return withoutOptimistic;
+        });
+      }
+    };
     socket.on('chat-deleted', handleChatDeleted);
     socket.on('chat-cleared', handleChatCleared);
     socket.on('message-deleted', handleMessageDeleted);
     socket.on('new-message', handleNewMessage);
     socket.on('user-typing', handleUserTyping);
     socket.on('messages-read', handleMessagesRead);
+    socket.on('message-sent-confirmation', handleMessageSentConfirmation);
     return () => {
       socket.off('new-message', handleNewMessage);
       socket.off('user-typing', handleUserTyping);
       socket.off('messages-read', handleMessagesRead);
+      socket.off('message-sent-confirmation', handleMessageSentConfirmation);
       socket.off('chat-cleared', handleChatCleared);
       socket.off('message-deleted', handleMessageDeleted);
       socket.off('chat-deleted', handleChatDeleted);
@@ -240,10 +293,8 @@ const ChatWindow = ({ chat, onBack, isDark }) => {
   }, [showOptionsMenu]);
   const fetchMessages = async () => {
     if (!chat?._id) return;
-    
     setLoading(true);
     setFetchError(null);
-    
     try {
       const response = await getChatMessages(chat._id);    
       const fetchedMessages = response.messages || [];      
@@ -294,18 +345,22 @@ const ChatWindow = ({ chat, onBack, isDark }) => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || sending) return;
+    
     const messageContent = newMessage.trim();
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
     setNewMessage('');
     clearDraft(chat._id);
     setSending(true);
     isUserTypingRef.current = false;
+    
     if (socket && isConnected) {
       socket.emit('typing', { chatId: chat._id, isTyping: false });
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
     }
+    
     const optimisticMessage = {
       _id: tempId,
       content: messageContent,
@@ -322,23 +377,28 @@ const ChatWindow = ({ chat, onBack, isDark }) => {
     setTimeout(() => scrollToBottom(), 50);
 
     try {
-      const response = await sendMessage(chat._id, messageContent);      
-      // Remove optimistic message
-      setMessages(prev => prev.filter(msg => msg._id !== tempId));
+      const response = await sendMessage(chat._id, messageContent);
+      const realMessageId = response.message._id.toString();
       
-      // Add real message if not already received via socket
-      if (response.message) {
-        setMessages(prev => {
-          const exists = prev.some(msg => msg._id === response.message._id);
-          if (!exists) {
-            return [...prev, response.message];
-          }
-          return prev;
-        });
-        setTimeout(() => scrollToBottom(), 50);
+      // CHANGED: Use ref to track if socket message arrived
+      const socketMessageArrived = messagesRef.current?.some(msg => 
+        msg._id.toString() === realMessageId && !msg.pending
+      );
+      
+      if (socketMessageArrived) {
+        // Socket message already arrived, just remove optimistic
+        setMessages(prev => prev.filter(msg => msg._id !== tempId));
+      } else {
+        // Socket message not arrived yet, replace optimistic with API response
+        setMessages(prev => prev.map(msg => 
+          msg._id === tempId 
+            ? { ...response.message, _id: realMessageId, isSender: true, pending: false }
+            : msg
+        ));
       }
       
-      // FIXED: Trigger chat list update to move this chat to top
+      setTimeout(() => scrollToBottom(), 50);
+      
       window.dispatchEvent(new CustomEvent('chat-list-update', {
         detail: {
           chatId: chat._id,
@@ -349,25 +409,23 @@ const ChatWindow = ({ chat, onBack, isDark }) => {
           },
           unreadCount: 0,
           participant: chat.participant,
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          isFirstMessage: false
         }
       }));
       
     } catch (error) {
       console.error('❌ Failed to send message:', error);
-      
-      // Remove optimistic message and restore draft
       setMessages(prev => prev.filter(msg => msg._id !== tempId));
       setNewMessage(messageContent);
       saveDraft(chat._id, messageContent);
-      
       alert('Failed to send message. Please check your connection and try again.');
     } finally {
       setSending(false);
     }
   };
   const handleClearChat = async () => {
-    if (!window.confirm('Are you sure you want to clear all messages? This action cannot be undone.')) {
+    if (!window.confirm('Are you sure you want to clear all messages? This will only clear the chat for you.')) {
       return;
     }
     
@@ -375,7 +433,19 @@ const ChatWindow = ({ chat, onBack, isDark }) => {
       await clearChatMessages(chat._id);
       setMessages([]);
       setShowOptionsMenu(false);
-      alert('Chat cleared successfully');
+      
+      // Update chat list to remove last message
+      window.dispatchEvent(new CustomEvent('chat-list-update', {
+        detail: {
+          chatId: chat._id,
+          lastMessage: null,
+          unreadCount: 0,
+          participant: chat.participant,
+          updatedAt: new Date()
+        }
+      }));
+      
+      alert('Chat cleared successfully (only for you)');
     } catch (error) {
       console.error('Failed to clear chat:', error);
       alert('Failed to clear chat. Please try again.');

@@ -213,6 +213,7 @@ export const SocketProvider = ({ children }) => {
         const currentChatId = sessionStorage.getItem('currentChatId');
         const currentUserId = user?._id || user?.id;
         const isViewingThisSendersChat = currentChatId === data.chatId;
+        
         setTimeout(() => {
           if (!isViewingThisSendersChat && !data.autoRead && isInitialized) {
             incrementUnreadCount(data.chatId);
@@ -222,6 +223,7 @@ export const SocketProvider = ({ children }) => {
           }
         }, 0);
         
+        // IMPORTANT: Always dispatch event to update/add chat in list
         window.dispatchEvent(new CustomEvent('chat-message-received', {
           detail: {
             chatId: data.chatId,
@@ -235,7 +237,6 @@ export const SocketProvider = ({ children }) => {
           }
         }));
       });
-
       // FIXED: Add handler for chat-specific unread count updates
       socketInstance.on('chat-unread-update', (data) => {
         if (data.chatId && typeof data.unreadCount === 'number') {
