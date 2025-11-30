@@ -473,7 +473,6 @@ export const UpdateGroup = async (req, res) => {
       primary_bank_acc_holder,
       status,
     } = req.body;
-    
     // VALIDATE IFSC CODE IF PROVIDED AND CHANGED
     if (primary_bank_ifsc !== undefined && primary_bank_ifsc && primary_bank_ifsc !== existingGroup.primary_bank_ifsc) {
       const ifscValidation = await validateIFSCCode(primary_bank_ifsc);
@@ -529,7 +528,6 @@ export const UpdateGroup = async (req, res) => {
         });
       }
     }
-
     // Prepare data for duplication checking (only if unique fields are being updated)
     const duplicateQuery = {
       _id: { $ne: groupId }, // Exclude current group from check
@@ -934,7 +932,6 @@ export const createTicketBasicInfo = async (req, res) => {
       seating_arrangement,
       kids_friendly,
       pet_friendly,
-
       // Location
       location_type,
       location,
@@ -1036,7 +1033,6 @@ export const createTicketBasicInfo = async (req, res) => {
         missingFields: missingBasicFields,
       });
     }
-
     // 2. Enum Validations (do this early to validate type before other checks)
     const validEventTypes = ['private', 'public'];
     if (!validEventTypes.includes(event_type)) {
@@ -1146,18 +1142,18 @@ export const createTicketBasicInfo = async (req, res) => {
 
     // 5. Age Validation
     const ageNum = Number(min_age_allowed);
-    if (isNaN(ageNum) || ageNum < 0 || ageNum > 100) {
+    if (isNaN(ageNum) || ageNum < 0 || ageNum > 150) {
       return res.status(400).json({
-        message: 'Minimum age allowed must be between 0 and 100',
+        message: 'Minimum age allowed must be between 0 and 150',
       });
     }
 
     let ageMax;
     if (max_age_allowed && String(max_age_allowed).trim() !== '') {
       const parsedAgeMax = Number(max_age_allowed);
-      if (isNaN(parsedAgeMax) || parsedAgeMax < 0 || parsedAgeMax > 100) {
+      if (isNaN(parsedAgeMax) || parsedAgeMax < 0 || parsedAgeMax > 150) {
         return res.status(400).json({
-          message: 'Maximum age allowed must be between 0 and 100 if provided',
+          message: 'Maximum age allowed must be between 0 and 150 if provided',
         });
       }
       if (parsedAgeMax < ageNum) {
@@ -1244,25 +1240,34 @@ export const createTicketBasicInfo = async (req, res) => {
         }
       }
     }
-
     // 9. POCs Validation
     if (POCS) {
       const pocsArray = parseJSONSafely(POCS, []);
-      if (pocsArray.length > 10) {
+      if (pocsArray.length === 0) {
         return res.status(400).json({
-          message: 'Maximum 10 POCs allowed',
+          message: "At least one Point of contact is required",
         });
       }
-
+      // Existing rule: Max 10 POCs allowed
+      if (pocsArray.length > 10) {
+        return res.status(400).json({
+          message: "Maximum 10 POCs allowed",
+        });
+      }
       // Validate each POC
       for (let i = 0; i < pocsArray.length; i++) {
         const poc = pocsArray[i];
-        if (typeof poc === 'object' && poc !== null) {
+
+        if (typeof poc === "object" && poc !== null) {
+          
+          // Name length
           if (poc.POC_name && poc.POC_name.length > 100) {
             return res.status(400).json({
               message: `POC ${i + 1} name must not exceed 100 characters`,
             });
           }
+
+          // Email validation
           if (poc.POC_email && poc.POC_email.trim()) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(poc.POC_email.trim())) {
@@ -1271,6 +1276,8 @@ export const createTicketBasicInfo = async (req, res) => {
               });
             }
           }
+
+          // Contact number validation
           if (poc.POC_contact && poc.POC_contact.trim()) {
             const phoneRegex = /^\+?[\d\s\-()]{10,15}$/;
             if (!phoneRegex.test(poc.POC_contact.trim())) {
@@ -1279,10 +1286,17 @@ export const createTicketBasicInfo = async (req, res) => {
               });
             }
           }
+        } else {
+          return res.status(400).json({
+            message: `Invalid POC data at index ${i + 1}`,
+          });
         }
       }
+    } else {
+      return res.status(400).json({
+        message: "Point of contact field is required and must contain at least 1 POC",
+      });
     }
-
     // 10. Hashtag Validation
     if (hashtag) {
       const hashtagArray = parseJSONSafely(hashtag, []);
@@ -2410,8 +2424,7 @@ export const updateTicketAddOns = async (req, res) => {
   const ticketId = req.params.ticketId;
   if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
     return res.status(400).json({
-      message:
-        "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
+      message: "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
       ticketId: ticketId,
     });
   }
@@ -2480,7 +2493,6 @@ export const updateTicketAddOns = async (req, res) => {
         hint: "Required fields include: event_name, event_category, location_type, etc.",
       });
     }
-
     if (typeof subEventData !== "object" || Array.isArray(subEventData)) {
       return res.status(400).json({
         message: "sub_event data must be an object",
@@ -2507,13 +2519,12 @@ export const updateTicketAddOns = async (req, res) => {
       { key: "total_capacity", value: subEventData.total_capacity },
       { key: "booking_start_date", value: subEventData.booking_start_date },
     ];
-
     let locationSpecificRequiredFields = [];
     if (subEventData.location_type === "offline") {
       locationSpecificRequiredFields = [
-        { key: "location", value: subEventData.location },
-        { key: "venue", value: subEventData.venue },
-        { key: "seating_arrangement", value: subEventData.seating_arrangement },
+        { key: "location", value: subEventData.location, type: "string" },
+        { key: "venue", value: subEventData.venue, type: "string" },
+        { key: "seating_arrangement", value: subEventData.seating_arrangement, type: "string" },
       ];
     } else if (
       subEventData.location_type === "online" ||
@@ -2544,9 +2555,6 @@ export const updateTicketAddOns = async (req, res) => {
             : "",
       });
     }
-
-    // ===== PARSE ALL COMMON DATA FIRST (BEFORE EDIT CHECK) =====
-
     const parseNestedData = (data, fieldName) => {
       if (!data) return [];
 
@@ -2577,29 +2585,48 @@ export const updateTicketAddOns = async (req, res) => {
         return [];
       }
     };
-
     let eventDates = parseNestedData(
       subEventData.event_dates || req.body.event_dates,
       "event_dates"
     );
-
-    // Validate event_link for online/recorded events
-    if (
-      subEventData.location_type === "online" ||
-      subEventData.location_type === "recorded"
-    ) {
-      for (const date of eventDates) {
+    if (!Array.isArray(eventDates) || eventDates.length === 0) {
+      return res.status(400).json({
+        message: "event_dates is required and must be a non-empty array",
+        provided: subEventData.event_dates,
+        hint: "Provide at least one event date with start_date",
+      });
+    }
+    for (let i = 0; i < eventDates.length; i++) {
+      const date = eventDates[i];
+      if (!date.start_date || String(date.start_date).trim() === "") {
+        return res.status(400).json({
+          message: `event_dates[${i}].start_date is required`,
+          dateIndex: i,
+          provided: date,
+        });
+      }
+      // Validate event_link for online/recorded events
+      if (subEventData.location_type === "online" || subEventData.location_type === "recorded") {
         if (!date.event_link || String(date.event_link).trim() === "") {
           return res.status(400).json({
-            message:
-              "Event link is required for all dates in online/recorded events",
-            missingFor: `Date: ${date.start_date}`,
+            message: `event_dates[${i}].event_link is required for online/recorded events`,
+            dateIndex: i,
+            date: date.start_date,
             hint: "Please provide event_link for each date in event_dates array",
           });
         }
       }
+      // Validate video_name for recorded events
+      if (subEventData.location_type === "recorded") {
+        if (!date.video_name || String(date.video_name).trim() === "") {
+          return res.status(400).json({
+            message: `event_dates[${i}].video_name is required for recorded events`,
+            dateIndex: i,
+            date: date.start_date,
+          });
+        }
+      }
     }
-
     // Validate enum fields
     const validEventTypes = ["private", "public"];
     if (!validEventTypes.includes(subEventData.event_type)) {
@@ -2609,48 +2636,28 @@ export const updateTicketAddOns = async (req, res) => {
         validOptions: validEventTypes,
       });
     }
-
     const validLanguages = [
-      "English",
-      "Hindi",
-      "Malayalam",
-      "Tamil",
-      "Kannada",
-      "Telugu",
-      "Marathi",
-      "Gujarati",
-      "Punjabi",
-      "Urdu",
-      "Bengali",
-      "Spanish",
-      "French",
-      "German",
-      "Chinese",
-      "Japanese",
-      "Russian",
-      "Turkish",
-      "Korean",
-      "Portuguese",
-      "Arabic",
-      "Indonesian",
-      "Vietnamese",
-      "Other",
+      "English", "Hindi", "Malayalam", "Tamil", "Kannada", "Telugu",
+      "Marathi", "Gujarati", "Punjabi", "Urdu", "Bengali", "Spanish",
+      "French", "German", "Chinese", "Japanese", "Russian", "Turkish",
+      "Korean", "Portuguese", "Arabic", "Indonesian", "Vietnamese", "Other",
     ];
-
     const languageArray = parseJSONSafely(subEventData.event_language, []);
-    if (languageArray.length > 0) {
-      const invalidLanguages = languageArray.filter(
-        (lang) => !validLanguages.includes(lang)
-      );
-      if (invalidLanguages.length > 0) {
-        return res.status(400).json({
-          message: "Invalid event_language(s)",
-          provided: invalidLanguages,
-          validOptions: validLanguages,
-        });
-      }
+    if (!Array.isArray(languageArray) || languageArray.length === 0) {
+      return res.status(400).json({
+        message: "event_language is required and must be a non-empty array",
+        provided: subEventData.event_language,
+        validOptions: validLanguages,
+      });
     }
-
+    const invalidLanguages = languageArray.filter((lang) => !validLanguages.includes(lang));
+    if (invalidLanguages.length > 0) {
+      return res.status(400).json({
+        message: "Invalid event_language(s)",
+        provided: invalidLanguages,
+        validOptions: validLanguages,
+      });
+    }
     const validLocationTypes = ["offline", "online", "recorded"];
     if (!validLocationTypes.includes(subEventData.location_type)) {
       return res.status(400).json({
@@ -2659,28 +2666,29 @@ export const updateTicketAddOns = async (req, res) => {
         validOptions: validLocationTypes,
       });
     }
-
-    if (
-      subEventData.location_type === "offline" &&
-      subEventData.seating_arrangement
-    ) {
-      const validSeatingArrangements = [
-        "seated",
-        "standing",
-        "seated and standing",
-        "other",
-      ];
-      if (
-        !validSeatingArrangements.includes(subEventData.seating_arrangement)
-      ) {
+    if (subEventData.location_type === "offline") {
+      const validSeatingArrangements = ["seated", "standing", "seated and standing", "other"];
+      if (!validSeatingArrangements.includes(subEventData.seating_arrangement)) {
         return res.status(400).json({
-          message: "Invalid seating_arrangement",
+          message: "Invalid seating_arrangement for offline events",
           provided: subEventData.seating_arrangement,
           validOptions: validSeatingArrangements,
         });
       }
+      if (typeof subEventData.location !== "string" || subEventData.location.trim() === "") {
+        return res.status(400).json({
+          message: "location is required for offline events and must be a non-empty string",
+          provided: subEventData.location,
+        });
+      }
+      // Validate venue
+      if (typeof subEventData.venue !== "string" || subEventData.venue.trim() === "") {
+        return res.status(400).json({
+          message: "venue is required for offline events and must be a non-empty string",
+          provided: subEventData.venue,
+        });
+      }
     }
-
     const validPaymentTypes = ["free", "paid"];
     if (!validPaymentTypes.includes(subEventData.payment_type)) {
       return res.status(400).json({
@@ -2689,26 +2697,24 @@ export const updateTicketAddOns = async (req, res) => {
         validOptions: validPaymentTypes,
       });
     }
-
     const ageNum = Number(subEventData.min_age_allowed);
-    if (isNaN(ageNum) || ageNum < 0 || ageNum > 100) {
+    if (isNaN(ageNum) || ageNum < 0 || ageNum > 150) {
       return res.status(400).json({
-        message: "Minimum age allowed must be between 0 and 100",
+        message: "Minimum age allowed must be between 0 and 150",
       });
     }
-    let ageMax = 100;
+    let ageMax = 150;
     if (
       subEventData.max_age_allowed &&
       String(subEventData.max_age_allowed).trim() !== ""
     ) {
       const parsedAgeMax = Number(subEventData.max_age_allowed);
 
-      if (isNaN(parsedAgeMax) || parsedAgeMax < 0 || parsedAgeMax > 100) {
+      if (isNaN(parsedAgeMax) || parsedAgeMax < 0 || parsedAgeMax > 150) {
         return res.status(400).json({
-          message: "Maximum age allowed must be between 0 and 100 if provided",
+          message: "Maximum age allowed must be between 0 and 150 if provided",
         });
       }
-      // Check max > min
       if (parsedAgeMax < ageNum) {
         return res.status(400).json({
           message:
@@ -2716,6 +2722,33 @@ export const updateTicketAddOns = async (req, res) => {
         });
       }
       ageMax = parsedAgeMax;
+    }
+    if (!subEventData.total_capacity || String(subEventData.total_capacity).trim() === "") {
+      return res.status(400).json({
+        message: "total_capacity is required and must be provided",
+        provided: subEventData.total_capacity,
+      });
+    }
+    const totalCapacityNum = Number(subEventData.total_capacity);
+    if (isNaN(totalCapacityNum) || totalCapacityNum <= 0) {
+      return res.status(400).json({
+        message: "total_capacity must be a positive number",
+        provided: subEventData.total_capacity,
+      });
+    }
+    if (typeof subEventData.booking_start_date !== "string" || subEventData.booking_start_date.trim() === "") {
+      return res.status(400).json({
+        message: "booking_start_date is required and must be a non-empty string",
+        provided: subEventData.booking_start_date,
+      });
+    }
+    if (subEventData.booking_end_date) {
+      if (typeof subEventData.booking_end_date !== "string" || subEventData.booking_end_date.trim() === "") {
+        return res.status(400).json({
+          message: "booking_end_date must be a non-empty string if provided",
+          provided: subEventData.booking_end_date,
+        });
+      }
     }
 
     // Process files
@@ -2984,12 +3017,215 @@ export const updateTicketAddOns = async (req, res) => {
       subEventData.guests || req.body.guests,
       "guests"
     );
-    const bankingDetails = parseNestedData(
+    const rawBankingDetails = parseNestedData(
       subEventData.banking_details || req.body.banking_details,
       "banking_details"
     );
-    const POCS = parseNestedData(subEventData.POCS || req.body.POCS, "POCS");
+    // Validate banking details with IFSC verification
+    let validatedBankingDetails = [];
+    if (rawBankingDetails && rawBankingDetails.length > 0) {
+      // Validate each banking detail
+      for (let index = 0; index < rawBankingDetails.length; index++) {
+        const banking = rawBankingDetails[index];
+        // Validate bank_acc_type
+        if (!banking.bank_acc_type || String(banking.bank_acc_type).trim() === "") {
+          return res.status(400).json({
+            message: `bank_acc_type is required for banking detail ${index + 1}`,
+            field: "bank_acc_type",
+            bankingDetailIndex: index + 1,
+            hint: "Valid options: current, merchant",
+          });
+        }
 
+        const validAccountTypes = ["current", "merchant"];
+        const accType = String(banking.bank_acc_type).trim().toLowerCase();
+
+        if (!validAccountTypes.includes(accType)) {
+          return res.status(400).json({
+            message: `Invalid bank account type for banking detail ${index + 1}`,
+            field: "bank_acc_type",
+            bankingDetailIndex: index + 1,
+            provided: banking.bank_acc_type,
+            validOptions: validAccountTypes,
+            hint: "Please select either 'current' or 'merchant'",
+          });
+        }
+
+        // Validate bank_acc_no
+        if (!banking.bank_acc_no || String(banking.bank_acc_no).trim() === "") {
+          return res.status(400).json({
+            message: `bank_acc_no is required for banking detail ${index + 1}`,
+            field: "bank_acc_no",
+            bankingDetailIndex: index + 1,
+            hint: "Please provide your bank account number",
+          });
+        }
+
+        // Validate account number - numeric only
+        if (!/^\d+$/.test(String(banking.bank_acc_no).trim())) {
+          return res.status(400).json({
+            message: `Invalid bank account number format for banking detail ${index + 1}`,
+            field: "bank_acc_no",
+            bankingDetailIndex: index + 1,
+            error: "Bank account number must contain only digits",
+            provided: banking.bank_acc_no,
+            hint: "Remove any spaces, hyphens, or special characters",
+          });
+        }
+
+        // Validate account number length (9-18 digits)
+        const accNoLength = String(banking.bank_acc_no).trim().length;
+        if (accNoLength < 9 || accNoLength > 18) {
+          return res.status(400).json({
+            message: `Invalid bank account number length for banking detail ${index + 1}`,
+            field: "bank_acc_no",
+            bankingDetailIndex: index + 1,
+            error: `Account number must be between 9-18 digits. You entered ${accNoLength} digits`,
+            provided: banking.bank_acc_no,
+            hint: "Please check your bank account number and enter the correct length",
+          });
+        }
+
+        // Validate bank_ifsc
+        if (!banking.bank_ifsc || String(banking.bank_ifsc).trim() === "") {
+          return res.status(400).json({
+            message: `bank_ifsc is required for banking detail ${index + 1}`,
+            field: "bank_ifsc",
+            bankingDetailIndex: index + 1,
+            hint: "Please provide your bank's IFSC code",
+          });
+        }
+
+        const ifscCode = String(banking.bank_ifsc).trim().toUpperCase();
+
+        // Basic IFSC format validation
+        const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+        if (!ifscRegex.test(ifscCode)) {
+          return res.status(400).json({
+            message: `Invalid IFSC code format for banking detail ${index + 1}`,
+            field: "bank_ifsc",
+            bankingDetailIndex: index + 1,
+            error: "IFSC code must be 11 characters: 4 bank letters + '0' (zero) + 6 branch characters",
+            provided: ifscCode,
+            example: "SBIN0001234",
+            hint: "Please check your IFSC code. The 5th character must be '0' (zero)",
+          });
+        }
+
+        // Live IFSC verification
+        let ifscValidation;
+        try {
+          ifscValidation = await validateIFSCCode(ifscCode);
+          
+          if (!ifscValidation.isValid) {
+            return res.status(400).json({
+              message: `IFSC code verification failed for banking detail ${index + 1}`,
+              field: "bank_ifsc",
+              bankingDetailIndex: index + 1,
+              error: ifscValidation.error || "IFSC code not found in bank database",
+              provided: ifscCode,
+              hint: "Please verify your IFSC code from your bank passbook or check",
+            });
+          }
+        } catch (ifscError) {
+          return res.status(400).json({
+            message: `IFSC code verification failed for banking detail ${index + 1}`,
+            field: "bank_ifsc",
+            bankingDetailIndex: index + 1,
+            error: ifscError.message || "Unable to verify IFSC code",
+            provided: ifscCode,
+            hint: "Please check your IFSC code or try again later",
+          });
+        }
+
+        console.log(
+          `✅ IFSC verified for banking detail ${index + 1}:`,
+          ifscValidation.bankDetails
+        );
+
+        // Validate bank_acc_holder
+        if (!banking.bank_acc_holder || String(banking.bank_acc_holder).trim() === "") {
+          return res.status(400).json({
+            message: `bank_acc_holder is required for banking detail ${index + 1}`,
+            field: "bank_acc_holder",
+            bankingDetailIndex: index + 1,
+            hint: "Please provide the account holder's name",
+          });
+        }
+
+        // Validate account holder name - letters and spaces only
+        if (!/^[a-zA-Z\s]+$/.test(String(banking.bank_acc_holder).trim())) {
+          return res.status(400).json({
+            message: `Invalid account holder name format for banking detail ${index + 1}`,
+            field: "bank_acc_holder",
+            bankingDetailIndex: index + 1,
+            error: "Account holder name must contain only letters and spaces",
+            provided: banking.bank_acc_holder,
+            hint: "Remove any numbers or special characters from the name",
+          });
+        }
+        // All validations passed for this banking detail
+        validatedBankingDetails.push({
+          bank_acc_type: accType,
+          bank_acc_no: String(banking.bank_acc_no).trim(),
+          bank_ifsc: ifscCode,
+          bank_acc_holder: String(banking.bank_acc_holder).trim(),
+          is_group_account: false,
+          bank_verified_details: ifscValidation.bankDetails || null,
+        });
+      }
+    }
+    const POCS = parseNestedData(subEventData.POCS || req.body.POCS, "POCS");
+    if (!Array.isArray(POCS) || POCS.length === 0) {
+      return res.status(400).json({
+        message: "At least one Point of Contact (POC) is required",
+        provided: subEventData.POCS,
+        hint: "Provide POCS as an array with POC_name, POC_email, POC_contact",
+      });
+    }
+    for (let i = 0; i < POCS.length; i++) {
+      const poc = POCS[i];
+
+      if (!poc.POC_name || String(poc.POC_name).trim() === "") {
+        return res.status(400).json({
+          message: `POCS[${i}].POC_name is required`,
+          pocIndex: i,
+        });
+      }
+
+      if (!poc.POC_email || String(poc.POC_email).trim() === "") {
+        return res.status(400).json({
+          message: `POCS[${i}].POC_email is required`,
+          pocIndex: i,
+        });
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(poc.POC_email)) {
+        return res.status(400).json({
+          message: `POCS[${i}].POC_email has invalid format`,
+          pocIndex: i,
+          provided: poc.POC_email,
+        });
+      }
+
+      if (!poc.POC_contact || String(poc.POC_contact).trim() === "") {
+        return res.status(400).json({
+          message: `POCS[${i}].POC_contact is required`,
+          pocIndex: i,
+        });
+      }
+      // Validate contact number (basic validation)
+      const contactStr = String(poc.POC_contact).trim();
+      if (contactStr.length < 10) {
+        return res.status(400).json({
+          message: `POCS[${i}].POC_contact must be at least 10 digits`,
+          pocIndex: i,
+          provided: poc.POC_contact,
+        });
+      }
+    }
     // Parse ticket types
     const ticketTypes = (() => {
       const rawTickets = subEventData.ticket_types || req.body.ticket_types;
@@ -3295,12 +3531,9 @@ export const updateTicketAddOns = async (req, res) => {
           guest_profile: String(guest.guest_profile || ""),
           guest_link: String(guest.guest_link || ""),
         })),
-        banking_details: bankingDetails.map((banking) => ({
-          bank_acc_type: String(banking.bank_acc_type || ""),
-          bank_acc_no: String(banking.bank_acc_no || ""),
-          bank_ifsc: String(banking.bank_ifsc || ""),
-          bank_acc_holder: String(banking.bank_acc_holder || ""),
-        })),
+        banking_details: validatedBankingDetails.length > 0 
+        ? validatedBankingDetails 
+        : (existingSubEvent?.banking_details || []),
         POCS: POCS.map((poc) => ({
           POC_name: String(poc.POC_name || ""),
           POC_email: String(poc.POC_email || ""),
@@ -3670,12 +3903,7 @@ export const updateTicketAddOns = async (req, res) => {
         guest_profile: String(guest.guest_profile || ""),
         guest_link: String(guest.guest_link || ""),
       })),
-      banking_details: bankingDetails.map((banking) => ({
-        bank_acc_type: String(banking.bank_acc_type || ""),
-        bank_acc_no: String(banking.bank_acc_no || ""),
-        bank_ifsc: String(banking.bank_ifsc || ""),
-        bank_acc_holder: String(banking.bank_acc_holder || ""),
-      })),
+      banking_details: validatedBankingDetails,
       POCS: POCS.map((poc) => ({
         POC_name: String(poc.POC_name || ""),
         POC_email: String(poc.POC_email || ""),
@@ -4022,15 +4250,16 @@ export const updateTicketAddOns = async (req, res) => {
 };
 export const updateTicketDetails = async (req, res) => {
   const ticketId = req.params.ticketId;
+  
+  // Validate ticket ID format
   if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
     return res.status(400).json({
-      message:
-        "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
+      message: "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
       ticketId: ticketId,
     });
   }
 
-  // Add the missing parseJSONSafely utility function
+  // Utility function to parse JSON safely
   const parseJSONSafely = (str, defaultValue = []) => {
     try {
       if (typeof str === "string") {
@@ -4048,6 +4277,7 @@ export const updateTicketDetails = async (req, res) => {
   try {
     const processedFiles = {};
     const ticketPhotoFiles = {};
+    
     // Handle file uploads first with better error handling
     await new Promise((resolve, reject) => {
       uploadTicketMedia(req, res, (err) => {
@@ -4086,11 +4316,35 @@ export const updateTicketDetails = async (req, res) => {
       use_group_bank_account = "true", // Default to true for group bank account
     } = req.body;
 
+    // ========== VALIDATION SECTION ==========
+
+    // 1. Validate payment_type (REQUIRED)
+    if (!payment_type || String(payment_type).trim() === "") {
+      return res.status(400).json({
+        message: "payment_type is required",
+        hint: "Must be either 'free' or 'paid'",
+      });
+    }
+
+    const validPaymentTypes = ["free", "paid"];
+    if (!validPaymentTypes.includes(payment_type)) {
+      return res.status(400).json({
+        message: "Invalid payment_type",
+        provided: payment_type,
+        validOptions: validPaymentTypes,
+      });
+    }
+
+    // 2. Parse nested data helper function
     const parseNestedData = (data, fieldName) => {
       if (!data) return [];
       try {
         if (typeof data === "string") {
-          const parsed = JSON.parse(data);
+          const trimmed = data.trim();
+          if (trimmed === "" || trimmed === "[]" || trimmed === "{}") {
+            return [];
+          }
+          const parsed = JSON.parse(trimmed);
           return Array.isArray(parsed) ? parsed : [parsed];
         }
         if (Array.isArray(data)) {
@@ -4107,30 +4361,107 @@ export const updateTicketDetails = async (req, res) => {
         return [];
       }
     };
+
     // Parse nested arrays from request body
-    const bankingDetails = parseNestedData(
-      req.body.banking_details,
-      "banking_details"
-    );
+    const bankingDetails = parseNestedData(req.body.banking_details, "banking_details");
     const ticketTypes = parseNestedData(req.body.ticket_types, "ticket_types");
-    // Process uploaded files - Handle ticket photo uploads
-    // Get uploaded files
+
+    // 3. Validate ticket_types for paid events
+    if (payment_type === "paid") {
+      if (!ticketTypes || ticketTypes.length === 0) {
+        return res.status(400).json({
+          message: "At least one ticket type is required for paid events",
+          hint: "Provide ticket_types as an array with ticket_type, ticket_price, and max_capacity",
+        });
+      }
+
+      if (ticketTypes.length > 20) {
+        return res.status(400).json({
+          message: "Maximum 20 ticket types allowed",
+          provided: ticketTypes.length,
+        });
+      }
+    }
+
+    // 4. Validate total_capacity if provided
+    if (total_capacity !== undefined && String(total_capacity).trim() !== "") {
+      const totalCap = Number(total_capacity);
+      if (isNaN(totalCap) || totalCap <= 0 || !Number.isInteger(totalCap)) {
+        return res.status(400).json({
+          message: "total_capacity must be a positive integer",
+          provided: total_capacity,
+        });
+      }
+    }
+
+    // 5. Validate booking dates
+    if (booking_start_date && String(booking_start_date).trim() !== "") {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(booking_start_date)) {
+        return res.status(400).json({
+          message: "Invalid booking_start_date format",
+          provided: booking_start_date,
+          expectedFormat: "YYYY-MM-DD",
+        });
+      }
+
+      const startDate = new Date(booking_start_date);
+      if (isNaN(startDate.getTime())) {
+        return res.status(400).json({
+          message: "Invalid booking_start_date value",
+          provided: booking_start_date,
+        });
+      }
+    }
+
+    if (booking_end_date && String(booking_end_date).trim() !== "") {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(booking_end_date)) {
+        return res.status(400).json({
+          message: "Invalid booking_end_date format",
+          provided: booking_end_date,
+          expectedFormat: "YYYY-MM-DD",
+        });
+      }
+
+      const endDate = new Date(booking_end_date);
+      if (isNaN(endDate.getTime())) {
+        return res.status(400).json({
+          message: "Invalid booking_end_date value",
+          provided: booking_end_date,
+        });
+      }
+
+      // Validate end date is after start date
+      if (booking_start_date) {
+        const startDate = new Date(booking_start_date);
+        if (endDate <= startDate) {
+          return res.status(400).json({
+            message: "booking_end_date must be after booking_start_date",
+            booking_start_date: booking_start_date,
+            booking_end_date: booking_end_date,
+          });
+        }
+      }
+    }
+
+    // ========== FILE PROCESSING SECTION ==========
+
+    // Process uploaded files
     const uploadedFiles = await processFileUploads(req.files || {});
+    
     Object.keys(uploadedFiles).forEach((fieldName) => {
       // Handle ticket photo files
       if (fieldName.startsWith("ticket_photo_")) {
-        const index = fieldName.split("_")[2]; // Extract index from ticket_photo_X
+        const index = fieldName.split("_")[2];
         if (!isNaN(index) && parseInt(index) >= 0) {
           const fileData = uploadedFiles[fieldName];
-          // processFileUploads returns array of objects for multiple files
           if (Array.isArray(fileData) && fileData.length > 0) {
-            const ticketPhotoFile = fileData[0]; // Take first file
+            const ticketPhotoFile = fileData[0];
 
-            // Validate it's an image (Cloudinary already validates, but double-check)
+            // Validate it's an image
             if (!ticketPhotoFile.path || !ticketPhotoFile.originalName) {
-              throw new Error(
-                `Ticket photo ${index} upload failed or is invalid`
-              );
+              throw new Error(`Ticket photo ${index} upload failed or is invalid`);
             }
 
             ticketPhotoFiles[parseInt(index)] = ticketPhotoFile;
@@ -4138,102 +4469,134 @@ export const updateTicketDetails = async (req, res) => {
         }
       }
     });
-    if (
-      uploadedFiles.ticket_layout &&
-      Array.isArray(uploadedFiles.ticket_layout) &&
-      uploadedFiles.ticket_layout.length > 0
-    ) {
-      const layoutFile = uploadedFiles.ticket_layout[0];
 
-      // Validate upload success
-      if (!layoutFile.path || !layoutFile.originalName) {
-        return res.status(400).json({
-          message: "Ticket layout upload failed or is invalid",
-        });
+    // Handle ticket layout upload (only for offline events)
+    if (existingTicket.location_type === "offline") {
+      if (
+        uploadedFiles.ticket_layout &&
+        Array.isArray(uploadedFiles.ticket_layout) &&
+        uploadedFiles.ticket_layout.length > 0
+      ) {
+        const layoutFile = uploadedFiles.ticket_layout[0];
+
+        if (!layoutFile.path || !layoutFile.originalName) {
+          return res.status(400).json({
+            message: "Ticket layout upload failed or is invalid",
+          });
+        }
+
+        processedFiles.ticket_layout = layoutFile.path;
+        processedFiles.ticket_layout_public_id = layoutFile.public_id;
       }
-
-      processedFiles.ticket_layout = layoutFile.path; // Cloudinary URL
-      processedFiles.ticket_layout_public_id = layoutFile.public_id; // Store for deletion
     }
-    // Store the processed file objects
+
     processedFiles.ticketPhotoFiles = ticketPhotoFiles;
-    // Validate required fields
-    if (!payment_type) {
-      return res.status(400).json({
-        message: "Payment type is required",
-      });
-    }
 
-    // Validate payment type
-    const validPaymentTypes = ["free", "paid"];
-    if (!validPaymentTypes.includes(payment_type)) {
-      return res.status(400).json({
-        message: "Invalid payment_type",
-        provided: payment_type,
-        validOptions: validPaymentTypes,
-      });
-    }
+    // ========== TICKET TYPES VALIDATION & PROCESSING ==========
 
-    // Process ticket types with photos
     let processedTicketTypes = [];
     if (ticketTypes && ticketTypes.length > 0) {
       processedTicketTypes = ticketTypes.map((ticket, index) => {
-        // Validate required fields for each ticket type
-        const requiredTicketFields = [
-          "ticket_type",
-          "ticket_price",
-          "max_capacity",
-        ];
-        const missingTicketFields = requiredTicketFields.filter(
-          (field) => !ticket[field] && ticket[field] !== 0
-        );
+        // Extract ticket data
+        const ticketType = ticket.ticket_type || ticket.name;
+        const ticketPrice = ticket.ticket_price !== undefined ? ticket.ticket_price : ticket.price;
+        const maxCapacity = ticket.max_capacity !== undefined ? ticket.max_capacity : ticket.capacity;
+        const existingPhoto = ticket.ticket_photo || ticket.existingPhotoPath || "";
 
-        if (missingTicketFields.length > 0) {
+        // Validate ticket_type
+        if (!ticketType || String(ticketType).trim() === "") {
+          throw new Error(`ticket_type is required for ticket ${index + 1}`);
+        }
+
+        if (String(ticketType).trim().length > 100) {
+          throw new Error(`ticket_type for ticket ${index + 1} is too long (max 100 characters)`);
+        }
+
+        // Validate ticket_price
+        if (ticketPrice === undefined || ticketPrice === null || String(ticketPrice).trim() === "") {
+          throw new Error(`ticket_price is required for ticket ${index + 1}`);
+        }
+
+        const parsedPrice = Number(ticketPrice);
+        if (isNaN(parsedPrice) || parsedPrice < 0) {
           throw new Error(
-            `Missing required fields for ticket type ${
-              index + 1
-            }: ${missingTicketFields.join(", ")}`
+            `Invalid ticket_price for ticket ${index + 1}. Must be a non-negative number. Provided: ${ticketPrice}`
           );
         }
 
-        // Validate ticket price and capacity
-        const ticketPrice = Number(ticket.ticket_price);
-        const maxCapacity = Number(ticket.max_capacity);
+        // For paid events, ticket price should be greater than 0
+        if (payment_type === "paid" && parsedPrice === 0) {
+          throw new Error(`ticket_price must be greater than 0 for paid events (ticket ${index + 1})`);
+        }
 
-        if (isNaN(ticketPrice) || ticketPrice < 0) {
+        // For free events, ticket price must be 0
+        if (payment_type === "free" && parsedPrice !== 0) {
+          throw new Error(`ticket_price must be 0 for free events (ticket ${index + 1})`);
+        }
+
+        // Validate max_capacity
+        if (!maxCapacity || String(maxCapacity).trim() === "") {
+          throw new Error(`max_capacity is required for ticket ${index + 1}`);
+        }
+
+        const parsedCapacity = Number(maxCapacity);
+        if (isNaN(parsedCapacity) || parsedCapacity <= 0 || !Number.isInteger(parsedCapacity)) {
           throw new Error(
-            `Invalid ticket price for ticket type ${
-              index + 1
-            }. Must be a non-negative number.`
+            `Invalid max_capacity for ticket ${index + 1}. Must be a positive integer. Provided: ${maxCapacity}`
           );
         }
 
-        if (isNaN(maxCapacity) || maxCapacity <= 0) {
-          throw new Error(
-            `Invalid max capacity for ticket type ${
-              index + 1
-            }. Must be a positive number.`
-          );
-        }
         const ticketData = {
-          ticket_type: String(ticket.ticket_type).trim(),
-          ticket_price: ticketPrice,
-          max_capacity: maxCapacity,
-          ticket_photo: ticket.ticket_photo || "", // existing photo URL if any
-          ticket_photo_public_id: ticket.ticket_photo_public_id || "", // existing public_id if any
+          ticket_type: String(ticketType).trim(),
+          ticket_price: parsedPrice,
+          max_capacity: parsedCapacity,
+          ticket_photo: existingPhoto,
+          ticket_photo_public_id: ticket.ticket_photo_public_id || "",
         };
+
         // Add uploaded ticket photo if available
         if (ticketPhotoFiles[index]) {
-          ticketData.ticket_photo = ticketPhotoFiles[index].path; // Cloudinary URL
-          ticketData.ticket_photo_public_id = ticketPhotoFiles[index].public_id; // Store for deletion
+          ticketData.ticket_photo = ticketPhotoFiles[index].path;
+          ticketData.ticket_photo_public_id = ticketPhotoFiles[index].public_id;
         }
+
         return ticketData;
       });
+
+      // Validate total_capacity against sum of ticket capacities
+      if (total_capacity !== undefined && String(total_capacity).trim() !== "") {
+        const totalTicketCapacity = processedTicketTypes.reduce(
+          (sum, ticket) => sum + ticket.max_capacity,
+          0
+        );
+        const providedTotalCapacity = Number(total_capacity);
+
+        if (totalTicketCapacity > providedTotalCapacity) {
+          return res.status(400).json({
+            message: "Sum of ticket type capacities exceeds total_capacity",
+            totalTicketCapacity: totalTicketCapacity,
+            providedTotalCapacity: providedTotalCapacity,
+            hint: "Ensure total_capacity is greater than or equal to the sum of all ticket type capacities",
+          });
+        }
+      }
+
+      // Check for duplicate ticket types
+      const ticketTypeNames = processedTicketTypes.map((t) => t.ticket_type.toLowerCase());
+      const duplicates = ticketTypeNames.filter(
+        (name, index) => ticketTypeNames.indexOf(name) !== index
+      );
+      if (duplicates.length > 0) {
+        return res.status(400).json({
+          message: "Duplicate ticket types found",
+          duplicates: duplicates,
+          hint: "Each ticket type must have a unique name",
+        });
+      }
     }
     let finalBankingDetails = [];
     if (payment_type === "paid") {
       if (use_group_bank_account === "true" || use_group_bank_account === true) {
-        // Use group bank account
         if (
           !GroupBank.primary_bank_acc_no ||
           !GroupBank.primary_bank_ifsc ||
@@ -4241,8 +4604,7 @@ export const updateTicketDetails = async (req, res) => {
           !GroupBank.primary_bank_acc_type
         ) {
           return res.status(400).json({
-            message:
-              "Group banking details are incomplete. Please update your group banking details before proceeding",
+            message: "Group banking details are incomplete. Please update your group banking details before proceeding",
             missingFields: {
               bank_acc_no: !GroupBank.primary_bank_acc_no,
               bank_ifsc: !GroupBank.primary_bank_ifsc,
@@ -4262,81 +4624,157 @@ export const updateTicketDetails = async (req, res) => {
           },
         ];
       } else {
-        const customBankingDetails = parseNestedData(
-          req.body.banking_details,
-          "banking_details"
-        );
+        const customBankingDetails = parseNestedData(req.body.banking_details, "banking_details");
+        
         if (!customBankingDetails || customBankingDetails.length === 0) {
           return res.status(400).json({
-            message:
-              "Custom banking details are required when not using group bank account",
+            message: "Custom banking details are required when not using group bank account",
             receivedData: req.body.banking_details,
-            hint: "Ensure banking_details is sent as a JSON stringified array",
+            hint: "Provide banking details with: bank_acc_type, bank_acc_no, bank_ifsc, bank_acc_holder",
+          });
+        }
+        if (customBankingDetails.length > 1) {
+          return res.status(400).json({
+            message: "Only one banking account is allowed",
+            provided: customBankingDetails.length,
+            hint: "Please provide only one set of banking details",
+          });
+        }
+        const banking = customBankingDetails[0];
+        // Validate bank_acc_type
+        if (!banking.bank_acc_type || String(banking.bank_acc_type).trim() === "") {
+          return res.status(400).json({
+            message: "bank_acc_type is required",
+            field: "bank_acc_type",
+            hint: "Valid options: current, merchant",
+          });
+        }
+        const validAccountTypes = ["current", "merchant"];
+        const accType = String(banking.bank_acc_type).trim().toLowerCase();
+        if (!validAccountTypes.includes(accType)) {
+          return res.status(400).json({
+            message: "Invalid bank account type",
+            field: "bank_acc_type",
+            provided: banking.bank_acc_type,
+            validOptions: validAccountTypes,
+            hint: "Please select either 'current' or 'merchant'",
           });
         }
 
-        // Validate custom banking details
-        finalBankingDetails = customBankingDetails.map((banking, index) => {
-          const requiredBankFields = [
-            "bank_acc_type",
-            "bank_acc_no",
-            "bank_ifsc",
-            "bank_acc_holder",
-          ];
-          const missingBankFields = requiredBankFields.filter(
-            (field) => !banking[field]
-          );
+        // Validate bank_acc_no
+        if (!banking.bank_acc_no || String(banking.bank_acc_no).trim() === "") {
+          return res.status(400).json({
+            message: "bank_acc_no is required",
+            field: "bank_acc_no",
+            hint: "Please provide your bank account number",
+          });
+        }
 
-          if (missingBankFields.length > 0) {
-            throw new Error(
-              `Missing required banking fields for account ${
-                index + 1
-              }: ${missingBankFields.join(", ")}`
-            );
+        // Validate account number - numeric only
+        if (!/^\d+$/.test(String(banking.bank_acc_no).trim())) {
+          return res.status(400).json({
+            message: "Invalid bank account number format",
+            field: "bank_acc_no",
+            error: "Bank account number must contain only digits",
+            provided: banking.bank_acc_no,
+            hint: "Remove any spaces, hyphens, or special characters",
+          });
+        }
+
+        // Validate account number length (9-18 digits)
+        const accNoLength = String(banking.bank_acc_no).trim().length;
+        if (accNoLength < 9 || accNoLength > 18) {
+          return res.status(400).json({
+            message: "Invalid bank account number length",
+            field: "bank_acc_no",
+            error: `Account number must be between 9-18 digits. You entered ${accNoLength} digits`,
+            provided: banking.bank_acc_no,
+            hint: "Please check your bank account number and enter the correct length",
+          });
+        }
+
+        // Validate bank_ifsc
+        if (!banking.bank_ifsc || String(banking.bank_ifsc).trim() === "") {
+          return res.status(400).json({
+            message: "bank_ifsc is required",
+            field: "bank_ifsc",
+            hint: "Please provide your bank's IFSC code",
+          });
+        }
+
+        const ifscCode = String(banking.bank_ifsc).trim().toUpperCase();
+
+        // Basic IFSC format validation
+        const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+        if (!ifscRegex.test(ifscCode)) {
+          return res.status(400).json({
+            message: "Invalid IFSC code format",
+            field: "bank_ifsc",
+            error: "IFSC code must be 11 characters: 4 bank letters + '0' (zero) + 6 branch characters",
+            provided: ifscCode,
+            example: "SBIN0001234",
+            hint: "Please check your IFSC code. The 5th character must be '0' (zero)",
+          });
+        }
+
+        // Live IFSC verification
+        let ifscValidation;
+        try {
+          ifscValidation = await validateIFSCCode(ifscCode);
+          if (!ifscValidation.isValid) {
+            return res.status(400).json({
+              message: "IFSC code verification failed",
+              field: "bank_ifsc",
+              error: ifscValidation.error || "IFSC code not found in bank database",
+              provided: ifscCode,
+              hint: "Please verify your IFSC code from your bank passbook or check",
+            });
           }
+        } catch (ifscError) {
+          return res.status(400).json({
+            message: "IFSC code verification failed",
+            field: "bank_ifsc",
+            error: ifscError.message || "Unable to verify IFSC code",
+            provided: ifscCode,
+            hint: "Please check your IFSC code or try again later",
+          });
+        }
 
-          return {
-            bank_acc_type: String(banking.bank_acc_type).trim().toLowerCase(),
+        console.log("✅ IFSC code verified successfully:", ifscValidation.bankDetails);
+
+        // Validate bank_acc_holder
+        if (!banking.bank_acc_holder || String(banking.bank_acc_holder).trim() === "") {
+          return res.status(400).json({
+            message: "bank_acc_holder is required",
+            field: "bank_acc_holder",
+            hint: "Please provide the account holder's name",
+          });
+        }
+
+        // Validate account holder name - letters and spaces only
+        if (!/^[a-zA-Z\s]+$/.test(String(banking.bank_acc_holder).trim())) {
+          return res.status(400).json({
+            message: "Invalid account holder name format",
+            field: "bank_acc_holder",
+            error: "Account holder name must contain only letters and spaces",
+            provided: banking.bank_acc_holder,
+            hint: "Remove any numbers or special characters from the name",
+          });
+        }
+        finalBankingDetails = [
+          {
+            bank_acc_type: accType,
             bank_acc_no: String(banking.bank_acc_no).trim(),
-            bank_ifsc: String(banking.bank_ifsc).trim().toUpperCase(),
+            bank_ifsc: ifscCode,
             bank_acc_holder: String(banking.bank_acc_holder).trim(),
             is_group_account: false,
-          };
-        });
+            bank_verified_details: ifscValidation.bankDetails || null,
+          },
+        ];
       }
     } else {
-      // For free events, banking details are empty
       finalBankingDetails = [];
     }
-    // Validate dates if provided
-    if (booking_start_date && booking_end_date) {
-      const startDate = new Date(booking_start_date);
-      const endDate = new Date(booking_end_date);
-
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        return res.status(400).json({
-          message: "Invalid date format for booking dates",
-        });
-      }
-
-      if (startDate >= endDate) {
-        return res.status(400).json({
-          message: "Booking start date must be before booking end date",
-        });
-      }
-    }
-
-    // Validate total capacity if provided
-    if (total_capacity !== undefined) {
-      const totalCap = Number(total_capacity);
-      if (isNaN(totalCap) || totalCap <= 0) {
-        return res.status(400).json({
-          message: "Total capacity must be a positive number",
-        });
-      }
-    }
-
-    // Prepare update data
     const updateData = {
       payment_type: String(payment_type),
       banking_details: finalBankingDetails,
@@ -4345,29 +4783,33 @@ export const updateTicketDetails = async (req, res) => {
       updated_at: new Date(),
     };
 
-    // Add optional fields if provided
+    // Add ticket types if provided
     if (processedTicketTypes.length > 0) {
       updateData.ticket_types = processedTicketTypes;
     }
 
+    // Add ticket layout if uploaded (only for offline events)
     if (processedFiles.ticket_layout) {
       updateData.ticket_layout = String(processedFiles.ticket_layout);
-      updateData.ticket_layout_public_id = String(
-        processedFiles.ticket_layout_public_id || ""
-      );
+      updateData.ticket_layout_public_id = String(processedFiles.ticket_layout_public_id || "");
     }
 
-    if (total_capacity !== undefined) {
-      updateData.total_capacity = Number(total_capacity);
+    // Add total capacity if provided
+    if (total_capacity !== undefined && String(total_capacity).trim() !== "") {
+      updateData.total_capacity = String(total_capacity);
     }
 
-    if (booking_start_date) {
-      updateData.booking_start_date = new Date(booking_start_date);
+    // Add booking dates if provided
+    if (booking_start_date && String(booking_start_date).trim() !== "") {
+      updateData.booking_start_date = String(booking_start_date);
     }
 
-    if (booking_end_date) {
-      updateData.booking_end_date = new Date(booking_end_date);
+    if (booking_end_date && String(booking_end_date).trim() !== "") {
+      updateData.booking_end_date = String(booking_end_date);
     }
+
+    // ========== UPDATE DATABASE ==========
+
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
       updateData,
@@ -4377,6 +4819,7 @@ export const updateTicketDetails = async (req, res) => {
         upsert: false,
       }
     );
+
     if (!updatedTicket) {
       return res.status(404).json({
         message: "Failed to update ticket details",
@@ -4384,15 +4827,15 @@ export const updateTicketDetails = async (req, res) => {
       });
     }
 
-    // Prepare response data
+    // ========== PREPARE RESPONSE ==========
+
     const responseData = {
       message: "Ticket details updated successfully",
       ticket: updatedTicket,
       ticketId: ticketId,
       userId: userId,
       payment_type: payment_type,
-      banking_method:
-        use_group_bank_account === "true" ? "group_account" : "custom_account",
+      banking_method: use_group_bank_account === "true" ? "group_account" : "custom_account",
       banking_details_count: finalBankingDetails.length,
       ticket_types_count: processedTicketTypes.length,
       uploadedFiles: {
@@ -4417,6 +4860,7 @@ export const updateTicketDetails = async (req, res) => {
         account_holder: bank.bank_acc_holder,
         account_type: bank.bank_acc_type,
         last_four_digits: bank.bank_acc_no.slice(-4),
+        bank_ifsc: bank.bank_ifsc,
       }));
     }
 
@@ -4455,9 +4899,14 @@ export const updateTicketDetails = async (req, res) => {
     // Handle ticket type validation errors
     if (
       error.message &&
-      (error.message.includes("Missing required fields for ticket type") ||
-        error.message.includes("Invalid ticket price") ||
-        error.message.includes("Invalid max capacity"))
+      (error.message.includes("ticket_type is required") ||
+        error.message.includes("ticket_price is required") ||
+        error.message.includes("max_capacity is required") ||
+        error.message.includes("Invalid ticket_price") ||
+        error.message.includes("Invalid max_capacity") ||
+        error.message.includes("ticket_type for ticket") ||
+        error.message.includes("must be greater than 0 for paid events") ||
+        error.message.includes("must be 0 for free events"))
     ) {
       return res.status(400).json({
         message: "Ticket type validation error",
@@ -4468,7 +4917,14 @@ export const updateTicketDetails = async (req, res) => {
     // Handle banking validation errors
     if (
       error.message &&
-      error.message.includes("Missing required banking fields")
+      (error.message.includes("bank_acc_type is required") ||
+        error.message.includes("bank_acc_no is required") ||
+        error.message.includes("bank_ifsc is required") ||
+        error.message.includes("bank_acc_holder is required") ||
+        error.message.includes("Invalid bank_acc_no") ||
+        error.message.includes("Invalid bank_ifsc") ||
+        error.message.includes("Invalid bank_acc_holder") ||
+        error.message.includes("Invalid bank_acc_type"))
     ) {
       return res.status(400).json({
         message: "Banking details validation error",
@@ -4480,10 +4936,11 @@ export const updateTicketDetails = async (req, res) => {
     if (
       error.message &&
       (error.message.includes("must be an image file") ||
+        error.message.includes("upload failed or is invalid") ||
         error.message.includes("Invalid file type"))
     ) {
       return res.status(400).json({
-        message: "Invalid file type",
+        message: "Invalid file type or upload error",
         error: error.message,
       });
     }
@@ -4517,11 +4974,12 @@ export const updateTicketDetails = async (req, res) => {
         error: "Ticket details with similar data already exists",
       });
     }
+
     // Cleanup: Delete uploaded Cloudinary files if database operation fails
     if (
-      error.name !== "LIMIT_FILE_SIZE" &&
-      error.name !== "LIMIT_FILE_COUNT" &&
-      error.name !== "LIMIT_UNEXPECTED_FILE"
+      error.code !== "LIMIT_FILE_SIZE" &&
+      error.code !== "LIMIT_FILE_COUNT" &&
+      error.code !== "LIMIT_UNEXPECTED_FILE"
     ) {
       try {
         const filesToDelete = [];
@@ -4555,10 +5013,7 @@ export const updateTicketDetails = async (req, res) => {
             uploadedFiles.ticket_layout.length > 0
           ) {
             const layoutFile = uploadedFiles.ticket_layout[0];
-            if (
-              layoutFile.public_id &&
-              !filesToDelete.includes(layoutFile.public_id)
-            ) {
+            if (layoutFile.public_id && !filesToDelete.includes(layoutFile.public_id)) {
               filesToDelete.push(layoutFile.public_id);
             }
           }
@@ -4569,26 +5024,21 @@ export const updateTicketDetails = async (req, res) => {
               const fileData = uploadedFiles[fieldName];
               if (Array.isArray(fileData) && fileData.length > 0) {
                 const photoFile = fileData[0];
-                if (
-                  photoFile.public_id &&
-                  !filesToDelete.includes(photoFile.public_id)
-                ) {
+                if (photoFile.public_id && !filesToDelete.includes(photoFile.public_id)) {
                   filesToDelete.push(photoFile.public_id);
                 }
               }
             }
           });
         }
+
         // Delete files from Cloudinary if any were collected
         if (filesToDelete.length > 0) {
           for (const publicId of filesToDelete) {
             try {
               await deleteFromCloudinary(publicId);
             } catch (deleteError) {
-              console.error(
-                `Failed to delete file ${publicId}:`,
-                deleteError.message
-              );
+              console.error(`Failed to delete file ${publicId}:`, deleteError.message);
             }
           }
         } else {
@@ -4596,7 +5046,6 @@ export const updateTicketDetails = async (req, res) => {
         }
       } catch (cleanupError) {
         console.error("Error during Cloudinary cleanup:", cleanupError.message);
-        // Don't throw - we're already handling an error
       }
     }
 

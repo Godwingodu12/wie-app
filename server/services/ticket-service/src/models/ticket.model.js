@@ -41,11 +41,10 @@ const offerTicketSchema = new mongoose.Schema({
 
 // POC Schema
 const POCSchema = new mongoose.Schema({
-  POC_name: { type: String, required: false },
-  POC_email: { type: String, required: false },
-  POC_contact: { type: String, required: false },
+  POC_name: { type: String, required: true },
+  POC_email: { type: String, required: true },
+  POC_contact: { type: String, required: true },
 });
-
 // File Schema for event rules
 const fileSchema = new mongoose.Schema({
   type: { type: String, enum: ['file', 'text'], required: true },
@@ -151,6 +150,12 @@ const subEventSchema = new mongoose.Schema({
     enum: ['pending', 'confirmed', 'cancelled', 'live','completed','deleted'],
     default: 'pending'
   },
+  like: { type: Number, required: false, default: 0 },
+  share: { type: Number, required: false, default: 0 },
+  // Booking statistics
+  totalBookings: { type: Number, required: false, default: 0 },
+  totalTicketsSold: { type: Number, required: false, default: 0 }, 
+  revenue: { type: Number, required: false, default: 0 },
 }, { timestamps: true });
 // Main Ticket Schema (Event)
 const ticketSchema = new mongoose.Schema({
@@ -235,6 +240,11 @@ const ticketSchema = new mongoose.Schema({
   ticket_types: [ticketTypeSchema],
   created_by: { type: String, required: false },
   like: {type: Number,required: false,default: 0},
+  share: { type: Number, required: false, default: 0 },
+  // Booking statistics
+  totalBookings: { type: Number, required: false, default: 0 },
+  totalTicketsSold: { type: Number, required: false, default: 0 }, 
+  revenue: { type: Number, required: false, default: 0 },
   //ticket offer or bulk booking
   event_ticket_offer: { type: Boolean, default: false },
   offerTickets: [offerTicketSchema],
