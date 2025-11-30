@@ -624,10 +624,8 @@ const FileUploadArea = ({ label, name }) => {
   const hasError = !!errors[name];
   const hasFile = !!files[name];
   const previewUrl = filePreviews[name];
-  // Check if we have an existing file (from server) OR a newly selected file
   const hasExistingFile = previewUrl && !hasFile;
   const hasNewFile = hasFile && files[name];
-
   return (
     <div className="space-y-2">
       <label className={`flex items-center text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
