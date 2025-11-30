@@ -142,7 +142,6 @@ const eventCategories = {
     "Meditation Camps",
   ],
 };
-
 const languageOptions = [
   "English",
   "Hindi",
@@ -963,7 +962,7 @@ useEffect(() => {
       showAlert({
         type: "error",
         message: "Invalid Age Range",
-        description: `The maximum age (${maxAge}) must be greater than or equal to the minimum age (${minAge}).`,
+        description: "The age must be lies between 1 and 150.",
       });
       setErrors(newErrors);
       return; // Stop submission

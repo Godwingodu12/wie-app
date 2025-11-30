@@ -12,9 +12,12 @@ import SearchIcon from "../../assets/HomePage/SearchIcon.svg";
 import SettingIcon from "../../assets/Message/settings_icon.png";
 import EditIcon from "../../assets/Message/edit_icon.png";
 import { getUserChats, createOrGetChat } from "../../services/chatService";
+<<<<<<< HEAD
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+=======
+>>>>>>> 8cb382ed8e33bf2fa1cbe5aa292459410964ed4c
 const getNeumorphicStyle = (isPressed = false, isDark = true, theme) => {
   const bg = isDark ? "#212426" : theme.inputBg.replace('bg-[', '').replace(']', '');
   const lightShadow = isDark
@@ -53,19 +56,17 @@ const IndexMessage = () => {
     setIsDark(shouldBeDark);
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
-
-  const fetchChats = async () => {
-    setLoading(true);
-    try {
-      const response = await getUserChats();
-      const fetchedChats = response.chats || [];
-      const currentChatId = sessionStorage.getItem('currentChatId');
-      
-      const mappedChats = fetchedChats.map(chat => ({
-        ...chat,
-        unreadCount: (chat._id === currentChatId) ? 0 : (unreadChats.get(chat._id) ?? chat.unreadCount ?? 0)
-      }));
-      
+const fetchChats = async () => {
+  setLoading(true);
+  try {
+    const response = await getUserChats();
+    const fetchedChats = response.chats || [];
+    const currentChatId = sessionStorage.getItem('currentChatId');
+    const chatsWithMessages = fetchedChats.filter(chat => chat.lastMessage && chat.lastMessage.content);
+    const mappedChats = chatsWithMessages.map(chat => ({
+      ...chat,
+      unreadCount: (chat._id === currentChatId) ? 0 : (unreadChats.get(chat._id) ?? chat.unreadCount ?? 0)
+    }));
       setChats(mappedChats);
       setFilteredChats(mappedChats);
       
@@ -338,7 +339,6 @@ const IndexMessage = () => {
   const handleNewChat = () => {
     setShowNewChatModal(true);
   };
-
   const handleSelectUser = async (selectedUser) => {
     try {
       const response = await createOrGetChat(selectedUser._id);
@@ -346,11 +346,9 @@ const IndexMessage = () => {
         ...response.chat,
         participant: selectedUser
       };
-      
-      if (response.isNew) {
+      if (response.isNew && newChat.lastMessage) {
         setChats(prev => [newChat, ...prev]);
       }
-      
       setSelectedChat(newChat);
       setShowNewChatModal(false);
     } catch (error) {
@@ -385,7 +383,8 @@ const IndexMessage = () => {
   const handleBackFromChat = () => {
     sessionStorage.removeItem('currentChatId');
     setSelectedChat(null);
-    fetchChats(); 
+    // Refresh chat list to remove empty chats
+    fetchChats();
   };
 
   const theme = isDark
@@ -631,7 +630,21 @@ const IndexMessage = () => {
         onSelectUser={handleSelectUser}
       />
     </div>
+<<<<<<< HEAD
     
+=======
+    <nav 
+      className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t"
+      style={{
+        backgroundColor: isDark ? '#212426' : '#f5f5f5',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        boxShadow: isDark 
+          ? '0 -4px 6px -1px rgba(0, 0, 0, 0.3)' 
+          : '0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
+      }}
+    >
+    </nav>
+>>>>>>> 8cb382ed8e33bf2fa1cbe5aa292459410964ed4c
     </>
   );
 };
