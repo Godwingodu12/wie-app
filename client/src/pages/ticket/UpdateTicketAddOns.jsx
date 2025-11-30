@@ -285,13 +285,6 @@ const UpdateTicketAddOns = () => {
 
         if (!bankInfo) {
           setGroupDefaults();
-          showAlert({
-            type: "warning",
-            message: "Group Data Incomplete",
-            description:
-              "No primary bank account found for this group. Please enter new banking details below.",
-          });
-          setGroupDefaults();
           return;
         }
         const cleanBankInfo = {
