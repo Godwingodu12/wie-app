@@ -1,11 +1,13 @@
-// models/User.js
 import mongoose from 'mongoose';
-
 const userSchema = new mongoose.Schema(
   {
     name: {
       type: String,
       required: true,
+      trim: true,
+    },
+    username: {
+      type: String,
       trim: true,
     },
     email: {
@@ -17,12 +19,23 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    country_code: {
+      type: String,
+      default: '+91',
+    },
+    country_iso2: {
+      type: String,
+      default: 'in',
+    },
     organisation_type: {
       type: String,
       required: function() {
         return this.role === 'organisation';
       },
-      enum: ['Private', 'Government', 'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Other']
+      enum: [
+          'Private Limited', 'Public Limited', 'Partnership', 'Proprietorship', 'LLP', 
+          'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Trust', 'Society','Government', 'Other'
+      ]
     },
     status: {
       type: String,
@@ -49,6 +62,72 @@ const userSchema = new mongoose.Schema(
       enum: ['organisation', 'admin'],
       default: 'admin',
     },
+    followers: {
+      type: String,
+      default: '0',
+    },
+    following: {
+      type: String,
+      default: '0',
+    },
+    social_links: {
+      facebook: { type: String, default: '' },
+      x: { type: String, default: '' },
+      linkedin: { type: String, default: '' },
+      instagram: { type: String, default: '' },
+      google: { type: String, default: '' },
+      whatsapp: { type: String, default: '' }
+    },
+    social_profiles: {
+      google: {
+        profileId: String,
+        displayName: String,
+        email: String,
+        photo: String,
+        linkedAt: Date
+      },
+      facebook: {
+        profileId: String,
+        displayName: String,
+        email: String,
+        photo: String,
+        linkedAt: Date
+      },
+      x: {
+        profileId: String,
+        displayName: String,
+        username: String,
+        photo: String,
+        linkedAt: Date
+      },
+      instagram: {
+        profileId: String,
+        displayName: String,
+        username: String,
+        photo: String,
+        linkedAt: Date
+      },
+      linkedin: {
+        profileId: String,
+        displayName: String,
+        email: String,
+        photo: String,
+        linkedAt: Date
+      }
+    },
+    website: {
+      type: String,
+      default: '',
+    },
+    bio: {
+      type: String,
+      default: '',
+    },
+    gender: { 
+      type: String,
+      enum: ['male', 'female', 'other'],
+      default: 'other'
+    },
     lastLogout: {
       type: Date
     },
@@ -56,12 +135,20 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    created_at: {
+      type: Date,
+      default: Date.now
+    },
+    updated_at: {
+      type: Date,
+      default: Date.now
+    }
   },
   {
     timestamps: true, 
   }
 );
-// Create partial unique indexes - only enforce uniqueness for 'active' users
+
 userSchema.index(
   { email: 1 }, 
   { 
@@ -79,6 +166,13 @@ userSchema.index(
     name: 'contact_no_unique_active'
   }
 );
+userSchema.index(
+  { username: 1 }, 
+  { 
+    unique: true, 
+    partialFilterExpression: { status: 'active', username: { $exists: true, $ne: '' } },
+    name: 'username_unique_active'
+  }
+);
 const User = mongoose.model('User', userSchema);
-
 export default User;

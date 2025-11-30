@@ -12,11 +12,13 @@ import BG2 from '../../assets/BG2.png';
 const VerifyUser = () => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [userInput, setUserInput] = useState('');
   const [inputType, setInputType] = useState('');
   const [timer, setTimer] = useState(60);
   const [isVerified, setIsVerified] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const { input } = useParams();
   const navigate = useNavigate();
@@ -40,9 +42,15 @@ const VerifyUser = () => {
   const handleChange = (e, index) => {
     const val = e.target.value;
     if (!/^\d?$/.test(val)) return;
+    
     const newOtp = [...otp];
     newOtp[index] = val;
     setOtp(newOtp);
+    
+    // Clear any previous error when user starts typing
+    if (error) setError('');
+    if (successMessage) setSuccessMessage('');
+    
     if (val && index < 5) {
       inputsRef.current[index + 1]?.focus();
     }
@@ -57,9 +65,12 @@ const VerifyUser = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
+    setIsVerifying(true);
 
     if (otp.some((digit) => digit === '')) {
       setError('Please enter the full 6-digit OTP');
+      setIsVerifying(false);
       return;
     }
 
@@ -73,43 +84,61 @@ const VerifyUser = () => {
 
       const response = await verifyUser(inputData);
       setIsVerified(true);
+      setSuccessMessage('OTP verified successfully! Redirecting...');
 
       setTimeout(() => {
         navigate(`/reset-password/${response.userId}`);
-      }, 1000);
+      }, 1500);
     } catch (err) {
       setIsVerified(false);
-      setError(err?.response?.data?.message || 'OTP verification failed');
+      const errorMessage = err?.response?.data?.message || 'OTP verification failed';
+      setError(errorMessage);
+      
+      // If it's an expired or invalid OTP error, clear the input fields
+      if (errorMessage.includes('expired') || errorMessage.includes('no longer valid')) {
+        setOtp(['', '', '', '', '', '']);
+        inputsRef.current[0]?.focus();
+      }
+    } finally {
+      setIsVerifying(false);
     }
   };
 
   const handleResend = async () => {
     setIsResending(true);
     setError('');
+    setSuccessMessage('');
 
     try {
       const inputData = userInput.includes('@') 
         ? { email: userInput } 
         : { contact_no: userInput };
 
-      await resendOtp(inputData);
+      const response = await resendOtp(inputData);
       
       // Reset OTP inputs and timer
       setOtp(['', '', '', '', '', '']);
-      setTimer(60);
+      setTimer(60); // Reset to 1 minutes (60 seconds) to match server expiry
       
       // Focus on first input
       inputsRef.current[0]?.focus();
       
-      // Show success message (optional)
-      setError('');
-      // You could add a success state here if you want to show a success message
+      // Show success message
+      setSuccessMessage(response.message || 'New OTP sent successfully!');
       
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to resend OTP');
+      const errorMessage = err?.response?.data?.message || 'Failed to resend OTP';
+      setError(errorMessage);
     } finally {
       setIsResending(false);
     }
+  };
+
+  // Format timer display
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -153,7 +182,17 @@ const VerifyUser = () => {
             <span className="font-bold">{userInput}</span>
           </p>
 
-          {error && <p className="text-sm text-red-500 mb-4">{error}</p>}
+          {error && (
+            <div className="text-sm text-red-500 mb-4 p-2 bg-red-100 bg-opacity-10 rounded">
+              {error}
+            </div>
+          )}
+          
+          {successMessage && (
+            <div className="text-sm text-green-500 mb-4 p-2 bg-green-100 bg-opacity-10 rounded">
+              {successMessage}
+            </div>
+          )}
 
           <div className="flex justify-center gap-3 mb-4">
             {otp.map((digit, index) => (
@@ -166,7 +205,10 @@ const VerifyUser = () => {
                 onChange={(e) => handleChange(e, index)}
                 onKeyDown={(e) => handleKeyDown(e, index)}
                 ref={(el) => (inputsRef.current[index] = el)}
-                className="w-12 h-14 text-center rounded-md tracking-widest caret-white text-xl font-bold placeholder-white"
+                disabled={isVerifying}
+                className={`w-12 h-14 text-center rounded-md tracking-widest caret-white text-xl font-bold placeholder-white transition-all duration-200 ${
+                  isVerifying ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
                 style={{
                   background: '#101115',
                   color: '#ffffff',
@@ -183,11 +225,13 @@ const VerifyUser = () => {
           </div>
 
           <div className="flex justify-between items-center text-sm text-gray-400 mb-6 px-1">
-            <span className="text-left">Time left: {timer}s</span>
+            <span className="text-left">
+              Time left: {formatTime(timer)}
+            </span>
             <span>
               Didn't receive the OTP?{' '}
               <button
-                className={`text-white font-semibold ${
+                className={`text-white font-semibold transition-all duration-200 ${
                   timer > 0 || isResending ? 'opacity-50 cursor-not-allowed' : 'hover:text-gray-300'
                 }`}
                 disabled={timer > 0 || isResending}
@@ -200,7 +244,7 @@ const VerifyUser = () => {
 
           <div className="flex flex-col sm:flex-row justify-between items-center w-full mt-auto gap-4 sm:gap-0">
             <span
-              className="text-white font-bold cursor-pointer text-base"
+              className="text-white font-bold cursor-pointer text-base hover:text-gray-300 transition-colors duration-200"
               onClick={() => navigate(-1)}
             >
               back
@@ -208,13 +252,18 @@ const VerifyUser = () => {
 
             <button
               onClick={handleSubmit}
-              className="text-white font-bold rounded-full transition-all duration-300 hover:scale-105 shadow-md text-sm px-6 py-2"
+              disabled={isVerifying || otp.some((digit) => digit === '')}
+              className={`text-white font-bold rounded-full transition-all duration-300 hover:scale-105 shadow-md text-sm px-6 py-2 ${
+                isVerifying || otp.some((digit) => digit === '') 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'hover:scale-105'
+              }`}
               style={{
                 width: '150px',
                 background: 'linear-gradient(to bottom, #1e1b4b, #8b5cf6)'
               }}
             >
-              Verify
+              {isVerifying ? 'Verifying...' : 'Verify'}
             </button>
           </div>
         </div>

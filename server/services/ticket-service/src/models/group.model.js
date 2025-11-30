@@ -9,7 +9,10 @@ const groupSchema = new mongoose.Schema(
       required: function() {
         return this.grp_type === 'organisation';
       },
-      enum: ['Private', 'Government', 'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Other']
+      enum: [
+          'Private Limited', 'Public Limited', 'Partnership', 'Proprietorship', 'LLP', 
+          'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Trust', 'Society', 'Other'
+      ]
     },
     email: { type: String, required: true },
     contact_no: {
@@ -30,26 +33,23 @@ const groupSchema = new mongoose.Schema(
     },
     gst_no: { type: String, required: false },
     pan_no: { type: String, required: true },
+    primary_bank_acc_type: { type: String },
+    primary_bank_acc_no: { type: String },
+    primary_bank_ifsc: { type: String },
+    primary_bank_acc_holder: { type: String },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User'},
     id_proof: { type: String, required: true },
     bank_check: { type: String, required: false },
     company_certificate: { 
       type: String,
-      required: function() {
-        return this.grp_type === 'organisation';
-      }
     },
     company_logo: {
       type: String,
-      required: function() {
-        return this.grp_type === 'organisation';
-      }
     }
   },
   {
     timestamps: true, 
   }
 );
-
 const Group = mongoose.model('Group', groupSchema);
 export default Group;

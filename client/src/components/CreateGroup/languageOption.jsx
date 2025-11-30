@@ -1,0 +1,28 @@
+const languageOptions = [
+  "English",
+  "Hindi",
+  "Malayalam",
+  "Tamil",
+  "Kannada",
+  "Telugu",
+  "Marathi",
+  "Gujarati",
+  "Punjabi",
+  "Urdu",
+  "Bengali",
+  "Spanish",
+  "French",
+  "German",
+  "Chinese",
+  "Japanese",
+  "Russian",
+  "Turkish",
+  "Korean",
+  "Portuguese",
+  "Arabic",
+  "Indonesian",
+  "Vietnamese",
+  "Other",
+].map((lang) => ({ value: lang, label: lang }));
+
+export default languageOptions;
