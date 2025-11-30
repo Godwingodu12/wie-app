@@ -12,12 +12,11 @@ import SearchIcon from "../../assets/HomePage/SearchIcon.svg";
 import SettingIcon from "../../assets/Message/settings_icon.png";
 import EditIcon from "../../assets/Message/edit_icon.png";
 import { getUserChats, createOrGetChat } from "../../services/chatService";
-<<<<<<< HEAD
+
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-=======
->>>>>>> 8cb382ed8e33bf2fa1cbe5aa292459410964ed4c
+
 const getNeumorphicStyle = (isPressed = false, isDark = true, theme) => {
   const bg = isDark ? "#212426" : theme.inputBg.replace('bg-[', '').replace(']', '');
   const lightShadow = isDark
@@ -630,9 +629,7 @@ const fetchChats = async () => {
         onSelectUser={handleSelectUser}
       />
     </div>
-<<<<<<< HEAD
-    
-=======
+
     <nav 
       className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t"
       style={{
@@ -644,8 +641,8 @@ const fetchChats = async () => {
       }}
     >
     </nav>
->>>>>>> 8cb382ed8e33bf2fa1cbe5aa292459410964ed4c
     </>
   );
 };
 export default IndexMessage;
+
