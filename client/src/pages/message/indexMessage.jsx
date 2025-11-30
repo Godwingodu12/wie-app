@@ -12,7 +12,6 @@ import SearchIcon from "../../assets/HomePage/SearchIcon.svg";
 import SettingIcon from "../../assets/Message/settings_icon.png";
 import EditIcon from "../../assets/Message/edit_icon.png";
 import { getUserChats, createOrGetChat } from "../../services/chatService";
-import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 const getNeumorphicStyle = (isPressed = false, isDark = true, theme) => {
   const bg = isDark ? "#212426" : theme.inputBg.replace('bg-[', '').replace(']', '');
   const lightShadow = isDark
@@ -49,19 +48,17 @@ const IndexMessage = () => {
     setIsDark(shouldBeDark);
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
-
-  const fetchChats = async () => {
-    setLoading(true);
-    try {
-      const response = await getUserChats();
-      const fetchedChats = response.chats || [];
-      const currentChatId = sessionStorage.getItem('currentChatId');
-      
-      const mappedChats = fetchedChats.map(chat => ({
-        ...chat,
-        unreadCount: (chat._id === currentChatId) ? 0 : (unreadChats.get(chat._id) ?? chat.unreadCount ?? 0)
-      }));
-      
+const fetchChats = async () => {
+  setLoading(true);
+  try {
+    const response = await getUserChats();
+    const fetchedChats = response.chats || [];
+    const currentChatId = sessionStorage.getItem('currentChatId');
+    const chatsWithMessages = fetchedChats.filter(chat => chat.lastMessage && chat.lastMessage.content);
+    const mappedChats = chatsWithMessages.map(chat => ({
+      ...chat,
+      unreadCount: (chat._id === currentChatId) ? 0 : (unreadChats.get(chat._id) ?? chat.unreadCount ?? 0)
+    }));
       setChats(mappedChats);
       setFilteredChats(mappedChats);
       
@@ -334,7 +331,6 @@ const IndexMessage = () => {
   const handleNewChat = () => {
     setShowNewChatModal(true);
   };
-
   const handleSelectUser = async (selectedUser) => {
     try {
       const response = await createOrGetChat(selectedUser._id);
@@ -342,11 +338,9 @@ const IndexMessage = () => {
         ...response.chat,
         participant: selectedUser
       };
-      
-      if (response.isNew) {
+      if (response.isNew && newChat.lastMessage) {
         setChats(prev => [newChat, ...prev]);
       }
-      
       setSelectedChat(newChat);
       setShowNewChatModal(false);
     } catch (error) {
@@ -381,7 +375,8 @@ const IndexMessage = () => {
   const handleBackFromChat = () => {
     sessionStorage.removeItem('currentChatId');
     setSelectedChat(null);
-    fetchChats(); 
+    // Refresh chat list to remove empty chats
+    fetchChats();
   };
   const theme = isDark
     ? {
@@ -636,7 +631,6 @@ const IndexMessage = () => {
           : '0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
       }}
     >
-      <BottomNavigation theme={theme} user={user} />
     </nav>
     </>
   );
