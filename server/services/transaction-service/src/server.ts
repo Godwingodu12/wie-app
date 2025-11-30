@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 import Database from './config/db';
 import { connectRabbitMQ } from './rabbit/connection';
 import { startConsumers } from './rabbit/index';
-
 // Import routes
 import bookingRoutes from './routes/bookingRoutes';
 import interactionRoutes from './routes/interactionRoutes';
