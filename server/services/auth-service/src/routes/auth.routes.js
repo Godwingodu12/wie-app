@@ -1,7 +1,7 @@
 import express from 'express';
 import {index, login, adminSignup,organisationSignup,getUserById,verifyOTP,logout,forgotPassword,resendOtp,verifyUser,resetPassword,findAllActiveUsers,editProfile,viewAllUsers,getOtherProfile,getUserData,getFollowersService,getFollowersData,findAllActiveUsersService  } from '../services/auth.service.js';
 import { followUser, unfollowUser,googleAuth,googleCallback,facebookAuth,facebookCallback,
-    twitterAuth,twitterCallback,instagramAuth,instagramCallback,linkedinAuth,linkedinCallback,disconnectSocial,getSocialAccounts,getAllFollowers,getAllFollowing,getFollowers,getFollowing,isFollowing,changePassword,
+    twitterAuth,twitterCallback,instagramAuth,instagramCallback,linkedinAuth,linkedinCallback,disconnectSocial,getSocialAccounts,getAllFollowers,getAllFollowing,getFollowers,getFollowing,isFollowing,changePassword,othersAllFollowers,othersAllFollowing,
     AllActiveUsers,getFollowersDataHttp, personalDetails } from '../controllers/auth.controller.js';
 import passport from '../config/passport.config.js';
 import upload from '../middlewares/upload.js';
@@ -37,7 +37,8 @@ router.get('find-all-active-users/:userId/:searchQuery',protect,findAllActiveUse
 router.get('/get-user-data',protect,getUserData);
 router.get('/get-followers-data', protect, getFollowersDataHttp);
 router.get('/all-users/active', protect, AllActiveUsers);
-
+router.get('/others-all-followers/:otherId', protect, othersAllFollowers);
+router.get('/others-all-following/:otherId', protect, othersAllFollowing);
 // Google OAuth Routes
 router.get('/google', googleAuth, passport.authenticate('google-link', {
   scope: ['profile', 'email'],

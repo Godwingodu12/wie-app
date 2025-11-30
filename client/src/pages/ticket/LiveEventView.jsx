@@ -1,4 +1,3 @@
-// src/pages/LiveEventsPage/LiveEventsPage.jsx
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -335,23 +334,6 @@ if (error || !eventData) {
                   onChange={(e) => setSearchValue(e.target.value)}
                   onTuneClick={() => {}}
                 />
-              </div>
-              <div className="relative">
-                <div
-                  style={neumorphShadow}
-                  className={`w-12 h-12 rounded-full flex items-center justify-center ${theme.bg}`}
-                >
-                  <Bell
-                    className={`w-4 h-4 ${
-                      isDark
-                        ? "filter brightness-0 invert"
-                        : "filter brightness-0"
-                    }`}
-                  />
-                </div>
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">
-                  12
-                </span>
               </div>
               <div className="flex items-center gap-4 ml-auto flex-shrink-0">
                 <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />

@@ -1,5 +1,6 @@
 import User from "../models/user.model.js";
 import Follow from "../models/follow.model.js";
+import mongoose from 'mongoose';
 import { hashPassword, comparePassword } from "../utils/hash.js";
 import upload, { uploadToCloudinary, deleteFromCloudinary } from "../middlewares/upload.js";
 import { findAllActiveUsersService, getFollowersData,getFollowersService } from "../services/auth.service.js";
@@ -18,16 +19,10 @@ export const AllActiveUsers = async (req, res) => {
         message: "Unauthorized. User authentication required."
       });
     }
-
     const userId = req.user._id || req.user.id;
     const { query } = req.query; // Get search query from URL params
-
-    console.log('🔍 Finding active users for:', userId);
-    console.log('🔍 Search query:', query);
-
     // Call the service function
     const users = await findAllActiveUsersService(userId, query);
-
     // Format users
     const formattedUsers = users.map(user => ({
       _id: user._id,
@@ -64,7 +59,6 @@ export const AllActiveUsers = async (req, res) => {
     });
   }
 };
-
 export const followUser = async (req, res) => {
   try {
     const userIdToFollow = req.params.otherId;
@@ -263,11 +257,7 @@ export const getFollowers = async (req, res) => {
 export const getAllFollowers = async (req, res) => {
   try {
     const userId = req.params.userId || req.user._id || req.user.id;
-
-    console.log('🔍 Fetching followers for user:', userId);
-
     const activeFollowers = await getFollowersService(userId);
-
     return res.status(200).json({
       success: true,
       activeFollowers,
@@ -371,13 +361,125 @@ export const isFollowing = async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
+export const othersAllFollowers = async (req, res) => {
+  try {
+    const otherUserId = req.params.otherId;
+    // Validate userId
+    if (!otherUserId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    // Validate if it's a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(otherUserId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID format'
+      });
+    }
+
+    console.log(`📋 Fetching followers for user: ${otherUserId}`);
+
+    // Find all follow relationships where this user is being followed
+    const followRelationships = await Follow.find({
+      following: otherUserId,
+      status: 'active'
+    })
+    .populate({
+      path: 'follower',
+      select: '_id name email username image status contact_no bio organisation_type role',
+      match: { status: 'active' }
+    })
+    .lean();
+
+    console.log(`📊 Found ${followRelationships.length} follow relationships`);
+
+    // Filter out null followers (inactive users) and map to clean objects
+    const activeFollowers = followRelationships
+      .filter(f => f.follower !== null)
+      .map(f => ({
+        _id: f.follower._id,
+        name: f.follower.name,
+        email: f.follower.email,
+        username: f.follower.username,
+        image: f.follower.image,
+        status: f.follower.status,
+        contact_no: f.follower.contact_no,
+        bio: f.follower.bio,
+        organisation_type: f.follower.organisation_type,
+        role: f.follower.role
+      }));
+
+    console.log(`✅ Returning ${activeFollowers.length} active followers`);
+
+    // Return proper response
+    return res.status(200).json({
+      success: true,
+      activeFollowers: activeFollowers,
+      count: activeFollowers.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching followers:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch followers',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+export const othersAllFollowing = async (req, res) => {
+  try {
+   const otherUserId = req.params.otherId;
+    const following = await Follow.find({ follower: otherUserId, status: 'active' })
+      .select('following createdAt')
+      .populate({
+        path: 'following',
+        select: 'name image email isActive status bio location',
+        model: 'User'
+      })
+      .sort({ createdAt: -1 }) 
+      .lean();
+    const processedFollowing = following
+      .filter(f => f.following)
+      .map(f => ({
+        _id: f.following._id,
+        name: f.following.name,
+        image: f.following.image,
+        email: f.following.email,
+        bio: f.following.bio,
+        location: f.following.location,
+        followedAt: f.createdAt,
+        isActiveUser: f.following.isActive === true || f.following.status === 'active'
+      }));
+    // Separate active and inactive following users
+    const activeFollowing = processedFollowing.filter(f => f.isActiveUser);
+    const inactiveFollowing = processedFollowing.filter(f => !f.isActiveUser);
+    return res.status(200).json({
+      success: true,
+      totalCount: processedFollowing.length,
+      activeFollowingCount: activeFollowing.length,
+      inactiveFollowingCount: inactiveFollowing.length,
+      following: processedFollowing,
+      activeFollowing,
+      inactiveFollowing
+    });
+  } catch (error) {
+    console.error('Error fetching all following:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Internal server error' 
+    });
+  }
+};
 export const googleAuth = (req, res, next) => {
   if (req.user && req.user._id) {
     req.session.userId = req.user._id.toString();
   }
   next();
 };
-
 export const googleCallback = async (req, res) => {
   try {
     const userId = req.session.userId;
@@ -414,7 +516,6 @@ export const googleCallback = async (req, res) => {
     res.redirect(`${process.env.CLIENT_URL}/settings?error=google_link_failed`);
   }
 };
-
 // Facebook OAuth Controllers
 export const facebookAuth = (req, res, next) => {
   if (req.user && req.user._id) {

@@ -19,14 +19,9 @@ export const listenQueue = async (queueName, handler) => {
       const startTime = Date.now();
       
       try {
-        const content = JSON.parse(msg.content.toString());
-        console.log(`⚡ Processing ${queueName}:`, content);
-        
+        const content = JSON.parse(msg.content.toString());        
         const response = await handler(content);
-        
         const processingTime = Date.now() - startTime;
-        console.log(`✅ Processed ${queueName} in ${processingTime}ms`);
-
         if (msg.properties.replyTo) {
           channel.sendToQueue(
             msg.properties.replyTo,
@@ -61,8 +56,6 @@ export const listenQueue = async (queueName, handler) => {
         channel.nack(msg, false, false);
       }
     });
-
-    console.log(`👂 Listening on ${queueName}`);
   } catch (error) {
     console.error(`❌ Error setting up listener for ${queueName}:`, error);
   }
@@ -94,9 +87,6 @@ export const publishToQueue = async (queueName, message, timeout = 10000) => {
 
       // Set up timeout with cleanup
       timeoutId = setTimeout(() => {
-        console.error(`⏱️ Timeout waiting for response from ${queueName}`);
-        console.log(`📋 Request details:`, { queueName, correlationId, message });
-        
         // Cancel consumer if it exists
         if (consumerTag) {
           channel.cancel(consumerTag).catch(() => {});

@@ -24,10 +24,12 @@ const messageSchema = new mongoose.Schema({
   }
 }, { _id: true });
 
+// Chat schema with all necessary fields
 const chatSchema = new mongoose.Schema({
-  participants: [{
-    type: mongoose.Schema.Types.ObjectId,
-    required: true
+  participants: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User',
+    required: true 
   }],
   messages: [messageSchema],
   lastMessage: {
@@ -35,21 +37,28 @@ const chatSchema = new mongoose.Schema({
     sender: mongoose.Schema.Types.ObjectId,
     timestamp: Date
   },
+  // Track who cleared the chat and when (for "clear chat for me" feature)
+  clearedBy: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    clearedAt: { type: Date }
+  }],
+  // Track who deleted the chat (for "delete chat for me" feature)
   deletedFor: [{
     type: mongoose.Schema.Types.ObjectId
   }],
+  // Track if chat is active (for permanent deletion)
   isActive: {
     type: Boolean,
     default: true
   }
 }, {
-  timestamps: true
+  timestamps: true // This automatically adds createdAt and updatedAt
 });
-// SEPARATE indexes - do NOT combine array fields
+
+// Indexes for better query performance
 chatSchema.index({ participants: 1 });
 chatSchema.index({ isActive: 1 });
 chatSchema.index({ updatedAt: -1 });
-// Compound index with non-array field
 chatSchema.index({ isActive: 1, updatedAt: -1 });
 
 const Chat = mongoose.model('Chat', chatSchema);

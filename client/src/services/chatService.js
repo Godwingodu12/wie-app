@@ -55,3 +55,27 @@ export const deleteChat = async (chatId) => {
         throw error;
     }
 };
+export const clearChatMessages = async(chatId) =>{
+  try{
+    const response = await api.delete(`/chat/clear-chat/${chatId}`);
+    return response.data;
+  } catch(error){
+    throw error;
+  }
+};
+export const deleteMessage = async (chatId, messageId) => {
+  try {
+    const response = await api.delete(`/chat/delete-message/${chatId}/${messageId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+export const clearAndDeleteChat = async (chatId) => {
+  try {
+    const response = await api.delete(`/chat/clear-delete/${chatId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};  

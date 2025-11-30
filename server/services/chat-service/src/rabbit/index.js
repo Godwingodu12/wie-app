@@ -1,6 +1,5 @@
 import { connectRabbitMQ, isChannelAvailable } from './connection.js';
 import { listenForChatRequests } from './consumerConnections.js';
-
 // Start all consumers
 export const startConsumers = async () => {
   try {

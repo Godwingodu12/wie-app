@@ -60,10 +60,7 @@ const startServer = async () => {
     // Start HTTP server (regardless of RabbitMQ status)
     app.listen(PORT, () => {
       console.log(`✅ Ticket service running on port ${PORT}`);
-      console.log(`✅ Using Cloudinary for media storage`);
-      console.log(`✅ Health check: http://localhost:${PORT}/health`);
     });
-    
   } catch (err) {
     console.error('❌ Fatal error starting server:', err);
     process.exit(1);

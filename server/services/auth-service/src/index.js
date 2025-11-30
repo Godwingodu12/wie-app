@@ -60,8 +60,6 @@ const startServer = async () => {
     // Start server
     app.listen(PORT, () => {
       console.log(`✅ Auth service running on port ${PORT}`);
-      console.log(`✅ Using Cloudinary for image storage`);
-      console.log(`✅ Health check: http://localhost:${PORT}/health`);
     });
   } catch (err) {
     console.error('❌ Error starting server:', err);

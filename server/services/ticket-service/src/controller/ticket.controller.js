@@ -2,7 +2,6 @@ import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import TicketLike from '../models/ticketLike.model.js';
 import { createNotification } from '../utils/notificationHelper.js';
-import axios from 'axios';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
 import { processFileUploads, deleteFromCloudinary } from '../utils/cloudinaryHelper.js';
 import mongoose from 'mongoose';
@@ -136,7 +135,6 @@ export const updateSubEvent = async (req, res) => {
             // Validate upload success
             if (profileFile.path && profileFile.originalName) {
               guestProfileFiles[parseInt(index)] = profileFile;
-              console.log(`✓ Guest profile ${index}: ${profileFile.originalName}`);
             }
           }
         }
@@ -150,7 +148,6 @@ export const updateSubEvent = async (req, res) => {
             // Validate upload success
             if (ticketPhotoFile.path && ticketPhotoFile.originalName) {
               ticketPhotoFiles[parseInt(index)] = ticketPhotoFile;
-              console.log(`✓ Ticket photo ${index}: ${ticketPhotoFile.originalName}`);
             }
           }
         }
@@ -162,7 +159,6 @@ export const updateSubEvent = async (req, res) => {
       if (bannerFile.path && bannerFile.originalName) {
         processedFiles.event_banner = bannerFile.path; // Cloudinary URL
         processedFiles.event_banner_public_id = bannerFile.public_id;
-        console.log(`✓ Event banner: ${bannerFile.originalName}`);
       }
     }
     // Handle event logo
@@ -171,7 +167,6 @@ export const updateSubEvent = async (req, res) => {
       if (logoFile.path && logoFile.originalName) {
         processedFiles.event_logo = logoFile.path; // Cloudinary URL
         processedFiles.event_logo_public_id = logoFile.public_id;
-        console.log(`✓ Event logo: ${logoFile.originalName}`);
       }
     }
     if (uploadedFiles.event_images && uploadedFiles.event_images.length > 0) {
@@ -191,7 +186,6 @@ export const updateSubEvent = async (req, res) => {
             resource_type: file.resource_type,
             uploadedAt: new Date()
           }));
-          console.log(`✓ Event images: ${validImages.length} uploaded`);
         }
       } else {
         console.warn('⚠ Too many event images (max 10)');
@@ -211,7 +205,6 @@ export const updateSubEvent = async (req, res) => {
           resource_type: rulesFile.resource_type,
           uploadedAt: new Date()
         };
-        console.log(`✓ Event rules: ${rulesFile.originalName}`);
       }
     }
     // Handle ticket layout (offline only)
@@ -220,7 +213,6 @@ export const updateSubEvent = async (req, res) => {
       if (layoutFile.path && layoutFile.originalName) {
         processedFiles.ticket_layout = layoutFile.path; // Cloudinary URL
         processedFiles.ticket_layout_public_id = layoutFile.public_id;
-        console.log(`✓ Ticket layout: ${layoutFile.originalName}`);
       }
     }
     const parseNestedData = (data, fieldName) => {
@@ -248,7 +240,6 @@ export const updateSubEvent = async (req, res) => {
         };   
         if (guestProfileFiles[index]) {
           guestData.guest_profile = guestProfileFiles[index].path; // Cloudinary URL
-          console.log(`✓ Updated guest ${index} profile with Cloudinary URL`);
         }
         return guestData;
       });
@@ -269,7 +260,6 @@ export const updateSubEvent = async (req, res) => {
         if (ticketPhotoFiles[index]) {
           ticketData.ticket_photo = ticketPhotoFiles[index].path; // Cloudinary URL
           ticketData.ticket_photo_public_id = ticketPhotoFiles[index].public_id;
-          console.log(`✓ Updated ticket ${index} photo with Cloudinary URL`);
         }
         return ticketData;
       });
@@ -481,7 +471,6 @@ export const updateSubEvent = async (req, res) => {
       for (const publicId of filesToDelete) {
         await deleteFromCloudinary(publicId);
       }
-      console.log(`Cleaned up ${filesToDelete.length} files from Cloudinary due to error`);
     } catch (cleanupError) {
       console.error("Error cleaning up Cloudinary files:", cleanupError);
     }
@@ -829,23 +818,34 @@ export const getMyUpcomingEvents = async (req, res) => {
         });
     }
 };
-export const getOthersEvents = async(req, res)=>{
+export const getOthersEvents = async (req, res) => {
   try {
-      const other = req.params.otherId;
-      const tickets = await Ticket.find({ 
-                userId: other,
-                event_status: ['completed','live']
-            });
-      res.status(200).json({
-            message: "Other User Tickets retrieved successfully",
-            tickets: tickets
-        });
+    const other = req.params.otherId;
+
+    let tickets = await Ticket.find({
+      userId: other,
+      event_status: ['completed', 'live']
+    });
+    tickets = tickets.sort((a, b) => {
+      const aDates = a.event_dates || [];
+      const bDates = b.event_dates || [];
+      const aLastEnd = aDates.length > 0 ? aDates[aDates.length - 1].end_date : null;
+      const bLastEnd = bDates.length > 0 ? bDates[bDates.length - 1].end_date : null;
+      const aDate = aLastEnd ? new Date(aLastEnd) : new Date(0);
+      const bDate = bLastEnd ? new Date(bLastEnd) : new Date(0);
+      return bDate - aDate; 
+    });
+    res.status(200).json({
+      message: "Other User Tickets retrieved successfully",
+      tickets: tickets
+    });
+
   } catch (error) {
     console.error("Error fetching Others tickets:", error);
-        res.status(500).json({
-            message: "Internal server error",
-            error: error.message
-        });
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
   }
 };
 export const getOthersEventsById = async(req, res)=>{
@@ -959,10 +959,7 @@ export const getGroupTicketPercentages = async (req, res) => {
           ticketCount: { $sum: 1 }
         }
       }
-    ]);
-    
-    console.log("Ticket Stats from aggregation:", ticketStats);
-    
+    ]);    
     // Calculate total tickets
     const totalTickets = ticketStats.reduce((sum, stat) => sum + stat.ticketCount, 0);
     
@@ -1070,7 +1067,6 @@ export const confirmEvent = async (req, res) => {
         message: "Missing required parameter: ticketId"
       });
     }
-    // Update ticket to confirmed status
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId, userId: userId },
       { 
@@ -1085,25 +1081,7 @@ export const confirmEvent = async (req, res) => {
         message: "Ticket not found or unauthorized" 
       });
     }
-    // Populate groupId
     await updatedTicket.populate('groupId');
-    // Create notification
-    try {
-      const groupName = updatedTicket.groupId?.name || 'Unknown Group';
-      await createNotification({
-        userId: userId,
-        type: 'event_created',
-        title: 'Event Created Successfully',
-        message: `Your event "${updatedTicket.event_name}" has been created in ${groupName}`,
-        ticketId: updatedTicket._id,
-        groupId: updatedTicket.groupId?._id,
-        groupName: groupName,
-        eventName: updatedTicket.event_name
-      });
-      console.log('Notification created for confirmed event:', updatedTicket.event_name);
-    } catch (notifError) {
-      console.error('Error creating notification:', notifError);
-    }
     res.status(200).json({
       message: "Event confirmed successfully",
       ticket: updatedTicket
@@ -1222,7 +1200,6 @@ export const goLiveEvent = async(req, res) => {
         groupId: ticket.groupId?._id,
         eventName: ticket.event_name
       });
-      console.log('Notification created for live event:', ticket.event_name);
     } catch (notifError) {
       console.error('Error creating notification:', notifError);
     }
@@ -1250,7 +1227,6 @@ export const makeEventCompleted = async(req, res) => {
       liveTickets.map(async (ticket) => {
         const endDateStr = ticket.event_dates?.[0]?.end_date || ticket.end_date;
         if (!endDateStr) {
-          console.log(`Ticket ${ticket._id} has no end_date, skipping...`);
           unchangedCount++;
           return;
         }
@@ -1260,10 +1236,8 @@ export const makeEventCompleted = async(req, res) => {
           ticket.event_status = 'completed';
           await ticket.save();
           completedCount++;
-          console.log(`Event ${ticket.event_name} (${ticket._id}) marked as completed`);
         } else {
           unchangedCount++;
-          console.log(`Event ${ticket.event_name} (${ticket._id}) is still ongoing`);
         }
       })
     );
@@ -1345,9 +1319,7 @@ export const showEventBankDetails = async (req, res) => {
                 bank_detail_id: bank._id
               });
             });
-          } else {
-            console.log('No banking details found for sub-event:', subEvent.event_name);
-          }
+          } 
         });
       }
     });
@@ -1376,8 +1348,6 @@ export const showAllBankDetails = async (req, res) => {
     const groups = await Group.find({ userId: userId })
       .sort({ createdAt: -1 })
       .exec();
-    console.log("Total tickets found:", tickets.length);
-    console.log("Total groups found:", groups.length);
     const allBankDetails = [];
     // Process Main Events
     tickets.forEach(ticket => {
@@ -1422,12 +1392,9 @@ export const showAllBankDetails = async (req, res) => {
     });
     // Process Groups - Bank details are stored as individual fields
     groups.forEach(group => {
-      console.log("Processing group:", group.name);
       
       // Check if group has primary bank account details
-      if (group.primary_bank_acc_no && group.primary_bank_acc_no.trim() !== '') {
-        console.log(`Found bank details for group ${group.name}`);
-        
+      if (group.primary_bank_acc_no && group.primary_bank_acc_no.trim() !== '') {        
         allBankDetails.push({
           source_type: "Group",
           source_category: "Group",
@@ -1440,13 +1407,8 @@ export const showAllBankDetails = async (req, res) => {
           bank_acc_holder: group.primary_bank_acc_holder || "N/A",
           bank_detail_id: group._id // Using group _id as there's no separate bank detail id
         });
-      } else {
-        console.log(`No banking details found for group ${group.name || group._id}`);
       }
     });
-
-    console.log("Total bank details collected:", allBankDetails.length);
-
     res.status(200).json({
       success: true,
       count: allBankDetails.length,
@@ -1506,8 +1468,6 @@ export const LiveEventBankDetails = async (req, res) => {
                 bank_detail_id: bank._id
               });
             });
-          } else {
-            console.log('No banking details found for sub-event:', subEvent.event_name);
           }
         });
       }
@@ -1743,9 +1703,6 @@ export const totalEventsCreatedCount = async (req, res) => {
     });
   }
 };
-
-
-
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAP_API || 'AIzaSyB5MQdwuxFIG6Msf_At0bV2vPXuFwEkVkI'; 
 
 export const getPostalDetailsFromCoords = async (req, res) => {
@@ -1775,7 +1732,6 @@ export const getPostalDetailsFromCoords = async (req, res) => {
 
         // 3. Handle API failure states
         if (data.status !== 'OK' || data.results.length === 0) {
-            console.warn(`Geocoding failed for ${lat},${lng}. Status: ${data.status}`);
             return res.status(404).json({ 
                 message: "Location details not found for these coordinates",
                 status: data.status 
@@ -1831,5 +1787,3 @@ export const getPostalDetailsFromCoords = async (req, res) => {
         });
     }
 };
-
-// ... (Rest of your ticket.controller.js file)
