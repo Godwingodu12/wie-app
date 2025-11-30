@@ -1142,18 +1142,18 @@ export const createTicketBasicInfo = async (req, res) => {
 
     // 5. Age Validation
     const ageNum = Number(min_age_allowed);
-    if (isNaN(ageNum) || ageNum < 0 || ageNum > 150) {
+    if (isNaN(ageNum) || ageNum < 1 || ageNum > 150) {
       return res.status(400).json({
-        message: 'Minimum age allowed must be between 0 and 150',
+        message: 'Minimum age allowed must be between 1 and 150',
       });
     }
 
     let ageMax;
     if (max_age_allowed && String(max_age_allowed).trim() !== '') {
       const parsedAgeMax = Number(max_age_allowed);
-      if (isNaN(parsedAgeMax) || parsedAgeMax < 0 || parsedAgeMax > 150) {
+      if (isNaN(parsedAgeMax) || parsedAgeMax < 1 || parsedAgeMax > 150) {
         return res.status(400).json({
-          message: 'Maximum age allowed must be between 0 and 150 if provided',
+          message: 'Maximum age allowed must be between 1 and 150 if provided',
         });
       }
       if (parsedAgeMax < ageNum) {
@@ -1300,9 +1300,9 @@ export const createTicketBasicInfo = async (req, res) => {
     // 10. Hashtag Validation
     if (hashtag) {
       const hashtagArray = parseJSONSafely(hashtag, []);
-      if (hashtagArray.length > 20) {
+      if (hashtagArray.length > 50) {
         return res.status(400).json({
-          message: 'Maximum 20 hashtags allowed',
+          message: 'Maximum 50 hashtags allowed',
         });
       }
       
@@ -2698,9 +2698,9 @@ export const updateTicketAddOns = async (req, res) => {
       });
     }
     const ageNum = Number(subEventData.min_age_allowed);
-    if (isNaN(ageNum) || ageNum < 0 || ageNum > 150) {
+    if (isNaN(ageNum) || ageNum < 1 || ageNum > 150) {
       return res.status(400).json({
-        message: "Minimum age allowed must be between 0 and 150",
+        message: "Minimum age allowed must be between 1 and 150",
       });
     }
     let ageMax = 150;
@@ -2710,9 +2710,9 @@ export const updateTicketAddOns = async (req, res) => {
     ) {
       const parsedAgeMax = Number(subEventData.max_age_allowed);
 
-      if (isNaN(parsedAgeMax) || parsedAgeMax < 0 || parsedAgeMax > 150) {
+      if (isNaN(parsedAgeMax) || parsedAgeMax < 1 || parsedAgeMax > 150) {
         return res.status(400).json({
-          message: "Maximum age allowed must be between 0 and 150 if provided",
+          message: "Maximum age allowed must be between 1 and 150 if provided",
         });
       }
       if (parsedAgeMax < ageNum) {
