@@ -257,7 +257,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "D:\\DEVELOP\\wie\\server\\services\\transaction-service\\src\\generated\\prisma",
+      "value": "C:\\Users\\Vishnu\\OneDrive\\Desktop\\sqaris_work\\wie\\server\\services\\transaction-service\\src\\generated\\prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -271,7 +271,7 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "D:\\DEVELOP\\wie\\server\\services\\transaction-service\\prisma\\schema.prisma",
+    "sourceFilePath": "C:\\Users\\Vishnu\\OneDrive\\Desktop\\sqaris_work\\wie\\server\\services\\transaction-service\\prisma\\schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
@@ -285,7 +285,7 @@ const config = {
     "db"
   ],
   "activeProvider": "postgresql",
-  "postinstall": false,
+  "postinstall": true,
   "inlineDatasources": {
     "db": {
       "url": {
