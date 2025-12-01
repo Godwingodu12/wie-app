@@ -37,7 +37,7 @@ const getNeumorphicShadows = (isDark) =>
 
 
 
-function BankAccountDetailsCard({ isDark, theme }) {
+const BankAccountDetailsCard=({ isDark, theme })=> {
   const [bankDetails, setBankDetails] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
