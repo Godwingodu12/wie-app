@@ -120,7 +120,7 @@ const EventSidebar = ({
     });
 
     const completed = {
-      1: true,
+      1: !!groupId,
       2: formProgress?.basic_info || false,
       3: formProgress?.media || false,
       4: formProgress?.banking_tickets || false,
@@ -230,16 +230,14 @@ const EventSidebar = ({
           const isActive = currentStep === step.id;
           const isCompleted = completedSteps[step.id];
           const stepIndex = navigationSteps.findIndex((s) => s.id === step.id);
-          const previousStepCompleted =
-            stepIndex > 0
-              ? completedSteps[navigationSteps[stepIndex - 1].id]
-              : false;
+          const isPreviousCompleted =
+            step.id === 1
+              ? true
+              : completedSteps[navigationSteps[stepIndex - 1].id];
 
-          const isAllowed =
-            step.id === 1 || isCompleted || previousStepCompleted;
+          const isAllowed = step.id === 1 || isCompleted || isPreviousCompleted;
           const hasRoute = step.route !== "#";
-          const isInteractive = isAllowed && hasRoute && step.id !== 1;
-
+          const isInteractive = isAllowed && hasRoute && currentStep !== 1;
           return (
             <div
               key={step.id}

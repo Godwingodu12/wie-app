@@ -1100,7 +1100,7 @@ const handleUpdateGroup = () => {
                             return (
                               <div
                                 key={group._id}
-                                className="p-4 flex bg-[#f9f9f9] flex-col items-center gap-2 rounded-[30px] flex-shrink-0 w-40"
+                                className="p-4 flex  flex-col items-center gap-2 rounded-[30px] flex-shrink-0 w-40"
                                 style={{
                                   boxShadow: isDark
                                     ? "inset 3px 3px 6px rgba(0,0,0,0.5), inset -3px -3px 6px rgba(60,60,60,0.25)"
