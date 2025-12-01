@@ -392,10 +392,10 @@ const handleUpdateGroup = () => {
         inputBg: "bg-[#212426]",
       }
     : {
-        bg: "bg-[#f0f2f5]",
+        bg: "bg-[#F9F9F9]",
         text: "text-gray-900",
         subText: "text-gray-600",
-        cardBg: "bg-[#f0f2f5]",
+        cardBg: "bg-[#f1f1f1]",
         border: "border-[#e4e6ea]",
         inputBg: "bg-[#ffffff]",
       };
@@ -434,7 +434,7 @@ const handleUpdateGroup = () => {
       >
         {/* Desktop Sidebar */}
         <div
-          className={`hidden md:flex flex-col flex-shrink-0 nest-hub-sidebar ${theme.bg} border-r ${theme.border}`}
+          className={`hidden md:flex flex-col flex-shrink-0 nest-hub-sidebar ${theme.bg}  ${theme.border}`}
         >
           <div
             className="flex items-center justify-center"
@@ -528,13 +528,13 @@ const handleUpdateGroup = () => {
             </div>
           </header>
           <main
-            className={`main-scrollbar flex flex-col flex-1 p-4 md:px-6 md:pt-6 overflow-y-auto pb-32 md:pb-4 ${theme.cardBg}`}
+            className={`main-scrollbar flex flex-col flex-1 p-4 md:px-6 md:pt-6 overflow-y-auto pb-32 md:pb-4 ${theme.bg}`}
           >
             <div className="w-full flex flex-col flex-1">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 flex-shrink-0">
                 <div className="mb-4 md:mb-0">
                   <h1
-                    className={`text-xl md:text-2xl font-semibold ${theme.text}`}
+                    className={`text-xl md:text-3xl font-semibold ${theme.text}`}
                   >
                     Good day, {displayName}!
                   </h1>
@@ -638,7 +638,7 @@ const handleUpdateGroup = () => {
                               ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                               : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
                           }}
-                          className={`${theme.bg} rounded-[2.5rem] relative p-6 flex flex-col items-center justify-center gap-3 h-full transition-all duration-300`}
+                          className={`${theme.cardBg} rounded-[2.5rem] relative p-6 flex flex-col items-center justify-center gap-3 h-full transition-all duration-300`}
                         >
                           <div
                             style={{
@@ -792,7 +792,7 @@ const handleUpdateGroup = () => {
                         ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                         : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
                     }}
-                    className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 min-h-[450px] max-h-[550px] lg:min-h-[530px] lg:max-h-[630px]`}
+                    className={`${theme.cardBg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 min-h-[450px] max-h-[550px] lg:min-h-[530px] lg:max-h-[630px]`}
                   >
                     <div className="flex items-center justify-between mb-4 flex-shrink-0">
                       <div className="flex items-center gap-3">
@@ -925,7 +925,7 @@ const handleUpdateGroup = () => {
                         ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                         : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
                     }}
-                    className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1 max-h-[400px]`}
+                    className={`${theme.cardBg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1 max-h-[400px]`}
                   >
                     <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4">
                       <div className="flex items-center gap-3">
@@ -942,7 +942,7 @@ const handleUpdateGroup = () => {
                       </div>
                       <button
                         onClick={() => navigate("/ticket/live-events")}
-                        className={`border border-[background: background: #6549B8;] rounded-full px-6 py-2 text-sm font-light tracking-wider transition-colors hover:bg-blue-500 hover:text-white ${
+                        className={`border  rounded-full px-4 py-1 text-sm font-light tracking-wider transition-colors hover:bg-[#6549B8] border-[#6549B8] hover:text-white ${
                           isDark ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
@@ -1060,7 +1060,7 @@ const handleUpdateGroup = () => {
                         ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                         : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
                     }}
-                    className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1 max-h-[400px]`}
+                    className={`${theme.cardBg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1 max-h-[400px]`}
                   >
                     <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4">
                       <div className="flex items-center gap-3">
@@ -1077,7 +1077,7 @@ const handleUpdateGroup = () => {
                       </div>
                       <button
                         onClick={() => navigate("/ticket/groups")}
-                        className={`border border-[background: #6549B8;] rounded-full px-6 py-2 text-sm font-light tracking-wider transition-colors hover:bg-blue-500 hover:text-white ${
+                         className={`border  rounded-full px-4 py-1 text-sm font-light tracking-wider transition-colors hover:bg-[#6549B8] border-[#6549B8] hover:text-white ${
                           isDark ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
@@ -1085,7 +1085,7 @@ const handleUpdateGroup = () => {
                       </button>
                     </div>
                       {groupsWithCount.length > 0 ? (
-                        <div className="flex gap-4 overflow-x-auto horizontal-scrollbar">
+                        <div className="flex gap-4 overflow-x-auto horizontal-scrollbar py-2">
                           {groupsWithCount.slice(0, 6).map((group) => {
                             // Determine the image URL with proper fallback
                             let groupImageUrl = ProfileImage; // Default fallback
@@ -1100,18 +1100,18 @@ const handleUpdateGroup = () => {
                             return (
                               <div
                                 key={group._id}
-                                className="p-4 flex flex-col items-center gap-2 rounded-3xl flex-shrink-0 w-40"
+                                className="p-4 flex bg-[#f9f9f9] flex-col items-center gap-2 rounded-[30px] flex-shrink-0 w-40"
                                 style={{
                                   boxShadow: isDark
                                     ? "inset 3px 3px 6px rgba(0,0,0,0.5), inset -3px -3px 6px rgba(60,60,60,0.25)"
                                     : "inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.5)",
                                 }}
                               >
-                                <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center">
+                                <div className={`w-20 h-20 rounded-full  border-2 overflow-hidden  flex items-center justify-center ${theme.bg}`}>
                                   <img
                                     src={groupImageUrl}
                                     alt={group.name}
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover "
                                     onError={(e) => {
                                       console.error('Image load error for:', e.target.src);
                                       e.target.onerror = null;
@@ -1130,7 +1130,7 @@ const handleUpdateGroup = () => {
                                   e.stopPropagation();
                                   handleGroupClick(group);
                                 }}
-                                className={`w-full mt-2 border border-[rgba(101,73,184,1)] rounded-full py-1.5 text-xs font-light tracking-wider transition-colors hover:bg-[rgba(101,73,184,0.2)] ${
+                                className={`w-full mt-2 border border-[#5E5CE6] rounded-full py-1.5 text-xs font-light tracking-wider transition-colors hover:bg-[rgba(101,73,184,0.2)] ${
                                   isDark ? "text-gray-300" : "text-gray-700"
                                 }`}
                               >
