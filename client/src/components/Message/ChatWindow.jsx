@@ -692,8 +692,8 @@ const ChatWindow = ({ chat, onBack, isDark }) => {
   return (
     <div className="flex flex-col w-full h-full overflow-hidden">
       <ScrollBarStyle
-        isDark={darkTheme.isDark}
-        key={darkTheme.isDark ? "dark" : "light"}
+        isDark={isDark}
+        key={isDark ? "dark" : "light"}
       />
       <div
         className="flex items-center gap-3 p-4 border-b flex-shrink-0"

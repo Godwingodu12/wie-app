@@ -276,21 +276,26 @@ const handleView = (eventId) => {
   }, [searchValue]);
   const theme = isDark
     ? {
+        
+        subCardBg: "bg-[#1c1e20]",
+      
         bg: "bg-[#212426]",
         text: "text-white",
         subText: "text-[#c9c9cf]",
         cardBg: "bg-[#212426]",
-        subCardBg: "bg-[#1c1e20]",
-        border: "border-gray-700",
+        border: "border-[#23233a]",
+        inputBg: "bg-[#212426]",
         notificationShadow: "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)",
       }
     : {
-        bg: "#f9f9f9",
+       bg: "bg-[#F9F9F9]",
         text: "text-gray-900",
         subText: "text-gray-600",
-        cardBg: "#f2f2f2",
+        cardBg: "bg-[#f1f1f1]",
+        border: "border-[#e4e6ea]",
+        inputBg: "bg-[#ffffff]",
         subCardBg: "#f2f2f2",
-        border: "border-gray-300",
+        
         notificationShadow: "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
       };
 
@@ -344,7 +349,7 @@ const handleView = (eventId) => {
             <div className="max-w-7xl mx-auto">
               {/* Page Title and Delete All Button */}
               <div className="flex items-center justify-between mb-6 md:mb-8">
-                <h1 className={`text-xl md:text-3xl font-bold ${theme.text}`}>
+                <h1    className={`text-lg md:text-3xl font-semibold ${theme.text} flex items-center gap-3`}>
                   Deleted events
                 </h1>
                 {filteredEvents.length > 0 && (
@@ -394,9 +399,9 @@ const handleView = (eventId) => {
                 <div
                   className={`rounded-[2.5rem] p-4 md:p-6 ${theme.cardBg}`}
                   style={{
-                    boxShadow: isDark 
-                      ? 'inset 5px 5px 10px #0d0e0f,inset -5px -5px 10px #353a3d'
-                      : 'inset -5px -5px 10px #606060,inset 5px 5px 10px #ffffff'
+                        boxShadow: isDark
+      ? "inset 6px 6px 12px 0px #0000004D, inset -6px -6px 12px 0px #FFFFFF0A"
+      : "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14",
                   }}
                 >
                   {/* Desktop Table View */}
@@ -409,6 +414,7 @@ const handleView = (eventId) => {
                           } text-sm sticky top-0`}
                           style={{
                             background: isDark ? "#232426" : "#F1F1F1",
+                            
                             zIndex: 10,
                           }}
                         >
@@ -481,7 +487,7 @@ const handleView = (eventId) => {
                                     onClick={() => handleView(event._id)}
                                     className="px-4 py-2 rounded-full text-xs font-semibold text-white shadow-md hover:shadow-lg transition-all duration-300 flex items-center gap-1"
                                     style={{
-                                      background: "linear-gradient(180deg, #1E40AF 0%, #3B82F6 100%)",
+                                      background: " linear-gradient(180deg, #1E1242 0%, #6942B8 100%)",
                                       minWidth: "70px",
                                     }}
                                     title="View Event"
@@ -646,6 +652,7 @@ const handleView = (eventId) => {
           type={alert.type}
           message={alert.message}
           onClose={hideAlert}
+          darkMode={theme}
         />
       )}
 

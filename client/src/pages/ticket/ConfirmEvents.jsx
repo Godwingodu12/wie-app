@@ -26,212 +26,17 @@ import EditIcon from "../../assets/Event/EditIcon.png";
 import { ChevronDown, PartyPopper, Radio, Search, Landmark } from "lucide-react";
 import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
 import { getImageUrl } from "../../utils/imageUtils";
+import MyGroupsCard from "../../components/HomePage/MyGroupCard.jsx";
+import StatsCard from "../../components/ViewPage/StatsCard.jsx";
+
 
 const getNeumorphicShadows = (isDark) =>
   isDark
-    ? "shadow-[inset_5px_5px_10px_#1a1b1e,inset_-5px_-5px_10px_#3c3f44]"
-    : "shadow-[inset_5px_5px_10px_#a4a4a4,inset_-5px_-5px_10px_#ffffff]";
-const getButtonNeumorphicShadows = (isDark) =>
-  isDark
-    ? "shadow-[inset_2px_2px_5px_#1a1b1e,inset_-2px_-2px_5px_#3c3f44]"
-    : "shadow-[inset_-2px_-2px_5px_rgba(0,0,0,0.1),inset_2px_2px_5px_rgba(255,255,255,1)]";
+    ? "shadow-[inset_6px_6px_12px_#0000004D,inset_-6px_-6px_12px_#FFFFFF0A]"
+    : "shadow-[inset_6px_6px_12px_#0000002E,inset_-6px_-6px_12px_#FFFFFF14]";
 
-const MyGroupsCard = ({ theme, groups, isDark }) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState(null);
-  const [groupEventCount, setGroupEventCount] = useState(0);
-  const [loadingCount, setLoadingCount] = useState(false);
-  const navigate = useNavigate();
-  const handleGroupClick = async (group) => {
-    setSelectedGroup(group);
-    setIsModalOpen(true);
-    setLoadingCount(true);
-    
-    // Fetch event count for this specific group
-    try {
-      const eventsRes = await getMyEvents();
-      
-      // Handle different response structures
-      let eventsArray = [];
-      if (Array.isArray(eventsRes)) {
-        eventsArray = eventsRes;
-      } else if (eventsRes?.tickets) {
-        eventsArray = Array.isArray(eventsRes.tickets) ? eventsRes.tickets : [];
-      } else if (eventsRes?.data) {
-        eventsArray = Array.isArray(eventsRes.data) ? eventsRes.data : [];
-      }
 
-      // Filter events that belong to this specific group
-      const groupId = group._id || group.id;
-      const filteredEvents = eventsArray.filter(event => 
-        event.groupId === groupId || 
-        event.group_id === groupId || 
-        event.group === groupId ||
-        event.group?._id === groupId ||
-        event.group?.id === groupId
-      );
-      
-      setGroupEventCount(filteredEvents.length);
-    } catch (error) {
-      console.error('Error fetching event count:', error);
-      // Fallback to group's own count if available
-      setGroupEventCount(group.totalEvents || group.events || 0);
-    } finally {
-      setLoadingCount(false);
-    }
-  };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedGroup(null);
-    setGroupEventCount(0);
-  };
-
-  const handleUpdateGroup = () => {
-    console.log('Update group:', selectedGroup);
-    // Add your update logic here
-    // You might want to navigate to an edit page or open an edit modal
-    // Example: navigate(`/group/edit/${selectedGroup._id}`);
-    handleCloseModal();
-  };
-
-  return (
-    <>
-      <div className="h-full flex flex-col min-h-[180px]">
-        <div className="flex items-center justify-between w-full mb-3 md:mb-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-lg md:text-xl font-semibold">My groups,</h3>
-            <p className={`text-xs md:text-sm ${theme.subText}`}>
-              {groups.length} groups
-            </p>
-          </div>
-          {groups.length > 2 && (
-            <button onClick={()=> navigate("/ticket/groups")}
-              className={`text-xs md:text-sm ${theme.subText} hover:underline flex-shrink-0`}
-            >
-              See more
-            </button>
-          )}
-        </div>
-        <div className="flex flex-row items-center justify-start w-full gap-4 md:gap-6 flex-grow">
-          {groups.slice(0, 2).map((group, index) => {
-            let imageUrl;
-            if (group.grp_type === "admin") {
-              imageUrl = ProfileImage;
-            } else if (group.grp_type === "organization") {
-              imageUrl = getImageUrl(group.company_logo) || ProfileImage;
-            } else {
-              imageUrl = getImageUrl(group.company_logo) || ProfileImage;
-            }
-            return (
-              <div 
-                key={index} 
-                className="flex flex-col items-center gap-2 cursor-pointer group"
-                onClick={() => handleGroupClick(group)}
-              >
-                <div
-                  className="relative w-[80px] h-[80px] md:w-[100px] md:h-[100px] rounded-[58px] overflow-hidden flex-shrink-0 transition-transform duration-200 group-hover:scale-105"
-                  style={{
-                    boxShadow: isDark
-                      ? "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)"
-                      : "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <img
-                    src={imageUrl}
-                    alt={group.company_logo}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = ProfileImage;
-                    }}
-                  />
-                </div>
-                <p
-                  className={`font-medium text-xs md:text-sm ${theme.text} text-center max-w-[100px] truncate group-hover:underline`}
-                >
-                  {group.name}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      {/* Group View Modal */}
-      <GroupViewModal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        group={selectedGroup}
-        isDark={isDark}
-        theme={theme}
-        onUpdate={handleUpdateGroup}
-        totalEvents={groupEventCount}
-        loadingCount={loadingCount}
-      />
-    </>
-  );
-};
-const StatsCard = ({ count, title, isDark, theme, className, icon, isMobile = false }) => {
-  if (isMobile) {
-    return (
-      <div
-        style={{
-          width: "48%", // Takes 48% of container width
-          height: "160px",
-          padding: "3%",
-          borderRadius: "30px",
-          border: "3px solid transparent",
-          backgroundImage: isDark 
-            ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
-            : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
-          backgroundOrigin: "border-box",
-          backgroundClip: "padding-box, border-box",
-          boxShadow: isDark
-            ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
-            : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
-        }}
-        className={`flex flex-col items-center justify-around ${className}`}
-      >
-        {icon}
-        <p className={`text-xl sm:text-2xl font-semibold ${theme.text}`}>
-          {count}
-        </p>
-        <p className={`text-[9px] sm:text-[10px] text-center leading-tight px-1 ${theme.subText}`}>
-          {title}
-        </p>
-      </div>
-    );
-  }
-  
-  return (
-    <div
-      style={{
-        width: "48%", // Takes 48% of container width
-        height: "160px",
-        padding: "3%",
-        borderRadius: "30px",
-        border: "3px solid transparent",
-        backgroundImage: isDark 
-          ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
-          : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
-        backgroundOrigin: "border-box",
-        backgroundClip: "padding-box, border-box",
-        boxShadow: isDark
-          ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
-          : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
-      }}
-      className={`flex flex-col items-center justify-around ${className}`}
-    >
-      {icon}
-      <p className={`text-2xl lg:text-3xl font-semibold ${theme.text}`}>
-        {count}
-      </p>
-      <p className={`text-[10px] lg:text-xs text-center leading-tight ${theme.subText}`}>
-        {title}
-      </p>
-    </div>
-  );
-};
 function BankAccountDetailsCard({ isDark, theme }) {
   const [bankDetails, setBankDetails] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -302,8 +107,8 @@ function BankAccountDetailsCard({ isDark, theme }) {
   return (
     <div
       className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${
-        theme.cardBg
-      } ${getNeumorphicShadows(isDark)}`}
+        isDark ? theme.cardBg : "bg-[#f1f1f1]"
+      }  ${getNeumorphicShadows(isDark)}`}
     >
       {/* Card Header */}
       <header
@@ -325,10 +130,12 @@ function BankAccountDetailsCard({ isDark, theme }) {
         {bankDetails.length > 1 && (
           <button
             onClick={handleSeeAll}
-            className="whitespace-nowrap text-xs sm:text-sm font-semibold text-purple-600 border border-purple-300 rounded-full px-4 py-1.5 sm:px-5 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors duration-300"
-          >
-            see all
-          </button>
+          className={`border  rounded-full px-4 py-1 text-sm font-light tracking-wider transition-colors hover:bg-[#6549B8] border-[#6549B8] hover:text-white ${
+                          isDark ? "text-gray-300" : "text-gray-700"
+                        }`}
+                      >
+                        see all
+                      </button>
         )}
       </header>
 
@@ -438,54 +245,7 @@ function BankAccountDetailsCard({ isDark, theme }) {
     </div>
   );
 }
-const tableStyles = `
-  .table-container {
-    overflow-x: auto;
-  }
 
-  .fixed-table {
-    table-layout: fixed;
-  }
-
-  .truncate-cell {
-    max-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    position: relative;
-  }
-
-  .truncate-cell:hover::after {
-    content: attr(data-full-text);
-    position: absolute;
-    left: 0;
-    top: 100%;
-    background: #1f2937;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
-    white-space: normal;
-    word-wrap: break-word;
-    z-index: 1000;
-    min-width: 200px;
-    max-width: 400px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    margin-top: 4px;
-  }
-
-  .truncate-cell:hover::before {
-    content: '';
-    position: absolute;
-    left: 12px;
-    top: 100%;
-    width: 0;
-    height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-bottom: 6px solid #1f2937;
-    z-index: 1001;
-  }
-`;
 const EventsList = ({
   isDark,
   theme,
@@ -901,7 +661,7 @@ const EventsList = ({
             </div>
           </div>
 
-          {/* Tablet List View */}
+       
           {/* Tablet List View */}
           <div className="flex flex-col lg:hidden">
             {displayEvents.map((event, index) => {
@@ -997,7 +757,7 @@ const EventsList = ({
                   isDark ? "border-gray-700" : "border-gray-200"
                 } text-sm sticky top-0`}
                 style={{
-                  background: isDark ? "#232426" : "#F1F1F1",
+                  background: isDark ? "#232426" : "transparent",
                   zIndex: 10,
                 }}
               >
@@ -1321,13 +1081,17 @@ const openHostModal = (event) => {
         bg: "bg-[#212426]",
         text: "text-white",
         subText: "text-[#c9c9cf]",
-        cardBg: "bg-[#232426]",
+        cardBg: "bg-[#212426]",
+        border: "border-[#23233a]",
+        inputBg: "bg-[#212426]",
       }
     : {
-        bg: "bg-slate-100",
+        bg: "bg-[#F9F9F9]",
         text: "text-gray-900",
         subText: "text-gray-600",
-        cardBg: "bg-slate-100",
+        cardBg: "bg-[#f1f1f1]",
+        border: "border-[#e4e6ea]",
+        inputBg: "bg-[#ffffff]",
       };
   const confirmedEventsCount = events.length;
   return (
@@ -1410,10 +1174,10 @@ const openHostModal = (event) => {
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-32 md:pb-8 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
             <div>
-              <h1 className={`text-3xl sm:text-4xl font-bold ${theme.text}`}>
+              <h1  className={`text-lg md:text-3xl font-semibold ${theme.text} flex items-center gap-3`}>
                 Saved Events
               </h1>
-              <p className={`${theme.subText} mt-2 text-base sm:text-lg`}>
+              <p className={`${theme.subText} mt-2 text-base sm:text-base`}>
                 Review and manage everything related to events.
               </p>
             </div>

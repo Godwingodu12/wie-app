@@ -75,28 +75,7 @@ const lightTheme = {
   arrowBgClass: "bg-gray-800",
   arrowColorClass: "text-gray-200",
 };
-const formatLocationFromCoords = (subEventData) => {
-  if (subEventData.location_type !== "offline") {
-    return subEventData.location_type === "online"
-      ? "Online Event"
-      : "Recorded Event";
-  }
 
-  // Fallback to location property first if it's already a string
-  if (subEventData.location && typeof subEventData.location === "string") {
-    return subEventData.location;
-  }
-
-  // Use state and country (simulated extraction from coordinates/database)
-  const state = subEventData.location_state || "State N/A";
-  const country = subEventData.location_country || "Country N/A";
-
-  if (state === "State N/A" && country === "Country N/A") {
-    return "Offline Event";
-  }
-
-  return `${state}, ${country}`;
-};
 
 const ViewSingleSubEvent = () => {
   const { ticketId, subEventId } = useParams();

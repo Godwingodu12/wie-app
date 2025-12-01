@@ -30,212 +30,20 @@ import {
 } from "lucide-react";
 import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
 import { getImageUrl } from "../../utils/imageUtils";
+import MyGroupsCard from "../../components/HomePage/MyGroupCard.jsx";
+import StatsCard from "../../components/ViewPage/StatsCard.jsx";
 
 const getNeumorphicShadows = (isDark) =>
   isDark
-    ? "shadow-[inset_5px_5px_10px_#1a1b1e,inset_-5px_-5px_10px_#3c3f44]"
-    : "shadow-[inset_5px_5px_10px_#a4a4a4,inset_-5px_-5px_10px_#ffffff]";
+    ? "shadow-[inset_6px_6px_12px_#0000004D,inset_-6px_-6px_12px_#FFFFFF0A]"
+    : "shadow-[inset_6px_6px_12px_#0000002E,inset_-6px_-6px_12px_#FFFFFF14]";
 const getButtonNeumorphicShadows = (isDark) =>
   isDark
-    ? "shadow-[inset_2px_2px_5px_#1a1b1e,inset_-2px_-2px_5px_#3c3f44]"
-    : "shadow-[inset_-2px_-2px_5px_rgba(0,0,0,0.1),inset_2px_2px_5px_rgba(255,255,255,1)]";
+    ? "shadow-[8px_8px_12px_0px_#00000029,-8px_-8px_12px_0px_#FFFFFF0A]"
+    : "shadow-[8px_8px_12px_0px_#00000029,-8px_-8px_12px_0px_#FFFFFF0A]";
 
-const MyGroupsCard = ({ theme, groups, isDark }) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState(null);
-  const [groupEventCount, setGroupEventCount] = useState(0);
-  const [loadingCount, setLoadingCount] = useState(false);
-  const navigate = useNavigate();
-  const handleGroupClick = async (group) => {
-    setSelectedGroup(group);
-    setIsModalOpen(true);
-    setLoadingCount(true);
-    
-    // Fetch event count for this specific group
-    try {
-      const eventsRes = await getMyEvents();
-      
-      // Handle different response structures
-      let eventsArray = [];
-      if (Array.isArray(eventsRes)) {
-        eventsArray = eventsRes;
-      } else if (eventsRes?.tickets) {
-        eventsArray = Array.isArray(eventsRes.tickets) ? eventsRes.tickets : [];
-      } else if (eventsRes?.data) {
-        eventsArray = Array.isArray(eventsRes.data) ? eventsRes.data : [];
-      }
 
-      // Filter events that belong to this specific group
-      const groupId = group._id || group.id;
-      const filteredEvents = eventsArray.filter(event => 
-        event.groupId === groupId || 
-        event.group_id === groupId || 
-        event.group === groupId ||
-        event.group?._id === groupId ||
-        event.group?.id === groupId
-      );
-      
-      setGroupEventCount(filteredEvents.length);
-    } catch (error) {
-      console.error('Error fetching event count:', error);
-      // Fallback to group's own count if available
-      setGroupEventCount(group.totalEvents || group.events || 0);
-    } finally {
-      setLoadingCount(false);
-    }
-  };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedGroup(null);
-    setGroupEventCount(0);
-  };
-
-  const handleUpdateGroup = () => {
-    console.log('Update group:', selectedGroup);
-    // Add your update logic here
-    // You might want to navigate to an edit page or open an edit modal
-    // Example: navigate(`/group/edit/${selectedGroup._id}`);
-    handleCloseModal();
-  };
-
-  return (
-    <>
-      <div className="h-full flex flex-col min-h-[180px]">
-        <div className="flex items-center justify-between w-full mb-3 md:mb-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-lg md:text-xl font-semibold">My groups,</h3>
-            <p className={`text-xs md:text-sm ${theme.subText}`}>
-              {groups.length} groups
-            </p>
-          </div>
-          {groups.length > 2 && (
-            <button onClick={()=> navigate("/ticket/groups")}
-              className={`text-xs md:text-sm ${theme.subText} hover:underline flex-shrink-0`}
-            >
-              See more
-            </button>
-          )}
-        </div>
-        <div className="flex flex-row items-center justify-start w-full gap-4 md:gap-6 flex-grow">
-          {groups.slice(0, 2).map((group, index) => {
-            let imageUrl;
-            if (group.grp_type === "admin") {
-              imageUrl = ProfileImage;
-            } else if (group.grp_type === "organization") {
-              imageUrl = getImageUrl(group.company_logo) || ProfileImage;
-            } else {
-              imageUrl = getImageUrl(group.company_logo) || ProfileImage;
-            }
-            return (
-              <div 
-                key={index} 
-                className="flex flex-col items-center gap-2 cursor-pointer group"
-                onClick={() => handleGroupClick(group)}
-              >
-                <div
-                  className="relative w-[80px] h-[80px] md:w-[100px] md:h-[100px] rounded-[58px] overflow-hidden flex-shrink-0 transition-transform duration-200 group-hover:scale-105"
-                  style={{
-                    boxShadow: isDark
-                      ? "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)"
-                      : "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <img
-                    src={imageUrl}
-                    alt={group.company_logo}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = ProfileImage;
-                    }}
-                  />
-                </div>
-                <p
-                  className={`font-medium text-xs md:text-sm ${theme.text} text-center max-w-[100px] truncate group-hover:underline`}
-                >
-                  {group.name}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      {/* Group View Modal */}
-      <GroupViewModal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        group={selectedGroup}
-        isDark={isDark}
-        theme={theme}
-        onUpdate={handleUpdateGroup}
-        totalEvents={groupEventCount}
-        loadingCount={loadingCount}
-      />
-    </>
-  );
-};
-const StatsCard = ({ count, title, isDark, theme, className, icon, isMobile = false }) => {
-  if (isMobile) {
-    return (
-      <div
-        style={{
-          width: "48%",
-          height: "160px",
-          padding: "3%",
-          borderRadius: "30px",
-          border: "3px solid transparent",
-          backgroundImage: isDark 
-            ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
-            : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
-          backgroundOrigin: "border-box",
-          backgroundClip: "padding-box, border-box",
-          boxShadow: isDark
-            ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
-            : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
-        }}
-        className={`flex flex-col items-center justify-around ${className}`}
-      >
-        {icon}
-        <p className={`text-xl sm:text-2xl font-semibold ${theme.text}`}>
-          {count}
-        </p>
-        <p className={`text-[9px] sm:text-[10px] text-center leading-tight px-1 ${theme.subText}`}>
-          {title}
-        </p>
-      </div>
-    );
-  }
-  
-  return (
-    <div
-      style={{
-        width: "105px",
-        height: "145px",
-        padding: "12px 10px",
-        borderRadius: "30px",
-        border: "3px solid transparent",
-        backgroundImage: isDark 
-          ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
-          : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
-        backgroundOrigin: "border-box",
-        backgroundClip: "padding-box, border-box",
-        boxShadow: isDark
-          ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
-          : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
-      }}
-      className={`flex flex-col items-center justify-around flex-shrink-0 ${className}`}
-    >
-      {icon}
-      <p className={`text-xl lg:text-2xl xl:text-3xl font-semibold ${theme.text}`}>
-        {count}
-      </p>
-      <p className={`text-[9px] lg:text-[10px] xl:text-xs text-center leading-tight ${theme.subText}`}>
-        {title}
-      </p>
-    </div>
-  );
-};
 function MonthSelector({
   currentMonth,
   onSelectMonth,
@@ -318,20 +126,20 @@ function OneLinerCalendar({ isDark, theme, dates, selectedDate, onDateClick }) {
 
     if (isToday) {
       return {
-        wrapper: "bg-[#00DEA3] rounded-2xl shadow-lg border-2 border-[#00c591]",
+        wrapper: "bg-[#00DEA3] rounded-2xl py-12 shadow-lg border-2  border-[#00c591]",
         day: "text-black font-bold text-lg",
         date: "text-black font-bold text-lg",
       };
     }
     if (isSelected && !isToday) {
       return {
-        wrapper: "bg-[#6549B8] rounded-2xl",
+        wrapper: "bg-[#6549B8] rounded-2xl  py-12",
         day: "text-white font-semibold",
         date: "text-white font-bold",
       };
     }
     return {
-      wrapper: "",
+      wrapper: " py-12",
       day: theme.subText,
       date: theme.text,
     };
@@ -339,10 +147,10 @@ function OneLinerCalendar({ isDark, theme, dates, selectedDate, onDateClick }) {
 
   return (
     <div
-      className={`mt-4 p-3 sm:p-4 md:p-5 lg:p-6 rounded-[30px] ${isDark ? theme.cardBg : "bg-[#f1f1f1]"} ${getNeumorphicShadows(isDark)}`}
+      className={` rounded-[30px] ${isDark ? theme.cardBg : "bg-[#f1f1f1]"} ${getNeumorphicShadows(isDark)}`}
     >
       <div
-        className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 px-2 hide-scrollbar"
+        className="flex gap-1 sm:gap-2  overflow-x-auto px-2 hide-scrollbar"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         <style>{`
@@ -356,7 +164,7 @@ function OneLinerCalendar({ isDark, theme, dates, selectedDate, onDateClick }) {
             <div
               key={index}
               onClick={() => onDateClick(dayInfo)}
-              className={`flex-shrink-0 w-12 sm:w-14 md:w-16 h-12 sm:h-14 md:h-16 flex flex-col justify-center items-center space-y-0.5 sm:space-y-1 cursor-pointer transition-all duration-200 ${style.wrapper} ${index >= 5 ? "hidden sm:flex" : ""}`}
+              className={`flex-shrink-0  w-12 sm:w-14 md:w-16 h-12 sm:h-14 md:h-16 flex flex-col justify-center items-center space-y-0.5 sm:space-y-1 cursor-pointer transition-all duration-200 ${style.wrapper} ${index >= 5 ? "hidden sm:flex" : ""}`}
             >
               <span className={`text-xs uppercase ${style.day}`}>
                 {dayInfo.isToday
@@ -672,19 +480,20 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
         <div>
           <button
             type="button"
-            className={`inline-flex items-center justify-start w-auto min-w-[80px] md:w-[180px] lg:w-[200px] xl:w-[226px] rounded-full px-2 md:px-3 lg:px-4 py-1.5 md:py-2 text-xs md:text-sm lg:text-base xl:text-lg focus:outline-none transition-all whitespace-nowrap ${theme.text}`}
+            className={`inline-flex items-center justify-start  w-auto min-w-[80px] md:w-[180px] lg:w-[200px] xl:w-[226px] rounded-full px-2 md:px-3 lg:px-4 py-1.5 md:py-5 text-xs md:text-sm lg:text-base xl:text-lg focus:outline-none transition-all whitespace-nowrap ${theme.text}`}
             style={{
               background: isDark ? "#232426" : "#f1f1f1",
               boxShadow: isDark
-                ? "inset 5px 5px 10px #1a1b1e, inset -5px -5px 10px #3c3f44"
-                : "inset 5px 5px 10px #a4a4a4, inset -5px -5px 10px #ffffff",
+      ? "inset 6px 6px 12px 0px #0000004D, inset -6px -6px 12px 0px #FFFFFF0A"
+      : "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14",
               height: "32px",
             }}
             onClick={() => setIsOpen(!isOpen)}
           >
-            <div className={`p-0.5 md:p-1 rounded-full mr-1 md:mr-2 bg-gray-500`}>
+            <div className={`p-0.5 md:p-1 rounded-full mr-1 md:mr-2 ${theme.bg}`}>
               <ChevronDown
                 className={`h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5 ${theme.text}`}
+                
               />
             </div>
             {selectedOption === "All" ? title : selectedOption}
@@ -752,12 +561,12 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
         <div className="flex flex-col gap-3 mb-4 md:hidden mt-4">
           {/* Search Bar */}
             <div
-            className="flex items-center gap-2 rounded-full px-3 py-2"
+            className="flex items-center gap-2 rounded-full px-3 py-2 "
               style={{
                 background: isDark ? "#232426" : "#f1f1f1",
-                boxShadow: isDark
-                  ? "inset 5px 5px 10px #1a1b1e, inset -5px -5px 10px #3c3f44"
-                  : "inset 5px 5px 10px #a4a4a4, inset -5px -5px 10px #ffffff",
+    boxShadow: isDark
+      ? "inset 6px 6px 12px 0px #0000004D, inset -6px -6px 12px 0px #FFFFFF0A"
+      : "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14",
                 height: "36px",
               }}
             >
@@ -938,14 +747,14 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
               >
                 <th className="py-6 md:py-4 px-2 md:px-4 font-bold text-sm md:text-base lg:text-lg xl:text-xl relative">
                   <div
-                    className="flex items-center justify-start gap-2 rounded-full transition-colors px-4"
+                    className="flex items-center justify-start gap-2 rounded-full transition-colors px-4 py-5"
                     style={{
                       height: "32px",
                       width: "180px",
                       background: isDark ? "#232426" : "#f1f1f1",
-                      boxShadow: isDark
-                        ? "inset 5px 5px 10px #1a1b1e, inset -5px -5px 10px #3c3f44"
-                        : "inset 5px 5px 10px #a4a4a4, inset -5px -5px 10px #ffffff",
+                          boxShadow: isDark
+      ? "inset 6px 6px 12px 0px #0000004D, inset -6px -6px 12px 0px #FFFFFF0A"
+      : "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14",
                     }}
                   >
                     <div className="flex items-center gap-2 w-full">
@@ -1182,19 +991,23 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
       localStorage.setItem("theme", newDark ? "dark" : "light");
     };
 
-    const theme = isDark
-      ? {
-          bg: "bg-[#212426]",
-          text: "text-white",
-          subText: "text-[#c9c9cf]",
-          cardBg: "bg-[#232426]",
-        }
-      : {
-          bg: "bg-slate-100",
-          text: "text-gray-900",
-          subText: "text-gray-600",
-          cardBg: "bg-slate-100",
-        };
+  const theme = isDark
+    ? {
+        bg: "bg-[#212426]",
+        text: "text-white",
+        subText: "text-[#c9c9cf]",
+        cardBg: "bg-[#212426]",
+        border: "border-[#23233a]",
+        inputBg: "bg-[#212426]",
+      }
+    : {
+        bg: "bg-[#F9F9F9]",
+        text: "text-gray-900",
+        subText: "text-gray-600",
+        cardBg: "bg-[#f1f1f1]",
+        border: "border-[#e4e6ea]",
+        inputBg: "bg-[#ffffff]",
+      };
     const PreviousEventsCount = events.length;
     return (
       <>
@@ -1274,11 +1087,11 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
             </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-32 md:pb-8 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
+          <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-32 md:pb-4  [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
               <div className="block">
                 <h1
-                  className={`text-xl sm:text-2xl lg:text-3xl font-bold ${theme.text}`}
+                      className={`text-lg md:text-3xl font-semibold ${theme.text} flex items-center gap-3`}
                 >
                   Previous Event
                 </h1>
@@ -1412,7 +1225,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
   </div>
   </div>
 
-            <div className="flex justify-end items-center mb-2">
+            <div className="flex justify-end items-center mb-4">
               <div
                 className={`flex items-center p-1 rounded-full ${theme.cardBg} ${getButtonNeumorphicShadows(isDark)}`}
               >
@@ -1433,7 +1246,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                 })}
               </div>
             </div>
-            <div className="mt-4 sm:mt-0">
+            <div className="mt-6 sm:mt-0">
               <EventsList
                 isDark={isDark}
                 theme={theme}
