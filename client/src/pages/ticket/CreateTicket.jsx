@@ -30,6 +30,7 @@ import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
 import TagInput from "../../components/CreateGroup/TagInput.jsx";
 import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
 import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.jsx";
+import getInitialTheme from "../../components/CreateGroup/getIntialTheme.jsx";
 const eventCategories = {
   "Arts, Culture, & Literature": [
     "Art Exhibitions",
@@ -177,16 +178,7 @@ const seatingOptions = [
   { value: "other", label: "Other" },
 ];
 
-const getInitialTheme = () => {
-  // 1. Check for saved preference in localStorage
-  const savedTheme = localStorage.getItem("theme");
-  if (savedTheme) {
-    return savedTheme === "dark"; // Returns true or false
-  }
 
-  // 2. Fallback to system preference
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-};
 
 const CreateTicket = () => {
   const navigate = useNavigate();

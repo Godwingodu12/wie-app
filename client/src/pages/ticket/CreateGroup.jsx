@@ -11,6 +11,7 @@ import ThemeToggle from '../../components/HomePage/ThemeToggle';
 import EventSidebar from '../../components/CreateGroup/EventSidebar';
 import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
 import Alert from "../../components/CreateGroup/Alert";
+import getInitialTheme from '../../components/CreateGroup/getIntialTheme.jsx';
 // CSS for placeholders, which will be injected based on the theme
 const darkThemeStyles = `
   .dark input::placeholder,
@@ -170,8 +171,7 @@ const CreateGroup = () => {
   const [loading, setLoading] = useState(true);
   const [capabilities, setCapabilities] = useState(null);
   const [userData, setUserData] = useState(null);
-  const [darkMode, setDarkMode] = useState(true);
-  const [filePreviews, setFilePreviews] = useState({});
+const [darkMode, setDarkMode] = useState(getInitialTheme());  const [filePreviews, setFilePreviews] = useState({});
   const [hasGst, setHasGst] = useState('');
   const [existingGroups, setExistingGroups] = useState([]);
   const [ticketData, setTicketData] = useState(null);
@@ -208,15 +208,19 @@ const showAlert = (data) => setAlert({ ...data, show: true });
 const hideAlert = () => setAlert(null);
   
 
-  useEffect(() => {
+useEffect(() => {
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
+}, [darkMode]);
+
+useEffect(() => {
     let styleSheet = document.getElementById('dynamic-theme-styles');
     if (!styleSheet) {
-      styleSheet = document.createElement('style');
-      styleSheet.id = 'dynamic-theme-styles';
-      document.head.appendChild(styleSheet);
+        styleSheet = document.createElement('style');
+        styleSheet.id = 'dynamic-theme-styles';
+        document.head.appendChild(styleSheet);
     }
     styleSheet.innerText = darkMode ? darkThemeStyles : lightThemeStyles;
-  }, [darkMode]);
+}, [darkMode]);
 useEffect(() => {
     fetchUserCapabilities();
 }, [groupId]);
@@ -715,7 +719,7 @@ const FileUploadArea = ({ label, name }) => {
   return (
     <>
      <CustomScrollbarStyles isDark={darkMode} />
-         <Alert alert={alert} onClose={hideAlert} /> 
+         <Alert alert={alert} onClose={hideAlert} darkMode={darkMode} /> 
 
       <div className={`min-h-screen flex ${darkMode ? 'dark' : 'light'}`}>
           {!isEditMode && (
