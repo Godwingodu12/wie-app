@@ -261,7 +261,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
   return (
     <>
       <header
-        className={`flex items-center justify-center border-b ${isDark ? "border-gray-700" : "border-gray-200"} pb-3 sm:pb-4 mb-4 sm:mb-6 flex-wrap gap-2 sm:gap-4`}
+        className={`flex items-end justify-end border-b ${isDark ? "border-gray-700" : "border-gray-200"} pb-3 sm:pb-4 mb-4 sm:mb-6 flex-wrap gap-2 sm:gap-4`}
       >
         <div className="flex flex-row items-center justify-center gap-2 sm:gap-4">
           <div className="relative">
@@ -483,20 +483,19 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
             className={`inline-flex items-center justify-start  w-auto min-w-[80px] md:w-[180px] lg:w-[200px] xl:w-[226px] rounded-full px-2 md:px-3 lg:px-4 py-1.5 md:py-5 text-xs md:text-sm lg:text-base xl:text-lg focus:outline-none transition-all whitespace-nowrap ${theme.text}`}
             style={{
               background: isDark ? "#232426" : "#f1f1f1",
-              boxShadow: isDark
-      ? "inset 6px 6px 12px 0px #0000004D, inset -6px -6px 12px 0px #FFFFFF0A"
-      : "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14",
+           
               height: "32px",
             }}
             onClick={() => setIsOpen(!isOpen)}
           >
+            
+            {selectedOption === "All" ? title : selectedOption}
             <div className={`p-0.5 md:p-1 rounded-full mr-1 md:mr-2 ${theme.bg}`}>
               <ChevronDown
                 className={`h-3 w-3 md:h-4 md:w-4 lg:h-5 lg:w-5 ${theme.text}`}
                 
               />
             </div>
-            {selectedOption === "All" ? title : selectedOption}
           </button>
         </div>
         {isOpen && (
@@ -745,16 +744,14 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                   zIndex: 10,
                 }}
               >
-                <th className="py-6 md:py-4 px-2 md:px-4 font-bold text-sm md:text-base lg:text-lg xl:text-xl relative">
+                <th className="py-6 md:py-4 px-2 md:px-2 font-bold text-sm md:text-base lg:text-lg xl:text-xl relative">
                   <div
                     className="flex items-center justify-start gap-2 rounded-full transition-colors px-4 py-5"
                     style={{
                       height: "32px",
                       width: "180px",
                       background: isDark ? "#232426" : "#f1f1f1",
-                          boxShadow: isDark
-      ? "inset 6px 6px 12px 0px #0000004D, inset -6px -6px 12px 0px #FFFFFF0A"
-      : "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14",
+                         
                     }}
                   >
                     <div className="flex items-center gap-2 w-full">
@@ -769,7 +766,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                     </div>
                   </div>
                 </th>
-                <th className="py-2 md:py-3 px-2 md:px-4 font-semibold text-sm md:text-base lg:text-lg xl:text-xl">
+                <th className="py-2 md:py-3 px-2 md:px-2 font-semibold text-sm md:text-base lg:text-lg xl:text-xl">
                   <div className="flex items-center">
                     <Dropdown
                       title="Organisation"
@@ -787,7 +784,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                     />
                   </div>
                 </th>
-                <th className="py-2 md:py-3 px-2 md:px-4 font-semibold text-sm md:text-base lg:text-lg xl:text-xl">
+                <th className="py-2 md:py-3 px-2 md:px-2 font-semibold text-sm md:text-base lg:text-lg xl:text-xl">
                   <div className="flex items-center">
                     <Dropdown
                       title="Event Type"
@@ -811,7 +808,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                 if (!event) {
                   return (
                     <tr key={`placeholder-d-${index}`}>
-                      <td className="py-8 px-4 min-h-[78px]">&nbsp;</td>
+                      <td className="py-8 px-5 min-h-[78px]">&nbsp;</td>
                       <td className="py-8 px-4">&nbsp;</td>
                       <td className="py-8 px-4">&nbsp;</td>
                       <td className="py-4 px-4">&nbsp;</td>

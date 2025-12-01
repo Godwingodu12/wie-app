@@ -1231,10 +1231,10 @@ const EventsList = ({
       {/* Pagination */}
       {totalPages > 1 && (
         <div
-          className="flex justify-center mt-3 pt-2 border-t border-opacity-20"
+          className="flex justify-end mt-3 pt-2 border-t border-opacity-20"
           style={{ borderColor: isDark ? "#4a5568" : "#e2e8f0" }}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-end gap-2">
             {pages.map((page) => (
               <button
                 key={page}

@@ -1100,16 +1100,16 @@ const ViewSingleEvent = () => {
                 </h3>
                 <div
                   style={{
-                    borderRadius: "23.51px",
+                    borderRadius: "31.51px",
                     boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                   }}
-                  className="p-3 rounded-xl"
+                  className="p-5 rounded-xl"
                 >
                   <div className="flex  justify-around">
                     <Card
                       theme={theme}
                       style={{
-                        borderRadius: "30px",
+                        borderRadius: "35px",
                         boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                       }}
                       className={`p-2 lg:py-5 my-2 flex flex-col items-center justify-center w-2/5 rounded-3xl border ${
@@ -1278,9 +1278,8 @@ const ViewSingleEvent = () => {
                 background: theme.isDark
                   ? "linear-gradient(0deg, #212426, #212426), linear-gradient(0deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1))"
                   : "#FFFFFF0A",
-                boxShadow: theme.isDark
-                  ? `6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset `
-                  : `6px 6px 12px 0px #FFFFFF inset,-6px -6px 12px 0px #A0A0A0 inset `,
+                                  boxShadow: `6.23px 6.23px 12.46px 0px #0000002E inset, -6.23px -6.23px 12.46px 0px #FFFFFF14 inset`,
+
               }}
               className="md:p-5 md:mb-2 p-5 mb-1 rounded-3xl lg:mt-6"
             >
@@ -1357,7 +1356,7 @@ const ViewSingleEvent = () => {
 
                 <div className="w-full">
                   <div className="relative">
-                    <div className="overflow-x-hidden overflow-y-hidden w-full">
+                    <div className="overflow-x-hidden bg-transparent pb-2 w-full">
                       <div
                         className="flex space-x-2 transition-transform duration-300 items-center py-3"
                         style={{
@@ -1391,8 +1390,7 @@ const ViewSingleEvent = () => {
                                 opacity: 1,
                                 background: "#5E5CE6",
                                 border: "0.84px solid #C1C1C1",
-                                boxShadow: `${shadowDimensions} #3131A1D0, -${shadowDimensions} #9C9BF6C0`,
-                              };
+boxShadow: `${shadowDimensions} #3131A180, -${shadowDimensions} #9C9BF670`,                              };
                             } else {
                               return {
                                 ...baseStyle,
@@ -1484,7 +1482,7 @@ const ViewSingleEvent = () => {
                     </div>
 
                     {/* Progress Bar (remains the same) */}
-                    <div className="w-1/2 mx-auto h-1 bg-gray-700/50 rounded-full mt-4">
+                    <div className="w-1/2 mx-auto h-1 bg-gray-700/50  rounded-full mt-4">
                       <div
                         className="h-full rounded-full"
                         style={{

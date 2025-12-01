@@ -7,7 +7,7 @@ const Card = ({
 }) => (
   <div
     onClick={onClick}
-    className={`p-4 rounded-xl backdrop-blur-sm ${className}`}
+    className={`p-4  backdrop-blur-sm ${className}`}
     style={{
       backgroundColor: theme.cardBg,
       boxShadow: theme.shadowOutset,
