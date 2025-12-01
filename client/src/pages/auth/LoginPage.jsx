@@ -13,7 +13,7 @@ import UserInputIcon from '../../assets/auth/user.svg';
 import Logo from '../../assets/wie_logo.svg';
 import PasswordInputIcon from '../../assets/auth/password.svg';
 import bg from "../../assets/background.png";
-import { FaFacebookF,FaXTwitter } from "react-icons/fa6";
+import { FaEye, FaEyeDropper, FaEyeLowVision, FaEyeSlash, FaFacebookF,FaXTwitter } from "react-icons/fa6";
 import { RiInstagramFill } from "react-icons/ri";
 
 
@@ -84,7 +84,7 @@ const handleSubmit = async (e) => {
 
   return (
     <div className="min-h-screen w-full font-sans text-white bg-cover" style={{ backgroundImage: `url(${bg})` }}>
-          <Alert alert={alert} onClose={hideAlert} /> {/* <-- ADD THIS LINE */}
+          <Alert alert={alert} onClose={hideAlert} /> 
 
       <style>{`
         input:-webkit-autofill,
@@ -145,8 +145,16 @@ const handleSubmit = async (e) => {
                   placeholder="Password"
                   className="w-full bg-white/5 border border-white/20 rounded-lg py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all placeholder:text-white/40"
                 />
-                <img src={PasswordInputIcon} alt="Password Icon" className="w-4 h-4 absolute right-4 cursor-pointer" onClick={() => setShowPassword(!showPassword)} />
-              </div>
+                <div 
+        className="absolute right-4 cursor-pointer text-white/60 hover:text-white transition-colors"
+        onClick={() => setShowPassword(!showPassword)}
+    >
+        {showPassword ? (
+            <FaEye />
+        ) : (
+            <FaEyeSlash />
+        )}
+    </div>              </div>
 
               <div className="flex justify-between items-center text-xs sm:text-sm text-white/60">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
