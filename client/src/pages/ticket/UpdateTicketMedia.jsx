@@ -6,6 +6,7 @@ import { getMe } from "../../services/userService";
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import Alert from "../../components/CreateGroup/Alert";
+import { SlSizeFullscreen } from "react-icons/sl";
 
 import MediaIcon from "../../assets/Event/MediaIcon.svg?react";
 import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
@@ -14,6 +15,7 @@ import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
 // IMPORT the necessary utility function
 import { getTicketImageUrl } from "../../utils/imageUtils"; // Assuming imageUtils path
 import getInitialTheme from "../../components/CreateGroup/getIntialTheme.jsx";
+import FullScreenViewer from "../../components/CreateGroup/FullScreenViewer.jsx";
 
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
@@ -70,6 +72,7 @@ const UpdateTicketMedia = () => {
   const showAlert = location.state?.showAlert;
   const [darkMode, setDarkMode] = useState(getInitialTheme());
   const [isEducationalOrg, setIsEducationalOrg] = useState(false);
+  const [fullScreenViewer, setFullScreenViewer] = useState(null);
   const [formData, setFormData] = useState({
     event_logo: null,
     event_banner: null,
@@ -100,6 +103,14 @@ const UpdateTicketMedia = () => {
   const displayAlert =
     showAlert || ((data) => setAlert({ ...data, show: true }));
   const hideAlert = () => setAlert(null);
+
+  const openViewer = useCallback((url, mimeType, name) => {
+    setFullScreenViewer({ url, mimeType, name });
+  }, []);
+  
+  const closeViewer = useCallback(() => {
+    setFullScreenViewer(null);
+  }, []);
 
   // Fetch user details to determine organization type
   const fetchUserDetails = async () => {
@@ -515,7 +526,7 @@ const UpdateTicketMedia = () => {
 
       displayAlert({
         type: "success",
-        message: "Files Added",
+        message: "File Added",
         description: ` File added successfully`,
       });
     } catch (error) {
@@ -729,7 +740,16 @@ const UpdateTicketMedia = () => {
   return (
     <div className={darkMode ? "dark" : ""}>
       <ScrollBarStyle isDark={darkMode} />
-      <Alert alert={alert} onClose={hideAlert} isDark={darkMode} />
+      {fullScreenViewer && (
+            <FullScreenViewer
+               fileUrl={fullScreenViewer.url}
+               fileType={fullScreenViewer.mimeType}
+               fileName={fullScreenViewer.name}
+               onClose={closeViewer}
+               darkMode={darkMode}
+            />
+         )}
+      <Alert alert={alert} onClose={hideAlert} darkMode={darkMode} />
       <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
         <EventSidebar
           onBackClick={handleBack}
@@ -776,6 +796,19 @@ const UpdateTicketMedia = () => {
                     previews.college_authorisation?.url ||
                     previews.college_authorisation
                   }
+                  onPreviewClick={() => {
+                              if (previews.college_authorisation) {
+                                 // Determine the primary URL/Data source
+                                 const fileData = previews.college_authorisation;
+                      const fileUrl = fileData.data || fileData.url || fileData;
+                      
+                                 openViewer(
+                                    fileUrl,
+                                    fileData.mimeType || "application/pdf",
+                                    fileData.name || "Authorization Document"
+                                 );
+                              }
+                           }}
                   error={errors.college_authorisation}
                   isDocument={true}
                   acceptedFiles=".pdf,.doc,.docx"
@@ -793,6 +826,18 @@ const UpdateTicketMedia = () => {
                   error={errors.event_logo}
                   acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
                   maxSizeMB={50}
+                  onPreviewClick={() => {
+                              if (previews.event_logo) {
+                                 const fileData = previews.event_logo;
+                      const fileUrl = fileData.data || fileData.url || fileData; 
+                      
+                                 openViewer(
+                                    fileUrl,
+                                    fileData.mimeType || "image/jpeg",
+                                    fileData.name || "Event Logo"
+                                 );
+                              }
+                           }}
                   info="Optional. 1:1 ratio recommended. JPG, JPEG, PNG, GIF, or WEBP format."
                 />
                 <FileInput
@@ -805,6 +850,17 @@ const UpdateTicketMedia = () => {
                   acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
                   maxSizeMB={50}
                   info="Required. 2:1 ratio recommended. JPG, JPEG, PNG, GIF, or WEBP format."
+                  onPreviewClick={() => {
+                              if (previews.event_banner) {
+                                 const fileData = previews.event_banner;
+                        // For single images (logo/banner), preview directly holds the URL/Data URI string
+                        const fileUrl = fileData.data || fileData.url || fileData;
+                        const fileName = fileData.name || "Event Banner";
+                        const mimeType = fileData.mimeType || "image/jpeg";
+                        
+                                 openViewer(fileUrl, mimeType, fileName);
+                              }
+                           }}
                 />
               </div>
               <div>
@@ -844,16 +900,28 @@ const UpdateTicketMedia = () => {
                               loading="lazy"
                             />
                           )}
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <button
-                              type="button"
-                              onClick={() => removeImageFromList(img.id)}
-                              className="text-white text-3xl font-bold hover:text-red-400 hover:scale-110 transition-transform"
-                              aria-label="Remove file"
-                            >
-                              &times;
-                            </button>
-                          </div>
+<div className="absolute z-10 inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                          {/* View Full Size button (centered) */}
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        openViewer(img.preview, img.mimeType, img.name);
+                                    }}
+                                    className="text-black text-xl font-semibold p-2 rounded  hover:scale-125 duration-200 transition-colors"
+                                >
+<SlSizeFullscreen />
+                               </button>
+                                {/* Remove button (top-right) */}
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); removeImageFromList(img.id); }}
+                                    className="absolute top-2 right-2 text-white text-xl font-bold px-2 rounded-full bg-red-600/80 hover:bg-red-700 transition-colors"
+                                    aria-label="Remove file"
+                                >
+                                    &times;
+                                </button>
+                                       </div>
                           <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-2 py-1 rounded truncate max-w-[90%]">
                             {img.isExisting ? "Existing" : "New"}
                           </div>
