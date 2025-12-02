@@ -215,8 +215,10 @@ const EventTermsAndConditionsPage = () => {
           <div className="w-full max-w-5xl mx-auto">
             <header className="text-center mt-4 mb-12">
               <div
-                className={`w-20 h-20 rounded-full mx-auto my-4 flex items-center justify-center ${
-                  darkMode ? "bg-[#1E1242]" : "bg-indigo-100"
+                className={`w-20 h-20 rounded-full mx-auto my-4  flex items-center justify-center ${
+                  darkMode
+                    ? "bg-[#1E1242] text-gray-300"
+                    : "bg-[#1E1242] text-gray-300"
                 }`}
               >
                 <img
@@ -278,7 +280,7 @@ const EventTermsAndConditionsPage = () => {
                         id="details-confirm"
                         checked={isPreviewChecked}
                         onChange={(e) => setIsPreviewChecked(e.target.checked)}
-                        className="w-4 h-4 mr-3 bg-gray-100 border-gray-400 rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-indigo-600 ring-offset-gray-800 focus:ring-2 accent-indigo-600"
+                        className="w-4 h-4 mr-3 bg-gray-100 border-gray-400 rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-indigo-600 ring-offset-gray-800  accent-indigo-600"
                       />
                       <label
                         htmlFor="details-confirm"
@@ -293,7 +295,7 @@ const EventTermsAndConditionsPage = () => {
                         id="terms-agree"
                         checked={isChecked}
                         onChange={(e) => setIsChecked(e.target.checked)}
-                        className="w-4 h-4 mr-3 bg-gray-100 border-gray-400 rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-indigo-600 ring-offset-gray-800 focus:ring-2 accent-indigo-600"
+                        className="w-4 h-4 mr-3 bg-gray-100 border-gray-400 rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-indigo-600 ring-offset-gray-800  accent-indigo-600"
                       />
                       <label
                         htmlFor="terms-agree"
@@ -317,7 +319,7 @@ const EventTermsAndConditionsPage = () => {
                 <button
                   type="button"
                   onClick={handleSaveForLater}
-                  disabled={isLoading}
+                  disabled={isLoading || !isChecked || !isPreviewChecked}
                   className="px-6 py-2.5 rounded-lg font-medium bg-gray-200 dark:bg-[#2B2B2B] text-gray-800 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {isLoading ? "Saving..." : "Save for later"}

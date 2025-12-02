@@ -42,15 +42,15 @@ const EventSidebar = ({
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { navigationSteps, isAddShowFlow } = useMemo(() => {
+  const { navigationSteps } = useMemo(() => {
+    // Logic to determine if the Add Shows flow should be included
     const hasCompletedAddOnStep = formProgress?.add_on_events === true;
-    const isAddOnFlowActive =
-      check === true ||
-      hasCompletedAddOnStep ||
-      formProgress?.basic_info === true;
+    // Check if the user is currently editing a step equal to or past the Media step (Step 3)
+    const isOnAddOnRoute = location.pathname.includes("/update-ticket-addons/");
 
+    const isAddOnFlowActive = hasCompletedAddOnStep || isOnAddOnRoute;
     const useAddOnFlow = isAddOnFlowActive;
-    const steps = [
+    let steps = [
       {
         id: 1,
         name: "Group creation",
@@ -93,15 +93,17 @@ const EventSidebar = ({
       });
     }
 
+    const termsId = steps.length + 1;
+
     steps.push({
-      id: useAddOnFlow ? 6 : 5,
+      id: termsId,
       name: "Terms & conditions",
       icon: TcIcon,
       route: ticketId ? `/ticket/ticket-terms/${ticketId}` : "#",
     });
 
     return { isAddShowFlow: useAddOnFlow, navigationSteps: steps };
-  }, [formProgress, ticketId, groupId, check]);
+  }, [formProgress, ticketId, groupId, check, location.pathname]);
 
   const { currentStep, completedSteps } = useMemo(() => {
     let activeStep = 1;
@@ -119,6 +121,13 @@ const EventSidebar = ({
       }
     });
 
+    const addShowsStep = navigationSteps.find(
+      (step) => step.name === "Add shows"
+    );
+    const termsStep = navigationSteps.find(
+      (step) => step.name === "Terms & conditions"
+    );
+
     const completed = {
       1: !!groupId,
       2: formProgress?.basic_info || false,
@@ -126,15 +135,16 @@ const EventSidebar = ({
       4: formProgress?.banking_tickets || false,
     };
 
-    if (isAddShowFlow) {
-      completed[5] = formProgress?.add_on_events || false;
-      completed[6] = formProgress?.terms_conditions || false;
-    } else {
-      completed[5] = formProgress?.terms_conditions || false;
+    // Dynamically map completion status for Add Shows and Terms
+    if (addShowsStep) {
+      completed[addShowsStep.id] = formProgress?.add_on_events || false;
+    }
+    if (termsStep) {
+      completed[termsStep.id] = formProgress?.terms_conditions || false;
     }
 
     return { currentStep: activeStep, completedSteps: completed };
-  }, [location.pathname, formProgress, navigationSteps, isAddShowFlow]);
+  }, [location.pathname, formProgress, navigationSteps, groupId]);
 
   const handleBack = onBackClick || (() => navigate(-1));
 
@@ -149,7 +159,10 @@ const EventSidebar = ({
     const activeStepIndex = navigationSteps.findIndex(
       (step) => step.id === currentStep
     );
-    progress = Math.round((activeStepIndex / totalSteps) * 100);
+    // Ensure index is valid before calculating progress
+    if (activeStepIndex !== -1) {
+      progress = Math.round((activeStepIndex / totalSteps) * 100);
+    }
   }
 
   const circumference = 2 * Math.PI * 50;
@@ -158,7 +171,7 @@ const EventSidebar = ({
   return (
     <div
       className={`hidden lg:flex w-[300px] p-6 flex-col transition-colors duration-300 sticky top-0 h-screen overflow-y-auto main-scrollbar ${
-        darkMode ? "bg-[#010101]" : "bg-[F5F5F5]"
+        darkMode ? "bg-[#010101]" : "bg-[#F5F5F5]"
       }`}
     >
       {/* --- Header & Back Button --- */}
@@ -237,7 +250,9 @@ const EventSidebar = ({
 
           const isAllowed = step.id === 1 || isCompleted || isPreviousCompleted;
           const hasRoute = step.route !== "#";
-          const isInteractive = isAllowed && hasRoute && currentStep !== 1;
+          const isStepOne = step.id === 1;
+          const isInteractive =
+            !isStepOne && isAllowed && hasRoute && currentStep !== step.id;
           return (
             <div
               key={step.id}
@@ -316,10 +331,10 @@ const EventSidebar = ({
         })}
       </nav>
       <style>{`
-        .filter-green { filter: invert(58%) sepia(56%) saturate(543%) hue-rotate(88deg) brightness(99%) contrast(92%); }
-        .filter-green-dark { filter: invert(34%) sepia(27%) saturate(1637%) hue-rotate(89deg) brightness(97%) contrast(91%); }
-        .filter-gray-900 { filter: invert(10%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%); }
-      `}</style>
+            .filter-green { filter: invert(58%) sepia(56%) saturate(543%) hue-rotate(88deg) brightness(99%) contrast(92%); }
+            .filter-green-dark { filter: invert(34%) sepia(27%) saturate(1637%) hue-rotate(89deg) brightness(97%) contrast(91%); }
+            .filter-gray-900 { filter: invert(10%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%); }
+         `}</style>
     </div>
   );
 };
