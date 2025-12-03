@@ -209,7 +209,7 @@ const CreateTicket = () => {
   const [alert, setAlert] = useState(null); // State to manage the alert
   const [errors, setErrors] = useState({}); // State to track field errors for highlighting
 
-  // --- NEW: Data structure for event categories and subcategories ---
+  const errorFieldRefs = useRef({});
 
   const [darkMode, setDarkMode] = useState(getInitialTheme()); // Use the helper function
 
@@ -218,14 +218,14 @@ const CreateTicket = () => {
     localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    let styleSheet = document.getElementById('dynamic-theme-styles');
+    let styleSheet = document.getElementById("dynamic-theme-styles");
     if (!styleSheet) {
-        styleSheet = document.createElement('style');
-        styleSheet.id = 'dynamic-theme-styles';
-        document.head.appendChild(styleSheet);
+      styleSheet = document.createElement("style");
+      styleSheet.id = "dynamic-theme-styles";
+      document.head.appendChild(styleSheet);
     }
     styleSheet.innerText = darkMode ? darkThemeStyles : lightThemeStyles;
-}, [darkMode]);
+  }, [darkMode]);
   // Set initial map location (Thrissur, Kerala, India)
   const INITIAL_MAP_LOCATION = {
     lat: 10.5276,
@@ -957,6 +957,7 @@ const CreateTicket = () => {
     hideAlert();
     const newErrors = {};
     let isFormValid = true;
+    let firstErrorField = null;
 
     const addError = (field, message) => {
       if (isFormValid) {
@@ -965,6 +966,7 @@ const CreateTicket = () => {
           message: "Validation Failed",
           description: message,
         });
+        firstErrorField = field;
       }
       newErrors[field] = message;
       isFormValid = false;
@@ -994,11 +996,6 @@ const CreateTicket = () => {
     if (formData.location_type === "offline") {
       if (!formData.location.trim()) {
         addError("location", "Event location is required for offline events.");
-      } else if (!safeTextRegex.test(formData.location.trim())) {
-        addError(
-          "location",
-          "Event location contains invalid special characters."
-        );
       }
       if (!formData.venue.trim()) {
         addError("venue", "Event venue is required for offline events.");
@@ -1084,10 +1081,7 @@ const CreateTicket = () => {
           (tag) => !validHashtagRegex.test(tag)
         );
         if (hasInvalidFormat) {
-          addError(
-            "hashtag",
-            "Hashtags must be valid (e.g., #MyEvent_2025)"
-          );
+          addError("hashtag", "Hashtags must be valid (e.g., #MyEvent_2025)");
         }
       }
 
@@ -1126,6 +1120,15 @@ const CreateTicket = () => {
     }
 
     setErrors(newErrors);
+
+    if (firstErrorField && errorFieldRefs.current[firstErrorField]) {
+      setTimeout(() => {
+        const element = errorFieldRefs.current[firstErrorField];
+        if (element && element.scrollIntoView) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 50);
+    }
     return isFormValid;
   };
 
@@ -1136,7 +1139,18 @@ const CreateTicket = () => {
       return;
     }
     const newErrors = {};
-
+    let firstErrorField = null;
+    const addError = (field, message) => {
+      if (!firstErrorField) {
+        showAlert({
+          type: "error",
+          message: "Validation Failed",
+          description: message,
+        });
+        firstErrorField = field;
+      }
+      newErrors[field] = message;
+    };
     if (!groupId || !formData.groupId) {
       showAlert({
         type: "error",
@@ -1153,15 +1167,10 @@ const CreateTicket = () => {
       formData.event_youtube_link &&
       !youtubeRegex.test(formData.event_youtube_link)
     ) {
-      newErrors.event_youtube_link = true;
-      showAlert({
-        type: "error",
-        message: "Invalid YouTube URL",
-        description:
-          "Please use a valid format like 'youtube.com/watch?v=VIDEO_ID'.",
-      });
-      setErrors(newErrors);
-      return;
+      addError(
+        "event_youtube_link",
+        "Please use a valid format like 'youtube.com/watch?v=VIDEO_ID'."
+      );
     }
 
     // Validate Instagram URL
@@ -1171,15 +1180,13 @@ const CreateTicket = () => {
       formData.event_instagram_link &&
       !instagramRegex.test(formData.event_instagram_link)
     ) {
-      newErrors.event_instagram_link = true;
-      showAlert({
-        type: "error",
-        message: "Invalid Instagram URL",
-        description:
-          "Please enter a valid profile link, like 'instagram.com/username'.",
-      });
-      setErrors(newErrors);
-      return;
+      // Use an additional check here to avoid double-alerting if YouTube already failed
+      if (!firstErrorField) {
+        addError(
+          "event_instagram_link",
+          "Please enter a valid profile link, like 'instagram.com/username'."
+        );
+      }
     }
     const currentDate = new Date();
     currentDate.setHours(0, 0, 0, 0);
@@ -1194,12 +1201,24 @@ const CreateTicket = () => {
       });
 
       if (isPastDate) {
-        showAlert({
-          type: "error",
-          message: "Invalid Event Date",
-          description: "The event date cannot be a date in the past.",
-        });
+        if (!firstErrorField) {
+          addError(
+            "event_dates",
+            "The event date cannot be a date in the past."
+          );
+        }
+      }
+      if (firstErrorField) {
+        setErrors((prev) => ({ ...prev, ...newErrors }));
 
+        if (errorFieldRefs.current[firstErrorField]) {
+          setTimeout(() => {
+            const element = errorFieldRefs.current[firstErrorField];
+            if (element && element.scrollIntoView) {
+              element.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          }, 50);
+        }
         return;
       }
     }
@@ -1777,9 +1796,14 @@ const CreateTicket = () => {
                     error={errors.event_name} // Pass the error state
                     required={true} // This adds the red asterisk
                     darkMode={darkMode}
+                    ref={(el) => (errorFieldRefs.current.event_name = el)}
                   />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
+                    <div
+                      ref={(el) =>
+                        (errorFieldRefs.current.event_subcategory = el)
+                      }
+                    >
                       <label
                         htmlFor="event_category"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -1805,7 +1829,11 @@ const CreateTicket = () => {
                         )}
                       </div>
                     </div>
-                    <div>
+                    <div
+                      ref={(el) =>
+                        (errorFieldRefs.current.event_subcategory = el)
+                      }
+                    >
                       <label
                         htmlFor="event_subcategory"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -1936,10 +1964,16 @@ const CreateTicket = () => {
                           error={errors.venue}
                           required={true}
                           darkMode={darkMode}
+                          ref={(el) => (errorFieldRefs.current.venue = el)}
                         />
                         <div></div>
                       </div>
-                      <div className="relative">
+                      <div
+                        className="relative"
+                        ref={(el) =>
+                          (errorFieldRefs.current.exact_map_location = el)
+                        }
+                      >
                         <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
                           Exact map location
                           <span className="text-red-400">*</span>
@@ -1986,7 +2020,9 @@ const CreateTicket = () => {
                 {/* Additional Fields */}
                 <div className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
+                    <div
+                      ref={(el) => (errorFieldRefs.current.event_language = el)}
+                    >
                       <label
                         htmlFor="event_language"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -2025,6 +2061,9 @@ const CreateTicket = () => {
                       error={errors.min_age_allowed}
                       required={true}
                       darkMode={darkMode}
+                      ref={(el) =>
+                        (errorFieldRefs.current.min_age_allowed = el)
+                      }
                     />
                   </div>
                   <FormInput
@@ -2039,9 +2078,15 @@ const CreateTicket = () => {
                     error={errors.max_age_allowed}
                     required={false}
                     darkMode={darkMode}
+                    ref={(el) => (errorFieldRefs.current.max_age_allowed = el)}
                   />
                   {formData.location_type === "offline" && (
-                    <div className="animate-fade-in">
+                    <div
+                      className="animate-fade-in"
+                      ref={(el) =>
+                        (errorFieldRefs.current.seating_arrangement = el)
+                      }
+                    >
                       <label
                         htmlFor="seating_arrangement"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -2080,7 +2125,6 @@ const CreateTicket = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                      
                       <FormInput
                         label="Instagram link (Optional)"
                         name="event_instagram_link"
@@ -2092,15 +2136,13 @@ const CreateTicket = () => {
                         onChange={handleInputChange}
                         placeholder="https://instagram.com/..."
                         required={false}
-                        darkMode={darkMode}                      />
-                        {errors.event_instagram_link && (
-                          <p className="text-red-500 text-xs mt-1">
-                            {errors.event_instagram_link}
-                          </p>
-                        )}
+                        darkMode={darkMode}
+                        ref={(el) =>
+                          (errorFieldRefs.current.event_instagram_link = el)
+                        }
+                      />
                     </div>
                     <div>
-                      
                       <FormInput
                         label="Youtube link (Optional)"
                         name="event_youtube_link"
@@ -2111,14 +2153,12 @@ const CreateTicket = () => {
                         error={errors.event_youtube_link}
                         onChange={handleInputChange}
                         placeholder="https://youtube.com/..."
+                        ref={(el) =>
+                          (errorFieldRefs.current.event_youtube_link = el)
+                        }
                         required={false}
-                        darkMode={darkMode}                      />
-                        {errors.event_youtube_link && (
-                          <p className="text-red-500 text-xs mt-1">
-                            {errors.event_youtube_link}
-                          </p>
-                        )}
-                   
+                        darkMode={darkMode}
+                      />
                     </div>
                   </div>
                   <div>
@@ -2135,7 +2175,7 @@ const CreateTicket = () => {
                 </div>
                 {/* --- DATES AND TIMES --- */}
                 <div className="space-y-6">
-                  <div>
+                  <div ref={(el) => (errorFieldRefs.current.event_dates = el)}>
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Dates and time
                     </h2>
@@ -2190,23 +2230,11 @@ const CreateTicket = () => {
                         <span className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
                           Does the gates open before event starting time?
                         </span>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            checked={formData.gatesOpenEarly}
-                            onChange={() =>
-                              handleToggleChange("gatesOpenEarly")
-                            }
-                          />
-                          <div
-                            className={`w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${
-                              darkMode
-                                ? "bg-gray-600 after:border-gray-500 peer-checked:bg-indigo-600"
-                                : "bg-gray-200 after:border-black peer-checked:bg-indigo-500"
-                            }`}
-                          ></div>
-                        </label>
+                        <ToggleSwitch
+                          checked={formData.gatesOpenEarly}
+                          onChange={() => handleToggleChange("gatesOpenEarly")}
+                          darkMode={darkMode}
+                        />
                       </div>
 
                       {formData.gatesOpenEarly && (
@@ -2540,7 +2568,11 @@ const CreateTicket = () => {
                       ))}
                     </div>
                   </div>
-                  <div>
+                  <div
+                    ref={(el) =>
+                      (errorFieldRefs.current.event_description = el)
+                    }
+                  >
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Event description <span className="text-red-400">*</span>
                     </h2>
@@ -2618,7 +2650,7 @@ const CreateTicket = () => {
                     )}
                   </div>
                   {/* Point of Contact Section */}
-                  <div>
+                  <div ref={(el) => (errorFieldRefs.current.POCS = el)}>
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Point of Contact
                       <span className="text-red-400">*</span>
