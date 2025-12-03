@@ -3,10 +3,16 @@ import Ticket from "../models/ticket.model.js";
 import upload from "../middlewares/upload.js";
 import { uploadTicketMedia, uploadFields } from "../middlewares/upload.js";
 import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
+import { 
+  generateSeatingLayoutFromFile, 
+  validateSeatingLayout 
+} from '../utils/seatingLayoutGenerator.js';
 import {
   processFileUploads,
   deleteFromCloudinary,
   processGroupFileUploads,
+  cleanupTempFile,
+  uploadGeneratedLayoutToCloudinary
 } from "../utils/cloudinaryHelper.js";
 import { createNotification } from '../utils/notificationHelper.js';
 import multer from "multer";
@@ -2627,6 +2633,129 @@ export const updateTicketAddOns = async (req, res) => {
         }
       }
     }
+    // Validate and process seating_layout for offline events
+    let processedSeatingLayout = null;
+    if (subEventData.location_type === "offline" && subEventData.seating_layout) {
+      try {
+        const seatingLayoutData = typeof subEventData.seating_layout === "string"
+          ? JSON.parse(subEventData.seating_layout)
+          : subEventData.seating_layout;
+
+        // Validate seating_layout structure
+        if (!seatingLayoutData.rows || !Array.isArray(seatingLayoutData.rows) || seatingLayoutData.rows.length === 0) {
+          return res.status(400).json({
+            message: "seating_layout.rows is required and must be a non-empty array",
+            provided: seatingLayoutData,
+          });
+        }
+
+        if (!seatingLayoutData.columns || typeof seatingLayoutData.columns !== "number" || seatingLayoutData.columns <= 0) {
+          return res.status(400).json({
+            message: "seating_layout.columns is required and must be a positive number",
+            provided: seatingLayoutData.columns,
+          });
+        }
+
+        if (!seatingLayoutData.seats || !Array.isArray(seatingLayoutData.seats) || seatingLayoutData.seats.length === 0) {
+          return res.status(400).json({
+            message: "seating_layout.seats is required and must be a non-empty array",
+            provided: seatingLayoutData,
+          });
+        }
+
+        // Validate each seat
+        for (let i = 0; i < seatingLayoutData.seats.length; i++) {
+          const seat = seatingLayoutData.seats[i];
+          
+          if (!seat.seatId || String(seat.seatId).trim() === "") {
+            return res.status(400).json({
+              message: `seating_layout.seats[${i}].seatId is required`,
+              seatIndex: i,
+            });
+          }
+
+          if (!seat.row || String(seat.row).trim() === "") {
+            return res.status(400).json({
+              message: `seating_layout.seats[${i}].row is required`,
+              seatIndex: i,
+            });
+          }
+
+          if (seat.column === undefined || seat.column === null) {
+            return res.status(400).json({
+              message: `seating_layout.seats[${i}].column is required`,
+              seatIndex: i,
+            });
+          }
+        }
+
+        // Validate ticketTypeAssignments if present
+        if (seatingLayoutData.ticketTypeAssignments && Array.isArray(seatingLayoutData.ticketTypeAssignments)) {
+          for (let i = 0; i < seatingLayoutData.ticketTypeAssignments.length; i++) {
+            const assignment = seatingLayoutData.ticketTypeAssignments[i];
+            
+            if (!assignment.ticketTypeId || String(assignment.ticketTypeId).trim() === "") {
+              return res.status(400).json({
+                message: `seating_layout.ticketTypeAssignments[${i}].ticketTypeId is required`,
+                assignmentIndex: i,
+              });
+            }
+
+            if (!assignment.ticketTypeName || String(assignment.ticketTypeName).trim() === "") {
+              return res.status(400).json({
+                message: `seating_layout.ticketTypeAssignments[${i}].ticketTypeName is required`,
+                assignmentIndex: i,
+              });
+            }
+
+            if (!Array.isArray(assignment.assignedSeats)) {
+              return res.status(400).json({
+                message: `seating_layout.ticketTypeAssignments[${i}].assignedSeats must be an array`,
+                assignmentIndex: i,
+              });
+            }
+
+            if (assignment.capacity === undefined || assignment.capacity === null || assignment.capacity < 0) {
+              return res.status(400).json({
+                message: `seating_layout.ticketTypeAssignments[${i}].capacity is required and must be non-negative`,
+                assignmentIndex: i,
+              });
+            }
+          }
+        }
+
+        processedSeatingLayout = {
+          rows: seatingLayoutData.rows.map(row => String(row)),
+          columns: Number(seatingLayoutData.columns),
+          seats: seatingLayoutData.seats.map(seat => ({
+            seatId: String(seat.seatId),
+            row: String(seat.row),
+            column: Number(seat.column),
+            isAvailable: Boolean(seat.isAvailable !== false), // Default true
+            isSelected: Boolean(seat.isSelected === true), // Default false
+            ticketTypeId: seat.ticketTypeId ? String(seat.ticketTypeId) : null,
+            ticketTypeName: seat.ticketTypeName ? String(seat.ticketTypeName) : null,
+            ticketTypeColor: seat.ticketTypeColor ? String(seat.ticketTypeColor) : null,
+          })),
+          ticketTypeAssignments: seatingLayoutData.ticketTypeAssignments 
+            ? seatingLayoutData.ticketTypeAssignments.map(assignment => ({
+                ticketTypeId: String(assignment.ticketTypeId),
+                ticketTypeName: String(assignment.ticketTypeName),
+                color: assignment.color ? String(assignment.color) : "",
+                assignedSeats: assignment.assignedSeats.map(seat => String(seat)),
+                capacity: Number(assignment.capacity),
+              }))
+            : [],
+        };
+
+      } catch (parseError) {
+        return res.status(400).json({
+          message: "Invalid seating_layout format",
+          error: parseError.message,
+          hint: "seating_layout must be a valid JSON object with rows, columns, seats, and ticketTypeAssignments",
+        });
+      }
+    }
     // Validate enum fields
     const validEventTypes = ["private", "public"];
     if (!validEventTypes.includes(subEventData.event_type)) {
@@ -3540,16 +3669,15 @@ export const updateTicketAddOns = async (req, res) => {
           POC_contact: String(poc.POC_contact || ""),
         })),
         event_dates: eventDates.map((date) => {
-  const dateEntry = {
-    start_date: String(date.start_date || ""),
-    end_date: String(date.end_date || ""),
-    event_link: String(date.event_link || ""),
-    video_name: String(date.video_name || ""),
-    verification_event_code: String(date.verification_event_code || ""),
-    video_file_path: String(date.video_file_path || ""),
-    preview_image_path: String(date.preview_image_path || ""),
-  };
-  
+        const dateEntry = {
+          start_date: String(date.start_date || ""),
+          end_date: String(date.end_date || ""),
+          event_link: String(date.event_link || ""),
+          video_name: String(date.video_name || ""),
+          verification_event_code: String(date.verification_event_code || ""),
+          video_file_path: String(date.video_file_path || ""),
+          preview_image_path: String(date.preview_image_path || ""),
+        };
   // Only add time fields if they have values
   if (date.start_time && String(date.start_time).trim() !== "") {
     dateEntry.start_time = String(date.start_time);
@@ -3559,7 +3687,7 @@ export const updateTicketAddOns = async (req, res) => {
   }
   
   return dateEntry;
-}),
+        }),
         event_banner: String(
           processedFiles.event_banner || existingSubEvent.event_banner || ""
         ),
@@ -3577,6 +3705,11 @@ export const updateTicketAddOns = async (req, res) => {
               }))
             : existingSubEvent.event_images || [],
       };
+      if (subEventData.location_type === "offline" && processedSeatingLayout) {
+        updatedSubEvent.seating_layout = processedSeatingLayout;
+      } else if (subEventData.location_type === "offline" && existingSubEvent.seating_layout) {
+        updatedSubEvent.seating_layout = existingSubEvent.seating_layout;
+      }
       if (subEventData.location_type === "offline") {
         updatedSubEvent.seating_arrangement = String(
           subEventData.seating_arrangement || "none"
@@ -3978,6 +4111,9 @@ export const updateTicketAddOns = async (req, res) => {
       newSubEvent.gate_open_time = undefined;
       newSubEvent.ticket_layout = undefined;
     }
+    if (subEventData.location_type === "offline" && processedSeatingLayout) {
+      newSubEvent.seating_layout = processedSeatingLayout;
+    }
     if (processedFiles.event_rules) {
       newSubEvent.event_rules = {
         type: "file",
@@ -4085,10 +4221,11 @@ export const updateTicketAddOns = async (req, res) => {
         seating_arrangement: newSubEvent.seating_arrangement,
         location: newSubEvent.location,
         venue: newSubEvent.venue,
-        has_map_location:
-          Object.keys(newSubEvent.exact_map_location || {}).length > 0,
+        has_map_location: Object.keys(newSubEvent.exact_map_location || {}).length > 0,
         ticket_types: processedTicketTypes.length,
         ticket_layout: newSubEvent.ticket_layout ? 1 : 0,
+        has_seating_layout: !!newSubEvent.seating_layout,
+        seating_layout_seats: newSubEvent.seating_layout?.seats?.length || 0,
       };
     } else if (
       subEventData.location_type === "online" ||
@@ -4469,31 +4606,74 @@ export const updateTicketDetails = async (req, res) => {
         }
       }
     });
-
-    // Handle ticket layout upload (only for offline events)
     if (existingTicket.location_type === "offline") {
-      if (
-        uploadedFiles.ticket_layout &&
-        Array.isArray(uploadedFiles.ticket_layout) &&
-        uploadedFiles.ticket_layout.length > 0
-      ) {
-        const layoutFile = uploadedFiles.ticket_layout[0];
-
-        if (!layoutFile.path || !layoutFile.originalName) {
+      if (uploadedFiles.ticket_layout && uploadedFiles.ticket_layout.cloudinaryUrl) {
+        const layoutFile = uploadedFiles.ticket_layout;
+        if (!layoutFile.cloudinaryUrl || !layoutFile.originalName) {
           return res.status(400).json({
             message: "Ticket layout upload failed or is invalid",
           });
         }
-
-        processedFiles.ticket_layout = layoutFile.path;
+        
+        processedFiles.ticket_layout = layoutFile.cloudinaryUrl;
         processedFiles.ticket_layout_public_id = layoutFile.public_id;
+
+        // Generate seating layout ONLY from file - no fallback generation
+        if (total_capacity && parseInt(total_capacity) > 0) {
+          const localFilePath = layoutFile.localPath;
+          const fileType = layoutFile.mimeType;
+          
+          try {
+            if (!localFilePath) {
+              throw new Error('Local file path not available for processing');
+            }
+
+            const seatingLayout = await generateSeatingLayoutFromFile(
+              localFilePath,
+              parseInt(total_capacity),
+              fileType
+            );
+
+            // Upload generated layout visualization
+            try {
+              const generatedLayoutResult = await uploadGeneratedLayoutToCloudinary(
+                seatingLayout,
+                ticketId
+              );
+              processedFiles.seating_layout = seatingLayout;
+              processedFiles.seating_layout_url = generatedLayoutResult.url;
+              processedFiles.seating_layout_public_id = generatedLayoutResult.public_id;
+            } catch (uploadError) {
+              processedFiles.seating_layout = seatingLayout;
+            }
+            
+            await cleanupTempFile(localFilePath);
+            
+          } catch (error) {
+            // NO FALLBACK - Return error to user
+            if (localFilePath) {
+              try {
+                await cleanupTempFile(localFilePath);
+              } catch (cleanupError) {
+                // Silent cleanup failure
+              }
+            }
+            return res.status(400).json({
+              message: 'Failed to extract seating layout from uploaded file',
+              error: error.message,
+              hint: 'Please ensure your layout file contains clearly visible seat labels (A1, B2, C3, etc.) with good contrast. Supported formats: Images (JPG, PNG), PDF, Word documents.',
+              suggestions: [
+                'Check that seat labels are clearly visible and readable',
+                'Ensure good contrast between seat labels and background',
+                'Use a high-resolution image or clear PDF',
+                'Verify seat labels follow format: Letter(s) + Number (e.g., A1, B12, AA5)'
+              ]
+            });
+          }
+        }
       }
     }
-
     processedFiles.ticketPhotoFiles = ticketPhotoFiles;
-
-    // ========== TICKET TYPES VALIDATION & PROCESSING ==========
-
     let processedTicketTypes = [];
     if (ticketTypes && ticketTypes.length > 0) {
       processedTicketTypes = ticketTypes.map((ticket, index) => {
@@ -4545,24 +4725,21 @@ export const updateTicketDetails = async (req, res) => {
             `Invalid max_capacity for ticket ${index + 1}. Must be a positive integer. Provided: ${maxCapacity}`
           );
         }
-
         const ticketData = {
           ticket_type: String(ticketType).trim(),
           ticket_price: parsedPrice,
           max_capacity: parsedCapacity,
           ticket_photo: existingPhoto,
           ticket_photo_public_id: ticket.ticket_photo_public_id || "",
+          assigned_seats: ticket.assigned_seats || [],
         };
-
         // Add uploaded ticket photo if available
         if (ticketPhotoFiles[index]) {
           ticketData.ticket_photo = ticketPhotoFiles[index].path;
           ticketData.ticket_photo_public_id = ticketPhotoFiles[index].public_id;
         }
-
         return ticketData;
       });
-
       // Validate total_capacity against sum of ticket capacities
       if (total_capacity !== undefined && String(total_capacity).trim() !== "") {
         const totalTicketCapacity = processedTicketTypes.reduce(
@@ -4570,7 +4747,6 @@ export const updateTicketDetails = async (req, res) => {
           0
         );
         const providedTotalCapacity = Number(total_capacity);
-
         if (totalTicketCapacity > providedTotalCapacity) {
           return res.status(400).json({
             message: "Sum of ticket type capacities exceeds total_capacity",
@@ -4782,34 +4958,148 @@ export const updateTicketDetails = async (req, res) => {
       updated_by: userId,
       updated_at: new Date(),
     };
-
     // Add ticket types if provided
     if (processedTicketTypes.length > 0) {
       updateData.ticket_types = processedTicketTypes;
+      if (total_capacity !== undefined && String(total_capacity).trim() !== "") {
+        const providedTotalCapacity = Number(total_capacity);
+        for (let i = 0; i < processedTicketTypes.length; i++) {
+          const ticket = processedTicketTypes[i];
+          if (ticket.max_capacity > providedTotalCapacity) {
+            return res.status(400).json({
+              message: `Ticket type capacity exceeds total event capacity`,
+              ticket_type: ticket.ticket_type,
+              ticket_capacity: ticket.max_capacity,
+              total_capacity: providedTotalCapacity,
+              hint: `${ticket.ticket_type} capacity (${ticket.max_capacity}) cannot exceed total event capacity (${providedTotalCapacity})`
+            });
+          }
+        }
+        const totalTicketCapacity = processedTicketTypes.reduce(
+          (sum, ticket) => sum + ticket.max_capacity,
+          0
+        );
+        if (totalTicketCapacity > providedTotalCapacity) {
+          return res.status(400).json({
+            message: "Sum of ticket type capacities exceeds total event capacity",
+            totalTicketCapacity: totalTicketCapacity,
+            providedTotalCapacity: providedTotalCapacity,
+            breakdown: processedTicketTypes.map(t => ({
+              type: t.ticket_type,
+              capacity: t.max_capacity
+            })),
+            hint: `Total tickets (${totalTicketCapacity}) cannot exceed event capacity (${providedTotalCapacity})`
+          });
+        }
+      }
     }
-
-    // Add ticket layout if uploaded (only for offline events)
     if (processedFiles.ticket_layout) {
       updateData.ticket_layout = String(processedFiles.ticket_layout);
       updateData.ticket_layout_public_id = String(processedFiles.ticket_layout_public_id || "");
     }
-
+    // Handle seating layout - PRIORITY 1: Manual assignment from frontend
+    if (req.body.seating_layout) {
+      try {        
+        const parsedLayout = typeof req.body.seating_layout === 'string' 
+          ? JSON.parse(req.body.seating_layout) 
+          : req.body.seating_layout;        
+        // Validate structure
+        if (!parsedLayout.seats || !Array.isArray(parsedLayout.seats)) {
+          console.error('❌ Invalid seating layout structure - missing seats array');
+          throw new Error('Seating layout must contain a seats array');
+        }
+        
+        if (!parsedLayout.rows || !Array.isArray(parsedLayout.rows)) {
+          console.error('❌ Invalid seating layout structure - missing rows array');
+          throw new Error('Seating layout must contain a rows array');
+        }
+        
+        // Process and validate seats with colors
+        const processedSeats = parsedLayout.seats.map(seat => {
+          // Create clean seat object with explicit fields
+          const cleanSeat = {
+            seatId: seat.seatId,
+            row: seat.row,
+            column: seat.column,
+            isAvailable: seat.isAvailable !== undefined ? seat.isAvailable : true,
+            isSelected: seat.isSelected !== undefined ? seat.isSelected : false,
+            ticketTypeId: seat.ticketTypeId || null,
+            ticketTypeName: seat.ticketTypeName || null,
+            ticketTypeColor: seat.ticketTypeColor || null
+          };
+          
+          // If seat has assignment but missing color, try to recover from assignments
+          if (cleanSeat.ticketTypeId && !cleanSeat.ticketTypeColor) {
+            const assignment = parsedLayout.ticketTypeAssignments?.find(
+              a => String(a.ticketTypeId) === String(cleanSeat.ticketTypeId)
+            );
+            
+            if (assignment && assignment.color) {
+              cleanSeat.ticketTypeColor = assignment.color;
+              cleanSeat.ticketTypeName = cleanSeat.ticketTypeName || assignment.ticketTypeName;
+            } else {
+              console.warn(`⚠️ Seat ${cleanSeat.seatId} has ticketTypeId but no color found!`);
+            }
+          }
+          
+          return cleanSeat;
+        });
+        
+        // Process ticket type assignments
+        const processedAssignments = (parsedLayout.ticketTypeAssignments || []).map(assignment => ({
+          ticketTypeId: assignment.ticketTypeId,
+          ticketTypeName: assignment.ticketTypeName,
+          color: assignment.color,
+          assignedSeats: assignment.assignedSeats || [],
+          capacity: assignment.capacity || 0
+        }));
+        
+        // Build final seating layout object
+        const finalLayout = {
+          rows: parsedLayout.rows,
+          columns: parsedLayout.columns || 0,
+          seats: processedSeats,
+          ticketTypeAssignments: processedAssignments,
+          totalSeats: processedSeats.length,
+          layoutStyle: parsedLayout.layoutStyle || 'grid',
+          detectionMethod: parsedLayout.detectionMethod || 'manual'
+        };
+        // Count seats with colors for validation
+        const seatsWithColors = processedSeats.filter(s => s.ticketTypeColor);
+        const seatsWithAssignments = processedSeats.filter(s => s.ticketTypeId);
+        // Save to updateData
+        updateData.seating_layout = finalLayout;
+        console.log('✅ Manual seating layout processed and ready to save');
+      } catch (parseError) {
+        console.error('❌ Error parsing seating_layout from request:', parseError);
+        console.error('Stack:', parseError.stack);
+        return res.status(400).json({
+          message: 'Failed to process seating layout',
+          error: parseError.message,
+          hint: 'Seating layout data is corrupted or invalid'
+        });
+      }
+    } 
+    // PRIORITY 2: Auto-generated layout (only if no manual layout provided)
+    else if (processedFiles.seating_layout) {      
+      updateData.seating_layout = processedFiles.seating_layout;
+      
+      if (processedFiles.seating_layout_url) {
+        updateData.seating_layout_url = String(processedFiles.seating_layout_url);
+        updateData.seating_layout_public_id = String(processedFiles.seating_layout_public_id || "");
+      }
+    }
     // Add total capacity if provided
     if (total_capacity !== undefined && String(total_capacity).trim() !== "") {
       updateData.total_capacity = String(total_capacity);
     }
-
     // Add booking dates if provided
     if (booking_start_date && String(booking_start_date).trim() !== "") {
       updateData.booking_start_date = String(booking_start_date);
     }
-
     if (booking_end_date && String(booking_end_date).trim() !== "") {
       updateData.booking_end_date = String(booking_end_date);
     }
-
-    // ========== UPDATE DATABASE ==========
-
     const updatedTicket = await Ticket.findOneAndUpdate(
       { _id: ticketId },
       updateData,
@@ -4819,16 +5109,12 @@ export const updateTicketDetails = async (req, res) => {
         upsert: false,
       }
     );
-
     if (!updatedTicket) {
       return res.status(404).json({
         message: "Failed to update ticket details",
         hint: "Ticket not found or update failed",
       });
     }
-
-    // ========== PREPARE RESPONSE ==========
-
     const responseData = {
       message: "Ticket details updated successfully",
       ticket: updatedTicket,
@@ -4841,12 +5127,20 @@ export const updateTicketDetails = async (req, res) => {
       uploadedFiles: {
         ticket_layout: processedFiles.ticket_layout ? 1 : 0,
         ticket_photos: Object.keys(ticketPhotoFiles).length,
+        generated_seating_layout: processedFiles.seating_layout ? 1 : 0,
       },
-      form_progress: {
-        banking_tickets: true,
-      },
+      seating_layout_info: processedFiles.seating_layout ? {
+        total_seats: processedFiles.seating_layout.totalSeats,
+        rows: processedFiles.seating_layout.rows.length,
+        columns: processedFiles.seating_layout.columns,
+        layout_style: processedFiles.seating_layout.layoutStyle,
+        detection_method: processedFiles.seating_layout.detectionMethod,
+        layout_dimensions: processedFiles.seating_layout.layoutWidth ? {
+          width: processedFiles.seating_layout.layoutWidth,
+          height: processedFiles.seating_layout.layoutHeight
+        } : null
+      } : null,
     };
-
     // Add banking details info to response (without sensitive data)
     if (use_group_bank_account === "true") {
       responseData.group_bank_info = {
@@ -5048,7 +5342,6 @@ export const updateTicketDetails = async (req, res) => {
         console.error("Error during Cloudinary cleanup:", cleanupError.message);
       }
     }
-
     res.status(500).json({
       message: "Internal server error",
       error: error.message,
@@ -5056,7 +5349,6 @@ export const updateTicketDetails = async (req, res) => {
     });
   }
 };
-// Step 5: Update Ticket - Terms & Conditions (Company Provided)
 export const updateTicketTerms = async (req, res) => {
   try {
     const ticketId = req.params.ticketId || req.body.ticketId;
