@@ -3,8 +3,8 @@ import mongoose from 'mongoose';
 // Guest Schema
 const guestSchema = new mongoose.Schema({
   guest_name: { type: String },
-  guest_profile: { type: String }, // Image URL
-  guest_link: { type: String }, // Social media or website link
+  guest_profile: { type: String }, 
+  guest_link: { type: String }, 
 });
 // Ticket Type Schema
 const ticketTypeSchema = new mongoose.Schema({
@@ -140,6 +140,30 @@ const subEventSchema = new mongoose.Schema({
   ticket_types: [ticketTypeSchema],
   ticket_layout: { type: String, required: false },
   ticket_layout_public_id: { type: String, required: false },
+  seating_layout: {
+    type: {
+      rows: [String],
+      columns: Number, 
+      seats: [{
+        seatId: String, 
+        row: String,
+        column: Number,
+        isAvailable: { type: Boolean, default: true },
+        isSelected: { type: Boolean, default: false },
+        ticketTypeId: { type: String, default: null }, 
+        ticketTypeName: { type: String, default: null },
+        ticketTypeColor: { type: String, default: null },
+      }],
+      ticketTypeAssignments: [{ 
+        ticketTypeId: String,
+        ticketTypeName: String,
+        color: String,
+        assignedSeats: [String], 
+        capacity: Number
+      }]
+    },
+    required: false
+  },
   total_capacity: { type: String, required: false },
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
@@ -237,6 +261,30 @@ const ticketSchema = new mongoose.Schema({
   booking_end_date: { type: String, required: false },
   ticket_layout: { type: String, required: false },
   ticket_layout_public_id: { type: String, required: false },
+  seating_layout: {
+    type: {
+      rows: [String],
+      columns: Number, 
+      seats: [{
+        seatId: String, 
+        row: String,
+        column: Number,
+        isAvailable: { type: Boolean, default: true },
+        isSelected: { type: Boolean, default: false },
+        ticketTypeId: { type: String, default: null }, 
+        ticketTypeName: { type: String, default: null },
+        ticketTypeColor: { type: String, default: null }
+      }],
+      ticketTypeAssignments: [{ 
+        ticketTypeId: String,
+        ticketTypeName: String,
+        color: String,
+        assignedSeats: [String], 
+        capacity: Number
+      }]
+    },
+    required: false
+  },
   ticket_types: [ticketTypeSchema],
   created_by: { type: String, required: false },
   like: {type: Number,required: false,default: 0},
