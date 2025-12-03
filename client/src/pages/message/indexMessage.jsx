@@ -12,6 +12,11 @@ import SearchIcon from "../../assets/HomePage/SearchIcon.svg";
 import SettingIcon from "../../assets/Message/settings_icon.png";
 import EditIcon from "../../assets/Message/edit_icon.png";
 import { getUserChats, createOrGetChat } from "../../services/chatService";
+
+import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
 const getNeumorphicStyle = (isPressed = false, isDark = true, theme) => {
   const bg = isDark ? "#212426" : theme.inputBg.replace('bg-[', '').replace(']', '');
   const lightShadow = isDark
@@ -31,6 +36,8 @@ const getNeumorphicStyle = (isPressed = false, isDark = true, theme) => {
 const IndexMessage = () => {
   const { user } = useSelector((state) => state.auth);
   const [isDark, setIsDark] = useState(true);
+    const navigate = useNavigate();
+
   const [searchValue, setSearchValue] = useState("");
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [chats, setChats] = useState([]);
@@ -378,6 +385,7 @@ const fetchChats = async () => {
     // Refresh chat list to remove empty chats
     fetchChats();
   };
+
   const theme = isDark
     ? {
         bg: "bg-[#212426]",
@@ -415,12 +423,12 @@ const fetchChats = async () => {
         </div>
       </div>
 
-      <div className="flex flex-col flex-1 w-full overflow-hidden md:ml-4">
+      <div className="flex flex-col flex-1 w-full overflow-hidden md:ml-4 ">
         <header
-          className="flex items-center justify-between px-4 md:px-6 flex-shrink-0"
+          className="flex items-center md:hidden justify-between px-4 md:px-6 flex-shrink-0"
           style={{ height: 72 }}
         >
-          <div className="flex md:hidden items-center justify-between w-full">
+          <div className="flex  items-center justify-between w-full">
             <div className="flex items-center gap-2">
               <img
                 src={WieLogo}
@@ -428,20 +436,14 @@ const fetchChats = async () => {
                 className="w-8 h-8 object-contain"
               />
             </div>
-            <div className="flex items-center gap-3">
-              <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
-            </div>
+            
           </div>
 
-          <div className="hidden md:flex items-center gap-4 w-full">
-            <div className="flex items-center gap-4 ml-auto flex-shrink-0">
-              <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
-            </div>
-          </div>
+         
         </header>
 
         <main
-          className={`main-scrollbar flex flex-1 overflow-y-auto pb-24 md:pb-4 ${theme.cardBg}`}
+          className={`main-scrollbar flex flex-1 md:mt-4  overflow-y-auto pb-4 ${theme.cardBg}`}
           style={{ minHeight: "calc(100vh - 72px)" }}
         >
           <div
@@ -451,7 +453,7 @@ const fetchChats = async () => {
               borderRadius: "2.5rem",
               boxShadow: isDark
                 ? "inset -5px -5px 10px rgba(255, 255, 255, 0.1)"
-                : "inset -5px -5px 10px rgba(0, 0, 0, 0.1)",
+                : "inset -5px -5px 10px rgba(0, 0, 0, 0.2)",
             }}
           >
             <aside
@@ -459,7 +461,13 @@ const fetchChats = async () => {
                 selectedChat ? 'hidden md:flex' : 'flex'
               }`}
             >
-              <div className="flex items-center justify-between px-5">
+              <div className="flex items-center justify-between ">
+                <button
+          onClick={()=> navigate("/ticket/groups")}
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        >
+          <ArrowLeft size={20} style={{ color: theme.text }} />
+        </button>
                 <div className="text-base font-medium">Messages</div>
                 <div className="flex items-center gap-2 ml-auto">
                   <button
@@ -621,6 +629,7 @@ const fetchChats = async () => {
         onSelectUser={handleSelectUser}
       />
     </div>
+
     <nav 
       className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t"
       style={{
@@ -636,3 +645,4 @@ const fetchChats = async () => {
   );
 };
 export default IndexMessage;
+

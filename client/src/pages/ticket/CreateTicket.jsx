@@ -30,6 +30,9 @@ import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
 import TagInput from "../../components/CreateGroup/TagInput.jsx";
 import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
 import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.jsx";
+import getInitialTheme from "../../components/CreateGroup/getIntialTheme.jsx";
+import darkThemeStyles from "../../components/CreateGroup/darkThemeStyles.jsx";
+import lightThemeStyles from "../../components/CreateGroup/lightThemeStyles.jsx";
 const eventCategories = {
   "Arts, Culture, & Literature": [
     "Art Exhibitions",
@@ -177,17 +180,6 @@ const seatingOptions = [
   { value: "other", label: "Other" },
 ];
 
-const getInitialTheme = () => {
-  // 1. Check for saved preference in localStorage
-  const savedTheme = localStorage.getItem("theme");
-  if (savedTheme) {
-    return savedTheme === "dark"; // Returns true or false
-  }
-
-  // 2. Fallback to system preference
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-};
-
 const CreateTicket = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -225,6 +217,15 @@ const CreateTicket = () => {
     // Save the current theme state to localStorage
     localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
+  useEffect(() => {
+    let styleSheet = document.getElementById('dynamic-theme-styles');
+    if (!styleSheet) {
+        styleSheet = document.createElement('style');
+        styleSheet.id = 'dynamic-theme-styles';
+        document.head.appendChild(styleSheet);
+    }
+    styleSheet.innerText = darkMode ? darkThemeStyles : lightThemeStyles;
+}, [darkMode]);
   // Set initial map location (Thrissur, Kerala, India)
   const INITIAL_MAP_LOCATION = {
     lat: 10.5276,
@@ -289,26 +290,29 @@ const CreateTicket = () => {
     label: category,
   }));
   const getSubCategoryOptions = (category) => {
-  if (!category || !eventCategories[category]) {
-    return [];
-  }
-  
-  const subcategories = eventCategories[category];
-  
-  if (!Array.isArray(subcategories)) {
-    console.warn(`Subcategories for "${category}" is not an array:`, subcategories);
-    return [];
-  }
-  
-  return subcategories.map((sub) => ({
-    value: sub,
-    label: sub,
-  }));
-};
-const subCategoryOptions = useMemo(
-  () => getSubCategoryOptions(formData.event_category),
-  [formData.event_category]
-);
+    if (!category || !eventCategories[category]) {
+      return [];
+    }
+
+    const subcategories = eventCategories[category];
+
+    if (!Array.isArray(subcategories)) {
+      console.warn(
+        `Subcategories for "${category}" is not an array:`,
+        subcategories
+      );
+      return [];
+    }
+
+    return subcategories.map((sub) => ({
+      value: sub,
+      label: sub,
+    }));
+  };
+  const subCategoryOptions = useMemo(
+    () => getSubCategoryOptions(formData.event_category),
+    [formData.event_category]
+  );
   const saveFormDataToStorage = (data) => {
     try {
       const { ...dataToSave } = data; // File objects can't be stored
@@ -408,36 +412,36 @@ const subCategoryOptions = useMemo(
       };
       // Helper to convert 24h to 12h format for display
       const convertTo12HourFormat = (time24) => {
-          if (!time24) return { time: "", ampm: "" };
-          const [hours, minutes] = time24.split(':');
-          let hour = parseInt(hours, 10);
-          const ampm = hour >= 12 ? 'PM' : 'AM';
-          if (hour === 0) hour = 12;
-          else if (hour > 12) hour -= 12;
-          return { 
-              time: `${hour.toString().padStart(2, '0')}:${minutes}`,
-              ampm 
-          };
+        if (!time24) return { time: "", ampm: "" };
+        const [hours, minutes] = time24.split(":");
+        let hour = parseInt(hours, 10);
+        const ampm = hour >= 12 ? "PM" : "AM";
+        if (hour === 0) hour = 12;
+        else if (hour > 12) hour -= 12;
+        return {
+          time: `${hour.toString().padStart(2, "0")}:${minutes}`,
+          ampm,
+        };
       };
       const event_dates = ticketData.event_dates
         ? ticketData.event_dates.map((d) => {
             // Helper to convert 24h to 12h format
             const convertTo12HourFormat = (time24) => {
               if (!time24) return { time: "", ampm: "" };
-              const [hours, minutes] = time24.split(':');
+              const [hours, minutes] = time24.split(":");
               let hour = parseInt(hours, 10);
-              const ampm = hour >= 12 ? 'PM' : 'AM';
+              const ampm = hour >= 12 ? "PM" : "AM";
               if (hour === 0) hour = 12;
               else if (hour > 12) hour -= 12;
-              return { 
-                time: `${hour.toString().padStart(2, '0')}:${minutes}`,
-                ampm 
+              return {
+                time: `${hour.toString().padStart(2, "0")}:${minutes}`,
+                ampm,
               };
             };
 
             const startTimeObj = convertTo12HourFormat(d.start_time);
             const endTimeObj = convertTo12HourFormat(d.end_time);
-            
+
             return {
               date: formatDateForInput(d.start_date),
               endDate: formatDateForInput(d.end_date),
@@ -704,142 +708,143 @@ const subCategoryOptions = useMemo(
 
     // NO cleanup - let the callback persist for the script
   }, []);
-// Enhanced map initialization with initial location
-useEffect(() => {
-  if (!isApiReady || !mapRef.current || !dataLoaded) return;
+  // Enhanced map initialization with initial location
+  useEffect(() => {
+    if (!isApiReady || !mapRef.current || !dataLoaded) return;
 
-  // If location type is not offline, cleanup and return
-  if (formData.location_type !== "offline") {
-    if (map) {
-      setMap(null);
-      markerRef.current = null;
-    }
-    return;
-  }
-
-  if (!window.google || !window.google.maps || !window.google.maps.Map) {
-     console.error("Google Maps API not fully loaded yet");
-     return;
-   }
-  const initializeMap = () => {
-    try {
-      // Use form data coordinates if available, otherwise use initial location
-      const initialCenter =
-        formData.exact_map_location.latitude &&
-        formData.exact_map_location.longitude
-          ? {
-              lat: parseFloat(formData.exact_map_location.latitude),
-              lng: parseFloat(formData.exact_map_location.longitude),
-            }
-          : INITIAL_MAP_LOCATION;
-
-      // Clean up existing map first
+    // If location type is not offline, cleanup and return
+    if (formData.location_type !== "offline") {
       if (map) {
-        window.google.maps.event.clearInstanceListeners(map);
-        if (markerRef.current) {
-          markerRef.current.setMap(null);
-        }
+        setMap(null);
+        markerRef.current = null;
       }
+      return;
+    }
 
-      const mapInstance = new window.google.maps.Map(mapRef.current, {
-        center: initialCenter,
-        zoom: 15,
-        mapTypeId: "roadmap",
-        gestureHandling: "cooperative",
-      });
+    if (!window.google || !window.google.maps || !window.google.maps.Map) {
+      console.error("Google Maps API not fully loaded yet");
+      return;
+    }
+    const initializeMap = () => {
+      try {
+        // Use form data coordinates if available, otherwise use initial location
+        const initialCenter =
+          formData.exact_map_location.latitude &&
+          formData.exact_map_location.longitude
+            ? {
+                lat: parseFloat(formData.exact_map_location.latitude),
+                lng: parseFloat(formData.exact_map_location.longitude),
+              }
+            : INITIAL_MAP_LOCATION;
 
-      const markerInstance = new window.google.maps.Marker({
-        position: initialCenter,
-        map: mapInstance,
-        draggable: true,
-        title: "Event Location",
-      });
+        // Clean up existing map first
+        if (map) {
+          window.google.maps.event.clearInstanceListeners(map);
+          if (markerRef.current) {
+            markerRef.current.setMap(null);
+          }
+        }
 
-      const updateStateFromCoords = (lat, lng) => {
-        const geocoder = new window.google.maps.Geocoder();
-        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-          if (status === "OK" && results[0]) {
+        const mapInstance = new window.google.maps.Map(mapRef.current, {
+          center: initialCenter,
+          zoom: 15,
+          mapTypeId: "roadmap",
+          gestureHandling: "cooperative",
+        });
+
+        const markerInstance = new window.google.maps.Marker({
+          position: initialCenter,
+          map: mapInstance,
+          draggable: true,
+          title: "Event Location",
+        });
+
+        const updateStateFromCoords = (lat, lng) => {
+          const geocoder = new window.google.maps.Geocoder();
+          geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+            if (status === "OK" && results[0]) {
+              setFormData((prev) => ({
+                ...prev,
+                location: results[0].formatted_address,
+                exact_map_location: {
+                  latitude: lat.toString(),
+                  longitude: lng.toString(),
+                  address: results[0].formatted_address,
+                },
+              }));
+            }
+          });
+        };
+
+        // Map click listener
+        mapInstance.addListener("click", (e) => {
+          markerInstance.setPosition(e.latLng);
+          updateStateFromCoords(e.latLng.lat(), e.latLng.lng());
+        });
+
+        // Marker drag listener
+        markerInstance.addListener("dragend", (e) => {
+          updateStateFromCoords(e.latLng.lat(), e.latLng.lng());
+        });
+
+        // Autocomplete setup - ADD NULL CHECK HERE
+        if (autocompleteRef.current && window.google.maps.places) {
+          const autocompleteInstance =
+            new window.google.maps.places.Autocomplete(
+              autocompleteRef.current,
+              {
+                fields: ["geometry", "name", "formatted_address"],
+                types: ["establishment", "geocode"],
+              }
+            );
+
+          autocompleteInstance.addListener("place_changed", () => {
+            const place = autocompleteInstance.getPlace();
+            if (!place.geometry?.location) return;
+
+            const { lat, lng } = place.geometry.location;
+            const newPosition = { lat: lat(), lng: lng() };
+
             setFormData((prev) => ({
               ...prev,
-              location: results[0].formatted_address,
+              location: place.formatted_address || "",
+              venue: place.name || prev.venue,
               exact_map_location: {
-                latitude: lat.toString(),
-                longitude: lng.toString(),
-                address: results[0].formatted_address,
+                latitude: lat().toString(),
+                longitude: lng().toString(),
+                address: place.formatted_address || "",
               },
             }));
-          }
-        });
-      };
 
-      // Map click listener
-      mapInstance.addListener("click", (e) => {
-        markerInstance.setPosition(e.latLng);
-        updateStateFromCoords(e.latLng.lat(), e.latLng.lng());
-      });
-
-      // Marker drag listener
-      markerInstance.addListener("dragend", (e) => {
-        updateStateFromCoords(e.latLng.lat(), e.latLng.lng());
-      });
-
-      // Autocomplete setup - ADD NULL CHECK HERE
-      if (autocompleteRef.current && window.google.maps.places) {
-        const autocompleteInstance = new window.google.maps.places.Autocomplete(
-          autocompleteRef.current,
-          {
-            fields: ["geometry", "name", "formatted_address"],
-            types: ["establishment", "geocode"],
-          }
-        );
-
-        autocompleteInstance.addListener("place_changed", () => {
-          const place = autocompleteInstance.getPlace();
-          if (!place.geometry?.location) return;
-
-          const { lat, lng } = place.geometry.location;
-          const newPosition = { lat: lat(), lng: lng() };
-
-          setFormData((prev) => ({
-            ...prev,
-            location: place.formatted_address || "",
-            venue: place.name || prev.venue,
-            exact_map_location: {
-              latitude: lat().toString(),
-              longitude: lng().toString(),
-              address: place.formatted_address || "",
-            },
-          }));
-
-          mapInstance.setCenter(newPosition);
-          mapInstance.setZoom(15);
-          markerInstance.setPosition(newPosition);
-        });
-      }
-
-      setMap(mapInstance);
-      markerRef.current = markerInstance;
-
-      // Ensure map renders properly with multiple resize triggers
-      const triggerResize = () => {
-        if (mapInstance && mapRef.current) {
-          window.google.maps.event.trigger(mapInstance, "resize");
-          mapInstance.setCenter(initialCenter);
-          mapInstance.setZoom(15);
+            mapInstance.setCenter(newPosition);
+            mapInstance.setZoom(15);
+            markerInstance.setPosition(newPosition);
+          });
         }
-      };
 
-      // Multiple resize attempts to ensure proper rendering
-      setTimeout(triggerResize, 100);
-      setTimeout(triggerResize, 300);
-      setTimeout(triggerResize, 500);
-    } catch (error) {
-      console.error("Error initializing map:", error);
-    }
-  };
+        setMap(mapInstance);
+        markerRef.current = markerInstance;
 
-  initializeMap();
-}, [isApiReady, formData.location_type, dataLoaded]);
+        // Ensure map renders properly with multiple resize triggers
+        const triggerResize = () => {
+          if (mapInstance && mapRef.current) {
+            window.google.maps.event.trigger(mapInstance, "resize");
+            mapInstance.setCenter(initialCenter);
+            mapInstance.setZoom(15);
+          }
+        };
+
+        // Multiple resize attempts to ensure proper rendering
+        setTimeout(triggerResize, 100);
+        setTimeout(triggerResize, 300);
+        setTimeout(triggerResize, 500);
+      } catch (error) {
+        console.error("Error initializing map:", error);
+      }
+    };
+
+    initializeMap();
+  }, [isApiReady, formData.location_type, dataLoaded]);
 
   // Update map position when coordinates change
   useEffect(() => {
@@ -944,45 +949,200 @@ useEffect(() => {
       return newData;
     });
   };
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+
+  // Inside the CreateTicket component...
+
+  const validateForm = () => {
+    setErrors({});
+    hideAlert();
     const newErrors = {};
+    let isFormValid = true;
+
+    const addError = (field, message) => {
+      if (isFormValid) {
+        showAlert({
+          type: "error",
+          message: "Validation Failed",
+          description: message,
+        });
+      }
+      newErrors[field] = message;
+      isFormValid = false;
+    };
+
+    const safeTextRegex = /^[a-zA-Z0-9\s.,\-\/\(\)&']+$/;
+
+    if (!formData.event_name.trim()) {
+      addError("event_name", "Event name is required.");
+    } else if (!safeTextRegex.test(formData.event_name.trim())) {
+      addError("event_name", "Event name contains invalid special characters.");
+    }
+    if (!formData.event_category) {
+      addError("event_category", "Event category is required.");
+    }
+    if (!formData.event_subcategory) {
+      addError("event_subcategory", "Event subcategory is required.");
+    }
+    if (!formData.event_type) {
+      addError("event_type", "Event type (Public/Private) is required.");
+    }
+    if (!formData.POCS || formData.POCS.length === 0) {
+      addError("POCS", "At least one Point of Contact (POC) must be added.");
+    }
+
+    // --- Location Validation (based on location_type) ---
+    if (formData.location_type === "offline") {
+      if (!formData.location.trim()) {
+        addError("location", "Event location is required for offline events.");
+      } else if (!safeTextRegex.test(formData.location.trim())) {
+        addError(
+          "location",
+          "Event location contains invalid special characters."
+        );
+      }
+      if (!formData.venue.trim()) {
+        addError("venue", "Event venue is required for offline events.");
+      } else if (!safeTextRegex.test(formData.venue.trim())) {
+        addError("venue", "Event venue contains invalid special characters.");
+      }
+      if (!formData.seating_arrangement) {
+        addError(
+          "seating_arrangement",
+          "Seating arrangement is required for offline events."
+        );
+      }
+      if (
+        !formData.exact_map_location.latitude ||
+        !formData.exact_map_location.longitude
+      ) {
+        addError(
+          "exact_map_location",
+          "Exact map location must be set by clicking on the map or searching."
+        );
+      }
+    }
+
+    if (!formData.event_language || formData.event_language.length === 0) {
+      addError("event_language", "At least one event language is required.");
+    }
 
     const minAge = parseInt(formData.min_age_allowed, 10);
     const maxAge = formData.max_age_allowed
       ? parseInt(formData.max_age_allowed, 10)
       : null;
 
-    if (
-      formData.min_age_allowed &&
-      formData.max_age_allowed &&
-      maxAge < minAge
-    ) {
-      newErrors.min_age_allowed = true; // Highlight both fields
-      showAlert({
-        type: "error",
-        message: "Invalid Age Range",
-        description: "The age must be lies between 1 and 150.",
-      });
-      setErrors(newErrors);
-      return; // Stop submission
+    if (!formData.min_age_allowed || isNaN(minAge)) {
+      addError("min_age_allowed", "Minimum age for entry is required.");
+    } else if (minAge < 1 || minAge > 150) {
+      addError("min_age_allowed", "Minimum age must be between 1 and 150.");
+    } else if (maxAge !== null && maxAge < minAge) {
+      addError(
+        "min_age_allowed",
+        "Minimum age cannot be greater than maximum age."
+      );
+      addError(
+        "max_age_allowed",
+        "Maximum age cannot be less than minimum age."
+      );
     }
-    if (!groupId) {
+
+    if (formData.event_dates.length === 0) {
+      addError(
+        "event_dates",
+        "At least one event date and time must be added."
+      );
+    } else {
+      const dateValidationFailed = formData.event_dates.some(
+        (item) =>
+          !item.date ||
+          !item.startTime ||
+          !item.startAmPm ||
+          !item.endTime ||
+          !item.endAmPm
+      );
+
+      if (dateValidationFailed) {
+        addError(
+          "event_dates",
+          "One or more event dates are missing required time fields."
+        );
+      }
+      if (formData.hashtag && formData.hashtag.length > 0) {
+        const hasEmptyTag = formData.hashtag.some(
+          (tag) => !tag || tag.trim() === ""
+        );
+
+        if (hasEmptyTag) {
+          addError(
+            "hashtag",
+            "Hashtags cannot be empty. Please remove any blank tags."
+          );
+        }
+
+        const validHashtagRegex = /^#[a-zA-Z0-9_]{1,50}$/;
+        const hasInvalidFormat = formData.hashtag.some(
+          (tag) => !validHashtagRegex.test(tag)
+        );
+        if (hasInvalidFormat) {
+          addError(
+            "hashtag",
+            "Hashtags must be valid (e.g., #MyEvent_2025)"
+          );
+        }
+      }
+
+      const currentDate = new Date();
+      currentDate.setHours(0, 0, 0, 0);
+      const isPastDate = formData.event_dates.some((item) => {
+        if (item.date) {
+          const eventDate = new Date(item.date);
+          eventDate.setHours(0, 0, 0, 0);
+          return eventDate < currentDate;
+        }
+        return false;
+      });
+
+      if (isPastDate) {
+        addError("event_dates", "The event date cannot be a date in the past.");
+      }
+    }
+
+    if (formData.gatesOpenEarly && formData.location_type === "offline") {
+      if (
+        !formData.gate_open_hour ||
+        !formData.gate_open_minute ||
+        !formData.gate_open_ampm
+      ) {
+        addError(
+          "gate_open_time",
+          'Gate open time (hour, minute, AM/PM) is required if "Gates Open Early" is enabled.'
+        );
+      }
+    }
+
+    const rawDescription = descriptionEditorRef.current?.innerText.trim() || "";
+    if (!rawDescription) {
+      addError("event_description", "Event description is required.");
+    }
+
+    setErrors(newErrors);
+    return isFormValid;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+    const newErrors = {};
+
+    if (!groupId || !formData.groupId) {
       showAlert({
         type: "error",
         message: "Missing Group ID",
         description: "Group ID is missing. Please go back and select a group.",
       });
-      return;
-    }
-    if (!formData.groupId) {
-      newErrors.groupId = true;
-      showAlert({
-        type: "error",
-        message: "Missing Group ID",
-        description: "Please select a group first.",
-      });
-      setErrors(newErrors);
       return;
     }
 
@@ -1085,14 +1245,20 @@ useEffect(() => {
         };
 
         // Convert start time to 24-hour format
-        const convertedStartTime = convertTo24Hour(cleanItem.startTime, cleanItem.startAmPm);
+        const convertedStartTime = convertTo24Hour(
+          cleanItem.startTime,
+          cleanItem.startAmPm
+        );
         if (convertedStartTime) {
           cleanItem.start_time = convertedStartTime;
         }
         delete cleanItem.startTime;
         delete cleanItem.startAmPm;
         // Convert end time to 24-hour format
-        const convertedEndTime = convertTo24Hour(cleanItem.endTime, cleanItem.endAmPm);
+        const convertedEndTime = convertTo24Hour(
+          cleanItem.endTime,
+          cleanItem.endAmPm
+        );
         if (convertedEndTime) {
           cleanItem.end_time = convertedEndTime;
         }
@@ -1346,12 +1512,50 @@ useEffect(() => {
     const trimmedName = poc.POC_name.trim();
     const trimmedEmail = poc.POC_email.trim();
     const trimmedContact = poc.POC_contact.trim();
+    const simpleNameRegex = /^[a-zA-Z\s]+$/;
+    const contactRegex = /^[0-9\s\+]+$/;
 
+    const tempPocErrors = {};
+    let pocInputValid = true;
+    let pocAlertDescription = "";
     // 1. Check for empty fields first
-    if (!trimmedName || !trimmedEmail || !trimmedContact) {
-      alert(
-        "Please fill in all Point of Contact fields: Name, Email, and Contact Number."
-      );
+    if (!trimmedName) {
+      tempPocErrors.POC_name = true;
+      pocInputValid = false;
+      pocAlertDescription = "POC Name is required.";
+    } else if (!simpleNameRegex.test(trimmedName)) {
+      tempPocErrors.POC_name = true;
+      pocInputValid = false;
+      pocAlertDescription = "POC Name must only contain letters and spaces.";
+    }
+
+    if (!trimmedEmail) {
+      tempPocErrors.POC_email = true;
+      pocInputValid = false;
+      if (pocInputValid) pocAlertDescription = "POC Email is required.";
+    }
+
+    if (!trimmedContact) {
+      tempPocErrors.POC_contact = true;
+      pocInputValid = false;
+      if (pocInputValid)
+        pocAlertDescription = "POC Contact Number is required.";
+    } else if (!contactRegex.test(trimmedContact)) {
+      tempPocErrors.POC_contact = true;
+      pocInputValid = false;
+      if (pocInputValid)
+        pocAlertDescription =
+          'POC Contact must only contain numbers, spaces, or "+".';
+    }
+
+    if (!pocInputValid) {
+      showAlert({
+        type: "error",
+        message: "Invalid POC Details",
+        description:
+          pocAlertDescription || "Please fill in all POC fields correctly.",
+      });
+      setErrors((prev) => ({ ...prev, ...tempPocErrors }));
       return;
     }
 
@@ -1507,8 +1711,8 @@ useEffect(() => {
         initialItems={formData.prohibited_items}
         darkMode={darkMode}
       />
-      <Alert alert={alert} onClose={hideAlert} />
-      <div className={`${darkMode ? "dark" : ""}`}>
+      <Alert alert={alert} onClose={hideAlert} darkMode={darkMode} />
+      <div className={`${darkMode ? "dark" : "light"}`}>
         <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
           <EventSidebar
             darkMode={darkMode} // dark theme boolean from your app state
@@ -1551,7 +1755,7 @@ useEffect(() => {
                   <p className="text-gray-600 dark:text-gray-400 mb-2">
                     {isEditMode
                       ? "Updating event under:"
-                      : "Creating event under:"}{" "}
+                      : "Creating event under:"}
                     <span className="font-semibold text-indigo-600">
                       {selectedGroup.name || selectedGroup.group_name}
                     </span>
@@ -1594,6 +1798,11 @@ useEffect(() => {
                           placeholder="Select category"
                           styles={CustomSelectStyles(darkMode, errors)}
                         />
+                        {errors.event_category && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {errors.event_category}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div>
@@ -1623,6 +1832,11 @@ useEffect(() => {
                         styles={CustomSelectStyles(darkMode, errors)}
                         isDisabled={!formData.event_category}
                       />
+                      {errors.event_subcategory && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {errors.event_subcategory}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -1756,7 +1970,7 @@ useEffect(() => {
                               <strong>Selected Location:</strong>
                             </div>
                             <div className="text-xs text-gray-400 dark:text-gray-300 mt-1">
-                              Lat: {formData.exact_map_location.latitude}, Lng:{" "}
+                              Lat: {formData.exact_map_location.latitude}, Lng:
                               {formData.exact_map_location.longitude}
                             </div>
                             {formData.exact_map_location.address && (
@@ -1778,7 +1992,7 @@ useEffect(() => {
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                       >
                         Which language will your event be performed in?
-                        <span className="text-red-400">*</span>{" "}
+                        <span className="text-red-400">*</span>
                         <InfoTooltip note="Select one or more languages." />
                       </label>
                       <Select
@@ -1790,9 +2004,14 @@ useEffect(() => {
                         )}
                         onChange={handleLanguageChange} // Use the new handler
                         placeholder="Select language(s)"
-                        styles={CustomSelectStyles(darkMode)}
+                        styles={CustomSelectStyles(darkMode, errors)}
                         classNamePrefix="react-select"
                       />
+                      {errors.event_language && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {errors.event_language}
+                        </p>
+                      )}
                     </div>
                     <FormInput
                       label="What is the minimum age allowed for entry?"
@@ -1828,7 +2047,7 @@ useEffect(() => {
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                       >
                         Will your audience be seated or standing?
-                        <span className="text-red-400">*</span>{" "}
+                        <span className="text-red-400">*</span>
                         <InfoTooltip note="Specify the audience arrangement." />
                       </label>
                       <div className="relative">
@@ -1841,8 +2060,13 @@ useEffect(() => {
                           )}
                           onChange={handleSelectChange}
                           placeholder="Select a type"
-                          styles={CustomSelectStyles(darkMode)}
+                          styles={CustomSelectStyles(darkMode, errors)}
                         />
+                        {errors.seating_arrangement && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {errors.seating_arrangement}
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1856,40 +2080,45 @@ useEffect(() => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                      <label
-                        htmlFor="event_instagram_link"
-                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
-                      >
-                        Instagram link (Optional){" "}
-                        <InfoTooltip note="Link to your event's Instagram page." />
-                      </label>
-                      <input
-                        id="event_instagram_link"
+                      
+                      <FormInput
+                        label="Instagram link (Optional)"
                         name="event_instagram_link"
                         type="text"
+                        info="Link to your event's Instagram page."
+                        id="event_instagram_link"
                         value={formData.event_instagram_link}
+                        error={errors.event_instagram_link}
                         onChange={handleInputChange}
                         placeholder="https://instagram.com/..."
-                        className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-black dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
-                      />
+                        required={false}
+                        darkMode={darkMode}                      />
+                        {errors.event_instagram_link && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {errors.event_instagram_link}
+                          </p>
+                        )}
                     </div>
                     <div>
-                      <label
-                        htmlFor="event_youtube_link"
-                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
-                      >
-                        Youtube link (Optional){" "}
-                        <InfoTooltip note="Link to a YouTube video or channel." />
-                      </label>
-                      <input
-                        id="event_youtube_link"
+                      
+                      <FormInput
+                        label="Youtube link (Optional)"
                         name="event_youtube_link"
-                        type="text  "
+                        type="text"
+                        info="Link to your event's Youtube ."
+                        id="event_youtube_link"
                         value={formData.event_youtube_link}
+                        error={errors.event_youtube_link}
                         onChange={handleInputChange}
                         placeholder="https://youtube.com/..."
-                        className="w-full px-4 py-3 bg-transparent border rounded-lg text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-black dark:border-[#4A4A4A] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
-                      />
+                        required={false}
+                        darkMode={darkMode}                      />
+                        {errors.event_youtube_link && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {errors.event_youtube_link}
+                          </p>
+                        )}
+                   
                     </div>
                   </div>
                   <div>
@@ -1921,7 +2150,7 @@ useEffect(() => {
                       onClick={handleOpenDateModal}
                       className="px-6 py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-semibold flex items-center gap-2"
                     >
-                      Add dates and time{" "}
+                      Add dates and time
                       <img src={Date_Form_Icon} alt="" className="pl-2" />
                     </button>
                   </div>
@@ -1987,7 +2216,7 @@ useEffect(() => {
                             className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
                           >
                             Time of gate opening?
-                            <span className="text-red-400">*</span>{" "}
+                            <span className="text-red-400">*</span>
                             <InfoTooltip note="Set the time when gates will open." />
                           </label>
 
@@ -2238,7 +2467,7 @@ useEffect(() => {
                             : "border-black hover:bg-gray-100"
                         }`}
                       >
-                        Attach document{" "}
+                        Attach document
                         <svg
                           className="w-4 h-4"
                           fill="none"
@@ -2382,17 +2611,30 @@ useEffect(() => {
                         className="w-full min-h-[120px] p-3 focus:outline-none text-left [direction:ltr]"
                       ></div>
                     </div>
+                    {errors.event_description && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.event_description}
+                      </p>
+                    )}
                   </div>
                   {/* Point of Contact Section */}
                   <div>
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Point of Contact
+                      <span className="text-red-400">*</span>
                     </h2>
+
                     <p className="text-black dark:text-gray-400 text-sm">
                       Please add POCs with whom event feedback will be shared
                     </p>
-
+                    {/* Error message for the section */}
+                    {errors.POCS && (
+                      <p className="text-red-500 text-xs mt-2 mb-4">
+                        At least one Point of Contact is required.
+                      </p>
+                    )}
                     {/* POC Input Fields */}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
                       <FormInput
                         label="Name"
@@ -2400,10 +2642,11 @@ useEffect(() => {
                         value={poc.POC_name}
                         onChange={handlePocChange}
                         placeholder="Enter the name of person"
-                        error={errors.POC_name}
-                        required={true}
+                        error={errors.POC_name || errors.POCS}
+                        required={false}
                         darkMode={darkMode}
                       />
+
                       <FormInput
                         label="Email"
                         name="POC_email"
@@ -2411,11 +2654,12 @@ useEffect(() => {
                         onChange={handlePocChange}
                         type="email"
                         placeholder="enter the email id"
-                        error={errors.POC_email}
-                        required={true}
+                        error={errors.POC_email || errors.POCS}
+                        required={false}
                         darkMode={darkMode}
                       />
                     </div>
+
                     <div className="mt-8">
                       <FormInput
                         label="Contact number"
@@ -2424,13 +2668,12 @@ useEffect(() => {
                         onChange={handlePocChange}
                         type="tel"
                         placeholder="enter contact number"
-                        error={errors.POC_contact}
-                        required={true}
+                        error={errors.POC_contact || errors.POCS}
+                        required={false}
                         darkMode={darkMode}
                       />
                     </div>
 
-                    {/* Add POC Button */}
                     <button
                       type="button"
                       onClick={handleAddPoc}
@@ -2438,13 +2681,7 @@ useEffect(() => {
                     >
                       Add +
                     </button>
-                    {errors.POCS && (
-                      <p className="text-red-500 text-xs mt-2">
-                        At least one Point of Contact is required.
-                      </p>
-                    )}
 
-                    {/* UPDATED: Display List of Added POCs in a Grid */}
                     <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {formData.POCS.map((pocItem, index) => (
                         <div
@@ -2452,19 +2689,17 @@ useEffect(() => {
                           className="rounded-lg p-3 flex items-center justify-between bg-gray-100 dark:bg-[#2B2B2B]"
                         >
                           <div className="flex items-center gap-3 overflow-hidden">
-                            {/* Placeholder Avatar */}
-
-                            {/* Name and Email */}
                             <div className="truncate">
                               <p className="font-semibold text-sm text-gray-800 dark:text-white truncate">
                                 {pocItem.POC_name}
                               </p>
+
                               <p className="text-xs text-black dark:text-gray-400 truncate">
                                 {pocItem.POC_email} | {pocItem.POC_contact}
                               </p>
                             </div>
                           </div>
-                          {/* Remove Button */}
+
                           <button
                             type="button"
                             onClick={() => handleRemovePoc(index)}

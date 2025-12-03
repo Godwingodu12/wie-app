@@ -11,51 +11,11 @@ import ThemeToggle from '../../components/HomePage/ThemeToggle';
 import EventSidebar from '../../components/CreateGroup/EventSidebar';
 import CustomScrollbarStyles from "../../components/CreateGroup/CustomScrollbarStyles.jsx";
 import Alert from "../../components/CreateGroup/Alert";
+import getInitialTheme from '../../components/CreateGroup/getIntialTheme.jsx';
+import darkThemeStyles from '../../components/CreateGroup/darkThemeStyles.jsx';
+import lightThemeStyles from '../../components/CreateGroup/lightThemeStyles.jsx';
 // CSS for placeholders, which will be injected based on the theme
-const darkThemeStyles = `
-  .dark input::placeholder,
-  .dark textarea::placeholder,
-  .dark select {
-    color: white !important;
-    font-weight: 100 !important;
-    opacity: 0.8 !important;
-  }
-  .dark select option:first-child {
-    color: white !important;
-    font-weight: 100 !important;
-  }
-  .dark select option {
-    background: #212426;
-    color: white;
-  }
-  /* Fix for autofill background in dark mode */
-  .dark input:-webkit-autofill,
-  .dark input:-webkit-autofill:hover,
-  .dark input:-webkit-autofill:focus,
-  .dark input:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0px 1000px #212426 inset !important; /* Matches your dark background */
-    -webkit-text-fill-color: white !important; /* Ensures text is white */
-    caret-color: white !important; /* Ensures cursor is white */
-  }
-`;
 
-const lightThemeStyles = `
-  .light input::placeholder,
-  .light textarea::placeholder,
-  .light select {
-    color: #718096 !important;
-    font-weight: 100 !important;
-    opacity: 1 !important;
-  }
-  .light select option:first-child {
-    color: #718096 !important;
-    font-weight: 100 !important;
-  }
-   .light select option {
-    background: white;
-    color: black;
-  }
-`;
 
 // Custom CSS for the light green scrollbar
 const scrollbarStyles = `
@@ -170,8 +130,7 @@ const CreateGroup = () => {
   const [loading, setLoading] = useState(true);
   const [capabilities, setCapabilities] = useState(null);
   const [userData, setUserData] = useState(null);
-  const [darkMode, setDarkMode] = useState(true);
-  const [filePreviews, setFilePreviews] = useState({});
+const [darkMode, setDarkMode] = useState(getInitialTheme());  const [filePreviews, setFilePreviews] = useState({});
   const [hasGst, setHasGst] = useState('');
   const [existingGroups, setExistingGroups] = useState([]);
   const [ticketData, setTicketData] = useState(null);
@@ -208,15 +167,19 @@ const showAlert = (data) => setAlert({ ...data, show: true });
 const hideAlert = () => setAlert(null);
   
 
-  useEffect(() => {
+useEffect(() => {
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
+}, [darkMode]);
+
+useEffect(() => {
     let styleSheet = document.getElementById('dynamic-theme-styles');
     if (!styleSheet) {
-      styleSheet = document.createElement('style');
-      styleSheet.id = 'dynamic-theme-styles';
-      document.head.appendChild(styleSheet);
+        styleSheet = document.createElement('style');
+        styleSheet.id = 'dynamic-theme-styles';
+        document.head.appendChild(styleSheet);
     }
     styleSheet.innerText = darkMode ? darkThemeStyles : lightThemeStyles;
-  }, [darkMode]);
+}, [darkMode]);
 useEffect(() => {
     fetchUserCapabilities();
 }, [groupId]);
@@ -715,7 +678,7 @@ const FileUploadArea = ({ label, name }) => {
   return (
     <>
      <CustomScrollbarStyles isDark={darkMode} />
-         <Alert alert={alert} onClose={hideAlert} /> 
+         <Alert alert={alert} onClose={hideAlert} darkMode={darkMode} /> 
 
       <div className={`min-h-screen flex ${darkMode ? 'dark' : 'light'}`}>
           {!isEditMode && (

@@ -4,7 +4,7 @@ import InfoTooltip from "./InfoTooltip";
 const TagInput = ({ label, tags, onTagsChange, placeholder, darkMode }) => {
   const [inputValue, setInputValue] = useState("");
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && inputValue.trim()) {
+    if ((e.key === "Enter" || e.key === " ") && inputValue.trim()) {
       e.preventDefault();
       if (!tags.includes(inputValue.trim())) {
         onTagsChange([...tags, inputValue.trim()]);
@@ -23,7 +23,7 @@ const TagInput = ({ label, tags, onTagsChange, placeholder, darkMode }) => {
           darkMode ? "text-gray-400" : "text-black"
         } mb-2`}
       >
-        {label} <InfoTooltip note="Press Enter to add a tag." />
+        {label} <InfoTooltip note="Press Enter or Space to add a tag." />
       </label>
       <div
         className={`flex flex-wrap items-center gap-2 p-2 bg-transparent border rounded-lg ${

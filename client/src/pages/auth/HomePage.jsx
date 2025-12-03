@@ -118,6 +118,7 @@ const HomePage = () => {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [selectedGroupEventCount, setSelectedGroupEventCount] = useState(0);
   const [loadingGroupCount, setLoadingGroupCount] = useState(false);
+  const [currentGroupIndex, setCurrentGroupIndex] = useState(0); // <-- ADDED
   const totalEvents = groupsWithCount.reduce(
     (acc, group) => acc + (group.events_count || 0),
     0
@@ -138,57 +139,67 @@ const HomePage = () => {
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
   const handleGroupClick = async (group) => {
-  setSelectedGroup(group);
-  setIsGroupViewModalOpen(true);
-  setLoadingGroupCount(true);
-  
-  // Fetch event count for this specific group
-  try {
-    const eventsRes = await getMyEvents();
-    
-    // Handle different response structures
-    let eventsArray = [];
-    if (Array.isArray(eventsRes)) {
-      eventsArray = eventsRes;
-    } else if (eventsRes?.tickets) {
-      eventsArray = Array.isArray(eventsRes.tickets) ? eventsRes.tickets : [];
-    } else if (eventsRes?.data) {
-      eventsArray = Array.isArray(eventsRes.data) ? eventsRes.data : [];
+    setSelectedGroup(group);
+    setIsGroupViewModalOpen(true);
+    setLoadingGroupCount(true);
+
+    // Fetch event count for this specific group
+    try {
+      const eventsRes = await getMyEvents();
+
+      // Handle different response structures
+      let eventsArray = [];
+      if (Array.isArray(eventsRes)) {
+        eventsArray = eventsRes;
+      } else if (eventsRes?.tickets) {
+        eventsArray = Array.isArray(eventsRes.tickets) ? eventsRes.tickets : [];
+      } else if (eventsRes?.data) {
+        eventsArray = Array.isArray(eventsRes.data) ? eventsRes.data : [];
+      }
+
+      // Filter events that belong to this specific group
+      const groupId = group._id || group.id;
+      const filteredEvents = eventsArray.filter(
+        (event) =>
+          event.groupId === groupId ||
+          event.group_id === groupId ||
+          event.group === groupId ||
+          event.group?._id === groupId ||
+          event.group?.id === groupId
+      );
+
+      setSelectedGroupEventCount(filteredEvents.length);
+    } catch (error) {
+      console.error("Error fetching event count:", error);
+      // Fallback to group's own count if available
+      setSelectedGroupEventCount(group.totalEvents || group.events_count || 0);
+    } finally {
+      setLoadingGroupCount(false);
     }
+  };
+  const handlePrevMyGroup = () => {
+    setCurrentGroupIndex((prevIndex) => (prevIndex > 0 ? prevIndex - 1 : 0));
+  };
 
-    // Filter events that belong to this specific group
-    const groupId = group._id || group.id;
-    const filteredEvents = eventsArray.filter(event => 
-      event.groupId === groupId || 
-      event.group_id === groupId || 
-      event.group === groupId ||
-      event.group?._id === groupId ||
-      event.group?.id === groupId
+  const handleNextMyGroup = () => {
+    setCurrentGroupIndex((prevIndex) =>
+      prevIndex < groupsWithCount.length - 1 ? prevIndex + 1 : prevIndex
     );
-    
-    setSelectedGroupEventCount(filteredEvents.length);
-  } catch (error) {
-    console.error('Error fetching event count:', error);
-    // Fallback to group's own count if available
-    setSelectedGroupEventCount(group.totalEvents || group.events_count || 0);
-  } finally {
-    setLoadingGroupCount(false);
-  }
-};
+  };
 
-const handleCloseGroupModal = () => {
-  setIsGroupViewModalOpen(false);
-  setSelectedGroup(null);
-  setSelectedGroupEventCount(0);
-};
+  const handleCloseGroupModal = () => {
+    setIsGroupViewModalOpen(false);
+    setSelectedGroup(null);
+    setSelectedGroupEventCount(0);
+  };
 
-const handleUpdateGroup = () => {
-  console.log('Update group:', selectedGroup);
-  // Add your update logic here
-  // You might want to navigate to an edit page
-  // Example: navigate(`/ticket/group/edit/${selectedGroup._id}`);
-  handleCloseGroupModal();
-};
+  const handleUpdateGroup = () => {
+    console.log("Update group:", selectedGroup);
+    // Add your update logic here
+    // You might want to navigate to an edit page
+    // Example: navigate(`/ticket/group/edit/${selectedGroup._id}`);
+    handleCloseGroupModal();
+  };
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
@@ -392,10 +403,10 @@ const handleUpdateGroup = () => {
         inputBg: "bg-[#212426]",
       }
     : {
-        bg: "bg-[#f0f2f5]",
+        bg: "bg-[#F9F9F9]",
         text: "text-gray-900",
         subText: "text-gray-600",
-        cardBg: "bg-[#f0f2f5]",
+        cardBg: "bg-[#f1f1f1]",
         border: "border-[#e4e6ea]",
         inputBg: "bg-[#ffffff]",
       };
@@ -434,7 +445,7 @@ const handleUpdateGroup = () => {
       >
         {/* Desktop Sidebar */}
         <div
-          className={`hidden md:flex flex-col flex-shrink-0 nest-hub-sidebar ${theme.bg} border-r ${theme.border}`}
+          className={`hidden md:flex flex-col flex-shrink-0 nest-hub-sidebar ${theme.bg}  ${theme.border}`}
         >
           <div
             className="flex items-center justify-center"
@@ -528,13 +539,13 @@ const handleUpdateGroup = () => {
             </div>
           </header>
           <main
-            className={`main-scrollbar flex flex-col flex-1 p-4 md:px-6 md:pt-6 overflow-y-auto pb-32 md:pb-4 ${theme.cardBg}`}
+            className={`main-scrollbar flex flex-col flex-1 p-4 md:px-6 md:pt-6 overflow-y-auto pb-32 md:pb-4 ${theme.bg}`}
           >
             <div className="w-full flex flex-col flex-1">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 flex-shrink-0">
                 <div className="mb-4 md:mb-0">
                   <h1
-                    className={`text-xl md:text-2xl font-semibold ${theme.text}`}
+                    className={`text-xl md:text-3xl font-semibold ${theme.text}`}
                   >
                     Good day, {displayName}!
                   </h1>
@@ -638,7 +649,7 @@ const handleUpdateGroup = () => {
                               ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                               : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
                           }}
-                          className={`${theme.bg} rounded-[2.5rem] relative p-6 flex flex-col items-center justify-center gap-3 h-full transition-all duration-300`}
+                          className={`${theme.cardBg} rounded-[2.5rem] relative p-6 flex flex-col items-center justify-center gap-3 h-full transition-all duration-300`}
                         >
                           <div
                             style={{
@@ -792,7 +803,7 @@ const handleUpdateGroup = () => {
                         ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                         : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
                     }}
-                    className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 min-h-[450px] max-h-[550px] lg:min-h-[530px] lg:max-h-[630px]`}
+                    className={`${theme.cardBg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 min-h-[450px] max-h-[550px] lg:min-h-[530px] lg:max-h-[630px]`}
                   >
                     <div className="flex items-center justify-between mb-4 flex-shrink-0">
                       <div className="flex items-center gap-3">
@@ -872,7 +883,10 @@ const handleUpdateGroup = () => {
                         { month: "JUL", value: 70 },
                         { month: "AUG", value: 85 },
                       ].map((item) => (
-                        <div key={item.month} className="flex flex-col items-center justify-end h-full">
+                        <div
+                          key={item.month}
+                          className="flex flex-col items-center justify-end h-full"
+                        >
                           <div className={`text-xs ${theme.subText} mb-1`}>
                             {item.value}k
                           </div>
@@ -925,7 +939,7 @@ const handleUpdateGroup = () => {
                         ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                         : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
                     }}
-                    className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1 max-h-[400px]`}
+                    className={`${theme.cardBg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1 max-h-[400px]`}
                   >
                     <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4">
                       <div className="flex items-center gap-3">
@@ -942,7 +956,7 @@ const handleUpdateGroup = () => {
                       </div>
                       <button
                         onClick={() => navigate("/ticket/live-events")}
-                        className={`border border-[background: background: #6549B8;] rounded-full px-6 py-2 text-sm font-light tracking-wider transition-colors hover:bg-blue-500 hover:text-white ${
+                        className={`border  rounded-full px-4 py-1 text-sm font-light tracking-wider transition-colors hover:bg-[#6549B8] border-[#6549B8] hover:text-white ${
                           isDark ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
@@ -1060,7 +1074,7 @@ const handleUpdateGroup = () => {
                         ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                         : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
                     }}
-                    className={`${theme.bg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1 max-h-[400px]`}
+                    className={`${theme.cardBg} rounded-[2.5rem] p-6 flex flex-col transition-all duration-300 flex-1 max-h-[400px]`}
                   >
                     <div className="flex items-center justify-between gap-3 flex-shrink-0 mb-4">
                       <div className="flex items-center gap-3">
@@ -1077,70 +1091,81 @@ const handleUpdateGroup = () => {
                       </div>
                       <button
                         onClick={() => navigate("/ticket/groups")}
-                        className={`border border-[background: #6549B8;] rounded-full px-6 py-2 text-sm font-light tracking-wider transition-colors hover:bg-blue-500 hover:text-white ${
+                        className={`border  rounded-full px-4 py-1 text-sm font-light tracking-wider transition-colors hover:bg-[#6549B8] border-[#6549B8] hover:text-white ${
                           isDark ? "text-gray-300" : "text-gray-700"
                         }`}
                       >
                         see all
                       </button>
                     </div>
-                      {groupsWithCount.length > 0 ? (
-                        <div className="flex gap-4 overflow-x-auto horizontal-scrollbar">
-                          {groupsWithCount.slice(0, 6).map((group) => {
-                            // Determine the image URL with proper fallback
-                            let groupImageUrl = ProfileImage; // Default fallback
-                            
-                            if (group.company_logo) {
-                              const imageUrl = getImageUrl(group.company_logo);
-                              if (imageUrl) {
-                                groupImageUrl = imageUrl;
-                              }
-                            }                        
-                            const totalEvents = group.total_events || group.events_count || 0;
-                            return (
+                    {groupsWithCount.length > 0 ? (
+                      <div className="flex gap-4 overflow-x-auto horizontal-scrollbar py-2">
+                        {groupsWithCount.slice(0, 6).map((group) => {
+                          // Determine the image URL with proper fallback
+                          let groupImageUrl = ProfileImage; // Default fallback
+
+                          if (group.company_logo) {
+                            const imageUrl = getImageUrl(group.company_logo);
+                            if (imageUrl) {
+                              groupImageUrl = imageUrl;
+                            }
+                          }
+                          const totalEvents =
+                            group.total_events || group.events_count || 0;
+                          return (
+                            <div
+                              key={group._id}
+                              className="p-4 flex  flex-col items-center gap-2 rounded-[30px] flex-shrink-0 w-40"
+                              style={{
+                                boxShadow: isDark
+                                  ? "inset 3px 3px 6px rgba(0,0,0,0.5), inset -3px -3px 6px rgba(60,60,60,0.25)"
+                                  : "inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.5)",
+                              }}
+                            >
                               <div
-                                key={group._id}
-                                className="p-4 flex flex-col items-center gap-2 rounded-3xl flex-shrink-0 w-40"
-                                style={{
-                                  boxShadow: isDark
-                                    ? "inset 3px 3px 6px rgba(0,0,0,0.5), inset -3px -3px 6px rgba(60,60,60,0.25)"
-                                    : "inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.5)",
-                                }}
+                                className={`w-20 h-20 rounded-full  border-2 overflow-hidden  flex items-center justify-center ${theme.bg}`}
                               >
-                                <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center">
-                                  <img
-                                    src={groupImageUrl}
-                                    alt={group.name}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                      console.error('Image load error for:', e.target.src);
-                                      e.target.onerror = null;
-                                      e.target.src = ProfileImage;
-                                    }}
-                                  />
-                                </div>
-                                <p className={`${theme.text} text-sm font-medium text-center`}>
-                                  {group.name}
-                                </p>
-                                <p className={`${theme.subText} text-xs text-center`}>
-                                  {totalEvents} {totalEvents === 1 ? "event" : "events"} created
-                                </p>
-                                <button
+                                <img
+                                  src={groupImageUrl}
+                                  alt={group.name}
+                                  className="w-full h-full object-cover "
+                                  onError={(e) => {
+                                    console.error(
+                                      "Image load error for:",
+                                      e.target.src
+                                    );
+                                    e.target.onerror = null;
+                                    e.target.src = ProfileImage;
+                                  }}
+                                />
+                              </div>
+                              <p
+                                className={`${theme.text} text-sm font-medium text-center`}
+                              >
+                                {group.name}
+                              </p>
+                              <p
+                                className={`${theme.subText} text-xs text-center`}
+                              >
+                                {totalEvents}{" "}
+                                {totalEvents === 1 ? "event" : "events"} created
+                              </p>
+                              <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleGroupClick(group);
                                 }}
-                                className={`w-full mt-2 border border-[rgba(101,73,184,1)] rounded-full py-1.5 text-xs font-light tracking-wider transition-colors hover:bg-[rgba(101,73,184,0.2)] ${
+                                className={`w-full mt-2 border border-[#5E5CE6] rounded-full py-1.5 text-xs font-light tracking-wider transition-colors hover:bg-[rgba(101,73,184,0.2)] ${
                                   isDark ? "text-gray-300" : "text-gray-700"
                                 }`}
                               >
                                 view
                               </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
                       <div className="flex-1 flex items-center justify-center">
                         <button
                           onClick={() => navigate("/ticket/create-group")}

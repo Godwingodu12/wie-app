@@ -66,37 +66,16 @@ const darkTheme = {
 const lightTheme = {
   isDark: false,
   text: "text-gray-900",
-  mainBg: "#e0e0e0",
-  cardBg: "rgba(255, 255, 255, 0.9)",
-  insetBg: "rgba(230, 230, 230, 0.9)",
+  mainBg: "#f9f9f9",
+  cardBg: "#f1f1f1",
+  insetBg: "#f9f9f9",
   shadowOutset: "5px 5px 10px #c5c5c5, -5px -5px 10px #fbfbfb",
   shadowInset: "inset 5px 5px 10px #c5c5c5, inset -5px -5px 10px #fbfbfb",
   textColor: "text-gray-700",
   arrowBgClass: "bg-gray-800",
   arrowColorClass: "text-gray-200",
 };
-const formatLocationFromCoords = (subEventData) => {
-  if (subEventData.location_type !== "offline") {
-    return subEventData.location_type === "online"
-      ? "Online Event"
-      : "Recorded Event";
-  }
 
-  // Fallback to location property first if it's already a string
-  if (subEventData.location && typeof subEventData.location === "string") {
-    return subEventData.location;
-  }
-
-  // Use state and country (simulated extraction from coordinates/database)
-  const state = subEventData.location_state || "State N/A";
-  const country = subEventData.location_country || "Country N/A";
-
-  if (state === "State N/A" && country === "Country N/A") {
-    return "Offline Event";
-  }
-
-  return `${state}, ${country}`;
-};
 
 const ViewSingleSubEvent = () => {
   const { ticketId, subEventId } = useParams();
@@ -610,7 +589,7 @@ const ViewSingleSubEvent = () => {
       <Card
         theme={theme}
         className="mt-6 p-4 md:p-8 flex flex-col space-y-6" // p-4 on mobile, p-8 on desktop
-        customStyle={{ borderRadius: "20px" }}
+        customStyle={{ borderRadius: "20px" ,background:theme.bg}}
       >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
           {/* A. Back Button (Always left) */}
@@ -727,7 +706,7 @@ const ViewSingleSubEvent = () => {
           <div className="md:col-span-2 flex flex-col h-full my-auto space-y-4">
             <Card
               theme={theme}
-              className="relative overflow-hidden rounded-2xl flex-grow h-[300px] md:h-auto" // Added fixed height for mobile image container
+              className="relative overflow-hidden rounded-3xl flex-grow h-[300px] md:h-auto" // Added fixed height for mobile image container
             >
               <div className="relative h-full w-full rounded-2xl overflow-hidden">
                 <img
@@ -998,10 +977,9 @@ const ViewSingleSubEvent = () => {
                 </h3>
 
                 {allGuides.length > 0 ? (
-                  <div className="flex flex-col items-center flex-grow overflow-x-hidden pt-4">
-                    {/* 1. Carousel Viewport */}
-                    {/* The parent container must be overflow-hidden to hide cards outside the frame */}
-                    <div className="w-full relative overflow-hidden">
+                  <div className="flex flex-col items-center flex-grow px-3 overflow-x-hidden pt-4">
+                   
+                    <div className="w-full relative ">
                       <div
                         className="flex transition-transform duration-500 ease-in-out"
                         style={{

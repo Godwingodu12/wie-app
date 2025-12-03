@@ -45,7 +45,7 @@ const LiveEventCarouselCard = ({
   const eventLogoPath = event.event_logo || event.event_banner;
   const logoUrl = eventLogoPath ? getImageUrl(eventLogoPath) : null;
 
-  const cardBgColor = isDark ? "#212426" : "#F9FAFB";
+  const cardBgColor = isDark ? "#212426" : "#f9f9f9";
   const textColor = isDark ? "text-white" : "text-gray-800";
   const subTextColor = isDark ? "text-gray-400" : "text-gray-500";
 
@@ -402,7 +402,9 @@ const SvgGroupCard = ({
               <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
             </div>
             <h3
-              className={`font-semibold text-[10px] sm:text-xs mt-2 ${isDark ? "text-white" : "text-gray-800"}`}
+              className={`font-semibold text-[10px] sm:text-xs mt-2 ${
+                isDark ? "text-white" : "text-gray-800"
+              }`}
             >
               Add New Group
             </h3>
@@ -420,12 +422,16 @@ const SvgGroupCard = ({
               </div>
               <div className="mt-1 px-1">
                 <h3
-                  className={`font-semibold text-[10px] sm:text-xs line-clamp-1 ${isDark ? "text-white" : "text-gray-800"}`}
+                  className={`font-semibold text-[10px] sm:text-xs line-clamp-1 ${
+                    isDark ? "text-white" : "text-gray-800"
+                  }`}
                 >
                   {card.name}
                 </h3>
                 <p
-                  className={`text-[8px] sm:text-[10px] ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                  className={`text-[8px] sm:text-[10px] ${
+                    isDark ? "text-gray-400" : "text-gray-500"
+                  }`}
                 >
                   {card.type}
                 </p>
@@ -435,7 +441,9 @@ const SvgGroupCard = ({
             <div className="flex-grow flex flex-col justify-center items-center w-full px-1 sm:px-2">
               <div className="w-full flex items-center gap-1 mb-1 sm:mb-2">
                 <div
-                  className={`w-full ${isDark ? "bg-white/20" : "bg-gray-200"} rounded-full h-1`}
+                  className={`w-full ${
+                    isDark ? "bg-white/20" : "bg-gray-200"
+                  } rounded-full h-1`}
                 >
                   <div
                     className={`${statColor} h-1 rounded-full`}
@@ -443,7 +451,9 @@ const SvgGroupCard = ({
                   ></div>
                 </div>
                 <span
-                  className={`text-[8px] sm:text-[10px] font-semibold whitespace-nowrap ${isDark ? "text-white" : "text-gray-800"}`}
+                  className={`text-[8px] sm:text-[10px] font-semibold whitespace-nowrap ${
+                    isDark ? "text-white" : "text-gray-800"
+                  }`}
                 >
                   {statPercentage}%
                 </span>
@@ -460,10 +470,14 @@ const SvgGroupCard = ({
             </div>
 
             <div
-              className={`flex-shrink-0 w-full border-t pt-1 pb-0.5 mt-auto ${isDark ? "border-gray-700/50" : "border-gray-200"}`}
+              className={`flex-shrink-0 w-full border-t pt-1 pb-0.5 mt-auto ${
+                isDark ? "border-gray-700/50" : "border-gray-200"
+              }`}
             >
               <div
-                className={`flex justify-around items-center ${isDark ? "text-gray-300" : "text-gray-500"}`}
+                className={`flex justify-around items-center ${
+                  isDark ? "text-gray-300" : "text-gray-500"
+                }`}
               >
                 <div className="flex flex-col items-center space-y-0.5">
                   <HeartIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-red-500" />
@@ -733,7 +747,7 @@ const MonthSelector = ({
   return (
     <div
       className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
-        isDark,
+        isDark
       )} p-1 flex flex-col gap-1 w-24 shadow-lg absolute z-20 top-full left-0 mt-2`}
     >
       {months.map((monthName, index) => (
@@ -766,13 +780,13 @@ const YearSelector = ({
   const currentFullYear = new Date().getFullYear();
   const years = Array.from(
     { length: 21 },
-    (_, i) => currentFullYear - 10 + i,
+    (_, i) => currentFullYear - 10 + i
   ).sort((a, b) => b - a);
 
   return (
     <div
       className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
-        isDark,
+        isDark
       )} p-1 flex flex-col gap-1 w-24 shadow-lg max-h-[13.5rem] overflow-y-auto absolute z-20 top-full right-0 mt-2`}
     >
       {years.map((yearNum) => (
@@ -829,12 +843,12 @@ const ViewGroups = () => {
         const selectedDateOnly = new Date(
           selectedDate.getFullYear(),
           selectedDate.getMonth(),
-          selectedDate.getDate(),
+          selectedDate.getDate()
         );
         const eventDateOnly = new Date(
           eventStartDate.getFullYear(),
           eventStartDate.getMonth(),
-          eventStartDate.getDate(),
+          eventStartDate.getDate()
         );
 
         return eventDateOnly.getTime() === selectedDateOnly.getTime();
@@ -886,7 +900,7 @@ const ViewGroups = () => {
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
+      "(prefers-color-scheme: dark)"
     ).matches;
     const shouldBeDark = savedTheme ? savedTheme === "dark" : systemPrefersDark;
     setIsDark(shouldBeDark);
@@ -932,7 +946,7 @@ const ViewGroups = () => {
     if (events.length > 0 && groups.length > 0) {
       const stats = groups.map((group) => {
         const groupEvents = events.filter(
-          (event) => event.groupId === group._id,
+          (event) => event.groupId === group._id
         );
         const percentage =
           events.length > 0 ? (groupEvents.length / events.length) * 100 : 0;
@@ -1027,7 +1041,7 @@ const ViewGroups = () => {
             acc[type] = (acc[type] || 0) + 1;
             return acc;
           },
-          { organisation: 0, admin: 0 },
+          { organisation: 0, admin: 0 }
         );
 
         let shouldShowAddCard = false;
@@ -1184,10 +1198,10 @@ const ViewGroups = () => {
         specialButtonBg: "bg-[#21d18b]",
       }
     : {
-        bg: "bg-white",
+        bg: "bg-[#f9f9f9]",
         text: "text-gray-900",
         subText: "text-gray-600",
-        cardBg: "bg-gray-50",
+        cardBg: "bg-[#f1f1f1]",
         border: "border-gray-200",
         inputBg: "bg-gray-100",
         specialButtonBg: "bg-gradient-to-r from-purple-500 to-indigo-600",
@@ -1195,14 +1209,14 @@ const ViewGroups = () => {
 
   const outerShadow = {
     boxShadow: isDark
-      ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
-      : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
+      ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+      : "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
   };
 
   const combinedShadow = {
     boxShadow: isDark
-      ? "inset 3px 3px 6px rgba(0,0,0,0.6), inset -3px -3px 6px rgba(40,40,40,0.3), 0 10px 20px -5px rgba(0,0,0,0.5)"
-      : "inset 3px 3px 6px rgba(0,0,0,0.05), inset -3px -3px 6px rgba(255,255,255,0.8), 0 10px 15px -3px rgba(0,0,0,0.1)",
+      ? "inset 6px 6px 12px 0px #0000004D, inset -6px -6px 12px 0px #FFFFFF0A"
+      : "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14",
   };
 
   const displayName = user?.name || "User";
@@ -1353,15 +1367,21 @@ const ViewGroups = () => {
       <div
         className={`${theme.bg} ${theme.text} h-screen flex overflow-hidden transition-colors duration-300`}
       >
-        <div className={`hidden md:flex flex-col flex-shrink-0 ${theme.bg}`}>
+        <div
+          className={`hidden md:flex flex-col flex-shrink-0 nest-hub-sidebar ${theme.bg}  ${theme.border}`}
+        >
           <div
             className="flex items-center justify-center"
             style={{ height: HEADER_HEIGHT }}
           >
-            <img src={WieLogo} alt="Wie Logo" className="w-12 h-12" />
+            <img
+              src={WieLogo}
+              alt="Wie Logo"
+              className="w-10 h-10 lg:w-12 lg:h-12"
+            />
           </div>
-          <div className="flex-1">
-            <SideBar user={user} theme={theme} />
+          <div className="flex-1 sidebar-content overflow-y-auto">
+            <SideBar user={user} theme={theme} isDark={isDark} />
           </div>
         </div>
 
@@ -1371,7 +1391,11 @@ const ViewGroups = () => {
             style={{ height: HEADER_HEIGHT }}
           >
             <div className="flex md:hidden items-center justify-between w-full">
-              <img src={WieLogo} alt="Wie Logo" className="w-10 h-10" />
+              <img
+                src={WieLogo}
+                alt="Wie Logo"
+                className="w-10 h-10 lg:w-12 lg:h-12"
+              />
               <div className="flex items-center gap-2">
                 <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
               </div>
@@ -1391,10 +1415,10 @@ const ViewGroups = () => {
           </header>
 
           <main
-            className={`main-scrollbar flex flex-col flex-1 p-4 overflow-y-auto pb-32 md:pb-4 ${theme.cardBg}`}
+            className={`main-scrollbar flex flex-col flex-1 p-4  md:px-6 md:pt-6 overflow-y-auto pb-32 md:pb-4 ${theme.bg}`}
           >
             <div className="flex flex-col sm:flex-row sm:items-center mb-4 flex-shrink-0 gap-2">
-              <h1 className={`text-lg md:text-2xl font-semibold ${theme.text}`}>
+              <h1 className={`text-lg md:text-3xl font-semibold ${theme.text}`}>
                 Created Groups
               </h1>
               <span
@@ -1407,20 +1431,22 @@ const ViewGroups = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6">
-              <div className="lg:col-span-2 xl:col-span-3 flex flex-col gap-4 md:gap-6">
+              <div className="lg:col-span-2 xl:col-span-3 flex flex-col gap-4 md:gap-6 ">
                 {/* Groups Carousel */}
                 <div
                   style={{
-                    ...combinedShadow,
+                    boxShadow: isDark
+                        ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
+                        : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
                     paddingBottom: "1rem",
                     paddingTop: "1rem",
                     marginTop: "1rem",
                     marginBottom: "1rem",
                   }}
-                  className={`relative ${theme.bg} rounded-2xl md:rounded-3xl`}
+                  className={`relative ${theme.cardBg} rounded-2xl md:rounded-3xl`}
                 >
                   {/* Desktop Carousel */}
-                  <div className="hidden md:block px-4 lg:px-8">
+                  <div className="hidden md:block px-4 lg:px-8 pb-4">
                     {allCards.length > 0 ? (
                       <Slider
                         {...sliderSettings}
@@ -1474,7 +1500,7 @@ const ViewGroups = () => {
                 {/* Live Events Section */}
                 <div
                   style={combinedShadow}
-                  className={`${theme.bg} rounded-2xl md:rounded-3xl p-4 md:p-6 flex-1`}
+                  className={`${theme.cardBg} rounded-2xl md:rounded-3xl p-4 md:p-6 flex-1`}
                 >
                   <div className="flex items-center justify-between mb-4 md:mb-6">
                     <h2
@@ -1487,7 +1513,7 @@ const ViewGroups = () => {
                     </h2>
                     {totalLiveEvents > 0 && (
                       <button
-                        onClick={() => navigate('/ticket/live-events')}
+                        onClick={() => navigate("/ticket/live-events")}
                         className="px-4 md:px-6 py-1.5 md:py-2 rounded-full text-white text-xs md:text-sm font-medium transition-all hover:opacity-90"
                         style={{
                           background:
@@ -1523,7 +1549,7 @@ const ViewGroups = () => {
                                   isDark={isDark}
                                   onClick={() =>
                                     navigate(
-                                      `/ticket/live-event-view/${event._id}`,
+                                      `/ticket/live-event-view/${event._id}`
                                     )
                                   }
                                 />
@@ -1577,14 +1603,14 @@ const ViewGroups = () => {
               <div className="lg:col-span-1 xl:col-span-2">
                 {/* --- Mobile & Tablet View --- */}
                 <div className="block lg:hidden">
-                  <div className="flex flex-col gap-6">
+                  <div className={`flex flex-col gap-6 `}>
                     {/* Stats Chart */}
                     <div
                       style={combinedShadow}
-                      className={`${theme.bg} rounded-2xl md:rounded-3xl p-3 md:p-4`}
+                      className={`${theme.cardBg} rounded-2xl md:rounded-3xl p-3 md:p-4`}
                     >
                       <div
-                        className={`${theme.bg} rounded-xl md:rounded-2xl p-2`}
+                        className={`${theme.cardBg} rounded-xl md:rounded-2xl p-2`}
                       >
                         <GroupStatisticsChart
                           theme={theme}
@@ -1617,7 +1643,11 @@ const ViewGroups = () => {
                           </div>
                           <button
                             onClick={() => setSelectedDate(null)}
-                            className={`text-xs font-bold px-3 md:px-4 py-1 md:py-1.5 rounded-full transition-colors ${isDark ? "bg-blue-600 hover:bg-blue-500 text-white" : "bg-blue-500 hover:bg-blue-600 text-white"}`}
+                            className={`text-xs font-bold px-3 md:px-4 py-1 md:py-1.5 rounded-full transition-colors ${
+                              isDark
+                                ? "bg-blue-600 hover:bg-blue-500 text-white"
+                                : "bg-blue-500 hover:bg-blue-600 text-white"
+                            }`}
                           >
                             Clear filter
                           </button>
@@ -1643,7 +1673,7 @@ const ViewGroups = () => {
                               className={`flex items-center px-2 md:px-3 py-1 md:py-1.5 rounded-full font-semibold text-xs md:text-sm ${
                                 theme.text
                               } ${theme.cardBg} ${getButtonNeumorphicShadows(
-                                isDark,
+                                isDark
                               )}`}
                             >
                               {monthNames[month]}
@@ -1668,7 +1698,7 @@ const ViewGroups = () => {
                               className={`flex items-center px-2 md:px-3 py-1 md:py-1.5 rounded-full font-semibold text-xs md:text-sm ${
                                 theme.text
                               } ${theme.cardBg} ${getButtonNeumorphicShadows(
-                                isDark,
+                                isDark
                               )}`}
                             >
                               {year}
@@ -1750,7 +1780,9 @@ const ViewGroups = () => {
                           className={`${theme.bg} rounded-xl md:rounded-2xl p-1 md:p-2 flex flex-col items-center justify-center text-center gap-1 flex-1`}
                         >
                           <div
-                            className={`p-1 rounded-full ${statCardStyles[card.color].bg} ${statCardStyles[card.color].text}`}
+                            className={`p-1 rounded-full ${
+                              statCardStyles[card.color].bg
+                            } ${statCardStyles[card.color].text}`}
                           >
                             {card.icon}
                           </div>
@@ -1772,11 +1804,11 @@ const ViewGroups = () => {
                 <div className="hidden lg:block h-full">
                   <div
                     style={combinedShadow}
-                    className={`${theme.bg} rounded-2xl md:rounded-3xl p-3 md:p-4 h-full`}
+                    className={`${theme.cardBg} rounded-2xl md:rounded-3xl p-3 md:p-4 h-full`}
                   >
                     <div className="flex flex-col gap-4 md:gap-6 h-full">
                       <div
-                        className={`${theme.bg} rounded-xl md:rounded-2xl p-2`}
+                        className={`${theme.cardBg} rounded-xl md:rounded-2xl p-2`}
                       >
                         <div className="w-full">
                           <GroupStatisticsChart
@@ -1837,9 +1869,9 @@ const ViewGroups = () => {
                                   }}
                                   className={`flex items-center px-3 lg:px-2 py-1.5 lg:py-1 rounded-full font-semibold text-sm lg:text-xs ${
                                     theme.text
-                                  } ${theme.cardBg} ${getButtonNeumorphicShadows(
-                                    isDark,
-                                  )}`}
+                                  } ${
+                                    theme.cardBg
+                                  } ${getButtonNeumorphicShadows(isDark)}`}
                                 >
                                   {monthNames[month]}
 
@@ -1865,9 +1897,9 @@ const ViewGroups = () => {
                                   }}
                                   className={`flex items-center px-3 lg:px-2 py-1.5 lg:py-1 rounded-full font-semibold text-sm lg:text-xs ${
                                     theme.text
-                                  } ${theme.cardBg} ${getButtonNeumorphicShadows(
-                                    isDark,
-                                  )}`}
+                                  } ${
+                                    theme.cardBg
+                                  } ${getButtonNeumorphicShadows(isDark)}`}
                                 >
                                   {year}
                                   <ChevronDown className="w-3.5 h-3.5 lg:w-3 lg:h-3 ml-1" />

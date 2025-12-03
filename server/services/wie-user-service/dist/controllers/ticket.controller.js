@@ -1,0 +1,1267 @@
+import axios from 'axios';
+import { getAllLiveEvents, getAllGroups, getTicketById, getGroupById, } from '../rabbit/ticketServiceClient';
+import { getUserProfile } from '../services/wie-user.service';
+const DEFAULT_SEARCH_RADIUS_KM = 200;
+const MAX_SUGGESTION_RADIUS_KM = 200;
+export const getLiveEvents = async (req, res) => {
+    try {
+        const result = await getAllLiveEvents();
+        res.status(200).json({
+            success: true,
+            message: 'Live events fetched successfully',
+            data: result,
+        });
+    }
+    catch (error) {
+        console.error('❌ Error in getLiveEvents controller:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch live events',
+            error: error.message,
+        });
+    }
+};
+export const getActiveGroups = async (req, res) => {
+    try {
+        const result = await getAllGroups();
+        res.status(200).json({
+            success: true,
+            message: 'Active groups fetched successfully',
+            data: result,
+        });
+    }
+    catch (error) {
+        console.error('❌ Error in getActiveGroups controller:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch active groups',
+            error: error.message,
+        });
+    }
+};
+export const getGroup = async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        if (!groupId) {
+            res.status(400).json({
+                success: false,
+                message: 'Group ID is required',
+            });
+            return;
+        }
+        const group = await getGroupById(groupId);
+        res.status(200).json({
+            success: true,
+            message: 'Group fetched successfully',
+            data: group,
+        });
+    }
+    catch (error) {
+        console.error('Error in getGroup controller:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch group',
+            error: error.message,
+        });
+    }
+};
+// Haversine formula to calculate distance between two coordinates in kilometers
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = toRadians(lat2 - lat1);
+    const dLon = toRadians(lon2 - lon1);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRadians(lat1)) *
+            Math.cos(toRadians(lat2)) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    return distance;
+};
+const toRadians = (degrees) => {
+    return degrees * (Math.PI / 180);
+};
+// Geocode location string to coordinates using Google Maps API
+const geocodeLocation = async (location) => {
+    try {
+        const apiKey = process.env.GOOGLE_MAP_API;
+        if (!apiKey) {
+            throw new Error('Google Maps API key not configured');
+        }
+        const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+            params: {
+                address: location,
+                key: apiKey,
+            },
+        });
+        if (response.data.status === 'OK' && response.data.results.length > 0) {
+            const { lat, lng } = response.data.results[0].geometry.location;
+            return { lat, lng };
+        }
+        return null;
+    }
+    catch (error) {
+        console.error('Error geocoding location:', error);
+        return null;
+    }
+};
+// Validate coordinate values
+const isValidCoordinate = (lat, lng) => {
+    return (!isNaN(lat) &&
+        !isNaN(lng) &&
+        lat >= -90 &&
+        lat <= 90 &&
+        lng >= -180 &&
+        lng <= 180);
+};
+export const getNearbyEvents = async (req, res) => {
+    try {
+        const { latitude, longitude, location, radius = 30 } = req.query;
+        let userLat;
+        let userLng;
+        // Validate and parse radius (default 30km, max 200km)
+        const searchRadius = Math.min(Math.max(parseFloat(radius) || 30, 1), 200);
+        // Case 1: User provides GPS coordinates
+        if (latitude && longitude) {
+            userLat = parseFloat(latitude);
+            userLng = parseFloat(longitude);
+            if (!isValidCoordinate(userLat, userLng)) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Invalid latitude or longitude values. Latitude must be between -90 and 90, longitude between -180 and 180',
+                });
+                return;
+            }
+        }
+        // Case 2: User provides location string
+        else if (location && typeof location === 'string' && location.trim()) {
+            const coordinates = await geocodeLocation(location.trim());
+            if (!coordinates) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Unable to geocode the provided location. Please check the location and try again',
+                });
+                return;
+            }
+            userLat = coordinates.lat;
+            userLng = coordinates.lng;
+        }
+        // Case 3: No valid input
+        else {
+            res.status(400).json({
+                success: false,
+                message: 'Either (latitude and longitude) or (location) must be provided',
+            });
+            return;
+        }
+        // Fetch all live events
+        const result = await getAllLiveEvents();
+        // Handle different response structures
+        let events = [];
+        if (Array.isArray(result)) {
+            events = result;
+        }
+        else if (result && typeof result === 'object') {
+            // Try different possible structures
+            events = result?.tickets || [];
+        }
+        if (!events || events.length === 0) {
+            res.status(200).json({
+                success: true,
+                message: 'No events found',
+                data: {
+                    count: 0,
+                    search_location: {
+                        latitude: userLat,
+                        longitude: userLng,
+                        radius: searchRadius,
+                        radius_unit: 'km',
+                    },
+                    events: [],
+                },
+            });
+            return;
+        }
+        // Process events with main events and sub-events
+        const nearbyEventsWithDistance = events
+            .map((event) => {
+            try {
+                // Check main event location
+                const mainEventLat = event.exact_map_location?.latitude;
+                const mainEventLng = event.exact_map_location?.longitude;
+                let mainEventDistance = null;
+                let isMainEventNearby = false;
+                // Calculate distance for main event if coordinates exist
+                if (mainEventLat && mainEventLng && isValidCoordinate(mainEventLat, mainEventLng)) {
+                    mainEventDistance = calculateDistance(userLat, userLng, mainEventLat, mainEventLng);
+                    isMainEventNearby = mainEventDistance <= searchRadius;
+                }
+                // Process sub-events
+                let nearbySubEvents = [];
+                let allSubEventsProcessed = [];
+                if (event.sub_events && Array.isArray(event.sub_events) && event.sub_events.length > 0) {
+                    event.sub_events.forEach((subEvent) => {
+                        try {
+                            const subEventLat = subEvent.exact_map_location?.latitude;
+                            const subEventLng = subEvent.exact_map_location?.longitude;
+                            if (subEventLat && subEventLng && isValidCoordinate(subEventLat, subEventLng)) {
+                                const subEventDistance = calculateDistance(userLat, userLng, subEventLat, subEventLng);
+                                const processedSubEvent = {
+                                    ...subEvent,
+                                    distance: Math.round(subEventDistance * 100) / 100,
+                                    distance_unit: 'km',
+                                    is_nearby: subEventDistance <= searchRadius,
+                                };
+                                allSubEventsProcessed.push(processedSubEvent);
+                                // Add to nearby list if within radius
+                                if (subEventDistance <= searchRadius) {
+                                    nearbySubEvents.push(processedSubEvent);
+                                }
+                            }
+                            else {
+                                // Sub-event without valid coordinates
+                                allSubEventsProcessed.push({
+                                    ...subEvent,
+                                    distance: null,
+                                    distance_unit: 'km',
+                                    is_nearby: false,
+                                    location_note: 'No valid coordinates',
+                                });
+                            }
+                        }
+                        catch (subEventError) {
+                            console.error('Error processing sub-event:', subEventError);
+                        }
+                    });
+                    // Sort nearby sub-events by distance
+                    nearbySubEvents.sort((a, b) => a.distance - b.distance);
+                }
+                // Include event if main event OR any sub-event is nearby
+                const hasNearbySubEvents = nearbySubEvents.length > 0;
+                if (isMainEventNearby || hasNearbySubEvents) {
+                    // Determine the closest distance
+                    let closestDistance;
+                    if (isMainEventNearby && hasNearbySubEvents) {
+                        // Both main and sub-events nearby - use closest
+                        closestDistance = Math.min(mainEventDistance, nearbySubEvents[0].distance);
+                    }
+                    else if (isMainEventNearby) {
+                        // Only main event nearby
+                        closestDistance = mainEventDistance;
+                    }
+                    else {
+                        // Only sub-events nearby
+                        closestDistance = nearbySubEvents[0].distance;
+                    }
+                    return {
+                        ...event,
+                        distance: Math.round(closestDistance * 100) / 100,
+                        distance_unit: 'km',
+                        main_event_distance: mainEventDistance
+                            ? Math.round(mainEventDistance * 100) / 100
+                            : null,
+                        is_main_event_nearby: isMainEventNearby,
+                        has_nearby_sub_events: hasNearbySubEvents,
+                        nearby_sub_events_count: nearbySubEvents.length,
+                        nearby_sub_events: nearbySubEvents,
+                        total_sub_events: event.sub_events?.length || 0,
+                        // Optional: Keep all sub-events with distance info
+                        all_sub_events_with_distance: allSubEventsProcessed,
+                    };
+                }
+                return null;
+            }
+            catch (eventError) {
+                console.error('Error processing event:', event._id, eventError);
+                return null;
+            }
+        })
+            .filter((event) => event !== null)
+            .sort((a, b) => a.distance - b.distance);
+        res.status(200).json({
+            success: true,
+            message: 'Nearby events fetched successfully',
+            data: {
+                count: nearbyEventsWithDistance.length,
+                search_location: {
+                    latitude: userLat,
+                    longitude: userLng,
+                    radius: searchRadius,
+                    radius_unit: 'km',
+                },
+                events: nearbyEventsWithDistance,
+            },
+        });
+    }
+    catch (error) {
+        console.error('Error in getNearbyEvents controller:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch nearby events',
+            error: error.message,
+        });
+    }
+};
+export const getTicket = async (req, res) => {
+    try {
+        const { ticketId } = req.params;
+        if (!ticketId) {
+            res.status(400).json({
+                success: false,
+                message: 'Ticket ID is required',
+            });
+            return;
+        }
+        let isSubEvent = false;
+        let parentEvent = null;
+        let eventData = null;
+        // Fetch all live events first
+        const allTickets = await getAllLiveEvents();
+        const events = Array.isArray(allTickets) ? allTickets : (allTickets?.tickets || []);
+        // Search through all events
+        for (const event of events) {
+            // Check if this is the main event
+            if (event._id?.toString() === ticketId) {
+                eventData = event;
+                isSubEvent = false;
+                break;
+            }
+            // Check sub-events
+            if (event.sub_events && Array.isArray(event.sub_events)) {
+                const foundSubEvent = event.sub_events.find((sub) => sub._id?.toString() === ticketId);
+                if (foundSubEvent) {
+                    isSubEvent = true;
+                    eventData = foundSubEvent;
+                    parentEvent = {
+                        _id: event._id,
+                        event_name: event.event_name,
+                        event_category: event.event_category,
+                        event_banner: event.event_banner,
+                        event_logo: event.event_logo,
+                        location: event.location,
+                        event_dates: event.event_dates,
+                    };
+                    break;
+                }
+            }
+        }
+        // If not found in events array, try to fetch directly from ticket service
+        if (!eventData) {
+            try {
+                const ticket = await getTicketById(ticketId);
+                eventData = ticket;
+            }
+            catch (ticketError) {
+                console.error('❌ Ticket not found in main events or ticket service:', ticketError);
+                res.status(404).json({
+                    success: false,
+                    message: 'Event not found',
+                });
+                return;
+            }
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Ticket fetched successfully',
+            data: {
+                event: eventData,
+                isSubEvent,
+                parentEvent,
+            },
+        });
+    }
+    catch (error) {
+        console.error('❌ Error in getTicket controller:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch ticket',
+            error: error.message,
+        });
+    }
+};
+const locationMatches = (event, locationText) => {
+    const locationLower = locationText.toLowerCase().trim();
+    const address = (event.exact_map_location?.address || '').toLowerCase();
+    const locationField = (event.location || '').toLowerCase();
+    const venue = (event.venue || '').toLowerCase();
+    const locationParts = locationLower.split(/[,\s]+/).filter(p => p.length > 2);
+    const fullText = `${address} ${locationField} ${venue}`;
+    if (locationParts.length === 1) {
+        const words = fullText.split(/[\s,]+/);
+        return words.some(word => word.includes(locationParts[0]) || locationParts[0].includes(word));
+    }
+    const matchCount = locationParts.filter(part => fullText.includes(part)).length;
+    return matchCount >= Math.ceil(locationParts.length * 0.7); // 70% match threshold
+};
+const normalizeCategory = (category) => {
+    return category
+        .toLowerCase()
+        .replace(/&amp;/g, '&')
+        .replace(/\s+/g, ' ')
+        .trim();
+};
+const categoriesMatch = (eventCategory, filterCategory) => {
+    const normalizedEvent = normalizeCategory(eventCategory || '');
+    const normalizedFilter = normalizeCategory(filterCategory || '');
+    if (normalizedEvent === normalizedFilter)
+        return true;
+    const stripSpecial = (s) => s.replace(/[&,]/g, '').replace(/\s+/g, ' ').trim();
+    if (stripSpecial(normalizedEvent) === stripSpecial(normalizedFilter))
+        return true;
+    return false;
+};
+export const getEventsByName = async (req, res) => {
+    try {
+        const { searchQuery, userId } = req.query;
+        if (!searchQuery || typeof searchQuery !== 'string' || !searchQuery.trim()) {
+            res.status(400).json({
+                success: false,
+                message: 'Search query is required',
+            });
+            return;
+        }
+        let userCountryCode = null;
+        let userCountryName = null;
+        // Get user profile for country filtering only
+        if (userId) {
+            try {
+                const userProfile = await getUserProfile(userId);
+                if (userProfile) {
+                    userCountryCode = userProfile.country_code;
+                    userCountryName = userProfile.country_name;
+                }
+            }
+            catch (err) {
+                console.warn('Failed to fetch user profile:', err);
+            }
+        }
+        // Fetch all live events
+        const result = await getAllLiveEvents();
+        let allEvents = Array.isArray(result) ? result : (result?.tickets || []);
+        let events = [];
+        // Flatten events
+        allEvents.forEach((mainEvent) => {
+            events.push({
+                ...mainEvent,
+                isSubEvent: false,
+                parentEventId: null,
+                parentEventName: null,
+            });
+            if (mainEvent.sub_events && Array.isArray(mainEvent.sub_events)) {
+                mainEvent.sub_events.forEach((subEvent) => {
+                    events.push({
+                        ...subEvent,
+                        isSubEvent: true,
+                        parentEventId: mainEvent._id,
+                        parentEventName: mainEvent.event_name,
+                        parentEventCategory: mainEvent.event_category,
+                        parentEventBanner: mainEvent.event_banner,
+                        parentEventLogo: mainEvent.event_logo,
+                        groupId: mainEvent.groupId,
+                        userId: mainEvent.userId,
+                    });
+                });
+            }
+        });
+        // Search by event name only (no location filter)
+        const searchLower = searchQuery.trim().toLowerCase();
+        events = events.filter((event) => {
+            const eventName = (event.event_name || '').toLowerCase();
+            const description = (event.event_description || '').toLowerCase();
+            const hashtags = (event.hashtag || []).join(' ').toLowerCase();
+            return eventName.includes(searchLower) ||
+                description.includes(searchLower) ||
+                hashtags.includes(searchLower);
+        });
+        // Optionally filter by country if available
+        if (userCountryName && events.length > 0) {
+            const countryLower = userCountryName.toLowerCase();
+            const countryFiltered = events.filter((event) => {
+                const address = (event.exact_map_location?.address || '').toLowerCase();
+                const locationField = (event.location || '').toLowerCase();
+                return address.includes(countryLower) || locationField.includes(countryLower);
+            });
+            if (countryFiltered.length > 0) {
+                events = countryFiltered;
+            }
+        }
+        // Group by category
+        const eventsByCategory = events.reduce((acc, event) => {
+            const cat = event.event_category || 'Uncategorized';
+            if (!acc[cat])
+                acc[cat] = [];
+            acc[cat].push(event);
+            return acc;
+        }, {});
+        res.status(200).json({
+            success: true,
+            message: events.length > 0
+                ? `Found ${events.length} event(s) matching "${searchQuery}"`
+                : `No events found matching "${searchQuery}"`,
+            data: {
+                searchQuery: searchQuery,
+                categories: Object.keys(eventsByCategory).sort(),
+                eventsByCategory,
+                totalEvents: events.length,
+                countryCode: userCountryCode,
+                countryName: userCountryName,
+            },
+        });
+    }
+    catch (error) {
+        console.error('❌ Error in getEventsByName:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to search events',
+            error: error.message,
+        });
+    }
+};
+export const getEventsByLocation = async (req, res) => {
+    try {
+        const { latitude, longitude, location, radius, userId } = req.query;
+        let userLat = null;
+        let userLng = null;
+        let userLocation = null;
+        let userCountryCode = null;
+        let userCountryName = null;
+        let profileLat = null;
+        let profileLng = null;
+        let locationSource = 'none';
+        const searchRadius = radius
+            ? Math.min(Math.max(parseFloat(radius), 1), 100)
+            : 50; // Default 50km for exact location search
+        const MAX_SUGGESTION_RADIUS_KM = 200;
+        // Get user profile for suggestions
+        if (userId) {
+            try {
+                const userProfile = await getUserProfile(userId);
+                if (userProfile) {
+                    userCountryCode = userProfile.country_code;
+                    userCountryName = userProfile.country_name;
+                    if (userProfile.latitude && userProfile.longitude) {
+                        profileLat = userProfile.latitude;
+                        profileLng = userProfile.longitude;
+                    }
+                }
+            }
+            catch (err) {
+                console.warn('Failed to fetch user profile:', err);
+            }
+        }
+        // Priority 1: GPS coordinates from query
+        if (latitude && longitude) {
+            const lat = parseFloat(latitude);
+            const lng = parseFloat(longitude);
+            if (isValidCoordinate(lat, lng)) {
+                userLat = lat;
+                userLng = lng;
+                locationSource = 'gps';
+            }
+        }
+        // Priority 2: Manual location string
+        if (!userLat && !userLng && location && typeof location === 'string' && location.trim()) {
+            userLocation = location.trim();
+            locationSource = 'manual';
+            try {
+                const coordinates = await geocodeLocation(userLocation);
+                if (coordinates) {
+                    userLat = coordinates.lat;
+                    userLng = coordinates.lng;
+                }
+            }
+            catch (err) {
+                console.warn('Failed to geocode location:', err);
+            }
+        }
+        if (!userLat && !userLng && !userLocation) {
+            res.status(400).json({
+                success: false,
+                message: 'Location (coordinates or location name) is required',
+            });
+            return;
+        }
+        // Fetch all live events
+        const result = await getAllLiveEvents();
+        let allEvents = Array.isArray(result) ? result : (result?.tickets || []);
+        let events = [];
+        // Flatten events
+        allEvents.forEach((mainEvent) => {
+            events.push({
+                ...mainEvent,
+                isSubEvent: false,
+                parentEventId: null,
+                parentEventName: null,
+            });
+            if (mainEvent.sub_events && Array.isArray(mainEvent.sub_events)) {
+                mainEvent.sub_events.forEach((subEvent) => {
+                    events.push({
+                        ...subEvent,
+                        isSubEvent: true,
+                        parentEventId: mainEvent._id,
+                        parentEventName: mainEvent.event_name,
+                        parentEventCategory: mainEvent.event_category,
+                        parentEventBanner: mainEvent.event_banner,
+                        parentEventLogo: mainEvent.event_logo,
+                        groupId: mainEvent.groupId,
+                        userId: mainEvent.userId,
+                    });
+                });
+            }
+        });
+        let mainResults = [];
+        let suggestions = [];
+        if (locationSource === 'manual' && userLocation) {
+            // STRICT TEXT-BASED MATCHING for manual location entry
+            const locationLower = userLocation.toLowerCase().trim();
+            // Split into meaningful parts (ignore very short words)
+            const locationParts = locationLower
+                .split(/[,\s]+/)
+                .filter(p => p.length > 2)
+                .map(p => p.trim());
+            mainResults = events.filter((event) => {
+                const address = (event.exact_map_location?.address || '').toLowerCase();
+                const locationField = (event.location || '').toLowerCase();
+                const venue = (event.venue || '').toLowerCase();
+                // Combine all location fields
+                const fullLocationText = `${address} ${locationField} ${venue}`;
+                // STRICT: Check if the searched location appears as a distinct part
+                // Must match the exact city/area name, not partial matches
+                // Method 1: Exact phrase match
+                if (fullLocationText.includes(locationLower)) {
+                    return true;
+                }
+                // Method 2: All significant parts must be present
+                if (locationParts.length > 0) {
+                    const allPartsMatch = locationParts.every(part => {
+                        // Check for word boundary match (not just substring)
+                        const regex = new RegExp(`\\b${part}\\b`, 'i');
+                        return regex.test(fullLocationText);
+                    });
+                    if (allPartsMatch) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+            // Add distance info if we have geocoded coordinates
+            if (userLat && userLng && mainResults.length > 0) {
+                mainResults = mainResults.map((event) => {
+                    const eventLat = event.exact_map_location?.latitude;
+                    const eventLng = event.exact_map_location?.longitude;
+                    if (eventLat && eventLng && isValidCoordinate(eventLat, eventLng)) {
+                        const distance = calculateDistance(userLat, userLng, eventLat, eventLng);
+                        return { ...event, distance: Math.round(distance * 100) / 100, distance_unit: 'km' };
+                    }
+                    return { ...event, distance: null, distance_unit: 'km' };
+                }).sort((a, b) => (a.distance || 999999) - (b.distance || 999999));
+            }
+            // If NO results found with strict matching, get suggestions from profile location
+            if (mainResults.length === 0 && profileLat && profileLng) {
+                const suggestionsWithDistance = events.map((event) => {
+                    const eventLat = event.exact_map_location?.latitude;
+                    const eventLng = event.exact_map_location?.longitude;
+                    if (eventLat && eventLng && isValidCoordinate(eventLat, eventLng)) {
+                        const distance = calculateDistance(profileLat, profileLng, eventLat, eventLng);
+                        return { ...event, distance: Math.round(distance * 100) / 100, distance_unit: 'km' };
+                    }
+                    return { ...event, distance: null, distance_unit: 'km' };
+                });
+                suggestions = suggestionsWithDistance
+                    .filter((e) => e.distance !== null && e.distance <= MAX_SUGGESTION_RADIUS_KM)
+                    .sort((a, b) => (a.distance || 999999) - (b.distance || 999999))
+                    .slice(0, 10);
+            }
+        }
+        else if (userLat && userLng) {
+            // GPS-based search - use coordinate distance
+            const eventsWithDistance = events.map((event) => {
+                const eventLat = event.exact_map_location?.latitude;
+                const eventLng = event.exact_map_location?.longitude;
+                if (eventLat && eventLng && isValidCoordinate(eventLat, eventLng)) {
+                    const distance = calculateDistance(userLat, userLng, eventLat, eventLng);
+                    return { ...event, distance: Math.round(distance * 100) / 100, distance_unit: 'km' };
+                }
+                return { ...event, distance: null, distance_unit: 'km' };
+            });
+            // Main results within search radius
+            mainResults = eventsWithDistance
+                .filter((e) => e.distance !== null && e.distance <= searchRadius)
+                .sort((a, b) => (a.distance || 999999) - (b.distance || 999999));
+            // If no main results, get suggestions from wider area
+            if (mainResults.length === 0) {
+                suggestions = eventsWithDistance
+                    .filter((e) => e.distance !== null && e.distance <= MAX_SUGGESTION_RADIUS_KM)
+                    .sort((a, b) => (a.distance || 999999) - (b.distance || 999999))
+                    .slice(0, 10);
+            }
+        }
+        // Group main results by category
+        const eventsByCategory = mainResults.reduce((acc, event) => {
+            const cat = event.event_category || 'Uncategorized';
+            if (!acc[cat])
+                acc[cat] = [];
+            acc[cat].push(event);
+            return acc;
+        }, {});
+        // Group suggestions by category
+        const suggestionsByCategory = suggestions.reduce((acc, event) => {
+            const cat = event.event_category || 'Uncategorized';
+            if (!acc[cat])
+                acc[cat] = [];
+            acc[cat].push(event);
+            return acc;
+        }, {});
+        // Build response message
+        let message = '';
+        if (mainResults.length > 0) {
+            message = userLocation
+                ? `Found ${mainResults.length} event(s) in "${userLocation}"`
+                : `Found ${mainResults.length} event(s) near your location`;
+        }
+        else {
+            message = userLocation
+                ? `No events found in "${userLocation}"`
+                : `No events found near your location`;
+        }
+        res.status(200).json({
+            success: true,
+            message,
+            data: {
+                locationAvailable: !!(userLat && userLng),
+                locationSource,
+                searchLocation: userLocation || (userLat && userLng ? { latitude: userLat, longitude: userLng } : null),
+                searchedLocationName: userLocation || null,
+                searchRadius,
+                categories: Object.keys(eventsByCategory).sort(),
+                eventsByCategory,
+                totalEvents: mainResults.length,
+                // Suggestions only when no main results
+                hasSuggestions: mainResults.length === 0 && suggestions.length > 0,
+                suggestionCategories: Object.keys(suggestionsByCategory).sort(),
+                suggestionsByCategory: mainResults.length === 0 ? suggestionsByCategory : {},
+                totalSuggestions: mainResults.length === 0 ? suggestions.length : 0,
+                suggestionRadius: MAX_SUGGESTION_RADIUS_KM,
+                countryCode: userCountryCode,
+                countryName: userCountryName,
+            },
+        });
+    }
+    catch (error) {
+        console.error('❌ Error in getEventsByLocation:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch events',
+            error: error.message,
+        });
+    }
+};
+export const getCategoryBasedEvents = async (req, res) => {
+    try {
+        const { category, userId } = req.query;
+        let userLat = null;
+        let userLng = null;
+        let userCountryCode = null;
+        let userCountryName = null;
+        let locationSource = 'none';
+        // Get user profile
+        if (userId) {
+            try {
+                const userProfile = await getUserProfile(userId);
+                if (userProfile) {
+                    userCountryCode = userProfile.country_code;
+                    userCountryName = userProfile.country_name;
+                    if (userProfile.latitude && userProfile.longitude) {
+                        userLat = userProfile.latitude;
+                        userLng = userProfile.longitude;
+                        locationSource = 'saved';
+                    }
+                }
+            }
+            catch (err) {
+                console.warn('Failed to fetch user profile:', err);
+            }
+        }
+        // Fetch all live events
+        const result = await getAllLiveEvents();
+        let allEvents = Array.isArray(result) ? result : (result?.tickets || []);
+        let events = [];
+        // Flatten events
+        allEvents.forEach((mainEvent) => {
+            events.push({
+                ...mainEvent,
+                isSubEvent: false,
+                parentEventId: null,
+                parentEventName: null,
+            });
+            if (mainEvent.sub_events && Array.isArray(mainEvent.sub_events)) {
+                mainEvent.sub_events.forEach((subEvent) => {
+                    events.push({
+                        ...subEvent,
+                        isSubEvent: true,
+                        parentEventId: mainEvent._id,
+                        parentEventName: mainEvent.event_name,
+                        parentEventCategory: mainEvent.event_category,
+                        parentEventBanner: mainEvent.event_banner,
+                        parentEventLogo: mainEvent.event_logo,
+                        groupId: mainEvent.groupId,
+                        userId: mainEvent.userId,
+                    });
+                });
+            }
+        });
+        // Filter by category if provided
+        if (category && typeof category === 'string' && category.trim()) {
+            const filterCategory = decodeURIComponent(category).trim();
+            events = events.filter((event) => categoriesMatch(event.event_category, filterCategory));
+        }
+        let mainResults = [];
+        let suggestions = [];
+        // Apply location-based filtering if coordinates available
+        if (userLat && userLng) {
+            const eventsWithDistance = events.map((event) => {
+                const eventLat = event.exact_map_location?.latitude;
+                const eventLng = event.exact_map_location?.longitude;
+                if (eventLat && eventLng && isValidCoordinate(eventLat, eventLng)) {
+                    const distance = calculateDistance(userLat, userLng, eventLat, eventLng);
+                    return { ...event, distance: Math.round(distance * 100) / 100, distance_unit: 'km' };
+                }
+                return { ...event, distance: null, distance_unit: 'km' };
+            });
+            // Main results within DEFAULT_SEARCH_RADIUS_KM
+            mainResults = eventsWithDistance
+                .filter((e) => e.distance !== null && e.distance <= DEFAULT_SEARCH_RADIUS_KM)
+                .sort((a, b) => (a.distance || 999999) - (b.distance || 999999));
+            // If no main results but category is specified, get suggestions up to MAX radius
+            if (mainResults.length === 0 && category) {
+                suggestions = eventsWithDistance
+                    .filter((e) => e.distance !== null && e.distance <= MAX_SUGGESTION_RADIUS_KM)
+                    .sort((a, b) => (a.distance || 999999) - (b.distance || 999999))
+                    .slice(0, 10);
+            }
+        }
+        else if (userCountryName) {
+            // Filter by country
+            const countryLower = userCountryName.toLowerCase();
+            mainResults = events.filter((event) => {
+                const address = (event.exact_map_location?.address || '').toLowerCase();
+                const locationField = (event.location || '').toLowerCase();
+                return address.includes(countryLower) || locationField.includes(countryLower);
+            });
+            locationSource = 'country';
+        }
+        else {
+            // No location - return all events (filtered by category if provided)
+            mainResults = events;
+        }
+        // Group main results by category
+        const eventsByCategory = mainResults.reduce((acc, event) => {
+            const cat = event.event_category || 'Uncategorized';
+            if (!acc[cat])
+                acc[cat] = [];
+            acc[cat].push(event);
+            return acc;
+        }, {});
+        // Group suggestions by category (same category only)
+        const suggestionsByCategory = suggestions.reduce((acc, event) => {
+            const cat = event.event_category || 'Uncategorized';
+            if (!acc[cat])
+                acc[cat] = [];
+            acc[cat].push(event);
+            return acc;
+        }, {});
+        const responseMessage = category
+            ? mainResults.length > 0
+                ? `Found ${mainResults.length} event(s) for "${category}"`
+                : `No events found for "${category}" in your area`
+            : `Found ${mainResults.length} event(s)`;
+        res.status(200).json({
+            success: true,
+            message: responseMessage,
+            data: {
+                locationAvailable: !!(userLat && userLng),
+                locationSource,
+                searchLocation: userLat && userLng ? { latitude: userLat, longitude: userLng } : null,
+                searchRadius: userLat && userLng ? DEFAULT_SEARCH_RADIUS_KM : null,
+                categories: Object.keys(eventsByCategory).sort(),
+                eventsByCategory,
+                totalEvents: mainResults.length,
+                // Suggestions (same category only, when no main results)
+                hasSuggestions: mainResults.length === 0 && suggestions.length > 0,
+                suggestionCategories: Object.keys(suggestionsByCategory).sort(),
+                suggestionsByCategory: mainResults.length === 0 ? suggestionsByCategory : {},
+                totalSuggestions: mainResults.length === 0 ? suggestions.length : 0,
+                suggestionRadius: MAX_SUGGESTION_RADIUS_KM,
+                countryCode: userCountryCode,
+                countryName: userCountryName,
+            },
+        });
+    }
+    catch (error) {
+        console.error('❌ Error in getCategoryBasedEvents:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch events',
+            error: error.message,
+        });
+    }
+};
+export const getInitialEvents = async (req, res) => {
+    try {
+        const { userId } = req.query;
+        let userLat = null;
+        let userLng = null;
+        let userLocation = null;
+        let userCountryCode = null;
+        let userCountryName = null;
+        let locationSource = 'none';
+        // Get user profile
+        if (userId) {
+            try {
+                const userProfile = await getUserProfile(userId);
+                if (userProfile) {
+                    userCountryCode = userProfile.country_code;
+                    userCountryName = userProfile.country_name;
+                    if (userProfile.latitude && userProfile.longitude) {
+                        userLat = userProfile.latitude;
+                        userLng = userProfile.longitude;
+                        locationSource = 'saved';
+                    }
+                    else if (userProfile.location) {
+                        userLocation = userProfile.location;
+                        locationSource = 'saved';
+                        // Try to geocode
+                        try {
+                            const coordinates = await geocodeLocation(userLocation);
+                            if (coordinates) {
+                                userLat = coordinates.lat;
+                                userLng = coordinates.lng;
+                            }
+                        }
+                        catch (err) {
+                            console.warn('Failed to geocode saved location:', err);
+                        }
+                    }
+                }
+            }
+            catch (err) {
+                console.warn('Failed to fetch user profile:', err);
+            }
+        }
+        // Fetch all live events
+        const result = await getAllLiveEvents();
+        let allEvents = Array.isArray(result) ? result : (result?.tickets || []);
+        let events = [];
+        // Flatten events
+        allEvents.forEach((mainEvent) => {
+            events.push({
+                ...mainEvent,
+                isSubEvent: false,
+                parentEventId: null,
+                parentEventName: null,
+            });
+            if (mainEvent.sub_events && Array.isArray(mainEvent.sub_events)) {
+                mainEvent.sub_events.forEach((subEvent) => {
+                    events.push({
+                        ...subEvent,
+                        isSubEvent: true,
+                        parentEventId: mainEvent._id,
+                        parentEventName: mainEvent.event_name,
+                        parentEventCategory: mainEvent.event_category,
+                        parentEventBanner: mainEvent.event_banner,
+                        parentEventLogo: mainEvent.event_logo,
+                        groupId: mainEvent.groupId,
+                        userId: mainEvent.userId,
+                    });
+                });
+            }
+        });
+        // Apply location-based filtering
+        if (userLat && userLng) {
+            const eventsWithDistance = events.map((event) => {
+                const eventLat = event.exact_map_location?.latitude;
+                const eventLng = event.exact_map_location?.longitude;
+                if (eventLat && eventLng && isValidCoordinate(eventLat, eventLng)) {
+                    const distance = calculateDistance(userLat, userLng, eventLat, eventLng);
+                    return { ...event, distance: Math.round(distance * 100) / 100, distance_unit: 'km' };
+                }
+                return { ...event, distance: null, distance_unit: 'km' };
+            });
+            events = eventsWithDistance
+                .filter((e) => e.distance !== null && e.distance <= DEFAULT_SEARCH_RADIUS_KM)
+                .sort((a, b) => (a.distance || 999999) - (b.distance || 999999));
+        }
+        else if (userCountryName) {
+            const countryLower = userCountryName.toLowerCase();
+            events = events.filter((event) => {
+                const address = (event.exact_map_location?.address || '').toLowerCase();
+                const locationField = (event.location || '').toLowerCase();
+                return address.includes(countryLower) || locationField.includes(countryLower);
+            });
+            locationSource = 'country';
+        }
+        // Group by category
+        const eventsByCategory = events.reduce((acc, event) => {
+            const cat = event.event_category || 'Uncategorized';
+            if (!acc[cat])
+                acc[cat] = [];
+            acc[cat].push(event);
+            return acc;
+        }, {});
+        res.status(200).json({
+            success: true,
+            message: `Found ${events.length} event(s)`,
+            data: {
+                locationAvailable: !!(userLat && userLng),
+                locationSource,
+                searchLocation: userLat && userLng ? { latitude: userLat, longitude: userLng } : userLocation,
+                searchRadius: userLat && userLng ? DEFAULT_SEARCH_RADIUS_KM : null,
+                categories: Object.keys(eventsByCategory).sort(),
+                eventsByCategory,
+                totalEvents: events.length,
+                countryCode: userCountryCode,
+                countryName: userCountryName,
+            },
+        });
+    }
+    catch (error) {
+        console.error('❌ Error in getInitialEvents:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch events',
+            error: error.message,
+        });
+    }
+};
+export const getFilteredEvents = async (req, res) => {
+    try {
+        const { category, subcategory, location, latitude, longitude, searchQuery, radius, locationType, eventLanguage, startDate, endDate, bookingStartDate, bookingEndDate, userId } = req.query;
+        let userLat = null;
+        let userLng = null;
+        let userLocation = null;
+        let userCountryCode = null;
+        let userCountryName = null;
+        let locationSource = 'none';
+        const searchRadius = radius
+            ? Math.min(Math.max(parseFloat(radius), 1), 500)
+            : 200;
+        // Get user profile
+        if (userId) {
+            try {
+                const userProfile = await getUserProfile(userId);
+                if (userProfile) {
+                    userCountryCode = userProfile.country_code;
+                    userCountryName = userProfile.country_name;
+                    if (userProfile.latitude && userProfile.longitude) {
+                        userLat = userProfile.latitude;
+                        userLng = userProfile.longitude;
+                        locationSource = 'saved';
+                    }
+                    else if (userProfile.location) {
+                        userLocation = userProfile.location;
+                    }
+                }
+            }
+            catch (err) {
+                console.warn('Failed to fetch user profile:', err);
+            }
+        }
+        // Priority 1: GPS coordinates
+        if (latitude && longitude) {
+            const lat = parseFloat(latitude);
+            const lng = parseFloat(longitude);
+            if (isValidCoordinate(lat, lng)) {
+                userLat = lat;
+                userLng = lng;
+                locationSource = 'gps';
+                userLocation = null;
+            }
+        }
+        // Priority 2: Manual location (OVERRIDE saved)
+        if (location && typeof location === 'string' && location.trim()) {
+            userLocation = location.trim();
+            locationSource = 'manual';
+            userLat = null;
+            userLng = null;
+            try {
+                const coordinates = await geocodeLocation(userLocation);
+                if (coordinates) {
+                    userLat = coordinates.lat;
+                    userLng = coordinates.lng;
+                }
+            }
+            catch (err) {
+                console.warn('Failed to geocode:', err);
+            }
+        }
+        // Fetch and flatten events
+        const result = await getAllLiveEvents();
+        let allEvents = Array.isArray(result) ? result : (result?.tickets || []);
+        let events = [];
+        allEvents.forEach((mainEvent) => {
+            events.push({ ...mainEvent, isSubEvent: false, parentEventId: null, parentEventName: null });
+            if (mainEvent.sub_events && Array.isArray(mainEvent.sub_events)) {
+                mainEvent.sub_events.forEach((subEvent) => {
+                    events.push({
+                        ...subEvent,
+                        isSubEvent: true,
+                        parentEventId: mainEvent._id,
+                        parentEventName: mainEvent.event_name,
+                        parentEventCategory: mainEvent.event_category,
+                        parentEventBanner: mainEvent.event_banner,
+                        parentEventLogo: mainEvent.event_logo,
+                        groupId: mainEvent.groupId,
+                        userId: mainEvent.userId,
+                    });
+                });
+            }
+        });
+        // Apply filters
+        // 1. Search query
+        if (searchQuery && typeof searchQuery === 'string' && searchQuery.trim()) {
+            const searchLower = searchQuery.trim().toLowerCase();
+            events = events.filter((event) => {
+                const name = (event.event_name || '').toLowerCase();
+                const cat = (event.event_category || '').toLowerCase();
+                const subcat = (event.event_subcategory || '').toLowerCase();
+                return name.includes(searchLower) || cat.includes(searchLower) || subcat.includes(searchLower);
+            });
+        }
+        // 2. Category (FIXED)
+        if (category && typeof category === 'string' && category.trim()) {
+            const filterCategory = decodeURIComponent(category).trim();
+            events = events.filter((event) => categoriesMatch(event.event_category, filterCategory));
+        }
+        // 3. Subcategory
+        if (subcategory && typeof subcategory === 'string' && subcategory.trim()) {
+            const subLower = subcategory.trim().toLowerCase();
+            events = events.filter((e) => (e.event_subcategory || '').toLowerCase() === subLower);
+        }
+        // 4. Location type
+        if (locationType && typeof locationType === 'string' && locationType.trim()) {
+            const typeLower = locationType.trim().toLowerCase();
+            events = events.filter((e) => (e.location_type || '').toLowerCase() === typeLower);
+        }
+        // 5. Language
+        if (eventLanguage && typeof eventLanguage === 'string' && eventLanguage.trim()) {
+            const langLower = eventLanguage.trim().toLowerCase();
+            events = events.filter((e) => {
+                if (!e.event_language || !Array.isArray(e.event_language))
+                    return false;
+                return e.event_language.some((l) => l.toLowerCase() === langLower);
+            });
+        }
+        // 6. Event dates
+        if (startDate || endDate) {
+            events = events.filter((event) => {
+                if (!event.event_dates || !Array.isArray(event.event_dates))
+                    return false;
+                return event.event_dates.some((d) => {
+                    const evStart = new Date(d.start_date);
+                    const evEnd = new Date(d.end_date || d.start_date);
+                    if (startDate && evEnd < new Date(startDate))
+                        return false;
+                    if (endDate && evStart > new Date(endDate))
+                        return false;
+                    return true;
+                });
+            });
+        }
+        // 7. Booking dates
+        if (bookingStartDate || bookingEndDate) {
+            events = events.filter((e) => {
+                if (!e.booking_start_date || !e.booking_end_date)
+                    return false;
+                const bStart = new Date(e.booking_start_date);
+                const bEnd = new Date(e.booking_end_date);
+                if (bookingStartDate && bEnd < new Date(bookingStartDate))
+                    return false;
+                if (bookingEndDate && bStart > new Date(bookingEndDate))
+                    return false;
+                return true;
+            });
+        }
+        // 8. Location filtering
+        if (userLat && userLng) {
+            const eventsWithDist = events.map((e) => {
+                const eLat = e.exact_map_location?.latitude;
+                const eLng = e.exact_map_location?.longitude;
+                if (eLat && eLng && isValidCoordinate(eLat, eLng)) {
+                    const dist = calculateDistance(userLat, userLng, eLat, eLng);
+                    return { ...e, distance: Math.round(dist * 100) / 100, distance_unit: 'km' };
+                }
+                return { ...e, distance: null, distance_unit: 'km' };
+            });
+            events = eventsWithDist
+                .filter((e) => e.distance !== null && e.distance <= searchRadius)
+                .sort((a, b) => (a.distance || 999999) - (b.distance || 999999));
+        }
+        else if (userLocation && locationSource === 'manual') {
+            events = events.filter((e) => locationMatches(e, userLocation));
+        }
+        // Build response
+        const appliedFilters = {
+            category: category || null,
+            subcategory: subcategory || null,
+            searchQuery: searchQuery || null,
+            locationType: locationType || null,
+            eventLanguage: eventLanguage || null,
+            startDate: startDate || null,
+            endDate: endDate || null,
+            bookingStartDate: bookingStartDate || null,
+            bookingEndDate: bookingEndDate || null,
+        };
+        if (events.length === 0) {
+            res.status(200).json({
+                success: true,
+                message: 'No events found matching your filters',
+                data: {
+                    locationAvailable: !!(userLat && userLng),
+                    locationSource,
+                    searchLocation: userLat && userLng ? { latitude: userLat, longitude: userLng } : userLocation,
+                    searchRadius: userLat && userLng ? searchRadius : null,
+                    appliedFilters,
+                    categories: [],
+                    eventsByCategory: {},
+                    totalEvents: 0,
+                    countryCode: userCountryCode,
+                    countryName: userCountryName,
+                },
+            });
+            return;
+        }
+        const eventsByCategory = events.reduce((acc, e) => {
+            const cat = e.event_category || 'Uncategorized';
+            if (!acc[cat])
+                acc[cat] = [];
+            acc[cat].push(e);
+            return acc;
+        }, {});
+        res.status(200).json({
+            success: true,
+            message: `Found ${events.length} event(s)`,
+            data: {
+                locationAvailable: !!(userLat && userLng),
+                locationSource,
+                searchLocation: userLat && userLng ? { latitude: userLat, longitude: userLng } : userLocation,
+                searchRadius: userLat && userLng ? searchRadius : null,
+                appliedFilters,
+                categories: Object.keys(eventsByCategory).sort(),
+                eventsByCategory,
+                totalEvents: events.length,
+                countryCode: userCountryCode,
+                countryName: userCountryName,
+            },
+        });
+    }
+    catch (error) {
+        console.error('❌ Error in getFilteredEvents:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch filtered events',
+            error: error.message,
+        });
+    }
+};
+//# sourceMappingURL=ticket.controller.js.map

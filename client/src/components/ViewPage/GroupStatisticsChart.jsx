@@ -13,7 +13,7 @@ const GroupStatisticsChart = ({ theme, statsData = [] }) => {
     );
   }
   return (
-    <>
+    <div >
       <h2 className={`text-lg md:text-xl font-bold ${theme.text} mb-3 md:mb-4`}>
         Active group statistics
       </h2>
@@ -42,7 +42,7 @@ const GroupStatisticsChart = ({ theme, statsData = [] }) => {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
