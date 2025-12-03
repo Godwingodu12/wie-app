@@ -8,13 +8,13 @@ import {
   getGroupView,
 } from "../../services/ticketService";
 import { getTicketImageUrl } from "../../utils/imageUtils";
-
 import Select from "react-select";
-
 import Ticket_Form_Icon from "../../assets/Event/Ticket_Form_Icon.svg?react";
 import Calender_Icon from "../../assets/Event/Calender_Icon.svg?react";
 import CreateTicketModal from "../../components/CreateGroup/CreateTicketModal.jsx";
 import Alert from "../../components/CreateGroup/Alert.jsx";
+import SeatingLayoutPreview from "../../components/CreateGroup/SeatingLayoutPreview.jsx";
+import SeatAssignmentModal from '../../components/CreateGroup/SeatAssignmentModal.jsx';
 import ConfirmModal from "../../components/CreateGroup/ConfirmModal.jsx";
 import ToggleSwitch from "../../components/CreateGroup/ToggleSwitch.jsx";
 import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
@@ -61,6 +61,8 @@ const UpdateTicketDetails = () => {
   const [hasSeatingLayout, setHasSeatingLayout] = useState(false);
   const [seatingLayoutFile, setSeatingLayoutFile] = useState(null);
   const [seatingLayoutPreview, setSeatingLayoutPreview] = useState(null);
+  const [generatedSeatingLayout, setGeneratedSeatingLayout] = useState(null);
+  const [showSeatingPreview, setShowSeatingPreview] = useState(false);
   const [groupHasBankAccount, setGroupHasBankAccount] = useState(false);
   const [groupBankDetailsIncomplete, setGroupBankDetailsIncomplete] =
     useState(false);
@@ -69,16 +71,30 @@ const UpdateTicketDetails = () => {
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [tickets, setTickets] = useState([]);
   const [eventEndDate, setEventEndDate] = useState("");
-
+  const [showSeatAssignmentModal, setShowSeatAssignmentModal] = useState(false);
+  const [ticketTypeColors] = useState([
+    '#3B82F6', // Blue
+    '#e6e92eff', // Yellow
+    '#F59E0B', // Amber
+    '#EF4444', // Red
+    '#8B5CF6', // Purple
+    '#EC4899', // Pink
+    '#06B6D4', // Cyan
+    '#F97316', // Orange
+  ]);
+  const getTicketTypeColor = (ticketId) => {
+  const index = tickets.findIndex(t => t.id === ticketId);
+    return index !== -1 ? ticketTypeColors[index % ticketTypeColors.length] : '#6B7280';
+  };
+  const [seatAssignments, setSeatAssignments] = useState({});
   const [eventStartDate, setEventStartDate] = useState("");
   const [editingTicket, setEditingTicket] = useState(null);
   const [bookingStartDate, setBookingStartDate] = useState("");
   const [bookingEndDate, setBookingEndDate] = useState("");
-  const [mainEventData, setMainEventData] = useState(null); // Changed initial state to null
-
+  const [mainEventData, setMainEventData] = useState(null); 
   const [simpleTicketPrice, setSimpleTicketPrice] = useState("");
   const [simpleTicketCapacity, setSimpleTicketCapacity] = useState("");
-
+  const [isGenerating, setIsGenerating] = useState(false);
   const [isExtraEventsModalOpen, setIsExtraEventsModalOpen] = useState(false);
 
   // Effect to load data from API and localStorage on initial mount
@@ -142,6 +158,44 @@ const UpdateTicketDetails = () => {
             setSeatingLayoutPreview(
               getTicketImageUrl(ticketData.ticket_layout)
             );
+          }
+          if (ticketData.seating_layout) {  
+            const loadedLayout = typeof ticketData.seating_layout === 'string' 
+              ? JSON.parse(ticketData.seating_layout) 
+              : ticketData.seating_layout;
+            
+            console.log('Raw loaded layout:', loadedLayout);
+            
+            // Ensure all seats have their colors properly restored
+            if (loadedLayout.seats && Array.isArray(loadedLayout.seats)) {
+              loadedLayout.seats = loadedLayout.seats.map(seat => {
+                // CASE 1: Seat already has color saved
+                if (seat.ticketTypeColor) {
+                  console.log(`✅ Seat ${seat.seatId} has saved color: ${seat.ticketTypeColor}`);
+                  return seat;
+                }
+                
+                // CASE 2: Seat has assignment but missing color - restore from assignments
+                if (seat.ticketTypeId && loadedLayout.ticketTypeAssignments) {
+                  const assignment = loadedLayout.ticketTypeAssignments.find(a => 
+                    String(a.ticketTypeId) === String(seat.ticketTypeId)
+                  );
+                  
+                  if (assignment && assignment.color) {
+                    console.log(`🔧 Restored color for seat ${seat.seatId}: ${assignment.color}`);
+                    return {
+                      ...seat,
+                      ticketTypeColor: assignment.color
+                    };
+                  }
+                }
+                
+                // CASE 3: Unassigned seat - return as is
+                return seat;
+              });
+            }
+            setGeneratedSeatingLayout(loadedLayout);
+            setShowSeatingPreview(true);
           }
           setBookingStartDate(
             savedDraft?.bookingStartDate ??
@@ -306,7 +360,66 @@ const UpdateTicketDetails = () => {
     };
     fetchData();
   }, [ticketId, storageKey]);
-
+useEffect(() => {
+  if (generatedSeatingLayout?.ticketTypeAssignments && tickets.length > 0) {
+    const loadedAssignments = {};
+    
+    generatedSeatingLayout.ticketTypeAssignments.forEach(assignment => {
+      console.log('Processing assignment:', assignment);
+      
+      // Try multiple matching strategies
+      const matchingTicket = tickets.find(t => 
+        String(t.id) === String(assignment.ticketTypeId) ||
+        String(t._id) === String(assignment.ticketTypeId) ||
+        t.name === assignment.ticketTypeName || 
+        t.ticket_type === assignment.ticketTypeName
+      );
+      
+      if (matchingTicket && assignment.assignedSeats && assignment.assignedSeats.length > 0) {
+        loadedAssignments[matchingTicket.id] = [...assignment.assignedSeats];
+        console.log(`✅ Loaded ${assignment.assignedSeats.length} seats for ${matchingTicket.name}`);
+      } else {
+        console.warn('⚠️ Could not match ticket for assignment:', assignment);
+      }
+    });
+    
+    if (Object.keys(loadedAssignments).length > 0) {
+      console.log('✅ Final loaded assignments:', loadedAssignments);
+      setSeatAssignments(loadedAssignments);
+    } else {
+      console.warn('⚠️ No assignments loaded from ticketTypeAssignments');
+    }
+  } else if (generatedSeatingLayout?.seats && tickets.length > 0) {
+    console.log('📋 Trying to load from seat data...');
+    // Fallback: extract from seat data
+    const loadedAssignments = {};
+    
+    generatedSeatingLayout.seats.forEach(seat => {
+      if (seat.ticketTypeId) {
+        const matchingTicket = tickets.find(t => 
+          String(t.id) === String(seat.ticketTypeId) || 
+          String(t._id) === String(seat.ticketTypeId)
+        );
+        
+        if (matchingTicket) {
+          if (!loadedAssignments[matchingTicket.id]) {
+            loadedAssignments[matchingTicket.id] = [];
+          }
+          loadedAssignments[matchingTicket.id].push(seat.seatId);
+        }
+      }
+    });
+    
+    if (Object.keys(loadedAssignments).length > 0) {
+      console.log('✅ Loaded seat assignments from seat data:', loadedAssignments);
+      setSeatAssignments(loadedAssignments);
+    } else {
+      console.warn('⚠️ No seat assignments found in seat data');
+    }
+  } else {
+    console.log('ℹ️ No layout or tickets available yet');
+  }
+}, [generatedSeatingLayout, tickets]);
   useEffect(() => {
     localStorage.setItem("theme", darkMode ? "dark" : "light");
     document.documentElement.classList.toggle("dark", darkMode);
@@ -370,30 +483,196 @@ const UpdateTicketDetails = () => {
     list[index][name] = value;
     setBankingDetails(list);
   };
-
   const handleSeatingLayoutChange = (e) => {
     const file = e.target.files[0];
-
-    if (file?.type.startsWith("image/")) {
+    if (file) {
+      const validTypes = [
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'image/vnd.dwg', 'image/x-dwg' 
+      ];
+      const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.doc', '.docx', '.dwg', '.dxf'];
+      const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+      if (!validTypes.includes(file.type) && !validExtensions.includes(fileExtension)) {
+        showAlert({
+          type: "error",
+          message: "Invalid File Type",
+          description: "Please upload an image, PDF, DOC, or CAD file.",
+        });
+        return;
+      }
       setSeatingLayoutFile(file);
-
-      setSeatingLayoutPreview(URL.createObjectURL(file));
-
+      if (file.type.startsWith('image/')) {
+        setSeatingLayoutPreview(URL.createObjectURL(file));
+      } else {
+        setSeatingLayoutPreview(null);
+      }
+      setGeneratedSeatingLayout(null);
+      setShowSeatingPreview(false);
+      setSeatAssignments({}); 
       setErrors((prev) => ({
         ...prev,
         seatingLayoutFile: null,
         general: null,
       }));
-    } else {
-      setSeatingLayoutFile(null);
-      setSeatingLayoutPreview(null);
+      showAlert({
+        type: "info",
+        message: "New File Selected",
+        description: `${file.name} ready to be converted. Click "Generate Layout" to create the seat map.`,
+      });
     }
   };
-  const removeSeatingLayout = () => {
+const removeSeatingLayout = () => {
+  setSeatingLayoutFile(null);
+  setSeatingLayoutPreview(null);
+  setGeneratedSeatingLayout(null);
+  setShowSeatingPreview(false);
+  setIsGenerating(false);
+  setSeatAssignments({}); 
+  showAlert({
+    type: "info",
+    message: "Layout Cleared",
+    description: "Seating layout has been removed. Upload a new file to generate a layout.",
+  });
+};
+const handleGenerateLayout = async () => {
+  if (!seatingLayoutFile || !totalCapacity) {
+    showAlert({
+      type: "error",
+      message: "Missing Information",
+      description: "Please upload a seating layout file and set total capacity first.",
+    });
+    return;
+  }
+  // Validate file type
+  const validTypes = [
+    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ];
+  if (!validTypes.includes(seatingLayoutFile.type)) {
+    showAlert({
+      type: "error",
+      message: "Invalid File Type",
+      description: "Please upload an image (JPG, PNG) or PDF file. CAD files are not yet supported.",
+    });
+    return;
+  }
+  setIsGenerating(true);
+  try {
+    // Create FormData with ONLY the required fields for layout generation
+    const formData = new FormData();
+    formData.append("ticket_layout", seatingLayoutFile);
+    formData.append("total_capacity", totalCapacity);
+    
+    // IMPORTANT: Add payment_type to avoid validation error
+    formData.append("payment_type", paymentType);
+    
+    // Add banking details if paid event
+    if (paymentType === "paid") {
+      formData.append("use_group_bank_account", useGroupBankAccount);
+      if (!useGroupBankAccount && bankingDetails.length > 0) {
+        formData.append("banking_details", JSON.stringify(bankingDetails));
+      }
+    }
+    
+    // Add booking dates if available
+    if (bookingStartDate) {
+      formData.append("booking_start_date", bookingStartDate);
+    }
+    if (bookingEndDate) {
+      formData.append("booking_end_date", bookingEndDate);
+    }
+    
+    // Add ticket types if available (for offline paid events)
+    const locationType = mainEventData?.location_type;
+    if (paymentType === "paid") {
+      if (locationType === "offline" && tickets.length > 0) {
+        const cleanTicketTypes = tickets.map((ticket) => ({
+          ticket_type: ticket.ticket_type || ticket.name,
+          ticket_price: ticket.ticket_price || ticket.price,
+          max_capacity: ticket.max_capacity || ticket.capacity,
+          ticket_photo: ticket.ticket_photo || ticket.image || "",
+        }));
+        formData.append("ticket_types", JSON.stringify(cleanTicketTypes));
+      } else if (locationType === "online" || locationType === "recorded") {
+        // For online/recorded, use simple ticket
+        if (simpleTicketPrice && simpleTicketCapacity) {
+          const simpleTicket = [{
+            ticket_type: "Standard Ticket",
+            ticket_price: simpleTicketPrice,
+            max_capacity: simpleTicketCapacity,
+            ticket_photo: "",
+          }];
+          formData.append("ticket_types", JSON.stringify(simpleTicket));
+        }
+      }
+    }    
+    // Call the API
+    const response = await updateTicketDetails(ticketId, formData);    
+    // Extract the generated seating layout from response
+    if (response.ticket?.seating_layout) {
+      const generatedLayout = response.ticket.seating_layout;
+      setGeneratedSeatingLayout(generatedLayout);
+      setShowSeatingPreview(true);
+    } else if (response.seating_layout_info) {
+      // Alternative: if backend returns layout info separately
+      const layout = response.ticket?.seating_layout || response.seating_layout;
+      if (layout) {
+        setGeneratedSeatingLayout(layout);
+        setShowSeatingPreview(true);
+        
+        showAlert({
+          type: "success",
+          message: "Layout Generated!",
+          description: `Successfully generated ${layout.totalSeats} seats.`,
+        });
+      } else {
+        throw new Error('Seating layout structure not found in response');
+      }
+    } else {
+      console.warn('⚠️ No seating layout in response:', response);
+      throw new Error('No seating layout returned from server. The file may need processing.');
+    }
+    } catch (error) {
+    console.error('❌ Generation error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    
+    let errorMessage = "Failed to generate seating layout.";
+    let errorDescription = "";
+    
+    if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+      errorDescription = error.response.data.hint || error.response.data.error || "";
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    // Provide helpful guidance
+    if (errorMessage.includes('detect') || errorMessage.includes('visible')) {
+      errorDescription = "Tips:\n• Use a high-contrast image\n• Ensure seats are clearly visible\n• Avoid low-quality or blurry images\n• Try a PDF or diagram instead";
+    }
+    
+    showAlert({
+      type: "error",
+      message: "Cannot Generate Layout",
+      description: errorDescription || errorMessage,
+    });
+    
+    // Clear the file so user can try again
     setSeatingLayoutFile(null);
     setSeatingLayoutPreview(null);
-  };
-
+  } finally {
+    setIsGenerating(false);
+  }
+};
   const handleOpenModalForEdit = (ticketToEdit) => {
     setEditingTicket(ticketToEdit);
     setIsTicketModalOpen(true);
@@ -601,11 +880,81 @@ const UpdateTicketDetails = () => {
         }
       });
     }
-
-    if (hasSeatingLayout && seatingLayoutFile instanceof File) {
-      apiFormData.append("ticket_layout", seatingLayoutFile);
+    if (hasSeatingLayout) {
+      if (seatingLayoutFile instanceof File) {
+        apiFormData.append("ticket_layout", seatingLayoutFile);
+      }
+      
+      if (generatedSeatingLayout) {
+        console.log('🔵 Building layout with assignments...');
+        console.log('Current seat assignments:', seatAssignments);
+        console.log('Available tickets:', tickets);
+        
+        const layoutWithAssignments = {
+          ...generatedSeatingLayout,
+          rows: generatedSeatingLayout.rows,
+          columns: generatedSeatingLayout.columns,
+          
+          // STEP 1: Update every seat with assignment + color
+          seats: generatedSeatingLayout.seats.map(seat => {
+            // Find which ticket type owns this seat
+            const assignedEntry = Object.entries(seatAssignments).find(([_, seatIds]) => 
+              seatIds && seatIds.includes(seat.seatId)
+            );
+            
+            if (assignedEntry) {
+              const [ticketTypeId, assignedSeatIds] = assignedEntry;
+              const ticket = tickets.find(t => String(t.id) === String(ticketTypeId));
+              const color = getTicketTypeColor(ticketTypeId);
+              
+              console.log(`✅ Seat ${seat.seatId} → ${ticket?.name} (${color})`);
+              
+              return {
+                seatId: seat.seatId,
+                row: seat.row,
+                column: seat.column,
+                isAvailable: true,
+                isSelected: false,
+                ticketTypeId: String(ticketTypeId),
+                ticketTypeName: ticket?.name || ticket?.ticket_type || '',
+                ticketTypeColor: color // CRITICAL: Save color here
+              };
+            }
+            
+            // Unassigned seat - clear all assignment data
+            return {
+              seatId: seat.seatId,
+              row: seat.row,
+              column: seat.column,
+              isAvailable: true,
+              isSelected: false,
+              ticketTypeId: null,
+              ticketTypeName: null,
+              ticketTypeColor: null
+            };
+          }),
+          
+          // STEP 2: Build ticket type assignments summary with colors
+          ticketTypeAssignments: Object.entries(seatAssignments)
+            .filter(([_, seatIds]) => seatIds && seatIds.length > 0)
+            .map(([typeId, seatIds]) => {
+              const ticket = tickets.find(t => String(t.id) === String(typeId));
+              const color = getTicketTypeColor(typeId);
+              
+              console.log(`📊 Assignment: ${ticket?.name} - ${seatIds.length} seats - Color: ${color}`);
+              
+              return {
+                ticketTypeId: String(typeId),
+                ticketTypeName: ticket?.name || ticket?.ticket_type || '',
+                color: color, // CRITICAL: Save color in assignment
+                assignedSeats: [...seatIds],
+                capacity: ticket?.capacity || ticket?.max_capacity || 0
+              };
+            })
+        };    
+        apiFormData.append("seating_layout", JSON.stringify(layoutWithAssignments));
+      }
     }
-
     try {
       await updateTicketDetails(ticketId, apiFormData);
       localStorage.removeItem(storageKey);
@@ -988,7 +1337,6 @@ const UpdateTicketDetails = () => {
                   </div>
                 </section>
               )}
-
               <section className="space-y-6 max-w-2xl">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   Seating details
@@ -996,24 +1344,157 @@ const UpdateTicketDetails = () => {
                 <p className="text-black dark:text-gray-400 text-sm">
                   Add event seating capacity and its layout
                 </p>
-                <div>
-                  <label
-                    htmlFor="total_capacity"
-                    className="flex items-center text-base font-medium text-gray-800 dark:text-gray-300 mb-2"
-                  >
-                    Maximum number of people allowed(capacity)?{" "}
-                    <span className="text-red-500 ml-1">*</span>{" "}
-                    <InfoTooltip note="Set the total number of attendees for your event." />
-                  </label>
-                  <input
-                    type="number"
-                    id="total_capacity"
-                    value={totalCapacity}
-                    onChange={(e) => setTotalCapacity(e.target.value)}
-                    placeholder="event capacity"
-                    className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3"
-                  />
-                </div>
+                {(() => {
+                  const seatingArrangement = (mainEventData?.seating_arrangement || "")
+                    .toLowerCase()
+                    .trim();
+                  let capacityLabel =
+                    "Total number of people allowed (capacity)?"; 
+                  if (seatingArrangement === "standing") {
+                    capacityLabel = "Maximum number of people allowed(capacity)?";
+                  } else if (seatingArrangement.includes("seated")) {
+                    capacityLabel = "Total number of seats (capacity)?";
+                  }else if (seatingArrangement.includes("seated and standing")) {
+                    capacityLabel = "Total number of seated people allowed(not for standing)?";
+                  } else {
+                    capacityLabel = "Total number of people allowed (capacity)?";
+                  }
+                  return (
+                    <div>
+                      <label
+                        htmlFor="total_capacity"
+                        className="flex items-center text-base font-medium text-gray-800 dark:text-gray-300 mb-2"
+                      >
+                        {capacityLabel}{" "}
+                        <span className="text-red-500 ml-1">*</span>{" "}
+                        <InfoTooltip note="Set the total number of attendees for your event." />
+                      </label>
+                      <input
+                        type="number"
+                        id="total_capacity"
+                        name="total_capacity"
+                        value={totalCapacity}
+                        onChange={(e) => setTotalCapacity(e.target.value)}
+                        placeholder="event capacity"
+                        className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3"
+                      />
+                    </div>
+                  );
+                })()}
+                {paymentType === "paid" && (
+                  <section className="space-y-6">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      Ticketing details
+                    </h2>
+
+                    {isOfflinePaid && (
+                      <>
+                        <p className="text-black dark:text-gray-400 text-sm">
+                          Add ticket types, set prices, and control how attendees
+                          book their spot.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleOpenModalForAdd}
+                          className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center space-x-2 hover:bg-indigo-700 transition"
+                        >
+                          <span>Add tickets</span>
+                          <img src={Ticket_Form_Icon} alt="" />
+                        </button>
+
+                        {/* Display Added Tickets */}
+                        {tickets.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
+                            {tickets.map((ticket) => (
+                              <div
+                                key={ticket.id}
+                                className="bg-gray-100 dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none"
+                              >
+                                <div className="flex items-center space-x-3">
+                                  <img
+                                    src={ticket.image}
+                                    alt={ticket.name}
+                                    className="w-16 h-16 rounded-md object-cover"
+                                  />
+                                  <div>
+                                    <p className="font-semibold text-gray-900 dark:text-white">{`${
+                                      ticket.name
+                                    } - ₹${Number(
+                                      ticket.price
+                                    ).toLocaleString()}`}</p>
+                                    <p className="text-xs text-black dark:text-gray-400">
+                                      Capacity: {ticket.capacity}
+                                    </p>
+                                  </div>
+                                </div>
+                                {/* Edit/Delete Buttons */}
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingTicket(ticket);
+                                      setIsTicketModalOpen(true);
+                                    }}
+                                    className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleDeleteTicket(ticket.id);
+                                    }}
+                                    className="text-gray-400 hover:text-red-500 transition"
+                                  >
+                                    &times;
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {tickets.length === 0 && (
+                          <div className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                            No tickets added yet. Click "Add tickets" to create
+                            your first ticket type.
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {isOnlineOrRecordedPaid && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4   rounded-lg">
+                        <FormInput
+                          label="Ticket Price"
+                          id="simpleTicketPrice"
+                          name="simpleTicketPrice"
+                          type="number"
+                          value={simpleTicketPrice}
+                          onChange={(e) => setSimpleTicketPrice(e.target.value)}
+                          placeholder="Enter Price (e.g., 500)"
+                          info="Base price for the standard ticket type."
+                          darkMode={darkMode}
+                          required={false}
+                        />
+                        <FormInput
+                          label="Total Ticket Capacity "
+                          id="simpleTicketCapacity"
+                          name="simpleTicketCapacity"
+                          type="number"
+                          value={simpleTicketCapacity}
+                          onChange={(e) =>
+                            setSimpleTicketCapacity(e.target.value)
+                          }
+                          placeholder="Enter total capacity"
+                          info="Maximum number of attendees allowed."
+                          darkMode={darkMode}
+                          required={false}
+                        />
+                      </div>
+                    )}
+                  </section>
+                )}
                 <div className="flex items-center justify-between">
                   <label className="font-medium text-gray-900 dark:text-white text-md">
                     Do you have seating layout?
@@ -1024,68 +1505,257 @@ const UpdateTicketDetails = () => {
                   />
                 </div>
                 {hasSeatingLayout && (
-                  <div className="animate-fade-in grid grid-cols-2 gap-8 items-start">
-                    <div className="col-span-1 space-y-2">
+                  <div className="animate-fade-in space-y-6">
+                    {/* Upload Section */}
+                    <div className="space-y-4">
                       <label className="flex items-center text-base font-medium text-gray-800 dark:text-gray-300">
                         Upload seating layout{" "}
-                        <InfoTooltip note="Upload an image of your event's seating arrangement." />
+                        <InfoTooltip note="Upload an image, PDF, or CAD file of your venue's seating arrangement. It will be converted to an interactive seat map." />
                       </label>
-                      <div className="flex justify-center rounded-lg border border-dashed border-black dark:border-gray-700 px-6 py-10 text-center">
-                        <label
-                          htmlFor="seating-layout-upload"
-                          className="cursor-pointer"
-                        >
-                          <svg
-                            className="mx-auto h-12 w-12 text-gray-400 dark:text-black"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                            />
-                          </svg>
-                          <p className="text-sm text-black dark:text-gray-400">
-                            Drag your file(s) or browse
-                          </p>
-                          <p className="text-xs text-gray-400 dark:text-black mt-1">
-                            Max 10 MB files are allowed
-                          </p>
-                          <span className="mt-4 inline-block rounded-md font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm">
-                            Browse file
-                          </span>
-                          <input
-                            id="seating-layout-upload"
-                            type="file"
-                            className="sr-only"
-                            onChange={handleSeatingLayoutChange}
-                            accept="image/*"
-                          />
-                        </label>
+                      
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Left: File Upload */}
+                        <div className="space-y-4">
+                          <div className="flex justify-center rounded-lg border border-dashed border-black dark:border-gray-700 px-6 py-10 text-center">
+                            <label
+                              htmlFor="seating-layout-upload"
+                              className="cursor-pointer"
+                            >
+                              <svg
+                                className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                                />
+                              </svg>
+                              <p className="text-sm text-black dark:text-gray-400 mt-2">
+                                Drag your file(s) or browse
+                              </p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                Max 10 MB • PDF, DOC, PNG, JPG, CAD supported
+                              </p>
+                              <span className="mt-4 inline-block rounded-md font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm">
+                                Browse file
+                              </span>
+                              <input
+                                id="seating-layout-upload"
+                                type="file"
+                                className="sr-only"
+                                onChange={handleSeatingLayoutChange}
+                                accept="image/*,.pdf,.doc,.docx,.dwg,.dxf"
+                              />
+                            </label>
+                          </div>
+                          {seatingLayoutFile && (
+                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-3">
+                                  <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  <div>
+                                    <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                                      {seatingLayoutFile.name}
+                                    </p>
+                                    <p className="text-xs text-green-600 dark:text-green-400">
+                                      {(seatingLayoutFile.size / 1024).toFixed(2)} KB
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  {generatedSeatingLayout && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setGeneratedSeatingLayout(null);
+                                        setSeatAssignments({});
+                                        showAlert({
+                                          type: "info",
+                                          message: "Layout Cleared",
+                                          description: "You can now re-generate with different settings or upload a new file.",
+                                        });
+                                      }}
+                                      className="text-orange-500 hover:text-orange-700 dark:hover:text-orange-400 px-2"
+                                      title="Clear generated layout"
+                                    >
+                                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={removeSeatingLayout}
+                                    className="text-red-500 hover:text-red-700 dark:hover:text-red-400"
+                                    title="Remove file"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="text-xs text-green-700 dark:text-green-300 mt-2">
+                                {generatedSeatingLayout 
+                                  ? '✓ Layout generated. You can re-generate or upload a different file.' 
+                                  : '✓ File uploaded. Click "Generate Layout" to create seat map.'}
+                              </p>
+                            </div>
+                          )}
+                          {seatingLayoutPreview && !generatedSeatingLayout && (
+                            <div className="relative group">
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                                Original File Preview:
+                              </p>
+                              <img
+                                src={seatingLayoutPreview}
+                                alt="Original seating layout"
+                                className="w-full h-48 rounded-lg object-cover border-2 border-gray-300 dark:border-gray-600"
+                              />
+                            </div>
+                          )}
+                          {/* Generate Layout Button */}
+                          {seatingLayoutFile && totalCapacity && (
+                            <div className="space-y-2">
+                              <button
+                                type="button"
+                                onClick={handleGenerateLayout}
+                                disabled={isGenerating}
+                                className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                              >
+                                {isGenerating ? (
+                                  <>
+                                    <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                    </svg>
+                                    Generating Layout...
+                                  </>
+                                ) : generatedSeatingLayout ? (
+                                  <>
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Re-generate Layout
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                    </svg>
+                                    Generate Layout
+                                  </>
+                                )}
+                              </button>
+                              
+                              {generatedSeatingLayout && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                                  Layout already generated. Upload a new file or click Re-generate to update.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {/* Right: Interactive Seat Map Preview */}
+                      {/* Right: Interactive Seat Map Preview */}
+<div className="space-y-3">
+  {generatedSeatingLayout ? (
+    <>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          Interactive Seat Map
+        </p>
+        {isOfflinePaid && tickets.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowSeatAssignmentModal(true)}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            Assign Seats
+          </button>
+        )}
+      </div>
+      <div className="border-2 border-green-500 dark:border-green-600 rounded-lg overflow-hidden" style={{ aspectRatio: '16/10' }}>
+        <SeatingLayoutPreview
+          seatingLayout={generatedSeatingLayout}
+          onSeatSelect={(seats) => console.log('Selected seats:', seats)}
+          darkMode={darkMode}
+          isExpandable={true}
+          ticketTypeAssignments={generatedSeatingLayout?.ticketTypeAssignments || []}
+        />
+      </div>
+      
+      {/* Instructions - Horizontal below preview */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+        <div className="flex items-start gap-2">
+          <svg className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div className="flex-1">
+            <p className="text-xs text-blue-800 dark:text-blue-300 font-medium mb-1">Quick Guide:</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-blue-700 dark:text-blue-300">
+              <span>• <strong>Drag</strong> to pan</span>
+              <span>• <strong>Scroll</strong> to navigate</span>
+              <span>• <strong>Hover</strong> for seat info</span>
+              <span>• <strong>Click "Assign Seats"</strong> to assign</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  ) : (
+    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center min-h-[350px] flex flex-col items-center justify-center">
+      <svg className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+      </svg>
+      <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">
+        {totalCapacity && seatingLayoutFile ? '✓ Ready to generate' : 'No preview available'}
+      </p>
+      <p className="text-gray-400 dark:text-gray-500 text-xs max-w-xs">
+        {!totalCapacity 
+          ? 'Set total capacity first'
+          : !seatingLayoutFile
+            ? 'Upload a layout file'
+            : 'Click "Generate Layout" above'}
+      </p>
+    </div>
+  )}
+</div>
                       </div>
                     </div>
-                    <div className="col-span-1">
-                      {seatingLayoutPreview && (
-                        <div className="relative group w-full">
-                          <img
-                            src={seatingLayoutPreview}
-                            alt="Seating layout preview"
-                            className="w-full h-auto rounded-lg object-cover"
-                          />
-                          <div
-                            onClick={removeSeatingLayout}
-                            className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex items-center justify-center cursor-pointer rounded-lg"
-                          >
-                            <span className="text-red-500 text-3xl font-bold">
-                              &times;
-                            </span>
+                    {/* Info Box */}
+                    {generatedSeatingLayout && (
+                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                        <div className="flex items-start gap-2">
+                          <svg className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div>
+                            <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                              Layout Generated Successfully!
+                            </p>
+                            <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                              Detected: {generatedSeatingLayout.totalSeats} seats, {generatedSeatingLayout.rows?.length} rows
+                              {generatedSeatingLayout.layoutStyle && ` • Style: ${generatedSeatingLayout.layoutStyle}`}
+                            </p>
+                            {Object.keys(seatAssignments).length > 0 && (
+                              <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                                ✓ {Object.values(seatAssignments).flat().length} seats assigned to ticket types
+                              </p>
+                            )}
                           </div>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </section>
@@ -1119,120 +1789,6 @@ const UpdateTicketDetails = () => {
                   />
                 </div>
               </section>
-              {paymentType === "paid" && (
-                <section className="space-y-6">
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Ticketing details
-                  </h2>
-
-                  {isOfflinePaid && (
-                    <>
-                      <p className="text-black dark:text-gray-400 text-sm">
-                        Add ticket types, set prices, and control how attendees
-                        book their spot.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handleOpenModalForAdd}
-                        className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold flex items-center space-x-2 hover:bg-indigo-700 transition"
-                      >
-                        <span>Add tickets</span>
-                        <img src={Ticket_Form_Icon} alt="" />
-                      </button>
-
-                      {/* Display Added Tickets */}
-                      {tickets.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                          {tickets.map((ticket) => (
-                            <div
-                              key={ticket.id}
-                              className="bg-gray-100 dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none"
-                            >
-                              <div className="flex items-center space-x-3">
-                                <img
-                                  src={ticket.image}
-                                  alt={ticket.name}
-                                  className="w-16 h-16 rounded-md object-cover"
-                                />
-                                <div>
-                                  <p className="font-semibold text-gray-900 dark:text-white">{`${
-                                    ticket.name
-                                  } - ₹${Number(
-                                    ticket.price
-                                  ).toLocaleString()}`}</p>
-                                  <p className="text-xs text-black dark:text-gray-400">
-                                    Capacity: {ticket.capacity}
-                                  </p>
-                                </div>
-                              </div>
-                              {/* Edit/Delete Buttons */}
-                              <div className="flex items-center space-x-2">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingTicket(ticket);
-                                    setIsTicketModalOpen(true);
-                                  }}
-                                  className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
-                                >
-                                  ✏️
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleDeleteTicket(ticket.id);
-                                  }}
-                                  className="text-gray-400 hover:text-red-500 transition"
-                                >
-                                  &times;
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {tickets.length === 0 && (
-                        <div className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-                          No tickets added yet. Click "Add tickets" to create
-                          your first ticket type.
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {isOnlineOrRecordedPaid && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4   rounded-lg">
-                      <FormInput
-                        label="Ticket Price"
-                        id="simpleTicketPrice"
-                        name="simpleTicketPrice"
-                        type="number"
-                        value={simpleTicketPrice}
-                        onChange={(e) => setSimpleTicketPrice(e.target.value)}
-                        placeholder="Enter Price (e.g., 500)"
-                        info="Base price for the standard ticket type."
-                        darkMode={darkMode}
-                        required={false}
-                      />
-                      <FormInput
-                        label="Total Ticket Capacity "
-                        id="simpleTicketCapacity"
-                        name="simpleTicketCapacity"
-                        type="number"
-                        value={simpleTicketCapacity}
-                        onChange={(e) =>
-                          setSimpleTicketCapacity(e.target.value)
-                        }
-                        placeholder="Enter total capacity"
-                        info="Maximum number of attendees allowed."
-                        darkMode={darkMode}
-                        required={false}
-                      />
-                    </div>
-                  )}
-                </section>
-              )}
               <div className="pt-8 flex justify-end gap-4">
                 <button
                   type="button"
@@ -1263,6 +1819,86 @@ const UpdateTicketDetails = () => {
         existingTickets={tickets}
         darkMode={darkMode}
         showAlert={showAlert}
+      />
+      <SeatAssignmentModal
+        isOpen={showSeatAssignmentModal}
+        onClose={() => setShowSeatAssignmentModal(false)}
+        onSave={(newAssignments) => {
+          // Deep clone to prevent mutations
+          const clonedAssignments = JSON.parse(JSON.stringify(newAssignments));
+          setSeatAssignments(clonedAssignments);
+          // Deep clone the layout
+          const updatedLayout = JSON.parse(JSON.stringify(generatedSeatingLayout));
+          // STEP 1: Update every seat with its assignment and COLOR
+          updatedLayout.seats = updatedLayout.seats.map(seat => {
+            // Find which ticket type owns this seat
+            const assignedEntry = Object.entries(clonedAssignments).find(([_, seatIds]) => 
+              seatIds && seatIds.includes(seat.seatId)
+            );
+            
+            if (assignedEntry) {
+              const [ticketTypeId] = assignedEntry;
+              const ticket = tickets.find(t => String(t.id) === String(ticketTypeId));
+              const color = getTicketTypeColor(ticketTypeId);
+              
+              console.log(`✅ Seat ${seat.seatId} → ${ticket?.name} (${color})`);
+              
+              return {
+                ...seat,
+                ticketTypeId: String(ticketTypeId),
+                ticketTypeName: ticket?.name || ticket?.ticket_type,
+                ticketTypeColor: color, // CRITICAL: Store color in seat
+                isAvailable: true
+              };
+            }
+            
+            // Unassigned seats - reset but keep structure
+            return {
+              ...seat,
+              ticketTypeId: null,
+              ticketTypeName: null,
+              ticketTypeColor: null,
+              isAvailable: true
+            };
+          });
+          
+          // STEP 2: Build ticket type assignments summary with colors
+          updatedLayout.ticketTypeAssignments = Object.entries(clonedAssignments)
+            .filter(([_, seatIds]) => seatIds && seatIds.length > 0)
+            .map(([typeId, seatIds]) => {
+              const ticket = tickets.find(t => String(t.id) === String(typeId));
+              const color = getTicketTypeColor(typeId);
+              
+              console.log(`📊 Assignment: ${ticket?.name} - ${seatIds.length} seats - Color: ${color}`);
+              
+              return {
+                ticketTypeId: String(typeId),
+                ticketTypeName: ticket?.name || ticket?.ticket_type,
+                color: color, // CRITICAL: Store color in assignment
+                assignedSeats: [...seatIds],
+                capacity: ticket?.capacity || ticket?.max_capacity
+              };
+            });
+          
+          console.log('✅ FINAL LAYOUT WITH COLORS:', updatedLayout);
+          setGeneratedSeatingLayout(updatedLayout);
+          
+          showAlert({
+            type: 'success',
+            message: 'Seats Assigned with Colors!',
+            description: `Assigned ${Object.values(clonedAssignments).flat().length} seats with ticket type colors.`
+          });
+        }}
+        seatingLayout={generatedSeatingLayout}
+        ticketTypes={tickets.map(t => ({ 
+          id: t.id, 
+          name: t.name || t.ticket_type, 
+          capacity: t.capacity || t.max_capacity 
+        }))}
+        existingAssignments={seatAssignments}
+        ticketTypeColors={ticketTypeColors}
+        darkMode={darkMode}
+        getTicketTypeColor={getTicketTypeColor}
       />
       <ExtraEventsPlanner
         isOpen={isExtraEventsModalOpen}

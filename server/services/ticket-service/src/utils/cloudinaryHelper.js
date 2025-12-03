@@ -1,8 +1,14 @@
 import { uploadToCloudinary, getCloudinaryFolder, getResourceType } from '../middlewares/upload.js';
 import cloudinary from '../cloudinary/cloudinary.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import https from 'https';
+import http from 'http';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 export const processGroupFileUploads = async (files) => {
   const uploadedFiles = {};
-
   try {
     const groupFileFields = [
       'id_proof',
@@ -33,7 +39,7 @@ export const processGroupFileUploads = async (files) => {
         });
 
         uploadedFiles[fieldName] = result.url;
-        console.log(`✅ ${fieldName} uploaded:`, result.url);
+        console.log(` ${fieldName} uploaded:`, result.url);
       }
     }
 
@@ -91,9 +97,22 @@ export const processFileUploads = async (files) => {
     // Process ticket_layout
     if (files.ticket_layout && files.ticket_layout[0]) {
       const file = files.ticket_layout[0];
+      
       if (!file.buffer || file.buffer.length === 0) {
         throw new Error('Ticket layout file is empty. Please upload a valid file.');
       }
+
+      // Save file temporarily for processing
+      const tempDir = path.join(__dirname, '../temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      
+      const tempFileName = `layout_${Date.now()}_${file.originalname}`;
+      const tempFilePath = path.join(tempDir, tempFileName);
+      fs.writeFileSync(tempFilePath, file.buffer);
+
+      // Upload original file to Cloudinary
       const folder = getCloudinaryFolder('ticket_layout');
       const resourceType = getResourceType('ticket_layout', file.mimetype);
       const result = await uploadToCloudinary(file.buffer, {
@@ -101,14 +120,15 @@ export const processFileUploads = async (files) => {
         resourceType
       });
 
-      uploadedFiles.ticket_layout = [{
-        path: result.url,
+      uploadedFiles.ticket_layout = {
+        cloudinaryUrl: result.url,
+        localPath: tempFilePath,
         originalName: file.originalname,
         mimeType: file.mimetype,
         size: file.size,
         public_id: result.public_id,
         resource_type: result.resource_type
-      }];
+      };
     }
     // Process event_images (multiple files)
     if (files.event_images && files.event_images.length > 0) {
@@ -249,6 +269,114 @@ export const processFileUploads = async (files) => {
     throw new Error(`File upload failed: ${error.message}`);
   }
 };
+export const downloadFileFromCloudinary = async (cloudinaryUrl, fileName = null) => {
+  return new Promise((resolve, reject) => {
+    try {
+      // Create temp directory if it doesn't exist
+      const tempDir = path.join(__dirname, '../temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      // Generate filename if not provided
+      const finalFileName = fileName || `temp_${Date.now()}_${path.basename(cloudinaryUrl)}`;
+      const localPath = path.join(tempDir, finalFileName);
+      // Determine protocol
+      const protocol = cloudinaryUrl.startsWith('https') ? https : http;
+      // Download file
+      const file = fs.createWriteStream(localPath);
+      protocol.get(cloudinaryUrl, (response) => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`Failed to download file: HTTP ${response.statusCode}`));
+          return;
+        }
+
+        response.pipe(file);
+
+        file.on('finish', () => {
+          file.close();
+          console.log(`Downloaded file to: ${localPath}`);
+          resolve(localPath);
+        });
+      }).on('error', (error) => {
+        fs.unlink(localPath, () => {}); 
+        reject(error);
+      });
+
+      file.on('error', (error) => {
+        fs.unlink(localPath, () => {}); // Delete incomplete file
+        reject(error);
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+export const cleanupTempFile = async (filePath) => {
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log(`🗑️ Cleaned up temp file: ${filePath}`);
+    }
+  } catch (error) {
+    console.error('Error cleaning up temp file:', error);
+  }
+};
+export const cleanupOldTempFiles = async (hoursOld = 24) => {
+  try {
+    const tempDir = path.join(__dirname, '../temp');
+    if (!fs.existsSync(tempDir)) return;
+
+    const files = fs.readdirSync(tempDir);
+    const now = Date.now();
+    const maxAge = hoursOld * 60 * 60 * 1000; // Convert hours to milliseconds
+
+    let deletedCount = 0;
+    files.forEach(file => {
+      const filePath = path.join(tempDir, file);
+      const stats = fs.statSync(filePath);
+      const age = now - stats.mtimeMs;
+
+      if (age > maxAge) {
+        fs.unlinkSync(filePath);
+        deletedCount++;
+      }
+    });
+    if (deletedCount > 0) {
+      console.log(`Cleaned up ${deletedCount} old temp files`);
+    }
+  } catch (error) {
+    console.error('Error cleaning up old temp files:', error);
+  }
+};
+export const uploadGeneratedLayoutToCloudinary = async (layoutObject, ticketId) => {
+  try {
+    if (!layoutObject || !layoutObject.seats) {
+      throw new Error('Invalid layout object');
+    }
+
+    // Convert layout object to JSON string
+    const jsonContent = JSON.stringify(layoutObject, null, 2);
+    const buffer = Buffer.from(jsonContent, 'utf-8');
+
+    // Upload as raw file to Cloudinary
+    const folder = `ticket_layouts/generated`;
+    const result = await cloudinary.uploader.upload(`data:text/plain;base64,${buffer.toString('base64')}`, {
+      folder: folder,
+      resource_type: 'raw',
+      public_id: `generated_layout_${ticketId}_${Date.now()}`,
+      format: 'json'
+    });
+    console.log(`✅ Generated layout uploaded to Cloudinary: ${result.url}`);
+    return {
+      url: result.url,
+      public_id: result.public_id,
+      resource_type: result.resource_type
+    };
+  } catch (error) {
+    console.error('❌ Error uploading generated layout:', error);
+    throw error;
+  }
+};
 export const deleteFromCloudinary = async (publicIds, resourceType = 'image') => {
   try {
     const idsArray = Array.isArray(publicIds) ? publicIds : [publicIds];
@@ -298,6 +426,19 @@ export const extractPublicId = (url) => {
   } catch (error) {
     console.error('Error extracting public_id:', error);
   }
-  
   return null;
+};
+setInterval(() => {
+  cleanupOldTempFiles(24); 
+}, 6 * 60 * 60 * 1000); 
+cleanupOldTempFiles(24);
+export default {
+  processFileUploads,
+  processGroupFileUploads,
+  deleteFromCloudinary,
+  extractPublicId,
+  downloadFileFromCloudinary,
+  cleanupTempFile,
+  cleanupOldTempFiles,
+  uploadGeneratedLayoutToCloudinary  
 };
