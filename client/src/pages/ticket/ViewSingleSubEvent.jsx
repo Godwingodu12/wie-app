@@ -844,7 +844,7 @@ const ViewSingleSubEvent = () => {
                       key={i}
                       className="bg-[#5E5CE6] text-white text-xs px-3 py-1 rounded-lg font-medium" // Smaller chip for mobile
                     >
-                      #{tag}
+                      {tag}
                     </span>
                   ))}
                 </div>

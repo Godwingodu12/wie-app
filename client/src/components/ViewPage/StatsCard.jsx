@@ -15,7 +15,7 @@ const StatsCard = ({
           height: "160px",
           padding: "3%",
           borderRadius: "30px",
-                  border: "1px solid transparent",
+                  border: "1px solid trfansparent",
 
           backgroundImage: isDark
             ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
