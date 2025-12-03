@@ -1,15 +1,13 @@
-// client/src/components/modals/ExtraEventsPlanner.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-// Added darkMode to props
 const ExtraEventsPlanner = ({ isOpen, onYes, onNo, ticketId, darkMode }) => {
-  const navigate = useNavigate(); // Determine theme-dependent styles
+  const navigate = useNavigate();
 
   const modalBgColor = darkMode ? "#262628" : "#FFFFFF";
   const titleColor = darkMode ? "text-gray-100" : "text-gray-900";
   const paragraphColor = darkMode ? "text-gray-400" : "text-gray-600";
-  const iconBgColor = "#1E1242"; // Retained your specific dark background color for the icon
+  const iconBgColor = "#1E1242";
   const noButtonBg = darkMode ? "#363A3F" : "#E5E7EB";
   const noButtonText = darkMode ? "text-gray-100" : "text-gray-700";
 
@@ -25,8 +23,8 @@ const ExtraEventsPlanner = ({ isOpen, onYes, onNo, ticketId, darkMode }) => {
     }
 
     if (onYes) {
-      onYes(); // Call the original onYes callback (which should handle navigation)
-    } // If the parent component didn't handle navigation (e.g., if it only sets state) // Navigate to the Add Shows page (Step 5: Addons)
+      onYes();
+    }
     const targetUrl = `/ticket/update-ticket-addons/${ticketId}`;
     console.log("ExtraEventsPlanner: Navigating to:", targetUrl);
     navigate(targetUrl);
@@ -77,8 +75,8 @@ const ExtraEventsPlanner = ({ isOpen, onYes, onNo, ticketId, darkMode }) => {
           Any extra events planned?
         </h2>
         <p className={`${paragraphColor} mb-8 leading-relaxed text-sm px-4`}>
-         Let us know if your main event includes additional shows, festivals,
-          extra events, or side events planned?. 
+          Let us know if your main event includes additional shows, festivals,
+          extra events, or side events planned?.
         </p>
         <div className="flex flex-col sm:flex-row gap-4">
           <button
@@ -95,7 +93,7 @@ const ExtraEventsPlanner = ({ isOpen, onYes, onNo, ticketId, darkMode }) => {
             }}
             className={`flex-1 px-6 py-3 rounded-lg text-lg font-medium hover:opacity-80 transition-opacity ${noButtonText}`}
           >
-             No, More Events
+            No, More Events
           </button>
           <button
             onClick={handleYesClick}
@@ -112,8 +110,7 @@ const ExtraEventsPlanner = ({ isOpen, onYes, onNo, ticketId, darkMode }) => {
         </div>
         {!ticketId && (
           <p className="text-red-400 text-sm mt-4">
-             Error: Ticket ID is missing. Please refresh the page and
-            try again. 
+            Error: Ticket ID is missing. Please refresh the page and try again.
           </p>
         )}
       </div>
