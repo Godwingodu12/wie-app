@@ -71,7 +71,7 @@ const HashtagModal = ({ isOpen, hashtags, theme, onClose }) => {
                     className="text-xs font-medium px-2.5 py-1 rounded-md text-white whitespace-nowrap"
                     style={{ backgroundColor: "#5E5CE6" }}
                   >
-                    #{tag}
+                    {tag}
                   </span>
                 ))}
               </div>

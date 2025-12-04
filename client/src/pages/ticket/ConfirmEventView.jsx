@@ -43,7 +43,7 @@ import {
   goLiveEvent,
   getUserData,
 } from "../../services/ticketService";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { data, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import Card from "../../components/ViewSingleEvent/Card";
 import getCarouselEvents from "../../components/ViewSingleEvent/getCarouselEvents";
@@ -71,6 +71,9 @@ import ScrollBarStyle from "../../components/ScrollBarStyle";
 import POCDetailModal from "../../components/ViewSingleEvent/POCDetailModal";
 import HashtagModal from "../../components/ViewSingleEvent/HashtagModal";
 import HostEventModal from "../../components/Event/HostEventModal";
+import { default as getFormattedDateRange } from "../../components/ViewSingleEvent/formattedDateRange";
+import DateInformationModal from "../../components/ViewSingleEvent/DateInformationModal";
+
 
 const darkTheme = {
   isDark: true,
@@ -154,6 +157,8 @@ const ConfirmEventView = () => {
   const groupId = eventData?.group_id || eventData?.groupId; // Derive groupId from fetched data
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [loadingCount, setLoadingCount] = useState(false);
+    const [showDateInfoModal, setShowDateInfoModal] = useState(false);
+  
 
   const [isHostModalOpen, setIsHostModalOpen] = useState(false);
   const [selectedEventToHost, setSelectedEventToHost] = useState(null);
@@ -167,7 +172,12 @@ const ConfirmEventView = () => {
   
 
 
-  
+  const allEventsAndSubEvents = useMemo(() => {
+    if (!eventData) return [];
+    
+    // Create a NEW array: [mainEvent, ...subEvents]
+    return [eventData, ...(eventData.sub_events || [])];
+}, [eventData]); 
   
 
   useEffect(() => {
@@ -318,9 +328,6 @@ const ConfirmEventView = () => {
     return events;
   }, [eventData, groupData]);
 
-  const handleSaveEvent = () => {
-    setShowConfirmSaveModal(true);
-  };
 
   const handleConfirmDelete = async () => {
     setShowConfirmDeleteModal(false);
@@ -656,26 +663,7 @@ const ConfirmEventView = () => {
   }, [eventData]);
 
   const formattedDateRange = useMemo(() => {
-    if (!eventData?.event_dates?.length)
-      return { dateText: "Date TBA", timeText: "N/A" };
-
-    const eventDates = eventData.event_dates[0];
-    const firstDate = new Date(eventDates.start_date);
-
-    const startTime = eventDates.start_time
-      ? new Date(`1970-01-01T${eventDates.start_time}`).toLocaleTimeString(
-          "en-US",
-          { hour: "numeric", minute: "numeric", hour12: true }
-        )
-      : "N/A";
-
-    const dateString = firstDate.toLocaleDateString("en-US", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-    return { dateText: dateString, timeText: startTime };
+    return getFormattedDateRange(eventData);
   }, [eventData]);
 
   if (loading) {
@@ -739,6 +727,18 @@ const ConfirmEventView = () => {
   const handleTicketInfoClick = () => {
     if (eventStats.ticketTypes.length > 0) {
       setShowTicketModal(true);
+    }
+  };
+    const handleDateInfoClick = () => {
+    if (eventData?.event_dates?.length > 0) {
+      setShowDateInfoModal(true);
+    } else {
+      setAppAlert({
+        message: "Information",
+        description: "No date information available.",
+        type: "error",
+        show: true,
+      });
     }
   };
   const handleGuestClick = (guest) => {
@@ -855,6 +855,7 @@ const ConfirmEventView = () => {
     handleCloseGroupModal();
   };
   const handlePrevImage = () => {
+    
     // Calculate total images: banner + logo + event_images
     let totalImages = 0;
     if (eventData?.event_banner) totalImages++;
@@ -887,8 +888,8 @@ const ConfirmEventView = () => {
       LocationLabel = "Offline";
       break;
   }
-  eventData.sub_events[eventData.sub_events.length] = eventData;
-  return (
+
+ return (
     <div
       key={`main-container-${theme.isDark ? "dark" : "light"}`}
       className={`min-h-screen md:p-8 p-2 ${theme.text}`}
@@ -1063,7 +1064,7 @@ const ConfirmEventView = () => {
               <div className="flex justify-between">
                 <Card
                   theme={theme}
-                  className="lg:p-4 gap-x-4 flex md:flex-col justify-around items-center flex-shrink-0"
+                  className="lg:p-4 gap-x-4 flex md:flex-col rounded-2xl justify-around items-center flex-shrink-0"
                   style={{
                     minWidth: "80px",
                     background: theme.isDark ? "#212426" : "A light mode color",
@@ -1168,7 +1169,7 @@ const ConfirmEventView = () => {
                       </p>
                     </Card>
 
-                    {eventData.sub_events.length > 0 ? (
+                    {allEventsAndSubEvents.length > 1 ? (
                       <Card
                         theme={theme}
                         style={{
@@ -1313,9 +1314,7 @@ const ConfirmEventView = () => {
                 background: theme.isDark
                   ? "linear-gradient(0deg, #212426, #212426), linear-gradient(0deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1))"
                   : "#FFFFFF0A",
-                boxShadow: theme.isDark
-                  ? `6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset `
-                  : `6px 6px 12px 0px #FFFFFF inset,-6px -6px 12px 0px #A0A0A0 inset `,
+                boxShadow: `6.23px 6.23px 12.46px 0px #0000002E inset, -6.23px -6.23px 12.46px 0px #FFFFFF14 inset`,
               }}
               className="md:p-5 md:mb-2 p-5 mb-1 rounded-3xl lg:mt-6"
             >
@@ -1337,11 +1336,9 @@ const ConfirmEventView = () => {
                 }}
                 className=""
               >
-                <div
-                  onClick={handleLocationClick}
-                  className="flex py-5 md:py-0 pr-1 justify-between items-center md:space-x-3 space-x-1 cursor-pointer"
-                >
+                <div className="flex py-5 md:py-0 pr-1 justify-between items-center md:space-x-3 space-x-1 cursor-pointer">
                   <div
+                    onClick={handleLocationClick}
                     className="!p-0 relative lg:w-24 lg:h-24 w-16 h-full lg:rounded-3xl overflow-hidden flex-shrink-0"
                     ref={mapRef}
                   >
@@ -1356,7 +1353,7 @@ const ConfirmEventView = () => {
                     )}
                   </div>
 
-                  <div className="flex-grow pl-2">
+                  <div className="flex-grow pl-2" onClick={handleLocationClick}>
                     <p
                       className={`lg::text-xl text-sm md:font-bold mb-0.5 ${theme.textColor}`}
                     >
@@ -1372,19 +1369,33 @@ const ConfirmEventView = () => {
 
                   <div className="md:w-[1px] h-10 bg-gray-700 md:mx-2 flex-shrink-0 hidden md:block"></div>
 
-                  <div className="text-right flex-shrink-0 pr-2 lg:pr-3 w-1/4 lg:w-1/3">
-                    <p className="text-xs text-gray-500 mb-1">Gate opens at</p>
-                    <p
-                      className={`lg:text-xl text-xs lg:font-bold ${theme.textColor}`}
-                    >
-                      {formattedDateRange.timeText}
-                    </p>
+                  <div className="text-right flex-shrink-0 pr-2 lg:pr-3 w-1/4 lg:w-1/5">
+                    <div className="flex flex-col items-center cursor-pointer space-y-2 transition-transform duration-200 hover:scale-[1.02]">
+                      <div
+                        onClick={handleDateInfoClick}
+                        className="w-10 h-10 rounded-full flex items-center text-white justify-center bg-[#5E5CE6] "
+                        style={{
+                          boxShadow: theme.shadowOutset,
+                        }}
+                      >
+                        <img
+                          src={Event_Days}
+                          alt="Event Days Icon"
+                          className={`mb-1 lg:h-6 lg-w-6 text-white h-5 w-5 ${
+                            theme.isDark ? "" : "filter invert"
+                          }`}
+                          style={{
+                            filter: "brightness(0) invert(1)",
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-
-            {eventData.sub_events.length > 0 ? (
+                       
+            {allEventsAndSubEvents.length > 1 ? (
               <div className="w-full">
                 <h3 className={`text-lg font-semibold mb-1 ${theme.textColor}`}>
                   Multiple event
@@ -1597,7 +1608,7 @@ const ConfirmEventView = () => {
                               className="text-xs font-medium px-2.5 py-1 rounded-md text-white"
                               style={{ backgroundColor: "#5E5CE6" }}
                             >
-                              #{tag}
+                              {tag}
                             </span>
                           ))}
                       </div>
@@ -2087,7 +2098,7 @@ const ConfirmEventView = () => {
                   {(eventData.POCS || []).map((person, index) => (
                     <div
                       key={index}
-                      className="text-center w-16"
+                      className="text-center w-16 hover:cursor-pointer"
                       onClick={() => handlePOCPersonClick(person)}
                     >
                       <div className="w-12 h-12 rounded-full mx-auto mb-1 border-2 border-gray-700 overflow-hidden flex items-center justify-center bg-gray-700">
@@ -2378,6 +2389,17 @@ const ConfirmEventView = () => {
           person={selectedPOC}
           theme={theme}
           onClose={handleClosePOCModal} // Use the specific close handler
+        />
+      )}
+            {showDateInfoModal && (
+        <DateInformationModal
+          theme={theme}
+          eventStart={formattedDateRange.event_start_date}
+          eventEnd={formattedDateRange.booking_end_date}
+          bookingStart={formattedDateRange.booking_start_date}
+          bookingEnd={formattedDateRange.booking_end_date}
+          timeOpen={formattedDateRange.timeText}
+          onClose={() => setShowDateInfoModal(false)}
         />
       )}
     </div>
