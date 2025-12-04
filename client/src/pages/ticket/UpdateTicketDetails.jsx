@@ -1495,15 +1495,17 @@ const handleGenerateLayout = async () => {
                     )}
                   </section>
                 )}
-                <div className="flex items-center justify-between">
-                  <label className="font-medium text-gray-900 dark:text-white text-md">
-                    Do you have seating layout?
-                  </label>
-                  <ToggleSwitch
-                    checked={hasSeatingLayout}
-                    onChange={() => setHasSeatingLayout(!hasSeatingLayout)}
-                  />
-                </div>
+                {(locationType === "offline") && (
+                  <div className="flex items-center justify-between">
+                    <label className="font-medium text-gray-900 dark:text-white text-md">
+                      Do you have seating layout?
+                    </label>
+                    <ToggleSwitch
+                      checked={hasSeatingLayout}
+                      onChange={() => setHasSeatingLayout(!hasSeatingLayout)}
+                    />
+                  </div>
+                )}
                 {hasSeatingLayout && (
                   <div className="animate-fade-in space-y-6">
                     {/* Upload Section */}

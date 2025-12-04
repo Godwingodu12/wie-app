@@ -20,6 +20,8 @@ import {
   CheckCircle,
   Loader2,
   AlertCircle,
+  RefreshCw,
+  IndianRupee,
 } from 'lucide-react';
 
 export default function BookingDetailPage() {
@@ -47,7 +49,6 @@ export default function BookingDetailPage() {
       setBooking(response.data.booking);
     } catch (err: any) {
       setError(err.message || 'Failed to load booking details');
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -81,6 +82,37 @@ export default function BookingDetailPage() {
     link.click();
   };
 
+  const handleTrackRefund = () => {
+    router.push(`/bookings/${bookingId}/refund`);
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getRefundStatusBadge = (status?: string) => {
+    if (!status) return null;
+    
+    const badges: any = {
+      PROCESSING: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Processing' },
+      COMPLETED: { bg: 'bg-green-100', text: 'text-green-800', label: 'Completed' },
+      FAILED: { bg: 'bg-red-100', text: 'text-red-800', label: 'Failed' },
+    };
+    const badge = badges[status] || badges.PROCESSING;
+    return (
+      <span className={`px-3 py-1 rounded-full text-sm font-semibold ${badge.bg} ${badge.text}`}>
+        {badge.label}
+      </span>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -108,6 +140,10 @@ export default function BookingDetailPage() {
       </div>
     );
   }
+
+  const isCancelled = booking.bookingStatus === 'CANCELLED';
+  const hasRefund = booking.refundAmount && booking.refundAmount > 0;
+  const refundCompleted = booking.refundStatus === 'COMPLETED' && booking.refundProcessedAt;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -212,6 +248,99 @@ export default function BookingDetailPage() {
                 </div>
               </div>
             </Card>
+
+            {/* Refund Details - Show if cancelled and has refund */}
+            {isCancelled && hasRefund && (
+              <Card>
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-gray-900">Refund Details</h2>
+                    {getRefundStatusBadge(booking.refundStatus)}
+                  </div>
+
+                  {refundCompleted ? (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle className="w-6 h-6 text-green-600 mt-0.5" />
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-green-900 mb-2">Refund Completed</h3>
+                          <div className="space-y-2 text-sm text-green-800">
+                            <div className="flex justify-between">
+                              <span>Event:</span>
+                              <span className="font-semibold">{booking.eventDetails.eventName}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Tickets:</span>
+                              <span className="font-semibold">{booking.quantity} × {booking.ticketType}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Refund Amount:</span>
+                              <span className="font-semibold text-lg">₹{booking.refundAmount}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Processed On:</span>
+                              <span className="font-semibold">{formatDate(booking.refundProcessedAt)}</span>
+                            </div>
+                            <div className="mt-3 pt-3 border-t border-green-200 text-xs text-green-700">
+                              Platform fee of ₹{booking.platformFee} was non-refundable
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 text-gray-700">
+                        <IndianRupee className="w-5 h-5 text-gray-400" />
+                        <div className="flex-1">
+                          <p className="font-semibold">Refund Amount</p>
+                          <p className="text-2xl font-bold text-gray-900">₹{booking.refundAmount}</p>
+                        </div>
+                      </div>
+
+                      {booking.refundInitiatedAt && (
+                        <div className="flex items-center gap-3 text-gray-700">
+                          <Clock className="w-5 h-5 text-gray-400" />
+                          <div>
+                            <p className="font-semibold">Initiated On</p>
+                            <p className="text-gray-600">{formatDate(booking.refundInitiatedAt)}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                        <p className="font-semibold mb-1">Processing Time</p>
+                        <p>Your refund is being processed and will be credited to your account within 5-7 business days.</p>
+                        <p className="mt-2 text-xs">Note: Platform fee of ₹{booking.platformFee} is non-refundable.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {/* Cancellation Details */}
+            {isCancelled && (
+              <Card>
+                <div className="p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">Cancellation Details</h2>
+                  <div className="space-y-3">
+                    {booking.cancelledAt && (
+                      <div>
+                        <p className="text-sm font-semibold text-gray-700">Cancelled On</p>
+                        <p className="text-gray-600">{formatDate(booking.cancelledAt)}</p>
+                      </div>
+                    )}
+                    {booking.cancellationReason && (
+                      <div>
+                        <p className="text-sm font-semibold text-gray-700">Reason</p>
+                        <p className="text-gray-600">{booking.cancellationReason}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            )}
           </div>
 
           {/* Sidebar */}
@@ -243,7 +372,22 @@ export default function BookingDetailPage() {
               </Card>
             )}
 
-            {/* Actions */}
+            {/* Track Refund Button - Show if cancelled and has refund but not completed */}
+            {isCancelled && hasRefund && !refundCompleted && (
+              <Card>
+                <div className="p-6">
+                  <button
+                    onClick={handleTrackRefund}
+                    className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold"
+                  >
+                    <RefreshCw className="w-5 h-5" />
+                    Track Refund Status
+                  </button>
+                </div>
+              </Card>
+            )}
+
+            {/* Cancel Booking Button */}
             {booking.bookingStatus === 'CONFIRMED' && (
               <Card>
                 <div className="p-6">
@@ -268,6 +412,9 @@ export default function BookingDetailPage() {
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">Cancel Booking</h2>
                 <p className="text-gray-600 mb-4">
                   Are you sure you want to cancel this booking? This action cannot be undone.
+                </p>
+                <p className="text-sm text-gray-600 mb-4">
+                  Note: Platform fee of ₹{booking.platformFee} is non-refundable. You will receive ₹{booking.subtotal} as refund.
                 </p>
                 <textarea
                   value={cancellationReason}
