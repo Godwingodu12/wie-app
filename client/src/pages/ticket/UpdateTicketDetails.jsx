@@ -1742,9 +1742,8 @@ const UpdateTicketDetails = () => {
                     )}
                   </section>
                 )}
-                {(locationType === "offline") && (
                 <div className="flex items-center justify-between">
-                  <label className="items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
+                  <label className="font-medium text-gray-900 dark:text-white text-md">
                     Do you have seating layout?
                   </label>
                   <ToggleSwitch
@@ -1752,7 +1751,6 @@ const UpdateTicketDetails = () => {
                     onChange={() => setHasSeatingLayout(!hasSeatingLayout)}
                   />
                 </div>
-                )}
                 {hasSeatingLayout && (
                   <div className="animate-fade-in space-y-6" ref={(el) => (errorFieldRefs.current.seatingLayoutFile = el)}>
                     {/* Upload Section */}

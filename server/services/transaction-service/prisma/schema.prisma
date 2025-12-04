@@ -5,7 +5,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // Bookings Table
@@ -53,13 +52,15 @@ model Booking {
   verifiedAt      DateTime? @map("verified_at") @db.Timestamp(6)
   verifiedBy      String?  @map("verified_by") @db.VarChar(50)
   
-  // Cancellation
+  // Cancellation & Refund
   cancellationCount Int      @default(0) @map("cancellation_count")
   cancellationReason String? @map("cancellation_reason") @db.Text
   cancelledAt     DateTime? @map("cancelled_at") @db.Timestamp(6)
   refundAmount    Decimal?  @map("refund_amount") @db.Decimal(10, 2)
   refundStatus    RefundStatus? @map("refund_status")
   refundProcessedAt DateTime? @map("refund_processed_at") @db.Timestamp(6)
+  refundId        String?   @map("refund_id") @db.VarChar(100)
+  refundInitiatedAt DateTime? @map("refund_initiated_at") @db.Timestamp(6)
   
   // Timestamps
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
@@ -116,6 +117,7 @@ model PaymentTransaction {
   vpa             String?  @db.VarChar(100)
   email           String?  @db.VarChar(255)
   contact         String?  @db.VarChar(20)
+  refundId        String?  @map("refund_id") @db.VarChar(100)
   
   // Webhook Data
   webhookData     Json?    @map("webhook_data") @db.Json
@@ -136,6 +138,7 @@ model PaymentTransaction {
   @@index([razorpayPaymentId], map: "idx_payment_transactions_payment")
   @@map("payment_transactions")
 }
+
 model Settlement {
   id                 String   @id @default(uuid()) @db.Uuid
   bookingId          String   @map("booking_id") @db.Uuid
@@ -159,6 +162,7 @@ enum SettlementStatus {
   COMPLETED
   FAILED
 }
+
 // Enums
 enum PaymentStatus {
   PENDING

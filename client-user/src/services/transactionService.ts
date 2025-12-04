@@ -55,13 +55,11 @@ export interface CreateBookingResponse {
     razorpayKeyId: string;
   };
 }
-
 export interface VerifyPaymentRequest {
   razorpayOrderId: string;
   razorpayPaymentId: string;
   razorpaySignature: string;
 }
-
 export interface Booking {
   id: string;
   bookingId: string;
@@ -85,6 +83,13 @@ export interface Booking {
   isVerified: boolean;
   createdAt: string;
   updatedAt: string;
+  refundAmount?: number; 
+  refundStatus?: string; 
+  refundProcessedAt?: string;
+  refundId?: string; 
+  refundInitiatedAt?: string; 
+  cancelledAt?: string; 
+  cancellationReason?: string; 
 }
 export const registerFreeEvent = async (ticketId: string, quantity: number) => {
   const response = await transactionApi.post('/bookings/register-free', {
@@ -209,18 +214,20 @@ export const submitFeedback = async (ticketId: string, rating: number, comment: 
   });
   return response.data;
 };
-
 export const getUserLikedEvents = async (params?: { limit?: number; skip?: number }) => {
   const response = await transactionApi.get('/interactions/liked-events', { params });
   return response.data;
 };
-
 export const getUserSavedEvents = async (params?: { limit?: number; skip?: number }) => {
   const response = await transactionApi.get('/interactions/saved-events', { params });
   return response.data;
 };
 export const checkUserBooking = async (ticketId: string) => {
   const response = await transactionApi.get(`/bookings/check-booking/${ticketId}`);
+  return response.data;
+};
+export const trackRefund = async (bookingId: string) => {
+  const response = await transactionApi.get(`/bookings/${bookingId}/refund/track`);
   return response.data;
 };
 export default transactionApi;

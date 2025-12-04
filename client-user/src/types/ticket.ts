@@ -495,6 +495,20 @@ export const EVENT_CATEGORIES = [
   'Education & Learning',
 
 ] as const;
+export interface RefundTransaction {
+  id: string;
+  amount: number;
+  status: string;
+  method: string;
+  refundId?: string;
+  webhookData?: any;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface RefundDetails {
+  booking: any;
+  refundTransactions: RefundTransaction[];
+}
 export type EventCategory = typeof EVENT_CATEGORIES[number];
 export type EventSortBy = 'distance' | 'date' | 'price' | 'popularity';
 export type SortOrder = 'asc' | 'desc';
