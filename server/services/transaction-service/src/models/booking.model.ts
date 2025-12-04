@@ -1,7 +1,6 @@
 import { prisma } from '../config/db';
 import { Booking, BookingStatus, PaymentStatus } from '../generated/prisma';
-import { Decimal } from '@prisma/client/runtime/library';
-
+import { Decimal } from '../generated/prisma/runtime/library';
 export interface CreateBookingData {
   bookingId: string;
   userId: string;
@@ -38,7 +37,6 @@ export interface CreateBookingData {
   paymentStatus?: PaymentStatus;
   bookingStatus?: BookingStatus;
 }
-
 export interface UpdateBookingData {
   paymentStatus?: PaymentStatus;
   bookingStatus?: BookingStatus;
@@ -53,9 +51,11 @@ export interface UpdateBookingData {
   cancellationCount?: number;
   cancellationReason?: string;
   cancelledAt?: Date;
-  refundAmount?: number | Decimal; // Accept both number and Decimal
+  refundAmount?: number | Decimal;
   refundStatus?: string;
   refundProcessedAt?: Date;
+  refundId?: string; 
+  refundInitiatedAt?: Date; 
 }
 export class BookingModel {
   static async create(data: CreateBookingData): Promise<Booking> {
@@ -339,6 +339,27 @@ export class BookingModel {
       },
     });
   }
+  static async getRefundDetails(id: string): Promise<{
+    booking: Booking | null;
+    refundTransactions: any[];
+  }> {
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      include: {
+        paymentTransactions: {
+          where: {
+            method: 'refund'
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        }
+      }
+    });
+    return {
+      booking,
+      refundTransactions: booking?.paymentTransactions || []
+    };
+  }
 }
-
 export default BookingModel;
