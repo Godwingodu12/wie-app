@@ -73,6 +73,7 @@ const UpdateTicketAddOns = () => {
     message: "",
   });
   const [errors, setErrors] = useState({});
+  const errorFieldRefs = useRef({});
 
   // --- State for Banking Details ---
   const [useGroupBankAccount, setUseGroupBankAccount] = useState(false);
@@ -99,6 +100,25 @@ const UpdateTicketAddOns = () => {
     POC_email: "",
     POC_contact: "",
   });
+  const scrollAndAlert = (newErrors) => {
+    const firstErrorField = Object.keys(newErrors)[0];
+    const firstErrorMessage = newErrors[firstErrorField];
+
+    showAlert({
+      type: "error",
+      message: "Validation Failed",
+      description: firstErrorMessage,
+    });
+
+    if (firstErrorField && errorFieldRefs.current[firstErrorField]) {
+      setTimeout(() => {
+        const element = errorFieldRefs.current[firstErrorField];
+        if (element && element.scrollIntoView) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 50);
+    }
+  };
   const rulesEditorRef = useRef(null);
   const descriptionEditorRef = useRef(null);
   const INITIAL_MAP_LOCATION = {
@@ -122,7 +142,7 @@ const UpdateTicketAddOns = () => {
     event_language: [],
     min_age_allowed: "",
     max_age_allowed: "",
-    seating_arrangement: "none",
+    seating_arrangement: "",
     kids_friendly: false,
     pet_friendly: false,
     gate_open_time: false,
@@ -566,24 +586,66 @@ const UpdateTicketAddOns = () => {
   };
 
   const handleAddPoc = () => {
+    // Reset individual POC field errors first
+    setErrors({});
+
     const trimmedName = poc.POC_name.trim();
     const trimmedEmail = poc.POC_email.trim();
     const trimmedContact = poc.POC_contact.trim();
 
-    // 1. Check for empty fields
-    if (!trimmedName || !trimmedEmail || !trimmedContact) {
+    const tempPocErrors = {};
+    let pocInputValid = true;
+    let pocAlertDescription = "";
+
+    // Regex for basic validation
+    const simpleNameRegex = /^[a-zA-Z\s]+$/;
+    const contactRegex = /^[0-9\s\+]+$/;
+
+    // 1. Check for empty fields and formatting
+    if (!trimmedName) {
+      tempPocErrors.POC_name = "Name is required.";
+      pocInputValid = false;
+      pocAlertDescription = "POC Name is required.";
+    } else if (!simpleNameRegex.test(trimmedName)) {
+      tempPocErrors.POC_name = "Name must only contain letters and spaces.";
+      pocInputValid = false;
+      pocAlertDescription = "POC Name must only contain letters and spaces.";
+    }
+
+    if (!trimmedEmail) {
+      tempPocErrors.POC_email = "Email is required.";
+      pocInputValid = false;
+      if (pocInputValid) pocAlertDescription = "POC Email is required.";
+    }
+
+    if (!trimmedContact) {
+      tempPocErrors.POC_contact = "Contact Number is required.";
+      pocInputValid = false;
+      if (pocInputValid)
+        pocAlertDescription = "POC Contact Number is required.";
+    } else if (!contactRegex.test(trimmedContact)) {
+      tempPocErrors.POC_contact =
+        'Contact must only contain numbers, spaces, or "+".';
+      pocInputValid = false;
+      if (pocInputValid)
+        pocAlertDescription =
+          'POC Contact must only contain numbers, spaces, or "+".';
+    }
+
+    if (!pocInputValid) {
       showAlert({
         type: "error",
-        message: "Missing Fields",
+        message: "Invalid POC Details",
         description:
-          "Please fill in all Point of Contact fields: Name, Email, and Contact Number.",
+          pocAlertDescription || "Please correct the highlighted POC fields.",
       });
+      setErrors((prev) => ({ ...prev, ...tempPocErrors }));
       return;
     }
 
     // 2. Check for duplicate email
     const isDuplicateEmail = formData.POCS.some(
-      (p) => p.POC_email === trimmedEmail
+      (p) => p.POC_email.toLowerCase() === trimmedEmail.toLowerCase()
     );
     if (isDuplicateEmail) {
       showAlert({
@@ -592,31 +654,35 @@ const UpdateTicketAddOns = () => {
         description:
           "This email address is already in use by another POC. Please use a different email.",
       });
-      return; // Exit if email is a duplicate
+      tempPocErrors.POC_email = "Email already added.";
+      setErrors((prev) => ({ ...prev, ...tempPocErrors }));
+      return;
     }
 
     // 3. Check for duplicate contact number
     const isDuplicateContact = formData.POCS.some(
-      (p) => p.POC_contact === trimmedContact
+      (p) =>
+        p.POC_contact.replace(/\s/g, "") === trimmedContact.replace(/\s/g, "")
     );
     if (isDuplicateContact) {
       showAlert({
         type: "error",
-        message: "Duplicate POC contact number",
+        message: "Duplicate POC Contact",
         description:
-          "This contact number is already in use by another POC. Please use a different email.",
+          "This contact number is already in use by another POC. Please use a different number.",
       });
-      return; // Exit if contact is a duplicate
+      tempPocErrors.POC_contact = "Contact number already added.";
+      setErrors((prev) => ({ ...prev, ...tempPocErrors }));
+      return;
     }
 
-    // If all checks pass, add the new POC
     const newPoc = {
       POC_name: trimmedName,
       POC_email: trimmedEmail,
       POC_contact: trimmedContact,
     };
     setFormData((prev) => ({ ...prev, POCS: [...prev.POCS, newPoc] }));
-    setPoc({ POC_name: "", POC_email: "", POC_contact: "" }); // Reset form
+    setPoc({ POC_name: "", POC_email: "", POC_contact: "" });
   };
 
   const handleRemovePoc = (indexToRemove) => {
@@ -718,7 +784,19 @@ const UpdateTicketAddOns = () => {
     });
   };
   const validateForm = () => {
+    setErrors({});
+    hideAlert();
     const newErrors = {};
+    let isFormValid = true;
+
+    const addError = (field, message) => {
+      if (isFormValid) {
+        newErrors[field] = message;
+        isFormValid = false;
+      } else {
+        newErrors[field] = message;
+      }
+    };
     const parseDate = (dateString) => {
       if (!dateString || typeof dateString !== "string") return null;
       const parts = dateString.split("-");
@@ -736,16 +814,56 @@ const UpdateTicketAddOns = () => {
         year: "numeric",
       });
     };
+    const simpleNameRegex = /^[a-zA-Z\s.,\-\/\(\)&']+$/;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (!formData.event_name.trim())
-      newErrors.event_name = "Event name is required.";
+      addError("event_name", "Event name is required.");
+    else if (!simpleNameRegex.test(formData.event_name.trim()))
+      addError("event_name", "Event name contains invalid characters.");
+
     if (!formData.event_category)
-      newErrors.event_category = "Event category is required.";
+      addError("event_category", "Event category is required.");
+
     if (!formData.event_subcategory)
-      newErrors.event_subcategory = "Event subcategory is required.";
+      addError("event_subcategory", "Event subcategory is required.");
+
     if (formData.event_dates.length === 0)
-      newErrors.event_dates = "At least one event date is required.";
+      addError("event_dates", "At least one event date is required.");
+    if (formData.event_language.length === 0)
+      addError("event_language", "At least one event language is required.");
+
+
+
+    if (!descriptionEditorRef.current?.innerText?.trim())
+      addError("event_description", "Event description is required.");
+    if (!formData.POCS || formData.POCS.length === 0)
+      addError("POCS", "At least one Point of Contact (POC) must be added.");
+if (!formData.event_banner && !previews.event_banner) {
+    addError("event_banner", "Event Banner image is required.");
+}
+
+if (formData.hashtag && formData.hashtag.length > 0) {
+    const hasEmptyTag = formData.hashtag.some(
+        (tag) => !tag || tag.trim() === ""
+    );
+
+    if (hasEmptyTag) {
+        addError(
+            "hashtag",
+            "Hashtags cannot be empty. Please remove any blank tags."
+        );
+    }
+
+    const validHashtagRegex = /^#[a-zA-Z0-9_]{1,50}$/;
+    const hasInvalidFormat = formData.hashtag.some(
+        (tag) => !validHashtagRegex.test(tag)
+    );
+    if (hasInvalidFormat) {
+        addError("hashtag", "Hashtags must start with '#' and contain only letters, numbers, and underscores (e.g., #MyEvent_2025).");
+    }
+}
     if (
       mainEventStartDate &&
       mainEventEndDate &&
@@ -755,63 +873,129 @@ const UpdateTicketAddOns = () => {
       const mainEnd = parseDate(mainEventEndDate);
       if (mainStart) mainStart.setHours(0, 0, 0, 0);
       if (mainEnd) mainEnd.setHours(23, 59, 59, 999);
+
       for (const subEventDate of formData.event_dates) {
         const subDate = parseDate(subEventDate.date);
         if (subDate) subDate.setHours(0, 0, 0, 0);
+
         if (subDate < mainStart || subDate > mainEnd) {
-          newErrors.event_dates = `The date ${formatAlertDate(
-            subDate
-          )} is outside the main event's range of ${formatAlertDate(
-            mainStart
-          )} to ${formatAlertDate(mainEnd)}.`;
+          addError(
+            "event_dates",
+            `The date ${formatAlertDate(
+              subDate
+            )} is outside the main event's range of ${formatAlertDate(
+              mainStart
+            )} to ${formatAlertDate(mainEnd)}.`
+          );
           break;
         }
       }
     }
     if (formData.location_type === "offline") {
       if (!formData.location.trim())
-        newErrors.location = "Location is required.";
-      if (!formData.venue.trim()) newErrors.venue = "Venue is required.";
-      if (!formData.seating_arrangement)
-        newErrors.seating_arrangement = "Seating arrangement is required.";
-    } else {
+        addError("location", "Location is required for offline events.");
+      if (!formData.venue.trim())
+        addError("venue", "Venue is required for offline events.");
+      else if (!simpleNameRegex.test(formData.venue.trim()))
+        addError("venue", "Venue contains invalid characters.");
+      if (!formData.seating_arrangement) {
+        addError(
+          "seating_arrangement",
+          "Seating arrangement is required for offline events."
+        );
+      }
+      console.log(formData.seating_arrangement)
       if (!formData.total_capacity)
-        newErrors.total_capacity = "Maximum capacity is required.";
+        addError(
+          "total_capacity",
+          "Maximum capacity is required for offline events."
+        );
+    } else {
+      if (!formData.total_capacity || isNaN(parseInt(formData.total_capacity)))
+        addError(
+          "total_capacity",
+          "Maximum capacity is required for online/recorded events."
+        );
     }
+
+    const minAge = parseInt(formData.min_age_allowed, 10);
+    const maxAge = formData.max_age_allowed
+      ? parseInt(formData.max_age_allowed, 10)
+      : null;
+
+    if (!formData.min_age_allowed || isNaN(minAge) || minAge < 1) {
+      addError(
+        "min_age_allowed",
+        "Minimum age for entry is required and must be 1 or greater."
+      );
+    } else if (maxAge !== null && maxAge < minAge) {
+      addError(
+        "max_age_allowed",
+        "Maximum age cannot be less than the minimum age."
+      );
+      addError(
+        "min_age_allowed",
+        "Minimum age cannot be greater than the maximum age."
+      ); // Add error to min field too
+    }
+    if (formData.booking_start_date) {
+      const startBooking = parseDate(formData.booking_start_date);
+
+      if (
+        startBooking &&
+        startBooking < new Date(new Date().setHours(0, 0, 0, 0))
+      ) {
+        addError(
+          "booking_start_date",
+          "Booking start date cannot be in the past."
+        );
+      }
+    }
+
     if (formData.payment_type) {
       if (!formData.booking_start_date)
-        newErrors.booking_start_date = "Booking start date is required.";
+        addError("booking_start_date", "Booking start date is required.");
+
       if (!formData.booking_end_date)
-        newErrors.booking_end_date = "Booking end date is required.";
-      if (
-        formData.booking_start_date &&
-        formData.booking_end_date &&
-        formData.event_dates.length > 0
-      ) {
-        const sortedSubEventDates = [...formData.event_dates].sort(
-          (a, b) =>
-            new Date(b.endDate || b.date) - new Date(a.endDate || a.date)
-        );
-        const latestSubEventEndDateString =
-          sortedSubEventDates[0].endDate || sortedSubEventDates[0].date;
+        addError("booking_end_date", "Booking end date is required.");
+
+      if (formData.booking_start_date && formData.booking_end_date) {
         const startBooking = parseDate(formData.booking_start_date);
         const endBooking = parseDate(formData.booking_end_date);
-        const latestSubEventEndDate = parseDate(latestSubEventEndDateString);
-        if (latestSubEventEndDate) {
-          latestSubEventEndDate.setHours(23, 59, 59, 999);
+
+        if (endBooking && startBooking && endBooking < startBooking) {
+          addError(
+            "booking_end_date",
+            "Booking end date cannot be before the start date."
+          );
         }
-        if (startBooking && endBooking && endBooking < startBooking) {
-          newErrors.booking_end_date =
-            "Booking end date cannot be before the start date.";
-        }
-        if (
-          latestSubEventEndDate &&
-          endBooking &&
-          endBooking > latestSubEventEndDate
-        ) {
-          newErrors.booking_end_date = `Booking must end on or before the sub-event ends on ${formatAlertDate(
-            latestSubEventEndDate
-          )}.`;
+
+        // Check booking end date against latest sub-event end date
+        if (formData.event_dates.length > 0) {
+          const sortedSubEventDates = [...formData.event_dates].sort(
+            (a, b) =>
+              new Date(b.endDate || b.date) - new Date(a.endDate || a.date)
+          );
+          const latestSubEventEndDateString =
+            sortedSubEventDates[0].endDate || sortedSubEventDates[0].date;
+          const latestSubEventEndDate = parseDate(latestSubEventEndDateString);
+
+          if (latestSubEventEndDate) {
+            latestSubEventEndDate.setHours(23, 59, 59, 999);
+          }
+
+          if (
+            latestSubEventEndDate &&
+            endBooking &&
+            endBooking > latestSubEventEndDate
+          ) {
+            addError(
+              "booking_end_date",
+              `Booking must end on or before the sub-event ends on ${formatAlertDate(
+                latestSubEventEndDate
+              )}.`
+            );
+          }
         }
       }
     }
@@ -821,7 +1005,7 @@ const UpdateTicketAddOns = () => {
       formData.event_youtube_link &&
       !youtubeRegex.test(formData.event_youtube_link)
     ) {
-      newErrors.event_youtube_link = "Invalid YouTube URL format.";
+      addError("event_youtube_link", "Invalid YouTube URL format.");
     }
     const instagramRegex =
       /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
@@ -829,15 +1013,33 @@ const UpdateTicketAddOns = () => {
       formData.event_instagram_link &&
       !instagramRegex.test(formData.event_instagram_link)
     ) {
-      newErrors.event_instagram_link = "Invalid Instagram URL format.";
+      addError("event_instagram_link", "Invalid Instagram URL format.");
     }
-    setErrors(newErrors);
+    if (formData.payment_type === "paid" && !useGroupBankAccount) {
+      const bankDetail = formData.banking_details?.[0] || {};
+
+      if (!bankDetail.bank_acc_type)
+        addError(
+          "bank_acc_type",
+          "Bank account type is required for paid events."
+        );
+
+      if (!bankDetail.bank_acc_holder?.trim())
+        addError(
+          "bank_acc_holder",
+          "Account holder name is required for paid events."
+        );
+
+      if (!bankDetail.bank_acc_no?.trim())
+        addError("bank_acc_no", "Account number is required for paid events.");
+
+      if (!bankDetail.bank_ifsc?.trim())
+        addError("bank_ifsc", "IFSC code is required for paid events.");
+    }
+
     if (Object.keys(newErrors).length > 0) {
-      showAlert({
-        type: "error",
-        message: "Validation Failed",
-        description: Object.values(newErrors)[0],
-      });
+      setErrors(newErrors);
+      scrollAndAlert(newErrors);
       return false;
     }
 
@@ -1198,70 +1400,74 @@ const UpdateTicketAddOns = () => {
       saveFormDataToStorage(formData);
     }
   }, [formData, pageLoading, isEditMode]);
-useEffect(() => {
-  const callbackName = "initMapCallbackAddOns";
-  const scriptId = "google-maps-script";
+  useEffect(() => {
+    const callbackName = "initMapCallbackAddOns";
+    const scriptId = "google-maps-script";
 
-  // Set up callback FIRST, before any script checks
-  window[callbackName] = () => {
+    // Set up callback FIRST, before any script checks
+    window[callbackName] = () => {
+      if (window.google && window.google.maps && window.google.maps.places) {
+        setIsApiReady(true);
+      }
+    };
+
+    // Check if already loaded
     if (window.google && window.google.maps && window.google.maps.places) {
       setIsApiReady(true);
+      return () => {
+        delete window[callbackName];
+      };
     }
-  };
 
-  // Check if already loaded
-  if (window.google && window.google.maps && window.google.maps.places) {
-    setIsApiReady(true);
-    return () => {
+    // Check if script already exists
+    const existingScript = document.getElementById(scriptId);
+    if (existingScript) {
+      // Script exists, wait for it to load
+      if (window.google && window.google.maps && window.google.maps.places) {
+        setIsApiReady(true);
+      } else {
+        // Set up a listener for when it loads
+        const checkInterval = setInterval(() => {
+          if (
+            window.google &&
+            window.google.maps &&
+            window.google.maps.places
+          ) {
+            setIsApiReady(true);
+            clearInterval(checkInterval);
+          }
+        }, 100);
+
+        // Clear interval after 10 seconds to prevent infinite checking
+        setTimeout(() => clearInterval(checkInterval), 10000);
+      }
+
+      return () => {
+        delete window[callbackName];
+      };
+    }
+
+    // Create and load script
+    const script = document.createElement("script");
+    script.id = scriptId;
+    const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
+    script.async = true;
+    script.defer = true;
+
+    script.onerror = () => {
+      console.error("Failed to load Google Maps script");
+      setIsApiReady(false);
       delete window[callbackName];
     };
-  }
 
-  // Check if script already exists
-  const existingScript = document.getElementById(scriptId);
-  if (existingScript) {
-    // Script exists, wait for it to load
-    if (window.google && window.google.maps && window.google.maps.places) {
-      setIsApiReady(true);
-    } else {
-      // Set up a listener for when it loads
-      const checkInterval = setInterval(() => {
-        if (window.google && window.google.maps && window.google.maps.places) {
-          setIsApiReady(true);
-          clearInterval(checkInterval);
-        }
-      }, 100);
-      
-      // Clear interval after 10 seconds to prevent infinite checking
-      setTimeout(() => clearInterval(checkInterval), 10000);
-    }
-    
+    document.head.appendChild(script);
+
     return () => {
+      // Cleanup: remove callback
       delete window[callbackName];
     };
-  }
-
-  // Create and load script
-  const script = document.createElement("script");
-  script.id = scriptId;
-  const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
-  script.async = true;
-  script.defer = true;
-
-  script.onerror = () => {
-    console.error("Failed to load Google Maps script");
-    setIsApiReady(false);
-    delete window[callbackName];
-  };
-
-  document.head.appendChild(script);
-
-  return () => {
-    // Cleanup: remove callback
-    delete window[callbackName];
-  };
-}, []);
+  }, []);
   useEffect(() => {
     setDataLoaded(true);
   }, []);
@@ -1283,7 +1489,10 @@ useEffect(() => {
       }
 
       // Check if places library is loaded
-      if (!window.google.maps.places || !window.google.maps.places.Autocomplete) {
+      if (
+        !window.google.maps.places ||
+        !window.google.maps.places.Autocomplete
+      ) {
         console.error("Google Maps Places library not loaded yet");
         return;
       }
@@ -1345,20 +1554,21 @@ useEffect(() => {
       });
       // Autocomplete setup with comprehensive null checks
       if (
-        autocompleteRef.current && 
-        window.google && 
-        window.google.maps && 
-        window.google.maps.places && 
+        autocompleteRef.current &&
+        window.google &&
+        window.google.maps &&
+        window.google.maps.places &&
         window.google.maps.places.Autocomplete
       ) {
         try {
-          const autocompleteInstance = new window.google.maps.places.Autocomplete(
-            autocompleteRef.current,
-            {
-              fields: ["geometry", "name", "formatted_address"],
-              types: ["establishment", "geocode"],
-            }
-          );
+          const autocompleteInstance =
+            new window.google.maps.places.Autocomplete(
+              autocompleteRef.current,
+              {
+                fields: ["geometry", "name", "formatted_address"],
+                types: ["establishment", "geocode"],
+              }
+            );
           autocompleteInstance.addListener("place_changed", () => {
             const place = autocompleteInstance.getPlace();
             if (!place.geometry?.location) return;
@@ -1840,7 +2050,7 @@ useEffect(() => {
             : [],
           min_age_allowed: subEvent.min_age_allowed || "",
           max_age_allowed: subEvent.max_age_allowed || "",
-          seating_arrangement: subEvent.seating_arrangement || "none",
+          seating_arrangement: subEvent.seating_arrangement || "",
           kids_friendly: subEvent.kids_friendly || false,
           pet_friendly: subEvent.pet_friendly || false,
           event_instagram_link: subEvent.event_instagram_link || "",
@@ -1885,28 +2095,28 @@ useEffect(() => {
             address: INITIAL_MAP_LOCATION.address,
           },
         }));
-       // Set previews - ensuring proper format
+        // Set previews - ensuring proper format
         setPreviews((prev) => ({
           ...prev,
           event_banner: subEvent.event_banner
             ? {
                 data: getTicketImageUrl(String(subEvent.event_banner)),
-                name: 'event_banner.jpg',
-                type: 'image'
+                name: "event_banner.jpg",
+                type: "image",
               }
             : null,
           event_logo: subEvent.event_logo
             ? {
                 data: getTicketImageUrl(String(subEvent.event_logo)),
-                name: 'event_logo.jpg',
-                type: 'image'
+                name: "event_logo.jpg",
+                type: "image",
               }
             : null,
           ticket_layout: subEvent.ticket_layout
             ? {
                 data: getTicketImageUrl(String(subEvent.ticket_layout)),
-                name: 'ticket_layout.jpg',
-                type: 'image'
+                name: "ticket_layout.jpg",
+                type: "image",
               }
             : null,
         }));
@@ -2238,11 +2448,14 @@ useEffect(() => {
                       required
                       darkMode={darkMode}
                       error={errors.event_name}
+                      ref={(el) => (errorFieldRefs.current.event_name = el)}
                     />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
+                    <div
+                      ref={(el) => (errorFieldRefs.current.event_category = el)}
+                    >
                       <label
                         htmlFor="event_category"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -2262,8 +2475,17 @@ useEffect(() => {
                           styles={CustomSelectStyles(darkMode, errors)}
                         />
                       </div>
+                      {errors.event_category && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {errors.event_category}
+                        </p>
+                      )}
                     </div>
-                    <div>
+                    <div
+                      ref={(el) =>
+                        (errorFieldRefs.current.event_subcategory = el)
+                      }
+                    >
                       <label
                         htmlFor="event_subcategory"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -2290,6 +2512,11 @@ useEffect(() => {
                         styles={CustomSelectStyles(darkMode, errors)}
                         isDisabled={!formData.event_category}
                       />
+                      {errors.event_subcategory && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {errors.event_subcategory}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -2470,7 +2697,9 @@ useEffect(() => {
                 {/* --- MORE DETAILS SECTION --- */}
                 <div className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
+                    <div
+                      ref={(el) => (errorFieldRefs.current.event_language = el)}
+                    >
                       <label
                         htmlFor="event_language"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -2489,9 +2718,15 @@ useEffect(() => {
                           )}
                           onChange={handleLanguageChange} // Use the new handler
                           placeholder="Select language(s)"
-                          styles={CustomSelectStyles(darkMode)}
+                          styles={CustomSelectStyles(darkMode, errors)}
                           classNamePrefix="react-select"
                         />
+
+                        {errors.event_language && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {errors.event_language}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <FormInput
@@ -2520,7 +2755,12 @@ useEffect(() => {
                   />
 
                   {formData.location_type === "offline" && (
-                    <div className="animate-fade-in">
+                    <div
+                      className="animate-fade-in"
+                      ref={(el) =>
+                        (errorFieldRefs.current.seating_arrangement = el)
+                      }
+                    >
                       <label
                         htmlFor="seating_arrangement"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -2540,6 +2780,9 @@ useEffect(() => {
                         styles={CustomSelectStyles(darkMode, errors)}
                         required={formData.location_type === "offline"}
                       />
+                      {errors.seating_arrangement && (
+    <p className="text-red-500 text-xs mt-1">{errors.seating_arrangement}</p>
+)}
                     </div>
                   )}
 
@@ -2563,6 +2806,9 @@ useEffect(() => {
                       placeholder="https://instagram.com/..."
                       error={errors.event_instagram_link}
                       darkMode={darkMode}
+                      ref={(el) =>
+                        (errorFieldRefs.current.event_instagram_link = el)
+                      }
                     />
                     <FormInput
                       label="Youtube link (Optional)"
@@ -2574,6 +2820,9 @@ useEffect(() => {
                       placeholder="https://youtube.com/..."
                       error={errors.event_youtube_link}
                       darkMode={darkMode}
+                      ref={(el) =>
+                        (errorFieldRefs.current.event_youtube_link = el)
+                      }
                     />
                   </div>
 
@@ -2591,7 +2840,10 @@ useEffect(() => {
                 </div>
 
                 {/* --- DATES AND TIMES SECTION --- */}
-                <div className="space-y-6">
+                <div
+                  className="space-y-6"
+                  ref={(el) => (errorFieldRefs.current.event_dates = el)}
+                >
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                     Dates and times
                   </h2>
@@ -2974,9 +3226,17 @@ useEffect(() => {
                       Describe your event.
                     </p>
                     <div
-                      className={`mt-4 bg-transparent border rounded-lg ${
-                        darkMode ? "border-[#4A4A4A]" : "border-black"
-                      }`}
+                      ref={(el) =>
+                        (errorFieldRefs.current.event_description = el)
+                      }
+                      className={`mt-4 bg-transparent border rounded-lg 
+                        ${
+                          errors.event_description
+                            ? "border-red-500"
+                            : darkMode
+                            ? "border-[#4A4A4A]"
+                            : "border-black"
+                        }`}
                     >
                       <div
                         className={`p-2 border-b ${
@@ -3023,18 +3283,26 @@ useEffect(() => {
                         className="w-full min-h-[120px] p-3 focus:outline-none"
                       ></div>
                     </div>
+                    {errors.event_description && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.event_description}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 {/* --- POC & MEDIA SECTION --- */}
                 <div className="space-y-12">
-                  <div>
+                  <div ref={(el) => (errorFieldRefs.current.POCS = el)}>
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Point of Contact
                     </h2>
                     <p className="text-black dark:text-gray-400 text-sm">
                       Add POCs with whom event feedback will be shared.
                     </p>
+                    {errors.POCS && (
+                      <p className="text-red-500 text-xs mt-2">{errors.POCS}</p>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
                       <FormInput
                         label="POC Name"
@@ -3044,12 +3312,14 @@ useEffect(() => {
                         placeholder="Enter the name of the person"
                         required
                         darkMode={darkMode}
+                        error={errors.POC_name}
                       />
                       <FormInput
                         label="POC Email"
                         name="POC_email"
                         type="email"
                         value={poc.POC_email}
+                        error={errors.POC_email}
                         onChange={handlePocChange}
                         placeholder="Enter the email ID"
                         required
@@ -3063,6 +3333,7 @@ useEffect(() => {
                         type="tel"
                         value={poc.POC_contact}
                         onChange={handlePocChange}
+                        error={errors.POC_contact}
                         placeholder="Enter contact number"
                         required
                         darkMode={darkMode}
@@ -3121,7 +3392,8 @@ useEffect(() => {
                       Event Media
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      <FileInput
+                      <div>
+                                              <FileInput
                         id="event_banner"
                         label="Event Banner"
                         info="Required. 2:1 ratio recommended."
@@ -3130,8 +3402,16 @@ useEffect(() => {
                         onRemove={removeMediaFile}
                         darkMode={darkMode}
                         acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
+                        ref={(el) => (errorFieldRefs.current.event_banner = el)}
                         maxSizeMB={50}
                       />
+                      {errors.event_banner && (
+            <p className="text-red-500 text-xs mt-1">
+                {errors.event_banner}
+            </p>
+        )}
+                      </div>
+
                       <FileInput
                         id="event_logo"
                         label="Event or Organisation Logo"
@@ -3435,6 +3715,9 @@ useEffect(() => {
                                   onChange={(e) =>
                                     handleBankingDetailChange(0, e)
                                   }
+                                  ref={(el) =>
+                                    (errorFieldRefs.current.bank_acc_type = el)
+                                  }
                                   disabled={useGroupBankAccount}
                                   className="w-full appearance-none bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -3477,6 +3760,9 @@ useEffect(() => {
                                 }
                                 onChange={(e) =>
                                   handleBankingDetailChange(0, e)
+                                }
+                                ref={(el) =>
+                                  (errorFieldRefs.current.bank_acc_holder = el)
                                 }
                                 disabled={useGroupBankAccount}
                                 placeholder="eg. John Doe"
@@ -3552,6 +3838,9 @@ useEffect(() => {
                           error={errors.booking_start_date}
                           maxDate={subEventEndDate}
                           darkMode={darkMode}
+                          ref={(el) =>
+                            (errorFieldRefs.current.booking_start_date = el)
+                          }
                         />
                         <DateInput
                           id="booking_end_date"
@@ -3563,6 +3852,9 @@ useEffect(() => {
                           darkMode={darkMode}
                           minDate={formData.booking_start_date}
                           maxDate={subEventEndDate}
+                          ref={(el) =>
+                            (errorFieldRefs.current.booking_end_date = el)
+                          }
                         />
                       </div>
                       {formData.location_type === "offline" &&

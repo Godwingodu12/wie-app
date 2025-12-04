@@ -1160,34 +1160,33 @@ const CreateTicket = () => {
       return;
     }
 
-    // Validate YouTube URL
-    const youtubeRegex =
-      /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
-    if (
-      formData.event_youtube_link &&
-      !youtubeRegex.test(formData.event_youtube_link)
-    ) {
-      addError(
-        "event_youtube_link",
-        "Please use a valid format like 'youtube.com/watch?v=VIDEO_ID'."
-      );
-    }
+const youtubeRegex =
+  /^https:\/\/www\.(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
 
-    // Validate Instagram URL
-    const instagramRegex =
-      /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
-    if (
-      formData.event_instagram_link &&
-      !instagramRegex.test(formData.event_instagram_link)
-    ) {
-      // Use an additional check here to avoid double-alerting if YouTube already failed
-      if (!firstErrorField) {
-        addError(
-          "event_instagram_link",
-          "Please enter a valid profile link, like 'instagram.com/username'."
-        );
-      }
-    }
+if (
+  formData.event_youtube_link &&
+  !youtubeRegex.test(formData.event_youtube_link)
+) {
+  addError(
+    "event_youtube_link",
+    "Please use a valid format like 'https://www.youtube.com/watch?v=VIDEO_ID'." 
+  );
+}
+
+const instagramRegex =
+  /^https:\/\/www\.instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
+
+if (
+  formData.event_instagram_link &&
+  !instagramRegex.test(formData.event_instagram_link)
+) {
+  if (!firstErrorField) {
+    addError(
+      "event_instagram_link",
+      "Please enter a valid profile link, like 'https://www.instagram.com/username'."
+    );
+  }
+}
     const currentDate = new Date();
     currentDate.setHours(0, 0, 0, 0);
     if (formData.event_dates && formData.event_dates.length > 0) {
