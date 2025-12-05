@@ -106,6 +106,7 @@ export interface SubEvent {
   booking_end_date: string;
   like: number;
   event_status: 'pending' | 'live' | 'completed' | 'cancelled';
+  seating_layout?: SeatingLayout; 
   _id: string;
   createdAt: string;
   updatedAt: string;
@@ -172,6 +173,7 @@ export interface Event {
   total_capacity?: string;
   exact_map_location?: ExactMapLocation;
   form_progress?: FormProgress;
+  seating_layout?: SeatingLayout;
   __v?: number;
 }
 export interface SearchLocation {
@@ -479,6 +481,44 @@ export interface CategoryEventsResponse {
     totalSuggestions?: number;
     suggestionRadius?: number;
   };
+}
+export interface SeatInfo {
+  seatId: string;
+  row: string;
+  column: number;
+  isAvailable: boolean;
+  isSelected: boolean;
+  ticketTypeId: string | null;
+  ticketTypeName: string | null;
+  ticketTypeColor: string | null;
+  price: number;
+}
+export interface SeatingLayout {
+  rows: string[];
+  columns: number;
+  seats: SeatInfo[];
+  ticketTypeAssignments: Array<{
+    ticketTypeId: string;
+    ticketTypeName: string;
+    color: string;
+    assignedSeats: string[];
+    capacity: number;
+    price: number; 
+  }>;
+}
+export interface CreateSeatedBookingRequest {
+  ticketId: string;
+  selectedSeats: string[];
+}
+
+export interface SeatDetail {
+  seatId: string;
+  row: string;
+  column: number;
+  ticketType: string;
+  ticketTypeId: string;
+  price: number;
+  color: string;
 }
 export const EVENT_CATEGORIES = [
   'Sports, Fitness, & Adventure',
