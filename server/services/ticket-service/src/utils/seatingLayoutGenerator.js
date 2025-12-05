@@ -45,27 +45,21 @@ export const generateSeatingLayoutFromFile = async (
     } else {
       throw new Error("Unsupported file type");
     }
-
-    // Validate extracted layout
     if (!layoutData || !layoutData.seats || layoutData.seats.length === 0) {
       throw new Error("Could not detect seating structure from the uploaded file. Please ensure seats are clearly visible as distinct shapes or symbols.");
     }
-
+    if (layoutData.seats.length > totalCapacity) {
+      layoutData.seats = layoutData.seats.slice(0, totalCapacity);
+      layoutData.totalSeats = totalCapacity;
+    }
     return layoutData;
   } catch (error) {
     throw error;
   }
 };
-
-/**
- * EXTRACT SEATS FROM IMAGE BY DETECTING VISUAL SHAPES/BLOBS
- * This detects seat positions based on visual shapes in the image
- */
 const extractSeatsFromImageVisual = async (imagePath, totalCapacity) => {
   const image = await Jimp.read(imagePath);
   const { width, height } = image.bitmap;
-
-  console.log(`📐 Image dimensions: ${width}x${height}, Target capacity: ${totalCapacity}`);
 
   // Preprocess image to enhance seat detection
   const processed = await preprocessImageForSeatDetection(image);
@@ -77,38 +71,47 @@ const extractSeatsFromImageVisual = async (imagePath, totalCapacity) => {
     throw new Error("No seats detected in the layout image. Ensure seats are visible as distinct shapes (circles, rectangles, squares, or chair symbols).");
   }
 
-  console.log(`✅ Detected ${detectedSeats.length} seat positions from layout`);
-
   // Sort seats by position (top-to-bottom, left-to-right)
   detectedSeats.sort((a, b) => {
     const yDiff = a.y - b.y;
-    if (Math.abs(yDiff) > 30) return yDiff; // Different rows
-    return a.x - b.x; // Same row, sort by x
+    if (Math.abs(yDiff) > 30) return yDiff;
+    return a.x - b.x;
   });
 
+  // STRICT CAPACITY ENFORCEMENT - Step 1: Trim before generating additional
+  let finalSeats = detectedSeats.slice(0, totalCapacity);
+  
+  // If detected seats are less than capacity, generate additional seats
+  if (finalSeats.length < totalCapacity) {
+    const additional = generateAdditionalSeatsVisual(finalSeats, totalCapacity, width, height);
+    finalSeats = [...finalSeats, ...additional];
+  }
+  finalSeats = finalSeats.slice(0, totalCapacity);
   // Assign seat IDs based on position
-  const seatsWithIds = assignSeatIds(detectedSeats);
+  const seatsWithIds = assignSeatIds(finalSeats);
+  seatsWithIds.forEach(seat => {
+    if (seat.price === undefined) {
+      seat.price = 0;
+    }
+  });
+  // STRICT CAPACITY ENFORCEMENT - Step 3: Absolute final enforcement
+  const strictlyEnforcedSeats = seatsWithIds.slice(0, totalCapacity);
 
   // Extract row labels and calculate columns
-  const rowLabels = [...new Set(seatsWithIds.map(s => s.row))].sort();
-  const maxColumns = Math.max(...seatsWithIds.map(s => s.column));
+  const rowLabels = [...new Set(strictlyEnforcedSeats.map(s => s.row))].sort();
+  const maxColumns = Math.max(...strictlyEnforcedSeats.map(s => s.column));
 
   return {
-    seats: seatsWithIds,
+    seats: strictlyEnforcedSeats,
     rows: rowLabels,
     columns: maxColumns,
-    totalSeats: seatsWithIds.length,
+    totalSeats: strictlyEnforcedSeats.length,
     layoutWidth: width,
     layoutHeight: height,
     layoutStyle: "exact_visual_extraction",
     detectionMethod: "shape_based_detection",
   };
 };
-
-/**
- * PREPROCESS IMAGE FOR SEAT SHAPE DETECTION
- * Enhance contrast and edges to make seats more detectable
- */
 const preprocessImageForSeatDetection = async (image) => {
   const processed = image.clone();
   
@@ -128,11 +131,6 @@ const preprocessImageForSeatDetection = async (image) => {
 
   return processed;
 };
-
-/**
- * DETECT SEAT SHAPES FROM PROCESSED IMAGE
- * Uses blob detection to find seat positions
- */
 const detectSeatShapes = async (image, targetCapacity) => {
   const { width, height, data } = image.bitmap;
   const seats = [];
@@ -141,12 +139,12 @@ const detectSeatShapes = async (image, targetCapacity) => {
   const threshold = 128;
   const visited = new Set();
   
-  // Blob detection parameters
-  const minBlobSize = 20; // Minimum pixels for a seat
-  const maxBlobSize = 5000; // Maximum pixels for a seat
+  // Blob detection parameters - MORE PERMISSIVE
+  const minBlobSize = 15; // Reduced from 20
+  const maxBlobSize = 8000; // Increased from 5000
   
   // Find blobs (connected components)
-  for (let y = 0; y < height; y += 2) { // Skip pixels for speed
+  for (let y = 0; y < height; y += 2) {
     for (let x = 0; x < width; x += 2) {
       const idx = (y * width + x) * 4;
       const pixelKey = `${x},${y}`;
@@ -177,24 +175,14 @@ const detectSeatShapes = async (image, targetCapacity) => {
       }
     }
   }
-
-  console.log(`🔍 Initial blob detection found ${seats.length} potential seats`);
-
   // Filter and refine seats
   let refinedSeats = filterAndRefineSeats(seats, targetCapacity);
-
-  // If we didn't get enough seats, try with relaxed parameters
-  if (refinedSeats.length < targetCapacity * 0.5) {
-    console.log('⚠️ Low detection, trying alternative method...');
+  // If we didn't get enough seats, try alternative method
+  if (refinedSeats.length < targetCapacity * 0.3) {
     refinedSeats = await detectSeatsAlternativeMethod(image, targetCapacity);
   }
-
   return refinedSeats;
 };
-
-/**
- * FLOOD FILL ALGORITHM TO DETECT BLOB EXTENT
- */
 const floodFill = (data, width, height, startX, startY, threshold, visited) => {
   const stack = [[startX, startY]];
   const blob = {
@@ -234,18 +222,11 @@ const floodFill = (data, width, height, startX, startY, threshold, visited) => {
 
   return blob;
 };
-
-/**
- * FILTER AND REFINE DETECTED SEATS
- * Remove duplicates and outliers
- */
 const filterAndRefineSeats = (seats, targetCapacity) => {
   if (seats.length === 0) return [];
-
   // Remove seats that are too close to each other (duplicates)
-  const minDistance = 20; // Minimum pixels between seat centers
+  const minDistance = 15; // Reduced from 20 for better detection
   const filtered = [];
-
   for (const seat of seats) {
     const tooClose = filtered.some(existing => {
       const distance = Math.sqrt(
@@ -258,22 +239,12 @@ const filterAndRefineSeats = (seats, targetCapacity) => {
       filtered.push(seat);
     }
   }
-
-  console.log(`✨ After filtering: ${filtered.length} unique seats`);
-
-  // If we have too many seats, keep the most confident ones
-  if (filtered.length > targetCapacity * 1.2) {
+  if (filtered.length > targetCapacity * 1.5) {
     filtered.sort((a, b) => b.confidence - a.confidence);
-    return filtered.slice(0, Math.ceil(targetCapacity * 1.1));
+    return filtered.slice(0, Math.ceil(targetCapacity * 1.2));
   }
-
   return filtered;
 };
-
-/**
- * ALTERNATIVE DETECTION METHOD - Grid-based sampling
- * Used when blob detection fails
- */
 const detectSeatsAlternativeMethod = async (image, targetCapacity) => {
   const { width, height, data } = image.bitmap;
   const seats = [];
@@ -283,8 +254,6 @@ const detectSeatsAlternativeMethod = async (image, targetCapacity) => {
   const estimatedRows = Math.round(Math.sqrt(targetCapacity / aspectRatio));
   const estimatedCols = Math.ceil(targetCapacity / estimatedRows);
 
-  console.log(`📊 Trying grid sampling: ${estimatedRows} rows × ${estimatedCols} cols`);
-
   // Sample grid to find dark regions (seats)
   const cellWidth = width / estimatedCols;
   const cellHeight = height / estimatedRows;
@@ -292,6 +261,9 @@ const detectSeatsAlternativeMethod = async (image, targetCapacity) => {
 
   for (let row = 0; row < estimatedRows; row++) {
     for (let col = 0; col < estimatedCols; col++) {
+      // Stop if we've reached target capacity
+      if (seats.length >= targetCapacity) break;
+      
       const centerX = Math.round(col * cellWidth + cellWidth / 2);
       const centerY = Math.round(row * cellHeight + cellHeight / 2);
 
@@ -322,16 +294,10 @@ const detectSeatsAlternativeMethod = async (image, targetCapacity) => {
         });
       }
     }
+    if (seats.length >= targetCapacity) break;
   }
-
-  console.log(`🎯 Grid sampling detected ${seats.length} seats`);
   return seats.slice(0, targetCapacity);
 };
-
-/**
- * ASSIGN SEAT IDs BASED ON POSITION
- * Converts x,y coordinates to Row-Column notation (A1, B2, etc.)
- */
 const assignSeatIds = (seats) => {
   if (seats.length === 0) return [];
 
@@ -396,10 +362,78 @@ const assignSeatIds = (seats) => {
 
   return result;
 };
+const generateAdditionalSeatsVisual = (existingSeats, targetCapacity, layoutWidth, layoutHeight) => {
+  const needed = targetCapacity - existingSeats.length;
+  
+  // Safety check - never generate if we already have enough or more
+  if (needed <= 0) return [];
 
-/**
- * EXTRACT SEATS FROM PDF (Visual method)
- */
+  const additional = [];
+  
+  // Calculate average seat dimensions from existing seats
+  const avgWidth = existingSeats.reduce((sum, s) => sum + (s.width || 30), 0) / existingSeats.length;
+  const avgHeight = existingSeats.reduce((sum, s) => sum + (s.height || 30), 0) / existingSeats.length;
+  
+  // Find the last row of seats
+  const maxY = Math.max(...existingSeats.map(s => s.y));
+  const lastRowSeats = existingSeats.filter(s => Math.abs(s.y - maxY) < 30);
+  
+  // Calculate spacing between seats
+  if (lastRowSeats.length > 1) {
+    lastRowSeats.sort((a, b) => a.x - b.x);
+    const avgSpacing = (lastRowSeats[lastRowSeats.length - 1].x - lastRowSeats[0].x) / (lastRowSeats.length - 1);
+    
+    // Determine seats per row based on layout width and spacing
+    const seatsPerRow = Math.floor(layoutWidth / (avgWidth + avgSpacing)) || 10;
+    const rowSpacing = avgHeight + 20; // Spacing between rows
+    
+    let currentX = lastRowSeats[lastRowSeats.length - 1].x + avgSpacing;
+    let currentY = maxY;
+    let seatsInCurrentRow = lastRowSeats.length;
+    
+    // STRICT LOOP - only generate exactly what's needed
+    for (let i = 0; i < needed && additional.length < needed; i++) {
+      // Move to next row if current row is full
+      if (seatsInCurrentRow >= seatsPerRow) {
+        currentY += rowSpacing;
+        currentX = lastRowSeats[0].x; // Start from left side
+        seatsInCurrentRow = 0;
+      }
+      
+      additional.push({
+        x: currentX,
+        y: currentY,
+        width: avgWidth,
+        height: avgHeight,
+        confidence: 0.8,
+      });
+      
+      currentX += avgSpacing;
+      seatsInCurrentRow++;
+    }
+  } else {
+    // Fallback: simple grid pattern
+    const seatsPerRow = Math.ceil(Math.sqrt(needed));
+    const spacing = Math.min(layoutWidth / (seatsPerRow + 1), 50);
+    
+    // STRICT LOOP - only generate exactly what's needed
+    for (let i = 0; i < needed && additional.length < needed; i++) {
+      const row = Math.floor(i / seatsPerRow);
+      const col = i % seatsPerRow;
+      
+      additional.push({
+        x: spacing + col * spacing,
+        y: maxY + 50 + row * spacing,
+        width: avgWidth,
+        height: avgHeight,
+        confidence: 0.7,
+      });
+    }
+  }
+  
+  // FINAL SAFETY - ensure we never return more than needed
+  return additional.slice(0, needed);
+};
 const extractSeatsFromPDFVisual = async (pdfPath, totalCapacity) => {
   // For PDF visual extraction, you'd need to convert PDF to image first
   // This requires additional libraries like pdf-poppler or pdf2pic
@@ -444,15 +478,14 @@ const extractLayoutFromPDF = async (pdfPath, totalCapacity) => {
   if (seats.length < totalCapacity) {
     seats.push(...generateAdditionalSeats(seats, totalCapacity));
   }
-
   const rowLabels = [...new Set(seats.map(s => s.row))].sort();
   const maxColumns = Math.max(...seats.map(s => s.column));
-
+  const finalSeats = seats.slice(0, totalCapacity);
   return {
-    seats: seats.slice(0, totalCapacity),
+    seats: finalSeats,
     rows: rowLabels,
     columns: maxColumns,
-    totalSeats: Math.min(seats.length, totalCapacity),
+    totalSeats: finalSeats.length, 
     layoutWidth: null,
     layoutHeight: null,
     layoutStyle: "text_extraction",
@@ -496,15 +529,15 @@ const extractLayoutFromDocument = async (docPath, totalCapacity) => {
   if (seats.length < totalCapacity) {
     seats.push(...generateAdditionalSeats(seats, totalCapacity));
   }
-
   const rowLabels = [...new Set(seats.map(s => s.row))].sort();
   const maxColumns = Math.max(...seats.map(s => s.column));
-
+  // STRICT capacity enforcement
+  const finalSeats = seats.slice(0, totalCapacity);
   return {
-    seats: seats.slice(0, totalCapacity),
+    seats: finalSeats,
     rows: rowLabels,
     columns: maxColumns,
-    totalSeats: Math.min(seats.length, totalCapacity),
+    totalSeats: finalSeats.length, // Use finalSeats.length
     layoutWidth: null,
     layoutHeight: null,
     layoutStyle: "text_extraction",
