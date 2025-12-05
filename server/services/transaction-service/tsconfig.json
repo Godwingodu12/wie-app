@@ -4,6 +4,7 @@
     "module": "ESNext",
     "lib": ["ES2020"],
     "outDir": "./dist",
+    "rootDir": "./src",
     "moduleResolution": "node",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
@@ -15,8 +16,11 @@
     "declarationMap": true,
     "sourceMap": true,
     "incremental": true,
-    "types": ["node"]
+
+    /** FIX HERE **/
+    "types": ["node"],
+    "typeRoots": ["./node_modules/@types"]
   },
-  "include": ["src/**/*", "prisma.config.ts"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist"]
 }
