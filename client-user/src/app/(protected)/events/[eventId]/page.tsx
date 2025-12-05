@@ -234,17 +234,29 @@ export default function EventDetailPage() {
       setLoading(false);
     }
   };
-  const handleBookEvent = () => {
-      if (event?.payment_type === 'free') {
-        handleFreeRegistration();
-      } else {
-        if (!event?.ticket_types || event.ticket_types.length === 0) {
-          alert('No tickets available for this event');
-          return;
-        }
-        setShowBookingModal(true);
-      }
-  };
+const handleBookEvent = () => {
+  // Check if event has seating layout
+  const hasSeatingLayout = event && 
+    event.seating_layout && 
+    event.seating_layout.seats && 
+    event.seating_layout.seats.length > 0;
+
+  if (hasSeatingLayout) {
+    // Redirect to seating selection page
+    router.push(`/events/${eventId}/seating`);
+    return;
+  }
+
+  if (event?.payment_type === 'free') {
+    handleFreeRegistration();
+  } else {
+    if (!event?.ticket_types || event.ticket_types.length === 0) {
+      alert('No tickets available for this event');
+      return;
+    }
+    setShowBookingModal(true);
+  }
+};
   const handleFreeRegistration = async () => {
     setIsBooking(true);
     try {
