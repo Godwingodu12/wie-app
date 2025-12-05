@@ -28,21 +28,21 @@ export const getLiveEvents = async (): Promise<LiveEventsResponse> => {
     throw err;
   }
 };
-export const getActiveGroups = async (): Promise<ActiveGroupsResponse> => {
-  try {
-    const res = await api.get('/tickets/active-groups');
-    return res.data;
-  } catch (err) {
-    console.error('❌ getActiveGroups error:', err);
-    throw err;
-  }
-};
 export const getEventById = async (ticketId: string): Promise<EventDetailResponse> => {
   try {
     const res = await api.get(`/tickets/event/${ticketId}`);
     return res.data;
   } catch (err) {
     console.error('❌ getEventById error:', err);
+    throw err;
+  }
+};
+export const getActiveGroups = async (): Promise<ActiveGroupsResponse> => {
+  try {
+    const res = await api.get('/tickets/active-groups');
+    return res.data;
+  } catch (err) {
+    console.error('❌ getActiveGroups error:', err);
     throw err;
   }
 };
