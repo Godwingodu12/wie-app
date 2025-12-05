@@ -170,10 +170,10 @@ const SeatAssignmentModal = ({
     const currentAssignment = getAssignedTypeIdForSeat(seat.seatId);
     if (selectionMode === 'single') {
       const newAssignments = { ...assignments };
-      // If clicking a seat already assigned to THIS type -> unassign it
       if (currentAssignment === selectedTicketType) {
         newAssignments[selectedTicketType] = (newAssignments[selectedTicketType] || []).filter(id => id !== seat.seatId);
         if (newAssignments[selectedTicketType].length === 0) delete newAssignments[selectedTicketType];
+        console.log('❌ Unassigned seat:', seat.seatId);
         setAssignments({ ...newAssignments });
         setErrors({});
         return;
@@ -183,6 +183,10 @@ const SeatAssignmentModal = ({
         setErrors({ general: 'Seat already assigned. Remove from other ticket type first.' });
         return;
       }
+      // Get the ticket object to extract price
+      const ticket = ticketTypes.find(t => t.id === selectedTicketType);
+      const ticketPrice = ticket?.price || ticket?.ticket_price || 0;
+      console.log(`💰 Assigning seat ${seat.seatId} with price: ₹${ticketPrice}`);
       // check capacity
       const remaining = getRemainingCapacity(selectedTicketType);
       if (remaining <= 0) {
@@ -190,15 +194,19 @@ const SeatAssignmentModal = ({
         return;
       }
 
-      // assign
-      if (!Array.isArray(newAssignments[selectedTicketType])) newAssignments[selectedTicketType] = [];
+      // assign with color
+      if (!Array.isArray(newAssignments[selectedTicketType])) {
+        newAssignments[selectedTicketType] = [];
+      }
       newAssignments[selectedTicketType].push(seat.seatId);
+      
+      console.log('✅ Assigned seat:', seat.seatId, 'to', selectedTicketType);
+      console.log('Color:', getTicketTypeColorLocal(selectedTicketType));
 
       setAssignments({ ...newAssignments });
       setErrors({});
       return;
     }
-
     if (selectionMode === 'checkbox') {
       // allow toggling only if unassigned or assigned to same type
       if (currentAssignment && currentAssignment !== selectedTicketType) {
@@ -239,60 +247,67 @@ const SeatAssignmentModal = ({
       setErrors({});
     }
   };
+const applyCheckboxSelection = () => {
+  if (!selectedTicketType || selectedSeats.size === 0) return;
 
-  const applyCheckboxSelection = () => {
-    if (!selectedTicketType || selectedSeats.size === 0) return;
+  const selectedArray = Array.from(selectedSeats);
+  const remaining = getRemainingCapacity(selectedTicketType);
+  if (selectedArray.length > remaining) {
+    setErrors({ general: `Cannot assign ${selectedArray.length} seats. Only ${remaining} remaining for this ticket type.` });
+    return;
+  }
 
-    const selectedArray = Array.from(selectedSeats);
-    const remaining = getRemainingCapacity(selectedTicketType);
-    if (selectedArray.length > remaining) {
-      setErrors({ general: `Cannot assign ${selectedArray.length} seats. Only ${remaining} remaining for this ticket type.` });
-      return;
+  const newAssignments = { ...assignments };
+  if (!Array.isArray(newAssignments[selectedTicketType])) {
+    newAssignments[selectedTicketType] = [];
+  }
+
+  selectedArray.forEach(seatId => {
+    if (!newAssignments[selectedTicketType].includes(seatId)) {
+      newAssignments[selectedTicketType].push(seatId);
     }
+  });
+  setAssignments({ ...newAssignments });
+  setSelectedSeats(new Set());
+  setErrors({});
+};
+const applyRangeSelection = () => {
+  if (!selectedTicketType || !rangeStart || !rangeEnd) return;
 
-    const newAssignments = { ...assignments };
-    if (!Array.isArray(newAssignments[selectedTicketType])) newAssignments[selectedTicketType] = [];
+  const seats = seatingLayout.seats;
+  const startIdx = seats.findIndex(s => s.seatId === rangeStart.seatId);
+  const endIdx = seats.findIndex(s => s.seatId === rangeEnd.seatId);
+  const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
 
-    selectedArray.forEach(seatId => {
-      if (!newAssignments[selectedTicketType].includes(seatId)) {
-        newAssignments[selectedTicketType].push(seatId);
-      }
-    });
+  const rangeSeats = seats.slice(from, to + 1)
+    .filter(s => !getAssignedTypeIdForSeat(s.seatId))
+    .map(s => s.seatId);
 
-    setAssignments({ ...newAssignments });
-    setSelectedSeats(new Set());
-    setErrors({});
-  };
+  const remaining = getRemainingCapacity(selectedTicketType);
+  if (rangeSeats.length > remaining) {
+    setErrors({ general: `Cannot assign ${rangeSeats.length} seats. Only ${remaining} remaining for this ticket type.` });
+    return;
+  }
 
-  const applyRangeSelection = () => {
-    if (!selectedTicketType || !rangeStart || !rangeEnd) return;
-
-    const seats = seatingLayout.seats;
-    const startIdx = seats.findIndex(s => s.seatId === rangeStart.seatId);
-    const endIdx = seats.findIndex(s => s.seatId === rangeEnd.seatId);
-    const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
-
-    const rangeSeats = seats.slice(from, to + 1)
-      .filter(s => !getAssignedTypeIdForSeat(s.seatId))
-      .map(s => s.seatId);
-
-    const remaining = getRemainingCapacity(selectedTicketType);
-    if (rangeSeats.length > remaining) {
-      setErrors({ general: `Cannot assign ${rangeSeats.length} seats. Only ${remaining} remaining for this ticket type.` });
-      return;
+  const newAssignments = { ...assignments };
+  if (!Array.isArray(newAssignments[selectedTicketType])) {
+    newAssignments[selectedTicketType] = [];
+  }
+  
+  rangeSeats.forEach(id => {
+    if (!newAssignments[selectedTicketType].includes(id)) {
+      newAssignments[selectedTicketType].push(id);
     }
+  });
 
-    const newAssignments = { ...assignments };
-    if (!Array.isArray(newAssignments[selectedTicketType])) newAssignments[selectedTicketType] = [];
-    rangeSeats.forEach(id => {
-      if (!newAssignments[selectedTicketType].includes(id)) newAssignments[selectedTicketType].push(id);
-    });
+  console.log('✅ Applied range selection with color for:', selectedTicketType);
+  console.log('Color:', getTicketTypeColorLocal(selectedTicketType));
 
-    setAssignments({ ...newAssignments });
-    setRangeStart(null);
-    setRangeEnd(null);
-    setErrors({});
-  };
+  setAssignments({ ...newAssignments });
+  setRangeStart(null);
+  setRangeEnd(null);
+  setErrors({});
+};
 
   const removeTicketTypeAssignments = (ticketTypeId) => {
     const newAssignments = { ...assignments };
@@ -568,21 +583,25 @@ const SeatAssignmentModal = ({
                                     }`}
                                     style={{
                                       backgroundColor: (() => {
-                                        // PRIORITY 1: Show assigned color (from saved data)
-                                        if (isAssigned && assignedColor) {
-                                          return assignedColor;
+                                        // PRIORITY 1: Check if seat is in current assignments state (including pending)
+                                        const assignedTypeId = getAssignedTypeIdForSeat(seat.seatId);
+                                        
+                                        if (assignedTypeId) {
+                                          const color = getTicketTypeColorLocal(assignedTypeId);
+                                          console.log(`✅ Seat ${seat.seatId} assigned to ${assignedTypeId} with color ${color}`);
+                                          return color; // Return the actual ticket type color
                                         }
                                         
-                                        // PRIORITY 2: Show selection preview colors
+                                        // PRIORITY 2: Check selection preview states
                                         if (selectedTicketType) {
                                           const previewColor = getTicketTypeColorLocal(selectedTicketType);
                                           
-                                          // Checkbox mode - show color for checked seats
+                                          // Checkbox mode - preview for checked seats
                                           if (selectionMode === 'checkbox' && isInCheckboxSelection) {
-                                            return previewColor;
+                                            return hexToRgba(previewColor, 0.7); // Semi-transparent preview
                                           }
                                           
-                                          // Range mode - show color for start/end/range
+                                          // Range mode - preview for range selection
                                           if (selectionMode === 'range') {
                                             if (isRangeStart || isRangeEnd) {
                                               return previewColor;
@@ -592,26 +611,26 @@ const SeatAssignmentModal = ({
                                             }
                                           }
                                           
-                                          // Single mode - show preview on hover
+                                          // Single mode - preview on hover
                                           if (selectionMode === 'single' && hoveredSeat?.seatId === seat.seatId) {
                                             return hexToRgba(previewColor, 0.7);
                                           }
                                         }
                                         
-                                        // DEFAULT: Gray for unassigned
-                                        return darkMode ? '#6B7280' : '#D1D5DB';
+                                        // DEFAULT: Gray only for truly unassigned seats
+                                        return darkMode ? '#4B5563' : '#D1D5DB';
                                       })(),
                                       color: '#FFFFFF',
                                       border: isRangeStart 
                                         ? '3px solid #FCD34D' 
                                         : isRangeEnd 
                                           ? '3px solid #FB923C' 
-                                          : isAssigned 
+                                          : assignedTypeId 
                                             ? '3px solid rgba(255,255,255,0.9)' 
                                             : isInCheckboxSelection 
                                               ? '2px solid rgba(255,255,255,0.6)' 
                                               : 'none',
-                                      boxShadow: (isAssigned || isInCheckboxSelection || isRangeStart || isRangeEnd) 
+                                      boxShadow: (assignedTypeId || isInCheckboxSelection || isRangeStart || isRangeEnd) 
                                         ? '0 2px 8px rgba(0,0,0,0.4)' 
                                         : 'none',
                                       opacity: 1,
@@ -619,7 +638,11 @@ const SeatAssignmentModal = ({
                                     title={
                                       isRangeStart ? `Range Start: ${seat.seatId}` :
                                       isRangeEnd ? `Range End: ${seat.seatId}` :
-                                      isAssigned ? `${seat.seatId} - ${ticketTypes.find(t => t.id === assignedTypeId)?.name || assignedTypeId}` :
+                                      isAssigned ? (() => {
+                                        const ticket = ticketTypes.find(t => t.id === assignedTypeId);
+                                        const price = ticket?.price || ticket?.ticket_price || 0;
+                                        return `${seat.seatId} - ${ticket?.name || assignedTypeId}${price > 0 ? ` - ₹${price}` : ''}`;
+                                      })() :
                                       seat.seatId
                                     }
                                   >
@@ -741,13 +764,20 @@ const SeatAssignmentModal = ({
                                 <span className="text-xs text-orange-500 dark:text-orange-400">(pending)</span>
                               </>
                             )}
-                            
                             {/* Total capacity */}
-                            <span className={`text-sm ${isOverCapacity ? 'text-red-500' : 'text-gray-500'}`}>
-                              / {ticket.capacity}
-                            </span>
+                              <span className={`text-sm ${isOverCapacity ? 'text-red-500' : 'text-gray-500'}`}>
+                                / {ticket.capacity}
+                              </span>
                           </div>
-                          
+                          {savedCount > 0 && (() => {
+                            const ticketPrice = ticketTypes.find(t => t.id === ticket.id)?.capacity || 0;
+                            const totalRevenue = savedCount * ticketPrice;
+                            return totalRevenue > 0 ? (
+                              <span className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                                ₹{ticketPrice} × {savedCount} = ₹{totalRevenue.toLocaleString()}
+                              </span>
+                            ) : null;
+                          })()}
                           {/* Over capacity warning */}
                           {isOverCapacity && (
                             <span className="text-xs text-red-600 dark:text-red-400 font-medium">
