@@ -273,14 +273,16 @@ const ticketSchema = new mongoose.Schema({
         isSelected: { type: Boolean, default: false },
         ticketTypeId: { type: String, default: null }, 
         ticketTypeName: { type: String, default: null },
-        ticketTypeColor: { type: String, default: null }
+        ticketTypeColor: { type: String, default: null },
+        price: { type: Number, default: 0 }
       }],
       ticketTypeAssignments: [{ 
         ticketTypeId: String,
         ticketTypeName: String,
         color: String,
         assignedSeats: [String], 
-        capacity: Number
+        capacity: Number,
+        price: { type: Number, default: 0 }
       }]
     },
     required: false
