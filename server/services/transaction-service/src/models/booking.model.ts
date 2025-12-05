@@ -33,9 +33,21 @@ export interface CreateBookingData {
     };
     groupName?: string;
   };
-  // These are now optional since they have defaults
   paymentStatus?: PaymentStatus;
   bookingStatus?: BookingStatus;
+  seatDetails?: {
+    selectedSeats: string[];
+    seats: Array<{
+      seatId: string;
+      row: string;
+      column: number;
+      ticketType: string;
+      ticketTypeId: string;
+      price: number;
+      color: string;
+    }>;
+  };
+  selectedSeats?: string[]; // Add this line
 }
 export interface UpdateBookingData {
   paymentStatus?: PaymentStatus;
@@ -75,6 +87,7 @@ export class BookingModel {
         currency: data.currency || 'INR',
         userDetails: data.userDetails as any,
         eventDetails: data.eventDetails as any,
+        seatDetails: data.seatDetails as any,
         paymentStatus: data.paymentStatus || 'PENDING',
         bookingStatus: data.bookingStatus || 'PENDING',
       },
