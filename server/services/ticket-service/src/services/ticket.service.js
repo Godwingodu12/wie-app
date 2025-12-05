@@ -2662,92 +2662,129 @@ export const updateTicketAddOns = async (req, res) => {
             provided: seatingLayoutData,
           });
         }
+      // Validate each seat
+      for (let i = 0; i < seatingLayoutData.seats.length; i++) {
+        const seat = seatingLayoutData.seats[i];
+        
+        if (!seat.seatId || String(seat.seatId).trim() === "") {
+          return res.status(400).json({
+            message: `seating_layout.seats[${i}].seatId is required`,
+            seatIndex: i,
+          });
+        }
 
-        // Validate each seat
-        for (let i = 0; i < seatingLayoutData.seats.length; i++) {
-          const seat = seatingLayoutData.seats[i];
+        if (!seat.row || String(seat.row).trim() === "") {
+          return res.status(400).json({
+            message: `seating_layout.seats[${i}].row is required`,
+            seatIndex: i,
+          });
+        }
+
+        if (seat.column === undefined || seat.column === null) {
+          return res.status(400).json({
+            message: `seating_layout.seats[${i}].column is required`,
+            seatIndex: i,
+          });
+        }
+
+        // UPDATED: Make price REQUIRED, not optional
+        if (seat.price === undefined || seat.price === null) {
+          return res.status(400).json({
+            message: `seating_layout.seats[${i}].price is required`,
+            seatIndex: i,
+            hint: "Each seat must have a price (use 0 for free seats)",
+          });
+        }
+
+        const seatPrice = Number(seat.price);
+        if (isNaN(seatPrice) || seatPrice < 0) {
+          return res.status(400).json({
+            message: `seating_layout.seats[${i}].price must be a non-negative number`,
+            seatIndex: i,
+            provided: seat.price,
+            hint: "Price must be 0 or greater",
+          });
+        }
+      }
+      // Validate ticketTypeAssignments if present
+      if (seatingLayoutData.ticketTypeAssignments && Array.isArray(seatingLayoutData.ticketTypeAssignments)) {
+        for (let i = 0; i < seatingLayoutData.ticketTypeAssignments.length; i++) {
+          const assignment = seatingLayoutData.ticketTypeAssignments[i];
           
-          if (!seat.seatId || String(seat.seatId).trim() === "") {
+          if (!assignment.ticketTypeId || String(assignment.ticketTypeId).trim() === "") {
             return res.status(400).json({
-              message: `seating_layout.seats[${i}].seatId is required`,
-              seatIndex: i,
+              message: `seating_layout.ticketTypeAssignments[${i}].ticketTypeId is required`,
+              assignmentIndex: i,
             });
           }
 
-          if (!seat.row || String(seat.row).trim() === "") {
+          if (!assignment.ticketTypeName || String(assignment.ticketTypeName).trim() === "") {
             return res.status(400).json({
-              message: `seating_layout.seats[${i}].row is required`,
-              seatIndex: i,
+              message: `seating_layout.ticketTypeAssignments[${i}].ticketTypeName is required`,
+              assignmentIndex: i,
             });
           }
 
-          if (seat.column === undefined || seat.column === null) {
+          if (!Array.isArray(assignment.assignedSeats)) {
             return res.status(400).json({
-              message: `seating_layout.seats[${i}].column is required`,
-              seatIndex: i,
+              message: `seating_layout.ticketTypeAssignments[${i}].assignedSeats must be an array`,
+              assignmentIndex: i,
+            });
+          }
+
+          if (assignment.capacity === undefined || assignment.capacity === null || assignment.capacity < 0) {
+            return res.status(400).json({
+              message: `seating_layout.ticketTypeAssignments[${i}].capacity is required and must be non-negative`,
+              assignmentIndex: i,
+            });
+          }
+
+          // ADD THIS NEW VALIDATION FOR PRICE IN TICKET TYPE ASSIGNMENTS
+          if (assignment.price === undefined || assignment.price === null) {
+            return res.status(400).json({
+              message: `seating_layout.ticketTypeAssignments[${i}].price is required`,
+              assignmentIndex: i,
+              hint: "Each ticket type assignment must have a price",
+            });
+          }
+
+          const assignmentPrice = Number(assignment.price);
+          if (isNaN(assignmentPrice) || assignmentPrice < 0) {
+            return res.status(400).json({
+              message: `seating_layout.ticketTypeAssignments[${i}].price must be a non-negative number`,
+              assignmentIndex: i,
+              provided: assignment.price,
+              hint: "Price must be 0 or greater",
             });
           }
         }
-
-        // Validate ticketTypeAssignments if present
-        if (seatingLayoutData.ticketTypeAssignments && Array.isArray(seatingLayoutData.ticketTypeAssignments)) {
-          for (let i = 0; i < seatingLayoutData.ticketTypeAssignments.length; i++) {
-            const assignment = seatingLayoutData.ticketTypeAssignments[i];
-            
-            if (!assignment.ticketTypeId || String(assignment.ticketTypeId).trim() === "") {
-              return res.status(400).json({
-                message: `seating_layout.ticketTypeAssignments[${i}].ticketTypeId is required`,
-                assignmentIndex: i,
-              });
-            }
-
-            if (!assignment.ticketTypeName || String(assignment.ticketTypeName).trim() === "") {
-              return res.status(400).json({
-                message: `seating_layout.ticketTypeAssignments[${i}].ticketTypeName is required`,
-                assignmentIndex: i,
-              });
-            }
-
-            if (!Array.isArray(assignment.assignedSeats)) {
-              return res.status(400).json({
-                message: `seating_layout.ticketTypeAssignments[${i}].assignedSeats must be an array`,
-                assignmentIndex: i,
-              });
-            }
-
-            if (assignment.capacity === undefined || assignment.capacity === null || assignment.capacity < 0) {
-              return res.status(400).json({
-                message: `seating_layout.ticketTypeAssignments[${i}].capacity is required and must be non-negative`,
-                assignmentIndex: i,
-              });
-            }
-          }
-        }
-
-        processedSeatingLayout = {
-          rows: seatingLayoutData.rows.map(row => String(row)),
-          columns: Number(seatingLayoutData.columns),
-          seats: seatingLayoutData.seats.map(seat => ({
-            seatId: String(seat.seatId),
-            row: String(seat.row),
-            column: Number(seat.column),
-            isAvailable: Boolean(seat.isAvailable !== false), // Default true
-            isSelected: Boolean(seat.isSelected === true), // Default false
-            ticketTypeId: seat.ticketTypeId ? String(seat.ticketTypeId) : null,
-            ticketTypeName: seat.ticketTypeName ? String(seat.ticketTypeName) : null,
-            ticketTypeColor: seat.ticketTypeColor ? String(seat.ticketTypeColor) : null,
-          })),
-          ticketTypeAssignments: seatingLayoutData.ticketTypeAssignments 
-            ? seatingLayoutData.ticketTypeAssignments.map(assignment => ({
-                ticketTypeId: String(assignment.ticketTypeId),
-                ticketTypeName: String(assignment.ticketTypeName),
-                color: assignment.color ? String(assignment.color) : "",
-                assignedSeats: assignment.assignedSeats.map(seat => String(seat)),
-                capacity: Number(assignment.capacity),
-              }))
-            : [],
-        };
-
+      }
+      processedSeatingLayout = {
+        rows: seatingLayoutData.rows.map(row => String(row)),
+        columns: Number(seatingLayoutData.columns),
+        seats: seatingLayoutData.seats.map(seat => ({
+          seatId: String(seat.seatId),
+          row: String(seat.row),
+          column: Number(seat.column),
+          isAvailable: Boolean(seat.isAvailable !== false), // Default true
+          isSelected: Boolean(seat.isSelected === true), // Default false
+          ticketTypeId: seat.ticketTypeId ? String(seat.ticketTypeId) : null,
+          ticketTypeName: seat.ticketTypeName ? String(seat.ticketTypeName) : null,
+          ticketTypeColor: seat.ticketTypeColor ? String(seat.ticketTypeColor) : null,
+          // UPDATED: Always convert to number (validation ensures it exists)
+          price: Number(seat.price),
+        })),
+        ticketTypeAssignments: seatingLayoutData.ticketTypeAssignments 
+          ? seatingLayoutData.ticketTypeAssignments.map(assignment => ({
+              ticketTypeId: String(assignment.ticketTypeId),
+              ticketTypeName: String(assignment.ticketTypeName),
+              color: assignment.color ? String(assignment.color) : "",
+              assignedSeats: assignment.assignedSeats.map(seat => String(seat)),
+              capacity: Number(assignment.capacity),
+              price: Number(assignment.price), // This was already correct
+            }))
+          : [],
+      };
       } catch (parseError) {
         return res.status(400).json({
           message: "Invalid seating_layout format",
@@ -4732,6 +4769,7 @@ export const updateTicketDetails = async (req, res) => {
           ticket_photo: existingPhoto,
           ticket_photo_public_id: ticket.ticket_photo_public_id || "",
           assigned_seats: ticket.assigned_seats || [],
+          _id: ticket._id || ticket.id,
         };
         // Add uploaded ticket photo if available
         if (ticketPhotoFiles[index]) {
@@ -5013,47 +5051,71 @@ export const updateTicketDetails = async (req, res) => {
           console.error('❌ Invalid seating layout structure - missing rows array');
           throw new Error('Seating layout must contain a rows array');
         }
-        
-        // Process and validate seats with colors
-        const processedSeats = parsedLayout.seats.map(seat => {
-          // Create clean seat object with explicit fields
-          const cleanSeat = {
-            seatId: seat.seatId,
-            row: seat.row,
-            column: seat.column,
-            isAvailable: seat.isAvailable !== undefined ? seat.isAvailable : true,
-            isSelected: seat.isSelected !== undefined ? seat.isSelected : false,
-            ticketTypeId: seat.ticketTypeId || null,
-            ticketTypeName: seat.ticketTypeName || null,
-            ticketTypeColor: seat.ticketTypeColor || null
-          };
+      const processedSeats = parsedLayout.seats.map(seat => {
+        let seatPrice = null;
+        if (seat.ticketTypeId && processedTicketTypes.length > 0) {
+          const matchingTicket = processedTicketTypes.find(
+            tt => String(tt._id) === String(seat.ticketTypeId)
+          );
+          if (matchingTicket) {
+            seatPrice = matchingTicket.ticket_price;
+          }
+        }
+        // If no match found but price was provided in seat data, use it
+        if (seatPrice === null && seat.price !== undefined && seat.price !== null) {
+          seatPrice = Number(seat.price);
+        }
+        // Create clean seat object with explicit fields
+        const cleanSeat = {
+          seatId: seat.seatId,
+          row: seat.row,
+          column: seat.column,
+          isAvailable: seat.isAvailable !== undefined ? seat.isAvailable : true,
+          isSelected: seat.isSelected !== undefined ? seat.isSelected : false,
+          ticketTypeId: seat.ticketTypeId || null,
+          ticketTypeName: seat.ticketTypeName || null,
+          ticketTypeColor: seat.ticketTypeColor || null,
+          price: seatPrice, 
+        };    
+        // If seat has assignment but missing color, try to recover from assignments
+        if (cleanSeat.ticketTypeId && !cleanSeat.ticketTypeColor) {
+          const assignment = parsedLayout.ticketTypeAssignments?.find(
+            a => String(a.ticketTypeId) === String(cleanSeat.ticketTypeId)
+          );
           
-          // If seat has assignment but missing color, try to recover from assignments
-          if (cleanSeat.ticketTypeId && !cleanSeat.ticketTypeColor) {
-            const assignment = parsedLayout.ticketTypeAssignments?.find(
-              a => String(a.ticketTypeId) === String(cleanSeat.ticketTypeId)
+          if (assignment && assignment.color) {
+            cleanSeat.ticketTypeColor = assignment.color;
+            cleanSeat.ticketTypeName = cleanSeat.ticketTypeName || assignment.ticketTypeName;
+          } else {
+            console.warn(`⚠️ Seat ${cleanSeat.seatId} has ticketTypeId but no color found!`);
+          }
+        }
+        return cleanSeat;
+        });
+        const processedAssignments = (parsedLayout.ticketTypeAssignments || []).map(assignment => {
+          // ✅ Find matching ticket type to get accurate price
+          let assignmentPrice = null;
+          if (assignment.ticketTypeId && processedTicketTypes.length > 0) {
+            const matchingTicket = processedTicketTypes.find(
+              tt => String(tt._id) === String(assignment.ticketTypeId)
             );
-            
-            if (assignment && assignment.color) {
-              cleanSeat.ticketTypeColor = assignment.color;
-              cleanSeat.ticketTypeName = cleanSeat.ticketTypeName || assignment.ticketTypeName;
-            } else {
-              console.warn(`⚠️ Seat ${cleanSeat.seatId} has ticketTypeId but no color found!`);
+            if (matchingTicket) {
+              assignmentPrice = matchingTicket.ticket_price;
             }
           }
-          
-          return cleanSeat;
+          // Fallback to provided price if no match found
+          if (assignmentPrice === null && assignment.price !== undefined && assignment.price !== null) {
+            assignmentPrice = Number(assignment.price);
+          }
+          return {
+            ticketTypeId: assignment.ticketTypeId,
+            ticketTypeName: assignment.ticketTypeName,
+            color: assignment.color,
+            assignedSeats: assignment.assignedSeats || [],
+            capacity: assignment.capacity || 0,
+            price: assignmentPrice, // ✅ Use calculated price from ticket type
+          };
         });
-        
-        // Process ticket type assignments
-        const processedAssignments = (parsedLayout.ticketTypeAssignments || []).map(assignment => ({
-          ticketTypeId: assignment.ticketTypeId,
-          ticketTypeName: assignment.ticketTypeName,
-          color: assignment.color,
-          assignedSeats: assignment.assignedSeats || [],
-          capacity: assignment.capacity || 0
-        }));
-        
         // Build final seating layout object
         const finalLayout = {
           rows: parsedLayout.rows,
@@ -5067,6 +5129,77 @@ export const updateTicketDetails = async (req, res) => {
         // Count seats with colors for validation
         const seatsWithColors = processedSeats.filter(s => s.ticketTypeColor);
         const seatsWithAssignments = processedSeats.filter(s => s.ticketTypeId);
+        // ✅ VALIDATE PRICES IN SEATING LAYOUT
+        if (parsedLayout.seats && parsedLayout.seats.length > 0) {
+          const assignedSeats = processedSeats.filter(s => s.ticketTypeId);
+          const seatsWithoutPrice = assignedSeats.filter(
+            s => (s.price === null || s.price === undefined)
+          );
+          if (seatsWithoutPrice.length > 0) {
+            console.error('❌ Seats missing price:', seatsWithoutPrice.map(s => ({
+              seatId: s.seatId,
+              ticketTypeId: s.ticketTypeId,
+              ticketTypeName: s.ticketTypeName,
+              hasPrice: s.price !== undefined
+            })));
+          }
+          if (seatsWithoutPrice.length > 0 && payment_type === 'paid') {
+            return res.status(400).json({
+              message: 'Some assigned seats are missing price information',
+              seatsWithoutPrice: seatsWithoutPrice.map(s => s.seatId),
+              hint: 'Ensure all assigned seats have ticket types with valid prices',
+              suggestion: 'Check that ticket_types array contains prices for all ticket types'
+            });
+          }
+          // Validate price consistency for assigned seats only
+          const assignedAssignments = processedAssignments.filter(a => a.assignedSeats && a.assignedSeats.length > 0);
+          const assignmentsWithoutPrice = assignedAssignments.filter(
+            a => a.ticketTypeId && (a.price === null || a.price === undefined)
+          );
+          if (assignmentsWithoutPrice.length > 0 && payment_type === 'paid') {
+            return res.status(400).json({
+              message: 'Some ticket type assignments are missing price information',
+              ticketTypesWithoutPrice: assignmentsWithoutPrice.map(a => a.ticketTypeName),
+              hint: 'Ensure all assigned ticket types have valid prices defined'
+            });
+          }
+          // Validate price ranges for paid events (assigned seats only)
+          if (payment_type === 'paid' && assignedSeats.length > 0) {
+            const pricesInSeats = assignedSeats
+              .filter(s => s.price !== null && s.price !== undefined)
+              .map(s => s.price);
+            const invalidPrices = pricesInSeats.filter(p => p < 0);
+            if (invalidPrices.length > 0) {
+              return res.status(400).json({
+                message: 'Invalid negative prices found in assigned seats',
+                invalidPrices: [...new Set(invalidPrices)],
+                hint: 'All seat prices must be positive numbers'
+              });
+            }
+            const zeroPrices = pricesInSeats.filter(p => p === 0);
+            if (zeroPrices.length > 0 && payment_type === 'paid') {
+              return res.status(400).json({
+                message: 'Assigned seats in paid events cannot have zero price',
+                seatsWithZeroPrice: assignedSeats.filter(s => s.price === 0).map(s => s.seatId),
+                hint: 'All assigned seats must have positive prices for paid events'
+              });
+            }
+          }
+          // For free events, ensure assigned seats have zero price
+          if (payment_type === 'free' && assignedSeats.length > 0) {
+            const nonZeroPrices = assignedSeats
+              .filter(s => s.price !== null && s.price !== undefined && s.price > 0)
+              .map(s => ({ seatId: s.seatId, price: s.price }));
+            
+            if (nonZeroPrices.length > 0) {
+              return res.status(400).json({
+                message: 'Free events cannot have assigned seats with non-zero prices',
+                seatsWithPrice: nonZeroPrices,
+                hint: 'For free events, all assigned seat prices must be 0'
+              });
+            }
+          }
+        }
         // Save to updateData
         updateData.seating_layout = finalLayout;
         console.log('✅ Manual seating layout processed and ready to save');
@@ -5157,18 +5290,15 @@ export const updateTicketDetails = async (req, res) => {
         bank_ifsc: bank.bank_ifsc,
       }));
     }
-
     res.status(200).json(responseData);
   } catch (error) {
     console.error("Error updating ticket details:", error);
-
     // Enhanced multer error handling
     if (error.code === "LIMIT_FILE_SIZE") {
       return res.status(400).json({
         message: "File size too large. Maximum 50MB allowed per file.",
       });
     }
-
     if (error.code === "LIMIT_FILE_COUNT") {
       return res.status(400).json({
         message: "Too many files uploaded. Maximum limits exceeded.",
@@ -5180,7 +5310,6 @@ export const updateTicketDetails = async (req, res) => {
         "ticket_layout",
         ...Array.from({ length: 20 }, (_, i) => `ticket_photo_${i}`),
       ];
-
       return res.status(400).json({
         message: "Unexpected file field detected",
         error: error.message,
