@@ -171,25 +171,22 @@ const UpdateTicketDetails = () => {
               loadedLayout.seats = loadedLayout.seats.map(seat => {
                 // CASE 1: Seat already has color saved
                 if (seat.ticketTypeColor) {
-                  console.log(`✅ Seat ${seat.seatId} has saved color: ${seat.ticketTypeColor}`);
                   return seat;
                 }
-                
-                // CASE 2: Seat has assignment but missing color - restore from assignments
-                if (seat.ticketTypeId && loadedLayout.ticketTypeAssignments) {
+                if (seat.ticketTypeId && loadedLayout.ticketTypeAssignments.length > 0) {
                   const assignment = loadedLayout.ticketTypeAssignments.find(a => 
                     String(a.ticketTypeId) === String(seat.ticketTypeId)
                   );
-                  
                   if (assignment && assignment.color) {
-                    console.log(`🔧 Restored color for seat ${seat.seatId}: ${assignment.color}`);
+                    console.log(`🔧 Restored seat ${seat.seatId}: ${assignment.ticketTypeName} (${assignment.color}) - ₹${assignment.price || 0}`);
                     return {
                       ...seat,
-                      ticketTypeColor: assignment.color
+                      ticketTypeColor: assignment.color,
+                      ticketTypeName: assignment.ticketTypeName || seat.ticketTypeName,
+                      price: assignment.price || seat.price || 0 // Restore price
                     };
                   }
                 }
-                
                 // CASE 3: Unassigned seat - return as is
                 return seat;
               });
@@ -616,9 +613,18 @@ const handleGenerateLayout = async () => {
     // Extract the generated seating layout from response
     if (response.ticket?.seating_layout) {
       const generatedLayout = response.ticket.seating_layout;
+      
+      // Ensure all seats have price initialized to 0 if not present
+      if (generatedLayout.seats && Array.isArray(generatedLayout.seats)) {
+        generatedLayout.seats = generatedLayout.seats.map(seat => ({
+          ...seat,
+          price: seat.price !== undefined ? seat.price : 0
+        }));
+      }
+      
       setGeneratedSeatingLayout(generatedLayout);
       setShowSeatingPreview(true);
-    } else if (response.seating_layout_info) {
+    }else if (response.seating_layout_info) {
       // Alternative: if backend returns layout info separately
       const layout = response.ticket?.seating_layout || response.seating_layout;
       if (layout) {
@@ -863,7 +869,6 @@ const handleGenerateLayout = async () => {
       setLoading(false);
       return;
     }
-
     // NEW LINE - Use ticketsToSubmit array
     const cleanTicketTypes = ticketsToSubmit.map((ticket) => ({
       ticket_type: ticket.ticket_type || ticket.name,
@@ -872,7 +877,6 @@ const handleGenerateLayout = async () => {
       ticket_photo: ticket.ticket_photo || ticket.image || "", // Ensure photo is included if needed
     }));
     apiFormData.append("ticket_types", JSON.stringify(cleanTicketTypes));
-
     if (locationType === "offline") {
       ticketsToSubmit.forEach((ticket, index) => {
         if (ticket.photoFile instanceof File) {
@@ -884,12 +888,7 @@ const handleGenerateLayout = async () => {
       if (seatingLayoutFile instanceof File) {
         apiFormData.append("ticket_layout", seatingLayoutFile);
       }
-      
-      if (generatedSeatingLayout) {
-        console.log('🔵 Building layout with assignments...');
-        console.log('Current seat assignments:', seatAssignments);
-        console.log('Available tickets:', tickets);
-        
+      if (generatedSeatingLayout) {  
         const layoutWithAssignments = {
           ...generatedSeatingLayout,
           rows: generatedSeatingLayout.rows,
@@ -901,14 +900,11 @@ const handleGenerateLayout = async () => {
             const assignedEntry = Object.entries(seatAssignments).find(([_, seatIds]) => 
               seatIds && seatIds.includes(seat.seatId)
             );
-            
             if (assignedEntry) {
               const [ticketTypeId, assignedSeatIds] = assignedEntry;
               const ticket = tickets.find(t => String(t.id) === String(ticketTypeId));
               const color = getTicketTypeColor(ticketTypeId);
-              
-              console.log(`✅ Seat ${seat.seatId} → ${ticket?.name} (${color})`);
-              
+              const price = ticket?.price || ticket?.ticket_price || 0;
               return {
                 seatId: seat.seatId,
                 row: seat.row,
@@ -917,10 +913,10 @@ const handleGenerateLayout = async () => {
                 isSelected: false,
                 ticketTypeId: String(ticketTypeId),
                 ticketTypeName: ticket?.name || ticket?.ticket_type || '',
-                ticketTypeColor: color // CRITICAL: Save color here
+                ticketTypeColor: color,
+                price: price // CRITICAL: Save price here
               };
             }
-            
             // Unassigned seat - clear all assignment data
             return {
               seatId: seat.seatId,
@@ -930,28 +926,28 @@ const handleGenerateLayout = async () => {
               isSelected: false,
               ticketTypeId: null,
               ticketTypeName: null,
-              ticketTypeColor: null
+              ticketTypeColor: null,
+              price: 0 
             };
           }),
-          
-          // STEP 2: Build ticket type assignments summary with colors
+          // STEP 2: Build ticket type assignments summary with colors and price
           ticketTypeAssignments: Object.entries(seatAssignments)
             .filter(([_, seatIds]) => seatIds && seatIds.length > 0)
             .map(([typeId, seatIds]) => {
               const ticket = tickets.find(t => String(t.id) === String(typeId));
               const color = getTicketTypeColor(typeId);
-              
-              console.log(`📊 Assignment: ${ticket?.name} - ${seatIds.length} seats - Color: ${color}`);
-              
+              const price = ticket?.price || ticket?.ticket_price || 0;
+              console.log(`💰 Assignment for ${ticket?.name}: price = ₹${price}`);
               return {
                 ticketTypeId: String(typeId),
                 ticketTypeName: ticket?.name || ticket?.ticket_type || '',
-                color: color, // CRITICAL: Save color in assignment
+                color: color, 
                 assignedSeats: [...seatIds],
-                capacity: ticket?.capacity || ticket?.max_capacity || 0
+                capacity: ticket?.capacity || ticket?.max_capacity || 0,
+                price: price // CRITICAL: Save price in assignments
               };
             })
-        };    
+        };
         apiFormData.append("seating_layout", JSON.stringify(layoutWithAssignments));
       }
     }
@@ -1831,7 +1827,7 @@ const handleGenerateLayout = async () => {
           setSeatAssignments(clonedAssignments);
           // Deep clone the layout
           const updatedLayout = JSON.parse(JSON.stringify(generatedSeatingLayout));
-          // STEP 1: Update every seat with its assignment and COLOR
+          // STEP 1: Update every seat with assignment + color + price
           updatedLayout.seats = updatedLayout.seats.map(seat => {
             // Find which ticket type owns this seat
             const assignedEntry = Object.entries(clonedAssignments).find(([_, seatIds]) => 
@@ -1841,54 +1837,52 @@ const handleGenerateLayout = async () => {
             if (assignedEntry) {
               const [ticketTypeId] = assignedEntry;
               const ticket = tickets.find(t => String(t.id) === String(ticketTypeId));
-              const color = getTicketTypeColor(ticketTypeId);
-              
-              console.log(`✅ Seat ${seat.seatId} → ${ticket?.name} (${color})`);
-              
+              const color = getTicketTypeColor(ticketTypeId);              
               return {
-                ...seat,
+                seatId: seat.seatId,
+                row: seat.row,
+                column: seat.column,
+                isAvailable: true,
+                isSelected: false,
                 ticketTypeId: String(ticketTypeId),
-                ticketTypeName: ticket?.name || ticket?.ticket_type,
-                ticketTypeColor: color, // CRITICAL: Store color in seat
-                isAvailable: true
+                ticketTypeName: ticket?.name || ticket?.ticket_type || '',
+                ticketTypeColor: color,
+                price: ticket?.price || ticket?.ticket_price || 0 
               };
             }
-            
-            // Unassigned seats - reset but keep structure
             return {
-              ...seat,
+              seatId: seat.seatId,
+              row: seat.row,
+              column: seat.column,
+              isAvailable: true,
+              isSelected: false,
               ticketTypeId: null,
               ticketTypeName: null,
               ticketTypeColor: null,
-              isAvailable: true
+              price: 0
             };
-          });
-          
-          // STEP 2: Build ticket type assignments summary with colors
-          updatedLayout.ticketTypeAssignments = Object.entries(clonedAssignments)
+          });     
+          // STEP 2: Build ticket type assignments summary with colors and price
+          ticketTypeAssignments: Object.entries(clonedAssignments)
             .filter(([_, seatIds]) => seatIds && seatIds.length > 0)
             .map(([typeId, seatIds]) => {
               const ticket = tickets.find(t => String(t.id) === String(typeId));
               const color = getTicketTypeColor(typeId);
-              
-              console.log(`📊 Assignment: ${ticket?.name} - ${seatIds.length} seats - Color: ${color}`);
-              
               return {
                 ticketTypeId: String(typeId),
-                ticketTypeName: ticket?.name || ticket?.ticket_type,
-                color: color, // CRITICAL: Store color in assignment
+                ticketTypeName: ticket?.name || ticket?.ticket_type || '',
+                color: color,
                 assignedSeats: [...seatIds],
-                capacity: ticket?.capacity || ticket?.max_capacity
+                capacity: ticket?.capacity || ticket?.max_capacity || 0,
+                price: ticket?.price || ticket?.ticket_price || 0 // CRITICAL: Save price
               };
-            });
-          
-          console.log('✅ FINAL LAYOUT WITH COLORS:', updatedLayout);
+            }) 
           setGeneratedSeatingLayout(updatedLayout);
-          
+          const totalAssigned = Object.values(clonedAssignments).flat().length;
           showAlert({
             type: 'success',
             message: 'Seats Assigned with Colors!',
-            description: `Assigned ${Object.values(clonedAssignments).flat().length} seats with ticket type colors.`
+            description: `Assigned ${totalAssigned} seats with ticket type colors.`
           });
         }}
         seatingLayout={generatedSeatingLayout}
