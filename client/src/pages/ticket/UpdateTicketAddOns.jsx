@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-
 import { getTicketImageUrl } from "../../utils/imageUtils.js";
 import {
   updateTicketAddOns,
@@ -11,9 +10,10 @@ import {
 import Select from "react-select";
 import DateInput from "../../components/CreateGroup/DateInput.jsx";
 import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
-
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
+import SeatingLayoutPreview from "../../components/CreateGroup/SeatingLayoutPreview.jsx";
+import SeatAssignmentModal from "../../components/CreateGroup/SeatAssignmentModal.jsx";
 import Addon_Form_Icon from "../../assets/Event/Addon_Form_Icon.svg?react";
 import Date_Form_Icon from "../../assets/Event/Date_Form_Icon.svg?react";
 import Guest_Form_Icon from "../../assets/Event/Guest_Form_Icon.svg?react";
@@ -36,7 +36,8 @@ import languageOptions from "../../components/CreateGroup/languageOption.jsx";
 import seatingOptions from "../../components/CreateGroup/seatingOption.jsx";
 import eventCategories from "../../components/CreateGroup/eventCategories.jsx";
 import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.jsx";
-
+import darkThemeStyles from "../../components/CreateGroup/darkThemeStyles.jsx";
+import lightThemeStyles from "../../components/CreateGroup/lightThemeStyles.jsx";
 const UpdateTicketAddOns = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
@@ -80,20 +81,37 @@ const UpdateTicketAddOns = () => {
   const [groupHasBankAccount, setGroupHasBankAccount] = useState(false);
   const [groupBankDetailsIncomplete, setGroupBankDetailsIncomplete] =
     useState(false);
-
   // --- State for Seating Details ---
   const [hasSeatingLayout, setHasSeatingLayout] = useState(false);
-
   const [isOnlineDateModalOpen, setIsOnlineDateModalOpen] = useState(false);
   const [isRecordedDateModalOpen, setIsRecordedDateModalOpen] = useState(false);
   const [isDateModalOpen, setIsDateModalOpen] = useState(false);
-
   const [subEventEndDate, setSubEventEndDate] = useState(null);
-
+  const [showSeatAssignmentModal, setShowSeatAssignmentModal] = useState(false);
+  const [seatAssignments, setSeatAssignments] = useState({});
+  const [generatedSeatingLayout, setGeneratedSeatingLayout] = useState(null);
+  const [showSeatingPreview, setShowSeatingPreview] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [seatingLayoutFile, setSeatingLayoutFile] = useState(null);
+  const [seatingLayoutPreview, setSeatingLayoutPreview] = useState(null);
+  const [ticketTypeColors] = useState([
+    "#3B82F6", // Blue
+    "#e6e92eff", // Yellow
+    "#F59E0B", // Amber
+    "#EF4444", // Red
+    "#8B5CF6", // Purple
+    "#EC4899", // Pink
+    "#06B6D4", // Cyan
+    "#F97316", // Orange
+  ]);
+  const getTicketTypeColor = (ticketId) => {
+    const index = formData.ticket_types.findIndex((t) => t.id === ticketId);
+    return index !== -1
+      ? ticketTypeColors[index % ticketTypeColors.length]
+      : "#6B7280";
+  };
   const showAlert = (data) => setAlert({ ...data, show: true });
   const hideAlert = () => setAlert(null);
-
-  // --- State for multi-media preview ---
   const [showExtraMedia, setShowExtraMedia] = useState(false);
   const [poc, setPoc] = useState({
     POC_name: "",
@@ -142,7 +160,7 @@ const UpdateTicketAddOns = () => {
     event_language: [],
     min_age_allowed: "",
     max_age_allowed: "",
-    seating_arrangement: "",
+    seating_arrangement: "none",
     kids_friendly: false,
     pet_friendly: false,
     gate_open_time: false,
@@ -412,18 +430,29 @@ const UpdateTicketAddOns = () => {
   };
 
   useEffect(() => {
-    localStorage.setItem("theme", darkMode ? "dark" : "light");
-    document.documentElement.classList.toggle("dark", darkMode);
+    let styleSheet = document.getElementById("dynamic-theme-styles");
+    if (!styleSheet) {
+      styleSheet = document.createElement("style");
+      styleSheet.id = "dynamic-theme-styles";
+      document.head.appendChild(styleSheet);
+    }
+    styleSheet.innerText = darkMode ? darkThemeStyles : lightThemeStyles;
   }, [darkMode]);
   useEffect(() => {
     fetchData();
   }, [ticketId]);
-
   const resetForm = () => {
     setFormData(initialFormState);
     setPreviews({ ticket_layout: null, event_banner: null, event_logo: null });
     setEditingSubEventId(null);
     setIsEditingSubEvent(false);
+    setSeatingLayoutFile(null);
+    setSeatingLayoutPreview(null);
+    setGeneratedSeatingLayout(null);
+    setShowSeatingPreview(false);
+    setHasSeatingLayout(false);
+    setSeatAssignments({});
+    setIsGenerating(false);
     if (rulesEditorRef.current) rulesEditorRef.current.innerHTML = "";
     if (descriptionEditorRef.current)
       descriptionEditorRef.current.innerHTML = "";
@@ -586,66 +615,24 @@ const UpdateTicketAddOns = () => {
   };
 
   const handleAddPoc = () => {
-    // Reset individual POC field errors first
-    setErrors({});
-
     const trimmedName = poc.POC_name.trim();
     const trimmedEmail = poc.POC_email.trim();
     const trimmedContact = poc.POC_contact.trim();
 
-    const tempPocErrors = {};
-    let pocInputValid = true;
-    let pocAlertDescription = "";
-
-    // Regex for basic validation
-    const simpleNameRegex = /^[a-zA-Z\s]+$/;
-    const contactRegex = /^[0-9\s\+]+$/;
-
-    // 1. Check for empty fields and formatting
-    if (!trimmedName) {
-      tempPocErrors.POC_name = "Name is required.";
-      pocInputValid = false;
-      pocAlertDescription = "POC Name is required.";
-    } else if (!simpleNameRegex.test(trimmedName)) {
-      tempPocErrors.POC_name = "Name must only contain letters and spaces.";
-      pocInputValid = false;
-      pocAlertDescription = "POC Name must only contain letters and spaces.";
-    }
-
-    if (!trimmedEmail) {
-      tempPocErrors.POC_email = "Email is required.";
-      pocInputValid = false;
-      if (pocInputValid) pocAlertDescription = "POC Email is required.";
-    }
-
-    if (!trimmedContact) {
-      tempPocErrors.POC_contact = "Contact Number is required.";
-      pocInputValid = false;
-      if (pocInputValid)
-        pocAlertDescription = "POC Contact Number is required.";
-    } else if (!contactRegex.test(trimmedContact)) {
-      tempPocErrors.POC_contact =
-        'Contact must only contain numbers, spaces, or "+".';
-      pocInputValid = false;
-      if (pocInputValid)
-        pocAlertDescription =
-          'POC Contact must only contain numbers, spaces, or "+".';
-    }
-
-    if (!pocInputValid) {
+    // 1. Check for empty fields
+    if (!trimmedName || !trimmedEmail || !trimmedContact) {
       showAlert({
         type: "error",
-        message: "Invalid POC Details",
+        message: "Missing Fields",
         description:
-          pocAlertDescription || "Please correct the highlighted POC fields.",
+          "Please fill in all Point of Contact fields: Name, Email, and Contact Number.",
       });
-      setErrors((prev) => ({ ...prev, ...tempPocErrors }));
       return;
     }
 
     // 2. Check for duplicate email
     const isDuplicateEmail = formData.POCS.some(
-      (p) => p.POC_email.toLowerCase() === trimmedEmail.toLowerCase()
+      (p) => p.POC_email === trimmedEmail
     );
     if (isDuplicateEmail) {
       showAlert({
@@ -654,35 +641,29 @@ const UpdateTicketAddOns = () => {
         description:
           "This email address is already in use by another POC. Please use a different email.",
       });
-      tempPocErrors.POC_email = "Email already added.";
-      setErrors((prev) => ({ ...prev, ...tempPocErrors }));
-      return;
+      return; // Exit if email is a duplicate
     }
-
     // 3. Check for duplicate contact number
     const isDuplicateContact = formData.POCS.some(
-      (p) =>
-        p.POC_contact.replace(/\s/g, "") === trimmedContact.replace(/\s/g, "")
+      (p) => p.POC_contact === trimmedContact
     );
     if (isDuplicateContact) {
       showAlert({
         type: "error",
-        message: "Duplicate POC Contact",
+        message: "Duplicate POC contact number",
         description:
-          "This contact number is already in use by another POC. Please use a different number.",
+          "This contact number is already in use by another POC. Please use a different email.",
       });
-      tempPocErrors.POC_contact = "Contact number already added.";
-      setErrors((prev) => ({ ...prev, ...tempPocErrors }));
       return;
     }
-
+    // If all checks pass, add the new POC
     const newPoc = {
       POC_name: trimmedName,
       POC_email: trimmedEmail,
       POC_contact: trimmedContact,
     };
     setFormData((prev) => ({ ...prev, POCS: [...prev.POCS, newPoc] }));
-    setPoc({ POC_name: "", POC_email: "", POC_contact: "" });
+    setPoc({ POC_name: "", POC_email: "", POC_contact: "" }); // Reset form
   };
 
   const handleRemovePoc = (indexToRemove) => {
@@ -701,7 +682,6 @@ const UpdateTicketAddOns = () => {
       setPreviews((prev) => ({ ...prev, [type]: previewUrl }));
     }
   };
-
   const removeMediaFile = (type) => {
     if (previews[type] && previews[type].startsWith("blob:")) {
       URL.revokeObjectURL(previews[type]);
@@ -711,6 +691,240 @@ const UpdateTicketAddOns = () => {
     if (type === "ticket_layout") {
       setHasSeatingLayout(false);
     }
+  };
+  const handleSeatingLayoutChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const validTypes = [
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ];
+
+      if (!validTypes.includes(file.type)) {
+        showAlert({
+          type: "error",
+          message: "Invalid File Type",
+          description:
+            "Please upload an image (JPG, PNG), PDF, or Word document.",
+        });
+        return;
+      }
+
+      // Check file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        showAlert({
+          type: "error",
+          message: "File Too Large",
+          description: "Please upload a file smaller than 10MB.",
+        });
+        return;
+      }
+
+      setSeatingLayoutFile(file);
+      if (file.type.startsWith("image/")) {
+        setSeatingLayoutPreview(URL.createObjectURL(file));
+      } else {
+        setSeatingLayoutPreview(null);
+      }
+      showAlert({
+        type: "info",
+        message: "File Ready",
+        description: `${file.name} is ready. Click "Generate Layout" to create a new seat map or keep your existing layout.`,
+      });
+    }
+  };
+  const handleGenerateLayout = async () => {
+    // Validation
+    if (!seatingLayoutFile) {
+      showAlert({
+        type: "error",
+        message: "Missing Layout File",
+        description: "Please upload a seating layout file first.",
+      });
+      return;
+    }
+
+    if (!formData.total_capacity) {
+      showAlert({
+        type: "error",
+        message: "Missing Capacity",
+        description: "Please set total capacity before generating layout.",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+
+    try {
+      // Create minimal payload for layout generation
+      const formDataToSend = new FormData();
+
+      // Add the flag FIRST
+      formDataToSend.append("generate_layout_only", "true");
+
+      // Add capacity
+      formDataToSend.append("total_capacity", formData.total_capacity);
+
+      // Add minimal sub_event data
+      const minimalSubEvent = {
+        total_capacity: formData.total_capacity,
+        location_type: "offline",
+        generate_layout_only: true,
+      };
+      formDataToSend.append("sub_event", JSON.stringify(minimalSubEvent));
+
+      // Add the layout file
+      formDataToSend.append("ticket_layout", seatingLayoutFile);
+
+      console.log("📤 Sending layout generation request:", {
+        hasFile: !!seatingLayoutFile,
+        fileName: seatingLayoutFile.name,
+        capacity: formData.total_capacity,
+      });
+
+      const response = await updateTicketAddOns(ticketId, formDataToSend);
+
+      if (response.seating_layout) {
+        const generatedLayout = response.seating_layout;
+
+        // ✅ CRITICAL FIX: Validate and normalize received seats
+        if (generatedLayout.seats && Array.isArray(generatedLayout.seats)) {
+          console.log("🔍 Frontend: Validating received layout...");
+
+          // Check for missing fields
+          const missingFields = generatedLayout.seats.filter(
+            (seat) =>
+              seat.ticketTypeId === undefined ||
+              seat.ticketTypeName === undefined ||
+              seat.ticketTypeColor === undefined ||
+              seat.price === undefined
+          );
+
+          if (missingFields.length > 0) {
+            console.warn("⚠️ Frontend: Received seats missing fields:", {
+              count: missingFields.length,
+              sample: missingFields[0],
+            });
+          }
+
+          // ✅ NORMALIZE all seats to ensure consistency
+          generatedLayout.seats = generatedLayout.seats.map((seat) => ({
+            seatId: String(seat.seatId || ""),
+            row: String(seat.row || ""),
+            column: Number(seat.column || 0),
+            isAvailable: seat.isAvailable !== false,
+            isSelected: false,
+            // ✅ CRITICAL: Ensure null for unassigned, not undefined
+            ticketTypeId:
+              seat.ticketTypeId !== undefined && seat.ticketTypeId !== null
+                ? String(seat.ticketTypeId)
+                : null,
+            ticketTypeName:
+              seat.ticketTypeName !== undefined && seat.ticketTypeName !== null
+                ? String(seat.ticketTypeName)
+                : null,
+            ticketTypeColor:
+              seat.ticketTypeColor !== undefined &&
+              seat.ticketTypeColor !== null
+                ? String(seat.ticketTypeColor)
+                : null,
+            price:
+              seat.price !== undefined && seat.price !== null
+                ? Number(seat.price)
+                : 0,
+          }));
+
+          // ✅ Final validation
+          const stillMissing = generatedLayout.seats.filter(
+            (seat) =>
+              seat.ticketTypeId === undefined ||
+              seat.ticketTypeName === undefined ||
+              seat.ticketTypeColor === undefined ||
+              seat.price === undefined
+          );
+
+          if (stillMissing.length > 0) {
+            console.error(
+              "❌ CRITICAL: Seats still missing fields after normalization:",
+              stillMissing[0]
+            );
+            throw new Error("Seat normalization failed on frontend");
+          }
+
+          console.log("✅ All seats validated and normalized:", {
+            total: generatedLayout.seats.length,
+            unassigned: generatedLayout.seats.filter(
+              (s) => s.ticketTypeId === null
+            ).length,
+            assigned: generatedLayout.seats.filter(
+              (s) => s.ticketTypeId !== null
+            ).length,
+            sampleSeat: generatedLayout.seats[0],
+          });
+        }
+
+        setGeneratedSeatingLayout(generatedLayout);
+        setShowSeatingPreview(true);
+
+        // Store file for final submission
+        setFormData((prev) => ({
+          ...prev,
+          ticket_layout: seatingLayoutFile,
+        }));
+
+        showAlert({
+          type: "success",
+          message: "Layout Generated!",
+          description: `Successfully generated ${
+            generatedLayout.seats?.length || 0
+          } seats. All seats are ready for assignment.`,
+        });
+      } else {
+        throw new Error("No seating layout returned from server");
+      }
+    } catch (error) {
+      console.error("❌ Generation error:", error);
+
+      let errorMessage = "Failed to generate seating layout";
+      let errorDescription = "";
+
+      if (error.response?.data) {
+        errorMessage = error.response.data.message || errorMessage;
+        errorDescription =
+          error.response.data.hint || error.response.data.error || "";
+      } else if (error.message) {
+        errorDescription = error.message;
+      }
+
+      showAlert({
+        type: "error",
+        message: errorMessage,
+        description: errorDescription,
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+  const removeSeatingLayout = () => {
+    setSeatingLayoutFile(null);
+    setSeatingLayoutPreview(null);
+    setGeneratedSeatingLayout(null);
+    setShowSeatingPreview(false);
+    setIsGenerating(false);
+    setSeatAssignments({});
+
+    showAlert({
+      type: "info",
+      message: "Layout Cleared",
+      description:
+        "Seating layout has been removed. Upload a new file to generate a layout.",
+    });
   };
   const handleMultiMediaChange = (e) => {
     const newFiles = Array.from(e.target.files);
@@ -834,36 +1048,37 @@ const UpdateTicketAddOns = () => {
     if (formData.event_language.length === 0)
       addError("event_language", "At least one event language is required.");
 
-
-
     if (!descriptionEditorRef.current?.innerText?.trim())
       addError("event_description", "Event description is required.");
     if (!formData.POCS || formData.POCS.length === 0)
       addError("POCS", "At least one Point of Contact (POC) must be added.");
-if (!formData.event_banner && !previews.event_banner) {
-    addError("event_banner", "Event Banner image is required.");
-}
+    if (!formData.event_banner && !previews.event_banner) {
+      addError("event_banner", "Event Banner image is required.");
+    }
 
-if (formData.hashtag && formData.hashtag.length > 0) {
-    const hasEmptyTag = formData.hashtag.some(
+    if (formData.hashtag && formData.hashtag.length > 0) {
+      const hasEmptyTag = formData.hashtag.some(
         (tag) => !tag || tag.trim() === ""
-    );
+      );
 
-    if (hasEmptyTag) {
+      if (hasEmptyTag) {
         addError(
-            "hashtag",
-            "Hashtags cannot be empty. Please remove any blank tags."
+          "hashtag",
+          "Hashtags cannot be empty. Please remove any blank tags."
         );
-    }
+      }
 
-    const validHashtagRegex = /^#[a-zA-Z0-9_]{1,50}$/;
-    const hasInvalidFormat = formData.hashtag.some(
+      const validHashtagRegex = /^#[a-zA-Z0-9_]{1,50}$/;
+      const hasInvalidFormat = formData.hashtag.some(
         (tag) => !validHashtagRegex.test(tag)
-    );
-    if (hasInvalidFormat) {
-        addError("hashtag", "Hashtags must start with '#' and contain only letters, numbers, and underscores (e.g., #MyEvent_2025).");
+      );
+      if (hasInvalidFormat) {
+        addError(
+          "hashtag",
+          "Hashtags must start with '#' and contain only letters, numbers, and underscores (e.g., #MyEvent_2025)."
+        );
+      }
     }
-}
     if (
       mainEventStartDate &&
       mainEventEndDate &&
@@ -898,13 +1113,12 @@ if (formData.hashtag && formData.hashtag.length > 0) {
         addError("venue", "Venue is required for offline events.");
       else if (!simpleNameRegex.test(formData.venue.trim()))
         addError("venue", "Venue contains invalid characters.");
-      if (!formData.seating_arrangement) {
+      if (formData.seating_arrangement == "none") {
         addError(
           "seating_arrangement",
           "Seating arrangement is required for offline events."
         );
       }
-      console.log(formData.seating_arrangement)
       if (!formData.total_capacity)
         addError(
           "total_capacity",
@@ -1071,7 +1285,6 @@ if (formData.hashtag && formData.hashtag.length > 0) {
         }
       }
     }
-
     const ensureProhibitedItemsArray = () => {
       if (Array.isArray(formData.prohibited_items)) {
         const cleaned = formData.prohibited_items
@@ -1146,7 +1359,6 @@ if (formData.hashtag && formData.hashtag.length > 0) {
       }
       return [];
     };
-
     const payload = {
       event_name: formData.event_name,
       event_category: formData.event_category,
@@ -1159,6 +1371,7 @@ if (formData.hashtag && formData.hashtag.length > 0) {
       pet_friendly: formData.pet_friendly,
       location_type: formData.location_type,
       event_date_type: formData.event_date_type,
+      total_capacity: formData.total_capacity, // ✅ ADD THIS
       event_dates: formData.event_dates.map((d) => {
         let eventLink = d.eventLink || "";
         if (
@@ -1183,10 +1396,8 @@ if (formData.hashtag && formData.hashtag.length > 0) {
       event_description: descriptionEditorRef.current?.innerHTML || "",
       event_rules_text: rulesEditorRef.current?.innerHTML || "",
       hashtag: Array.isArray(formData.hashtag) ? formData.hashtag : [],
-
       prohibited_items: ensureProhibitedItemsArray(),
       ticket_types: ensureTicketTypesArray(),
-
       payment_type: formData.payment_type,
       POCS: formData.POCS,
       guests: formData.guests.map((g) => ({
@@ -1199,79 +1410,269 @@ if (formData.hashtag && formData.hashtag.length > 0) {
     if (formData.payment_type === "paid") {
       payload.banking_details = formData.banking_details;
     }
-
+    // CRITICAL: Handle offline events with seating layout
     if (formData.location_type === "offline") {
       payload.location = formData.location;
       payload.venue = formData.venue;
-      payload.seating_arrangement = formData.seating_arrangement;
+      payload.seating_arrangement = formData.seating_arrangement || "none";
       payload.exact_map_location = formData.exact_map_location;
       payload.gate_open_time = formData.gate_open_time;
-      payload.total_capacity = formData.total_capacity;
-    } else {
-      payload.total_capacity = parseInt(formData.total_capacity, 10) || 0;
-    }
 
+      // Handle seating layout if available
+      if (
+        generatedSeatingLayout &&
+        generatedSeatingLayout.seats &&
+        generatedSeatingLayout.seats.length > 0
+      ) {
+        console.log("🎯 Building payload with seating layout:", {
+          totalSeats: generatedSeatingLayout.seats.length,
+          assignedSeats: generatedSeatingLayout.seats.filter(
+            (s) => s.ticketTypeId
+          ).length,
+          assignments: Object.keys(seatAssignments).length,
+        });
+        const ticketTypeMap = {};
+        formData.ticket_types.forEach((ticket) => {
+          const id = String(ticket.id);
+          ticketTypeMap[id] = {
+            name: ticket.name || ticket.ticket_type || "",
+            price: Number(ticket.price || ticket.ticket_price || 0),
+            color: getTicketTypeColor(ticket.id),
+          };
+        });
+
+        // Process seats with complete data - PRESERVE ALL ASSIGNMENTS
+        const processedSeats = generatedSeatingLayout.seats.map((seat) => {
+          const seatId = String(seat.seatId);
+          // Get current assignment data from seat itself (already has complete data)
+          const ticketTypeId = seat.ticketTypeId
+            ? String(seat.ticketTypeId)
+            : null;
+          const ticketTypeName = seat.ticketTypeName || null;
+          const ticketTypeColor = seat.ticketTypeColor || null;
+          const price = seat.price !== undefined ? Number(seat.price) : 0;
+          return {
+            seatId: seatId,
+            row: String(seat.row),
+            column: Number(seat.column),
+            isAvailable: true,
+            isSelected: false,
+            ticketTypeId: ticketTypeId,
+            ticketTypeName: ticketTypeName,
+            ticketTypeColor: ticketTypeColor,
+            price: price,
+          };
+        });
+        // Log validation
+        const assignedSeatsCount = processedSeats.filter(
+          (s) => s.ticketTypeId
+        ).length;
+        const seatsWithPrice = processedSeats.filter((s) => s.price > 0).length;
+        console.log("✅ Processed seats validation:", {
+          total: processedSeats.length,
+          assigned: assignedSeatsCount,
+          withPrice: seatsWithPrice,
+        });
+        if (assignedSeatsCount !== seatsWithPrice) {
+          console.error("❌ MISMATCH: Some assigned seats missing prices!", {
+            assigned: assignedSeatsCount,
+            withPrice: seatsWithPrice,
+          });
+        }
+        // Process assignments with complete data
+        const processedAssignments = Object.entries(seatAssignments)
+          .filter(
+            ([_, seatIds]) => Array.isArray(seatIds) && seatIds.length > 0
+          )
+          .map(([typeId, seatIds]) => {
+            const normalizedTypeId = String(typeId);
+            const ticketDetails = ticketTypeMap[normalizedTypeId];
+
+            if (!ticketDetails) {
+              console.warn(
+                `⚠️ Missing ticket details for type ${normalizedTypeId}`
+              );
+              return null;
+            }
+
+            return {
+              ticketTypeId: normalizedTypeId,
+              ticketTypeName: ticketDetails.name,
+              color: ticketDetails.color,
+              assignedSeats: seatIds.map((id) => String(id)),
+              capacity: seatIds.length,
+              price: ticketDetails.price,
+            };
+          })
+          .filter(Boolean); // Remove null entries
+
+        payload.seating_layout = {
+          rows: (generatedSeatingLayout.rows || []).map((r) => String(r)),
+          columns: Number(generatedSeatingLayout.columns || 0),
+          seats: processedSeats,
+          ticketTypeAssignments: processedAssignments,
+        };
+        const invalidSeats = processedSeats.filter(
+          (s) => s.ticketTypeId && (!s.ticketTypeName || s.price === undefined)
+        );
+        if (invalidSeats.length > 0) {
+          console.warn(
+            "⚠️ Warning: Some assigned seats missing complete data:",
+            {
+              count: invalidSeats.length,
+              samples: invalidSeats.slice(0, 3),
+            }
+          );
+        }
+      }
+    }
     return payload;
   };
   const buildFormData = (payload) => {
     const submissionForm = new FormData();
 
+    // Add editing flag if in edit mode
     if (isEditingSubEvent && editingSubEventId) {
       submissionForm.append("editing_sub_event_id", editingSubEventId);
     }
 
-    const subEventData = {
-      ...payload,
-      prohibited_items: Array.isArray(payload.prohibited_items)
-        ? payload.prohibited_items
-        : [],
-      ticket_types: Array.isArray(payload.ticket_types)
-        ? payload.ticket_types
-        : [],
-    };
+    // CRITICAL: Deep clone payload to avoid mutation
+    const subEventData = JSON.parse(JSON.stringify(payload));
+
+    // Log seating_layout BEFORE stringification
+    if (subEventData.seating_layout) {
+      // Verify all assigned seats have prices
+      const assignedSeats = subEventData.seating_layout.seats.filter(
+        (s) => s.ticketTypeId
+      );
+      const seatsWithoutPrice = assignedSeats.filter(
+        (s) => !s.price || s.price === 0
+      );
+
+      if (seatsWithoutPrice.length > 0) {
+        console.error(
+          "❌ CRITICAL: Seats missing prices:",
+          seatsWithoutPrice.map((s) => ({
+            seatId: s.seatId,
+            typeId: s.ticketTypeId,
+            typeName: s.ticketTypeName,
+            price: s.price,
+          }))
+        );
+      } else {
+        console.log("✅ All assigned seats have prices");
+      }
+    }
+
+    // Handle existing files in edit mode
+    if (isEditingSubEvent) {
+      // Preserve existing banner
+      if (
+        !seatingLayoutFile &&
+        !formData.event_banner &&
+        previews.event_banner
+      ) {
+        const existingPath =
+          typeof previews.event_banner === "string"
+            ? previews.event_banner
+            : previews.event_banner?.data;
+
+        if (existingPath) {
+          subEventData.existing_event_banner = existingPath;
+        }
+      }
+
+      // Preserve existing ticket_layout if no new file
+      if (!seatingLayoutFile && previews.ticket_layout) {
+        const existingPath =
+          typeof previews.ticket_layout === "string"
+            ? previews.ticket_layout
+            : previews.ticket_layout?.data;
+
+        if (existingPath) {
+          subEventData.existing_ticket_layout = existingPath;
+        }
+      }
+    }
+
+    // CRITICAL: Stringify sub_event data
     const jsonString = JSON.stringify(subEventData);
+
+    // Log a snippet to verify structure
+    if (jsonString.includes("seating_layout")) {
+      const layoutStart = jsonString.indexOf('"seating_layout"');
+      const snippet = jsonString.substring(layoutStart, layoutStart + 500);
+    }
+
     submissionForm.append("sub_event", jsonString);
-    if (formData.event_banner) {
+
+    // Append single file fields
+    if (formData.event_banner instanceof File) {
       submissionForm.append("event_banner", formData.event_banner);
     }
-    if (formData.event_logo) {
+
+    if (formData.event_logo instanceof File) {
       submissionForm.append("event_logo", formData.event_logo);
     }
 
-    if (formData.event_rules_file) {
+    if (formData.event_rules_file instanceof File) {
       submissionForm.append("event_rules", formData.event_rules_file);
     }
 
-    if (formData.ticket_layout) {
-      submissionForm.append("ticket_layout", formData.ticket_layout);
+    // CRITICAL: Handle ticket_layout file
+    if (formData.location_type === "offline") {
+      // Priority 1: New file from seatingLayoutFile
+      if (seatingLayoutFile instanceof File) {
+        submissionForm.append("ticket_layout", seatingLayoutFile);
+        console.log(
+          "📤 Appending NEW ticket_layout file:",
+          seatingLayoutFile.name
+        );
+      }
+      // Priority 2: File from formData
+      else if (formData.ticket_layout instanceof File) {
+        submissionForm.append("ticket_layout", formData.ticket_layout);
+        console.log("📤 Appending ticket_layout from formData");
+      }
+      // Priority 3: No new file in edit mode (existing handled above)
+      else if (isEditingSubEvent) {
+        console.log("ℹ️ Edit mode - no new ticket_layout file");
+      }
     }
 
-    // Event images
+    // Append event_images (multiple)
     if (formData.event_images && formData.event_images.length > 0) {
-      formData.event_images.forEach((file, index) => {
+      formData.event_images.forEach((file) => {
         submissionForm.append("event_images", file);
       });
+      console.log(`📤 Appending ${formData.event_images.length} event_images`);
     }
+
+    // Append guest profiles
     if (formData.guests && formData.guests.length > 0) {
       formData.guests.forEach((guest, index) => {
-        if (guest.rawFile) {
+        if (guest.rawFile instanceof File) {
           submissionForm.append(`guest_profile_${index}`, guest.rawFile);
         }
       });
     }
+
+    // Append ticket photos
     if (formData.ticket_types && formData.ticket_types.length > 0) {
       formData.ticket_types.forEach((ticket, index) => {
-        if (ticket.photoFile) {
+        if (ticket.photoFile instanceof File) {
           submissionForm.append(`ticket_photo_${index}`, ticket.photoFile);
         }
       });
     }
+
+    // Append video files for recorded events
     if (formData.location_type === "recorded" && formData.event_dates) {
       formData.event_dates.forEach((date, index) => {
-        if (date.videoFile) {
+        if (date.videoFile instanceof File) {
           submissionForm.append(`video_file_${index}`, date.videoFile);
         }
-        if (date.previewImageFile) {
+        if (date.previewImageFile instanceof File) {
           submissionForm.append(
             `preview_image_${index}`,
             date.previewImageFile
@@ -1279,9 +1680,54 @@ if (formData.hashtag && formData.hashtag.length > 0) {
         }
       });
     }
+
+    // Debug: Log FormData contents
+    console.log("📦 Final FormData contents:");
     let entryCount = 0;
     for (let pair of submissionForm.entries()) {
       entryCount++;
+      if (pair[0] === "sub_event") {
+        const data = pair[1];
+        if (typeof data === "string") {
+          console.log(`  ${pair[0]}: [JSON String] ${data.length} chars`);
+
+          // Verify seating_layout is in the JSON
+          if (data.includes("seating_layout")) {
+            console.log("  ✅ sub_event contains seating_layout");
+
+            // Parse and check structure
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.seating_layout) {
+                console.log("  ✅ seating_layout structure verified:", {
+                  hasSeats: !!parsed.seating_layout.seats,
+                  seatCount: parsed.seating_layout.seats?.length || 0,
+                  assignedCount:
+                    parsed.seating_layout.seats?.filter((s) => s.ticketTypeId)
+                      .length || 0,
+                  seatsWithPrice:
+                    parsed.seating_layout.seats?.filter((s) => s.price > 0)
+                      .length || 0,
+                });
+              }
+            } catch (e) {
+              console.error("  ❌ Failed to parse sub_event JSON:", e);
+            }
+          } else {
+            console.warn("  ⚠️ sub_event does NOT contain seating_layout!");
+          }
+        }
+      } else if (pair[1] instanceof File) {
+        console.log(
+          `  ${pair[0]}: [File] ${pair[1].name} (${pair[1].size} bytes)`
+        );
+      } else {
+        const value =
+          typeof pair[1] === "string" && pair[1].length > 100
+            ? pair[1].substring(0, 100) + "..."
+            : pair[1];
+        console.log(`  ${pair[0]}: ${value}`);
+      }
     }
     return submissionForm;
   };
@@ -1296,7 +1742,6 @@ if (formData.hashtag && formData.hashtag.length > 0) {
       });
       return;
     }
-
     if (formData.event_name.trim() !== "") {
       if (!validateForm()) {
         return;
@@ -1341,6 +1786,7 @@ if (formData.hashtag && formData.hashtag.length > 0) {
           return;
         }
         const submissionForm = buildFormData(payload);
+
         if (isEditingSubEvent && editingSubEventId) {
           await updateSubEvent(ticketId, editingSubEventId, submissionForm);
           showAlert({
@@ -1842,6 +2288,37 @@ if (formData.hashtag && formData.hashtag.length > 0) {
 
     try {
       const submissionForm = buildFormData(payload);
+      if (payload.seating_layout) {
+        console.log("🔍 FINAL PAYLOAD CHECK:", {
+          totalSeats: payload.seating_layout.seats?.length || 0,
+          assignedSeats:
+            payload.seating_layout.seats?.filter((s) => s.ticketTypeId)
+              .length || 0,
+          seatsWithPrice:
+            payload.seating_layout.seats?.filter((s) => s.price > 0).length ||
+            0,
+          assignments:
+            payload.seating_layout.ticketTypeAssignments?.length || 0,
+          sampleAssignedSeat: payload.seating_layout.seats?.find(
+            (s) => s.ticketTypeId
+          ),
+        });
+        const assignedCount =
+          payload.seating_layout.seats?.filter((s) => s.ticketTypeId).length ||
+          0;
+        const priceCount =
+          payload.seating_layout.seats?.filter((s) => s.price > 0).length || 0;
+        if (assignedCount > 0 && assignedCount !== priceCount) {
+          showAlert({
+            type: "error",
+            message: "Data Validation Failed",
+            description: `${
+              assignedCount - priceCount
+            } assigned seats are missing price data. Please reassign seats.`,
+          });
+          return;
+        }
+      }
 
       if (isEditingSubEvent && editingSubEventId) {
         await updateSubEvent(ticketId, editingSubEventId, submissionForm);
@@ -1851,16 +2328,26 @@ if (formData.hashtag && formData.hashtag.length > 0) {
           message: "Sub-Event Updated",
           description: "Your changes have been saved.",
         });
+        setSeatingLayoutFile(null);
+        setSeatingLayoutPreview(null);
+        setGeneratedSeatingLayout(null);
+        setShowSeatingPreview(false);
+        setHasSeatingLayout(false);
+        setSeatAssignments({});
       } else {
         await updateTicketAddOns(ticketId, submissionForm);
-
         showAlert({
           type: "success",
           message: "Sub-Event Added",
           description: "Your sub-event has been added successfully.",
         });
+        setSeatingLayoutFile(null);
+        setSeatingLayoutPreview(null);
+        setGeneratedSeatingLayout(null);
+        setShowSeatingPreview(false);
+        setHasSeatingLayout(false);
+        setSeatAssignments({});
       }
-
       resetForm();
       await fetchData();
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2050,7 +2537,7 @@ if (formData.hashtag && formData.hashtag.length > 0) {
             : [],
           min_age_allowed: subEvent.min_age_allowed || "",
           max_age_allowed: subEvent.max_age_allowed || "",
-          seating_arrangement: subEvent.seating_arrangement || "",
+          seating_arrangement: subEvent.seating_arrangement || "none",
           kids_friendly: subEvent.kids_friendly || false,
           pet_friendly: subEvent.pet_friendly || false,
           event_instagram_link: subEvent.event_instagram_link || "",
@@ -2122,8 +2609,153 @@ if (formData.hashtag && formData.hashtag.length > 0) {
         }));
         if (subEvent.ticket_layout) {
           setHasSeatingLayout(true);
-        } else {
-          setHasSeatingLayout(false);
+          setSeatingLayoutPreview(
+            getTicketImageUrl(String(subEvent.ticket_layout))
+          );
+          setSeatingLayoutFile({
+            name: "existing_layout.jpg",
+            type: "image/jpeg",
+            isExisting: true,
+            url: getTicketImageUrl(String(subEvent.ticket_layout)),
+          });
+
+          // ✅ CRITICAL: Load seating layout with proper field handling
+          if (
+            subEvent.seating_layout &&
+            subEvent.seating_layout.seats &&
+            subEvent.seating_layout.seats.length > 0
+          ) {
+            console.log("🔍 Loading existing seating layout:", {
+              totalSeats: subEvent.seating_layout.seats.length,
+              sampleSeat: subEvent.seating_layout.seats[0],
+              hasAssignments: !!subEvent.seating_layout.ticketTypeAssignments,
+            });
+
+            // ✅ ENSURE ALL 4 FIELDS ARE PRESERVED FROM DATABASE
+            const loadedLayout = {
+              rows: (subEvent.seating_layout.rows || []).map((r) => String(r)),
+              columns: Number(subEvent.seating_layout.columns || 0),
+              seats: (subEvent.seating_layout.seats || []).map((seat) => {
+                // ✅ CRITICAL: Handle all possible field formats from DB
+                const seatData = {
+                  seatId: String(seat.seatId || ""),
+                  row: String(seat.row || ""),
+                  column: Number(seat.column || 0),
+                  isAvailable: seat.isAvailable !== false,
+                  isSelected: false,
+                  // ✅ PRESERVE EXACT VALUES FROM DB - NO FALLBACKS TO NULL
+                  ticketTypeId:
+                    seat.ticketTypeId !== undefined &&
+                    seat.ticketTypeId !== null
+                      ? String(seat.ticketTypeId)
+                      : null,
+                  ticketTypeName:
+                    seat.ticketTypeName !== undefined &&
+                    seat.ticketTypeName !== null
+                      ? String(seat.ticketTypeName)
+                      : null,
+                  ticketTypeColor:
+                    seat.ticketTypeColor !== undefined &&
+                    seat.ticketTypeColor !== null
+                      ? String(seat.ticketTypeColor)
+                      : null,
+                  price:
+                    seat.price !== undefined && seat.price !== null
+                      ? Number(seat.price)
+                      : 0,
+                };
+
+                return seatData;
+              }),
+              ticketTypeAssignments: (
+                subEvent.seating_layout.ticketTypeAssignments || []
+              )
+                .filter(
+                  (assignment) =>
+                    assignment.ticketTypeName &&
+                    String(assignment.ticketTypeName).trim() !== "" &&
+                    assignment.assignedSeats &&
+                    Array.isArray(assignment.assignedSeats) &&
+                    assignment.assignedSeats.length > 0
+                )
+                .map((assignment) => ({
+                  ticketTypeId: String(assignment.ticketTypeId || ""),
+                  ticketTypeName: String(assignment.ticketTypeName || ""),
+                  color: assignment.color ? String(assignment.color) : "",
+                  assignedSeats: (assignment.assignedSeats || []).map((s) =>
+                    String(s)
+                  ),
+                  capacity: Number(assignment.capacity || 0),
+                  price: Number(
+                    assignment.price !== undefined && assignment.price !== null
+                      ? assignment.price
+                      : 0
+                  ),
+                })),
+            };
+
+            console.log("✅ Loaded layout verification:", {
+              totalSeats: loadedLayout.seats.length,
+              assignedSeats: loadedLayout.seats.filter((s) => s.ticketTypeId)
+                .length,
+              seatsWithName: loadedLayout.seats.filter((s) => s.ticketTypeName)
+                .length,
+              seatsWithPrice: loadedLayout.seats.filter((s) => s.price > 0)
+                .length,
+              seatsWithColor: loadedLayout.seats.filter(
+                (s) => s.ticketTypeColor
+              ).length,
+              sampleAssignedSeat: loadedLayout.seats.find(
+                (s) => s.ticketTypeId
+              ),
+            });
+
+            setGeneratedSeatingLayout(loadedLayout);
+            setShowSeatingPreview(true);
+
+            // ✅ Rebuild seat assignments from loaded layout WITH VALIDATION
+            const assignments = {};
+            if (loadedLayout.seats && loadedLayout.seats.length > 0) {
+              loadedLayout.seats.forEach((seat) => {
+                // ✅ ONLY add to assignments if ALL 4 fields are present
+                if (
+                  seat.ticketTypeId &&
+                  seat.ticketTypeName &&
+                  seat.ticketTypeColor &&
+                  seat.price > 0
+                ) {
+                  const typeId = String(seat.ticketTypeId);
+                  if (!assignments[typeId]) {
+                    assignments[typeId] = [];
+                  }
+                  assignments[typeId].push(String(seat.seatId));
+                }
+              });
+            }
+
+            console.log("✅ Rebuilt seat assignments:", {
+              assignmentCount: Object.keys(assignments).length,
+              assignments: assignments,
+            });
+
+            setSeatAssignments(assignments);
+
+            // ✅ VALIDATION ALERT
+            const assignedSeats = loadedLayout.seats.filter(
+              (s) => s.ticketTypeId
+            );
+            const validSeats = assignedSeats.filter(
+              (s) => s.ticketTypeName && s.ticketTypeColor && s.price > 0
+            );
+
+            if (assignedSeats.length > validSeats.length) {
+              console.warn(
+                `⚠️ Warning: ${
+                  assignedSeats.length - validSeats.length
+                } seats have incomplete assignment data`
+              );
+            }
+          }
         }
         if (subEvent.event_images && subEvent.event_images.length > 0) {
           const imageUrls = subEvent.event_images
@@ -2297,7 +2929,167 @@ if (formData.hashtag && formData.hashtag.length > 0) {
         showAlert={showAlert}
         darkMode={darkMode}
       />
+      <SeatAssignmentModal
+        isOpen={showSeatAssignmentModal}
+        onClose={() => setShowSeatAssignmentModal(false)}
+        onSave={(newAssignments) => {
+          if (!generatedSeatingLayout || !generatedSeatingLayout.seats) {
+            showAlert({
+              type: "error",
+              message: "Layout Error",
+              description:
+                "No seating layout available. Please generate a layout first.",
+            });
+            return;
+          }
 
+          const clonedAssignments = JSON.parse(JSON.stringify(newAssignments));
+          setSeatAssignments(clonedAssignments);
+
+          // ✅ Create ticket type lookup map
+          const ticketTypeMap = {};
+          formData.ticket_types.forEach((ticket) => {
+            const id = String(ticket.id);
+            ticketTypeMap[id] = {
+              name: ticket.name || ticket.ticket_type || "",
+              price: Number(ticket.price || ticket.ticket_price || 0),
+              color: getTicketTypeColor(ticket.id),
+            };
+          });
+
+          const updatedLayout = JSON.parse(
+            JSON.stringify(generatedSeatingLayout)
+          );
+
+          // ✅ Update seats with complete data from ticket types
+          updatedLayout.seats = updatedLayout.seats.map((seat) => {
+            const assignedEntry = Object.entries(clonedAssignments).find(
+              ([_, seatIds]) => seatIds && seatIds.includes(seat.seatId)
+            );
+
+            if (assignedEntry) {
+              const [ticketTypeId] = assignedEntry;
+              const ticketDetails = ticketTypeMap[String(ticketTypeId)];
+
+              if (!ticketDetails) {
+                console.error(
+                  `❌ Missing ticket details for ID ${ticketTypeId}`
+                );
+                return seat; // Keep original seat if no details found
+              }
+
+              return {
+                seatId: seat.seatId,
+                row: seat.row,
+                column: seat.column,
+                isAvailable: true,
+                isSelected: false,
+                ticketTypeId: String(ticketTypeId),
+                ticketTypeName: ticketDetails.name,
+                ticketTypeColor: ticketDetails.color,
+                price: ticketDetails.price,
+              };
+            }
+
+            // Keep existing assignment if no new assignment
+            if (seat.ticketTypeId) {
+              const existingDetails = ticketTypeMap[String(seat.ticketTypeId)];
+              return {
+                seatId: seat.seatId,
+                row: seat.row,
+                column: seat.column,
+                isAvailable: seat.isAvailable !== false,
+                isSelected: false,
+                ticketTypeId: String(seat.ticketTypeId),
+                ticketTypeName:
+                  existingDetails?.name || seat.ticketTypeName || null,
+                ticketTypeColor:
+                  existingDetails?.color || seat.ticketTypeColor || null,
+                price: existingDetails?.price || Number(seat.price || 0),
+              };
+            }
+
+            // Unassigned seat
+            return {
+              seatId: seat.seatId,
+              row: seat.row,
+              column: seat.column,
+              isAvailable: true,
+              isSelected: false,
+              ticketTypeId: null,
+              ticketTypeName: null,
+              ticketTypeColor: null,
+              price: 0,
+            };
+          });
+
+          // ✅ Update assignments with complete data
+          updatedLayout.ticketTypeAssignments = Object.entries(
+            clonedAssignments
+          )
+            .filter(([_, seatIds]) => seatIds && seatIds.length > 0)
+            .map(([typeId, seatIds]) => {
+              const normalizedTypeId = String(typeId);
+              const ticketDetails = ticketTypeMap[normalizedTypeId];
+
+              if (!ticketDetails) {
+                console.error(
+                  `❌ Missing ticket details for assignment ${normalizedTypeId}`
+                );
+                return null;
+              }
+
+              return {
+                ticketTypeId: normalizedTypeId,
+                ticketTypeName: ticketDetails.name,
+                color: ticketDetails.color,
+                assignedSeats: [...seatIds],
+                capacity: seatIds.length,
+                price: ticketDetails.price,
+              };
+            })
+            .filter(Boolean);
+
+          setGeneratedSeatingLayout(updatedLayout);
+
+          // ✅ Validation
+          const assignedSeats = updatedLayout.seats.filter(
+            (s) => s.ticketTypeId
+          );
+          const validSeats = assignedSeats.filter(
+            (s) => s.ticketTypeName && s.price > 0
+          );
+
+          if (validSeats.length < assignedSeats.length) {
+            showAlert({
+              type: "warning",
+              message: "Incomplete Assignments",
+              description: `${
+                assignedSeats.length - validSeats.length
+              } seats are missing data. Please check ticket types.`,
+            });
+          } else {
+            showAlert({
+              type: "success",
+              message: "Seats Assigned!",
+              description: `Assigned ${assignedSeats.length} seats with prices.`,
+            });
+          }
+        }}
+        seatingLayout={
+          generatedSeatingLayout || { rows: [], columns: 0, seats: [] }
+        }
+        ticketTypes={formData.ticket_types.map((t) => ({
+          id: t.id,
+          name: t.name || t.ticket_type,
+          price: t.price || t.ticket_price || 0,
+          capacity: t.capacity || t.max_capacity || 0,
+        }))}
+        existingAssignments={seatAssignments}
+        ticketTypeColors={ticketTypeColors}
+        darkMode={darkMode}
+        getTicketTypeColor={getTicketTypeColor}
+      />
       <div className={`${darkMode ? "dark" : ""}`}>
         <div className="bg-white dark:bg-[#212426] text-gray-800 dark:text-white min-h-screen flex">
           <EventSidebar
@@ -2494,7 +3286,6 @@ if (formData.hashtag && formData.hashtag.length > 0) {
                         <span className="text-red-400">*</span>
                         <InfoTooltip note="Get more specific with your category." />
                       </label>
-                      {/* --- MODIFIED: Event Subcategory Dropdown --- */}
                       <Select
                         name="event_subcategory"
                         options={subCategoryOptions}
@@ -2677,7 +3468,6 @@ if (formData.hashtag && formData.hashtag.length > 0) {
                     formData.location_type === "recorded") && (
                     <div className="space-y-8 animate-fade-in">
                       {/* Event Link Input (remains the same) */}
-
                       <FormInput
                         label="Maximum number of people allowed (capacity)?"
                         id="total_capacity"
@@ -2781,8 +3571,10 @@ if (formData.hashtag && formData.hashtag.length > 0) {
                         required={formData.location_type === "offline"}
                       />
                       {errors.seating_arrangement && (
-    <p className="text-red-500 text-xs mt-1">{errors.seating_arrangement}</p>
-)}
+                        <p className="text-red-500 text-xs mt-1">
+                          {errors.seating_arrangement}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -3393,23 +4185,25 @@ if (formData.hashtag && formData.hashtag.length > 0) {
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                       <div>
-                                              <FileInput
-                        id="event_banner"
-                        label="Event Banner"
-                        info="Required. 2:1 ratio recommended."
-                        preview={previews.event_banner}
-                        onFileChange={handleMediaFileChange}
-                        onRemove={removeMediaFile}
-                        darkMode={darkMode}
-                        acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
-                        ref={(el) => (errorFieldRefs.current.event_banner = el)}
-                        maxSizeMB={50}
-                      />
-                      {errors.event_banner && (
-            <p className="text-red-500 text-xs mt-1">
-                {errors.event_banner}
-            </p>
-        )}
+                        <FileInput
+                          id="event_banner"
+                          label="Event Banner"
+                          info="Required. 2:1 ratio recommended."
+                          preview={previews.event_banner}
+                          onFileChange={handleMediaFileChange}
+                          onRemove={removeMediaFile}
+                          darkMode={darkMode}
+                          acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
+                          ref={(el) =>
+                            (errorFieldRefs.current.event_banner = el)
+                          }
+                          maxSizeMB={50}
+                        />
+                        {errors.event_banner && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {errors.event_banner}
+                          </p>
+                        )}
                       </div>
 
                       <FileInput
@@ -3766,8 +4560,28 @@ if (formData.hashtag && formData.hashtag.length > 0) {
                                 }
                                 disabled={useGroupBankAccount}
                                 placeholder="eg. John Doe"
-                                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className={`
+    w-full 
+    bg-gray-100 
+    dark:bg-[#1c1c1f] 
+    text-gray-900 
+    dark:text-white 
+    rounded-md 
+    p-3 
+    disabled:opacity-50 
+    disabled:cursor-not-allowed 
+    ${
+      errors.bank_acc_holder
+        ? "border-2 border-red-500"
+        : "border border-black dark:border-gray-700"
+    }
+  `}
                               />
+                              {errors.bank_acc_holder && (
+                                <p className="text-red-500 text-xs mt-1">
+                                  Account Holder Name is required.
+                                </p>
+                              )}
                             </div>
 
                             <div>
@@ -3788,8 +4602,28 @@ if (formData.hashtag && formData.hashtag.length > 0) {
                                 }
                                 disabled={useGroupBankAccount}
                                 placeholder="xxxx-xxxx-xxxx-xxxx"
-                                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className={`
+    w-full 
+    bg-gray-100 
+    dark:bg-[#1c1c1f] 
+    text-gray-900 
+    dark:text-white 
+    rounded-md 
+    p-3 
+    disabled:opacity-50 
+    disabled:cursor-not-allowed 
+    ${
+      errors.bank_acc_no
+        ? "border-2 border-red-500"
+        : "border border-black dark:border-gray-700"
+    }
+  `}
                               />
+                              {errors.bank_acc_no && (
+                                <p className="text-red-500 text-xs mt-1">
+                                  Account Number format is invalid.
+                                </p>
+                              )}
                             </div>
 
                             <div>
@@ -3810,8 +4644,28 @@ if (formData.hashtag && formData.hashtag.length > 0) {
                                 }
                                 disabled={useGroupBankAccount}
                                 placeholder="xxxxxxxxxxx"
-                                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className={`
+    w-full 
+    bg-gray-100 
+    dark:bg-[#1c1c1f] 
+    text-gray-900 
+    dark:text-white 
+    rounded-md 
+    p-3 
+    disabled:opacity-50 
+    disabled:cursor-not-allowed 
+    ${
+      errors.bank_ifsc
+        ? "border-2 border-red-500"
+        : "border border-black dark:border-gray-700"
+    }
+  `}
                               />
+                              {errors.bank_ifsc && (
+                                <p className="text-red-500 text-xs mt-1">
+                                  IFSC Code format is invalid.
+                                </p>
+                              )}
                             </div>
                           </div>
                         </section>
@@ -3829,33 +4683,47 @@ if (formData.hashtag && formData.hashtag.length > 0) {
                         book their spot.
                       </p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 pt-2">
-                        <DateInput
-                          id="booking_start_date"
-                          label="Booking start date?"
-                          name="booking_start_date"
-                          value={formData.booking_start_date}
-                          onChange={handleInputChange}
-                          error={errors.booking_start_date}
-                          maxDate={subEventEndDate}
-                          darkMode={darkMode}
-                          ref={(el) =>
-                            (errorFieldRefs.current.booking_start_date = el)
-                          }
-                        />
-                        <DateInput
-                          id="booking_end_date"
-                          label="Booking end date?"
-                          name="booking_end_date"
-                          value={formData.booking_end_date}
-                          onChange={handleInputChange}
-                          error={errors.booking_end_date}
-                          darkMode={darkMode}
-                          minDate={formData.booking_start_date}
-                          maxDate={subEventEndDate}
-                          ref={(el) =>
-                            (errorFieldRefs.current.booking_end_date = el)
-                          }
-                        />
+                        <div>
+                          <DateInput
+                            id="booking_start_date"
+                            label="Booking start date?"
+                            name="booking_start_date"
+                            value={formData.booking_start_date}
+                            onChange={handleInputChange}
+                            error={errors.booking_start_date}
+                            maxDate={subEventEndDate}
+                            darkMode={darkMode}
+                            ref={(el) =>
+                              (errorFieldRefs.current.booking_start_date = el)
+                            }
+                          />
+                          {errors.booking_start_date && (
+                            <p className="text-red-500 text-xs mt-1">
+                              {errors.booking_start_date}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <DateInput
+                            id="booking_end_date"
+                            label="Booking end date?"
+                            name="booking_end_date"
+                            value={formData.booking_end_date}
+                            onChange={handleInputChange}
+                            error={errors.booking_end_date}
+                            darkMode={darkMode}
+                            minDate={formData.booking_start_date}
+                            maxDate={subEventEndDate}
+                            ref={(el) =>
+                              (errorFieldRefs.current.booking_end_date = el)
+                            }
+                          />
+                          {errors.booking_end_date && (
+                            <p className="text-red-500 text-xs mt-1">
+                              {errors.booking_end_date}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       {formData.location_type === "offline" &&
                         formData.payment_type === "paid" && (
@@ -4098,7 +4966,6 @@ if (formData.hashtag && formData.hashtag.length > 0) {
                     </section>
                   )}
                 </div>
-
                 {/* --- FINAL ACTION BUTTONS --- */}
                 <button
                   type="button"

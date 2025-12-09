@@ -74,8 +74,8 @@ const UpdateTicketDetails = () => {
   const [tickets, setTickets] = useState([]);
   const [eventEndDate, setEventEndDate] = useState("");
   const [showSeatAssignmentModal, setShowSeatAssignmentModal] = useState(false);
-
   const errorFieldRefs = useRef({});
+
   const [ticketTypeColors] = useState([
     "#3B82F6", // Blue
     "#e6e92eff", // Yellow
@@ -178,29 +178,30 @@ const UpdateTicketDetails = () => {
               loadedLayout.seats = loadedLayout.seats.map((seat) => {
                 // CASE 1: Seat already has color saved
                 if (seat.ticketTypeColor) {
-                  console.log(
-                    `✅ Seat ${seat.seatId} has saved color: ${seat.ticketTypeColor}`
-                  );
                   return seat;
                 }
-
-                // CASE 2: Seat has assignment but missing color - restore from assignments
-                if (seat.ticketTypeId && loadedLayout.ticketTypeAssignments) {
+                if (
+                  seat.ticketTypeId &&
+                  loadedLayout.ticketTypeAssignments.length > 0
+                ) {
                   const assignment = loadedLayout.ticketTypeAssignments.find(
                     (a) => String(a.ticketTypeId) === String(seat.ticketTypeId)
                   );
-
                   if (assignment && assignment.color) {
                     console.log(
-                      `🔧 Restored color for seat ${seat.seatId}: ${assignment.color}`
+                      `🔧 Restored seat ${seat.seatId}: ${
+                        assignment.ticketTypeName
+                      } (${assignment.color}) - ₹${assignment.price || 0}`
                     );
                     return {
                       ...seat,
                       ticketTypeColor: assignment.color,
+                      ticketTypeName:
+                        assignment.ticketTypeName || seat.ticketTypeName,
+                      price: assignment.price || seat.price || 0, // Restore price
                     };
                   }
                 }
-
                 // CASE 3: Unassigned seat - return as is
                 return seat;
               });
@@ -673,6 +674,15 @@ const UpdateTicketDetails = () => {
       // Extract the generated seating layout from response
       if (response.ticket?.seating_layout) {
         const generatedLayout = response.ticket.seating_layout;
+
+        // Ensure all seats have price initialized to 0 if not present
+        if (generatedLayout.seats && Array.isArray(generatedLayout.seats)) {
+          generatedLayout.seats = generatedLayout.seats.map((seat) => ({
+            ...seat,
+            price: seat.price !== undefined ? seat.price : 0,
+          }));
+        }
+
         setGeneratedSeatingLayout(generatedLayout);
         setShowSeatingPreview(true);
       } else if (response.seating_layout_info) {
@@ -841,7 +851,18 @@ const UpdateTicketDetails = () => {
 
     return true;
   };
-
+  useEffect(() => {
+    if (
+      paymentType === "paid" &&
+      (!groupHasBankAccount || groupBankDetailsIncomplete)
+    ) {
+      setUseGroupBankAccount(false);
+    }
+  }, [groupHasBankAccount, groupBankDetailsIncomplete, paymentType]);
+  const handleGoBack = () => {
+    localStorage.removeItem(storageKey);
+    navigate(`/ticket/update-ticket-media/${ticketId}`);
+  };
   const validateFinalForm = () => {
     setErrors({});
     hideAlert();
@@ -951,18 +972,6 @@ const UpdateTicketDetails = () => {
     }
 
     return Object.keys(newErrors).length === 0;
-  };
-  useEffect(() => {
-    if (
-      paymentType === "paid" &&
-      (!groupHasBankAccount || groupBankDetailsIncomplete)
-    ) {
-      setUseGroupBankAccount(false);
-    }
-  }, [groupHasBankAccount, groupBankDetailsIncomplete, paymentType]);
-  const handleGoBack = () => {
-    localStorage.removeItem(storageKey);
-    navigate(`/ticket/update-ticket-media/${ticketId}`);
   };
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1075,7 +1084,6 @@ const UpdateTicketDetails = () => {
       setLoading(false);
       return;
     }
-
     // NEW LINE - Use ticketsToSubmit array
     const cleanTicketTypes = ticketsToSubmit.map((ticket) => ({
       ticket_type: ticket.ticket_type || ticket.name,
@@ -1084,7 +1092,6 @@ const UpdateTicketDetails = () => {
       ticket_photo: ticket.ticket_photo || ticket.image || "", // Ensure photo is included if needed
     }));
     apiFormData.append("ticket_types", JSON.stringify(cleanTicketTypes));
-
     if (locationType === "offline") {
       ticketsToSubmit.forEach((ticket, index) => {
         if (ticket.photoFile instanceof File) {
@@ -1096,10 +1103,7 @@ const UpdateTicketDetails = () => {
       if (seatingLayoutFile instanceof File) {
         apiFormData.append("ticket_layout", seatingLayoutFile);
       }
-
       if (generatedSeatingLayout) {
-        
-
         const layoutWithAssignments = {
           ...generatedSeatingLayout,
           rows: generatedSeatingLayout.rows,
@@ -1111,18 +1115,13 @@ const UpdateTicketDetails = () => {
             const assignedEntry = Object.entries(seatAssignments).find(
               ([_, seatIds]) => seatIds && seatIds.includes(seat.seatId)
             );
-
             if (assignedEntry) {
               const [ticketTypeId, assignedSeatIds] = assignedEntry;
               const ticket = tickets.find(
                 (t) => String(t.id) === String(ticketTypeId)
               );
               const color = getTicketTypeColor(ticketTypeId);
-
-              console.log(
-                `✅ Seat ${seat.seatId} → ${ticket?.name} (${color})`
-              );
-
+              const price = ticket?.price || ticket?.ticket_price || 0;
               return {
                 seatId: seat.seatId,
                 row: seat.row,
@@ -1131,10 +1130,10 @@ const UpdateTicketDetails = () => {
                 isSelected: false,
                 ticketTypeId: String(ticketTypeId),
                 ticketTypeName: ticket?.name || ticket?.ticket_type || "",
-                ticketTypeColor: color, // CRITICAL: Save color here
+                ticketTypeColor: color,
+                price: price, // CRITICAL: Save price here
               };
             }
-
             // Unassigned seat - clear all assignment data
             return {
               seatId: seat.seatId,
@@ -1145,10 +1144,10 @@ const UpdateTicketDetails = () => {
               ticketTypeId: null,
               ticketTypeName: null,
               ticketTypeColor: null,
+              price: 0,
             };
           }),
-
-          // STEP 2: Build ticket type assignments summary with colors
+          // STEP 2: Build ticket type assignments summary with colors and price
           ticketTypeAssignments: Object.entries(seatAssignments)
             .filter(([_, seatIds]) => seatIds && seatIds.length > 0)
             .map(([typeId, seatIds]) => {
@@ -1156,17 +1155,17 @@ const UpdateTicketDetails = () => {
                 (t) => String(t.id) === String(typeId)
               );
               const color = getTicketTypeColor(typeId);
-
+              const price = ticket?.price || ticket?.ticket_price || 0;
               console.log(
-                `📊 Assignment: ${ticket?.name} - ${seatIds.length} seats - Color: ${color}`
+                `💰 Assignment for ${ticket?.name}: price = ₹${price}`
               );
-
               return {
                 ticketTypeId: String(typeId),
                 ticketTypeName: ticket?.name || ticket?.ticket_type || "",
-                color: color, // CRITICAL: Save color in assignment
+                color: color,
                 assignedSeats: [...seatIds],
                 capacity: ticket?.capacity || ticket?.max_capacity || 0,
+                price: price, // CRITICAL: Save price in assignments
               };
             }),
         };
@@ -1260,13 +1259,9 @@ const UpdateTicketDetails = () => {
           </div>
           <div className="w-full max-w-5xl mx-auto">
             <header className="text-center mt-4 mb-16">
-              <div                   className={`w-20 h-20 rounded-full mx-auto my-4  flex items-center justify-center ${
-                    darkMode
-                      ? "bg-[#1E1242] text-gray-300"
-                      : "bg-[#1E1242] text-gray-300"
-                  }`}>
+              <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6 bg-indigo-100 dark:bg-[#21163b] border-2 border-indigo-200 dark:border-[#3c2e6f]">
                 <svg
-                  className="w-10 h-10 "
+                  className="w-10 h-10 text-indigo-600 dark:text-indigo-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -1285,18 +1280,19 @@ const UpdateTicketDetails = () => {
             </header>
 
             <form onSubmit={handleSubmit} className="space-y-12">
-
-              <section className="space-y-6">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Payment type
-                  </h2>
-                  <p className="text-black dark:text-gray-400 text-sm">
-                    Select if your event is free to attend or requires a ticket
-                    purchase.
-                  </p>
+              {errors.general && (
+                <div className="p-4 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700 rounded-lg">
+                  {errors.general}
                 </div>
-
+              )}
+              <section className="space-y-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Payment type
+                </h2>
+                <p className="text-black dark:text-gray-400 text-sm">
+                  Select if your event is free to attend or requires a ticket
+                  purchase.
+                </p>
                 <div>
                   <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
                     Event type<span className="text-red-400">*</span>
@@ -1336,19 +1332,17 @@ const UpdateTicketDetails = () => {
               </section>
 
               {paymentType === "paid" && (
-                <section className="bg-[#f7f7f7] dark:bg-[#2B2B2B] p-8 rounded-lg space-y-6 animate-fade-in shadow-sm dark:shadow-none">
+                <section className="bg-white dark:bg-[#2B2B2B] p-8 rounded-lg space-y-6 animate-fade-in shadow-sm dark:shadow-none">
                   <div className="flex items-center space-x-4">
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        Banking details
-                      </h2>
-                      {!useGroupBankAccount && (
-                        <span className="px-3 py-1 bg-yellow-100 dark:bg-[#282115] text-yellow-800 dark:text-[#FFB800] text-xs font-medium rounded-md">
-                          Bank account must be a current account or merchant
-                          account
-                        </span>
-                      )}
-                    </div>
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      Banking details
+                    </h2>
+                    {!useGroupBankAccount && (
+                      <span className="px-3 py-1 bg-yellow-100 dark:bg-[#282115] text-yellow-800 dark:text-[#FFB800] text-xs font-medium rounded-md">
+                        Bank account must be a current account or merchant
+                        account
+                      </span>
+                    )}
                   </div>
                   <div>
                     {paymentType === "paid" && (
@@ -1356,7 +1350,7 @@ const UpdateTicketDetails = () => {
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex-1 ">
                             <label
-                              className={`font-medium text-base ${
+                              className={`font-medium text-md ${
                                 groupHasBankAccount &&
                                 !groupBankDetailsIncomplete
                                   ? "text-gray-900 dark:text-white"
@@ -1441,7 +1435,7 @@ const UpdateTicketDetails = () => {
                       </div>
                     )}
                   </div>
-                  <p className="items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
+                  <p className="text-black dark:text-gray-400 text-sm">
                     {useGroupBankAccount
                       ? "This is the primary bank account associated with your group."
                       : "Provide bank account details for payment processing, settlements, or refunds."}
@@ -1462,7 +1456,9 @@ const UpdateTicketDetails = () => {
                           value={currentBankDetail.bank_acc_type || ""}
                           onChange={(e) => handleBankingDetailChange(0, e)}
                           disabled={useGroupBankAccount}
-                          ref={(el) => (errorFieldRefs.current.bank_acc_type = el)}
+                          ref={(el) =>
+                            (errorFieldRefs.current.bank_acc_type = el)
+                          }
                           className="w-full appearance-none bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <option
@@ -1485,7 +1481,6 @@ const UpdateTicketDetails = () => {
                           </option>
                         </select>
 
-
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3">
                           <svg
                             className="w-5 h-5 text-black"
@@ -1502,7 +1497,11 @@ const UpdateTicketDetails = () => {
                           </svg>
                         </div>
                       </div>
-                      {errors.bank_acc_type && <p className="text-red-500 text-sm mt-1">Account Type is required.</p>}
+                      {errors.bank_acc_type && (
+                        <p className="text-red-500 text-xs mt-1">
+                          Account Type is required.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label
@@ -1520,10 +1519,31 @@ const UpdateTicketDetails = () => {
                         onChange={(e) => handleBankingDetailChange(0, e)}
                         disabled={useGroupBankAccount}
                         placeholder="eg. John Doe"
-                        ref={(el) => (errorFieldRefs.current.bank_acc_holder = el)}
-                        className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                        ref={(el) =>
+                          (errorFieldRefs.current.bank_acc_holder = el)
+                        }
+                        className={`
+    w-full 
+    bg-gray-100 
+    dark:bg-[#1c1c1f] 
+    text-gray-900 
+    dark:text-white 
+    rounded-md 
+    p-3 
+    disabled:opacity-50 
+    disabled:cursor-not-allowed 
+    ${
+      errors.bank_acc_holder
+        ? "border-2 border-red-500"
+        : "border border-black dark:border-gray-700"
+    }
+  `}
                       />
-                      {errors.bank_acc_holder && <p className="text-red-500 text-sm mt-1">Account Holder Name is required.</p>}
+                      {errors.bank_acc_holder && (
+                        <p className="text-red-500 text-xs mt-1">
+                          Account Holder Name is required.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label
@@ -1542,9 +1562,28 @@ const UpdateTicketDetails = () => {
                         disabled={useGroupBankAccount}
                         ref={(el) => (errorFieldRefs.current.bank_acc_no = el)}
                         placeholder="xxxx-xxxx-xxxx-xxxx"
-                        className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={`
+    w-full 
+    bg-gray-100 
+    dark:bg-[#1c1c1f] 
+    text-gray-900 
+    dark:text-white 
+    rounded-md 
+    p-3 
+    disabled:opacity-50 
+    disabled:cursor-not-allowed 
+    ${
+      errors.bank_acc_no
+        ? "border-2 border-red-500"
+        : "border border-black dark:border-gray-700"
+    }
+  `}
                       />
-                      {errors.bank_acc_no && <p className="text-red-500 text-sm mt-1">Account Number format is invalid.</p>}
+                      {errors.bank_acc_no && (
+                        <p className="text-red-500 text-xs mt-1">
+                          Account Number format is invalid.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label
@@ -1562,23 +1601,39 @@ const UpdateTicketDetails = () => {
                         disabled={useGroupBankAccount}
                         ref={(el) => (errorFieldRefs.current.bank_ifsc = el)}
                         placeholder="xxxxxxxxxxx"
-                        className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={`
+    w-full 
+    bg-gray-100 
+    dark:bg-[#1c1c1f] 
+    text-gray-900 
+    dark:text-white 
+    rounded-md 
+    p-3 
+    disabled:opacity-50 
+    disabled:cursor-not-allowed 
+    ${
+      errors.bank_ifsc
+        ? "border-2 border-red-500"
+        : "border border-black dark:border-gray-700"
+    }
+  `}
                       />
-                      {errors.bank_ifsc && <p className="text-red-500 text-sm mt-1">IFSC Code format is invalid.</p>}
+                      {errors.bank_ifsc && (
+                        <p className="text-red-500 text-xs mt-1">
+                          IFSC Code format is invalid.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </section>
               )}
               <section className="space-y-6 max-w-2xl">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Seating details
-                  </h2>
-                  <p className="text-black dark:text-gray-400 text-sm">
-                    Add event seating capacity and its layout
-                  </p>
-                </div>
-
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Seating details
+                </h2>
+                <p className="text-black dark:text-gray-400 text-sm">
+                  Add event seating capacity and its layout
+                </p>
                 {(() => {
                   const seatingArrangement = (
                     mainEventData?.seating_arrangement || ""
@@ -1602,7 +1657,9 @@ const UpdateTicketDetails = () => {
                       "Total number of people allowed (capacity)?";
                   }
                   return (
-                    <div ref={(el) => (errorFieldRefs.current.totalCapacity = el)}>
+                    <div
+                      ref={(el) => (errorFieldRefs.current.totalCapacity = el)}
+                    >
                       <label
                         htmlFor="total_capacity"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -1617,19 +1674,33 @@ const UpdateTicketDetails = () => {
                         name="total_capacity"
                         value={totalCapacity}
                         onChange={(e) => setTotalCapacity(e.target.value)}
-                        ref={(el) => (errorFieldRefs.current.totalCapacity = el)}
+                        ref={(el) =>
+                          (errorFieldRefs.current.totalCapacity = el)
+                        }
                         placeholder="event capacity"
                         className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3"
                       />
-                      {errors.totalCapacity && <p className="text-red-500 text-sm mt-1">Total capacity must be a positive number.</p>}
+                      {errors.totalCapacity && (
+                        <p className="text-red-500 text-xs mt-1">
+                          Total capacity must be a positive number.
+                        </p>
+                      )}
                     </div>
                   );
                 })()}
                 {paymentType === "paid" && (
                   <section className="space-y-6">
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                      Ticketing details
-                    </h2>
+                    <div>
+                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                        Ticketing details
+                      </h2>
+                      {errors.tickets && (
+                        <p className="text-red-500 text-sm ">
+                          Please add at least one ticket type for this paid
+                          offline event.
+                        </p>
+                      )}
+                    </div>
 
                     {isOfflinePaid && (
                       <>
@@ -1637,6 +1708,7 @@ const UpdateTicketDetails = () => {
                           Add ticket types, set prices, and control how
                           attendees book their spot.
                         </p>
+
                         <button
                           type="button"
                           onClick={handleOpenModalForAdd}
@@ -1699,8 +1771,10 @@ const UpdateTicketDetails = () => {
                         )}
 
                         {tickets.length === 0 && (
-                          <div ref={(el) => (errorFieldRefs.current.tickets = el)}
-                          className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                          <div
+                            ref={(el) => (errorFieldRefs.current.tickets = el)}
+                            className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg"
+                          >
                             No tickets added yet. Click "Add tickets" to create
                             your first ticket type.
                           </div>
@@ -1709,50 +1783,58 @@ const UpdateTicketDetails = () => {
                     )}
 
                     {isOnlineOrRecordedPaid && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4   rounded-lg">
-                        <FormInput
-                          label="Ticket Price"
-                          id="simpleTicketPrice"
-                          name="simpleTicketPrice"
-                          type="number"
-                          value={simpleTicketPrice}
-                          onChange={(e) => setSimpleTicketPrice(e.target.value)}
-                          ref={(el) => (errorFieldRefs.current.simpleTicketPrice = el)}
-                          placeholder="Enter Price (e.g., 500)"
-                          info="Base price for the standard ticket type."
-                          darkMode={darkMode}
-                          required={false}
-                        />
-                        <FormInput
-                          label="Total Ticket Capacity "
-                          id="simpleTicketCapacity"
-                          name="simpleTicketCapacity"
-                          type="number"
-                          value={simpleTicketCapacity}
-                          onChange={(e) =>
-                            setSimpleTicketCapacity(e.target.value)
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 pt-2">
+                        <DateInput
+                          id="booking_start_date"
+                          label="Booking start date?"
+                          name="booking_start_date"
+                          value={bookingStartDate} // This is still a string, e.g., "2025-10-13"
+                          onChange={(e) => setBookingStartDate(e.target.value)} // This still works perfectly!
+                          error={errors.booking_start_date}
+                          required
+                          darkMode={darkMode} // Pass your dark mode state here
+                          maxDate={eventEndDate}
+                          ref={(el) =>
+                            (errorFieldRefs.current.booking_start_date = el)
                           }
-                          placeholder="Enter total capacity"
-                          info="Maximum number of attendees allowed."
-                          darkMode={darkMode}
-                          required={false}
-                          ref={(el) => (errorFieldRefs.current.simpleTicketCapacity = el)}
+                        />
+                        <DateInput
+                          id="booking_end_date"
+                          label="Booking_end_date?"
+                          name="booking_end_date"
+                          value={bookingEndDate} // This is still a string, e.g., "2025-10-13"
+                          onChange={(e) => setBookingEndDate(e.target.value)} // This still works perfectly!
+                          error={errors.booking_end_date}
+                          required
+                          darkMode={darkMode} // Pass your dark mode state here
+                          maxDate={eventEndDate}
+                          minDate={bookingStartDate}
+                          ref={(el) =>
+                            (errorFieldRefs.current.booking_end_date = el)
+                          }
                         />
                       </div>
                     )}
                   </section>
                 )}
-                <div className="flex items-center justify-between">
-                  <label className="font-medium text-gray-900 dark:text-white text-md">
-                    Do you have seating layout?
-                  </label>
-                  <ToggleSwitch
-                    checked={hasSeatingLayout}
-                    onChange={() => setHasSeatingLayout(!hasSeatingLayout)}
-                  />
-                </div>
+                {locationType === "offline" && (
+                  <div className="flex items-center justify-between">
+                    <label className="font-medium text-gray-900 dark:text-white text-md">
+                      Do you have seating layout?
+                    </label>
+                    <ToggleSwitch
+                      checked={hasSeatingLayout}
+                      onChange={() => setHasSeatingLayout(!hasSeatingLayout)}
+                    />
+                  </div>
+                )}
                 {hasSeatingLayout && (
-                  <div className="animate-fade-in space-y-6" ref={(el) => (errorFieldRefs.current.seatingLayoutFile = el)}>
+                  <div
+                    className="animate-fade-in space-y-6"
+                    ref={(el) =>
+                      (errorFieldRefs.current.seatingLayoutFile = el)
+                    }
+                  >
                     {/* Upload Section */}
                     <div className="space-y-4">
                       <label className="flex items-center text-base font-medium text-gray-800 dark:text-gray-300">
@@ -2157,7 +2239,6 @@ const UpdateTicketDetails = () => {
                     required
                     darkMode={darkMode} // Pass your dark mode state here
                     maxDate={eventEndDate}
-                    ref={(el) => (errorFieldRefs.current.booking_start_date = el)}
                   />
                   <DateInput
                     id="booking_end_date"
@@ -2170,7 +2251,6 @@ const UpdateTicketDetails = () => {
                     darkMode={darkMode} // Pass your dark mode state here
                     maxDate={eventEndDate}
                     minDate={bookingStartDate}
-                    ref={(el) => (errorFieldRefs.current.booking_end_date = el)}
                   />
                 </div>
               </section>
@@ -2216,7 +2296,7 @@ const UpdateTicketDetails = () => {
           const updatedLayout = JSON.parse(
             JSON.stringify(generatedSeatingLayout)
           );
-          // STEP 1: Update every seat with its assignment and COLOR
+          // STEP 1: Update every seat with assignment + color + price
           updatedLayout.seats = updatedLayout.seats.map((seat) => {
             // Find which ticket type owns this seat
             const assignedEntry = Object.entries(clonedAssignments).find(
@@ -2229,63 +2309,53 @@ const UpdateTicketDetails = () => {
                 (t) => String(t.id) === String(ticketTypeId)
               );
               const color = getTicketTypeColor(ticketTypeId);
-
-              console.log(
-                `✅ Seat ${seat.seatId} → ${ticket?.name} (${color})`
-              );
-
               return {
-                ...seat,
-                ticketTypeId: String(ticketTypeId),
-                ticketTypeName: ticket?.name || ticket?.ticket_type,
-                ticketTypeColor: color, // CRITICAL: Store color in seat
+                seatId: seat.seatId,
+                row: seat.row,
+                column: seat.column,
                 isAvailable: true,
+                isSelected: false,
+                ticketTypeId: String(ticketTypeId),
+                ticketTypeName: ticket?.name || ticket?.ticket_type || "",
+                ticketTypeColor: color,
+                price: ticket?.price || ticket?.ticket_price || 0,
               };
             }
-
-            // Unassigned seats - reset but keep structure
             return {
-              ...seat,
+              seatId: seat.seatId,
+              row: seat.row,
+              column: seat.column,
+              isAvailable: true,
+              isSelected: false,
               ticketTypeId: null,
               ticketTypeName: null,
               ticketTypeColor: null,
-              isAvailable: true,
+              price: 0,
             };
           });
-
-          // STEP 2: Build ticket type assignments summary with colors
-          updatedLayout.ticketTypeAssignments = Object.entries(
-            clonedAssignments
-          )
+          // STEP 2: Build ticket type assignments summary with colors and price
+          ticketTypeAssignments: Object.entries(clonedAssignments)
             .filter(([_, seatIds]) => seatIds && seatIds.length > 0)
             .map(([typeId, seatIds]) => {
               const ticket = tickets.find(
                 (t) => String(t.id) === String(typeId)
               );
               const color = getTicketTypeColor(typeId);
-
-              console.log(
-                `📊 Assignment: ${ticket?.name} - ${seatIds.length} seats - Color: ${color}`
-              );
-
               return {
                 ticketTypeId: String(typeId),
-                ticketTypeName: ticket?.name || ticket?.ticket_type,
-                color: color, // CRITICAL: Store color in assignment
+                ticketTypeName: ticket?.name || ticket?.ticket_type || "",
+                color: color,
                 assignedSeats: [...seatIds],
-                capacity: ticket?.capacity || ticket?.max_capacity,
+                capacity: ticket?.capacity || ticket?.max_capacity || 0,
+                price: ticket?.price || ticket?.ticket_price || 0, // CRITICAL: Save price
               };
             });
-
-          console.log("✅ FINAL LAYOUT WITH COLORS:", updatedLayout);
           setGeneratedSeatingLayout(updatedLayout);
-
+          const totalAssigned = Object.values(clonedAssignments).flat().length;
           showAlert({
             type: "success",
             message: "Seats Assigned with Colors!",
-            description: `Assigned ${
-              Object.values(clonedAssignments).flat().length
-            } seats with ticket type colors.`,
+            description: `Assigned ${totalAssigned} seats with ticket type colors.`,
           });
         }}
         seatingLayout={generatedSeatingLayout}
