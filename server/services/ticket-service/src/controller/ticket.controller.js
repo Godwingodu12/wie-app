@@ -1,10 +1,23 @@
 import Group from "../models/group.model.js";
-import axios from 'axios';
 import Ticket from "../models/ticket.model.js";
+import axios from 'axios';
 import TicketLike from '../models/ticketLike.model.js';
 import { createNotification } from '../utils/notificationHelper.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
-import { processFileUploads, deleteFromCloudinary } from '../utils/cloudinaryHelper.js';
+import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
+import { 
+  generateSeatingLayoutFromFile, 
+  validateSeatingLayout,
+  generateFallbackLayout  
+} from '../utils/seatingLayoutGenerator.js';
+import {
+  processFileUploads,
+  deleteFromCloudinary,
+  processGroupFileUploads,
+  cleanupTempFile,
+  uploadGeneratedLayoutToCloudinary,
+  downloadFileFromCloudinary
+} from "../utils/cloudinaryHelper.js";
 import mongoose from 'mongoose';
 export const getGroupsTypes = async (req, res) => {
     try {
@@ -49,7 +62,6 @@ export const getTicketSubEvents = async (req, res) => {
       subEvents: ticket.sub_events || [],
       totalSubEvents: ticket.sub_events ? ticket.sub_events.length : 0
     });
-
   } catch (error) {
     console.error("Error getting sub-events:", error);
     res.status(500).json({ 
@@ -86,7 +98,6 @@ export const updateSubEvent = async (req, res) => {
         return defaultValue;
       }
     };
-
     // Parse update data
     let updateData;
     try {
@@ -97,7 +108,38 @@ export const updateSubEvent = async (req, res) => {
       } else {
         updateData = req.body;
       }
+      
+      // ✅ ADD THIS LOGGING
+      console.log('📥 Received updateData:', {
+        hasSeatingLayout: !!updateData.seating_layout,
+        locationType: updateData.location_type,
+        totalCapacity: updateData.total_capacity
+      });
+      
+      if (updateData.seating_layout) {
+        console.log('📥 Received seating_layout structure:', {
+          hasRows: !!updateData.seating_layout.rows,
+          hasColumns: !!updateData.seating_layout.columns,
+          hasSeats: !!updateData.seating_layout.seats,
+          seatCount: updateData.seating_layout.seats?.length || 0,
+          hasAssignments: !!updateData.seating_layout.ticketTypeAssignments,
+          assignmentCount: updateData.seating_layout.ticketTypeAssignments?.length || 0,
+          sampleSeat: updateData.seating_layout.seats?.[0]
+        });
+        
+        // Check for assigned seats with prices
+        const assignedSeats = updateData.seating_layout.seats?.filter(s => s.ticketTypeId) || [];
+        const seatsWithPrice = assignedSeats.filter(s => s.price && s.price > 0);
+        
+        console.log('📥 Seating layout seat pricing:', {
+          totalSeats: updateData.seating_layout.seats?.length || 0,
+          assignedSeats: assignedSeats.length,
+          seatsWithPrice: seatsWithPrice.length,
+          sampleAssignedSeat: assignedSeats[0]
+        });
+      }
     } catch (parseError) {
+      console.error('❌ Parse error:', parseError);
       return res.status(400).json({ 
         message: "Invalid sub_event data format",
         error: parseError.message
@@ -108,6 +150,7 @@ export const updateSubEvent = async (req, res) => {
     if (!ticket) {
       return res.status(404).json({ message: 'Ticket not found' });
     }
+    
     // Find the sub-event index
     const subEventIndex = ticket.sub_events.findIndex(
       (se) => se._id.toString() === subEventId
@@ -119,34 +162,33 @@ export const updateSubEvent = async (req, res) => {
 
     const existingSubEvent = ticket.sub_events[subEventIndex];
 
-    // Process file uploads - only if files exist
+    // Process file uploads
     const processedFiles = {};
     const uploadedFiles = await processFileUploads(req.files || {});
     const guestProfileFiles = {};
     const ticketPhotoFiles = {};
+    
+    // Process guest profiles and ticket photos
     Object.keys(uploadedFiles).forEach(fieldName => {
       if (fieldName.startsWith('guest_profile_')) {
         const index = fieldName.split('_')[2];
         if (!isNaN(index) && parseInt(index) >= 0 && parseInt(index) <= 9) {
           const fileData = uploadedFiles[fieldName];
-          // processFileUploads returns array of objects for multiple files
           if (Array.isArray(fileData) && fileData.length > 0) {
             const profileFile = fileData[0];
-            
-            // Validate upload success
             if (profileFile.path && profileFile.originalName) {
               guestProfileFiles[parseInt(index)] = profileFile;
             }
           }
         }
       }
+      
       if (fieldName.startsWith('ticket_photo_')) {
         const index = fieldName.split('_')[2];
         if (!isNaN(index) && parseInt(index) >= 0) {
           const fileData = uploadedFiles[fieldName];
           if (Array.isArray(fileData) && fileData.length > 0) {
             const ticketPhotoFile = fileData[0];
-            // Validate upload success
             if (ticketPhotoFile.path && ticketPhotoFile.originalName) {
               ticketPhotoFiles[parseInt(index)] = ticketPhotoFile;
             }
@@ -154,66 +196,230 @@ export const updateSubEvent = async (req, res) => {
         }
       }
     });
+    
     // Handle event banner
-    if (uploadedFiles.event_banner && uploadedFiles.event_banner.length > 0) {
-      const bannerFile = uploadedFiles.event_banner[0];
-      if (bannerFile.path && bannerFile.originalName) {
-        processedFiles.event_banner = bannerFile.path; // Cloudinary URL
+    if (uploadedFiles.event_banner) {
+      let bannerFile = uploadedFiles.event_banner;
+      if (typeof bannerFile === 'string') {
+        processedFiles.event_banner = bannerFile;
+      } else if (Array.isArray(bannerFile) && bannerFile.length > 0) {
+        processedFiles.event_banner = bannerFile[0].path;
+        processedFiles.event_banner_public_id = bannerFile[0].public_id;
+      } else if (bannerFile.path) {
+        processedFiles.event_banner = bannerFile.path;
         processedFiles.event_banner_public_id = bannerFile.public_id;
       }
     }
+    
     // Handle event logo
-    if (uploadedFiles.event_logo && uploadedFiles.event_logo.length > 0) {
-      const logoFile = uploadedFiles.event_logo[0];
-      if (logoFile.path && logoFile.originalName) {
-        processedFiles.event_logo = logoFile.path; // Cloudinary URL
+    if (uploadedFiles.event_logo) {
+      let logoFile = uploadedFiles.event_logo;
+      if (typeof logoFile === 'string') {
+        processedFiles.event_logo = logoFile;
+      } else if (Array.isArray(logoFile) && logoFile.length > 0) {
+        processedFiles.event_logo = logoFile[0].path;
+        processedFiles.event_logo_public_id = logoFile[0].public_id;
+      } else if (logoFile.path) {
+        processedFiles.event_logo = logoFile.path;
         processedFiles.event_logo_public_id = logoFile.public_id;
       }
     }
+    
+    // Handle event images
     if (uploadedFiles.event_images && uploadedFiles.event_images.length > 0) {
       if (uploadedFiles.event_images.length <= 10) {
-        // Filter valid uploads
         const validImages = uploadedFiles.event_images.filter(file => 
           file.path && file.originalName
         );
         
         if (validImages.length > 0) {
           processedFiles.event_images = validImages.map(file => ({
-            path: file.path, // Cloudinary URL
+            path: file.path,
             originalName: file.originalName,
             mimeType: file.mimeType,
             size: file.size,
-            public_id: file.public_id, // Store for deletion
+            public_id: file.public_id,
             resource_type: file.resource_type,
             uploadedAt: new Date()
           }));
         }
-      } else {
-        console.warn('⚠ Too many event images (max 10)');
       }
     }
-    // Handle event rules file
-    if (uploadedFiles.event_rules && uploadedFiles.event_rules.length > 0) {
-      const rulesFile = uploadedFiles.event_rules[0];
-      if (rulesFile.path && rulesFile.originalName) {
+    
+    // Handle event rules
+    if (uploadedFiles.event_rules) {
+      let rulesFile = uploadedFiles.event_rules;
+      if (Array.isArray(rulesFile) && rulesFile.length > 0) {
+        rulesFile = rulesFile[0];
+      }
+      if (rulesFile && rulesFile.path) {
         processedFiles.event_rules = {
           type: 'file',
-          path: rulesFile.path, // Cloudinary URL
+          path: rulesFile.path,
           originalName: rulesFile.originalName,
           mimeType: rulesFile.mimeType,
           size: rulesFile.size,
-          public_id: rulesFile.public_id, // Store for deletion
+          public_id: rulesFile.public_id,
           resource_type: rulesFile.resource_type,
           uploadedAt: new Date()
         };
       }
     }
-    // Handle ticket layout (offline only)
-    if (uploadedFiles.ticket_layout && uploadedFiles.ticket_layout.length > 0) {
-      const layoutFile = uploadedFiles.ticket_layout[0];
-      if (layoutFile.path && layoutFile.originalName) {
-        processedFiles.ticket_layout = layoutFile.path; // Cloudinary URL
-        processedFiles.ticket_layout_public_id = layoutFile.public_id;
+
+    // ✅ Handle ticket layout and seating layout generation
+    let processedSeatingLayout = null;
+    if (uploadedFiles.ticket_layout) {
+      let layoutFile = uploadedFiles.ticket_layout;
+      
+      // Normalize to object if needed
+      if (typeof layoutFile === 'string') {
+        processedFiles.ticket_layout = layoutFile;
+      } else if (Array.isArray(layoutFile) && layoutFile.length > 0) {
+        layoutFile = layoutFile[0];
+      }
+      
+      if (layoutFile && typeof layoutFile === 'object') {
+        // Store the uploaded file URL
+        if (layoutFile.cloudinaryUrl) {
+          processedFiles.ticket_layout = layoutFile.cloudinaryUrl;
+          processedFiles.ticket_layout_public_id = layoutFile.public_id || '';
+        } else if (layoutFile.path) {
+          processedFiles.ticket_layout = layoutFile.path;
+          processedFiles.ticket_layout_public_id = layoutFile.public_id || '';
+        }
+
+        // Generate seating layout if this is an offline event
+        const locationType = updateData.location_type || existingSubEvent.location_type;
+        const totalCapacity = updateData.total_capacity || existingSubEvent.total_capacity;
+        
+        if (locationType === 'offline' && totalCapacity && Number(totalCapacity) > 0) {
+          try {
+            let localFilePath = layoutFile.localPath;
+            
+            // Download from Cloudinary if needed
+            if (!localFilePath && layoutFile.cloudinaryUrl) {
+              localFilePath = await downloadFileFromCloudinary(
+                layoutFile.cloudinaryUrl,
+                `layout_${ticketId}_${Date.now()}.${layoutFile.mimeType?.split('/')[1] || 'jpg'}`
+              );
+            }
+            
+            if (localFilePath) {
+              console.log('🔄 Generating seating layout from uploaded file...');
+              
+              const generatedLayout = await generateSeatingLayoutFromFile(
+                localFilePath,
+                Number(totalCapacity),
+                layoutFile.mimeType || 'image/jpeg'
+              );
+              
+              // Clean up temp file if downloaded
+              if (layoutFile.cloudinaryUrl && localFilePath !== layoutFile.localPath) {
+                await cleanupTempFile(localFilePath);
+              }
+              
+              if (generatedLayout && generatedLayout.seats && generatedLayout.seats.length > 0) {
+                processedSeatingLayout = {
+                  rows: generatedLayout.rows || [],
+                  columns: generatedLayout.columns || 0,
+                  seats: generatedLayout.seats.map(seat => ({
+                    seatId: String(seat.seatId),
+                    row: String(seat.row),
+                    column: Number(seat.column),
+                    isAvailable: seat.isAvailable !== false,
+                    isSelected: false,
+                    ticketTypeId: seat.ticketTypeId ? String(seat.ticketTypeId) : null,
+                    ticketTypeName: seat.ticketTypeName ? String(seat.ticketTypeName) : null,
+                    ticketTypeColor: seat.ticketTypeColor ? String(seat.ticketTypeColor) : null,
+                    price: Number(seat.price !== undefined ? seat.price : 0),
+                  })),
+                  ticketTypeAssignments: (generatedLayout.ticketTypeAssignments || []).map(assignment => ({
+                    ticketTypeId: String(assignment.ticketTypeId),
+                    ticketTypeName: String(assignment.ticketTypeName),
+                    color: assignment.color ? String(assignment.color) : "",
+                    assignedSeats: (assignment.assignedSeats || []).map(seat => String(seat)),
+                    capacity: Number(assignment.capacity || 0),
+                    price: Number(assignment.price !== undefined ? assignment.price : 0),
+                  })),
+                };
+                
+                console.log('✅ Seating layout generated successfully:', {
+                  totalSeats: processedSeatingLayout.seats.length,
+                  assignments: processedSeatingLayout.ticketTypeAssignments.length,
+                });
+              }
+            }
+          } catch (layoutError) {
+            console.error('❌ Layout generation failed:', layoutError);
+            console.log('⚠️ Continuing without seating layout generation');
+          }
+        }
+      }
+    }
+    if (updateData.seating_layout) {  
+      try {
+        const seatingLayoutData = typeof updateData.seating_layout === 'string'
+          ? JSON.parse(updateData.seating_layout)
+          : updateData.seating_layout;
+
+        if (seatingLayoutData && seatingLayoutData.seats && seatingLayoutData.seats.length > 0) {
+          // Map and validate each seat - PRESERVE ALL FIELDS
+          const processedSeats = seatingLayoutData.seats.map((seat) => {
+            const seatId = String(seat.seatId || '');
+            const row = String(seat.row || '');
+            const column = Number(seat.column || 0);
+            const ticketTypeId = seat.ticketTypeId ? String(seat.ticketTypeId) : null;
+            const ticketTypeName = seat.ticketTypeName ? String(seat.ticketTypeName) : null;
+            const ticketTypeColor = seat.ticketTypeColor ? String(seat.ticketTypeColor) : null;
+            const price = seat.price !== undefined && seat.price !== null ? Number(seat.price) : 0;
+
+            // ✅ ALWAYS return complete object
+            return {
+              seatId: seatId,
+              row: row,
+              column: column,
+              isAvailable: seat.isAvailable !== false,
+              isSelected: false,
+              ticketTypeId: ticketTypeId,
+              ticketTypeName: ticketTypeName,
+              ticketTypeColor: ticketTypeColor,
+              price: price
+            };
+          });
+
+          // Map assignments - PRESERVE ALL FIELDS
+          const processedAssignments = (seatingLayoutData.ticketTypeAssignments || [])
+            .filter(assignment => 
+              assignment.ticketTypeId && 
+              assignment.ticketTypeName && 
+              String(assignment.ticketTypeName).trim() !== ''
+            )
+            .map(assignment => ({
+              ticketTypeId: String(assignment.ticketTypeId),
+              ticketTypeName: String(assignment.ticketTypeName),
+              color: assignment.color ? String(assignment.color) : "",
+              assignedSeats: (assignment.assignedSeats || []).map(s => String(s)),
+              capacity: Number(assignment.capacity || 0),
+              price: Number(assignment.price !== undefined ? assignment.price : 0),
+            }));
+
+          processedSeatingLayout = {
+            rows: (seatingLayoutData.rows || []).map(r => String(r)),
+            columns: Number(seatingLayoutData.columns || 0),
+            seats: processedSeats,
+            ticketTypeAssignments: processedAssignments
+          };
+
+          console.log('✅ Processed seating_layout from request:', {
+            totalSeats: processedSeats.length,
+            assignedSeats: processedSeats.filter(s => s.ticketTypeId).length,
+            seatsWithPrice: processedSeats.filter(s => s.price > 0).length,
+            seatsWithName: processedSeats.filter(s => s.ticketTypeName).length,
+            assignments: processedAssignments.length
+          });
+        }
+      } catch (parseError) {
+        console.error('❌ Error parsing seating_layout from request:', parseError);
       }
     }
     const parseNestedData = (data, fieldName) => {
@@ -228,8 +434,124 @@ export const updateSubEvent = async (req, res) => {
         return [];
       }
     };
+
+    // Parse nested data
     const guests = parseNestedData(updateData.guests, 'guests');
     const ticketTypes = parseNestedData(updateData.ticket_types, 'ticket_types');
+    const rawBankingDetails = parseNestedData(updateData.banking_details, 'banking_details');
+
+    // ✅ Validate banking details with IFSC code verification
+    let validatedBankingDetails = [];
+    if (rawBankingDetails && rawBankingDetails.length > 0) {
+      for (let index = 0; index < rawBankingDetails.length; index++) {
+        const banking = rawBankingDetails[index];
+        
+        // Validate bank_acc_type
+        if (!banking.bank_acc_type || String(banking.bank_acc_type).trim() === "") {
+          return res.status(400).json({
+            message: `bank_acc_type is required for banking detail ${index + 1}`,
+            field: "bank_acc_type",
+            bankingDetailIndex: index + 1,
+          });
+        }
+
+        const validAccountTypes = ["current", "merchant"];
+        const accType = String(banking.bank_acc_type).trim().toLowerCase();
+
+        if (!validAccountTypes.includes(accType)) {
+          return res.status(400).json({
+            message: `Invalid bank account type for banking detail ${index + 1}`,
+            provided: banking.bank_acc_type,
+            validOptions: validAccountTypes,
+          });
+        }
+
+        // Validate bank_acc_no
+        if (!banking.bank_acc_no || String(banking.bank_acc_no).trim() === "") {
+          return res.status(400).json({
+            message: `bank_acc_no is required for banking detail ${index + 1}`,
+          });
+        }
+
+        if (!/^\d+$/.test(String(banking.bank_acc_no).trim())) {
+          return res.status(400).json({
+            message: `Invalid bank account number format for banking detail ${index + 1}`,
+            error: "Bank account number must contain only digits",
+          });
+        }
+
+        const accNoLength = String(banking.bank_acc_no).trim().length;
+        if (accNoLength < 9 || accNoLength > 18) {
+          return res.status(400).json({
+            message: `Invalid bank account number length for banking detail ${index + 1}`,
+            error: `Account number must be between 9-18 digits. You entered ${accNoLength} digits`,
+          });
+        }
+
+        // Validate bank_ifsc
+        if (!banking.bank_ifsc || String(banking.bank_ifsc).trim() === "") {
+          return res.status(400).json({
+            message: `bank_ifsc is required for banking detail ${index + 1}`,
+          });
+        }
+
+        const ifscCode = String(banking.bank_ifsc).trim().toUpperCase();
+        const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+        
+        if (!ifscRegex.test(ifscCode)) {
+          return res.status(400).json({
+            message: `Invalid IFSC code format for banking detail ${index + 1}`,
+            provided: ifscCode,
+            example: "SBIN0001234",
+          });
+        }
+
+        // Verify IFSC code
+        let ifscValidation;
+        try {
+          ifscValidation = await validateIFSCCode(ifscCode);
+          if (!ifscValidation.isValid) {
+            return res.status(400).json({
+              message: `IFSC code verification failed for banking detail ${index + 1}`,
+              error: ifscValidation.error || "IFSC code not found in bank database",
+              provided: ifscCode,
+            });
+          }
+        } catch (ifscError) {
+          return res.status(400).json({
+            message: `IFSC code verification failed for banking detail ${index + 1}`,
+            error: ifscError.message || "Unable to verify IFSC code",
+            provided: ifscCode,
+          });
+        }
+
+        // Validate bank_acc_holder
+        if (!banking.bank_acc_holder || String(banking.bank_acc_holder).trim() === "") {
+          return res.status(400).json({
+            message: `bank_acc_holder is required for banking detail ${index + 1}`,
+          });
+        }
+
+        if (!/^[a-zA-Z\s]+$/.test(String(banking.bank_acc_holder).trim())) {
+          return res.status(400).json({
+            message: `Invalid account holder name format for banking detail ${index + 1}`,
+            error: "Account holder name must contain only letters and spaces",
+          });
+        }
+
+        validatedBankingDetails.push({
+          bank_acc_type: accType,
+          bank_acc_no: String(banking.bank_acc_no).trim(),
+          bank_ifsc: ifscCode,
+          bank_acc_holder: String(banking.bank_acc_holder).trim(),
+          is_group_account: false,
+          bank_verified_details: ifscValidation.bankDetails || null,
+        });
+      }
+    } else if (existingSubEvent.banking_details) {
+      validatedBankingDetails = existingSubEvent.banking_details;
+    }
+
     // Process guests with profile images
     let processedGuests = [];
     if (guests && guests.length > 0) {
@@ -238,30 +560,35 @@ export const updateSubEvent = async (req, res) => {
           guest_name: guest.guest_name || '',
           guest_profile: guest.guest_profile || existingSubEvent.guests?.[index]?.guest_profile || '',
           guest_link: guest.guest_link || ''
-        };   
+        };
+        
         if (guestProfileFiles[index]) {
-          guestData.guest_profile = guestProfileFiles[index].path; // Cloudinary URL
+          guestData.guest_profile = guestProfileFiles[index].path;
         }
+        
         return guestData;
       });
     } else if (existingSubEvent.guests) {
       processedGuests = existingSubEvent.guests;
     }
+
     // Process ticket types with photos
     let processedTicketTypes = [];
     if (ticketTypes && ticketTypes.length > 0) {
       processedTicketTypes = ticketTypes.map((ticket, index) => {
-      const ticketData = {
+        const ticketData = {
           ticket_type: ticket.ticket_type || '',
           ticket_price: Number(ticket.ticket_price) || 0,
           max_capacity: Number(ticket.max_capacity) || 0,
           ticket_photo: ticket.ticket_photo || existingSubEvent.ticket_types?.[index]?.ticket_photo || '',
           ticket_photo_public_id: ticket.ticket_photo_public_id || existingSubEvent.ticket_types?.[index]?.ticket_photo_public_id || ''
         };
+        
         if (ticketPhotoFiles[index]) {
-          ticketData.ticket_photo = ticketPhotoFiles[index].path; // Cloudinary URL
+          ticketData.ticket_photo = ticketPhotoFiles[index].path;
           ticketData.ticket_photo_public_id = ticketPhotoFiles[index].public_id;
         }
+        
         return ticketData;
       });
     } else if (existingSubEvent.ticket_types) {
@@ -304,7 +631,7 @@ export const updateSubEvent = async (req, res) => {
       
       // Nested objects
       guests: processedGuests,
-      banking_details: updateData.banking_details ? parseNestedData(updateData.banking_details, 'banking_details') : existingSubEvent.banking_details,
+      banking_details: validatedBankingDetails,
       POCS: updateData.POCS ? parseNestedData(updateData.POCS, 'POCS') : existingSubEvent.POCS,
       event_dates: updateData.event_dates ? parseNestedData(updateData.event_dates, 'event_dates').map(date => {
         const dateEntry = {
@@ -316,6 +643,7 @@ export const updateSubEvent = async (req, res) => {
           video_file_path: date.video_file_path || "",
           preview_image_path: date.preview_image_path || "",
         };
+        
         if (date.start_time && String(date.start_time).trim() !== "") {
           dateEntry.start_time = date.start_time;
         }
@@ -324,24 +652,17 @@ export const updateSubEvent = async (req, res) => {
         }
         
         return dateEntry;
-      }) : existingSubEvent.event_dates,      
+      }) : existingSubEvent.event_dates,
+      
       // File uploads with fallback to existing
       event_banner: processedFiles.event_banner || existingSubEvent.event_banner,
       event_logo: processedFiles.event_logo || existingSubEvent.event_logo,
       event_images: processedFiles.event_images || existingSubEvent.event_images || [],
     };
-    // Handle event_rules (file or text)
+
+    // Handle event_rules
     if (processedFiles.event_rules) {
-      updatedSubEvent.event_rules = {
-        type: 'file',
-        path: processedFiles.event_rules.path, // Cloudinary URL
-        originalName: processedFiles.event_rules.originalName,
-        mimeType: processedFiles.event_rules.mimeType,
-        size: processedFiles.event_rules.size,
-        public_id: processedFiles.event_rules.public_id, // Store for deletion
-        resource_type: processedFiles.event_rules.resource_type,
-        uploadedAt: new Date(processedFiles.event_rules.uploadedAt)
-      };
+      updatedSubEvent.event_rules = processedFiles.event_rules;
     } else if (updateData.event_rules_text) {
       updatedSubEvent.event_rules = {
         type: 'text',
@@ -355,7 +676,8 @@ export const updateSubEvent = async (req, res) => {
         uploadedAt: new Date()
       };
     }
-    // Handle location-type specific fields
+
+    // ✅ Handle location-type specific fields
     const locationType = updatedSubEvent.location_type;
 
     if (locationType === 'offline') {
@@ -383,8 +705,32 @@ export const updateSubEvent = async (req, res) => {
       updatedSubEvent.gate_open_time = updateData.gate_open_time || existingSubEvent.gate_open_time;
       updatedSubEvent.prohibited_items = updateData.prohibited_items ? parseJSONSafely(updateData.prohibited_items, []) : existingSubEvent.prohibited_items || [];
       updatedSubEvent.ticket_types = processedTicketTypes && processedTicketTypes.length > 0 ? processedTicketTypes : existingSubEvent.ticket_types || [];
-      updatedSubEvent.ticket_layout = processedFiles.ticket_layout || existingSubEvent.ticket_layout;
       
+      // ✅ Handle ticket_layout
+      updatedSubEvent.ticket_layout = processedFiles.ticket_layout || existingSubEvent.ticket_layout;
+      if (processedFiles.ticket_layout_public_id) {
+        updatedSubEvent.ticket_layout_public_id = processedFiles.ticket_layout_public_id;
+      }
+      // ✅ Handle seating_layout - Priority: request body > generated > existing
+      if (processedSeatingLayout && processedSeatingLayout.seats && processedSeatingLayout.seats.length > 0) {
+        updatedSubEvent.seating_layout = processedSeatingLayout;
+        // Detailed logging for verification
+        const assignedSeats = processedSeatingLayout.seats.filter(s => s.ticketTypeId);
+        const seatsWithPrice = assignedSeats.filter(s => s.price > 0);
+        console.log('✅ Seating layout saved to updatedSubEvent:', {
+          totalSeats: processedSeatingLayout.seats.length,
+          assignedSeats: assignedSeats.length,
+          seatsWithPrice: seatsWithPrice.length,
+          assignments: processedSeatingLayout.ticketTypeAssignments?.length || 0,
+          sampleAssignedSeat: assignedSeats[0],
+          sampleAssignment: processedSeatingLayout.ticketTypeAssignments?.[0]
+        });
+      } else if (existingSubEvent.seating_layout) {
+        updatedSubEvent.seating_layout = existingSubEvent.seating_layout;
+        console.log('✅ Preserved existing seating layout');
+      }
+      
+      // Clear online/recorded fields
       updatedSubEvent.event_link = undefined;
       updatedSubEvent.verification_event_code = undefined;
       
@@ -392,7 +738,7 @@ export const updateSubEvent = async (req, res) => {
       updatedSubEvent.event_link = updateData.event_link || existingSubEvent.event_link;
       updatedSubEvent.verification_event_code = updateData.verification_event_code || existingSubEvent.verification_event_code;
       
-      // CRITICAL: PRESERVE prohibited_items and ticket_types
+      // Preserve prohibited_items and ticket_types for online/recorded events
       updatedSubEvent.prohibited_items = updateData.prohibited_items 
         ? parseJSONSafely(updateData.prohibited_items, []) 
         : (existingSubEvent.prohibited_items || []);
@@ -401,6 +747,7 @@ export const updateSubEvent = async (req, res) => {
         ? processedTicketTypes 
         : (existingSubEvent.ticket_types || []);
       
+      // Clear offline-specific fields
       updatedSubEvent.seating_arrangement = undefined;
       updatedSubEvent.location = undefined;
       updatedSubEvent.venue = undefined;
@@ -411,28 +758,119 @@ export const updateSubEvent = async (req, res) => {
       };
       updatedSubEvent.gate_open_time = undefined;
       updatedSubEvent.ticket_layout = undefined;
+      updatedSubEvent.ticket_layout_public_id = undefined;
+      updatedSubEvent.seating_layout = undefined;
     }
+    // ✅ CRITICAL: Verify seating_layout structure before saving
+    if (updatedSubEvent.seating_layout && updatedSubEvent.seating_layout.seats) {
+      console.log('🔍 Final verification before MongoDB save:');
+      const assignedSeats = updatedSubEvent.seating_layout.seats.filter(s => s.ticketTypeId);
+      const seatsWithTypeName = assignedSeats.filter(s => s.ticketTypeName);
+      const seatsWithPrice = assignedSeats.filter(s => s.price > 0);
+      
+      console.log('📊 Seating layout final stats:', {
+        totalSeats: updatedSubEvent.seating_layout.seats.length,
+        assignedSeats: assignedSeats.length,
+        seatsWithTypeName: seatsWithTypeName.length,
+        seatsWithPrice: seatsWithPrice.length
+      });
+
+      // ✅ BLOCKING VALIDATION
+      const incompleteSeats = assignedSeats.filter(s => 
+        !s.ticketTypeName || s.ticketTypeName === '' || s.price === 0
+      );
+      
+      if (incompleteSeats.length > 0) {
+        console.error('❌ BLOCKING SAVE: Found seats with incomplete data:', incompleteSeats.length);
+        return res.status(400).json({
+          message: 'Seating layout data incomplete',
+          error: `${incompleteSeats.length} seats are missing ticket type names or prices`,
+          hint: 'Please ensure all assigned seats have valid ticket type names and prices',
+          samples: incompleteSeats.slice(0, 3).map(s => ({
+            seatId: s.seatId,
+            ticketTypeId: s.ticketTypeId,
+            ticketTypeName: s.ticketTypeName,
+            price: s.price
+          }))
+        });
+      }
+    }
+    if (updatedSubEvent.seating_layout) {
+      updatedSubEvent.seating_layout = JSON.parse(JSON.stringify(updatedSubEvent.seating_layout));
+    }
+    // Save updated sub-event
     ticket.sub_events[subEventIndex] = updatedSubEvent;
+    ticket.markModified('sub_events');
     await ticket.save();
+    const savedTicket = await Ticket.findById(ticketId);
+    const savedSubEvent = savedTicket.sub_events[subEventIndex];
+    if (savedSubEvent.seating_layout && savedSubEvent.seating_layout.seats) {
+      console.log('🔍 POST-SAVE VERIFICATION:');
+      
+      const savedAssignedSeats = savedSubEvent.seating_layout.seats.filter(s => s.ticketTypeId);
+      const savedSeatsWithTypeName = savedAssignedSeats.filter(s => s.ticketTypeName);
+      const savedSeatsWithPrice = savedAssignedSeats.filter(s => s.price > 0);
+      
+      console.log('📊 Saved seating layout stats:', {
+        totalSeats: savedSubEvent.seating_layout.seats.length,
+        assignedSeats: savedAssignedSeats.length,
+        seatsWithTypeName: savedSeatsWithTypeName.length,
+        seatsWithPrice: savedSeatsWithPrice.length
+      });
+
+      // Sample verification
+      const savedSampleSeat = savedAssignedSeats[0];
+      if (savedSampleSeat) {
+        console.log('🔍 Sample seat AFTER save:', {
+          seatId: savedSampleSeat.seatId,
+          ticketTypeId: savedSampleSeat.ticketTypeId,
+          ticketTypeName: savedSampleSeat.ticketTypeName,
+          ticketTypeColor: savedSampleSeat.ticketTypeColor,
+          price: savedSampleSeat.price,
+          allKeys: Object.keys(savedSampleSeat)
+        });
+      }
+
+      // Check what was lost
+      if (savedSeatsWithTypeName.length < savedAssignedSeats.length) {
+        console.error('❌ CRITICAL: ticketTypeName was lost during save!', {
+          expectedCount: savedAssignedSeats.length,
+          actualCount: savedSeatsWithTypeName.length,
+          lost: savedAssignedSeats.length - savedSeatsWithTypeName.length
+        });
+      }
+
+      if (savedSeatsWithPrice.length < savedAssignedSeats.length) {
+        console.error('❌ CRITICAL: price was lost during save!', {
+          expectedCount: savedAssignedSeats.length,
+          actualCount: savedSeatsWithPrice.length,
+          lost: savedAssignedSeats.length - savedSeatsWithPrice.length
+        });
+      }
+    }
     res.status(200).json({
       message: 'Sub-event updated successfully',
       sub_event: ticket.sub_events[subEventIndex],
       updatedFields: {
         location_type: updatedSubEvent.location_type,
-        event_banner: processedFiles.event_banner ? 'updated (Cloudinary)' : 'unchanged',
-        event_logo: processedFiles.event_logo ? 'updated (Cloudinary)' : 'unchanged',
-        event_images: processedFiles.event_images ? `${processedFiles.event_images.length} updated (Cloudinary)` : 'unchanged',
-        event_rules: processedFiles.event_rules ? 'updated (Cloudinary)' : (updateData.event_rules_text ? 'updated (text)' : 'unchanged'),
-        ticket_layout: processedFiles.ticket_layout ? 'updated (Cloudinary)' : 'unchanged',
+        event_banner: processedFiles.event_banner ? 'updated' : 'unchanged',
+        event_logo: processedFiles.event_logo ? 'updated' : 'unchanged',
+        event_images: processedFiles.event_images ? `${processedFiles.event_images.length} updated` : 'unchanged',
+        event_rules: processedFiles.event_rules ? 'updated (file)' : (updateData.event_rules_text ? 'updated (text)' : 'unchanged'),
+        ticket_layout: processedFiles.ticket_layout ? 'updated' : 'unchanged',
+        seating_layout: processedSeatingLayout ? 'generated/updated' : (existingSubEvent.seating_layout ? 'preserved' : 'none'),
         guests: processedGuests.length,
         ticket_types: processedTicketTypes.length,
         prohibited_items: (updatedSubEvent.prohibited_items || []).length,
+        banking_details: validatedBankingDetails.length,
         guest_profiles_uploaded: Object.keys(guestProfileFiles).length,
         ticket_photos_uploaded: Object.keys(ticketPhotoFiles).length
       }
     });
+    
   } catch (error) {
     console.error('Error updating sub-event:', error);
+    
     if (error.name === 'ValidationError') {
       const validationErrors = Object.keys(error.errors).map(key => ({
         field: key,
@@ -443,48 +881,44 @@ export const updateSubEvent = async (req, res) => {
         errors: validationErrors
       });
     }
+    
+    // Cleanup uploaded files on error
     try {
       const filesToDelete = [];
-      // Collect all uploaded file public_ids
-      if (processedFiles.event_banner_public_id) {
-        filesToDelete.push(processedFiles.event_banner_public_id);
-      }
-      if (processedFiles.event_logo_public_id) {
-        filesToDelete.push(processedFiles.event_logo_public_id);
-      }
-      if (processedFiles.ticket_layout_public_id) {
-        filesToDelete.push(processedFiles.ticket_layout_public_id);
-      }
+      if (processedFiles.event_banner_public_id) filesToDelete.push(processedFiles.event_banner_public_id);
+      if (processedFiles.event_logo_public_id) filesToDelete.push(processedFiles.event_logo_public_id);
+      if (processedFiles.ticket_layout_public_id) filesToDelete.push(processedFiles.ticket_layout_public_id);
       if (processedFiles.event_images && Array.isArray(processedFiles.event_images)) {
-        processedFiles.event_images.forEach(img => {
-          if (img.public_id) filesToDelete.push(img.public_id);
-        });
-      }
-      if (processedFiles.event_rules && processedFiles.event_rules.public_id) {
-        filesToDelete.push(processedFiles.event_rules.public_id);
-      }
-      Object.values(guestProfileFiles).forEach(file => {
-        if (file.public_id) filesToDelete.push(file.public_id);
-      });
-      Object.values(ticketPhotoFiles).forEach(file => {
-        if (file.public_id) filesToDelete.push(file.public_id);
-      });
-      for (const publicId of filesToDelete) {
-        await deleteFromCloudinary(publicId);
-      }
-    } catch (cleanupError) {
-      console.error("Error cleaning up Cloudinary files:", cleanupError);
-    }
-    res.status(500).json({
-      message: 'Failed to update sub-event',
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    processedFiles.event_images.forEach(img => {
+      if (img.public_id) filesToDelete.push(img.public_id);
     });
   }
+  if (processedFiles.event_rules && processedFiles.event_rules.public_id) {
+    filesToDelete.push(processedFiles.event_rules.public_id);
+  }
+  Object.values(guestProfileFiles).forEach(file => {
+    if (file.public_id) filesToDelete.push(file.public_id);
+  });
+  
+  Object.values(ticketPhotoFiles).forEach(file => {
+    if (file.public_id) filesToDelete.push(file.public_id);
+  });
+  
+  for (const publicId of filesToDelete) {
+    await deleteFromCloudinary(publicId);
+  }
+} catch (cleanupError) {
+  console.error("Error cleaning up Cloudinary files:", cleanupError);
+}
+res.status(500).json({
+  message: 'Failed to update sub-event',
+  error: error.message,
+  stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+});
+}
 };
 export const deleteSubEvent = async (req, res) => {
   const { ticketId, subEventId } = req.params;
-  
   if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
     return res.status(400).json({ 
       message: "Invalid ticket ID format" 
