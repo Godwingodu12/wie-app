@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import https from 'https';
 import http from 'http';
+import axios from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 export const processGroupFileUploads = async (files) => {
@@ -94,9 +95,15 @@ export const processFileUploads = async (files) => {
         uploadedFiles[fieldName] = result.url;
       }
     }
-    // Process ticket_layout
     if (files.ticket_layout && files.ticket_layout[0]) {
       const file = files.ticket_layout[0];
+      
+      console.log('🎫 Processing ticket_layout:', {
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        hasBuffer: !!file.buffer
+      });
       
       if (!file.buffer || file.buffer.length === 0) {
         throw new Error('Ticket layout file is empty. Please upload a valid file.');
@@ -110,25 +117,42 @@ export const processFileUploads = async (files) => {
       
       const tempFileName = `layout_${Date.now()}_${file.originalname}`;
       const tempFilePath = path.join(tempDir, tempFileName);
-      fs.writeFileSync(tempFilePath, file.buffer);
+      
+      try {
+        fs.writeFileSync(tempFilePath, file.buffer);
+        console.log('✅ Temporary file saved:', tempFilePath);
+      } catch (writeError) {
+        console.error('❌ Failed to write temp file:', writeError);
+        throw new Error(`Failed to save temporary file: ${writeError.message}`);
+      }
 
       // Upload original file to Cloudinary
-      const folder = getCloudinaryFolder('ticket_layout');
-      const resourceType = getResourceType('ticket_layout', file.mimetype);
-      const result = await uploadToCloudinary(file.buffer, {
-        folder,
-        resourceType
-      });
+      try {
+        const folder = getCloudinaryFolder('ticket_layout');
+        const resourceType = getResourceType('ticket_layout', file.mimetype);
+        const result = await uploadToCloudinary(file.buffer, {
+          folder,
+          resourceType
+        });
 
-      uploadedFiles.ticket_layout = {
-        cloudinaryUrl: result.url,
-        localPath: tempFilePath,
-        originalName: file.originalname,
-        mimeType: file.mimetype,
-        size: file.size,
-        public_id: result.public_id,
-        resource_type: result.resource_type
-      };
+        uploadedFiles.ticket_layout = {
+          cloudinaryUrl: result.url,
+          localPath: tempFilePath,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          public_id: result.public_id,
+          resource_type: result.resource_type
+        };
+        
+        console.log('✅ ticket_layout uploaded to Cloudinary:', result.url);
+      } catch (uploadError) {
+        // Clean up temp file if upload fails
+        if (fs.existsSync(tempFilePath)) {
+          fs.unlinkSync(tempFilePath);
+        }
+        throw new Error(`Failed to upload ticket layout: ${uploadError.message}`);
+      }
     }
     // Process event_images (multiple files)
     if (files.event_images && files.event_images.length > 0) {
