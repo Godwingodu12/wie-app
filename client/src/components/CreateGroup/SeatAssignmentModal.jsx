@@ -184,8 +184,16 @@ const SeatAssignmentModal = ({
         return;
       }
       // Get the ticket object to extract price
-      const ticket = ticketTypes.find(t => t.id === selectedTicketType);
-      const ticketPrice = ticket?.price || ticket?.ticket_price || 0;
+      const ticket = ticketTypes.find(t => String(t.id) === String(selectedTicketType));
+      const ticketPrice = Number(ticket?.price || ticket?.ticket_price || 0);
+      
+      console.log('🔍 Ticket lookup:', {
+        selectedTicketType,
+        foundTicket: ticket,
+        ticketPrice,
+        allTicketTypes: ticketTypes.map(t => ({ id: t.id, price: t.price }))
+      });
+      
       console.log(`💰 Assigning seat ${seat.seatId} with price: ₹${ticketPrice}`);
       // check capacity
       const remaining = getRemainingCapacity(selectedTicketType);
@@ -698,7 +706,6 @@ const applyRangeSelection = () => {
                 <div className="flex flex-wrap gap-3 justify-center items-center">
                   {ticketTypes.map(ticket => {
                     const savedCount = getAssignedCount(ticket.id);
-                    
                     // Calculate pending/preview count based on mode
                     let pendingCount = 0;
                     
