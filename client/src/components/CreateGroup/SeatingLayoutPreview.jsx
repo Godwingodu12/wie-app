@@ -124,15 +124,8 @@ const SeatingLayoutPreview = ({ seatingLayout, onSeatSelect, darkMode = false, i
     }
   };
   const getSeatColor = (seat) => {
-    console.log(`Getting color for seat ${seat.seatId}:`, {
-      savedColor: seat.ticketTypeColor,
-      ticketTypeId: seat.ticketTypeId,
-      hasAssignments: ticketTypeAssignments?.length > 0
-    });
-    
     // STEP 1: Check for saved color (from database or assignment)
     if (seat.ticketTypeColor) {
-      console.log(`✅ Using saved color: ${seat.ticketTypeColor}`);
       return seat.ticketTypeColor;
     }
     
@@ -143,7 +136,6 @@ const SeatingLayoutPreview = ({ seatingLayout, onSeatSelect, darkMode = false, i
       );
       
       if (assignment && assignment.color) {
-        console.log(`✅ Using assignment color: ${assignment.color}`);
         return assignment.color;
       }
     }
