@@ -40,6 +40,7 @@ import SendIcon from "../../assets/PROFILEPAGE/SendIcon.svg";
 import CameraICon from "../../assets/PROFILEPAGE/CameraIcon.svg";
 import RightArrowIcon from "../../assets/PROFILEPAGE/RightArrowIcon.svg";
 import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
+import OrgIcon from "../../assets/HomePage/OrgIcon.svg";
 // Bottom Nav Icons
 import HomeIcon from "../../assets/HomePage/HomeIcon.svg";
 import TicketIcon from "../../assets/HomePage/TicketIcon.svg";
@@ -676,14 +677,13 @@ useEffect(() => {
       bg: "#f9f9f9",
       text: "text-gray-900",
       subText: "text-gray-600",
-      cardBg: "#f2f2f2",
+      cardBg: "bg-white",
       subCardBg: "#f2f2f2",
       border: "border-gray-300",
       buttonBg: "bg-gradient-to-b from-gray-100 to-gray-200",
       buttonShadow: "shadow-md hover:shadow-lg",
-      cardShadow:
-        "8px 8px 24px rgba(0,0,0,0.1), -8px -8px 24px rgba(255,255,255,0.8)",
-      smallCardShadow: "6px 6px 12px #6a6a6a,-6px -6px 12px #ffffff",
+      cardShadow:"8px 8px 24px rgba(0,0,0,0.1), -8px -8px 24px rgba(255,255,255,0.8)",
+      smallCardShadow: "0 4px 10px rgba(0,0,0,0.35)",
       buttonHoverBg: "hover:bg-gray-100",
       notificationShadow:
         "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
@@ -1069,30 +1069,68 @@ useEffect(() => {
                           </p>
                         </div>
                       </div>
-                      {/* Buttons */}
-                      <div className="flex gap-2 justify-start items-center flex-nowrap overflow-x-auto">
-                        {[
-                          "Edit profile",
-                          "Share profile",
-                          "Insight profile",
-                        ].map((label, index) => (
-                          <button
-                            key={index}
-                            onClick={
-                              label === "Edit profile"
-                                ? () => navigate("/settings/editprofile")
-                                : undefined
-                            }
-                            className={`whitespace-nowrap flex-shrink-0 px-4 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
-                              isDark
-                                ? "text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110"
-                                : "text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300"
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
+                      {/* Buttons mobile - same visual styles as desktop */}
+<div className="md:hidden flex gap-1 p-1 justify-start items-center flex-nowrap overflow-hidden">
+  {/*
+    Compute shared style object once (desktop uses the same),
+    then reuse it for each mobile button.
+  */}
+  {(() => {
+    const sharedStyle = isDark
+      ? {
+          background: "var(--SecondaryBtnColorsec, #44444D)",
+          color: "white",
+          border: "0.75px solid rgba(255,255,255,0.25)",
+          boxShadow:
+            "0px 0px 0px 1.49px #2B2D43, 0px 5.97px 8.95px 0px #00000024, inset 0px 13.43px 20.89px -7.46px #FFFFFF4D",
+        }
+      : {
+          background: "var(--SecondaryBtnColorsec, #44444D)",
+          color: "white",
+          border: "0.5px solid rgba(255,255,255,0.35)",
+          boxShadow:
+            "0px 0px 0px 1px #2B2D43, 0px 4px 6px 0px #00000024, inset 0px 9px 14px -5px #FFFFFF4D",
+        };
+
+    // Use the desktop className so mobile buttons look identical.
+    const desktopBtnClass =
+      "whitespace-nowrap flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200";
+
+    return (
+      <>
+        {/* Edit profile */}
+        <button
+          onClick={() => navigate("/settings/editprofile")}
+          className={desktopBtnClass}
+          style={sharedStyle}
+        >
+          Edit profile
+        </button>
+
+        {/* Share profile */}
+        <button
+          // onClick={handleShareProfile}
+          className={desktopBtnClass}
+          style={sharedStyle}
+        >
+          Share profile
+        </button>
+
+        {/* Insight profile */}
+        <button
+          onClick={() => {
+            /* replace with your insight handler if any */
+          }}
+          className={desktopBtnClass}
+          style={sharedStyle}
+        >
+          Insight profile
+        </button>
+      </>
+    );
+  })()}
+</div>
+
                     </div>
                     {/* Desktop Layout - Keep original exactly as it was */}
                     <div className="hidden md:flex justify-between items-center gap-6">
@@ -1129,33 +1167,75 @@ useEffect(() => {
                           >
                             {user.website}
                           </p>
+                          {/*button desktop */}
                           <div className="flex gap-2 md:gap-3 pt-2 md:pt-3 flex-wrap">
                             <button
                               onClick={() => navigate("/settings/editprofile")}
-                              className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                                isDark
-                                  ? "text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110"
-                                  : "text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300"
-                              }`}
-                            >
+                              className="px-6 py-2 rounded-full text-sm font-medium transition-all duration-200"
+  style={
+    isDark
+      ? {
+          background: "var(--SecondaryBtnColorsec, #44444D)",
+          color: "white",
+          border: "0.75px solid rgba(255,255,255,0.25)",
+          boxShadow:
+            "0px 0px 0px 1.49px #2B2D43, 0px 5.97px 8.95px 0px #00000024, inset 0px 13.43px 20.89px -7.46px #FFFFFF4D",
+        }
+      : {
+          background: "var(--SecondaryBtnColorsec, #44444D)",
+          color: "white",
+          border: "0.5px solid rgba(255,255,255,0.35)",
+          boxShadow:
+            "0px 0px 0px 1px #2B2D43, 0px 4px 6px 0px #00000024, inset 0px 9px 14px -5px #FFFFFF4D",
+        }
+  }
+>
                               Edit profile
                             </button>
                             <button
-                              className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                                isDark
-                                  ? "text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110"
-                                  : "text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300"
-                              }`}
-                            >
-                              Share profile
-                            </button>
+  className="px-6 py-2 rounded-full text-sm font-medium transition-all duration-200"
+  style={
+    isDark
+      ? {
+          background: "var(--SecondaryBtnColorsec, #44444D)",
+          color: "white",
+          border: "0.75px solid rgba(255,255,255,0.25)",
+          boxShadow:
+            "0px 0px 0px 1.49px #2B2D43, 0px 5.97px 8.95px 0px #00000024, inset 0px 13.43px 20.89px -7.46px #FFFFFF4D",
+        }
+      : {
+          background: "var(--SecondaryBtnColorsec, #44444D)",
+          color: "white",
+          border: "0.5px solid rgba(255,255,255,0.35)",
+          boxShadow:
+            "0px 0px 0px 1px #2B2D43, 0px 4px 6px 0px #00000024, inset 0px 9px 14px -5px #FFFFFF4D",
+        }
+  }
+>
+  Share profile
+</button>
+
+
                             <button
-                              className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                                isDark
-                                  ? "text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110"
-                                  : "text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300"
-                              }`}
-                            >
+  className="px-6 py-2 rounded-full text-sm font-medium transition-all duration-200"
+  style={
+    isDark
+      ? {
+          background: "var(--SecondaryBtnColorsec, #44444D)",
+          color: "white",
+          border: "0.75px solid rgba(255,255,255,0.25)",
+          boxShadow:
+            "0px 0px 0px 1.49px #2B2D43, 0px 5.97px 8.95px 0px #00000024, inset 0px 13.43px 20.89px -7.46px #FFFFFF4D",
+        }
+      : {
+          background: "var(--SecondaryBtnColorsec, #44444D)",
+          color: "white",
+          border: "0.5px solid rgba(255,255,255,0.35)",
+          boxShadow:
+            "0px 0px 0px 1px #2B2D43, 0px 4px 6px 0px #00000024, inset 0px 9px 14px -5px #FFFFFF4D",
+        }
+  }
+>
                               Insight profile
                             </button>
                           </div>
@@ -1284,22 +1364,29 @@ useEffect(() => {
                                   onClick={() => handleGroupClick(group)}
                                 >
                                   <div
-                                    className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center cursor-pointer"
+                                    className="w-12 h-12 rounded-full flex items-center justify-center cursor-pointer"
                                     style={{ boxShadow: theme.smallCardShadow }}
                                   >
-                                    {group.company_logo ? (
-                                      <img
-                                        src={getImageUrl(group.company_logo)}
-                                        alt={group.name || group.company_logo}
-                                        className="w-11 h-11 rounded-full object-cover"
-                                      />
-                                    ) : (
-                                      <span className="text-white text-xs font-bold">
-                                        {(group.name ||
-                                          group.groupName ||
-                                          "G")[0].toUpperCase()}
-                                      </span>
-                                    )}
+{group.company_logo ? (
+  <img
+    src={getImageUrl(group.company_logo)}
+    alt={group.name || group.company_logo}
+    className="w-11 h-11 rounded-full object-cover"
+  />
+) : (
+<img
+  src={OrgIcon}
+  alt="Org"
+  className={`w-11 h-11 rounded-full object-cover ${
+     !isDark ? "filter brightness-0" : ""
+  }`}
+/>
+
+
+
+)}
+
+
                                   </div>
                                   <span
                                     className={`text-xs mt-1 w-16 text-center truncate ${theme.text}`}
@@ -1356,20 +1443,28 @@ useEffect(() => {
                                   onClick={() => handleGroupClick(group)}
                                 >
                                   <div
-                                    className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center"
+                                    className="w-12 h-12 rounded-full  flex items-center justify-center"
                                     style={{ boxShadow: theme.smallCardShadow }}
                                   >
                                     {group.company_logo ? (
-                                      <img
-                                        src={getImageUrl(group.company_logo)}
-                                        alt={group.name || group.company_logo}
-                                        className="w-11 h-11 rounded-full object-cover"
-                                      />
-                                    ) : (
-                                      <span className="text-white text-xs font-bold">
-                                        {group.name || group.groupName}
-                                      </span>
-                                    )}
+  <img
+    src={getImageUrl(group.company_logo)}
+    alt={group.name || group.company_logo}
+    className="w-11 h-11 rounded-full object-cover"
+  />
+) : (
+<img
+  src={OrgIcon}
+  alt="Org"
+  className={`w-11 h-11 rounded-full object-cover ${
+    !isDark ? "filter brightness-0" : ""
+  }`}
+/>
+
+
+
+)}
+
                                   </div>
                                   <span
                                     className={`text-xs mt-2 w-20 text-center truncate whitespace-nowrap ${theme.text}`}
@@ -1412,344 +1507,298 @@ useEffect(() => {
                       </div>
                     </div>
                   </div>
-                  {/* Suggestions */}
-                  <div
-                    className={`rounded-xl md:rounded-2xl p-3 md:p-4 lg:p-6 nest-hub-card transition-all duration-300 w-full overflow-hidden`}
+                 {/* Suggestions */}
+<div
+ className={`rounded-xl md:rounded-2xl p-3 md:p-4 lg:p-6 nest-hub-card transition-all duration-300 w-full overflow-visible`}
+>
+  <div className="flex justify-between items-center mb-4 md:mb-6">
+    <h2 className={`text-base md:text-lg font-semibold ${theme.text}`}>
+      Suggestions
+    </h2>
+    <button
+                  className={`text-xs md:text-sm px-3 md:px-4 py-1 md:py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${
+                    isDark ? "text-[#FFFFFF]" : "text-[#000000]"
+                  }`}
+                  onClick={() => navigate('/suggestions')}
+                >
+                  see all
+                </button>
+  </div>
+
+  {/* Desktop: Scrollable Container with Arrows */}
+  <div className="hidden md:block relative">
+    {showLeftArrow && users.length > 0 && (
+      <button
+        onClick={scrollLeft}
+        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2"
+      >
+        <img
+          src={RightArrowIcon}
+          alt="Scroll Left"
+          className="w-6 h-6 rotate-180 invert"
+        />
+      </button>
+    )}
+
+    <div
+      id="suggestions-scroll"
+      className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 scroll-smooth overflow-visible" onScroll={handleScroll}
+    >
+      {users.length > 0 ? (
+        users.slice(0, 8).map((suggestedUser) => (
+          <div
+            key={suggestedUser._id}
+className={`w-[246px] h-[363px] flex-shrink-0 rounded-3xl p-4 flex flex-col justify-between 
+    transition-colors duration-200 cursor-pointer overflow-visible relative z-10
+    ${isDark ? "bg-[#212426] hover:bg-[#2A2D30]" : "bg-white hover:bg-[#F2F2F3]"}`}
+  style={{
+    boxShadow: theme.smallCardShadow,
+  }}
+            onClick={() =>
+              navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)
+            }
+          >
+            <div className="flex flex-col">
+              <div className="relative mb-4">
+                <img
+                  src={
+                    getImageUrl(suggestedUser.image, "auth") || ProfileImage
+                  }
+                  alt={suggestedUser.name}
+                  className="w-full h-[160px] object-cover rounded-2xl"
+                />
+              </div>
+              <div className="px-1" style={{ marginTop: "2rem" }}>
+                <div className="flex items-center gap-2 mb-1 justify-center">
+                  <h3
+                    className={`text-base font-semibold ${theme.text} truncate`}
                   >
-                    <div className="flex justify-between items-center mb-4 md:mb-6">
-                      <h2
-                        className={`text-base md:text-lg font-semibold ${theme.text}`}
-                      >
-                        Suggestions
-                      </h2>
-                      <button
-                        className={`text-xs md:text-sm px-3 md:px-4 py-1 md:py-1.5 rounded-full border border-[#6549B8] hover:bg-[#6549B8] hover:text-white transition-all duration-200 ${
-                          isDark ? "text-[#FFFFFF]" : "text-[#000000]"
-                        }`}
-                        onClick={() => navigate("/suggestions")}
-                      >
-                        see all
-                      </button>
-                    </div>
+                    {suggestedUser.name}
+                  </h3>
+                  <img
+                    src={VerifiedIcon}
+                    alt="Verified"
+                    className="w-4 h-4 flex-shrink-0"
+                  />
+                </div>
+                <p
+                  className={`text-sm ${theme.subText} capitalize text-center`}
+                >
+                  {suggestedUser.organisation_type || suggestedUser.role}
+                </p>
+              </div>
+            </div>
 
-                    {/* Desktop: Scrollable Container with Arrows */}
-                    <div className="hidden md:block relative">
-                      {showLeftArrow && users.length > 0 && (
-                        <button
-                          onClick={scrollLeft}
-                          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2"
-                        >
-                          <img
-                            src={RightArrowIcon}
-                            alt="Scroll Left"
-                            className="w-6 h-6 rotate-180 invert"
-                          />
-                        </button>
-                      )}
+            <div
+              className="flex justify-between items-center px-1"
+              style={{ marginBottom: "1rem" }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                  <img
+                    src={FollowersIcon}
+                    alt="Followers"
+                    className={`w-4 h-4 ${
+                      !isDark ? "filter brightness-0" : ""
+                    }`}
+                  />
+                  <span
+                    className={`text-sm font-medium ${theme.text}`}
+                  >
+                    {suggestedUser.followersCount ||
+                      suggestedUser.followers ||
+                      0}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <img
+                    src={EventIcon}
+                    alt="Events"
+                    className={`w-4 h-4 ${
+                      !isDark ? "filter brightness-0" : ""
+                    }`}
+                  />
+                  <span
+                    className={`text-sm font-medium ${theme.text}`}
+                  >
+                    {eventCountsMap[suggestedUser._id || suggestedUser.id] ||
+                      0}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSuggestionFollowToggle(
+                    suggestedUser._id || suggestedUser.id
+                  );
+                }}
+                disabled={
+                  followingStates[suggestedUser._id || suggestedUser.id]
+                }
+                className={`px-3 py-1 rounded-full text-white text-xs font-medium transition-all duration-200 ${
+                  followingMap[suggestedUser._id || suggestedUser.id]
+                    ? "bg-[#44444D] shadow-[0px_3px_6px_rgba(0,0,0,0.25)]"
+                    : "bg-blue-500"
+                } ${
+                  followingStates[suggestedUser._id || suggestedUser.id]
+                    ? "opacity-50 cursor-not-allowed"
+                    : "cursor-pointer"
+                }`}
+              >
+                {followingStates[suggestedUser._id || suggestedUser.id]
+                  ? followingMap[suggestedUser._id || suggestedUser.id]
+                    ? "Unfollowing..."
+                    : "Following..."
+                  : followingMap[suggestedUser._id || suggestedUser.id]
+                  ? "Unfollow"
+                  : "Follow +"}
+              </button>
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className={`w-full text-center py-8 ${theme.subText}`}>
+          <p className="text-sm">No suggestions available</p>
+        </div>
+      )}
+    </div>
 
-                      <div
-                        id="suggestions-scroll"
-                        className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 scroll-smooth"
-                        onScroll={handleScroll}
-                      >
-                        {users.length > 0 ? (
-                          users.slice(0, 8).map((suggestedUser) => (
-                            <div
-                              key={suggestedUser._id}
-                              className="w-[246px] h-[363px] flex-shrink-0 rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 hover:scale-105 cursor-pointer"
-                              style={{
-                                backgroundColor: isDark ? "#212426" : "#ffffff",
-                                boxShadow: theme.smallCardShadow,
-                              }}
-                              onClick={() =>
-                                navigate(
-                                  `/profile/${
-                                    suggestedUser._id || suggestedUser.id
-                                  }`
-                                )
-                              }
-                            >
-                              <div className="flex flex-col">
-                                <div className="relative mb-4">
-                                  <img
-                                    src={
-                                      getImageUrl(
-                                        suggestedUser.image,
-                                        "auth"
-                                      ) || ProfileImage
-                                    }
-                                    alt={suggestedUser.name}
-                                    className="w-full h-[160px] object-cover rounded-2xl"
-                                  />
-                                </div>
-                                <div
-                                  className="px-1"
-                                  style={{ marginTop: "2rem" }}
-                                >
-                                  <div className="flex items-center gap-2 mb-1 justify-center">
-                                    <h3
-                                      className={`text-base font-semibold ${theme.text} truncate`}
-                                    >
-                                      {suggestedUser.name}
-                                    </h3>
-                                    <img
-                                      src={VerifiedIcon}
-                                      alt="Verified"
-                                      className="w-4 h-4 flex-shrink-0"
-                                    />
-                                  </div>
-                                  <p
-                                    className={`text-sm ${theme.subText} capitalize text-center`}
-                                  >
-                                    {suggestedUser.organisation_type ||
-                                      suggestedUser.role}
-                                  </p>
-                                </div>
-                              </div>
+    {showRightArrow && users.length > 0 && (
+      <button
+        onClick={scrollRight}
+        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full"
+      >
+        <img
+          src={RightArrowIcon}
+          alt="Scroll Right"
+          className="w-6 h-6 invert"
+        />
+      </button>
+    )}
+  </div>
 
-                              <div
-                                className="flex justify-between items-center px-1"
-                                style={{ marginBottom: "1rem" }}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="flex items-center gap-1">
-                                    <img
-                                      src={FollowersIcon}
-                                      alt="Followers"
-                                      className={`w-4 h-4 ${
-                                        !isDark ? "filter brightness-0" : ""
-                                      }`}
-                                    />
-                                    <span
-                                      className={`text-sm font-medium ${theme.text}`}
-                                    >
-                                      {suggestedUser.followersCount ||
-                                        suggestedUser.followers ||
-                                        0}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <img
-                                      src={EventIcon}
-                                      alt="Events"
-                                      className={`w-4 h-4 ${
-                                        !isDark ? "filter brightness-0" : ""
-                                      }`}
-                                    />
-                                    <span
-                                      className={`text-sm font-medium ${theme.text}`}
-                                    >
-                                      {eventCountsMap[
-                                        suggestedUser._id || suggestedUser.id
-                                      ] || 0}
-                                    </span>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSuggestionFollowToggle(
-                                      suggestedUser._id || suggestedUser.id
-                                    );
-                                  }}
-                                  disabled={
-                                    followingStates[
-                                      suggestedUser._id || suggestedUser.id
-                                    ]
-                                  }
-                                  className={`px-3 py-1 rounded-full text-white text-xs font-medium transition-all duration-200 ${
-                                    followingMap[
-                                      suggestedUser._id || suggestedUser.id
-                                    ]
-                                      ? "bg-[#44444D] shadow-[0px_3px_6px_rgba(0,0,0,0.25)] hover:bg-[#50505A]"
-                                      : "bg-blue-500 hover:bg-blue-600"
-                                  } ${
-                                    followingStates[
-                                      suggestedUser._id || suggestedUser.id
-                                    ]
-                                      ? "opacity-50 cursor-not-allowed"
-                                      : "cursor-pointer"
-                                  }`}
-                                >
-                                  {followingStates[
-                                    suggestedUser._id || suggestedUser.id
-                                  ]
-                                    ? followingMap[
-                                        suggestedUser._id || suggestedUser.id
-                                      ]
-                                      ? "Unfollowing..."
-                                      : "Following..."
-                                    : followingMap[
-                                        suggestedUser._id || suggestedUser.id
-                                      ]
-                                    ? "Unfollow"
-                                    : "Follow +"}
-                                </button>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div
-                            className={`w-full text-center py-8 ${theme.subText}`}
-                          >
-                            <p className="text-sm">No suggestions available</p>
-                          </div>
-                        )}
-                      </div>
+  {/* Mobile: Grid of 2 Cards */}
+  <div className="md:hidden grid grid-cols-2 gap-3">
+    {users.length > 0 ? (
+      users.slice(0, 2).map((suggestedUser) => (
+        <div
+          key={suggestedUser._id}
+          className="rounded-2xl p-3 flex flex-col justify-between transition-all duration-300 cursor-pointer"
+          style={{
+            backgroundColor: isDark ? "#212426" : "#ffffff",
+            boxShadow: theme.smallCardShadow,
+          }}
+          onClick={() =>
+            navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)
+          }
+        >
+          <div className="flex flex-col">
+            <div className="relative mb-3">
+              <img
+                src={
+                  getImageUrl(suggestedUser.image, "auth") || ProfileImage
+                }
+                alt={suggestedUser.name}
+                className="w-full h-[100px] object-cover rounded-xl"
+              />
+            </div>
+            <div className="px-1 mb-3">
+              <div className="flex items-center gap-1 mb-1 justify-center">
+                <h3
+                  className={`text-sm font-semibold ${theme.text} truncate`}
+                >
+                  {suggestedUser.name}
+                </h3>
+                <img
+                  src={VerifiedIcon}
+                  alt="Verified"
+                  className="w-3 h-3 flex-shrink-0"
+                />
+              </div>
+              <p
+                className={`text-xs ${theme.subText} capitalize text-center`}
+              >
+                {suggestedUser.organisation_type || suggestedUser.role}
+              </p>
+            </div>
+          </div>
 
-                      {showRightArrow && users.length > 0 && (
-                        <button
-                          onClick={scrollRight}
-                          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full"
-                        >
-                          <img
-                            src={RightArrowIcon}
-                            alt="Scroll Right"
-                            className="w-6 h-6 invert"
-                          />
-                        </button>
-                      )}
-                    </div>
+          <div className="flex flex-col gap-2">
+            <div className="flex justify-center items-center gap-3">
+              <div className="flex items-center gap-1">
+                <img
+                  src={FollowersIcon}
+                  alt="Followers"
+                  className={`w-3 h-3 ${
+                    !isDark ? "filter brightness-0" : ""
+                  }`}
+                />
+                <span
+                  className={`text-xs font-medium ${theme.text}`}
+                >
+                  {suggestedUser.followersCount ||
+                    suggestedUser.followers ||
+                    0}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <img
+                  src={EventIcon}
+                  alt="Events"
+                  className={`w-3 h-3 ${
+                    !isDark ? "filter brightness-0" : ""
+                  }`}
+                />
+                <span
+                  className={`text-xs font-medium ${theme.text}`}
+                >
+                  {eventCountsMap[suggestedUser._id || suggestedUser.id] ||
+                    0}
+                </span>
+              </div>
+            </div>
 
-                    {/* Mobile: Grid of 2 Cards */}
-                    <div className="md:hidden grid grid-cols-2 gap-3">
-                      {users.length > 0 ? (
-                        users.slice(0, 2).map((suggestedUser) => (
-                          <div
-                            key={suggestedUser._id}
-                            className="rounded-2xl p-3 flex flex-col justify-between transition-all duration-300 cursor-pointer"
-                            style={{
-                              backgroundColor: isDark ? "#212426" : "#ffffff",
-                              boxShadow: theme.smallCardShadow,
-                            }}
-                            onClick={() =>
-                              navigate(
-                                `/profile/${
-                                  suggestedUser._id || suggestedUser.id
-                                }`
-                              )
-                            }
-                          >
-                            <div className="flex flex-col">
-                              <div className="relative mb-3">
-                                <img
-                                  src={
-                                    getImageUrl(suggestedUser.image, "auth") ||
-                                    ProfileImage
-                                  }
-                                  alt={suggestedUser.name}
-                                  className="w-full h-[100px] object-cover rounded-xl"
-                                />
-                              </div>
-                              <div className="px-1 mb-3">
-                                <div className="flex items-center gap-1 mb-1 justify-center">
-                                  <h3
-                                    className={`text-sm font-semibold ${theme.text} truncate`}
-                                  >
-                                    {suggestedUser.name}
-                                  </h3>
-                                  <img
-                                    src={VerifiedIcon}
-                                    alt="Verified"
-                                    className="w-3 h-3 flex-shrink-0"
-                                  />
-                                </div>
-                                <p
-                                  className={`text-xs ${theme.subText} capitalize text-center`}
-                                >
-                                  {suggestedUser.organisation_type ||
-                                    suggestedUser.role}
-                                </p>
-                              </div>
-                            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSuggestionFollowToggle(
+                  suggestedUser._id || suggestedUser.id
+                );
+              }}
+              disabled={
+                followingStates[suggestedUser._id || suggestedUser.id]
+              }
+              className={`w-full px-3 py-1.5 rounded-full text-white text-xs font-medium transition-all duration-200 ${
+                followingMap[suggestedUser._id || suggestedUser.id]
+                  ? "bg-[#44444D] shadow-[0px_5px_10px_0px_rgba(0,0,0,0.3)]"
+                  : "bg-blue-500"
+              } ${
+                followingStates[suggestedUser._id || suggestedUser.id]
+                  ? "opacity-50 cursor-not-allowed"
+                  : "cursor-pointer"
+              }`}
+            >
+              {followingStates[suggestedUser._id || suggestedUser.id]
+                ? followingMap[suggestedUser._id || suggestedUser.id]
+                  ? "Unfollowing..."
+                  : "Following..."
+                : followingMap[suggestedUser._id || suggestedUser.id]
+                ? "Unfollow"
+                : "Follow +"}
+            </button>
+          </div>
+        </div>
+      ))
+    ) : (
+      <div className={`col-span-2 text-center py-8 ${theme.subText}`}>
+        <p className="text-sm">No suggestions available</p>
+      </div>
+    )}
+  </div>
+</div>
 
-                            <div className="flex flex-col gap-2">
-                              <div className="flex justify-center items-center gap-3">
-                                <div className="flex items-center gap-1">
-                                  <img
-                                    src={FollowersIcon}
-                                    alt="Followers"
-                                    className={`w-3 h-3 ${
-                                      !isDark ? "filter brightness-0" : ""
-                                    }`}
-                                  />
-                                  <span
-                                    className={`text-xs font-medium ${theme.text}`}
-                                  >
-                                    {suggestedUser.followersCount ||
-                                      suggestedUser.followers ||
-                                      0}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <img
-                                    src={EventIcon}
-                                    alt="Events"
-                                    className={`w-3 h-3 ${
-                                      !isDark ? "filter brightness-0" : ""
-                                    }`}
-                                  />
-                                  <span
-                                    className={`text-xs font-medium ${theme.text}`}
-                                  >
-                                    {eventCountsMap[
-                                      suggestedUser._id || suggestedUser.id
-                                    ] || 0}
-                                  </span>
-                                </div>
-                              </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSuggestionFollowToggle(
-                                    suggestedUser._id || suggestedUser.id
-                                  );
-                                }}
-                                disabled={
-                                  followingStates[
-                                    suggestedUser._id || suggestedUser.id
-                                  ]
-                                }
-                                className={`w-full px-3 py-1.5 rounded-full text-white text-xs font-medium transition-all duration-200 ${
-                                  followingMap[
-                                    suggestedUser._id || suggestedUser.id
-                                  ]
-                                    ? "bg-[#44444D] shadow-[0px_5px_10px_0px_rgba(0,0,0,0.3)] hover:bg-[#50505A]"
-                                    : "bg-blue-500 hover:bg-blue-600"
-                                } ${
-                                  followingStates[
-                                    suggestedUser._id || suggestedUser.id
-                                  ]
-                                    ? "opacity-50 cursor-not-allowed"
-                                    : "cursor-pointer"
-                                }`}
-                              >
-                                {followingStates[
-                                  suggestedUser._id || suggestedUser.id
-                                ]
-                                  ? followingMap[
-                                      suggestedUser._id || suggestedUser.id
-                                    ]
-                                    ? "Unfollowing..."
-                                    : "Following..."
-                                  : followingMap[
-                                      suggestedUser._id || suggestedUser.id
-                                    ]
-                                  ? "Unfollow"
-                                  : "Follow +"}
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div
-                          className={`col-span-2 text-center py-8 ${theme.subText}`}
-                        >
-                          <p className="text-sm">No suggestions available</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+
                   {/* Events Section with Tabs */}
                   <div
                     className={`rounded-2xl md:rounded-[2.5rem] p-3 md:p-4 lg:p-6 ${theme.cardBg} md:bg-transparent nest-hub-card transition-all duration-300 w-full overflow-hidden`}
