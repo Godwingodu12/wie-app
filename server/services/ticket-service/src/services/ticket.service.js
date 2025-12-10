@@ -1,18 +1,21 @@
 import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import upload from "../middlewares/upload.js";
+import fs from "fs";
 import { uploadTicketMedia, uploadFields } from "../middlewares/upload.js";
 import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
 import { 
   generateSeatingLayoutFromFile, 
-  validateSeatingLayout 
+  normalizeSeatData,
+  generateFallbackLayout  
 } from '../utils/seatingLayoutGenerator.js';
 import {
   processFileUploads,
   deleteFromCloudinary,
   processGroupFileUploads,
   cleanupTempFile,
-  uploadGeneratedLayoutToCloudinary
+  uploadGeneratedLayoutToCloudinary,
+  downloadFileFromCloudinary
 } from "../utils/cloudinaryHelper.js";
 import { createNotification } from '../utils/notificationHelper.js';
 import multer from "multer";
@@ -965,12 +968,17 @@ export const createTicketBasicInfo = async (req, res) => {
       event_description,
       groupId: bodyGroupId,
     } = req.body;
-
     // Get uploaded files
     const uploadedFiles = await processFileUploads(req.files || {});
-
-    // Handle multiple guest profile uploads and event rules
     Object.keys(uploadedFiles).forEach((fieldName) => {
+      if (fieldName === "ticket_layout") {
+        console.log('🎫 Ticket layout file detected:', {
+          hasCloudinaryUrl: !!uploadedFiles.ticket_layout.cloudinaryUrl,
+          hasLocalPath: !!uploadedFiles.ticket_layout.localPath,
+          mimeType: uploadedFiles.ticket_layout.mimeType
+        });
+        return; 
+      }
       if (fieldName.startsWith("guest_profile_")) {
         const index = fieldName.split("_")[2];
         if (!isNaN(index) && parseInt(index) >= 0 && parseInt(index) <= 9) {
@@ -984,14 +992,12 @@ export const createTicketBasicInfo = async (req, res) => {
           }
         }
       }
-      
       if (fieldName === "event_rules") {
         const fileData = uploadedFiles[fieldName];
         if (Array.isArray(fileData) && fileData.length > 0) {
           eventRulesFiles.push(fileData[0]);
         }
       }
-      
       if (fieldName.startsWith("video_file_")) {
         const index = fieldName.split("_")[2];
         if (!isNaN(index)) {
@@ -2428,6 +2434,12 @@ export const updateTicketMedia = async (req, res) => {
 };
 export const updateTicketAddOns = async (req, res) => {
   const ticketId = req.params.ticketId;
+  const processedFiles = {};
+  const guestProfileFiles = {};
+  const ticketPhotoFiles = {};
+  const videoFiles = {};
+  const previewImageFiles = {};
+  let processedSeatingLayout = null;
   if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
     return res.status(400).json({
       message: "Invalid ticket ID format. Please provide a valid MongoDB ObjectId.",
@@ -2453,20 +2465,124 @@ export const updateTicketAddOns = async (req, res) => {
     if (!existingTicket) {
       return res.status(404).json({ message: "Ticket not found" });
     }
+    const isLayoutGenerationOnly = req.body.generate_layout_only === "true" || 
+                                  req.body.generate_layout_only === true;
+    if (isLayoutGenerationOnly) {
+      console.log('🔄 Layout Generation Mode - Processing file upload only');
+      
+      // Process the uploaded file
+      const uploadedFiles = await processFileUploads(req.files || {});
+      if (!uploadedFiles.ticket_layout) {
+        return res.status(400).json({
+          message: "No seating layout file provided",
+          hint: "Please upload a ticket layout file"
+        });
+      }
+
+      // Get capacity from request
+      let totalCapacity = 0;
+      try {
+        const subEventJSON = req.body.sub_event ? JSON.parse(req.body.sub_event) : req.body;
+        totalCapacity = parseInt(subEventJSON.total_capacity, 10) || 0;
+      } catch (e) {
+        totalCapacity = parseInt(req.body.total_capacity, 10) || 0;
+      }
+
+      if (!totalCapacity || totalCapacity <= 0) {
+        return res.status(400).json({
+          message: "Invalid capacity",
+          hint: "Please provide a valid total_capacity value"
+        });
+      }
+
+      try {
+        const layoutFileData = uploadedFiles.ticket_layout;
+        let localFilePath;
+        
+        if (layoutFileData.localPath && fs.existsSync(layoutFileData.localPath)) {
+          localFilePath = layoutFileData.localPath;
+        } else if (layoutFileData.cloudinaryUrl) {
+          localFilePath = await downloadFileFromCloudinary(
+            layoutFileData.cloudinaryUrl,
+            `layout_${ticketId}_${Date.now()}.${layoutFileData.mimeType.split('/')[1]}`
+          );
+        }
+        
+        if (localFilePath) {
+          const generatedLayout = await generateSeatingLayoutFromFile(
+            localFilePath,
+            totalCapacity,
+            layoutFileData.mimeType
+          );
+          if (localFilePath !== layoutFileData.localPath) {
+            await cleanupTempFile(localFilePath);
+          }
+          const normalizedSeats = generatedLayout.seats.map(seat => normalizeSeatData(seat));
+          console.log('✅ Normalized seats for generation-only mode:', {
+            total: normalizedSeats.length,
+            sampleSeat: normalizedSeats[0]
+          });
+          const missingFields = normalizedSeats.filter(seat =>
+            seat.ticketTypeId === undefined ||
+            seat.ticketTypeName === undefined ||
+            seat.ticketTypeColor === undefined ||
+            seat.price === undefined
+          );
+          if (missingFields.length > 0) {
+            console.error('❌ CRITICAL: Seats still missing fields after normalization:', missingFields[0]);
+            throw new Error('Seat normalization failed');
+          }
+          // Return immediately with generated layout
+          return res.status(200).json({
+            message: "Seating layout generated successfully",
+            seating_layout: {
+              ...generatedLayout,
+              seats: normalizedSeats
+            },
+            operation: "layout_generation_only",
+          });
+        }
+      } catch (layoutError) {
+        console.error('❌ Layout generation failed:', layoutError);
+        // Try fallback
+        try {
+          const fallbackLayout = generateFallbackLayout(totalCapacity);
+          // ✅ Normalize fallback seats too
+          const normalizedSeats = fallbackLayout.seats.map(seat => normalizeSeatData(seat));
+          return res.status(200).json({
+            message: "Seating layout generated using fallback method",
+            seating_layout: {
+              ...fallbackLayout,
+              seats: normalizedSeats
+            },
+            operation: "layout_generation_fallback",
+          });
+        } catch (fallbackError) {
+          return res.status(500).json({
+            message: "Failed to generate seating layout",
+            error: fallbackError.message,
+          });
+        }
+      }
+      
+      return res.status(400).json({
+        message: "Failed to process layout file",
+        hint: "Please check your file and try again"
+      });
+    }
     let subEventData;
     let editingSubEventId = null;
     let isEditingSubEvent = false;
     try {
       if (req.body.sub_event) {
-        subEventData =
-          typeof req.body.sub_event === "string"
-            ? JSON.parse(req.body.sub_event)
-            : req.body.sub_event;
-        if (req.body.editing_sub_event_id) {
-          editingSubEventId = req.body.editing_sub_event_id;
-          isEditingSubEvent = true;
-        }
-      } else if (
+      subEventData = typeof req.body.sub_event === "string"
+        ? JSON.parse(req.body.sub_event)
+        : req.body.sub_event;
+      if (req.body.editing_sub_event_id && !subEventData.generate_layout_only) {
+        editingSubEventId = req.body.editing_sub_event_id;
+        isEditingSubEvent = true;
+      }
+    } else if (
         req.body.event_name ||
         req.body.event_category ||
         req.body.location_type
@@ -2633,129 +2749,6 @@ export const updateTicketAddOns = async (req, res) => {
         }
       }
     }
-    // Validate and process seating_layout for offline events
-    let processedSeatingLayout = null;
-    if (subEventData.location_type === "offline" && subEventData.seating_layout) {
-      try {
-        const seatingLayoutData = typeof subEventData.seating_layout === "string"
-          ? JSON.parse(subEventData.seating_layout)
-          : subEventData.seating_layout;
-
-        // Validate seating_layout structure
-        if (!seatingLayoutData.rows || !Array.isArray(seatingLayoutData.rows) || seatingLayoutData.rows.length === 0) {
-          return res.status(400).json({
-            message: "seating_layout.rows is required and must be a non-empty array",
-            provided: seatingLayoutData,
-          });
-        }
-
-        if (!seatingLayoutData.columns || typeof seatingLayoutData.columns !== "number" || seatingLayoutData.columns <= 0) {
-          return res.status(400).json({
-            message: "seating_layout.columns is required and must be a positive number",
-            provided: seatingLayoutData.columns,
-          });
-        }
-
-        if (!seatingLayoutData.seats || !Array.isArray(seatingLayoutData.seats) || seatingLayoutData.seats.length === 0) {
-          return res.status(400).json({
-            message: "seating_layout.seats is required and must be a non-empty array",
-            provided: seatingLayoutData,
-          });
-        }
-
-        // Validate each seat
-        for (let i = 0; i < seatingLayoutData.seats.length; i++) {
-          const seat = seatingLayoutData.seats[i];
-          
-          if (!seat.seatId || String(seat.seatId).trim() === "") {
-            return res.status(400).json({
-              message: `seating_layout.seats[${i}].seatId is required`,
-              seatIndex: i,
-            });
-          }
-
-          if (!seat.row || String(seat.row).trim() === "") {
-            return res.status(400).json({
-              message: `seating_layout.seats[${i}].row is required`,
-              seatIndex: i,
-            });
-          }
-
-          if (seat.column === undefined || seat.column === null) {
-            return res.status(400).json({
-              message: `seating_layout.seats[${i}].column is required`,
-              seatIndex: i,
-            });
-          }
-        }
-
-        // Validate ticketTypeAssignments if present
-        if (seatingLayoutData.ticketTypeAssignments && Array.isArray(seatingLayoutData.ticketTypeAssignments)) {
-          for (let i = 0; i < seatingLayoutData.ticketTypeAssignments.length; i++) {
-            const assignment = seatingLayoutData.ticketTypeAssignments[i];
-            
-            if (!assignment.ticketTypeId || String(assignment.ticketTypeId).trim() === "") {
-              return res.status(400).json({
-                message: `seating_layout.ticketTypeAssignments[${i}].ticketTypeId is required`,
-                assignmentIndex: i,
-              });
-            }
-
-            if (!assignment.ticketTypeName || String(assignment.ticketTypeName).trim() === "") {
-              return res.status(400).json({
-                message: `seating_layout.ticketTypeAssignments[${i}].ticketTypeName is required`,
-                assignmentIndex: i,
-              });
-            }
-
-            if (!Array.isArray(assignment.assignedSeats)) {
-              return res.status(400).json({
-                message: `seating_layout.ticketTypeAssignments[${i}].assignedSeats must be an array`,
-                assignmentIndex: i,
-              });
-            }
-
-            if (assignment.capacity === undefined || assignment.capacity === null || assignment.capacity < 0) {
-              return res.status(400).json({
-                message: `seating_layout.ticketTypeAssignments[${i}].capacity is required and must be non-negative`,
-                assignmentIndex: i,
-              });
-            }
-          }
-        }
-
-        processedSeatingLayout = {
-          rows: seatingLayoutData.rows.map(row => String(row)),
-          columns: Number(seatingLayoutData.columns),
-          seats: seatingLayoutData.seats.map(seat => ({
-            seatId: String(seat.seatId),
-            row: String(seat.row),
-            column: Number(seat.column),
-            isAvailable: Boolean(seat.isAvailable !== false), // Default true
-            isSelected: Boolean(seat.isSelected === true), // Default false
-            ticketTypeId: seat.ticketTypeId ? String(seat.ticketTypeId) : null,
-            ticketTypeName: seat.ticketTypeName ? String(seat.ticketTypeName) : null,
-            ticketTypeColor: seat.ticketTypeColor ? String(seat.ticketTypeColor) : null,
-          })),
-          ticketTypeAssignments: seatingLayoutData.ticketTypeAssignments 
-            ? seatingLayoutData.ticketTypeAssignments.map(assignment => ({
-                ticketTypeId: String(assignment.ticketTypeId),
-                ticketTypeName: String(assignment.ticketTypeName),
-                color: assignment.color ? String(assignment.color) : "",
-                assignedSeats: assignment.assignedSeats.map(seat => String(seat)),
-                capacity: Number(assignment.capacity),
-              }))
-            : [],
-        };
-
-      } catch (parseError) {
-        return res.status(400).json({
-          message: "Invalid seating_layout format",
-          error: parseError.message,
-          hint: "seating_layout must be a valid JSON object with rows, columns, seats, and ticketTypeAssignments",
-        });
-      }
-    }
     // Validate enum fields
     const validEventTypes = ["private", "public"];
     if (!validEventTypes.includes(subEventData.event_type)) {
@@ -2796,7 +2789,7 @@ export const updateTicketAddOns = async (req, res) => {
       });
     }
     if (subEventData.location_type === "offline") {
-      const validSeatingArrangements = ["seated", "standing", "seated and standing", "other"];
+      const validSeatingArrangements = ["seated", "standing", "seated and standing", "other", "none"];
       if (!validSeatingArrangements.includes(subEventData.seating_arrangement)) {
         return res.status(400).json({
           message: "Invalid seating_arrangement for offline events",
@@ -2879,18 +2872,15 @@ export const updateTicketAddOns = async (req, res) => {
         });
       }
     }
-
-    // Process files
-    const processedFiles = {};
     const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
     const docExtensions = [".pdf", ".doc", ".docx"];
     const videoExtensions = [".mp4", ".mov", ".avi", ".mkv", ".webm"];
     const uploadedFiles = await processFileUploads(req.files || {});
-    const guestProfileFiles = {};
-    const ticketPhotoFiles = {};
-    const videoFiles = {};
-    const previewImageFiles = {};
     Object.keys(uploadedFiles).forEach((fieldName) => {
+      if (fieldName === "ticket_layout") {
+        console.log('🎫 Ticket layout file detected');
+        return;
+      }
       if (fieldName.startsWith("guest_profile_")) {
         const index = fieldName.split("_")[2];
         if (!isNaN(index) && parseInt(index) >= 0 && parseInt(index) <= 9) {
@@ -3140,8 +3130,7 @@ export const updateTicketAddOns = async (req, res) => {
       processedFiles.ticketPhotoFiles = ticketPhotoFiles;
       processedFiles.videoFiles = videoFiles;
       processedFiles.previewImageFiles = previewImageFiles;
-    }
-    // Parse guests, banking details, POCS
+    }                         
     const guests = parseNestedData(
       subEventData.guests || req.body.guests,
       "guests"
@@ -3240,12 +3229,9 @@ export const updateTicketAddOns = async (req, res) => {
             hint: "Please check your IFSC code. The 5th character must be '0' (zero)",
           });
         }
-
-        // Live IFSC verification
         let ifscValidation;
         try {
           ifscValidation = await validateIFSCCode(ifscCode);
-          
           if (!ifscValidation.isValid) {
             return res.status(400).json({
               message: `IFSC code verification failed for banking detail ${index + 1}`,
@@ -3705,11 +3691,6 @@ export const updateTicketAddOns = async (req, res) => {
               }))
             : existingSubEvent.event_images || [],
       };
-      if (subEventData.location_type === "offline" && processedSeatingLayout) {
-        updatedSubEvent.seating_layout = processedSeatingLayout;
-      } else if (subEventData.location_type === "offline" && existingSubEvent.seating_layout) {
-        updatedSubEvent.seating_layout = existingSubEvent.seating_layout;
-      }
       if (subEventData.location_type === "offline") {
         updatedSubEvent.seating_arrangement = String(
           subEventData.seating_arrangement || "none"
@@ -3777,6 +3758,24 @@ export const updateTicketAddOns = async (req, res) => {
           uploadedAt: new Date(),
         };
       }
+      if (subEventData.location_type === "offline") {
+        if (processedSeatingLayout?.seats?.length > 0) {
+          updatedSubEvent.seating_layout = processedSeatingLayout;
+        } else if (existingSubEvent?.seating_layout) {
+          updatedSubEvent.seating_layout = existingSubEvent.seating_layout;
+        }
+        if (processedFiles.ticket_layout) {
+          updatedSubEvent.ticket_layout = String(processedFiles.ticket_layout);
+          if (processedFiles.ticket_layout_public_id) {
+            updatedSubEvent.ticket_layout_public_id = String(processedFiles.ticket_layout_public_id);
+          }
+        } else if (existingSubEvent?.ticket_layout) {
+          updatedSubEvent.ticket_layout = existingSubEvent.ticket_layout;
+          if (existingSubEvent.ticket_layout_public_id) {
+            updatedSubEvent.ticket_layout_public_id = existingSubEvent.ticket_layout_public_id;
+          }
+        }
+      }
       const updatePayload = {
         $set: {
           [`sub_events.${subEventIndex}`]: updatedSubEvent,
@@ -3801,184 +3800,476 @@ export const updateTicketAddOns = async (req, res) => {
           message: "Failed to update sub-event",
         });
       }
-      const updatedSubEventData = updatedTicket.sub_events.find(
-        (se) => se._id.toString() === editingSubEventId
+      let updatedSubEventData = updatedTicket.sub_events.find(
+        (se) => se._id.toString() === editingSubEventId.toString()
       );
+      // Fallback strategies if not found
+      if (!updatedSubEventData) {
+        console.warn('⚠️ Sub-event not found by ID, attempting fallbacks...');
+        // Strategy 1: Try to find by index (since we know the index)
+        if (updatedTicket.sub_events[subEventIndex]) {
+          updatedSubEventData = updatedTicket.sub_events[subEventIndex];
+          console.log('✅ Found sub-event by index:', subEventIndex);
+        }
+        // Strategy 2: Find by event name match
+        else {
+          const matchingSubEvent = updatedTicket.sub_events.find(
+            (se) => se.event_name === subEventData.event_name
+          );
+          if (matchingSubEvent) {
+            updatedSubEventData = matchingSubEvent;
+            console.log('✅ Found sub-event by name match');
+          }
+        }
+        // Strategy 3: Use the last sub-event as last resort
+        if (!updatedSubEventData && updatedTicket.sub_events.length > 0) {
+          updatedSubEventData = updatedTicket.sub_events[updatedTicket.sub_events.length - 1];
+          console.log('⚠️ Using last sub-event as final fallback');
+        }
+      }
+      // Final validation
+      if (!updatedSubEventData) {
+        console.error('❌ Could not locate updated sub-event after all strategies');
+        return res.status(404).json({
+          message: "Updated sub-event not found in ticket after update",
+          subEventId: editingSubEventId,
+          totalSubEvents: updatedTicket.sub_events.length,
+          hint: "The sub-event may have been updated but could not be retrieved. Please refresh and check.",
+        });
+      }
+      console.log('✅ Successfully located updated sub-event:', {
+        id: updatedSubEventData._id,
+        name: updatedSubEventData.event_name,
+        hasSeatingLayout: !!updatedSubEventData.seating_layout,
+        ticketLayout: updatedSubEventData.ticket_layout || 'none',
+      });
       return res.status(200).json({
         message: "Sub-event updated successfully",
         ticket: updatedTicket,
         updatedSubEvent: updatedSubEventData,
         operation: "update",
         debug: {
-          prohibited_items_count:
-            updatedSubEventData.prohibited_items?.length || 0,
+          prohibited_items_count: updatedSubEventData.prohibited_items?.length || 0,
           ticket_types_count: updatedSubEventData.ticket_types?.length || 0,
           location_type: updatedSubEventData.location_type,
+          has_seating_layout: !!updatedSubEventData.seating_layout,
+          seating_layout_seats: updatedSubEventData.seating_layout?.seats?.length || 0,
+          ticket_layout: updatedSubEventData.ticket_layout || "none",
         },
       });
     }
-    if (!processedFiles.event_banner) {
-      return res.status(400).json({
-        message: "Event banner is required for sub-events",
-      });
+    // Banner validation - only runs in normal mode
+    let existingBanner = null;
+    if (isEditingSubEvent && editingSubEventId) {
+      const existingSubEvent = existingTicket.sub_events.find(
+        (se) => se._id.toString() === editingSubEventId
+      );
+      existingBanner = existingSubEvent?.event_banner;
     }
-    if (existingTicket.sub_events && existingTicket.sub_events.length > 0) {
+   const hasExistingBannerInPayload = !!(subEventData.existing_event_banner);
+    const hasNewBannerFile = !!(processedFiles.event_banner);
+    if (!hasNewBannerFile) {
+      if (hasExistingBannerInPayload) {
+        processedFiles.event_banner = subEventData.existing_event_banner;
+        console.log('✅ Using existing banner from payload');
+      } else if (isEditingSubEvent && existingBanner) {
+        processedFiles.event_banner = existingBanner;
+        console.log('✅ Using existing banner from database');
+      } else {
+        return res.status(400).json({
+          message: "Event banner is required for sub-events",
+          hint: "Please upload an event banner before proceeding"
+        });
+      }
+    }
+    if (req.files && req.files.ticket_layout && req.files.ticket_layout[0]) {
+      const file = req.files.ticket_layout[0];
+      
+      console.log('🎫 Processing ticket_layout from req.files:', {
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        hasBuffer: !!file.buffer,
+        isEditMode: isEditingSubEvent,
+      });
+      
+      if (!file.buffer || file.buffer.length === 0) {
+        throw new Error('Ticket layout file is empty. Please upload a valid file.');
+      }
+
+      // The file should already be processed by processFileUploads
+      // We just need to ensure it's properly stored in uploadedFiles
+      
+      if (!uploadedFiles.ticket_layout) {
+        console.warn('⚠️ ticket_layout not found in uploadedFiles, processing manually');
+        
+        const tempDir = path.join(__dirname, '../temp');
+        if (!fs.existsSync(tempDir)) {
+          fs.mkdirSync(tempDir, { recursive: true });
+        }
+        
+        const tempFileName = `layout_${Date.now()}_${file.originalname}`;
+        const tempFilePath = path.join(tempDir, tempFileName);
+        
+        try {
+          fs.writeFileSync(tempFilePath, file.buffer);
+          console.log('✅ Temporary file saved:', tempFilePath);
+        } catch (writeError) {
+          console.error('❌ Failed to write temp file:', writeError);
+          throw new Error(`Failed to save temporary file: ${writeError.message}`);
+        }
+
+        // Upload to Cloudinary
+        try {
+          const folder = getCloudinaryFolder('ticket_layout');
+          const resourceType = getResourceType('ticket_layout', file.mimetype);
+          const result = await uploadToCloudinary(file.buffer, {
+            folder,
+            resourceType
+          });
+
+          uploadedFiles.ticket_layout = {
+            cloudinaryUrl: result.url,
+            localPath: tempFilePath,
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+            size: file.size,
+            public_id: result.public_id,
+            resource_type: result.resource_type
+          };
+          
+          console.log('✅ ticket_layout uploaded to Cloudinary:', result.url);
+        } catch (uploadError) {
+          if (fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
+          }
+          throw new Error(`Failed to upload ticket layout: ${uploadError.message}`);
+        }
+      } else {
+        console.log('✅ ticket_layout already processed by processFileUploads');
+      }
+    }
+
+    // CRITICAL FIX: In edit mode, preserve existing layout if no new file uploaded
+    if (isEditingSubEvent && editingSubEventId && (!req.files || !req.files.ticket_layout)) {
+      const existingSubEvent = existingTicket.sub_events.find(
+        (se) => se._id.toString() === editingSubEventId
+      );
+      if (existingSubEvent && existingSubEvent.ticket_layout) {
+        console.log('✅ Preserving existing ticket_layout in edit mode');
+        uploadedFiles.ticket_layout = {
+          cloudinaryUrl: existingSubEvent.ticket_layout,
+          localPath: null,
+          isExisting: true,
+          public_id: existingSubEvent.ticket_layout_public_id || '',
+        };
+      }
+    }
+    if (subEventData.location_type === "offline") {
+      console.log('🎯 Offline event - checking for seating layout data...');
+      
+      // PRIORITY 1: Frontend-provided layout with assignments (MOST IMPORTANT)
+      if (subEventData.seating_layout && 
+          subEventData.seating_layout.seats && 
+          subEventData.seating_layout.seats.length > 0) {
+        
+        console.log('📥 Using seating layout from frontend with assignments');
+        
+        const layoutData = subEventData.seating_layout;
+        
+        // Validate that seats have required fields
+        const seatsWithAssignments = layoutData.seats.filter(s => s.ticketTypeId);
+        console.log('🔍 Frontend layout validation:', {
+          totalSeats: layoutData.seats.length,
+          assignedSeats: seatsWithAssignments.length,
+          hasAssignments: layoutData.ticketTypeAssignments?.length || 0
+        });
+        
+        processedSeatingLayout = {
+          rows: (layoutData.rows || []).map(r => String(r)),
+          columns: Number(layoutData.columns || 0),
+          seats: (layoutData.seats || []).map(seat => ({
+            seatId: String(seat.seatId || ''),
+            row: String(seat.row || ''),
+            column: Number(seat.column || 0),
+            isAvailable: seat.isAvailable !== false,
+            isSelected: false,
+            ticketTypeId: seat.ticketTypeId !== undefined && seat.ticketTypeId !== null 
+              ? String(seat.ticketTypeId) 
+              : null,
+            ticketTypeName: seat.ticketTypeName !== undefined && seat.ticketTypeName !== null 
+              ? String(seat.ticketTypeName) 
+              : null,
+            ticketTypeColor: seat.ticketTypeColor !== undefined && seat.ticketTypeColor !== null 
+              ? String(seat.ticketTypeColor) 
+              : null,
+            price: seat.price !== undefined && seat.price !== null 
+              ? Number(seat.price) 
+              : 0
+          })),
+          ticketTypeAssignments: (layoutData.ticketTypeAssignments || [])
+            .filter(assignment => 
+              assignment.ticketTypeName && 
+              String(assignment.ticketTypeName).trim() !== '' &&
+              assignment.assignedSeats &&
+              Array.isArray(assignment.assignedSeats) &&
+              assignment.assignedSeats.length > 0
+            )
+            .map(assignment => ({
+              ticketTypeId: String(assignment.ticketTypeId || ''),
+              ticketTypeName: String(assignment.ticketTypeName || ''),
+              color: assignment.color ? String(assignment.color) : "",
+              assignedSeats: (assignment.assignedSeats || []).map(s => String(s)),
+              capacity: Number(assignment.capacity || 0),
+              price: Number(assignment.price !== undefined && assignment.price !== null ? assignment.price : 0),
+            }))
+        };
+        
+        console.log('✅ Frontend layout processed:', {
+          totalSeats: processedSeatingLayout.seats.length,
+          assignedSeats: processedSeatingLayout.seats.filter(s => s.ticketTypeId).length,
+          assignments: processedSeatingLayout.ticketTypeAssignments.length
+        });
+        
+        // Store file URL if available
+        if (uploadedFiles.ticket_layout?.cloudinaryUrl) {
+          processedFiles.ticket_layout = uploadedFiles.ticket_layout.cloudinaryUrl;
+          processedFiles.ticket_layout_public_id = uploadedFiles.ticket_layout.public_id || "";
+        }
+      }
+      // PRIORITY 2: File-based generation (ONLY if no frontend layout)
+      else if (uploadedFiles.ticket_layout && totalCapacityNum > 0) {
+        console.log('📄 No frontend layout - generating from file...');
+        
+        try {
+          const layoutFileData = uploadedFiles.ticket_layout;
+          let localFilePath;
+          
+          if (layoutFileData.localPath && fs.existsSync(layoutFileData.localPath)) {
+            localFilePath = layoutFileData.localPath;
+          } else if (layoutFileData.cloudinaryUrl) {
+            try {
+              localFilePath = await downloadFileFromCloudinary(
+                layoutFileData.cloudinaryUrl,
+                `layout_${ticketId}_${Date.now()}.${layoutFileData.mimeType?.split('/')[1] || 'jpg'}`
+              );
+            } catch (downloadError) {
+              console.error('❌ Download failed:', downloadError);
+              throw new Error(`Failed to download layout file: ${downloadError.message}`);
+            }
+          }
+          
+          if (localFilePath) {
+            try {
+              console.log('🔄 Generating seating layout from file...');
+              const generatedLayout = await generateSeatingLayoutFromFile(
+                localFilePath,
+                totalCapacityNum,
+                layoutFileData.mimeType || 'image/jpeg'
+              );
+              
+              // ✅ CRITICAL VALIDATION: Verify all seats have required fields
+              console.log('🔍 Validating generated layout...');
+              if (generatedLayout.seats && generatedLayout.seats.length > 0) {
+                const missingFieldsSeats = generatedLayout.seats.filter(seat => 
+                  seat.ticketTypeId === undefined || 
+                  seat.ticketTypeName === undefined || 
+                  seat.ticketTypeColor === undefined || 
+                  seat.price === undefined
+                );
+                
+                if (missingFieldsSeats.length > 0) {
+                  console.error('❌ CRITICAL: Generated seats missing required fields:', {
+                    totalSeats: generatedLayout.seats.length,
+                    missingCount: missingFieldsSeats.length,
+                    sampleBadSeat: missingFieldsSeats[0]
+                  });
+                  
+                  // Fix missing fields
+                  generatedLayout.seats = generatedLayout.seats.map(seat => ({
+                    ...seat,
+                    ticketTypeId: seat.ticketTypeId !== undefined ? seat.ticketTypeId : null,
+                    ticketTypeName: seat.ticketTypeName !== undefined ? seat.ticketTypeName : null,
+                    ticketTypeColor: seat.ticketTypeColor !== undefined ? seat.ticketTypeColor : null,
+                    price: seat.price !== undefined ? seat.price : 0
+                  }));
+                  
+                  console.log('✅ Fixed missing fields in generated seats');
+                } else {
+                  console.log('✅ All generated seats have required fields');
+                }
+              }
+              
+              // ✅ Store the generated layout
+              processedSeatingLayout = {
+                rows: (generatedLayout.rows || []).map(r => String(r)),
+                columns: Number(generatedLayout.columns || 0),
+                seats: (generatedLayout.seats || []).map(seat => ({
+                  seatId: String(seat.seatId),
+                  row: String(seat.row),
+                  column: Number(seat.column),
+                  isAvailable: seat.isAvailable !== false,
+                  isSelected: false,
+                  ticketTypeId: seat.ticketTypeId !== undefined ? seat.ticketTypeId : null,
+                  ticketTypeName: seat.ticketTypeName !== undefined ? seat.ticketTypeName : null,
+                  ticketTypeColor: seat.ticketTypeColor !== undefined ? seat.ticketTypeColor : null,
+                  price: Number(seat.price || 0)
+                })),
+                ticketTypeAssignments: (generatedLayout.ticketTypeAssignments || [])
+                  .filter(a => a.ticketTypeId && a.ticketTypeName && a.assignedSeats?.length > 0)
+                  .map(assignment => ({
+                    ticketTypeId: String(assignment.ticketTypeId || ''),
+                    ticketTypeName: String(assignment.ticketTypeName || ''),
+                    color: String(assignment.color || ""),
+                    assignedSeats: (assignment.assignedSeats || []).map(seat => String(seat)),
+                    capacity: Number(assignment.capacity || 0),
+                    price: Number(assignment.price || 0)
+                  })),
+              };
+              
+              console.log('✅ File-based layout generated:', {
+                seats: processedSeatingLayout.seats.length,
+                assignments: processedSeatingLayout.ticketTypeAssignments.length
+              });
+              
+              // Store file URL for database
+              if (layoutFileData.cloudinaryUrl) {
+                processedFiles.ticket_layout = layoutFileData.cloudinaryUrl;
+                processedFiles.ticket_layout_public_id = layoutFileData.public_id || "";
+              }
+              
+              // Cleanup temp file
+              if (layoutFileData.cloudinaryUrl && localFilePath !== layoutFileData.localPath) {
+                await cleanupTempFile(localFilePath);
+              }
+            } catch (generationError) {
+              console.error('❌ Layout generation failed:', generationError);
+              // Cleanup on error
+              if (layoutFileData.cloudinaryUrl && localFilePath !== layoutFileData.localPath) {
+                try {
+                  await cleanupTempFile(localFilePath);
+                } catch (cleanupError) {
+                  console.error('Failed to cleanup temp file:', cleanupError);
+                }
+              }
+            }
+          }
+        } catch (outerError) {
+          console.error('❌ Outer layout processing error:', outerError);
+          // Store file URL even on failure
+          if (uploadedFiles.ticket_layout?.cloudinaryUrl) {
+            processedFiles.ticket_layout = uploadedFiles.ticket_layout.cloudinaryUrl;
+            processedFiles.ticket_layout_public_id = uploadedFiles.ticket_layout.public_id || "";
+            console.log('⚠️ Layout generation failed, but file URL stored');
+          }
+        }
+      } else if (uploadedFiles.ticket_layout) {
+        // File present but no capacity - just store URL
+        console.log('ℹ️ Ticket layout file present but no generation performed (capacity may be 0)');
+        if (uploadedFiles.ticket_layout.cloudinaryUrl) {
+          processedFiles.ticket_layout = uploadedFiles.ticket_layout.cloudinaryUrl;
+          processedFiles.ticket_layout_public_id = uploadedFiles.ticket_layout.public_id || "";
+        }
+      }
+      
+      // PRIORITY 3: Preserve existing layout (edit mode only, if nothing else available)
+      if (!processedSeatingLayout && isEditingSubEvent && editingSubEventId) {
+        const existingSubEvent = existingTicket.sub_events.find(
+          (se) => se._id.toString() === editingSubEventId
+        );
+        if (existingSubEvent?.seating_layout) {
+          console.log('✅ Preserving existing seating layout in edit mode');
+          processedSeatingLayout = existingSubEvent.seating_layout;
+        }
+      }
+    }
+    // Duplication check - only runs in normal mode (NOT editing, NOT layout-only)
+    if (!isEditingSubEvent && existingTicket.sub_events && existingTicket.sub_events.length > 0) {
       const newEventName = String(subEventData.event_name).trim().toLowerCase();
       let newLocationIdentifier = "";
+      
       if (subEventData.location_type === "offline") {
-        const location = String(subEventData.location || "")
-          .trim()
-          .toLowerCase();
-        const venue = String(subEventData.venue || "")
-          .trim()
-          .toLowerCase();
+        const location = String(subEventData.location || "").trim().toLowerCase();
+        const venue = String(subEventData.venue || "").trim().toLowerCase();
         newLocationIdentifier = `${location}|${venue}`;
       } else if (subEventData.location_type === "online") {
         if (eventDates && eventDates.length > 0 && eventDates[0].event_link) {
-          newLocationIdentifier = String(eventDates[0].event_link)
-            .trim()
-            .toLowerCase();
-        } else {
-          newLocationIdentifier = String(subEventData.event_link || "")
-            .trim()
-            .toLowerCase();
+          newLocationIdentifier = String(eventDates[0].event_link).trim().toLowerCase();
         }
       } else if (subEventData.location_type === "recorded") {
         if (eventDates && eventDates.length > 0) {
-          const videoName = String(eventDates[0].video_name || "")
-            .trim()
-            .toLowerCase();
-          const eventLink = String(eventDates[0].event_link || "")
-            .trim()
-            .toLowerCase();
-          newLocationIdentifier = videoName || eventLink || "recorded";
-        } else {
-          newLocationIdentifier = "recorded";
+          const videoName = String(eventDates[0].video_name || "").trim().toLowerCase();
+          newLocationIdentifier = videoName || "recorded";
         }
       }
+      
+      // Check for duplicates
       for (const newEventDate of eventDates) {
         const newStartDate = newEventDate.start_date;
-        const newStartTime = newEventDate.start_time;
-        const newEndTime = newEventDate.end_time;
-        const newVideoName = String(newEventDate.video_name || "")
-          .trim()
-          .toLowerCase();
-        const duplicateSubEvent = existingTicket.sub_events.find(
-          (existingSubEvent) => {
-            const existingEventName = String(existingSubEvent.event_name || "")
-              .trim()
-              .toLowerCase();
-            if (existingEventName !== newEventName) {
-              return false;
-            }
-            if (existingSubEvent.location_type !== subEventData.location_type) {
-              return false;
-            }
-            let locationMatches = false;
-            if (subEventData.location_type === "offline") {
-              const existingLocation = String(existingSubEvent.location || "")
-                .trim()
-                .toLowerCase();
-              const existingVenue = String(existingSubEvent.venue || "")
-                .trim()
-                .toLowerCase();
-              const existingIdentifier = `${existingLocation}|${existingVenue}`;
-              locationMatches = existingIdentifier === newLocationIdentifier;
-            } else if (subEventData.location_type === "online") {
-              if (
-                existingSubEvent.event_dates &&
-                existingSubEvent.event_dates.length > 0
-              ) {
-                const existingEventLink = String(
-                  existingSubEvent.event_dates[0].event_link || ""
-                )
-                  .trim()
-                  .toLowerCase();
-                locationMatches = existingEventLink === newLocationIdentifier;
-              } else {
-                const existingEventLink = String(
-                  existingSubEvent.event_link || ""
-                )
-                  .trim()
-                  .toLowerCase();
-                locationMatches = existingEventLink === newLocationIdentifier;
-              }
-            } else if (subEventData.location_type === "recorded") {
-              if (
-                existingSubEvent.event_dates &&
-                existingSubEvent.event_dates.length > 0
-              ) {
-                const existingVideoName = String(
-                  existingSubEvent.event_dates[0].video_name || ""
-                )
-                  .trim()
-                  .toLowerCase();
-                const existingEventLink = String(
-                  existingSubEvent.event_dates[0].event_link || ""
-                )
-                  .trim()
-                  .toLowerCase();
-                const existingIdentifier =
-                  existingVideoName || existingEventLink || "recorded";
-                locationMatches = existingIdentifier === newLocationIdentifier;
-              }
-            }
-            if (!locationMatches) {
-              return false;
-            }
-            if (
-              existingSubEvent.event_dates &&
-              existingSubEvent.event_dates.length > 0
-            ) {
-              const dateMatch = existingSubEvent.event_dates.some(
-                (existingDate) => {
-                  const dateMatches = existingDate.start_date === newStartDate;
-                  const timeMatches =
-                    existingDate.start_time === newStartTime &&
-                    existingDate.end_time === newEndTime;
-                  if (subEventData.location_type === "recorded") {
-                    const existingVideoName = String(
-                      existingDate.video_name || ""
-                    )
-                      .trim()
-                      .toLowerCase();
-                    const videoMatches = existingVideoName === newVideoName;
-                    return dateMatches && timeMatches && videoMatches;
-                  }
-                  return dateMatches && timeMatches;
-                }
-              );
-              return dateMatch;
-            }
-            return false;
-          }
-        );
-        if (duplicateSubEvent) {
-          const conflictDetails = {
-            event_name: subEventData.event_name,
-            location_type: subEventData.location_type,
-            conflicting_date: {
-              start_date: newStartDate,
-              start_time: newStartTime,
-              end_time: newEndTime,
-            },
-          };
+        const newStartTime = newEventDate.start_time || "";
+        
+        const duplicateSubEvent = existingTicket.sub_events.find((existingSubEvent) => {
+          // 1. Check event name match
+          const existingEventName = String(existingSubEvent.event_name || "").trim().toLowerCase();
+          if (existingEventName !== newEventName) return false;
+          
+          // 2. Check location type match
+          if (existingSubEvent.location_type !== subEventData.location_type) return false;
+          
+          // 3. Check location/venue/link match
+          let locationMatches = false;
           if (subEventData.location_type === "offline") {
-            conflictDetails.location = subEventData.location;
-            conflictDetails.venue = subEventData.venue;
+            const existingLocation = String(existingSubEvent.location || "").trim().toLowerCase();
+            const existingVenue = String(existingSubEvent.venue || "").trim().toLowerCase();
+            const existingIdentifier = `${existingLocation}|${existingVenue}`;
+            locationMatches = existingIdentifier === newLocationIdentifier;
           } else if (subEventData.location_type === "online") {
-            conflictDetails.event_link =
-              newEventDate.event_link || subEventData.event_link;
+            if (existingSubEvent.event_dates && existingSubEvent.event_dates.length > 0) {
+              const existingEventLink = String(existingSubEvent.event_dates[0].event_link || "").trim().toLowerCase();
+              locationMatches = existingEventLink === newLocationIdentifier;
+            }
           } else if (subEventData.location_type === "recorded") {
-            conflictDetails.video_name = newEventDate.video_name;
-            conflictDetails.event_link = newEventDate.event_link;
+            if (existingSubEvent.event_dates && existingSubEvent.event_dates.length > 0) {
+              const existingVideoName = String(existingSubEvent.event_dates[0].video_name || "").trim().toLowerCase();
+              locationMatches = existingVideoName === newLocationIdentifier;
+            }
           }
+          
+          if (!locationMatches) return false;
+          
+          // 4. Check date and time match
+          if (existingSubEvent.event_dates && existingSubEvent.event_dates.length > 0) {
+            return existingSubEvent.event_dates.some((existingDate) => {
+              if (existingDate.start_date !== newStartDate) return false;
+              
+              const existingStartTime = existingDate.start_time || "";
+              
+              // If both have times, they must match
+              if (existingStartTime && newStartTime) {
+                return existingStartTime === newStartTime;
+              }
+              
+              // If times are missing, consider it a match (same date)
+              return true;
+            });
+          }
+          
+          return false;
+        });
+        
+        // If duplicate found, return error
+        if (duplicateSubEvent) {
           return res.status(409).json({
             message: "Duplicate sub-event detected",
-            error:
-              "A sub-event with the same event name, location/video, date, and time already exists",
-            conflictDetails: conflictDetails,
-            hint: "Please modify the event name, location/video name, or schedule to avoid conflicts",
+            error: "A sub-event with the same name, location, and date/time already exists",
+            duplicateEvent: {
+              name: duplicateSubEvent.event_name,
+              date: newStartDate,
+              location: subEventData.location_type === "offline" 
+                ? `${duplicateSubEvent.location} - ${duplicateSubEvent.venue}`
+                : duplicateSubEvent.event_link || "Online/Recorded",
+            },
+            hint: "Please modify the event name, location, date, or time to avoid conflicts",
           });
         }
       }
@@ -3995,6 +4286,7 @@ export const updateTicketAddOns = async (req, res) => {
       max_age_allowed: Number(ageMax),
       event_description: String(subEventData.event_description).trim(),
       payment_type: String(subEventData.payment_type),
+      main_ticket_id: ticketId,
       kids_friendly: Boolean(
         subEventData.kids_friendly === "true" ||
           subEventData.kids_friendly === true
@@ -4071,10 +4363,9 @@ export const updateTicketAddOns = async (req, res) => {
         uploadedAt: new Date(img.uploadedAt),
       })),
     };
+    // ✅ COMPLETE CREATE MODE LOGIC - FINAL VERSION
     if (subEventData.location_type === "offline") {
-      newSubEvent.seating_arrangement = String(
-        subEventData.seating_arrangement || "none"
-      );
+      newSubEvent.seating_arrangement = String(subEventData.seating_arrangement || "none");
       newSubEvent.location = String(subEventData.location || "").trim();
       newSubEvent.venue = String(subEventData.venue || "").trim();
       newSubEvent.exact_map_location = {
@@ -4092,6 +4383,48 @@ export const updateTicketAddOns = async (req, res) => {
         subEventData.gate_open_time || ""
       ).trim();
       newSubEvent.ticket_layout = String(processedFiles.ticket_layout || "");
+      
+      // Seating layout assignment - data already validated in consolidated processing
+      if (processedSeatingLayout?.seats?.length > 0) {
+         // ✅ FINAL VALIDATION BEFORE ASSIGNMENT
+        console.log('🔍 Final validation before assignment...');
+        const invalidSeats = processedSeatingLayout.seats.filter(seat =>
+          seat.ticketTypeId === undefined ||
+          seat.ticketTypeName === undefined ||
+          seat.ticketTypeColor === undefined ||
+          seat.price === undefined
+        );
+        
+        if (invalidSeats.length > 0) {
+          console.error('❌ CRITICAL: Seats still missing fields before DB save:', {
+            count: invalidSeats.length,
+            sample: invalidSeats[0]
+          });
+          
+          // Emergency fix
+          processedSeatingLayout.seats = processedSeatingLayout.seats.map(seat => ({
+            seatId: String(seat.seatId),
+            row: String(seat.row),
+            column: Number(seat.column),
+            isAvailable: seat.isAvailable !== false,
+            isSelected: false,
+            ticketTypeId: seat.ticketTypeId !== undefined ? seat.ticketTypeId : null,
+            ticketTypeName: seat.ticketTypeName !== undefined ? seat.ticketTypeName : null,
+            ticketTypeColor: seat.ticketTypeColor !== undefined ? seat.ticketTypeColor : null,
+            price: seat.price !== undefined ? Number(seat.price) : 0
+          }));
+          
+          console.log('✅ Emergency fix applied to seats');
+        }
+        newSubEvent.seating_layout = processedSeatingLayout;
+        console.log('✅ Seating layout assigned to new sub-event:', {
+          totalSeats: processedSeatingLayout.seats.length,
+          assignedSeats: processedSeatingLayout.seats.filter(s => s.ticketTypeId).length,
+          assignmentGroups: processedSeatingLayout.ticketTypeAssignments?.length || 0
+        });
+      } else {
+        console.log('ℹ️ No seating layout available for this event');
+      }
     } else if (
       subEventData.location_type === "online" ||
       subEventData.location_type === "recorded"
@@ -4110,9 +4443,6 @@ export const updateTicketAddOns = async (req, res) => {
       };
       newSubEvent.gate_open_time = undefined;
       newSubEvent.ticket_layout = undefined;
-    }
-    if (subEventData.location_type === "offline" && processedSeatingLayout) {
-      newSubEvent.seating_layout = processedSeatingLayout;
     }
     if (processedFiles.event_rules) {
       newSubEvent.event_rules = {
@@ -4327,53 +4657,64 @@ export const updateTicketAddOns = async (req, res) => {
         error: "Sub-event with similar details already exists",
       });
     }
-    // Cleanup: Delete uploaded Cloudinary files if database operation fails
     try {
       const filesToDelete = [];
+      if (processedFiles && typeof processedFiles === 'object') {
+        if (processedFiles.event_banner_public_id) {
+          filesToDelete.push(processedFiles.event_banner_public_id);
+        }
+        if (processedFiles.event_logo_public_id) {
+          filesToDelete.push(processedFiles.event_logo_public_id);
+        }
+        if (processedFiles.ticket_layout_public_id) {
+          filesToDelete.push(processedFiles.ticket_layout_public_id);
+        }
 
-      // Collect all uploaded file public_ids
-      if (processedFiles.event_banner_public_id) {
-        filesToDelete.push(processedFiles.event_banner_public_id);
-      }
-      if (processedFiles.event_logo_public_id) {
-        filesToDelete.push(processedFiles.event_logo_public_id);
-      }
-      if (processedFiles.ticket_layout_public_id) {
-        filesToDelete.push(processedFiles.ticket_layout_public_id);
+        if (
+          processedFiles.event_images &&
+          Array.isArray(processedFiles.event_images)
+        ) {
+          processedFiles.event_images.forEach((img) => {
+            if (img.public_id) filesToDelete.push(img.public_id);
+          });
+        }
+
+        if (processedFiles.event_rules && processedFiles.event_rules.public_id) {
+          filesToDelete.push(processedFiles.event_rules.public_id);
+        }
       }
 
-      if (
-        processedFiles.event_images &&
-        Array.isArray(processedFiles.event_images)
-      ) {
-        processedFiles.event_images.forEach((img) => {
-          if (img.public_id) filesToDelete.push(img.public_id);
+      // 🔴 FIX: Add safety checks for file collections
+      if (guestProfileFiles && typeof guestProfileFiles === 'object') {
+        Object.values(guestProfileFiles).forEach((file) => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
         });
       }
 
-      if (processedFiles.event_rules && processedFiles.event_rules.public_id) {
-        filesToDelete.push(processedFiles.event_rules.public_id);
+      if (ticketPhotoFiles && typeof ticketPhotoFiles === 'object') {
+        Object.values(ticketPhotoFiles).forEach((file) => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
       }
 
-      Object.values(guestProfileFiles).forEach((file) => {
-        if (file.public_id) filesToDelete.push(file.public_id);
-      });
+      if (videoFiles && typeof videoFiles === 'object') {
+        Object.values(videoFiles).forEach((file) => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
+      }
 
-      Object.values(ticketPhotoFiles).forEach((file) => {
-        if (file.public_id) filesToDelete.push(file.public_id);
-      });
-
-      Object.values(videoFiles).forEach((file) => {
-        if (file.public_id) filesToDelete.push(file.public_id);
-      });
-
-      Object.values(previewImageFiles).forEach((file) => {
-        if (file.public_id) filesToDelete.push(file.public_id);
-      });
-
+      if (previewImageFiles && typeof previewImageFiles === 'object') {
+        Object.values(previewImageFiles).forEach((file) => {
+          if (file && file.public_id) filesToDelete.push(file.public_id);
+        });
+      }
+      
       // Delete files from Cloudinary
-      for (const publicId of filesToDelete) {
-        await deleteFromCloudinary(publicId);
+      if (filesToDelete.length > 0) {
+        console.log(`🗑️ Cleaning up ${filesToDelete.length} files from Cloudinary`);
+        for (const publicId of filesToDelete) {
+          await deleteFromCloudinary(publicId);
+        }
       }
     } catch (cleanupError) {
       console.error("Error cleaning up Cloudinary files:", cleanupError);
@@ -4581,12 +4922,7 @@ export const updateTicketDetails = async (req, res) => {
         }
       }
     }
-
-    // ========== FILE PROCESSING SECTION ==========
-
-    // Process uploaded files
     const uploadedFiles = await processFileUploads(req.files || {});
-    
     Object.keys(uploadedFiles).forEach((fieldName) => {
       // Handle ticket photo files
       if (fieldName.startsWith("ticket_photo_")) {
@@ -4732,6 +5068,7 @@ export const updateTicketDetails = async (req, res) => {
           ticket_photo: existingPhoto,
           ticket_photo_public_id: ticket.ticket_photo_public_id || "",
           assigned_seats: ticket.assigned_seats || [],
+          _id: ticket._id || ticket.id,
         };
         // Add uploaded ticket photo if available
         if (ticketPhotoFiles[index]) {
@@ -5013,47 +5350,71 @@ export const updateTicketDetails = async (req, res) => {
           console.error('❌ Invalid seating layout structure - missing rows array');
           throw new Error('Seating layout must contain a rows array');
         }
-        
-        // Process and validate seats with colors
-        const processedSeats = parsedLayout.seats.map(seat => {
-          // Create clean seat object with explicit fields
-          const cleanSeat = {
-            seatId: seat.seatId,
-            row: seat.row,
-            column: seat.column,
-            isAvailable: seat.isAvailable !== undefined ? seat.isAvailable : true,
-            isSelected: seat.isSelected !== undefined ? seat.isSelected : false,
-            ticketTypeId: seat.ticketTypeId || null,
-            ticketTypeName: seat.ticketTypeName || null,
-            ticketTypeColor: seat.ticketTypeColor || null
-          };
+      const processedSeats = parsedLayout.seats.map(seat => {
+        let seatPrice = null;
+        if (seat.ticketTypeId && processedTicketTypes.length > 0) {
+          const matchingTicket = processedTicketTypes.find(
+            tt => String(tt._id) === String(seat.ticketTypeId)
+          );
+          if (matchingTicket) {
+            seatPrice = matchingTicket.ticket_price;
+          }
+        }
+        // If no match found but price was provided in seat data, use it
+        if (seatPrice === null && seat.price !== undefined && seat.price !== null) {
+          seatPrice = Number(seat.price);
+        }
+        // Create clean seat object with explicit fields
+        const cleanSeat = {
+          seatId: seat.seatId,
+          row: seat.row,
+          column: seat.column,
+          isAvailable: seat.isAvailable !== undefined ? seat.isAvailable : true,
+          isSelected: seat.isSelected !== undefined ? seat.isSelected : false,
+          ticketTypeId: seat.ticketTypeId || null,
+          ticketTypeName: seat.ticketTypeName || null,
+          ticketTypeColor: seat.ticketTypeColor || null,
+          price: seatPrice, 
+        };    
+        // If seat has assignment but missing color, try to recover from assignments
+        if (cleanSeat.ticketTypeId && !cleanSeat.ticketTypeColor) {
+          const assignment = parsedLayout.ticketTypeAssignments?.find(
+            a => String(a.ticketTypeId) === String(cleanSeat.ticketTypeId)
+          );
           
-          // If seat has assignment but missing color, try to recover from assignments
-          if (cleanSeat.ticketTypeId && !cleanSeat.ticketTypeColor) {
-            const assignment = parsedLayout.ticketTypeAssignments?.find(
-              a => String(a.ticketTypeId) === String(cleanSeat.ticketTypeId)
+          if (assignment && assignment.color) {
+            cleanSeat.ticketTypeColor = assignment.color;
+            cleanSeat.ticketTypeName = cleanSeat.ticketTypeName || assignment.ticketTypeName;
+          } else {
+            console.warn(`⚠️ Seat ${cleanSeat.seatId} has ticketTypeId but no color found!`);
+          }
+        }
+        return cleanSeat;
+        });
+        const processedAssignments = (parsedLayout.ticketTypeAssignments || []).map(assignment => {
+          // ✅ Find matching ticket type to get accurate price
+          let assignmentPrice = null;
+          if (assignment.ticketTypeId && processedTicketTypes.length > 0) {
+            const matchingTicket = processedTicketTypes.find(
+              tt => String(tt._id) === String(assignment.ticketTypeId)
             );
-            
-            if (assignment && assignment.color) {
-              cleanSeat.ticketTypeColor = assignment.color;
-              cleanSeat.ticketTypeName = cleanSeat.ticketTypeName || assignment.ticketTypeName;
-            } else {
-              console.warn(`⚠️ Seat ${cleanSeat.seatId} has ticketTypeId but no color found!`);
+            if (matchingTicket) {
+              assignmentPrice = matchingTicket.ticket_price;
             }
           }
-          
-          return cleanSeat;
+          // Fallback to provided price if no match found
+          if (assignmentPrice === null && assignment.price !== undefined && assignment.price !== null) {
+            assignmentPrice = Number(assignment.price);
+          }
+          return {
+            ticketTypeId: assignment.ticketTypeId,
+            ticketTypeName: assignment.ticketTypeName,
+            color: assignment.color,
+            assignedSeats: assignment.assignedSeats || [],
+            capacity: assignment.capacity || 0,
+            price: assignmentPrice, // ✅ Use calculated price from ticket type
+          };
         });
-        
-        // Process ticket type assignments
-        const processedAssignments = (parsedLayout.ticketTypeAssignments || []).map(assignment => ({
-          ticketTypeId: assignment.ticketTypeId,
-          ticketTypeName: assignment.ticketTypeName,
-          color: assignment.color,
-          assignedSeats: assignment.assignedSeats || [],
-          capacity: assignment.capacity || 0
-        }));
-        
         // Build final seating layout object
         const finalLayout = {
           rows: parsedLayout.rows,
@@ -5067,6 +5428,77 @@ export const updateTicketDetails = async (req, res) => {
         // Count seats with colors for validation
         const seatsWithColors = processedSeats.filter(s => s.ticketTypeColor);
         const seatsWithAssignments = processedSeats.filter(s => s.ticketTypeId);
+        // ✅ VALIDATE PRICES IN SEATING LAYOUT
+        if (parsedLayout.seats && parsedLayout.seats.length > 0) {
+          const assignedSeats = processedSeats.filter(s => s.ticketTypeId);
+          const seatsWithoutPrice = assignedSeats.filter(
+            s => (s.price === null || s.price === undefined)
+          );
+          if (seatsWithoutPrice.length > 0) {
+            console.error('❌ Seats missing price:', seatsWithoutPrice.map(s => ({
+              seatId: s.seatId,
+              ticketTypeId: s.ticketTypeId,
+              ticketTypeName: s.ticketTypeName,
+              hasPrice: s.price !== undefined
+            })));
+          }
+          if (seatsWithoutPrice.length > 0 && payment_type === 'paid') {
+            return res.status(400).json({
+              message: 'Some assigned seats are missing price information',
+              seatsWithoutPrice: seatsWithoutPrice.map(s => s.seatId),
+              hint: 'Ensure all assigned seats have ticket types with valid prices',
+              suggestion: 'Check that ticket_types array contains prices for all ticket types'
+            });
+          }
+          // Validate price consistency for assigned seats only
+          const assignedAssignments = processedAssignments.filter(a => a.assignedSeats && a.assignedSeats.length > 0);
+          const assignmentsWithoutPrice = assignedAssignments.filter(
+            a => a.ticketTypeId && (a.price === null || a.price === undefined)
+          );
+          if (assignmentsWithoutPrice.length > 0 && payment_type === 'paid') {
+            return res.status(400).json({
+              message: 'Some ticket type assignments are missing price information',
+              ticketTypesWithoutPrice: assignmentsWithoutPrice.map(a => a.ticketTypeName),
+              hint: 'Ensure all assigned ticket types have valid prices defined'
+            });
+          }
+          // Validate price ranges for paid events (assigned seats only)
+          if (payment_type === 'paid' && assignedSeats.length > 0) {
+            const pricesInSeats = assignedSeats
+              .filter(s => s.price !== null && s.price !== undefined)
+              .map(s => s.price);
+            const invalidPrices = pricesInSeats.filter(p => p < 0);
+            if (invalidPrices.length > 0) {
+              return res.status(400).json({
+                message: 'Invalid negative prices found in assigned seats',
+                invalidPrices: [...new Set(invalidPrices)],
+                hint: 'All seat prices must be positive numbers'
+              });
+            }
+            const zeroPrices = pricesInSeats.filter(p => p === 0);
+            if (zeroPrices.length > 0 && payment_type === 'paid') {
+              return res.status(400).json({
+                message: 'Assigned seats in paid events cannot have zero price',
+                seatsWithZeroPrice: assignedSeats.filter(s => s.price === 0).map(s => s.seatId),
+                hint: 'All assigned seats must have positive prices for paid events'
+              });
+            }
+          }
+          // For free events, ensure assigned seats have zero price
+          if (payment_type === 'free' && assignedSeats.length > 0) {
+            const nonZeroPrices = assignedSeats
+              .filter(s => s.price !== null && s.price !== undefined && s.price > 0)
+              .map(s => ({ seatId: s.seatId, price: s.price }));
+            
+            if (nonZeroPrices.length > 0) {
+              return res.status(400).json({
+                message: 'Free events cannot have assigned seats with non-zero prices',
+                seatsWithPrice: nonZeroPrices,
+                hint: 'For free events, all assigned seat prices must be 0'
+              });
+            }
+          }
+        }
         // Save to updateData
         updateData.seating_layout = finalLayout;
         console.log('✅ Manual seating layout processed and ready to save');
@@ -5157,18 +5589,15 @@ export const updateTicketDetails = async (req, res) => {
         bank_ifsc: bank.bank_ifsc,
       }));
     }
-
     res.status(200).json(responseData);
   } catch (error) {
     console.error("Error updating ticket details:", error);
-
     // Enhanced multer error handling
     if (error.code === "LIMIT_FILE_SIZE") {
       return res.status(400).json({
         message: "File size too large. Maximum 50MB allowed per file.",
       });
     }
-
     if (error.code === "LIMIT_FILE_COUNT") {
       return res.status(400).json({
         message: "Too many files uploaded. Maximum limits exceeded.",
@@ -5180,7 +5609,6 @@ export const updateTicketDetails = async (req, res) => {
         "ticket_layout",
         ...Array.from({ length: 20 }, (_, i) => `ticket_photo_${i}`),
       ];
-
       return res.status(400).json({
         message: "Unexpected file field detected",
         error: error.message,

@@ -193,8 +193,5 @@ export const startConsumers = async (): Promise<void> => {
       return { error: error.message, success: false };
     }
   });
-
-  console.log('✅ All RabbitMQ consumers started successfully (Transaction Service)');
 };
-
 export { connectRabbitMQ };

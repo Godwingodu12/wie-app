@@ -36,6 +36,7 @@ import languageOptions from "../../components/CreateGroup/languageOption.jsx";
 import seatingOptions from "../../components/CreateGroup/seatingOption.jsx";
 import eventCategories from "../../components/CreateGroup/eventCategories.jsx";
 import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.jsx";
+
 import darkThemeStyles from "../../components/CreateGroup/darkThemeStyles.jsx";
 import lightThemeStyles from "../../components/CreateGroup/lightThemeStyles.jsx";
 const UpdateTicketAddOns = () => {
@@ -49,6 +50,7 @@ const UpdateTicketAddOns = () => {
   const [pageLoading, setPageLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isApiReady, setIsApiReady] = useState(false);
+  const [isExtraEventsModalOpen, setIsExtraEventsModalOpen] = useState(false);
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
   const autocompleteRef = useRef(null);
@@ -118,25 +120,6 @@ const UpdateTicketAddOns = () => {
     POC_email: "",
     POC_contact: "",
   });
-  const scrollAndAlert = (newErrors) => {
-    const firstErrorField = Object.keys(newErrors)[0];
-    const firstErrorMessage = newErrors[firstErrorField];
-
-    showAlert({
-      type: "error",
-      message: "Validation Failed",
-      description: firstErrorMessage,
-    });
-
-    if (firstErrorField && errorFieldRefs.current[firstErrorField]) {
-      setTimeout(() => {
-        const element = errorFieldRefs.current[firstErrorField];
-        if (element && element.scrollIntoView) {
-          element.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      }, 50);
-    }
-  };
   const rulesEditorRef = useRef(null);
   const descriptionEditorRef = useRef(null);
   const INITIAL_MAP_LOCATION = {
@@ -997,6 +980,25 @@ const UpdateTicketAddOns = () => {
       return { ...prev, banking_details: newBankingDetails };
     });
   };
+  const scrollAndAlert = (newErrors) => {
+    const firstErrorField = Object.keys(newErrors)[0];
+    const firstErrorMessage = newErrors[firstErrorField];
+
+    showAlert({
+      type: "error",
+      message: "Validation Failed",
+      description: firstErrorMessage,
+    });
+
+    if (firstErrorField && errorFieldRefs.current[firstErrorField]) {
+      setTimeout(() => {
+        const element = errorFieldRefs.current[firstErrorField];
+        if (element && element.scrollIntoView) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 50);
+    }
+  };
   const validateForm = () => {
     setErrors({});
     hideAlert();
@@ -1113,12 +1115,13 @@ const UpdateTicketAddOns = () => {
         addError("venue", "Venue is required for offline events.");
       else if (!simpleNameRegex.test(formData.venue.trim()))
         addError("venue", "Venue contains invalid characters.");
-      if (formData.seating_arrangement == "none") {
+      if (!formData.seating_arrangement) {
         addError(
           "seating_arrangement",
           "Seating arrangement is required for offline events."
         );
       }
+      console.log(formData.seating_arrangement);
       if (!formData.total_capacity)
         addError(
           "total_capacity",
@@ -3229,7 +3232,6 @@ const UpdateTicketAddOns = () => {
               <form className="space-y-12" onSubmit={handleSubmit}>
                 {/* --- EVENT DETAILS SECTION --- */}
                 <div className="space-y-8">
-                  {/*... Other input fields like event_name, category etc. (No changes needed) ...*/}
                   <div>
                     <FormInput
                       label="Event name"
@@ -3286,6 +3288,7 @@ const UpdateTicketAddOns = () => {
                         <span className="text-red-400">*</span>
                         <InfoTooltip note="Get more specific with your category." />
                       </label>
+                      {/* --- MODIFIED: Event Subcategory Dropdown --- */}
                       <Select
                         name="event_subcategory"
                         options={subCategoryOptions}
@@ -4509,9 +4512,6 @@ const UpdateTicketAddOns = () => {
                                   onChange={(e) =>
                                     handleBankingDetailChange(0, e)
                                   }
-                                  ref={(el) =>
-                                    (errorFieldRefs.current.bank_acc_type = el)
-                                  }
                                   disabled={useGroupBankAccount}
                                   className="w-full appearance-none bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -4555,33 +4555,10 @@ const UpdateTicketAddOns = () => {
                                 onChange={(e) =>
                                   handleBankingDetailChange(0, e)
                                 }
-                                ref={(el) =>
-                                  (errorFieldRefs.current.bank_acc_holder = el)
-                                }
                                 disabled={useGroupBankAccount}
                                 placeholder="eg. John Doe"
-                                className={`
-    w-full 
-    bg-gray-100 
-    dark:bg-[#1c1c1f] 
-    text-gray-900 
-    dark:text-white 
-    rounded-md 
-    p-3 
-    disabled:opacity-50 
-    disabled:cursor-not-allowed 
-    ${
-      errors.bank_acc_holder
-        ? "border-2 border-red-500"
-        : "border border-black dark:border-gray-700"
-    }
-  `}
+                                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                               />
-                              {errors.bank_acc_holder && (
-                                <p className="text-red-500 text-xs mt-1">
-                                  Account Holder Name is required.
-                                </p>
-                              )}
                             </div>
 
                             <div>
@@ -4602,28 +4579,8 @@ const UpdateTicketAddOns = () => {
                                 }
                                 disabled={useGroupBankAccount}
                                 placeholder="xxxx-xxxx-xxxx-xxxx"
-                                className={`
-    w-full 
-    bg-gray-100 
-    dark:bg-[#1c1c1f] 
-    text-gray-900 
-    dark:text-white 
-    rounded-md 
-    p-3 
-    disabled:opacity-50 
-    disabled:cursor-not-allowed 
-    ${
-      errors.bank_acc_no
-        ? "border-2 border-red-500"
-        : "border border-black dark:border-gray-700"
-    }
-  `}
+                                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                               />
-                              {errors.bank_acc_no && (
-                                <p className="text-red-500 text-xs mt-1">
-                                  Account Number format is invalid.
-                                </p>
-                              )}
                             </div>
 
                             <div>
@@ -4644,28 +4601,8 @@ const UpdateTicketAddOns = () => {
                                 }
                                 disabled={useGroupBankAccount}
                                 placeholder="xxxxxxxxxxx"
-                                className={`
-    w-full 
-    bg-gray-100 
-    dark:bg-[#1c1c1f] 
-    text-gray-900 
-    dark:text-white 
-    rounded-md 
-    p-3 
-    disabled:opacity-50 
-    disabled:cursor-not-allowed 
-    ${
-      errors.bank_ifsc
-        ? "border-2 border-red-500"
-        : "border border-black dark:border-gray-700"
-    }
-  `}
+                                className="w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white border border-black dark:border-gray-700 rounded-md p-3 disabled:opacity-50 disabled:cursor-not-allowed"
                               />
-                              {errors.bank_ifsc && (
-                                <p className="text-red-500 text-xs mt-1">
-                                  IFSC Code format is invalid.
-                                </p>
-                              )}
                             </div>
                           </div>
                         </section>
@@ -4725,6 +4662,50 @@ const UpdateTicketAddOns = () => {
                           )}
                         </div>
                       </div>
+                    </section>
+                  </div>
+                  {formData.location_type === "offline" && (
+                    <section className="space-y-6 max-w-2xl animate-fade-in">
+                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                        Seating details
+                      </h2>
+                      <p className="text-black dark:text-gray-400 text-sm">
+                        Add event seating capacity and its layout
+                      </p>
+                      {/* ALWAYS SHOW total_capacity for offline events */}
+                      {(() => {
+                        const seating = (formData.seating_arrangement || "")
+                          .toLowerCase()
+                          .trim();
+
+                        let capacityLabel =
+                          "Total number of people allowed (capacity)?";
+
+                        if (seating === "standing") {
+                          capacityLabel =
+                            "Maximum number of people allowed (capacity)?";
+                        } else if (seating === "seated") {
+                          capacityLabel = "Total number of seats (capacity)?";
+                        } else if (seating === "seated and standing") {
+                          capacityLabel =
+                            "Total number of seated people allowed (not for standing)?";
+                        }
+                        return (
+                          <FormInput
+                            label={capacityLabel}
+                            id="total_capacity"
+                            name="total_capacity"
+                            type="number"
+                            value={formData.total_capacity}
+                            onChange={handleInputChange}
+                            placeholder="Enter event capacity"
+                            error={errors.total_capacity}
+                            required
+                            darkMode={darkMode}
+                            info="Set the total number of attendees for your event."
+                          />
+                        );
+                      })()}
                       {formData.location_type === "offline" &&
                         formData.payment_type === "paid" && (
                           <>
@@ -4804,18 +4785,17 @@ const UpdateTicketAddOns = () => {
                             {formData.ticket_types.length === 0 && (
                               <div className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
                                 No tickets added yet. Click "Add tickets" to
-                                create your first ticket type.
+                                create your first ticket.
                               </div>
                             )}
                           </>
                         )}
-
                       {formData.location_type !== "offline" && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
                           <FormInput
                             label="Ticket Price"
                             id="simpleTicketPrice"
-                            name="ticket_types[0].price" // Use indexed name if necessary, or just rely on state setter
+                            name="ticket_types[0].price"
                             type="number"
                             value={formData.ticket_types[0]?.price || ""}
                             onChange={(e) => {
@@ -4870,96 +4850,248 @@ const UpdateTicketAddOns = () => {
                           />
                         </div>
                       )}
-                    </section>
-                  </div>
-                  {formData.location_type === "offline" && (
-                    <section className="space-y-6 max-w-2xl animate-fade-in">
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        Seating details
-                      </h2>
-                      <p className="text-black dark:text-gray-400 text-sm">
-                        Add event seating capacity and its layout
-                      </p>
-
-                      {/* ALWAYS SHOW total_capacity for offline events */}
-                      <FormInput
-                        label="Maximum number of people allowed (capacity)?"
-                        id="total_capacity"
-                        name="total_capacity"
-                        type="number"
-                        value={formData.total_capacity}
-                        onChange={handleInputChange}
-                        placeholder="Enter event capacity"
-                        error={errors.total_capacity}
-                        required
-                        darkMode={darkMode}
-                        info="Set the total number of attendees for your event."
-                      />
-
-                      <div className="flex items-center justify-between">
-                        <label className="font-medium text-gray-900 dark:text-white text-md">
-                          Do you have seating layout?
-                        </label>
-                        <ToggleSwitch
-                          checked={hasSeatingLayout}
-                          onChange={() =>
-                            setHasSeatingLayout(!hasSeatingLayout)
-                          }
-                          darkMode={darkMode}
-                        />
-                      </div>
-
+                      {formData.location_type === "offline" && (
+                        <div className="flex items-center justify-between mt-6">
+                          <label className="font-medium text-gray-900 dark:text-white text-md">
+                            Do you have seating layout?
+                          </label>
+                          <ToggleSwitch
+                            checked={hasSeatingLayout}
+                            onChange={() =>
+                              setHasSeatingLayout(!hasSeatingLayout)
+                            }
+                            darkMode={darkMode}
+                          />
+                        </div>
+                      )}
                       {hasSeatingLayout && (
-                        <div className="animate-fade-in grid grid-cols-2 gap-8 items-start">
-                          {/* Upload Section */}
-                          <div className="col-span-1 space-y-2">
-                            <FileInput
-                              id="ticket_layout"
-                              label="Upload seating layout"
-                              info="Optional. 1:1 ratio recommended."
-                              preview={previews.ticket_layout}
-                              onFileChange={(file) =>
-                                handleMediaFileChange(file, "ticket_layout")
-                              }
-                              onRemove={() => removeMediaFile("ticket_layout")}
-                              darkMode={darkMode}
-                              acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
-                              maxSizeMB={50}
-                            />
-                          </div>
+                        <div className="animate-fade-in space-y-6 mt-6">
+                          <div className="space-y-4">
+                            <label className="flex items-center text-base font-medium text-gray-800 dark:text-gray-300">
+                              Upload seating layout
+                              <InfoTooltip note="Upload an image or PDF of your venue's seating arrangement." />
+                            </label>
 
-                          {/* Preview Section */}
-                          <div className="col-span-1">
-                            {previews.ticket_layout ? (
-                              <div className="space-y-2">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                  Preview
-                                </h3>
-                                <div className="relative group w-full border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                                  <img
-                                    src={previews.ticket_layout}
-                                    alt="Seating layout preview"
-                                    className="w-full h-auto object-cover"
-                                  />
-                                  <div
-                                    onClick={() =>
-                                      removeMediaFile("ticket_layout")
-                                    }
-                                    className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex items-center justify-center cursor-pointer"
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {/* Left: File Upload */}
+                              <div className="space-y-4">
+                                <div className="flex justify-center rounded-lg border border-dashed border-black dark:border-gray-700 px-6 py-10 text-center">
+                                  <label
+                                    htmlFor="seating-layout-upload-addon"
+                                    className="cursor-pointer"
                                   >
-                                    <span className="text-red-500 text-3xl font-bold">
-                                      &times;
+                                    <svg
+                                      className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                                      />
+                                    </svg>
+                                    <p className="text-sm text-black dark:text-gray-400 mt-2">
+                                      Drag your file(s) or browse
+                                    </p>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                      Max 10 MB • PDF, PNG, JPG supported
+                                    </p>
+                                    <span className="mt-4 inline-block rounded-md font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm">
+                                      Browse file
                                     </span>
-                                  </div>
+                                    <input
+                                      id="seating-layout-upload-addon"
+                                      type="file"
+                                      className="sr-only"
+                                      onChange={handleSeatingLayoutChange}
+                                      accept="image/*,.pdf"
+                                    />
+                                  </label>
                                 </div>
+
+                                {seatingLayoutFile && (
+                                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <svg
+                                          className="w-8 h-8 text-green-600 dark:text-green-400"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                          />
+                                        </svg>
+                                        <div>
+                                          <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                                            {seatingLayoutFile.name}
+                                          </p>
+                                          <p className="text-xs text-green-600 dark:text-green-400">
+                                            {(
+                                              seatingLayoutFile.size / 1024
+                                            ).toFixed(2)}{" "}
+                                            KB
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={removeSeatingLayout}
+                                        className="text-red-500 hover:text-red-700 dark:hover:text-red-400"
+                                        title="Remove file"
+                                      >
+                                        <svg
+                                          className="w-5 h-5"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M6 18L18 6M6 6l12 12"
+                                          />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {seatingLayoutFile &&
+                                  formData.total_capacity && (
+                                    <button
+                                      type="button"
+                                      onClick={handleGenerateLayout}
+                                      disabled={isGenerating}
+                                      className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                                    >
+                                      {isGenerating ? (
+                                        <>
+                                          <svg
+                                            className="animate-spin h-5 w-5"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <circle
+                                              className="opacity-25"
+                                              cx="12"
+                                              cy="12"
+                                              r="10"
+                                              stroke="currentColor"
+                                              strokeWidth="4"
+                                              fill="none"
+                                            />
+                                            <path
+                                              className="opacity-75"
+                                              fill="currentColor"
+                                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            />
+                                          </svg>
+                                          Generating Layout...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <svg
+                                            className="w-5 h-5"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={2}
+                                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                            />
+                                          </svg>
+                                          Generate Layout
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
                               </div>
-                            ) : (
-                              <div className="flex items-center justify-center h-64 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-                                <p className="text-gray-500 dark:text-gray-400">
-                                  No layout selected
-                                </p>
+
+                              {/* Right: Preview */}
+                              <div className="space-y-3">
+                                {generatedSeatingLayout ? (
+                                  <>
+                                    <div className="flex items-center justify-between mb-2">
+                                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Interactive Seat Map
+                                      </p>
+                                      {formData.payment_type === "paid" &&
+                                        formData.ticket_types.length > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setShowSeatAssignmentModal(true)
+                                            }
+                                            className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors flex items-center gap-2"
+                                          >
+                                            <svg
+                                              className="w-4 h-4"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                            >
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                              />
+                                            </svg>
+                                            Assign Seats
+                                          </button>
+                                        )}
+                                    </div>
+                                    <div className="border-2 border-green-500 dark:border-green-600 rounded-lg overflow-hidden">
+                                      <SeatingLayoutPreview
+                                        seatingLayout={generatedSeatingLayout}
+                                        onSeatSelect={(seats) =>
+                                          console.log("Selected seats:", seats)
+                                        }
+                                        darkMode={darkMode}
+                                        isExpandable={true}
+                                        ticketTypeAssignments={
+                                          generatedSeatingLayout?.ticketTypeAssignments ||
+                                          []
+                                        }
+                                      />
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center min-h-[350px] flex flex-col items-center justify-center">
+                                    <svg
+                                      className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600 mb-3"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={1.5}
+                                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                                      />
+                                    </svg>
+                                    <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+                                      {formData.total_capacity &&
+                                      seatingLayoutFile
+                                        ? "✓ Ready to generate"
+                                        : "No preview available"}
+                                    </p>
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            </div>
                           </div>
                         </div>
                       )}
@@ -4979,7 +5111,7 @@ const UpdateTicketAddOns = () => {
                     ? "Save changes & add new event +"
                     : "Add more sub events +"}
                 </button>
-                <div className="pt-8 flex justify-end gap-4">
+                <div className="t-8 flex justify-end gap-4">
                   <div className="flex gap-4">
                     <button
                       type="button"

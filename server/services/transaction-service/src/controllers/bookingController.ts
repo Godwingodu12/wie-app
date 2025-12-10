@@ -352,6 +352,242 @@ export const createBooking = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+// Create Seated Booking
+export const createSeatedBooking = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { ticketId, selectedSeats } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (!ticketId || !selectedSeats || selectedSeats.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'ticketId and selectedSeats are required',
+      });
+    }
+
+    // Fetch ticket details
+    const ticket = await getTicketById(ticketId);
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: 'Ticket not found' });
+    }
+
+    // Check if event is free
+    if (ticket.payment_type === 'free') {
+      return res.status(400).json({
+        success: false,
+        message: 'This is a free event. Use the free registration endpoint instead.',
+      });
+    }
+    if (!ticket.seating_layout || !ticket.seating_layout.seats) {
+      return res.status(400).json({
+        success: false,
+        message: 'This event does not have a seating layout',
+      });
+    }
+    const existingBookings = await BookingModel.findByTicketId(ticketId);
+    const bookedSeats = existingBookings
+      .filter(b => b.bookingStatus === 'CONFIRMED' || b.bookingStatus === 'PENDING')
+      .flatMap(b => {
+        const seatDetails = b.seatDetails as any;
+        return seatDetails?.selectedSeats || [];
+      });
+    const unavailableSeats = selectedSeats.filter((seat: string) => bookedSeats.includes(seat));
+    if (unavailableSeats.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Seats already booked: ${unavailableSeats.join(', ')}`,
+      });
+    }
+    const user = await getUserById(userId);
+    let subtotal = 0;
+    const seatDetails: any[] = [];
+    const seatingLayout = ticket.seating_layout;
+    if (!seatingLayout) {
+      return res.status(400).json({
+        success: false,
+        message: 'Seating layout is not available',
+      });
+    }
+    selectedSeats.forEach((seatId: string) => {
+      const seat = seatingLayout.seats.find((s: any) => s.seatId === seatId);
+      if (seat) {
+        // ✅ Use price directly from seat
+        const seatPrice = seat.price || 0;
+        subtotal += seatPrice;
+        seatDetails.push({
+          seatId: seat.seatId,
+          row: seat.row,
+          column: seat.column,
+          ticketType: seat.ticketTypeName || 'Unknown',
+          ticketTypeId: seat.ticketTypeId,
+          price: seatPrice,
+          color: seat.ticketTypeColor,
+        });
+      }
+    });
+    const quantity = selectedSeats.length;
+    const platformFee = parseFloat(process.env.PLATFORM_FEE_PER_TICKET || '1') * quantity;
+    const tax = 0;
+    const totalAmount = subtotal + platformFee;
+
+    const pricing = {
+      subtotal: parseFloat(subtotal.toFixed(2)),
+      tax: parseFloat(tax.toFixed(2)),
+      platformFee: parseFloat(platformFee.toFixed(2)),
+      totalAmount: parseFloat(totalAmount.toFixed(2)),
+    };
+
+    // Get group details
+    const group = await getGroupById(ticket.groupId);
+
+    // Generate booking ID
+    const bookingId = `BK${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+    // Get settlement bank details
+    const settlementBankDetails = ticket.banking_details && ticket.banking_details.length > 0
+      ? ticket.banking_details[0]
+      : {
+          bank_acc_holder: group.primary_bank_acc_holder || 'N/A',
+          bank_acc_no: group.primary_bank_acc_no || 'N/A',
+          bank_ifsc: group.primary_bank_ifsc || 'N/A',
+          bank_acc_type: group.primary_bank_acc_type || 'N/A',
+        };
+    // Create booking
+    const booking = await BookingModel.create({
+      bookingId,
+      userId,
+      ticketId,
+      groupId: ticket.groupId,
+      ticketType: 'Seated',
+      quantity,
+      pricePerTicket: subtotal / quantity,
+      subtotal: pricing.subtotal,
+      tax: pricing.tax,
+      platformFee: pricing.platformFee,
+      totalAmount: pricing.totalAmount,
+      currency: 'INR',
+      userDetails: {
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.contactNo || '',
+      },
+      eventDetails: {
+        eventName: ticket.event_name,
+        eventDate: ticket.event_dates[0]?.start_date || '',
+        eventTime: ticket.event_dates[0]?.start_time || '',
+        venue: ticket.venue || ticket.location || '',
+        location: ticket.location || '',
+        settlementBankDetails,
+        groupName: group.name || '',
+      },
+      selectedSeats, // Add this line
+      seatDetails: {
+        selectedSeats,
+        seats: seatDetails,
+      },
+    });
+    // Create Razorpay order
+    const razorpay = RazorpayService.getInstance(
+      process.env.RAZORPAY_KEY_ID!,
+      process.env.RAZORPAY_KEY_SECRET!
+    );
+
+    const razorpayOrder = await RazorpayService.createOrder(
+      razorpay,
+      pricing.totalAmount,
+      'INR',
+      bookingId,
+      {
+        bookingId: booking.id,
+        userId,
+        ticketId,
+        eventName: ticket.event_name,
+        platformFee: pricing.platformFee,
+        organizationAmount: pricing.subtotal,
+        seatedBooking: true,
+        seatCount: quantity,
+      }
+    );
+
+    // Update booking with Razorpay order ID
+    await BookingModel.update(booking.id, {
+      razorpayOrderId: razorpayOrder.id,
+    });
+
+    // Create payment transaction log
+    await PaymentTransactionModel.create({
+      bookingId: booking.id,
+      razorpayOrderId: razorpayOrder.id,
+      amount: pricing.totalAmount,
+      currency: 'INR',
+      status: 'PENDING',
+    });
+
+    // Send notification
+    await createNotification({
+      userId,
+      type: 'booking_pending',
+      title: 'Booking Created',
+      message: `Your booking for ${ticket.event_name} is pending payment`,
+      bookingId: String(booking.id),
+      ticketId,
+      link: `/bookings/${booking.id}`,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Seated booking created successfully',
+      data: {
+        booking: {
+          id: booking.id,
+          bookingId: booking.bookingId,
+          subtotal: booking.subtotal,
+          platformFee: booking.platformFee,
+          totalAmount: booking.totalAmount,
+          currency: booking.currency,
+          seatDetails: seatDetails,
+        },
+        razorpayOrder: {
+          id: razorpayOrder.id,
+          amount: razorpayOrder.amount,
+          currency: razorpayOrder.currency,
+        },
+        razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ Error creating seated booking:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+// Get booked seats for an event
+export const getBookedSeats = async (req: Request, res: Response) => {
+  try {
+    const { ticketId } = req.params;
+
+    const bookings = await BookingModel.findByTicketId(ticketId);
+    
+    const bookedSeats = bookings
+      .filter(b => b.bookingStatus === 'CONFIRMED' || b.bookingStatus === 'PENDING')
+      .flatMap(b => {
+        // Access seatDetails from JSON field
+        const seatDetails = b.seatDetails as any;
+        return seatDetails?.selectedSeats || [];
+      });
+
+    res.json({
+      success: true,
+      data: { bookedSeats },
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching booked seats:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 // Check if user has already booked a specific event
 export const checkUserBooking = async (req: Request, res: Response) => {
   try {

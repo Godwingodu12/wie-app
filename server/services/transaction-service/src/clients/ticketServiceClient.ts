@@ -1,5 +1,4 @@
 import { sendRPC } from '../rabbit/producer';
-
 interface TicketData {
   _id: string;
   event_name: string;
@@ -29,8 +28,30 @@ interface TicketData {
   razorpayEnabled?: boolean;
   razorpayKeyId?: string;
   razorpayKeySecret?: string;
+  seating_layout?: {
+    rows: string[];
+    columns: number;
+    seats: Array<{
+      seatId: string;
+      row: string;
+      column: number;
+      isAvailable: boolean;
+      isSelected: boolean;
+      ticketTypeId: string | null;
+      ticketTypeName: string | null;
+      ticketTypeColor: string | null;
+      price: number; // Add this
+    }>;
+    ticketTypeAssignments: Array<{
+      ticketTypeId: string;
+      ticketTypeName: string;
+      color: string;
+      assignedSeats: string[];
+      capacity: number;
+      price: number; // Add this
+    }>;
+  };
 }
-
 interface GroupData {
   _id: string;
   name: string;

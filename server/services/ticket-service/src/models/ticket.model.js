@@ -128,7 +128,6 @@ const subEventSchema = new mongoose.Schema({
         default: Date.now
       }
     }],  
-  
   // Event Details
   hashtag: [{ type: String }], // Array of hashtags
   payment_type: { type: String, enum: ['free', 'paid'], required: true },
@@ -143,23 +142,25 @@ const subEventSchema = new mongoose.Schema({
   seating_layout: {
     type: {
       rows: [String],
-      columns: Number, 
+      columns: Number,
       seats: [{
-        seatId: String, 
-        row: String,
-        column: Number,
+        seatId: { type: String, required: true },
+        row: { type: String, required: true },
+        column: { type: Number, required: true },
         isAvailable: { type: Boolean, default: true },
         isSelected: { type: Boolean, default: false },
-        ticketTypeId: { type: String, default: null }, 
-        ticketTypeName: { type: String, default: null },
+        ticketTypeId: { type: String, default: null },
+        ticketTypeName: { type: String, default: null }, 
         ticketTypeColor: { type: String, default: null },
+        price: { type: Number, default: 0 } 
       }],
-      ticketTypeAssignments: [{ 
+      ticketTypeAssignments: [{
         ticketTypeId: String,
         ticketTypeName: String,
         color: String,
-        assignedSeats: [String], 
-        capacity: Number
+        assignedSeats: [String],
+        capacity: Number,
+        price: { type: Number, default: 0 }
       }]
     },
     required: false
@@ -195,7 +196,7 @@ const ticketSchema = new mongoose.Schema({
   },
   min_age_allowed: { type: Number, required: true },
   max_age_allowed: { type: Number, required: false },
-  seating_arrangement: { type: String, default: false, enum: ['seated', 'standing','seated and standing','other']},
+  seating_arrangement: { type: String, default: false, enum: ['seated', 'standing','seated and standing','other','none']},
   kids_friendly: { type: Boolean, default: false },
   pet_friendly: { type: Boolean, default: false },
   
@@ -264,23 +265,25 @@ const ticketSchema = new mongoose.Schema({
   seating_layout: {
     type: {
       rows: [String],
-      columns: Number, 
+      columns: Number,
       seats: [{
-        seatId: String, 
-        row: String,
-        column: Number,
+        seatId: { type: String, required: true },
+        row: { type: String, required: true },
+        column: { type: Number, required: true },
         isAvailable: { type: Boolean, default: true },
         isSelected: { type: Boolean, default: false },
-        ticketTypeId: { type: String, default: null }, 
-        ticketTypeName: { type: String, default: null },
-        ticketTypeColor: { type: String, default: null }
+        ticketTypeId: { type: String, default: null },
+        ticketTypeName: { type: String, default: null }, 
+        ticketTypeColor: { type: String, default: null },
+        price: { type: Number, default: 0 } 
       }],
-      ticketTypeAssignments: [{ 
+      ticketTypeAssignments: [{
         ticketTypeId: String,
-        ticketTypeName: String,
+        ticketTypeName: String, 
         color: String,
-        assignedSeats: [String], 
-        capacity: Number
+        assignedSeats: [String],
+        capacity: Number,
+        price: { type: Number, default: 0 }
       }]
     },
     required: false

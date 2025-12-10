@@ -3,69 +3,226 @@ import mammoth from "mammoth";
 import fs from "fs";
 import { createRequire } from "module";
 import Tesseract from 'tesseract.js';
-
+const fsSync = fs; 
+import sharp from 'sharp';
+import path from 'path';
 const require = createRequire(import.meta.url);
 const pdfParse = require("pdf-parse");
+const createSeatObject = (seatId, row, column) => ({
+  seatId: String(seatId),
+  row: String(row),
+  column: Number(column),
+  isAvailable: true,
+  isSelected: false,
+  ticketTypeId: null,
+  ticketTypeName: null,
+  ticketTypeColor: null,
+  price: 0
+});
+export const generateFallbackLayout = (totalCapacity) => {
+  console.log('🔧 Generating fallback grid layout for capacity:', totalCapacity);
 
-/**
- * PURE EXTRACTION MODE - Extract seat positions EXACTLY as they appear visually
- * Detects seat shapes/blobs from the uploaded layout image
- * NO auto-generation, NO reshaping - EXACT visual replication
- */
-export const generateSeatingLayoutFromFile = async (
-  filePath,
-  totalCapacity,
-  fileType
-) => {
+  const seatsPerRow = 10;
+  const numRows = Math.ceil(totalCapacity / seatsPerRow);
+  const rows = [];
+  const seats = [];
+
+  for (let r = 0; r < numRows; r++) {
+    const rowLabel = String.fromCharCode(65 + r); // A, B, C...
+    rows.push(rowLabel);
+
+    const seatsInThisRow = Math.min(seatsPerRow, totalCapacity - (r * seatsPerRow));
+    
+    for (let c = 1; c <= seatsInThisRow; c++) {
+      seats.push(createSeatObject(`${rowLabel}${c}`, rowLabel, c));
+    }
+  }
+  return {
+    rows,
+    columns: seatsPerRow,
+    seats,
+    layoutStyle: 'grid',
+    ticketTypeAssignments: []
+  };
+};
+export const generateSeatingLayoutFromFile = async (filePath, totalCapacity, mimeType) => {
+  console.log('🎨 Starting seating layout generation:', {
+    filePath,
+    totalCapacity,
+    mimeType
+  });
+
   try {
+    // Validate inputs
     if (!filePath || !fs.existsSync(filePath)) {
-      throw new Error("Invalid file path");
+      throw new Error('File path does not exist');
     }
 
-    let layoutData;
+    if (!totalCapacity || totalCapacity <= 0) {
+      throw new Error('Invalid total capacity');
+    }
 
-    if (fileType.startsWith("image/")) {
-      // Extract seats from image by detecting visual seat shapes
-      layoutData = await extractSeatsFromImageVisual(filePath, totalCapacity);
-    } else if (fileType === "application/pdf") {
-      // For PDF, try visual extraction first, fallback to text
+    let detectedText = '';
+    let layoutStyle = 'grid';
+
+    // Process based on file type
+    if (mimeType.startsWith('image/')) {
+      console.log('📸 Processing image file for OCR...');
+      
+      // Enhance image for better OCR
+      const enhancedImagePath = path.join(
+        path.dirname(filePath),
+        `enhanced_${path.basename(filePath)}`
+      );
+
+      await sharp(filePath)
+        .greyscale()
+        .normalize()
+        .sharpen()
+        .toFile(enhancedImagePath);
+
+      // Perform OCR
+      const { data: { text } } = await Tesseract.recognize(
+        enhancedImagePath,
+        'eng',
+        {
+          logger: m => {
+            if (m.status === 'recognizing text') {
+              console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
+            }
+          }
+        }
+      );
+
+      detectedText = text;
+      
+      // Cleanup enhanced image
       try {
-        // Convert PDF first page to image and extract visually
-        layoutData = await extractSeatsFromPDFVisual(filePath, totalCapacity);
-      } catch (pdfError) {
-        console.log("PDF visual extraction failed, trying text extraction");
-        layoutData = await extractLayoutFromPDF(filePath, totalCapacity);
+        fs.unlinkSync(enhancedImagePath);
+      } catch (err) {
+        console.warn('Could not delete enhanced image:', err);
       }
-    } else if (
-      fileType.includes("word") ||
-      fileType.includes("document") ||
-      fileType.includes("officedocument")
-    ) {
-      layoutData = await extractLayoutFromDocument(filePath, totalCapacity);
+
+      console.log('✅ OCR completed. Detected text length:', detectedText.length);
+      
+    } else if (mimeType === 'application/pdf') {
+      console.log('📄 PDF processing not fully implemented, using fallback');
+      detectedText = '';
+    }
+
+    // Parse detected text to extract seat information
+    const seatPattern = /([A-Z])[-\s]?(\d+)/gi;
+    const matches = [...detectedText.matchAll(seatPattern)];
+    
+    console.log(`🔍 Found ${matches.length} potential seat matches in OCR`);
+
+    let rows = [];
+    let seats = [];
+
+    if (matches.length >= totalCapacity * 0.3) {
+      // Use detected seats
+      console.log('✅ Using OCR-detected seat layout');
+      
+      const seatMap = new Map();
+      matches.forEach(match => {
+        const row = match[1].toUpperCase();
+        const col = parseInt(match[2], 10);
+        if (!isNaN(col)) {
+          const seatId = `${row}${col}`;
+          if (!seatMap.has(seatId)) {
+            seatMap.set(seatId, { row, column: col });
+          }
+        }
+      });
+
+      // Convert to array and sort
+      const detectedSeats = Array.from(seatMap.values());
+      detectedSeats.sort((a, b) => {
+        if (a.row !== b.row) return a.row.localeCompare(b.row);
+        return a.column - b.column;
+      });
+
+      // Create unique rows
+      rows = [...new Set(detectedSeats.map(s => s.row))];
+      
+      // ✅ CRITICAL FIX: Create seats with ALL 4 required fields initialized
+      seats = detectedSeats.map(s => 
+        createSeatObject(`${s.row}${s.column}`, s.row, s.column)
+      );
+
+      // Adjust to match capacity
+      if (seats.length < totalCapacity) {
+        seats = seats.concat(
+          generateFallbackSeats(totalCapacity - seats.length, rows[rows.length - 1])
+        );
+      } else if (seats.length > totalCapacity) {
+        seats = seats.slice(0, totalCapacity);
+      }
+
+      layoutStyle = 'image_detected';
     } else {
-      throw new Error("Unsupported file type");
+      // Fallback to grid layout
+      console.log('⚠️ OCR detection insufficient, using grid fallback');
+      const fallbackLayout = generateFallbackLayout(totalCapacity);
+      rows = fallbackLayout.rows;
+      seats = fallbackLayout.seats;
+      layoutStyle = 'grid';
     }
 
-    // Validate extracted layout
-    if (!layoutData || !layoutData.seats || layoutData.seats.length === 0) {
-      throw new Error("Could not detect seating structure from the uploaded file. Please ensure seats are clearly visible as distinct shapes or symbols.");
-    }
+    const columns = Math.max(...seats.map(s => s.column), 1);
 
-    return layoutData;
+    console.log('✅ Layout generation complete:', {
+      totalSeats: seats.length,
+      rows: rows.length,
+      columns,
+      layoutStyle
+    });
+
+    // ✅ FINAL VALIDATION: Ensure all seats have required fields
+    const validatedSeats = seats.map(seat => ({
+      ...seat,
+      ticketTypeId: seat.ticketTypeId ?? null,
+      ticketTypeName: seat.ticketTypeName ?? null,
+      ticketTypeColor: seat.ticketTypeColor ?? null,
+      price: seat.price ?? 0
+    }));
+
+    return {
+      rows,
+      columns,
+      seats: validatedSeats,
+      layoutStyle,
+      ticketTypeAssignments: [] // Empty initially - assignments happen in modal
+    };
+
   } catch (error) {
+    console.error('❌ Error in generateSeatingLayoutFromFile:', error);
     throw error;
   }
 };
+const generateFallbackSeats = (count, startRow = 'A') => {
+  const seats = [];
+  let currentRow = startRow.charCodeAt(0);
+  let column = 1;
+  const seatsPerRow = 10;
 
-/**
- * EXTRACT SEATS FROM IMAGE BY DETECTING VISUAL SHAPES/BLOBS
- * This detects seat positions based on visual shapes in the image
- */
+  for (let i = 0; i < count; i++) {
+    if (column > seatsPerRow) {
+      currentRow++;
+      column = 1;
+    }
+    const row = String.fromCharCode(currentRow);
+    // ✅ Use helper function to ensure consistency
+    seats.push(createSeatObject(`${row}${column}`, row, column));
+    column++;
+  }
+
+  return seats;
+};
+
 const extractSeatsFromImageVisual = async (imagePath, totalCapacity) => {
   const image = await Jimp.read(imagePath);
   const { width, height } = image.bitmap;
-
-  console.log(`📐 Image dimensions: ${width}x${height}, Target capacity: ${totalCapacity}`);
 
   // Preprocess image to enhance seat detection
   const processed = await preprocessImageForSeatDetection(image);
@@ -77,38 +234,48 @@ const extractSeatsFromImageVisual = async (imagePath, totalCapacity) => {
     throw new Error("No seats detected in the layout image. Ensure seats are visible as distinct shapes (circles, rectangles, squares, or chair symbols).");
   }
 
-  console.log(`✅ Detected ${detectedSeats.length} seat positions from layout`);
-
   // Sort seats by position (top-to-bottom, left-to-right)
   detectedSeats.sort((a, b) => {
     const yDiff = a.y - b.y;
-    if (Math.abs(yDiff) > 30) return yDiff; // Different rows
-    return a.x - b.x; // Same row, sort by x
+    if (Math.abs(yDiff) > 30) return yDiff;
+    return a.x - b.x;
   });
 
+  // STRICT CAPACITY ENFORCEMENT - Step 1: Trim before generating additional
+  let finalSeats = detectedSeats.slice(0, totalCapacity);
+  
+  // If detected seats are less than capacity, generate additional seats
+  if (finalSeats.length < totalCapacity) {
+    const additional = generateAdditionalSeatsVisual(finalSeats, totalCapacity, width, height);
+    finalSeats = [...finalSeats, ...additional];
+  }
+  finalSeats = finalSeats.slice(0, totalCapacity);
   // Assign seat IDs based on position
-  const seatsWithIds = assignSeatIds(detectedSeats);
+  const seatsWithIds = assignSeatIds(finalSeats);
+  seatsWithIds.forEach(seat => {
+    if (seat.ticketTypeId === undefined) seat.ticketTypeId = null;
+    if (seat.ticketTypeName === undefined) seat.ticketTypeName = null;
+    if (seat.ticketTypeColor === undefined) seat.ticketTypeColor = null;
+    if (seat.price === undefined) seat.price = 0;
+  });
+  // STRICT CAPACITY ENFORCEMENT - Step 3: Absolute final enforcement
+  const strictlyEnforcedSeats = seatsWithIds.slice(0, totalCapacity);
 
   // Extract row labels and calculate columns
-  const rowLabels = [...new Set(seatsWithIds.map(s => s.row))].sort();
-  const maxColumns = Math.max(...seatsWithIds.map(s => s.column));
+  const rowLabels = [...new Set(strictlyEnforcedSeats.map(s => s.row))].sort();
+  const maxColumns = Math.max(...strictlyEnforcedSeats.map(s => s.column));
 
   return {
-    seats: seatsWithIds,
+    seats: strictlyEnforcedSeats,
     rows: rowLabels,
     columns: maxColumns,
-    totalSeats: seatsWithIds.length,
+    totalSeats: strictlyEnforcedSeats.length,
     layoutWidth: width,
     layoutHeight: height,
     layoutStyle: "exact_visual_extraction",
     detectionMethod: "shape_based_detection",
   };
 };
-
-/**
- * PREPROCESS IMAGE FOR SEAT SHAPE DETECTION
- * Enhance contrast and edges to make seats more detectable
- */
 const preprocessImageForSeatDetection = async (image) => {
   const processed = image.clone();
   
@@ -128,11 +295,6 @@ const preprocessImageForSeatDetection = async (image) => {
 
   return processed;
 };
-
-/**
- * DETECT SEAT SHAPES FROM PROCESSED IMAGE
- * Uses blob detection to find seat positions
- */
 const detectSeatShapes = async (image, targetCapacity) => {
   const { width, height, data } = image.bitmap;
   const seats = [];
@@ -141,12 +303,12 @@ const detectSeatShapes = async (image, targetCapacity) => {
   const threshold = 128;
   const visited = new Set();
   
-  // Blob detection parameters
-  const minBlobSize = 20; // Minimum pixels for a seat
-  const maxBlobSize = 5000; // Maximum pixels for a seat
+  // Blob detection parameters - MORE PERMISSIVE
+  const minBlobSize = 15; // Reduced from 20
+  const maxBlobSize = 8000; // Increased from 5000
   
   // Find blobs (connected components)
-  for (let y = 0; y < height; y += 2) { // Skip pixels for speed
+  for (let y = 0; y < height; y += 2) {
     for (let x = 0; x < width; x += 2) {
       const idx = (y * width + x) * 4;
       const pixelKey = `${x},${y}`;
@@ -177,24 +339,14 @@ const detectSeatShapes = async (image, targetCapacity) => {
       }
     }
   }
-
-  console.log(`🔍 Initial blob detection found ${seats.length} potential seats`);
-
   // Filter and refine seats
   let refinedSeats = filterAndRefineSeats(seats, targetCapacity);
-
-  // If we didn't get enough seats, try with relaxed parameters
-  if (refinedSeats.length < targetCapacity * 0.5) {
-    console.log('⚠️ Low detection, trying alternative method...');
+  // If we didn't get enough seats, try alternative method
+  if (refinedSeats.length < targetCapacity * 0.3) {
     refinedSeats = await detectSeatsAlternativeMethod(image, targetCapacity);
   }
-
   return refinedSeats;
 };
-
-/**
- * FLOOD FILL ALGORITHM TO DETECT BLOB EXTENT
- */
 const floodFill = (data, width, height, startX, startY, threshold, visited) => {
   const stack = [[startX, startY]];
   const blob = {
@@ -234,18 +386,11 @@ const floodFill = (data, width, height, startX, startY, threshold, visited) => {
 
   return blob;
 };
-
-/**
- * FILTER AND REFINE DETECTED SEATS
- * Remove duplicates and outliers
- */
 const filterAndRefineSeats = (seats, targetCapacity) => {
   if (seats.length === 0) return [];
-
   // Remove seats that are too close to each other (duplicates)
-  const minDistance = 20; // Minimum pixels between seat centers
+  const minDistance = 15; // Reduced from 20 for better detection
   const filtered = [];
-
   for (const seat of seats) {
     const tooClose = filtered.some(existing => {
       const distance = Math.sqrt(
@@ -258,22 +403,12 @@ const filterAndRefineSeats = (seats, targetCapacity) => {
       filtered.push(seat);
     }
   }
-
-  console.log(`✨ After filtering: ${filtered.length} unique seats`);
-
-  // If we have too many seats, keep the most confident ones
-  if (filtered.length > targetCapacity * 1.2) {
+  if (filtered.length > targetCapacity * 1.5) {
     filtered.sort((a, b) => b.confidence - a.confidence);
-    return filtered.slice(0, Math.ceil(targetCapacity * 1.1));
+    return filtered.slice(0, Math.ceil(targetCapacity * 1.2));
   }
-
   return filtered;
 };
-
-/**
- * ALTERNATIVE DETECTION METHOD - Grid-based sampling
- * Used when blob detection fails
- */
 const detectSeatsAlternativeMethod = async (image, targetCapacity) => {
   const { width, height, data } = image.bitmap;
   const seats = [];
@@ -283,8 +418,6 @@ const detectSeatsAlternativeMethod = async (image, targetCapacity) => {
   const estimatedRows = Math.round(Math.sqrt(targetCapacity / aspectRatio));
   const estimatedCols = Math.ceil(targetCapacity / estimatedRows);
 
-  console.log(`📊 Trying grid sampling: ${estimatedRows} rows × ${estimatedCols} cols`);
-
   // Sample grid to find dark regions (seats)
   const cellWidth = width / estimatedCols;
   const cellHeight = height / estimatedRows;
@@ -292,6 +425,9 @@ const detectSeatsAlternativeMethod = async (image, targetCapacity) => {
 
   for (let row = 0; row < estimatedRows; row++) {
     for (let col = 0; col < estimatedCols; col++) {
+      // Stop if we've reached target capacity
+      if (seats.length >= targetCapacity) break;
+      
       const centerX = Math.round(col * cellWidth + cellWidth / 2);
       const centerY = Math.round(row * cellHeight + cellHeight / 2);
 
@@ -322,26 +458,16 @@ const detectSeatsAlternativeMethod = async (image, targetCapacity) => {
         });
       }
     }
+    if (seats.length >= targetCapacity) break;
   }
-
-  console.log(`🎯 Grid sampling detected ${seats.length} seats`);
   return seats.slice(0, targetCapacity);
 };
-
-/**
- * ASSIGN SEAT IDs BASED ON POSITION
- * Converts x,y coordinates to Row-Column notation (A1, B2, etc.)
- */
 const assignSeatIds = (seats) => {
   if (seats.length === 0) return [];
-
-  // Group seats into rows based on Y coordinate
-  const rowTolerance = 30; // Pixels tolerance for same row
+  const rowTolerance = 30;  
   const rows = [];
-
   for (const seat of seats) {
     let foundRow = false;
-
     for (const row of rows) {
       const avgY = row.reduce((sum, s) => sum + s.y, 0) / row.length;
       if (Math.abs(seat.y - avgY) < rowTolerance) {
@@ -369,7 +495,6 @@ const assignSeatIds = (seats) => {
   // Assign row letters and column numbers
   const result = [];
   const rowLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-
   rows.forEach((row, rowIndex) => {
     const rowLabel = rowIndex < 26 
       ? rowLabels[rowIndex] 
@@ -390,16 +515,91 @@ const assignSeatIds = (seats) => {
         ticketTypeId: null,
         ticketTypeName: null,
         ticketTypeColor: null,
+        price: 0,
       });
     });
   });
 
   return result;
 };
+const generateAdditionalSeatsVisual = (existingSeats, targetCapacity, layoutWidth, layoutHeight) => {
+  const needed = targetCapacity - existingSeats.length;
+  
+  // Safety check - never generate if we already have enough or more
+  if (needed <= 0) return [];
 
-/**
- * EXTRACT SEATS FROM PDF (Visual method)
- */
+  const additional = [];
+  
+  // Calculate average seat dimensions from existing seats
+  const avgWidth = existingSeats.reduce((sum, s) => sum + (s.width || 30), 0) / existingSeats.length;
+  const avgHeight = existingSeats.reduce((sum, s) => sum + (s.height || 30), 0) / existingSeats.length;
+  
+  // Find the last row of seats
+  const maxY = Math.max(...existingSeats.map(s => s.y));
+  const lastRowSeats = existingSeats.filter(s => Math.abs(s.y - maxY) < 30);
+  
+  // Calculate spacing between seats
+  if (lastRowSeats.length > 1) {
+    lastRowSeats.sort((a, b) => a.x - b.x);
+    const avgSpacing = (lastRowSeats[lastRowSeats.length - 1].x - lastRowSeats[0].x) / (lastRowSeats.length - 1);
+    
+    // Determine seats per row based on layout width and spacing
+    const seatsPerRow = Math.floor(layoutWidth / (avgWidth + avgSpacing)) || 10;
+    const rowSpacing = avgHeight + 20; // Spacing between rows
+    
+    let currentX = lastRowSeats[lastRowSeats.length - 1].x + avgSpacing;
+    let currentY = maxY;
+    let seatsInCurrentRow = lastRowSeats.length;
+    
+    // STRICT LOOP - only generate exactly what's needed
+    for (let i = 0; i < needed && additional.length < needed; i++) {
+      // Move to next row if current row is full
+      if (seatsInCurrentRow >= seatsPerRow) {
+        currentY += rowSpacing;
+        currentX = lastRowSeats[0].x; // Start from left side
+        seatsInCurrentRow = 0;
+      }
+      additional.push({
+        x: currentX,
+        y: currentY,
+        width: avgWidth,
+        height: avgHeight,
+        confidence: 0.8,
+        ticketTypeId: null,
+        ticketTypeName: null,
+        ticketTypeColor: null,
+        price: 0
+      });
+      
+      currentX += avgSpacing;
+      seatsInCurrentRow++;
+    }
+  } else {
+    // Fallback: simple grid pattern
+    const seatsPerRow = Math.ceil(Math.sqrt(needed));
+    const spacing = Math.min(layoutWidth / (seatsPerRow + 1), 50);
+    
+    // STRICT LOOP - only generate exactly what's needed
+    for (let i = 0; i < needed && additional.length < needed; i++) {
+      const row = Math.floor(i / seatsPerRow);
+      const col = i % seatsPerRow;
+      additional.push({
+        x: spacing + col * spacing,
+        y: maxY + 50 + row * spacing,
+        width: avgWidth,
+        height: avgHeight,
+        confidence: 0.7,
+        ticketTypeId: null,
+        ticketTypeName: null,
+        ticketTypeColor: null,
+        price: 0
+      });
+    }
+  }
+  
+  // FINAL SAFETY - ensure we never return more than needed
+  return additional.slice(0, needed);
+};
 const extractSeatsFromPDFVisual = async (pdfPath, totalCapacity) => {
   // For PDF visual extraction, you'd need to convert PDF to image first
   // This requires additional libraries like pdf-poppler or pdf2pic
@@ -428,10 +628,19 @@ const extractLayoutFromPDF = async (pdfPath, totalCapacity) => {
     if (!seenSeats.has(seatId) && column > 0 && column < 200) {
       seenSeats.add(seatId);
       seats.push({
-        seatId, row, column,
-        x: null, y: null, width: null, height: null,
-        isAvailable: true, isSelected: false,
-        ticketTypeId: null, ticketTypeName: null, ticketTypeColor: null,
+        seatId, 
+        row, 
+        column,
+        x: null, 
+        y: null, 
+        width: null, 
+        height: null,
+        isAvailable: true, 
+        isSelected: false,
+        ticketTypeId: null,      // ✅ Already present
+        ticketTypeName: null,    // ✅ Already present
+        ticketTypeColor: null,   // ✅ Already present
+        price: 0,                // ✅ ADD THIS LINE
       });
     }
   }
@@ -444,15 +653,14 @@ const extractLayoutFromPDF = async (pdfPath, totalCapacity) => {
   if (seats.length < totalCapacity) {
     seats.push(...generateAdditionalSeats(seats, totalCapacity));
   }
-
   const rowLabels = [...new Set(seats.map(s => s.row))].sort();
   const maxColumns = Math.max(...seats.map(s => s.column));
-
+  const finalSeats = seats.slice(0, totalCapacity);
   return {
-    seats: seats.slice(0, totalCapacity),
+    seats: finalSeats,
     rows: rowLabels,
     columns: maxColumns,
-    totalSeats: Math.min(seats.length, totalCapacity),
+    totalSeats: finalSeats.length, 
     layoutWidth: null,
     layoutHeight: null,
     layoutStyle: "text_extraction",
@@ -478,13 +686,22 @@ const extractLayoutFromDocument = async (docPath, totalCapacity) => {
     const seatId = `${row}${column}`;
 
     if (!seenSeats.has(seatId) && column > 0 && column < 200) {
-      seenSeats.add(seatId);
-      seats.push({
-        seatId, row, column,
-        x: null, y: null, width: null, height: null,
-        isAvailable: true, isSelected: false,
-        ticketTypeId: null, ticketTypeName: null, ticketTypeColor: null,
-      });
+        seenSeats.add(seatId);
+        seats.push({
+          seatId, 
+          row, 
+          column,
+          x: null, 
+          y: null, 
+          width: null, 
+          height: null,
+          isAvailable: true, 
+          isSelected: false,
+          ticketTypeId: null,      // ✅ Already present
+          ticketTypeName: null,    // ✅ Already present
+          ticketTypeColor: null,   // ✅ Already present
+          price: 0,                // ✅ ADD THIS LINE
+        });
     }
   }
 
@@ -496,26 +713,21 @@ const extractLayoutFromDocument = async (docPath, totalCapacity) => {
   if (seats.length < totalCapacity) {
     seats.push(...generateAdditionalSeats(seats, totalCapacity));
   }
-
   const rowLabels = [...new Set(seats.map(s => s.row))].sort();
   const maxColumns = Math.max(...seats.map(s => s.column));
-
+  // STRICT capacity enforcement
+  const finalSeats = seats.slice(0, totalCapacity);
   return {
-    seats: seats.slice(0, totalCapacity),
+    seats: finalSeats,
     rows: rowLabels,
     columns: maxColumns,
-    totalSeats: Math.min(seats.length, totalCapacity),
+    totalSeats: finalSeats.length, // Use finalSeats.length
     layoutWidth: null,
     layoutHeight: null,
     layoutStyle: "text_extraction",
     detectionMethod: "doc_text_extraction",
   };
 };
-
-/**
- * GENERATE ADDITIONAL SEATS to meet target capacity
- * Used when extracted seats < totalCapacity
- */
 const generateAdditionalSeats = (existingSeats, targetCapacity) => {
   const additional = [];
   const existingCount = existingSeats.length;
@@ -541,7 +753,6 @@ const generateAdditionalSeats = (existingSeats, targetCapacity) => {
         ? rowLabels[rowIndex + 1]
         : rowLabels[Math.floor((rowIndex + 1) / 26) - 1] + rowLabels[(rowIndex + 1) % 26];
     }
-
     additional.push({
       seatId: `${currentRow}${currentCol}`,
       row: currentRow,
@@ -552,24 +763,56 @@ const generateAdditionalSeats = (existingSeats, targetCapacity) => {
       height: null,
       isAvailable: true,
       isSelected: false,
-      ticketTypeId: null,
-      ticketTypeName: null,
-      ticketTypeColor: null,
+      ticketTypeId: null,     
+      ticketTypeName: null,   
+      ticketTypeColor: null,  
+      price: 0,                
     });
   }
-
   return additional;
 };
-
 export const validateSeatingLayout = (layout) => {
-  return (
-    layout &&
-    typeof layout === "object" &&
-    Array.isArray(layout.seats) &&
-    layout.seats.length > 0
-  );
+  if (!layout || !layout.seats || !Array.isArray(layout.seats)) {
+    return { valid: false, error: 'Invalid layout structure' };
+  }
+
+  const requiredFields = ['seatId', 'row', 'column', 'isAvailable', 'isSelected', 
+                          'ticketTypeId', 'ticketTypeName', 'ticketTypeColor', 'price'];
+
+  for (const seat of layout.seats) {
+    for (const field of requiredFields) {
+      if (!(field in seat)) {
+        return { 
+          valid: false, 
+          error: `Seat ${seat.seatId || 'unknown'} missing required field: ${field}` 
+        };
+      }
+    }
+  }
+
+  return { valid: true };
 };
+export const normalizeSeatData = (seat) => ({
+  seatId: String(seat.seatId || ''),
+  row: String(seat.row || ''),
+  column: Number(seat.column || 0),
+  isAvailable: seat.isAvailable !== false,
+  isSelected: false,
+  ticketTypeId: seat.ticketTypeId !== undefined && seat.ticketTypeId !== null 
+    ? String(seat.ticketTypeId) 
+    : null,
+  ticketTypeName: seat.ticketTypeName !== undefined && seat.ticketTypeName !== null 
+    ? String(seat.ticketTypeName) 
+    : null,
+  ticketTypeColor: seat.ticketTypeColor !== undefined && seat.ticketTypeColor !== null 
+    ? String(seat.ticketTypeColor) 
+    : null,
+  price: seat.price !== undefined && seat.price !== null 
+    ? Number(seat.price) 
+    : 0
+});
 export default {
   generateSeatingLayoutFromFile,
   validateSeatingLayout,
+  generateFallbackLayout,
 };

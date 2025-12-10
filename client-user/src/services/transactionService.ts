@@ -91,6 +91,17 @@ export interface Booking {
   cancelledAt?: string; 
   cancellationReason?: string; 
 }
+export interface CreateSeatedBookingRequest {
+  ticketId: string;
+  selectedSeats: string[];
+}
+
+export interface BookedSeatsResponse {
+  success: boolean;
+  data: {
+    bookedSeats: string[];
+  };
+}
 export const registerFreeEvent = async (ticketId: string, quantity: number) => {
   const response = await transactionApi.post('/bookings/register-free', {
     ticketId,
@@ -102,6 +113,24 @@ export const registerFreeEvent = async (ticketId: string, quantity: number) => {
 export const createBooking = async (data: CreateBookingRequest): Promise<CreateBookingResponse> => {
   const response = await transactionApi.post('/bookings/create', data);
   return response.data;
+};
+export const createSeatedBooking = async (data: CreateSeatedBookingRequest) => {
+  try {
+    const res = await transactionApi.post('/bookings/create-seated', data);
+    return res.data;
+  } catch (err) {
+    console.error('❌ createSeatedBooking error:', err);
+    throw err;
+  }
+};
+export const getBookedSeats = async (ticketId: string): Promise<BookedSeatsResponse> => {
+  try {
+    const res = await transactionApi.get(`/bookings/booked-seats/${ticketId}`);
+    return res.data;
+  } catch (err) {
+    console.error('❌ getBookedSeats error:', err);
+    throw err;
+  }
 };
 export const verifyPayment = async (data: VerifyPaymentRequest) => {
   const response = await transactionApi.post('/bookings/verify-payment', data);
