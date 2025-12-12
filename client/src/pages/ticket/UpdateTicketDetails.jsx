@@ -2062,7 +2062,6 @@ const UpdateTicketDetails = () => {
                           )}
                         </div>
                         {/* Right: Interactive Seat Map Preview */}
-                        {/* Right: Interactive Seat Map Preview */}
                         <div className="space-y-3">
                           {generatedSeatingLayout ? (
                             <>
@@ -2286,6 +2285,7 @@ const UpdateTicketDetails = () => {
         showAlert={showAlert}
       />
       <SeatAssignmentModal
+      
         isOpen={showSeatAssignmentModal}
         onClose={() => setShowSeatAssignmentModal(false)}
         onSave={(newAssignments) => {
