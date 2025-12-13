@@ -66,17 +66,16 @@ function MonthSelector({
   return (
     <div
       className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
-        isDark
+        isDark,
       )} p-1 flex flex-col gap-1 w-24 shadow-lg`}
     >
       {months.map((monthName, index) => (
         <button
           key={monthName}
-          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${
-            currentMonth === index
-              ? "bg-blue-600 text-blue-100"
-              : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
-          }`}
+          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentMonth === index
+            ? "bg-blue-600 text-blue-100"
+            : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
+            }`}
           onClick={() => {
             onSelectMonth(index);
             onClose();
@@ -94,17 +93,16 @@ function YearSelector({ currentYear, onSelectYear, onClose, isDark, theme }) {
   return (
     <div
       className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
-        isDark
+        isDark,
       )} p-1 flex flex-col gap-1 w-24 shadow-lg max-h-[13.5rem] overflow-y-auto`}
     >
       {years.map((yearNum) => (
         <button
           key={yearNum}
-          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${
-            currentYear === yearNum
-              ? "bg-blue-600 text-blue-100"
-              : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
-          }`}
+          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentYear === yearNum
+            ? "bg-blue-600 text-blue-100"
+            : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
+            }`}
           onClick={() => {
             onSelectYear(yearNum);
             onClose();
@@ -150,9 +148,8 @@ function OneLinerCalendar({ isDark, theme, dates, selectedDate, onDateClick }) {
 
   return (
     <div
-      className={` rounded-[30px] ${
-        isDark ? theme.cardBg : "bg-[#f1f1f1]"
-      } ${getNeumorphicShadows(isDark)}`}
+      className={` rounded-[30px] ${isDark ? theme.cardBg : "bg-[#f1f1f1]"
+        } ${getNeumorphicShadows(isDark)}`}
     >
       <div
         className="flex gap-1 sm:gap-2  overflow-x-auto px-2 hide-scrollbar"
@@ -169,18 +166,17 @@ function OneLinerCalendar({ isDark, theme, dates, selectedDate, onDateClick }) {
             <div
               key={index}
               onClick={() => onDateClick(dayInfo)}
-              className={`flex-shrink-0  w-12 sm:w-14 md:w-16 h-12 sm:h-14 md:h-16 flex flex-col justify-center items-center space-y-0.5 sm:space-y-1 cursor-pointer transition-all duration-200 ${
-                style.wrapper
-              } ${index >= 5 ? "hidden sm:flex" : ""}`}
+              className={`flex-shrink-0  w-12 sm:w-14 md:w-16 h-12 sm:h-14 md:h-16 flex flex-col justify-center items-center space-y-0.5 sm:space-y-1 cursor-pointer transition-all duration-200 ${style.wrapper
+                } ${index >= 5 ? "hidden sm:flex" : ""}`}
             >
               <span className={`text-xs uppercase ${style.day}`}>
                 {dayInfo.isToday
                   ? "Today"
                   : daysOfWeek[
-                      dayInfo.fullDate.getDay() === 0
-                        ? 6
-                        : dayInfo.fullDate.getDay() - 1
-                    ]}
+                  dayInfo.fullDate.getDay() === 0
+                    ? 6
+                    : dayInfo.fullDate.getDay() - 1
+                  ]}
               </span>
               <span
                 className={`text-sm sm:text-base md:text-lg lg:text-xl font-bold ${style.date}`}
@@ -271,9 +267,8 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
   return (
     <>
       <header
-        className={`flex items-end justify-end border-b ${
-          isDark ? "border-gray-700" : "border-gray-200"
-        } pb-3 sm:pb-4 mb-4 sm:mb-6 flex-wrap gap-2 sm:gap-4`}
+        className={`flex items-end justify-end border-b ${isDark ? "border-gray-700" : "border-gray-200"
+          } pb-3 sm:pb-4 mb-4 sm:mb-6 flex-wrap gap-2 sm:gap-4`}
       >
         <div className="flex flex-row items-center justify-center gap-2 sm:gap-4">
           <div className="relative">
@@ -283,7 +278,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                 setShowYearSelector(false);
               }}
               className={`flex items-center justify-between ${calendarBg} rounded-full ${getButtonNeumorphicShadows(
-                isDark
+                isDark,
               )} h-8 sm:h-9 md:h-10 lg:h-12 gap-1 sm:gap-2 md:gap-3 px-3 sm:px-4 md:px-5`}
             >
               <span className="text-xs sm:text-sm md:text-base lg:text-lg font-semibold whitespace-nowrap">
@@ -311,7 +306,7 @@ const YourContentHeader = ({ isDark, theme, onDateChange }) => {
                 setShowMonthSelector(false);
               }}
               className={`flex items-center ${calendarBg} rounded-full ${getButtonNeumorphicShadows(
-                isDark
+                isDark,
               )} h-8 sm:h-10 md:h-12 gap-1 sm:gap-2 px-3 sm:px-4 md:px-5`}
             >
               <span className="text-xs sm:text-sm md:text-base lg:text-lg font-semibold">
@@ -389,7 +384,7 @@ const EventsList = ({
         const selectedDateOnly = new Date(
           selectedDate.getFullYear(),
           selectedDate.getMonth(),
-          selectedDate.getDate()
+          selectedDate.getDate(),
         );
 
         // Check if selected date falls within event date range
@@ -400,12 +395,12 @@ const EventsList = ({
           const eventStartOnly = new Date(
             eventStartDate.getFullYear(),
             eventStartDate.getMonth(),
-            eventStartDate.getDate()
+            eventStartDate.getDate(),
           );
           const eventEndOnly = new Date(
             eventEndDate.getFullYear(),
             eventEndDate.getMonth(),
-            eventEndDate.getDate()
+            eventEndDate.getDate(),
           );
 
           // Check if selected date is within the event's date range
@@ -420,7 +415,7 @@ const EventsList = ({
         const eventDateOnly = new Date(
           dateToCheck.getFullYear(),
           dateToCheck.getMonth(),
-          dateToCheck.getDate()
+          dateToCheck.getDate(),
         );
 
         return eventDateOnly.getTime() === selectedDateOnly.getTime();
@@ -430,11 +425,11 @@ const EventsList = ({
     // Filter by Paid/Free
     if (activeFilter === "Paid") {
       filtered = filtered.filter(
-        (event) => event.ticket_types && event.ticket_types.length > 0
+        (event) => event.ticket_types && event.ticket_types.length > 0,
       );
     } else if (activeFilter === "Free") {
       filtered = filtered.filter(
-        (event) => !event.ticket_types || event.ticket_types.length === 0
+        (event) => !event.ticket_types || event.ticket_types.length === 0,
       );
     }
     // Filter by event type (Public/Private)
@@ -442,14 +437,14 @@ const EventsList = ({
       filtered = filtered.filter(
         (event) =>
           event.event_privacy &&
-          event.event_privacy.toLowerCase() === eventTypeFilter.toLowerCase()
+          event.event_privacy.toLowerCase() === eventTypeFilter.toLowerCase(),
       );
     }
 
     // Filter by search term
     if (searchTerm) {
       filtered = filtered.filter((event) =>
-        event.event_name.toLowerCase().includes(searchTerm.toLowerCase())
+        event.event_name.toLowerCase().includes(searchTerm.toLowerCase()),
       );
     }
     return filtered;
@@ -494,6 +489,7 @@ const EventsList = ({
     onSelect,
     isDark,
     theme,
+    noBg,
   }) => (
     <div className="relative inline-block text-left">
       <div>
@@ -501,7 +497,11 @@ const EventsList = ({
           type="button"
           className={`inline-flex items-center justify-start  w-auto min-w-[80px] md:w-[180px] lg:w-[200px] xl:w-[226px] rounded-full px-2 md:px-3 lg:px-4 py-1.5 md:py-5 text-xs md:text-sm lg:text-base xl:text-lg focus:outline-none transition-all whitespace-nowrap ${theme.text}`}
           style={{
-            background: isDark ? "#232426" : "#f1f1f1",
+            background: isDark
+              ? noBg
+                ? "transparent"
+                : "#232426"
+              : "#f1f1f1",
 
             height: "32px",
           }}
@@ -517,9 +517,8 @@ const EventsList = ({
       </div>
       {isOpen && (
         <div
-          className={`origin-top-right absolute right-0 mt-2 w-56 rounded-2xl ring-1 ring-opacity-5 z-50 ${
-            isDark ? "bg-[#232426] ring-gray-600" : "bg-slate-100 ring-gray-400"
-          }`}
+          className={`origin-top-right absolute right-0 mt-2 w-56 rounded-2xl ring-1 ring-opacity-5 z-50 ${isDark ? "bg-[#232426] ring-gray-600" : "bg-slate-100 ring-gray-400"
+            }`}
           style={{
             boxShadow: isDark
               ? "8px 8px 12px rgba(0,0,0,0.4), -8px -8px 12px rgba(255,255,255,0.05)"
@@ -534,17 +533,15 @@ const EventsList = ({
                   onSelect(option);
                   setIsOpen(false);
                 }}
-                className={`block w-full text-left px-4 py-2 text-sm rounded-xl mx-2 my-1 transition-colors ${
-                  selectedOption === option
-                    ? isDark
-                      ? "bg-gray-700"
-                      : "bg-gray-200"
-                    : ""
-                } ${
-                  isDark
+                className={`block w-full text-left px-4 py-2 text-sm rounded-xl mx-2 my-1 transition-colors ${selectedOption === option
+                  ? isDark
+                    ? "bg-gray-700"
+                    : "bg-gray-200"
+                  : ""
+                  } ${isDark
                     ? "text-gray-400 hover:bg-gray-800"
                     : "text-gray-500 hover:bg-gray-200"
-                }`}
+                  }`}
                 role="menuitem"
               >
                 {option}
@@ -564,16 +561,16 @@ const EventsList = ({
         transform: "rotate(0deg)",
         display: "flex",
         flexDirection: "column",
+        overflow: "hidden",
       }}
-      className={`w-full rounded-[50px] p-4 sm:p-8 ${
-        isDark ? theme.cardBg : "bg-[#f1f1f1]"
-      } ${getNeumorphicShadows(isDark)}`}
+      className={`w-full rounded-[50px] ${isDark ? theme.cardBg : "bg-[#f1f1f1]"
+        } ${getNeumorphicShadows(isDark)} py-5 px-4 md:px-6 lg:px-4`}
     >
-      {/* Filters for Mobile */}
-      <div className="flex flex-col gap-3 mb-4 md:hidden mt-4">
+      {/* Filters for Mobile/Tablet */}
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-2 lg:hidden mt-0">
         {/* Search Bar */}
         <div
-          className="flex items-center gap-2 rounded-full px-3 py-2 "
+          className="flex items-center gap-2 rounded-full px-3 py-2 w-full md:flex-1"
           style={{
             background: isDark ? "#232426" : "#f1f1f1",
             boxShadow: isDark
@@ -592,22 +589,22 @@ const EventsList = ({
           />
         </div>
         {/* Dropdowns Row */}
-        <div className="flex gap-2">
-          <div className="flex-1">
+        <div className="flex gap-2 w-full md:w-auto">
+          <div className="flex-1 md:flex-none">
             <Dropdown
               title="Organisation"
               isOpen={isOrganisationDropdownOpen}
               setIsOpen={setOrganisationDropdownOpen}
               options={["All"].concat(
-                [...new Set(groups.map((g) => g.name))].filter(Boolean)
+                [...new Set(groups.map((g) => g.name))].filter(Boolean),
               )}
               selectedOption={"All"}
-              onSelect={() => {}}
+              onSelect={() => { }}
               isDark={isDark}
               theme={theme}
             />
           </div>
-          <div className="flex-1">
+          <div className="flex-1 md:flex-none">
             <Dropdown
               title="Event Type"
               isOpen={isEventTypeDropdownOpen}
@@ -637,20 +634,19 @@ const EventsList = ({
           </div>
           <button
             onClick={() => setSelectedDate(null)}
-            className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${
-              isDark
-                ? "bg-blue-600 hover:bg-blue-500 text-white"
-                : "bg-blue-500 hover:bg-blue-600 text-white"
-            }`}
+            className={`text-[10px] px-3 py-1.5 rounded-full transition-colors font-medium ${isDark
+              ? "bg-blue-600 hover:bg-blue-500 text-white"
+              : "bg-blue-500 hover:bg-blue-600 text-white"
+              }`}
           >
             Clear filter
           </button>
         </div>
       )}
       {/* Scrollable content area */}
-      <div>
-        {/* Mobile view */}
-        <div className="flex flex-col md:hidden  gap-4">
+      <div className="flex-1 lg:overflow-auto lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-track]:bg-gray-100 dark:lg:[&::-webkit-scrollbar-track]:bg-gray-800 lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-gray-300 lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:lg:[&::-webkit-scrollbar-thumb]:bg-gray-600 dark:lg:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
+        {/* Mobile/Tablet view */}
+        <div className="flex flex-col lg:hidden  gap-4">
           {filteredEvents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <div className={`text-center ${theme.subText}`}>
@@ -688,20 +684,17 @@ const EventsList = ({
               return (
                 <div
                   key={event._id || index}
-                  className={`p-4 sm:p-5 flex items-center justify-between gap-3 rounded-2xl ${
-                    isDark ? "bg-gray-800/50" : "bg-white"
-                  } shadow-md`}
+                  className={`p-4 sm:p-5 flex items-center justify-between gap-3 rounded-2xl ${isDark ? "bg-gray-800/50" : "bg-white"
+                    } shadow-md`}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        isDark ? "bg-purple-500/20" : "bg-purple-100"
-                      }`}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isDark ? "bg-purple-500/20" : "bg-purple-100"
+                        }`}
                     >
                       <PartyPopper
-                        className={`w-5 h-5 ${
-                          isDark ? "text-purple-300" : "text-purple-600"
-                        }`}
+                        className={`w-5 h-5 ${isDark ? "text-purple-300" : "text-purple-600"
+                          }`}
                       />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -711,9 +704,8 @@ const EventsList = ({
                         {event.event_name}
                       </p>
                       <div
-                        className={`text-xs ${
-                          isDark ? "text-gray-400" : "text-gray-600"
-                        } flex items-center flex-wrap gap-x-2 gap-y-1 mt-1`}
+                        className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"
+                          } flex items-center flex-wrap gap-x-2 gap-y-1 mt-1`}
                       >
                         <span className="truncate">{groupName}</span>
                         <span>•</span>
@@ -743,24 +735,22 @@ const EventsList = ({
             })
           )}
         </div>
-        <table className="hidden md:table w-full text-left md:mt-4">
+        <table className="hidden lg:table w-full text-left lg:mt-1">
           <thead>
             <tr
-              className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
-                isDark ? "border-gray-700" : "border-gray-200"
-              } text-sm sticky top-0`}
+              className={`${isDark ? "text-gray-400" : "text-black"} border-b ${isDark ? "border-gray-700" : "border-gray-200"
+                } text-sm sticky top-0`}
               style={{
-                background: isDark ? "#232426" : "#F1F1F1",
                 zIndex: 10,
               }}
             >
-              <th className="py-6 md:py-4 px-2 md:px-2 font-bold text-sm md:text-base lg:text-lg xl:text-xl relative">
+              <th className="py-1 md:py-1 px-2 md:px-2 font-bold text-sm md:text-base lg:text-lg xl:text-xl relative">
                 <div
-                  className="flex items-center justify-start gap-2 rounded-full transition-colors px-4 py-5"
+                  className="flex items-center justify-start gap-2 rounded-full transition-colors px-4 py-3"
                   style={{
                     height: "32px",
                     width: "180px",
-                    background: isDark ? "#232426" : "#f1f1f1",
+                    background: isDark ? "transparent" : "#f1f1f1",
                   }}
                 >
                   <div className="flex items-center gap-2 w-full">
@@ -775,7 +765,7 @@ const EventsList = ({
                   </div>
                 </div>
               </th>
-              <th className="py-2 md:py-3 px-2 md:px-2 font-semibold text-sm md:text-base lg:text-lg xl:text-xl">
+              <th className="py-1 md:py-1 px-2 md:px-2 font-semibold text-sm md:text-base lg:text-lg xl:text-xl">
                 <div className="flex items-center">
                   <Dropdown
                     title="Organisation"
@@ -783,17 +773,18 @@ const EventsList = ({
                     setIsOpen={setOrganisationDropdownOpen}
                     options={["All"]
                       .concat(
-                        [...new Set(groups.map((g) => g.name))].filter(Boolean)
+                        [...new Set(groups.map((g) => g.name))].filter(Boolean),
                       )
                       .slice(0, 5)}
                     selectedOption={"All"}
-                    onSelect={() => {}}
+                    onSelect={() => { }}
+                    noBg={true}
                     isDark={isDark}
                     theme={theme}
                   />
                 </div>
               </th>
-              <th className="py-2 md:py-3 px-2 md:px-2 font-semibold text-sm md:text-base lg:text-lg xl:text-xl">
+              <th className="py-1 md:py-1 px-2 md:px-2 font-semibold text-sm md:text-base lg:text-lg xl:text-xl">
                 <div className="flex items-center">
                   <Dropdown
                     title="Event Type"
@@ -802,12 +793,13 @@ const EventsList = ({
                     options={["All", "Public", "Private"]}
                     selectedOption={eventTypeFilter}
                     onSelect={setEventTypeFilter}
+                    noBg={true}
                     isDark={isDark}
                     theme={theme}
                   />
                 </div>
               </th>
-              <th className="py-2 md:py-3 px-2 md:px-4 font-bold text-xs md:text-sm lg:text-base xl:text-lg text-center">
+              <th className="py-1 md:py-1 px-2 md:px-4 font-bold text-xs md:text-sm lg:text-base xl:text-lg text-center">
                 Actions
               </th>
             </tr>
@@ -829,11 +821,9 @@ const EventsList = ({
               return (
                 <tr
                   key={event._id || index}
-                  className={`border-b ${
-                    isDark ? "border-gray-700/50" : "border-gray-200"
-                  } ${
-                    isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
-                  } transition-colors min-h-[78px]`}
+                  className={`border-b ${isDark ? "border-gray-700/50" : "border-gray-200"
+                    } ${isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
+                    } transition-colors min-h-[78px]`}
                 >
                   <td className={`py-8 px-4 ${theme.text} text-sm`}>
                     <div className="truncate pr-4">
@@ -888,13 +878,12 @@ const EventsList = ({
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
-                className={`w-7 h-7 rounded-full text-xs font-medium transition-colors flex items-center justify-center ${
-                  currentPage === page
-                    ? "bg-[#6549B8] text-white"
-                    : isDark
+                className={`w-7 h-7 rounded-full text-xs font-medium transition-colors flex items-center justify-center ${currentPage === page
+                  ? "bg-[#6549B8] text-white"
+                  : isDark
                     ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
                     : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                }`}
+                  }`}
               >
                 {page}
               </button>
@@ -1005,21 +994,21 @@ const PreviousEvent = () => {
 
   const theme = isDark
     ? {
-        bg: "bg-[#212426]",
-        text: "text-white",
-        subText: "text-[#c9c9cf]",
-        cardBg: "bg-[#212426]",
-        border: "border-[#23233a]",
-        inputBg: "bg-[#212426]",
-      }
+      bg: "bg-[#212426]",
+      text: "text-white",
+      subText: "text-[#c9c9cf]",
+      cardBg: "bg-[#212426]",
+      border: "border-[#23233a]",
+      inputBg: "bg-[#212426]",
+    }
     : {
-        bg: "bg-[#F9F9F9]",
-        text: "text-gray-900",
-        subText: "text-gray-600",
-        cardBg: "bg-[#f1f1f1]",
-        border: "border-[#e4e6ea]",
-        inputBg: "bg-[#ffffff]",
-      };
+      bg: "bg-[#F9F9F9]",
+      text: "text-gray-900",
+      subText: "text-gray-600",
+      cardBg: "bg-[#f1f1f1]",
+      border: "border-[#e4e6ea]",
+      inputBg: "bg-[#ffffff]",
+    };
   const PreviousEventsCount = events.length;
   return (
     <>
@@ -1030,20 +1019,20 @@ const PreviousEvent = () => {
         .overflow-y-auto::-webkit-scrollbar {
           width: 8px;
         }
-        
+
         body::-webkit-scrollbar-track,
         html::-webkit-scrollbar-track,
         .overflow-y-auto::-webkit-scrollbar-track {
           background: ${isDark ? "#1f2937" : "#f1f1f1"};
         }
-        
+
         body::-webkit-scrollbar-thumb,
         html::-webkit-scrollbar-thumb,
         .overflow-y-auto::-webkit-scrollbar-thumb {
           background: ${isDark ? "#4b5563" : "#cbd5e1"};
           border-radius: 10px;
         }
-        
+
         body::-webkit-scrollbar-thumb:hover,
         html::-webkit-scrollbar-thumb:hover,
         .overflow-y-auto::-webkit-scrollbar-thumb:hover {
@@ -1090,7 +1079,7 @@ const PreviousEvent = () => {
                   theme={theme}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  onTuneClick={() => {}}
+                  onTuneClick={() => { }}
                 />
               </div>
               <div className="flex items-center gap-4 ml-auto flex-shrink-0">
@@ -1116,11 +1105,9 @@ const PreviousEvent = () => {
                     ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                     : "-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)",
                 }}
-                className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${
-                  theme.bg
-                } ${theme.text} ${
-                  isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"
-                }`}
+                className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg
+                  } ${theme.text} ${isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"
+                  }`}
               >
                 <span
                   className="w-[38px] h-[38px] flex items-center justify-center rounded-full -ml-2"
@@ -1136,7 +1123,7 @@ const PreviousEvent = () => {
                 {loading ? "Checking..." : "Create event"}
               </button>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6 lg:gap-8 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 lg:gap-8 mb-8">
               {/* My Groups Card */}
               <div className="lg:col-span-1 w-full p-2 md:p-4">
                 <MyGroupsCard theme={theme} groups={groups} isDark={isDark} />
@@ -1186,7 +1173,7 @@ const PreviousEvent = () => {
                     />
                   </div>
                 </div>
-                <div className="hidden lg:flex w-full justify-start [@media(width:1024px)]:-ml-8">
+                <div className="hidden lg:flex w-full justify-start lg:pl-8 xl:pl-0">
                   <div
                     style={{
                       width: "min(100%, 280px)",
@@ -1200,7 +1187,7 @@ const PreviousEvent = () => {
                         ? "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset"
                         : "6px 6px 12px 0px #0000002E inset, -6px -6px 12px 0px #FFFFFF14 inset",
                     }}
-                    className="flex flex-row items-center justify-center transition-all duration-300 
+                    className="flex flex-row items-center justify-center transition-all duration-300
                         [@media(width:1024px)]:!w-[280px] [@media(width:1024px)]:!max-w-[280px]"
                   >
                     <StatsCard
@@ -1232,7 +1219,7 @@ const PreviousEvent = () => {
                 </div>
               </div>
               {/* Calendar Section */}
-              <div className="lg:col-span-2 w-full [@media(width:1024px)]:scale-90 [@media(width:1024px)]:origin-right">
+              <div className="md:col-span-2 lg:col-span-2 w-full [@media(width:1024px)]:scale-90 [@media(width:1024px)]:origin-right">
                 <YourContentHeader
                   isDark={isDark}
                   theme={theme}
@@ -1243,9 +1230,8 @@ const PreviousEvent = () => {
 
             <div className="flex justify-end items-center mb-4">
               <div
-                className={`flex items-center p-1 rounded-full ${
-                  theme.cardBg
-                } ${getButtonNeumorphicShadows(isDark)}`}
+                className={`flex items-center p-1 rounded-full ${theme.cardBg
+                  } ${getButtonNeumorphicShadows(isDark)}`}
               >
                 {["All", "Paid", "Free"].map((filter) => {
                   const isActive = activeFilter === filter;
@@ -1253,11 +1239,10 @@ const PreviousEvent = () => {
                     <button
                       key={filter}
                       onClick={() => setActiveFilter(filter)}
-                      className={`px-5 py-2.5 rounded-full text-sm font-medium transition-colors duration-200 ${
-                        isActive
-                          ? "bg-gradient-to-br from-[#1E1242] to-[#6942B8] text-white"
-                          : `${theme.text} hover:bg-gray-500/20`
-                      }`}
+                      className={`px-5 py-2.5 rounded-full text-sm font-medium transition-colors duration-200 ${isActive
+                        ? "bg-gradient-to-br from-[#1E1242] to-[#6942B8] text-white"
+                        : `${theme.text} hover:bg-gray-500/20`
+                        }`}
                     >
                       {filter} events
                     </button>
@@ -1265,19 +1250,17 @@ const PreviousEvent = () => {
                 })}
               </div>
             </div>
-            <div className="mt-6 sm:mt-0">
-              <EventsList
-                isDark={isDark}
-                theme={theme}
-                events={events}
-                groups={groups}
-                activeFilter={activeFilter}
-                selectedDate={selectedDate}
-                setSelectedDate={setSelectedDate}
-                searchTerm={searchTerm}
-                onSearchTermChange={setSearchTerm}
-              />
-            </div>
+            <EventsList
+              isDark={isDark}
+              theme={theme}
+              events={events}
+              groups={groups}
+              activeFilter={activeFilter}
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              searchTerm={searchTerm}
+              onSearchTermChange={setSearchTerm}
+            />
           </main>
         </div>
         <GroupSelectionModal
@@ -1302,5 +1285,4 @@ const PreviousEvent = () => {
     </>
   );
 };
-
 export default PreviousEvent;
