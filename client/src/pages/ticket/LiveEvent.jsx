@@ -28,14 +28,220 @@ import {
 } from "lucide-react";
 import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
 import { getImageUrl } from "../../utils/imageUtils";
-import StatsCard from "../../components/ViewPage/StatsCard.jsx";
-import MyGroupsCard from "../../components/HomePage/MyGroupCard.jsx";
 const getNeumorphicShadows = (isDark) =>
   isDark
-    ? "shadow-[inset_6px_6px_12px_#0000004D,inset_-6px_-6px_12px_#FFFFFF0A]"
-    : "shadow-[inset_6px_6px_12px_#0000002E,inset_-6px_-6px_12px_#FFFFFF14]";
+    ? "shadow-[inset_5px_5px_10px_#1a1b1e,inset_-5px_-5px_10px_#3c3f44]"
+    : "shadow-[inset_5px_5px_10px_#a4a4a4,inset_-5px_-5px_10px_#ffffff]";
+const MyGroupsCard = ({ theme, groups, isDark }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [groupEventCount, setGroupEventCount] = useState(0);
+  const [loadingCount, setLoadingCount] = useState(false);
+  const navigate = useNavigate();
+  const handleGroupClick = async (group) => {
+    setSelectedGroup(group);
+    setIsModalOpen(true);
+    setLoadingCount(true);
 
+    // Fetch event count for this specific group
+    try {
+      const eventsRes = await getMyEvents();
 
+      // Handle different response structures
+      let eventsArray = [];
+      if (Array.isArray(eventsRes)) {
+        eventsArray = eventsRes;
+      } else if (eventsRes?.tickets) {
+        eventsArray = Array.isArray(eventsRes.tickets) ? eventsRes.tickets : [];
+      } else if (eventsRes?.data) {
+        eventsArray = Array.isArray(eventsRes.data) ? eventsRes.data : [];
+      }
+
+      // Filter events that belong to this specific group
+      const groupId = group._id || group.id;
+      const filteredEvents = eventsArray.filter(
+        (event) =>
+          event.groupId === groupId ||
+          event.group_id === groupId ||
+          event.group === groupId ||
+          event.group?._id === groupId ||
+          event.group?.id === groupId,
+      );
+
+      setGroupEventCount(filteredEvents.length);
+    } catch (error) {
+      console.error("Error fetching event count:", error);
+      // Fallback to group's own count if available
+      setGroupEventCount(group.totalEvents || group.events || 0);
+    } finally {
+      setLoadingCount(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedGroup(null);
+    setGroupEventCount(0);
+  };
+
+  const handleUpdateGroup = () => {
+    console.log("Update group:", selectedGroup);
+    // Add your update logic here
+    // You might want to navigate to an edit page or open an edit modal
+    // Example: navigate(`/group/edit/${selectedGroup._id}`);
+    handleCloseModal();
+  };
+
+  return (
+    <>
+      <div className="h-full flex flex-col min-h-[180px]">
+        <div className="flex items-center justify-between w-full mb-3 md:mb-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-lg md:text-xl font-semibold">My groups,</h3>
+            <p className={`text-xs md:text-sm ${theme.subText}`}>
+              {groups.length} groups
+            </p>
+          </div>
+          {groups.length > 2 && (
+            <button
+              onClick={() => navigate("/ticket/groups")}
+              className={`text-xs md:text-sm ${theme.subText} hover:underline flex-shrink-0`}
+            >
+              See more
+            </button>
+          )}
+        </div>
+        <div className="flex flex-row items-center justify-start w-full gap-4 md:gap-6 flex-grow">
+          {groups.slice(0, 2).map((group, index) => {
+            let imageUrl;
+            if (group.grp_type === "admin") {
+              imageUrl = ProfileImage;
+            } else if (group.grp_type === "organization") {
+              imageUrl = getImageUrl(group.company_logo) || ProfileImage;
+            } else {
+              imageUrl = getImageUrl(group.company_logo) || ProfileImage;
+            }
+            return (
+              <div
+                key={index}
+                className="flex flex-col items-center gap-2 cursor-pointer group"
+                onClick={() => handleGroupClick(group)}
+              >
+                <div
+                  className="relative w-[80px] h-[80px] md:w-[100px] md:h-[100px] rounded-[58px] overflow-hidden flex-shrink-0 transition-transform duration-200 group-hover:scale-105"
+                  style={{
+                    boxShadow: isDark
+                      ? "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)"
+                      : "inset 6px 6px 12px 0px rgba(0,0,0,0.18), inset -6px -6px 12px 0px rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <img
+                    src={imageUrl}
+                    alt={group.company_logo}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = ProfileImage;
+                    }}
+                  />
+                </div>
+                <p
+                  className={`font-medium text-xs md:text-sm ${theme.text} text-center max-w-[100px] truncate group-hover:underline`}
+                >
+                  {group.name}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {/* Group View Modal */}
+      <GroupViewModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        group={selectedGroup}
+        isDark={isDark}
+        theme={theme}
+        onUpdate={handleUpdateGroup}
+        totalEvents={groupEventCount}
+        loadingCount={loadingCount}
+      />
+    </>
+  );
+};
+const StatsCard = ({
+  count,
+  title,
+  isDark,
+  theme,
+  className,
+  icon,
+  isMobile = false,
+}) => {
+  if (isMobile) {
+    return (
+      <div
+        style={{
+          width: "48%", // Takes 48% of container width
+          height: "160px",
+          padding: "3%",
+          borderRadius: "30px",
+          border: "3px solid transparent",
+          backgroundImage: isDark
+            ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
+            : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
+          backgroundOrigin: "border-box",
+          backgroundClip: "padding-box, border-box",
+          boxShadow: isDark
+            ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+            : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
+        }}
+        className={`flex flex-col items-center justify-around ${className}`}
+      >
+        {icon}
+        <p className={`text-xl sm:text-2xl font-semibold ${theme.text}`}>
+          {count}
+        </p>
+        <p
+          className={`text-[9px] sm:text-[10px] text-center leading-tight px-1 ${theme.subText}`}
+        >
+          {title}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: "48%", // Takes 48% of container width
+        height: "160px",
+        padding: "3%",
+        borderRadius: "30px",
+        border: "3px solid transparent",
+        backgroundImage: isDark
+          ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
+          : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
+        backgroundOrigin: "border-box",
+        backgroundClip: "padding-box, border-box",
+        boxShadow: isDark
+          ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+          : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
+      }}
+      className={`flex flex-col items-center justify-around ${className}`}
+    >
+      {icon}
+      <p className={`text-2xl lg:text-3xl font-semibold ${theme.text}`}>
+        {count}
+      </p>
+      <p
+        className={`text-[10px] lg:text-xs text-center leading-tight ${theme.subText}`}
+      >
+        {title}
+      </p>
+    </div>
+  );
+};
 function BankAccountDetailsCard({ isDark, theme }) {
   const [bankDetails, setBankDetails] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -93,8 +299,8 @@ function BankAccountDetailsCard({ isDark, theme }) {
     return (
       <div
         className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${
-        isDark ? theme.cardBg : "bg-[#f1f1f1]"
-      } ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
+          theme.cardBg
+        } ${getNeumorphicShadows(isDark)} flex items-center justify-center`}
         style={{ minHeight: "200px" }}
       >
         <p className={`${theme.subText}`}>
@@ -107,7 +313,7 @@ function BankAccountDetailsCard({ isDark, theme }) {
   return (
     <div
       className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${
-        isDark ? theme.cardBg : "bg-[#f1f1f1]"
+        theme.cardBg
       } ${getNeumorphicShadows(isDark)}`}
     >
       {/* Card Header */}
@@ -130,12 +336,10 @@ function BankAccountDetailsCard({ isDark, theme }) {
         {bankDetails.length > 1 && (
           <button
             onClick={handleSeeAll}
-          className={`border  rounded-full px-4 py-1 text-sm font-light tracking-wider transition-colors hover:bg-[#6549B8] border-[#6549B8] hover:text-white ${
-                          isDark ? "text-gray-300" : "text-gray-700"
-                        }`}
-                      >
-                        see all
-                      </button>
+            className="whitespace-nowrap text-xs sm:text-sm font-semibold text-purple-600 border border-purple-300 rounded-full px-4 py-1.5 sm:px-5 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors duration-300"
+          >
+            see all
+          </button>
         )}
       </header>
 
@@ -215,8 +419,8 @@ function BankAccountDetailsCard({ isDark, theme }) {
                         ? "bg-purple-500"
                         : "bg-purple-600"
                       : isDark
-                      ? "bg-gray-600"
-                      : "bg-gray-400"
+                        ? "bg-gray-600"
+                        : "bg-gray-400"
                   }`}
                 ></div>
               ))}
@@ -300,23 +504,23 @@ const EventsList = ({
 
     if (activeFilter === "Paid") {
       filtered = filtered.filter(
-        (event) => event.ticket_types && event.ticket_types.length > 0
+        (event) => event.ticket_types && event.ticket_types.length > 0,
       );
     } else if (activeFilter === "Free") {
       filtered = filtered.filter(
-        (event) => !event.ticket_types || event.ticket_types.length === 0
+        (event) => !event.ticket_types || event.ticket_types.length === 0,
       );
     }
 
     if (selectedCategory && selectedCategory !== "All") {
       filtered = filtered.filter(
-        (event) => event.event_category === selectedCategory
+        (event) => event.event_category === selectedCategory,
       );
     }
 
     if (searchTerm) {
       filtered = filtered.filter((event) =>
-        event.event_name.toLowerCase().includes(searchTerm.toLowerCase())
+        event.event_name.toLowerCase().includes(searchTerm.toLowerCase()),
       );
     }
 
@@ -588,9 +792,7 @@ const EventsList = ({
 
                       {index < paginatedEvents.length - 1 && (
                         <div
-                          className={`h-px ${
-                            isDark ? "bg-gray-700" : "bg-gray-300"
-                          }`}
+                          className={`h-px ${isDark ? "bg-gray-700" : "bg-gray-300"}`}
                         />
                       )}
                     </div>
@@ -717,21 +919,18 @@ const EventsList = ({
           </div>
 
           {/* Desktop Table View */}
-          <table className="hidden lg:table   w-full table-auto text-left">
-            <thead className="">
+          <table className="hidden lg:table w-full table-auto text-left">
+            <thead>
               <tr
-                className={`${
-                  isDark ? "text-gray-400" : "text-black"
-                } border-b ${
-                  isDark ? "border-gray-700" : "border-gray-300"
+                className={`${isDark ? "text-gray-400" : "text-black"} border-b ${
+                  isDark ? "border-gray-700" : "border-gray-200"
                 } text-sm sticky top-0`}
                 style={{
-                  background: isDark ? "#232426" : "transparent",
                   zIndex: 10,
                 }}
               >
                 <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[38%]">
-                  <div className="flex items-center justify-start gap-4">
+                  <div className="flex items-center justify-start gap-2">
                     {isSearchActive ? (
                       <div className="flex items-center gap-2 w-full">
                         <Search className="w-4 h-4" />
@@ -801,8 +1000,8 @@ const EventsList = ({
                                     ? "bg-gray-700 text-white"
                                     : "bg-gray-200 text-gray-900"
                                   : isDark
-                                  ? "text-gray-300 hover:bg-gray-800"
-                                  : "text-gray-700 hover:bg-gray-200"
+                                    ? "text-gray-300 hover:bg-gray-800"
+                                    : "text-gray-700 hover:bg-gray-200"
                               }`}
                             >
                               {category}
@@ -814,7 +1013,7 @@ const EventsList = ({
                   </div>
                 </th>
                 <th className="py-3 px-2 lg:px-4 font-bold text-sm lg:text-base w-[22%]">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
                     <span>Live Status</span>
                     <Radio className="w-4 h-4 text-red-500" />
                   </div>
@@ -910,8 +1109,8 @@ const EventsList = ({
                   currentPage === page
                     ? "bg-[#6549B8] text-white"
                     : isDark
-                    ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                 }`}
               >
                 {page}
@@ -978,7 +1177,7 @@ const LiveEvent = () => {
           ? [].concat(allEventsData.tickets)
           : [];
         const confirmedCount = allEventsArray.filter(
-          (event) => event.event_status === "confirmed"
+          (event) => event.event_status === "confirmed",
         ).length;
         setConfirmedEventsCount(confirmedCount);
       } catch (e) {
@@ -1012,17 +1211,13 @@ const LiveEvent = () => {
         bg: "bg-[#212426]",
         text: "text-white",
         subText: "text-[#c9c9cf]",
-        cardBg: "bg-[#212426]",
-        border: "border-[#23233a]",
-        inputBg: "bg-[#212426]",
+        cardBg: "bg-[#232426]",
       }
     : {
-        bg: "bg-[#F9F9F9]",
+        bg: "bg-slate-100",
         text: "text-gray-900",
         subText: "text-gray-600",
-        cardBg: "bg-[#f1f1f1]",
-        border: "border-[#e4e6ea]",
-        inputBg: "bg-[#ffffff]",
+        cardBg: "bg-slate-100",
       };
 
   const liveEventsCount = liveEvents.length;
@@ -1114,12 +1309,12 @@ const LiveEvent = () => {
             <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4">
               <div>
                 <h1
-                  className={`text-lg md:text-3xl font-semibold ${theme.text} flex items-center gap-3`}
+                  className={`text-3xl sm:text-4xl font-bold ${theme.text} flex items-center gap-3`}
                 >
-                  <Radio className="w-6 h-6 text-red-500" />
+                  <Radio className="w-8 h-8 text-red-500" />
                   Live Events
                 </h1>
-                <p className={`${theme.subText} mt-2 text-base sm:text-base`}>
+                <p className={`${theme.subText} mt-2 text-base sm:text-lg`}>
                   Manage and monitor your live events in real-time.
                 </p>
               </div>
@@ -1132,9 +1327,7 @@ const LiveEvent = () => {
                     ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
                     : "-4px -4px 8px rgba(255,255,255,0.9), 4px 4px 8px rgba(0,0,0,0.15)",
                 }}
-                className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${
-                  theme.bg
-                } ${theme.text} ${
+                className={`hidden md:flex flex-1 md:flex-none items-center gap-2 px-4 py-2 rounded-full font-medium text-sm transition h-12 ${theme.bg} ${theme.text} ${
                   isDark ? "hover:bg-[#2a2d2f]" : "hover:bg-gray-200"
                 }`}
               >
