@@ -1280,11 +1280,6 @@ const UpdateTicketDetails = () => {
             </header>
 
             <form onSubmit={handleSubmit} className="space-y-12">
-              {errors.general && (
-                <div className="p-4 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700 rounded-lg">
-                  {errors.general}
-                </div>
-              )}
               <section className="space-y-6">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   Payment type
@@ -1332,7 +1327,7 @@ const UpdateTicketDetails = () => {
               </section>
 
               {paymentType === "paid" && (
-                <section className="bg-white dark:bg-[#2B2B2B] p-8 rounded-lg space-y-6 animate-fade-in shadow-sm dark:shadow-none">
+                <section className="bg-[#f1f1f1] dark:bg-[#2B2B2B] p-8 rounded-lg space-y-6 animate-fade-in shadow-sm dark:shadow-none">
                   <div className="flex items-center space-x-4">
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                       Banking details
@@ -2285,7 +2280,6 @@ const UpdateTicketDetails = () => {
         showAlert={showAlert}
       />
       <SeatAssignmentModal
-      
         isOpen={showSeatAssignmentModal}
         onClose={() => setShowSeatAssignmentModal(false)}
         onSave={(newAssignments) => {
