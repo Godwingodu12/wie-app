@@ -12,6 +12,7 @@ import VerifiedIcon from "../../assets/PROFILEPAGE/VerifiedIcon.svg";
 import EventIcon from "../../assets/PROFILEPAGE/EventIcon.svg";
 import FollowersIcon from "../../assets/PROFILEPAGE/FollowersIcon.svg";
 import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
+import BackIcon from "../../assets/PROFILEPAGE/BackIcon.svg";
 
 const HEADER_HEIGHT = 72;
 
@@ -351,9 +352,25 @@ useEffect(() => {
 
           <main className="flex-1 p-3 md:p-4 lg:p-6 overflow-y-auto overflow-x-hidden">
             <div className="max-w-7xl mx-auto">
-              <h1 className={`text-2xl md:text-3xl font-bold ${theme.text} mb-6 md:mb-8`}>
-                Suggestions
-              </h1>
+              <div className="flex items-center gap-3 mb-6 md:mb-8 cursor-pointer">
+  <button
+                className="rounded-full p-3 transition-all duration-300"
+                style={{ boxShadow: theme.notificationShadow }}
+                 onClick={() => navigate(-1)}
+              >
+                <img
+                  src={BackIcon}
+                  alt="Close"
+                  className="h-4 w-4"
+                  style={{ filter: isDark ? 'brightness(0) invert(1)' : 'brightness(0)' }}
+                />
+              </button>
+
+  <h1 className={`text-2xl md:text-3xl font-bold ${theme.text}`}>
+    Suggestions
+  </h1>
+</div>
+
 
               {loading || !user ? (
                 <div className="flex justify-center items-center py-16">
@@ -366,7 +383,7 @@ useEffect(() => {
                   </p>
                 </div>
               ) : (
-<div className="space-y-4 max-w-6xl mx-auto w-[95%]">
+<div className="space-y-4 max-w-6xl mx-auto w-[80%]">
                   {filteredUsers.map((suggestedUser) => {
                     const userId = suggestedUser._id || suggestedUser.id;
                     const eventCount = eventCountsMap[userId] || 0;
@@ -438,7 +455,7 @@ useEffect(() => {
 className={`px-5 py-2 md:px-6 md:py-2.5 rounded-full text-white text-sm md:text-base font-semibold transition-all duration-200 ${
                             followingMap[userId]
                               ? 'bg-[#44444D] shadow-[0px_3px_6px_rgba(0,0,0,0.25)] hover:bg-[#50505A]'
-                              : 'bg-blue-500 hover:bg-blue-600'
+                              : 'bg-[#249EFF] hover:bg-blue-600'
                           } ${followingStates[userId] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                         >
                           {followingStates[userId] ? (
