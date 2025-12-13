@@ -7,7 +7,11 @@ import SideBar from "../../components/HomePage/SideBar";
 import BottomNavigation from "../../components/HomePage/BottomNavigation";
 import WieLogo from "../../assets/HomePage/WieLogo.svg?url";
 import { toast } from "react-hot-toast";
-import { getMyLiveEventView, getGroupView } from "../../services/ticketService";
+import {
+  getMyLiveEventView,
+  getGroupView,
+  getTicketById,
+} from "../../services/ticketService";
 import {
   Radio,
   ArrowLeft,
@@ -24,105 +28,119 @@ import {
   Bell,
   Ticket,
   TrendingUp,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 
 const HEADER_HEIGHT = 72; // From HomePage
 
 // Main Component
 const LiveEventsPage = () => {
-    const { user } = useSelector((state) => state.auth);
-    const navigate = useNavigate();
-    const { ticketId } = useParams();
-    const [isDark, setIsDark] = useState(true);
-    const [searchValue, setSearchValue] = useState("");
-    // API State Management
-    const [eventData, setEventData] = useState(null);
-    const [groupData, setGroupData] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [groupName, setGroupName] = useState("");
-    // Fetch event data
-    useEffect(() => {
+  const { user } = useSelector((state) => state.auth);
+  const navigate = useNavigate();
+  const { ticketId } = useParams();
+  const [isDark, setIsDark] = useState(true);
+  const [searchValue, setSearchValue] = useState("");
+  // Calendar State
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [showMonthSelector, setShowMonthSelector] = useState(false);
+  const [showYearSelector, setShowYearSelector] = useState(false);
+  // API State Management
+  const [eventData, setEventData] = useState(null);
+  const [groupData, setGroupData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [groupName, setGroupName] = useState("");
+  // Fetch event data
+  useEffect(() => {
     const fetchEventData = async () => {
-        if (!ticketId) {
+      if (!ticketId) {
         setError("Event ID not found in URL parameters.");
         setLoading(false);
         return;
-        }
+      }
 
-        try {
+      try {
         setLoading(true);
         setError(null);
 
-        console.log("Fetching live event data for ticketId:", ticketId);
+        // Fetch ticket data using getTicketById (matches ConfirmEventView)
+        const ticketResponse = await getTicketById(ticketId);
 
-        // Fetch ticket data
-        const ticketResponse = await getMyLiveEventView(ticketId);
-        console.log("Live Event Response:", ticketResponse);
-
-        // Extract event data - API returns { message, ticket }
-        const data = ticketResponse?.ticket;
+        // Extract event data - Handle multiple response structures (Robust extraction)
+        const data =
+          ticketResponse?.ticket ||
+          ticketResponse?.data?.ticket ||
+          ticketResponse?.data ||
+          ticketResponse;
 
         if (!data) {
-            throw new Error("No event data received from server");
+          throw new Error("No event data received from server");
         }
 
         if (!data.event_name) {
-            throw new Error("Invalid event data structure");
+          throw new Error("Invalid event data structure");
         }
-        console.log("Live Event Data:", data);
         setEventData(data);
         // Fetch group data if groupId exists
         if (data.groupId) {
-            try {
+          try {
             const groupResponse = await getGroupView(ticketId);
-            console.log("Group Response:", groupResponse);
-            const fetchedGroupData = groupResponse?.data?.group || groupResponse?.group || groupResponse?.data || groupResponse;
+            const fetchedGroupData =
+              groupResponse?.data?.group ||
+              groupResponse?.group ||
+              groupResponse?.data ||
+              groupResponse;
             setGroupData(fetchedGroupData);
             setGroupName(fetchedGroupData.name || "Unknown Group");
-            } catch (groupErr) {
+          } catch (groupErr) {
             console.warn("Failed to fetch group data:", groupErr);
             // Continue without group data
-            }
+          }
         }
-
-        } catch (err) {
+      } catch (err) {
         console.error("Failed to fetch live event data:", err);
-        const errorMessage = err?.response?.data?.message || err.message || "Failed to load event details.";
+        const errorMessage =
+          err?.response?.data?.message ||
+          err.message ||
+          "Failed to load event details.";
         toast.error(errorMessage);
         setError(errorMessage);
-        } finally {
+      } finally {
         setLoading(false);
-        }
+      }
     };
 
     fetchEventData();
-    }, [ticketId]);
+  }, [ticketId]);
 
-    // Computed values from API data
-    const computedEventData = eventData ? {
-    name: eventData.event_name || "Event Name",
-    creator: eventData.created_by || "Unknown Creator",
-    // These fields might need backend calculation
-    totalRevenue: eventData.total_revenue || "0",
-    totalBooking: eventData.total_bookings || "0",
-    totalCancellation: eventData.total_cancellations || "0",
-    totalLikes: eventData.like || "0",
-    totalShare: eventData.share_count || "0",
-    addOnRevenue: eventData.addon_revenue || "$0",
-    addOnRevenueMonth: eventData.addon_revenue_month || "$0",
-    } : null;
-      // Theme setup from HomePage
-    useEffect(() => {
-        const savedTheme = localStorage.getItem("theme");
-        const systemPrefersDark = window.matchMedia(
-        "(prefers-color-scheme: dark)"
-        ).matches;
-        const shouldBeDark = savedTheme ? savedTheme === "dark" : systemPrefersDark;
-        setIsDark(shouldBeDark);
-        document.documentElement.classList.toggle("dark", shouldBeDark);
-    }, []);
-    const chartData = eventData?.revenue_data || [
+  // Computed values from API data
+  const computedEventData = eventData
+    ? {
+      name: eventData.event_name || "Event Name",
+      creator: eventData.created_by || "Unknown Creator",
+      // These fields might need backend calculation
+      totalRevenue: eventData.total_revenue || "0",
+      totalBooking: eventData.total_bookings || "0",
+      totalCancellation: eventData.total_cancellations || "0",
+      totalLikes: eventData.like || "0",
+      totalShare: eventData.share_count || "0",
+      addOnRevenue: eventData.addon_revenue || "$0",
+      addOnRevenueMonth: eventData.addon_revenue_month || "$0",
+    }
+    : null;
+  // Theme setup from HomePage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    const systemPrefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)",
+    ).matches;
+    const shouldBeDark = savedTheme ? savedTheme === "dark" : systemPrefersDark;
+    setIsDark(shouldBeDark);
+    document.documentElement.classList.toggle("dark", shouldBeDark);
+  }, []);
+  const chartData = eventData?.revenue_data || [
     { month: "JAN", value: 320, height: "h-24" },
     { month: "FEB", value: 320, height: "h-32" },
     { month: "MAR", value: 320, height: "h-28" },
@@ -131,51 +149,49 @@ const LiveEventsPage = () => {
     { month: "JUN", value: 320, height: "h-28" },
     { month: "JUL", value: 320, height: "h-24" },
     { month: "AUG", value: 320, height: "h-16" },
-    ];
-    const generateCalendarDays = () => {
-    if (!eventData?.event_dates?.length) {
-        // Fallback to current week if no event dates
-        const today = new Date();
-        const dayOfWeek = today.getDay();
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - dayOfWeek);
+  ];
+  const generateCalendarDays = () => {
+    // Rely on currentDate state for calendar navigation
+    // We want to show a week or a month? The original code showed a week starting from event date or today.
+    // To support "Calendar Controls" (Month/Year), we usually show the whole month or at least a week within that month.
+    // The user's request is "check for calendar controls... implement the same buttons".
+    // I will anchor the 7-day view to the 'currentDate' state.
 
-        const days = [];
-        for (let i = 0; i < 7; i++) {
-        const date = new Date(startOfWeek);
-        date.setDate(startOfWeek.getDate() + i);
-        days.push({
-            day: date.toLocaleDateString("en-US", { weekday: "short" }).toLowerCase(),
-            date: date.getDate().toString(),
-            active: date.toDateString() === today.toDateString(),
-        });
-        }
-        return days;
-    }
+    // Logic: Show 7 days starting from the beginning of the week of 'currentDate'
+    // OR if we want to show strict days of the selected month/year.
+    // Let's stick to the "week" view but updated by the controls for now, as the grid is 7 cols but only 1 row (based on original code).
+    // Wait, original code: for (let i = 0; i < 7; i++)
 
-    // Use event dates from API
-    const eventDate = new Date(eventData.event_dates[0].start_date);
-    const dayOfWeek = eventDate.getDay();
-    const startOfWeek = new Date(eventDate);
-    startOfWeek.setDate(eventDate.getDate() - dayOfWeek);
+    // Better Approach: 'currentDate' represents the focal point.
+    // If the user changes Month/Year, 'currentDate' updates.
+    // We display the week containing 'currentDate', or just the first 7 days of that month?
+    // Let's display the week containing 'currentDate'.
+
+    const dayOfWeek = currentDate.getDay();
+    const startOfWeek = new Date(currentDate);
+    startOfWeek.setDate(currentDate.getDate() - dayOfWeek);
 
     const days = [];
     for (let i = 0; i < 7; i++) {
-        const date = new Date(startOfWeek);
-        date.setDate(startOfWeek.getDate() + i);
-        days.push({
-        day: date.toLocaleDateString("en-US", { weekday: "short" }).toLowerCase(),
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + i);
+      days.push({
+        day: date
+          .toLocaleDateString("en-US", { weekday: "short" })
+          .toLowerCase(),
         date: date.getDate().toString(),
-        active: date.toDateString() === eventDate.toDateString(),
-        });
+        active: date.toDateString() === currentDate.toDateString(),
+        fullDate: date,
+      });
     }
     return days;
-    };
-    const calendarDays = generateCalendarDays();
-    const addOnEvents = eventData?.sub_events?.map(subEvent => ({
-    name: subEvent.event_name,
-    id: subEvent._id,
-    category: subEvent.event_category,
+  };
+  const calendarDays = generateCalendarDays();
+  const addOnEvents =
+    eventData?.sub_events?.map((subEvent) => ({
+      name: subEvent.event_name,
+      id: subEvent._id,
+      category: subEvent.event_category,
     })) || [];
   const handleThemeToggle = () => {
     const newTheme = !isDark;
@@ -187,37 +203,110 @@ const LiveEventsPage = () => {
   // Theme object from HomePage
   const theme = isDark
     ? {
-        bg: "bg-[#212426]", // Using HomePage dark theme
-        text: "text-white",
-        subText: "text-[#c9c9cf]",
-        cardBg: "bg-[#212426]", // Using HomePage dark theme
-        border: "border-[#23233a]",
-        inputBg: "bg-[#212426]",
-        // Specific colors from screenshot for this page
-        cardBgDarker: "bg-[#1C1C1E]", // A slightly darker card bg from screenshot
-        purpleBtn: "bg-gradient-to-r from-[#6a47fa] to-[#5a3fea]",
-        activePill: "bg-white text-black",
-        inactivePill: "bg-transparent text-white border border-gray-700",
-      }
+      bg: "bg-[#212426]", // Using HomePage dark theme
+      text: "text-white",
+      subText: "text-[#c9c9cf]",
+      cardBg: "bg-[#212426]", // Using HomePage dark theme
+      border: "border-[#23233a]",
+      inputBg: "bg-[#212426]",
+      // Specific colors from screenshot for this page
+      cardBgDarker: "bg-[#1C1C1E]", // A slightly darker card bg from screenshot
+      purpleBtn: "bg-gradient-to-r from-[#6a47fa] to-[#5a3fea]",
+      activePill: "bg-white text-black",
+      inactivePill: "bg-transparent text-white border border-gray-700",
+    }
     : {
-        bg: "bg-[#f0f2f5]",
-        text: "text-gray-900",
-        subText: "text-gray-600",
-        cardBg: "bg-[#ffffff]", // Using white for light mode cards
-        border: "border-[#e4e6ea]",
-        inputBg: "bg-[#ffffff]",
-        // Specific colors for light mode
-        cardBgDarker: "bg-gray-100",
-        purpleBtn: "bg-gradient-to-r from-[#6a47fa] to-[#5a3fea] text-white",
-        activePill: "bg-black text-white",
-        inactivePill: "bg-transparent text-black border border-gray-300",
-      };
+      bg: "bg-[#f0f2f5]",
+      text: "text-gray-900",
+      subText: "text-gray-600",
+      cardBg: "bg-[#ffffff]", // Using white for light mode cards
+      border: "border-[#e4e6ea]",
+      inputBg: "bg-[#ffffff]",
+      // Specific colors for light mode
+      cardBgDarker: "bg-gray-100",
+      purpleBtn: "bg-gradient-to-r from-[#6a47fa] to-[#5a3fea] text-white",
+      activePill: "bg-black text-white",
+      inactivePill: "bg-transparent text-black border border-gray-300",
+    };
 
   // Neumorphism shadow style from HomePage
   const neumorphShadow = {
     boxShadow: isDark
       ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
       : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
+  };
+
+  // Specific shadows from user request (Dark Mode mainly)
+  const controlShadow = isDark
+    ? "4px 4px 12px 0px #00000029, -4px -4px 12px 0px #FFFFFF0A"
+    : "4px 4px 12px 0px rgba(0,0,0,0.1), -4px -4px 12px 0px rgba(255,255,255,0.8)"; // Adapted for light
+
+  const activeDateShadow = isDark
+    ? "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14"
+    : "inset 6px 6px 12px 0px rgba(0,0,0,0.1), inset -6px -6px 12px 0px rgba(255,255,255,0.8)";
+
+  const calendarBg = isDark ? theme.cardBg : "bg-white";
+
+  const months = [
+    "JAN",
+    "FEB",
+    "MAR",
+    "APR",
+    "MAY",
+    "JUN",
+    "JUL",
+    "AUG",
+    "SEP",
+    "OCT",
+    "NOV",
+    "DEC",
+  ];
+
+  const fullMonths = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+
+  const handlePrevMonth = () => {
+    setCurrentDate((d) => {
+      const n = new Date(d);
+      n.setMonth(n.getMonth() - 1);
+      return n;
+    });
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate((d) => {
+      const n = new Date(d);
+      n.setMonth(n.getMonth() + 1);
+      return n;
+    });
+  };
+
+  const handleSelectMonth = (m) => {
+    setCurrentDate((d) => {
+      const n = new Date(d);
+      n.setMonth(m);
+      return n;
+    });
+  };
+
+  const handleSelectYear = (y) => {
+    setCurrentDate((d) => {
+      const n = new Date(d);
+      n.setFullYear(y);
+      return n;
+    });
   };
 
   // A darker/flatter shadow for the inner cards, closer to the screenshot
@@ -232,38 +321,58 @@ const LiveEventsPage = () => {
       ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
       : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
   };
-// Loading State
-if (loading) {
-  return (
-    <div className={`${theme.bg} ${theme.text} min-h-screen flex items-center justify-center`}>
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-        <p className="text-xl">Loading Live Event Data...</p>
-      </div>
-    </div>
-  );
-}
 
-// Error State
-if (error || !eventData) {
-  return (
-    <div className={`${theme.bg} min-h-screen flex flex-col items-center justify-center text-xl text-red-400 p-8`}>
-      <div className="text-center space-y-4">
-        <p className="text-2xl font-bold">Error Loading Event</p>
-        <p className="text-lg">{error || `Event with ID "${ticketId}" not found.`}</p>
-        <div className="text-sm text-gray-400 mt-4">
-          <p>Ticket ID: {ticketId}</p>
+  const calendarSpecificCardStyle = isDark
+    ? { ...cardStyle, borderRadius: "36px" }
+    : {
+      background: "#F1F1F1",
+      borderRadius: "24px",
+      boxShadow: "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
+    };
+  // Loading State
+  if (loading) {
+    return (
+      <div
+        className={`${theme.bg} ${theme.text} min-h-screen flex items-center justify-center`}
+      >
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-xl">Loading Live Event Data...</p>
         </div>
-        <button 
-          onClick={() => navigate(-1)}
-          className="mt-6 px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white"
-        >
-          Go Back
-        </button>
       </div>
-    </div>
-  );
-}
+    );
+  }
+
+  // Error State
+  if (error || !eventData) {
+    return (
+      <div
+        className={`${theme.bg} min-h-screen flex flex-col items-center justify-center text-xl text-red-400 p-8`}
+      >
+        <div className="text-center space-y-4">
+          <p className="text-2xl font-bold">Error Loading Event</p>
+          <p className="text-lg">
+            {error || `Event with ID "${ticketId}" not found.`}
+          </p>
+          <div className="text-sm text-gray-400 mt-4">
+            <p>Ticket ID: {ticketId}</p>
+          </div>
+          <button
+            onClick={() => navigate(-1)}
+            className="mt-6 px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+  const formattedDate = eventData?.event_dates?.[0]?.start_date
+  ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
+      month: "short", 
+      day: "numeric", 
+    })
+  : "N/A";
   return (
     <>
       <style>{`
@@ -273,19 +382,20 @@ if (error || !eventData) {
         .overflow-y-auto::-webkit-scrollbar { width: 8px; }
         body::-webkit-scrollbar-track,
         html::-webkit-scrollbar-track,
-        .overflow-y-auto::-webkit-scrollbar-track { background: ${
-          isDark ? "#1f2937" : "#f1f1f1"
+        .overflow-y-auto::-webkit-scrollbar-track { background: ${isDark ? "#1f2937" : "#f1f1f1"
         }; }
         body::-webkit-scrollbar-thumb,
         html::-webkit-scrollbar-thumb,
-        .overflow-y-auto::-webkit-scrollbar-thumb { background: ${
-          isDark ? "#4b5563" : "#cbd5e1"
+        .overflow-y-auto::-webkit-scrollbar-thumb { background: ${isDark ? "#4b5563" : "#cbd5e1"
         }; border-radius: 10px; }
         body::-webkit-scrollbar-thumb:hover,
         html::-webkit-scrollbar-thumb:hover,
-        .overflow-y-auto::-webkit-scrollbar-thumb:hover { background: ${
-          isDark ? "#6b7280" : "#94a3b8"
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover { background: ${isDark ? "#6b7280" : "#94a3b8"
         }; }
+        /* Hide scrollbar for specific elements */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
       `}</style>
       <div
         className={`${theme.bg} ${theme.text} min-h-screen flex overflow-hidden transition-colors duration-300`}
@@ -332,7 +442,7 @@ if (error || !eventData) {
                   theme={theme}
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
-                  onTuneClick={() => {}}
+                  onTuneClick={() => { }}
                 />
               </div>
               <div className="flex items-center gap-4 ml-auto flex-shrink-0">
@@ -365,9 +475,7 @@ if (error || !eventData) {
                       <span className={`${theme.subText}`}>
                         Created under: {""}
                       </span>
-                      <span className={`${theme.text}`}>
-                        {groupName}
-                      </span>
+                      <span className={`${theme.text}`}>{groupName}</span>
                     </p>
                   </div>
                 </div>
@@ -375,16 +483,6 @@ if (error || !eventData) {
 
               {/* Filter Pills (Right) */}
               <div className="flex items-center gap-3 flex-wrap pb-2 lg:pb-0 mt-4 lg:mt-0">
-                {["All", "Day", "Week", "Month"].map((filter, idx) => (
-                  <button
-                    key={filter}
-                    className={`px-6 py-2 rounded-full text-sm font-medium transition-colors ${
-                      filter === "Week" ? theme.activePill : theme.inactivePill
-                    }`}
-                  >
-                    {filter}
-                  </button>
-                ))}
                 <button
                   className={`px-6 py-2 rounded-full text-sm font-medium transition-colors ${theme.inactivePill} ml-auto lg:ml-0 text-blue-500`}
                 >
@@ -469,14 +567,11 @@ if (error || !eventData) {
                   <h3 className="text-base font-semibold uppercase tracking-wider">
                     Total Booking of Add-On Events
                   </h3>
-                  <div className={`text-base ${theme.subText}`}>
-                    (JAN-AUG) Months
-                  </div>
                 </div>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
                   <div>
                     <div className="text-3xl sm:text-4xl font-bold">
-                        {computedEventData?.addOnRevenue || "$0"}
+                      {computedEventData?.addOnRevenue || "$0"}
                     </div>
                     <div className={`${theme.subText} text-base`}>
                       Total amount
@@ -487,7 +582,7 @@ if (error || !eventData) {
                       Revenue of this month
                     </div>
                     <div className="text-xl font-bold">
-                        {computedEventData?.addOnRevenueMonth || "$0"}
+                      {computedEventData?.addOnRevenueMonth || "$0"}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -529,7 +624,7 @@ if (error || !eventData) {
               {/* Right side: Ticket types, Seating layout, Calendar, and Add-on Events */}
               <div className="lg:col-span-2 flex flex-col gap-8">
                 {/* Top section: Ticket types, Seating layout, and Calendar */}
-                <div className="flex flex-col md:flex-row gap-8">
+                <div className="flex flex-col md:flex-row gap-8 md:gap-2">
                   {/* Ticket types and Seating layout */}
                   <div className="flex flex-row md:flex-col items-center justify-center gap-4">
                     <div className="flex flex-col items-center gap-2">
@@ -542,9 +637,9 @@ if (error || !eventData) {
                     </div>
                     <div className="flex flex-col items-center gap-2">
                       <button
-                        className={`w-16 h-16 rounded-2xl flex items-center justify-center ${theme.bg}`}
+                        className={`w-16 h-16 rounded-2xl flex items-center justify-center ${theme.purpleBtn} text-white`}
                       >
-                        <Armchair />
+                        <Armchair className="w-8 h-8 filter brightness-0 invert" />
                       </button>
                       <span className="text-xs font-medium">
                         Seating layout
@@ -555,28 +650,158 @@ if (error || !eventData) {
                   {/* Calendar */}
                   <div className="flex-1">
                     <div
-                      className={`py-6 px-4 sm:py-10 sm:px-8 rounded-3xl ${theme.cardBgDarker}`}
-                      style={{ ...cardStyle, borderRadius: "36px" }}
+                      className={`h-full p-4 sm:p-6 md:p-1 lg:p-6 ${isDark ? theme.cardBgDarker : ""}`}
+                      style={calendarSpecificCardStyle}
                     >
-                      <div className="flex justify-between items-center mb-6">
-                        <button className={`${theme.subText}`}>&lt;</button>
-                        <div className="font-semibold text-lg">
-                          September 2025
+                      <div className="flex flex-row flex-nowrap overflow-x-auto scrollbar-hide items-center justify-between gap-2 w-full mb-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handlePrevMonth}
+                            style={{
+                              boxShadow: controlShadow,
+                              borderRadius: "30px",
+                            }}
+                            className={`flex items-center justify-center ${calendarBg} w-10 h-10 md:w-12 md:h-12 flex-shrink-0`}
+                          >
+                            <ChevronLeft
+                              className={`${theme.text}`}
+                              size={20}
+                            />
+                          </button>
+                          <button
+                            onClick={handleNextMonth}
+                            style={{
+                              boxShadow: controlShadow,
+                              borderRadius: "30px",
+                            }}
+                            className={`flex items-center justify-center ${calendarBg} w-10 h-10 md:w-12 md:h-12 flex-shrink-0`}
+                          >
+                            <ChevronRight
+                              className={`${theme.text}`}
+                              size={20}
+                            />
+                          </button>
                         </div>
-                        <button className={`${theme.subText}`}>&gt;</button>
+
+                        <div className="flex w-auto items-center gap-2">
+                          {/* Month Selector */}
+                          <div className="relative w-auto">
+                            <button
+                              onClick={() => {
+                                setShowMonthSelector(!showMonthSelector);
+                                setShowYearSelector(false);
+                              }}
+                              style={{
+                                boxShadow: controlShadow,
+                                borderRadius: "30px",
+                                paddingLeft: "12px",
+                                paddingRight: "12px",
+                              }}
+                              className={`flex items-center justify-between ${calendarBg} flex-1 min-w-[90px] h-10 md:h-12`}
+                            >
+                              <span
+                                className={`text-sm font-semibold ${theme.text}`}
+                              >
+                                {fullMonths[currentDate.getMonth()]}
+                              </span>
+                              <ChevronDown
+                                className={`w-4 h-4 ${theme.text}`}
+                              />
+                            </button>
+                            {showMonthSelector && (
+                              <div className="absolute z-20 mt-2 right-0">
+                                <MonthSelector
+                                  currentMonth={currentDate.getMonth()}
+                                  onSelectMonth={(m) => {
+                                    handleSelectMonth(m);
+                                    setShowMonthSelector(false);
+                                  }}
+                                  onClose={() => setShowMonthSelector(false)}
+                                  isDark={isDark}
+                                  theme={theme}
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Year Selector */}
+                          <div className="relative">
+                            <button
+                              onClick={() => {
+                                setShowYearSelector(!showYearSelector);
+                                setShowMonthSelector(false);
+                              }}
+                              style={{
+                                boxShadow: controlShadow,
+                                borderRadius: "30px",
+                                paddingLeft: "12px",
+                                paddingRight: "12px",
+                              }}
+                              className={`flex items-center justify-between ${calendarBg} flex-1 min-w-[80px] h-10 md:h-12`}
+                            >
+                              <span
+                                className={`text-sm font-semibold ${theme.text}`}
+                              >
+                                {currentDate.getFullYear()}
+                              </span>
+                              <ChevronDown
+                                className={`w-4 h-4 ${theme.text}`}
+                              />
+                            </button>
+                            {showYearSelector && (
+                              <div className="absolute z-20 mt-2 right-0">
+                                <YearSelector
+                                  currentYear={currentDate.getFullYear()}
+                                  onSelectYear={(y) => {
+                                    handleSelectYear(y);
+                                    setShowYearSelector(false);
+                                  }}
+                                  onClose={() => setShowYearSelector(false)}
+                                  isDark={isDark}
+                                  theme={theme}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-7 gap-2 text-center">
+                      <div
+                        className={`grid grid-cols-7 gap-1 text-center rounded-3xl p-2 mb-2 mr-6 md:mr-0 ${isDark ? theme.bg : "bg-white"}`}
+                      >
                         {calendarDays.map((day, idx) => (
                           <div
                             key={idx}
-                            className={`flex flex-col items-center p-1 sm:p-2 md:p-3 rounded-lg ${
-                              day.active ? "bg-blue-600 text-white" : ""
-                            }`}
+                            className={`flex flex-col items-center justify-center p-0.5 transition-all duration-300 ${day.active ? "text-white" : ""
+                              }`}
+                            style={
+                              day.active
+                                ? {
+                                  backgroundColor: "#5E5CE6",
+                                  borderRadius: "9999px",
+                                  marginTop: "-2px",
+                                  marginBottom: "-2px",
+                                  zIndex: 10,
+                                  height: "auto",
+                                  minHeight: "50px",
+                                  width: "100%",
+                                  maxWidth: "36px",
+                                  marginLeft: "auto",
+                                  marginRight: "auto",
+                                }
+                                : {
+                                  height: "auto",
+                                  minHeight: "40px",
+                                  width: "100%",
+                                  maxWidth: "36px",
+                                  marginLeft: "auto",
+                                  marginRight: "auto",
+                                }
+                            }
                           >
-                            <span className="text-xs sm:text-sm uppercase mb-1">
+                            <span className="text-[9px] uppercase mb-1 opacity-80">
                               {day.day}
                             </span>
-                            <span className="text-base sm:text-lg md:text-2xl font-bold">
+                            <span className="text-sm md:text-base font-bold">
                               {day.date}
                             </span>
                           </div>
@@ -596,42 +821,94 @@ if (error || !eventData) {
                 </div>
 
                 {/* Add-on Events */}
-                <div className="mt-8">
+                {/* Add-on Events */}
+                <div className="flex-1">
                   <div
-                    className={`py-8 px-6 rounded-3xl ${theme.cardBgDarker} flex flex-col flex-1`}
+                    className={`py-8 px-6 rounded-3xl ${theme.cardBgDarker} flex flex-col h-full`}
                     style={{ ...cardStyle, borderRadius: "36px" }}
                   >
                     <h3 className="text-sm font-semibold uppercase tracking-wider mb-4">
                       Add-On Events
                     </h3>
                     <div className="flex items-center justify-between flex-1 px-4">
-                      <button className={`${theme.subText}`}>&lt;</button>
-                    <div className="flex gap-6 overflow-x-auto">
-                    {addOnEvents.length > 0 ? (
-                        addOnEvents.map((event, idx) => (
-                        <div
-                            key={event.id || idx}
-                            className="flex flex-col items-center gap-2 cursor-pointer hover:scale-105 transition-transform"
-                            onClick={() => {
-                            // Navigate to sub-event details if needed
-                            console.log("Sub-event clicked:", event.name);
-                            }}
-                        >
-                            <div
-                            className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center ${
-                                idx === 2 ? theme.purpleBtn : theme.bg
-                            }`}
-                            >
-                            <Ticket className={`w-6 h-6 sm:w-8 sm:h-8 ${idx === 2 ? 'text-white' : theme.text}`} />
-                            </div>
-                            <span className="text-xs text-center">{event.name}</span>
-                        </div>
-                        ))
-                    ) : (
-                        <p className={`${theme.subText} text-center py-4`}>No add-on events available</p>
-                    )}
-                    </div>
-                      <button className={`${theme.subText}`}>&gt;</button>
+                      <button className={`${theme.subText}`}>
+                        <ChevronLeft />
+                      </button>
+                      <div
+                        className="flex gap-4 overflow-x-auto py-4 scrollbar-hide"
+                        style={{
+                          scrollbarWidth: "none",
+                          msOverflowStyle: "none",
+                        }}
+                      >
+                        {addOnEvents.length > 0 ? (
+                          addOnEvents.map((event, idx) => {
+                            // Style logic adapted from ConfirmEventView
+                            const baseStyle = {
+                              borderRadius: "25.33px",
+                              transition:
+                                "all 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+                            };
+                            const shadowDimensions =
+                              "6.75px 6.75px 10.13px 0px";
+
+                            // Using "inactive" style as base but with 100% opacity for better visibility in a list
+                            // or closely mimicking the "active" style for all since they are just items.
+                            // Let's use a style in between: fully visible but using theme colors.
+
+                            const cardStyle = {
+                              ...baseStyle,
+                              background: isDark ? "#212426" : "#E0E0E0",
+                              border: isDark
+                                ? "0.84px solid #33373A"
+                                : "0.84px solid #D0D0D0",
+                              boxShadow: isDark
+                                ? `${shadowDimensions} #00000015,-${shadowDimensions} #FFFFFF06`
+                                : `${shadowDimensions} #A0A0A040,-${shadowDimensions} #FFFFFF`,
+                            };
+
+                            return (
+                              <div
+                                key={event.id || idx}
+                                className={`flex-shrink-0 lg:w-24 lg:h-36 w-20 h-28 p-2 rounded-xl transition-all duration-300 transform-gpu cursor-pointer hover:scale-105`}
+                                style={cardStyle}
+                                onClick={() => {
+                                  // Handle click if needed
+                                }}
+                              >
+                                <div className="flex flex-col items-center justify-between h-full">
+                                  <div className="lg:w-10 lg:h-10 h-8 w-8 mt-4 rounded-full overflow-hidden flex items-center justify-center bg-white">
+                                    {/* Placeholder Ticket icon or event logo if available */}
+                                    {/* Assuming 'event' might not have a logo property here based on previous map, but if it does we use it.
+                                      Previous code used 'idx === 2 ? theme.purpleBtn' logic. I will stick to a clean icon if no logo.
+                                  */}
+                                    <Ticket className="w-5 h-5 text-black" />
+                                  </div>
+                                  <div
+                                    className={`lg:text-xs text-[10px] font-bold ${isDark ? "text-white" : "text-gray-900"
+                                      } text-center leading-tight mt-2`}
+                                  >
+                                    {event.name}
+                                  </div>
+                                  <p
+                                    className={`text-[10px] text-center ${isDark ? "text-gray-400" : "text-gray-500"
+                                      } leading-none truncate w-full px-1 mb-1`}
+                                  >
+                                    {formattedDate}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <p className={`${theme.subText} text-center py-4`}>
+                            No add-on events available
+                          </p>
+                        )}
+                      </div>
+                      <button className={`${theme.subText}`}>
+                        <ChevronRight />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -674,6 +951,94 @@ if (error || !eventData) {
 
 // --- Sub-Components for this page ---
 
+const getButtonNeumorphicShadows = (isDark) =>
+  isDark
+    ? "shadow-[inset_2px_2px_5px_#1a1b1e,inset_-2px_-2px_5px_#3c3f44]"
+    : "shadow-[inset_-2px_-2px_5px_rgba(0,0,0,0.1),inset_2px_2px_5px_rgba(255,255,255,1)]";
+
+function MonthSelector({
+  currentMonth,
+  onSelectMonth,
+  onClose,
+  style,
+  isDark,
+  theme,
+}) {
+  const months = [
+    "JAN",
+    "FEB",
+    "MAR",
+    "APR",
+    "MAY",
+    "JUN",
+    "JUL",
+    "AUG",
+    "SEP",
+    "OCT",
+    "NOV",
+    "DEC",
+  ];
+  return (
+    <div
+      className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
+        isDark,
+      )} p-1 flex flex-col gap-1 w-24 shadow-lg`}
+      style={style}
+    >
+      {months.map((monthName, index) => (
+        <button
+          key={monthName}
+          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentMonth === index
+            ? "bg-blue-600 text-blue-100"
+            : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
+            }`}
+          onClick={() => {
+            onSelectMonth(index);
+            onClose();
+          }}
+        >
+          {monthName}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function YearSelector({
+  currentYear,
+  onSelectYear,
+  onClose,
+  style,
+  isDark,
+  theme,
+}) {
+  const years = Array.from({ length: 21 }, (_, i) => currentYear - 10 + i);
+  return (
+    <div
+      className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
+        isDark,
+      )} p-1 flex flex-col gap-1 w-24 shadow-lg max-h-[13.5rem] overflow-y-auto`}
+      style={style}
+    >
+      {years.map((yearNum) => (
+        <button
+          key={yearNum}
+          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentYear === yearNum
+            ? "bg-blue-600 text-blue-100"
+            : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
+            }`}
+          onClick={() => {
+            onSelectYear(yearNum);
+            onClose();
+          }}
+        >
+          {yearNum}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const StatCard = ({ theme, shadow, icon, title, value, color = "" }) => {
   return (
     <div className={`p-6 rounded-3xl ${theme.cardBgDarker}`} style={shadow}>
@@ -691,7 +1056,9 @@ const StatCard = ({ theme, shadow, icon, title, value, color = "" }) => {
 const FooterButton = ({ theme, icon, text }) => (
   <button
     className={`flex items-center justify-center text-center gap-3 p-4 rounded-full text-white font-medium text-sm hover:opacity-90 transition-opacity`}
-    style={{ background: 'linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)' }}
+    style={{
+      background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)",
+    }}
   >
     {icon}
     <span>{text}</span>

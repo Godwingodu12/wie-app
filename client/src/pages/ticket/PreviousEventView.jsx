@@ -1,18 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getMe } from "../../services/userService";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
-import {
-  getMyPreviousEventView,
-  getGroupView,
-} from "../../services/ticketService";
+import { getMyPreviousEventView, getGroupView } from "../../services/ticketService";
 import { getImageUrl } from "../../utils/imageUtils";
 import { useSelector } from "react-redux";
 import { toast } from "react-hot-toast";
-import BackArrowIcon from "../../assets/PreviousEventView/BackArrowIcon.svg";
+
 import CalenderIcon from "../../assets/PreviousEventView/CalenderIcon.svg";
 import DownloadIcon from "../../assets/PreviousEventView/DownloadIcon.svg";
 import EarningIcon from "../../assets/PreviousEventView/EarningIcon.svg";
@@ -30,6 +27,9 @@ import LiveEventIcon from "../../assets/PreviousEventView/LiveEventIcon.svg";
 import BankIcon from "../../assets/PreviousEventView/BankIcon.svg";
 import ChatIcon from "../../assets/PreviousEventView/ChatIcon.svg";
 import NotificationIcon from "../../assets/PreviousEventView/NotificationIcon.svg";
+import ImageModal from "../../components/ViewSingleEvent/ImageModal";
+import { ChevronLeft } from "lucide-react";
+
 
 const HEADER_HEIGHT = 72;
 
@@ -67,12 +67,12 @@ const CustomScrollbarStyles = () => (
     }
 
     .scrollbar-thin::-webkit-scrollbar-thumb {
-      background-color: #4b5563;
+      background-color: #6a47fa;
       border-radius: 3px;
     }
 
     .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-      background-color: #6b7280;
+      background-color: #5a3fea;
     }
 
     /* hide scrollbar for overflow-x containers where we want to allow touch scroll only */
@@ -118,9 +118,7 @@ const PreviousEventView = () => {
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
-    const systemPrefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)"
-    ).matches;
+    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const shouldBeDark = savedTheme ? savedTheme === "dark" : systemPrefersDark;
     setIsDark(shouldBeDark);
     document.documentElement.classList.toggle("dark", shouldBeDark);
@@ -134,8 +132,7 @@ const PreviousEventView = () => {
   };
   useEffect(() => {
     const fetchAndSetData = async () => {
-      if (!ticketId) {
-        // or ticketId depending on your route parameter
+      if (!ticketId) { // or ticketId depending on your route parameter
         setError("Event ID not found in URL parameters.");
         setLoading(false);
         return;
@@ -171,23 +168,17 @@ const PreviousEventView = () => {
             const groupResponse = await getGroupView(data.groupId);
             console.log("Group Response:", groupResponse);
 
-            const fetchedGroupData =
-              groupResponse?.data?.group ||
-              groupResponse?.group ||
-              groupResponse?.data ||
-              groupResponse;
+            const fetchedGroupData = groupResponse?.data?.group || groupResponse?.group || groupResponse?.data || groupResponse;
             setGroupData(fetchedGroupData);
           } catch (groupErr) {
             console.warn("Failed to fetch group data:", groupErr);
             // Continue without group data
           }
         }
+
       } catch (err) {
         console.error("Failed to fetch event data:", err);
-        const errorMessage =
-          err?.response?.data?.message ||
-          err.message ||
-          "Failed to load event details.";
+        const errorMessage = err?.response?.data?.message || err.message || "Failed to load event details.";
         toast.error(errorMessage);
         setError(errorMessage);
       } finally {
@@ -200,32 +191,49 @@ const PreviousEventView = () => {
 
   const theme = isDark
     ? {
-        bg: "bg-[#212426]",
-        text: "text-white",
-        subText: "text-[#c9c9cf]",
-        cardBg: "bg-[#212426]",
-        innerCardBg: "bg-[#24272d]",
-        border: "border-gray-700/30",
-        cardShadow: "-2px -2px 10px 0px #63636336,5px 6px 9px 0px #00000075",
-        smallCardShadow: "-2px -2px 10px 0px #63636336,5px 6px 9px 0px #00000075",
-        insetShadow: "inset 0 4px 12px rgba(0,0,0,0.5)",
-        buttonShadow:
-          "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)",
-      }
+      bg: "bg-[#212426]",
+      text: "text-white",
+      subText: "text-[#c9c9cf]",
+      cardBg: "bg-[#212426]",
+      innerCardBg: "bg-[#24272d]",
+      border: "border-gray-700/30",
+      cardShadow: "7px 7px 14px #1c1f20,-7px -7px 14px #26292c",
+      smallCardShadow: "7px 7px 14px #1c1f20,-7px -7px 14px #26292c",
+      insetShadow: "inset 0 4px 12px rgba(0,0,0,0.5)",
+      buttonShadow: "inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(60,60,60,0.3)"
+    }
     : {
-        bg: "bg-[#f9f9f9]",
-        text: "text-gray-900",
-        subText: "text-gray-600",
-        cardBg: "bg-[#ffffff]",
-        innerCardBg: "bg-[#f1f1f1]",
-        border: "border-gray-300",
-        cardShadow:
-          "-2px -2px 10px 0px #63636336, 5px 6px 9px 0px #00000075",
-        smallCardShadow: "6px 6px 12px #6a6a6a,-6px -6px 12px #ffffff",
-        insetShadow: "-2px -2px 10px 0px #63636336 inset,5px 6px 9px 0px #00000075 inset",
-        buttonShadow:
-          "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
-      };
+      bg: "bg-[#f9f9f9]",
+      text: "text-gray-900",
+      subText: "text-gray-600",
+      cardBg: "bg-[#f2f2f2]",
+      innerCardBg: "bg-gray-50",
+      border: "border-gray-300",
+      cardShadow: "8px 8px 24px rgba(0,0,0,0.1), -8px -8px 24px rgba(255,255,255,0.8)",
+      smallCardShadow: "6px 6px 12px #6a6a6a,-6px -6px 12px #ffffff",
+      insetShadow: "inset 0 2px 8px rgba(0,0,0,0.1)",
+      buttonShadow: "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)"
+    };
+
+  // Neumorphism shadow style from LiveEventView
+  const neumorphShadow = {
+    boxShadow: isDark
+      ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
+      : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
+  };
+
+  // A darker/flatter shadow for the inner cards, derived from LiveEventView
+  const cardStyle = {
+    border: "3px solid transparent",
+    backgroundImage: isDark
+      ? "linear-gradient(#212426, #212426), linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%)"
+      : "linear-gradient(#F1F1F1, #F1F1F1), linear-gradient(286.41deg, #e8e8e8 -2.79%, #f5f5f5 101.27%)",
+    backgroundOrigin: "border-box",
+    backgroundClip: "padding-box, border-box",
+    boxShadow: isDark
+      ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
+      : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
+  };
 
   const chartData = [
     { month: "JAN", value: "320k", percentage: 55 },
@@ -235,48 +243,106 @@ const PreviousEventView = () => {
     { month: "MAY", value: "320k", percentage: 85 },
     { month: "JUN", value: "320k", percentage: 70 },
     { month: "JUL", value: "320k", percentage: 80 },
-    { month: "AUG", value: "320k", percentage: 95 },
+    { month: "AUG", value: "320k", percentage: 95 }
   ];
 
   const quarters = [
-    {
-      period: "January - August",
-      bookings: "6552",
-      earnings: "645721",
-      percentage: 54,
-    },
-    {
-      period: "August - October",
-      bookings: "6552",
-      earnings: "645721",
-      percentage: 54,
-    },
-    {
-      period: "October - December",
-      bookings: "6552",
-      earnings: "645721",
-      percentage: 54,
-    },
+    { period: "January - August", bookings: "6552", earnings: "645721", percentage: 54 },
+    { period: "August - October", bookings: "6552", earnings: "645721", percentage: 54 },
+    { period: "October - December", bookings: "6552", earnings: "645721", percentage: 54 }
   ];
 
   const addOnEvents = [
     { name: "Cricket", icon: "🏏" },
     { name: "Drama", icon: "🎭" },
-    { name: "Music", icon: "🎵" },
+    { name: "Music", icon: "🎵" }
   ];
 
-  const [activeIndex, setActiveIndex] = useState(
-    Math.floor(addOnEvents.length / 2 || 1)
-  );
+  const [activeIndex, setActiveIndex] = useState(Math.floor(addOnEvents.length / 2 || 1));
 
-  const prevAddOn = () =>
-    setActiveIndex((i) => (i - 1 + addOnEvents.length) % addOnEvents.length);
+  const prevAddOn = () => setActiveIndex((i) => (i - 1 + addOnEvents.length) % addOnEvents.length);
   const nextAddOn = () => setActiveIndex((i) => (i + 1) % addOnEvents.length);
+
+  // Image Modal Logic
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const allImages = useMemo(() => {
+    // Collect all images: banner, logo, and event_images
+    const images = [];
+
+    // Add banner if exists
+    if (eventData?.event_banner) {
+      const bannerUrl = getImageUrl(eventData.event_banner, "ticket");
+      images.push({
+        path: bannerUrl,
+        type: "banner",
+        name: "Event Banner",
+        originalName: "Event Banner",
+      });
+    }
+
+    // Add logo if exists
+    if (eventData?.event_logo) {
+      const logoUrl =
+        eventData.event_logo.startsWith("http://") ||
+          eventData.event_logo.startsWith("https://")
+          ? eventData.event_logo
+          : getImageUrl(eventData.event_logo, "ticket");
+
+      images.push({
+        path: logoUrl,
+        type: "logo",
+        name: "Event Logo",
+        originalName: "Event Logo",
+      });
+    }
+
+    // Add event_images if exist
+    if (eventData?.event_images?.length > 0) {
+      eventData.event_images.forEach((img, index) => {
+        const imgPath = img.path || img;
+        const imgUrl =
+          imgPath.startsWith("http://") || imgPath.startsWith("https://")
+            ? imgPath
+            : getImageUrl(imgPath, "ticket");
+
+        images.push({
+          path: imgUrl,
+          type: "event_image",
+          name: img.originalName || `Event Image ${index + 1}`,
+          originalName: img.originalName || `Event Image ${index + 1}`,
+        });
+      });
+    }
+    return images;
+  }, [eventData]);
+
+  const handleEventLogoClick = () => {
+    if (allImages.length > 0) {
+      setCurrentImageIndex(0);
+      setShowImageModal(true);
+    } else {
+      toast.error("No images available for preview.");
+    }
+  };
+
+  const handleNextImage = () => {
+    if (allImages.length === 0) return;
+    setCurrentImageIndex((prev) => (prev + 1) % allImages.length);
+  };
+
+  const handlePrevImage = () => {
+    if (allImages.length === 0) return;
+    setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
+  };
+
+
   if (loading) {
     return (
       <div
         className={`min-h-screen flex items-center justify-center text-xl ${theme.text}`}
-        style={{ backgroundColor: theme.bg.replace("bg-", "") }}
+        style={{ backgroundColor: theme.bg.replace('bg-', '') }}
       >
         Loading Previous Event Data...
       </div>
@@ -287,13 +353,11 @@ const PreviousEventView = () => {
     return (
       <div
         className={`min-h-screen flex flex-col items-center justify-center text-xl text-red-400 p-8`}
-        style={{ backgroundColor: theme.bg.replace("bg-", "") }}
+        style={{ backgroundColor: theme.bg.replace('bg-', '') }}
       >
         <div className="text-center space-y-4">
           <p className="text-2xl font-bold">Error Loading Event</p>
-          <p className="text-lg">
-            {error || `Event with ID "${ticketId}" not found.`}
-          </p>
+          <p className="text-lg">{error || `Event with ID "${ticketId}" not found.`}</p>
           <div className="text-sm text-gray-400 mt-4">
             <p>Event ID: {ticketId}</p>
           </div>
@@ -306,33 +370,21 @@ const PreviousEventView = () => {
         </div>
       </div>
     );
-  }
+  };
 
+  // Continue with your existing JSX...
   return (
     <>
       <CustomScrollbarStyles />
-      <div
-        className={`${theme.bg} min-h-screen flex flex-col text-sm transition-colors duration-300`}
-      >
+      <div className={`${theme.bg} min-h-screen flex flex-col text-sm transition-colors duration-300`}>
         {/* Header */}
-        <header
-          className={`flex items-center justify-between px-3 md:px-6 border-b ${theme.border}`}
-          style={{ height: HEADER_HEIGHT }}
-        >
+        <header className={`flex items-center justify-between px-3 md:px-6 border-b ${theme.border}`} style={{ height: HEADER_HEIGHT }}>
           <div className="flex items-center gap-2 md:gap-4 w-full">
             <div className="flex items-center gap-2 md:gap-4 flex-1">
-              <img
-                src={WieLogo}
-                alt="Wie Logo"
-                className="w-8 h-8 md:w-10 md:h-10"
-              />
+              <img src={WieLogo} alt="Wie Logo" className="w-8 h-8 md:w-10 md:h-10" />
               {/* Desktop search stays in header (hidden on mobile) */}
               <div className="hidden md:flex flex-1 min-w-0">
-                <SearchBar
-                  theme={theme}
-                  value={searchValue}
-                  onChange={(e) => setSearchValue(e.target.value)}
-                />
+                <SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} />
               </div>
             </div>
             {/* Desktop: Theme toggle */}
@@ -347,7 +399,7 @@ const PreviousEventView = () => {
                   backgroundColor: isDark ? "#212426" : "#FFFFFF",
                   boxShadow: isDark
                     ? "inset -2px -2px 5px rgba(255,255,255,0.05), inset 2px 2px 5px rgba(0,0,0,0.6)"
-                    : "inset -2px -2px 5px rgba(255,255,255,0.9), inset 2px 2px 5px rgba(0,0,0,0.2)",
+                    : "inset -2px -2px 5px rgba(255,255,255,0.9), inset 2px 2px 5px rgba(0,0,0,0.2)"
                 }}
                 aria-label="Notifications"
               >
@@ -355,8 +407,7 @@ const PreviousEventView = () => {
                   src={NotificationIcon}
                   alt="Notification"
                   className="w-5 h-5"
-                  style={{ filter: isDark ? "invert(0)" : "invert(1)" }}
-                />
+                  style={{ filter: isDark ? "invert(0)" : "invert(1)" }} />
               </button>
 
               <button
@@ -365,7 +416,7 @@ const PreviousEventView = () => {
                   backgroundColor: isDark ? "#212426" : "#FFFFFF",
                   boxShadow: isDark
                     ? "inset -2px -2px 5px rgba(255,255,255,0.05), inset 2px 2px 5px rgba(0,0,0,0.6)"
-                    : "inset -2px -2px 5px rgba(255,255,255,0.9), inset 2px 2px 5px rgba(0,0,0,0.2)",
+                    : "inset -2px -2px 5px rgba(255,255,255,0.9), inset 2px 2px 5px rgba(0,0,0,0.2)"
                 }}
                 aria-label="Chat"
               >
@@ -377,6 +428,8 @@ const PreviousEventView = () => {
                 />
               </button>
             </div>
+
+
           </div>
         </header>
 
@@ -389,48 +442,26 @@ const PreviousEventView = () => {
                 className="hidden md:flex w-10 h-10 md:w-12 md:h-12 bg-[linear-gradient(180.23deg,_#1E1242_-0.04%,_#6549B8_99.57%)] rounded-full items-center justify-center hover:scale-105 transition"
                 aria-label="back"
               >
-                <img
-                  src={BackArrowIcon}
-                  alt="Back"
-                  className="w-5 h-5 md:w-6 md:h-6"
-                />
+                <ChevronLeft className="w-5 h-5 md:w-6 md:h-6 text-white" />
               </button>
 
               {/* Desktop title (unchanged) */}
-              <h1
-                className={`text-xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}
-              >
-                Previous Event
-              </h1>
+              <h1 className={`text-xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>Previous Event</h1>
             </div>
 
             {/* MOBILE: Search bar under the top row */}
             <div className="md:hidden mb-4">
-              <SearchBar
-                theme={theme}
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-              />
+              <SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} />
             </div>
 
-            <div
-              className={`rounded-2xl md:rounded-3xl p-4 md:p-6 lg:p-10`}
-              style={{
-                backgroundColor: theme.cardBg.replace("bg-", ""),
-                boxShadow: theme.cardShadow,
-              }}
-            >
+            <div className={`rounded-2xl md:rounded-3xl p-4 md:p-6 lg:p-10`} style={cardStyle}>
               {/* Event category row (desktop: above, mobile: we'll show mobile-specific below) */}
               <div className="hidden md:flex items-center justify-start gap-2 md:gap-4 mb-3">
-                <span
-                  className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}
-                >
+                <span className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}>
                   {eventData.event_category?.toUpperCase()}
                 </span>
                 <span className={theme.subText}>|</span>
-                <span
-                  className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}
-                >
+                <span className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}>
                   {eventData.event_subcategory?.toUpperCase()}
                 </span>
               </div>
@@ -439,49 +470,38 @@ const PreviousEventView = () => {
               <div className="relative mb-6 md:mb-8">
                 {/* MOBILE: Title, subheading + public, center image, then pill-like location/date stacked */}
                 <div className="md:hidden flex flex-col items-center gap-3">
-                  <h2
-                    className={`text-xl font-extrabold tracking-wider text-center ${theme.text}`}
-                  >
+                  <h2 className={`text-xl font-extrabold tracking-wider text-center ${theme.text}`}>
                     {eventData.event_name?.toUpperCase() || "EVENT NAME"}
                   </h2>
                   {/* subheading + public in one line */}
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}
-                    >
+                    <span className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}>
                       {eventData.event_category?.toUpperCase()}
                     </span>
-                    <span
-                      className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}
-                    >
+                    <span className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}>
                       {eventData.event_subcategory?.toUpperCase()}
                     </span>
                     <div className="flex items-center gap-2 ml-2">
                       <img src={PublicIcon} alt="Public" className="w-4 h-4" />
-                      <span
-                        className={`font-semibold text-sm md:text-lg ${theme.text}`}
-                      >
-                        {eventData.event_type === "private"
-                          ? "Private"
-                          : "Public"}
+                      <span className={`font-semibold text-sm md:text-lg ${theme.text}`}>
+                        {eventData.event_type === "private" ? "Private" : "Public"}
                       </span>
                     </div>
                   </div>
                   <div
-                    className="rounded-full border-4 bg-black flex items-center justify-center"
+                    onClick={handleEventLogoClick}
+                    className="rounded-full border-4 bg-black flex items-center justify-center cursor-pointer hover:scale-105 transition-transform overflow-hidden"
                     style={{
                       width: "clamp(72px, 18vw, 100px)",
                       height: "clamp(72px, 18vw, 100px)",
-                      boxShadow: "0 12px 30px rgba(0,0,0,0.6)",
+                      boxShadow: "0 12px 30px rgba(0,0,0,0.6)"
                     }}
                   >
                     <img
-                      src={getImageUrl(eventData.event_logo)}
-                      alt="event_logo"
-                      style={{
-                        width: "clamp(40px, 10vw, 56px)",
-                        height: "clamp(40px, 10vw, 56px)",
-                      }}
+                      src={getImageUrl(eventData.event_banner)}
+                      alt="event_banner"
+                      className="w-full h-full object-cover rounded-full"
+                      style={{ width: "100%", height: "100%" }}
                     />
                   </div>
 
@@ -501,8 +521,7 @@ const PreviousEventView = () => {
                         <div
                           className="absolute -top-4 -left-3 w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
                           style={{
-                            background:
-                              "linear-gradient(180.23deg, #8b5cf6 0%, #6366f1 100%)",
+                            background: "linear-gradient(180.23deg, #8b5cf6 0%, #6366f1 100%)",
                           }}
                         >
                           <img src={MapIcon} alt="map" className="w-6 h-6" />
@@ -531,19 +550,15 @@ const PreviousEventView = () => {
                     >
                       {/* Inline date text */}
                       <div className="flex items-center gap-1 pl-2">
-                        <span className={`text-xs ${theme.subText}`}>
-                          Event on :
-                        </span>
+                        <span className={`text-xs ${theme.subText}`}>Event on :</span>
                         <span className={`font-bold text-sm ${theme.text}`}>
                           {eventData.event_dates?.[0]?.start_date
-                            ? new Date(
-                                eventData.event_dates[0].start_date
-                              ).toLocaleDateString("en-US", {
-                                day: "2-digit",
-                                month: "long",
-                                year: "numeric",
-                                timeZone: "UTC",
-                              })
+                            ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
+                              day: "2-digit",
+                              month: "long",
+                              year: "numeric",
+                              timeZone: "UTC",
+                            })
                             : "Date TBA"}
                         </span>
                       </div>
@@ -551,39 +566,26 @@ const PreviousEventView = () => {
                       <div
                         className="absolute  -right-3 w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
                         style={{
-                          background:
-                            "linear-gradient(180.23deg, #8b5cf6 0%, #6366f1 100%)",
+                          background: "linear-gradient(180.23deg, #8b5cf6 0%, #6366f1 100%)",
                         }}
                       >
-                        <img
-                          src={CalenderIcon}
-                          alt="calendar"
-                          className="w-5 h-5"
-                        />
+                        <img src={CalenderIcon} alt="calendar" className="w-5 h-5" />
                       </div>
                     </div>
                   </div>
+
+
                 </div>
 
                 {/* Desktop: Public badge (keeps original desktop look) */}
                 <div className="absolute -top-4 md:-top-6 right-0 hidden md:flex items-center gap-2">
-                  <img
-                    src={PublicIcon}
-                    className={`w-5 h-5 md:w-6 md:h-6 ${
-                      !isDark ? "filter brightness-0" : ""
-                    }`}
-                    alt="Public"
-                  />
-                  <span
-                    className={`font-semibold text-sm md:text-lg ${theme.text}`}
-                  >
+                  <img src={PublicIcon} className={`w-5 h-5 md:w-6 md:h-6 ${!isDark ? 'filter brightness-0' : ''}`} alt="Public" />
+                  <span className={`font-semibold text-sm md:text-lg ${theme.text}`}>
                     {eventData.event_type === "private" ? "Private" : "Public"}
                   </span>
                 </div>
                 {/* Desktop Title (keep for desktop only) */}
-                <h2
-                  className={`hidden md:block text-xl md:text-2xl lg:text-3xl font-extrabold tracking-wider mb-3 text-center pb-4 ${theme.text}`}
-                >
+                <h2 className={`hidden md:block text-xl md:text-2xl lg:text-3xl font-extrabold tracking-wider mb-3 text-center pb-4 ${theme.text}`}>
                   {eventData.event_name?.toUpperCase() || "EVENT NAME"}
                 </h2>
                 {/* Event details bar - Desktop only (hidden on mobile because mobile has stacked pills) */}
@@ -591,72 +593,46 @@ const PreviousEventView = () => {
                   <div className="mx-auto w-full md:w-[85%] lg:w-[80%]">
                     <div
                       className={`rounded-xl md:rounded-2xl px-4 md:px-8 py-3 md:py-4 flex flex-col md:flex-row items-center justify-between gap-3 md:gap-0 hidden md:flex`}
-                      style={{
-                        backgroundColor: theme.innerCardBg.replace("bg-", ""),
-                        boxShadow: theme.insetShadow,
-                        minHeight: "60px",
-                      }}
+                      style={{ backgroundColor: theme.innerCardBg.replace('bg-', ''), boxShadow: theme.insetShadow, minHeight: '60px' }}
                     >
                       {/* Location */}
-                      <div className="flex items-center gap-2 md:gap-3 md:pl-[95px]">
-                        <h3
-                          className={`font-semibold text-sm md:text-base ${theme.text}`}
-                        >
-                          {eventData.venue || "Online/Recorded"}
-                        </h3>
-                        <span className={`text-xs md:text-sm ${theme.subText}`}>
-                          {eventData.location || "Online/Recorded"}
-                        </span>
+                      <div className="flex items-center gap-2 md:gap-3 md:pl-[50px] lg:pl-[95px]">
+                        <h3 className={`font-semibold text-sm md:text-base ${theme.text}`}>{eventData.venue || "Online/Recorded"}</h3>
+                        <span className={`text-xs md:text-sm md:pr-[20px] ${theme.subText}`}>{eventData.location || "Online/Recorded"}</span>
                       </div>
 
                       {/* Date */}
-                      <div className="flex items-center gap-2 md:gap-3 md:pr-[95px]">
-                        <img
-                          src={CalenderIcon}
-                          className={`w-4 h-4 md:w-5 md:h-5 ${
-                            !isDark ? "filter brightness-0" : ""
-                          }`}
-                          alt="Calendar"
-                        />
+                      <div className="flex items-center gap-2 md:gap-3 md:pr-[50px] lg:pr-[95px]">
+                        <img src={CalenderIcon} className={`w-4 h-4 md:w-5 md:h-5 ${!isDark ? 'filter brightness-0' : ''}`} alt="Calendar" />
                         <span className={`font-bold text-sm ${theme.text}`}>
                           {eventData.event_dates?.[0]?.start_date
-                            ? new Date(
-                                eventData.event_dates[0].start_date
-                              ).toLocaleDateString("en-US", {
-                                day: "2-digit",
-                                month: "long",
-                                year: "numeric",
-                                timeZone: "UTC",
-                              })
+                            ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
+                              day: "2-digit",
+                              month: "long",
+                              year: "numeric",
+                              timeZone: "UTC",
+                            })
                             : "Date TBA"}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Floating icons - Desktop only */}
-                  <div className="hidden lg:block">
+                  {/* Floating icons - Desktop / Tablet */}
+                  <div className="hidden md:block">
                     {/* left floating */}
                     <div
                       className="absolute top-1/2 transform -translate-y-1/2 flex items-center justify-center rounded-full"
                       style={{
-                        left: "calc(50% - 38% - 6rem)", // keeps it around the left side of center; tweak if needed
-                        width: "clamp(56px, 8vw, 100px)",
-                        height: "clamp(56px, 8vw, 100px)",
+                        left: "2%", // Adjusted for tablet/desktop visibility
+                        width: "clamp(50px, 7vw, 90px)",
+                        height: "clamp(50px, 7vw, 90px)",
                         boxShadow: "0 8px 20px rgba(0,0,0,0.6)",
                         zIndex: 20,
-                        background:
-                          "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)",
+                        background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)"
                       }}
                     >
-                      <img
-                        src={MapIcon}
-                        alt="Map"
-                        style={{
-                          width: "clamp(36px, 6vw, 60px)",
-                          height: "clamp(36px, 6vw, 60px)",
-                        }}
-                      />
+                      <img src={MapIcon} alt="Map" style={{ width: "clamp(32px, 5vw, 50px)", height: "clamp(32px, 5vw, 50px)" }} />
                     </div>
 
                     {/* center floating */}
@@ -665,17 +641,18 @@ const PreviousEventView = () => {
                       style={{ zIndex: 30 }}
                     >
                       <div
-                        className="rounded-full border-4 bg-black flex items-center justify-center"
+                        onClick={handleEventLogoClick}
+                        className="rounded-full border-4 bg-black flex items-center justify-center cursor-pointer hover:scale-105 transition-transform pointer-events-auto overflow-hidden"
                         style={{
                           width: "clamp(64px, 12vw, 100px)",
                           height: "clamp(64px, 12vw, 100px)",
-                          boxShadow: "0 12px 30px rgba(0,0,0,0.6)",
+                          boxShadow: "0 12px 30px rgba(0,0,0,0.6)"
                         }}
                       >
                         <img
-                          src={getImageUrl(eventData.event_logo)}
-                          alt="Event Logo"
-                          className="w-full h-full object-cover"
+                          src={getImageUrl(eventData.event_banner)}
+                          alt="Event Banner"
+                          className="w-full h-full object-cover rounded-full"
                         />
                       </div>
                     </div>
@@ -684,22 +661,21 @@ const PreviousEventView = () => {
                     <div
                       className="absolute top-1/2 transform -translate-y-1/2 flex items-center justify-center rounded-full"
                       style={{
-                        right: "calc(50% - 38% - 6rem)",
-                        width: "clamp(56px, 8vw, 100px)",
-                        height: "clamp(56px, 8vw, 100px)",
+                        right: "2%", // Adjusted for tablet/desktop visibility
+                        width: "clamp(50px, 7vw, 90px)",
+                        height: "clamp(50px, 7vw, 90px)",
                         boxShadow: "0 8px 20px rgba(0,0,0,0.6)",
                         zIndex: 20,
-                        background:
-                          "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)",
+                        background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)"
                       }}
                     >
                       <img
                         src={CalenderIcon}
                         alt="Calendar"
                         style={{
-                          width: "clamp(36px, 6vw, 50px)",
-                          height: "clamp(36px, 6vw, 50px)",
-                          filter: "brightness(0) invert(1)",
+                          width: "clamp(32px, 5vw, 42px)",
+                          height: "clamp(32px, 5vw, 42px)",
+                          filter: "brightness(0) invert(1)"
                         }}
                       />
                     </div>
@@ -710,124 +686,63 @@ const PreviousEventView = () => {
               {/* Stats and chart grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 lg:gap-8 mb-6 md:mb-8">
                 {/* Stats card */}
-                <div
-                  className={`rounded-2xl md:rounded-3xl px-4 md:px-6 lg:px-8 py-4 md:py-6`}
-                  style={{
-                    backgroundColor: theme.innerCardBg,
-                    boxShadow: theme.smallCardShadow,
-                  }}
-                >
+                {/* Stats card */}
+                <div className={`rounded-2xl md:rounded-3xl px-4 md:px-6 lg:px-8 py-4 md:py-6`} style={{ ...cardStyle }}>
                   <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
                     {/* BoxIcon: show only on large desktop to preserve original desktop UI and hide on mobile/ipad */}
-                    <img
-                      src={BoxIcon}
-                      alt="Stats"
-                      className={`hidden sm:block  lg:block w-5 h-5 md:w-6 md:h-6 transition duration-300 ${
-                        isDark ? "invert" : "brightness-0"
-                      }`}
-                    />
-                    <h3
-                      className={`hidden sm:block text-lg md:text-xl lg:text-2xl font-bold tracking-wide ${theme.text}`}
-                    >
-                      {eventData.event_name}
-                    </h3>
+                    <img src={BoxIcon} alt="Stats" className={`hidden sm:block  lg:block w-5 h-5 md:w-6 md:h-6 transition duration-300 ${isDark ? 'invert' : 'brightness-0'}`} />
+                    <h3 className={`hidden sm:block text-lg md:text-xl lg:text-2xl font-bold tracking-wide ${theme.text}`}>{eventData.event_name}</h3>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 lg:gap-6 w-full">
                     {[
-                      {
-                        title: "Total event earnings",
-                        value: "645721",
-                        accent: "text-emerald-400",
-                        icon: EarningIcon,
-                      },
-                      {
-                        title: "Total bookings",
-                        value: "6552",
-                        accent: "text-blue-400",
-                        icon: TicketIcon,
-                        isBlue: true,
-                      },
-                      {
-                        title: "Total cancellation",
-                        value: "24",
-                        accent: "text-red-400",
-                        icon: CancelIcon,
-                      },
-                      {
-                        title: "People liked",
-                        value: "7.2 K",
-                        accent: "text-red-400",
-                        icon: LikeIcon,
-                      },
-                      {
-                        title: "People Shared",
-                        value: "2.8 K",
-                        accent: "text-blue-400",
-                        icon: ShareIcon,
-                        needsInvert: true,
-                      },
-                      {
-                        title: "Tag Count",
-                        value: "8.5 K",
-                        accent: isDark ? "text-white" : "text-gray-900",
-                        icon: TagIcon,
-                        needsInvert: true,
-                      },
+                      { title: "Total event earnings", value: "645721", accent: "text-emerald-400", icon: EarningIcon },
+                      { title: "Total bookings", value: "6552", accent: "text-blue-400", icon: TicketIcon, isBlue: true },
+                      { title: "Total cancellation", value: "24", accent: "text-red-400", icon: CancelIcon },
+                      { title: "People liked", value: "7.2 K", accent: "text-red-400", icon: LikeIcon },
+                      { title: "People Shared", value: "2.8 K", accent: "text-blue-400", icon: ShareIcon, needsInvert: true },
+                      { title: "Tag Count", value: "8.5 K", accent: isDark ? "text-white" : "text-gray-900", icon: TagIcon, needsInvert: true }
                     ].map((st, i) => (
                       <div
                         key={i}
                         className={`relative rounded-2xl md:rounded-3xl p-3 md:p-4 lg:p-6 flex flex-col justify-between w-full h-full`}
-                        style={{
-                          backgroundColor: theme.innerCardBg.replace("bg-", ""),
-                          boxShadow: theme.smallCardShadow,
-                          minHeight: "90px",
-                        }}
+                        style={{ ...cardStyle, minHeight: '90px' }}
                       >
                         <img
                           src={st.icon}
                           alt=""
-                          className={`w-4 h-4 md:w-5 md:h-5 absolute top-3 md:top-6 right-2 md:right-3 ${
-                            st.isBlue
-                              ? ""
-                              : st.needsInvert && !isDark
-                              ? "filter brightness-0"
-                              : "opacity-80"
-                          }`}
+                          className={`w-4 h-4 md:w-5 md:h-5 absolute top-3 md:top-6 right-2 md:right-3 ${st.isBlue ? "" : st.needsInvert && !isDark ? "filter brightness-0" : "opacity-80"
+                            }`}
                           style={
                             st.isBlue
                               ? {
-                                  filter:
-                                    "invert(41%) sepia(93%) saturate(7491%) hue-rotate(205deg) brightness(100%) contrast(105%)",
-                                }
+                                filter:
+                                  "invert(41%) sepia(93%) saturate(7491%) hue-rotate(205deg) brightness(100%) contrast(105%)"
+                              }
                               : {}
                           }
                         />
 
                         <div className="mb-1 pr-6 md:pr-8">
-                          <span
-                            className={`text-xs md:text-sm leading-tight block ${theme.subText}`}
-                          >
+                          <span className={`text-xs md:text-sm leading-tight block ${theme.subText}`}>
                             {st.title}
                           </span>
                         </div>
 
                         <div className="flex items-end justify-between pt-1 md:pt-2 pb-1 md:pb-2">
-                          <div
-                            className={`text-xl md:text-2xl lg:text-[2.3rem] font-extrabold ${st.accent}`}
-                          >
+                          <div className={`text-xl md:text-2xl lg:text-[2.3rem] font-extrabold ${st.accent}`}>
                             {st.title === "Total event earnings"
                               ? eventData.total_earnings || "0"
                               : st.title === "Total bookings"
-                              ? eventData.total_bookings || "0"
-                              : st.title === "Total cancellation"
-                              ? eventData.total_cancellations || "0"
-                              : st.title === "People liked"
-                              ? eventData.like || "0"
-                              : st.title === "People Shared"
-                              ? eventData.share_count || "0"
-                              : st.title === "Tag Count"
-                              ? eventData.hashtag?.length || "0"
-                              : st.value}
+                                ? eventData.total_bookings || "0"
+                                : st.title === "Total cancellation"
+                                  ? eventData.total_cancellations || "0"
+                                  : st.title === "People liked"
+                                    ? eventData.like || "0"
+                                    : st.title === "People Shared"
+                                      ? eventData.share_count || "0"
+                                      : st.title === "Tag Count"
+                                        ? eventData.hashtag?.length || "0"
+                                        : st.value}
                           </div>
                         </div>
                       </div>
@@ -836,25 +751,11 @@ const PreviousEventView = () => {
                 </div>
 
                 {/* Chart card */}
-                <div
-                  className={`rounded-2xl md:rounded-3xl px-4 md:px-6 lg:px-8 py-4 md:py-6 flex flex-col`}
-                  style={{
-                    backgroundColor: theme.innerCardBg,
-                    boxShadow: theme.smallCardShadow,
-                  }}
-                >
+                <div className={`rounded-2xl md:rounded-3xl px-4 md:px-6 lg:px-8 py-4 md:py-6 flex flex-col`} style={cardStyle}>
                   <div className="flex items-center justify-between mb-4 md:mb-6">
                     <div className="flex items-center gap-2 md:gap-3">
-                      <img
-                        src={LiveEventIcon}
-                        alt="Live Events"
-                        className="w-4 h-4 md:w-6 md:h-6"
-                      />
-                      <h3
-                        className={`text-xs md:text-lg font-bold tracking-wide ${theme.text}`}
-                      >
-                        LIVE EVENTS EARNING STATISTICS
-                      </h3>
+                      <img src={LiveEventIcon} alt="Live Events" className="w-4 h-4 md:w-6 md:h-6" />
+                      <h3 className={`text-xs md:text-lg font-bold tracking-wide ${theme.text}`}>LIVE EVENTS EARNING STATISTICS</h3>
                     </div>
 
                     <div className="flex items-center gap-1 text-emerald-400 text-xs md:text-sm font-semibold">
@@ -864,60 +765,35 @@ const PreviousEventView = () => {
                   </div>
 
                   <div className="mb-3 md:mb-4">
-                    <span className={`text-xs md:text-sm ${theme.subText}`}>
-                      Bellie Ellish Concert
-                    </span>
+                    <span className={`text-xs md:text-sm ${theme.subText}`}>Bellie Ellish Concert</span>
                     <div className="flex items-end gap-2 md:gap-4 mt-2">
-                      <span
-                        className={`text-2xl md:text-3xl font-bold leading-none ${theme.text}`}
-                      >
-                        66,672.61
-                      </span>
-                      <span className={`text-xs self-end ${theme.subText}`}>
-                        Total amount
-                      </span>
+                      <span className={`text-2xl md:text-3xl font-bold leading-none ${theme.text}`}>66,672.61</span>
+                      <span className={`text-xs self-end ${theme.subText}`}>Total amount</span>
                     </div>
                   </div>
 
                   {/* Pill chart */}
-                  <div className="flex items-end justify-between gap-2 md:gap-4 mt-3 md:mt-4">
+                  <div className="flex items-end justify-between gap-2 md:gap-4 mt-3 md:mt-4 w-full">
                     {chartData.map((d, i) => {
                       const baseHeight = 120;
-                      const heightPx = Math.max(
-                        18,
-                        Math.round((d.percentage / 100) * baseHeight)
-                      );
+                      const heightPx = Math.max(18, Math.round((d.percentage / 100) * baseHeight));
 
                       return (
-                        <div
-                          key={i}
-                          className="flex-1 flex flex-col items-center"
-                        >
-                          <span
-                            className={`text-[10px] md:text-xs mb-1 md:mb-2 ${theme.subText}`}
-                          >
-                            {d.value}
-                          </span>
+                        <div key={i} className="flex-1 flex flex-col items-center min-w-0">
+                          <span className={`text-[10px] md:text-xs mb-1 md:mb-2 ${theme.subText} truncate w-full text-center`}>{d.value}</span>
 
-                          <div
-                            className="relative flex items-end justify-center"
-                            style={{ height: baseHeight }}
-                          >
+                          <div className="relative flex items-end justify-center w-full" style={{ height: baseHeight }}>
                             <div
-                              className="w-6 md:w-10 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-md"
+                              className="w-full max-w-[24px] md:max-w-[40px] rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-md"
                               style={{
                                 height: `${heightPx}px`,
                                 transition: "height 400ms ease",
-                                boxShadow: "inset 0 -6px 18px rgba(0,0,0,0.12)",
+                                boxShadow: "inset 0 -6px 18px rgba(0,0,0,0.12)"
                               }}
                             />
                           </div>
 
-                          <div
-                            className={`text-[10px] md:text-xs font-medium mt-2 md:mt-3 ${theme.subText}`}
-                          >
-                            {d.month}
-                          </div>
+                          <div className={`text-[10px] md:text-xs font-medium mt-2 md:mt-3 ${theme.subText} truncate w-full text-center`}>{d.month}</div>
                         </div>
                       );
                     })}
@@ -931,44 +807,23 @@ const PreviousEventView = () => {
                 <div className="flex items-center gap-2 w-full overflow-hidden">
                   {/* compact company */}
                   <div className="flex-shrink-0 flex flex-col items-center">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center">
-                      <img
-                        src={getImageUrl(eventData.event_banner)}
-                        alt="company"
-                        className="w-6 h-6 sm:w-8 sm:h-8"
-                      />
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center overflow-hidden">
+                      <img src={getImageUrl(eventData.event_banner)} alt="company" className="w-full h-full object-cover" />
                     </div>
-                    <span
-                      className={`text-[10px] sm:text-xs mt-1 ${theme.text}`}
-                    >
-                      Company
-                    </span>
+                    <span className={`text-[10px] sm:text-xs mt-1 ${theme.text}`}>Company</span>
                   </div>
 
                   {/* add-on icons inline with horizontal scroll if needed */}
                   <div className="flex-1 min-w-0">
-                    <div
-                      className={`rounded-xl sm:rounded-2xl p-2 sm:p-3 shadow-xl flex items-center gap-1.5 sm:gap-2 ${
-                        theme.innerCardBg ?? ""
-                      }`}
-                      style={{ boxShadow: theme.smallCardShadow }}
-                    >
-                      <span
-                        className={`text-xs sm:text-sm font-bold whitespace-nowrap flex-shrink-0 ${theme.text}`}
-                      >
-                        Add on events
-                      </span>
+                    <div className={`rounded-xl sm:rounded-2xl p-2 sm:p-3 flex items-center gap-1.5 sm:gap-2 ${theme.cardBg ?? ''}`} style={cardStyle}>
+                      <span className={`text-xs sm:text-sm font-bold whitespace-nowrap flex-shrink-0 ${theme.text}`}>Add on events</span>
 
                       <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar flex-1 min-w-0 py-1">
                         {addOnEvents.map((event, idx) => (
                           <button
                             key={idx}
                             onClick={() => setActiveIndex(idx)}
-                            className={`inline-flex items-center justify-center rounded-full w-8 h-8 sm:w-10 sm:h-10 text-base sm:text-lg ${
-                              activeIndex === idx
-                                ? "ring-2 ring-pink-300/60"
-                                : ""
-                            } flex-shrink-0`}
+                            className={`inline-flex items-center justify-center rounded-full w-8 h-8 sm:w-10 sm:h-10 text-base sm:text-lg ${activeIndex === idx ? "ring-2 ring-pink-300/60" : ""} flex-shrink-0`}
                             style={{ background: "#fa62b7", color: "#fff" }}
                             aria-label={eventData.name}
                           >
@@ -986,278 +841,163 @@ const PreviousEventView = () => {
                     {[
                       { icon: ViewIcon, label: "View" },
                       { icon: SeatIcon, label: "Seat layout" },
-                      { icon: TicketIcon, label: "Ticket info" },
+                      { icon: TicketIcon, label: "Ticket info" }
                     ].map((action, idx) => (
-                      <div
-                        key={idx}
-                        className="flex flex-col items-center flex-shrink-0 w-16 sm:w-20"
-                      >
+                      <div key={idx} className="flex flex-col items-center flex-shrink-0 w-16 sm:w-20">
                         <button
                           className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
-                          style={{
-                            background:
-                              "linear-gradient(180.23deg,#1E1242 0%,#6549B8 100%)",
-                          }}
+                          style={{ background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)" }}
                           aria-label={action.label}
                         >
-                          <img
-                            src={action.icon}
-                            alt={action.label}
-                            className="w-5 h-5 sm:w-6 sm:h-6"
-                          />
+                          <img src={action.icon} alt={action.label} className="w-5 h-5 sm:w-6 sm:h-6" />
                         </button>
-                        <span
-                          className={`text-[10px] sm:text-xs mt-1.5 sm:mt-2 text-center ${theme.text}`}
-                        >
-                          {action.label}
-                        </span>
+                        <span className={`text-[10px] sm:text-xs mt-1.5 sm:mt-2 text-center ${theme.text}`}>{action.label}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
 
-              {/* Desktop / md+ original layout (unchanged) */}
-              <div className="hidden md:flex flex-row md:flex-row items-center justify-between gap-4 md:gap-5 mb-6 md:mb-10">
+              {/* Desktop / md+ responsive grid layout */}
+              <div className="hidden md:grid grid-cols-12 gap-4 lg:gap-6 items-center mb-6 md:mb-10">
                 {/* Company */}
-                <div
-                  className={`rounded-xl md:rounded-2xl p-4 md:p-6 flex flex-col items-center min-w-[160px] md:min-w-[220px]`}
-                >
-                  <div className="w-20 h-20 md:w-[92px] md:h-[92px] bg-white rounded-full flex items-center justify-center mb-2">
-                    <img
-                      src={getImageUrl(eventData.event_banner)}
-                      alt="company"
-                      className="w-14 h-14 md:w-16 md:h-16"
-                    />
+                <div className={`col-span-3 lg:col-span-2 rounded-xl md:rounded-2xl p-4 md:p-6 flex flex-col items-center h-full justify-center`}>
+                  <div className="w-16 h-16 lg:w-20 lg:h-20 bg-white rounded-full flex items-center justify-center mb-2 overflow-hidden">
+                    <img src={getImageUrl(eventData.event_banner)} alt="company" className="w-full h-full object-cover" />
                   </div>
-                  <span
-                    className={`text-sm md:text-base font-semibold ${theme.text}`}
-                  >
-                    Company
-                  </span>
+                  <span className={`text-sm lg:text-base font-semibold ${theme.text} text-center`}>Company</span>
                 </div>
 
-                {/* Add on Events */}
+                {/* Add on Events - Stretched to fill available space */}
                 <div
-                  className={`w-full md:w-[50%] rounded-2xl md:rounded-3xl p-3 md:p-4 shadow-xl flex flex-col items-center ${
-                    theme.innerCardBg ?? ""
-                  }`}
-                  style={{ boxShadow: theme.smallCardShadow }}
+                  className={`col-span-12 md:col-span-9 lg:col-span-6 rounded-2xl md:rounded-3xl p-3 md:p-4 flex flex-col items-center h-full justify-center w-full ${theme.cardBg ?? ''}`}
+                  style={cardStyle}
                 >
-                  <div className="flex items-center w-full justify-center relative">
-                    <span
-                      className={`text-base md:text-lg font-bold mr-4 md:mr-6 pl-4 md:pl-6 ${theme.text}`}
-                    >
-                      Add on events
-                    </span>
+                  <div className="flex items-center w-full justify-between relative px-2">
+                    <span className={`text-sm md:text-base lg:text-lg font-bold ${theme.text} whitespace-nowrap`}>Add on events</span>
 
-                    <button
-                      onClick={prevAddOn}
-                      className="w-7 h-7 md:w-8 md:h-8 bg-[#B5B5B5] rounded-full flex items-center justify-center mr-1 z-30"
-                      aria-label="previous"
-                    >
-                      <svg
-                        className="w-3 h-3 md:w-4 md:h-4 text-black"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                    <div className="flex items-center gap-2 flex-1 justify-center min-w-0 mx-2">
+                      <button
+                        onClick={prevAddOn}
+                        className="w-8 h-8 md:w-10 md:h-10 bg-white shadow-lg rounded-full flex items-center justify-center z-30 flex-shrink-0 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer text-gray-800"
+                        aria-label="previous"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={4}
-                          d="M15 19l-7-7 7-7"
-                        />
-                      </svg>
-                    </button>
+                        <svg className="w-3 h-3 md:w-4 md:h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
 
-                    <div
-                      className="relative flex-1 flex items-center justify-center"
-                      style={{ minHeight: 80 }}
-                    >
-                      <div className="flex items-center gap-4 md:gap-8 justify-center">
-                        {addOnEvents?.map((event, idx) => {
-                          const isActive = idx === activeIndex;
-                          return (
-                            <div
-                              key={idx}
-                              onClick={() => setActiveIndex(idx)}
-                              className="flex flex-col items-center justify-center transition-all duration-200 cursor-pointer"
-                              style={{
-                                transform: isActive
-                                  ? "scale(1.03) translateY(-2px)"
-                                  : "scale(1)",
-                                opacity: isActive ? 1 : 0.9,
-                              }}
-                            >
+                      <div className="relative flex-1 flex items-center justify-center overflow-hidden h-20 md:h-28">
+                        <div className="flex items-center gap-2 md:gap-4 justify-center w-full">
+                          {addOnEvents?.map((event, idx) => {
+                            const isActive = idx === activeIndex;
+                            // Only show active on small screens if needed, or all if they fit
+                            // For simplicity, we keep map but scale down items
+                            return (
                               <div
-                                className={`flex items-center justify-center rounded-full bg-[#fa62b7] text-white shadow-md w-12 h-12 md:w-16 md:h-16 text-xl md:text-2xl transition-all duration-200 ${
-                                  isActive ? "ring-2 ring-pink-300/60" : ""
-                                }`}
+                                key={idx}
+                                onClick={() => setActiveIndex(idx)}
+                                className={`flex flex-col items-center justify-center transition-all duration-300 cursor-pointer ${isActive ? 'flex-shrink-0' : 'flex-shrink'}`}
+                                style={{
+                                  transform: isActive ? "scale(1.05) translateY(-2px)" : "scale(0.9)",
+                                  opacity: isActive ? 1 : 0.7,
+                                }}
                               >
-                                {event.icon}
+                                <div
+                                  className={`flex items-center justify-center rounded-full bg-[#fa62b7] text-white shadow-md
+                                    w-10 h-10 md:w-16 md:h-16 lg:w-20 lg:h-20
+                                    text-lg md:text-xl lg:text-2xl transition-all duration-200
+                                    ${isActive ? "ring-2 ring-pink-300/60" : ""}`}
+                                >
+                                  {event.icon}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        }) ?? null}
+                            );
+                          }) ?? null}
+                        </div>
+
+                        <div
+                          className="absolute left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5"
+                          style={{ bottom: 0 }}
+                        >
+                          {addOnEvents?.map((_, idx) => {
+                            const isActive = idx === activeIndex;
+                            return (
+                              <button
+                                key={idx}
+                                onClick={() => setActiveIndex(idx)}
+                                className={`rounded-full transition-all duration-200 ${isActive ? "w-2.5 h-2.5" : "w-1.5 h-1.5"}`}
+                                style={{
+                                  backgroundColor: isActive ? "#94a3b8" : "#475569",
+                                  border: "none",
+                                }}
+                                aria-label={`go-to-${idx}`}
+                              />
+                            );
+                          }) ?? null}
+                        </div>
                       </div>
 
-                      <div
-                        className="absolute left-1/2 -translate-x-1/2 z-20 flex items-center gap-2"
-                        style={{ bottom: -18 }}
+                      <button
+                        onClick={nextAddOn}
+                        className="w-8 h-8 md:w-10 md:h-10 bg-white shadow-lg rounded-full flex items-center justify-center z-30 flex-shrink-0 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer text-gray-800"
+                        aria-label="next"
                       >
-                        {addOnEvents?.map((_, idx) => {
-                          const isActive = idx === activeIndex;
-                          return (
-                            <button
-                              key={idx}
-                              onClick={() => setActiveIndex(idx)}
-                              className={`rounded-full transition-all duration-200 ${
-                                isActive ? "w-3 h-3" : "w-2 h-2"
-                              }`}
-                              style={{
-                                backgroundColor: isActive
-                                  ? "#94a3b8"
-                                  : "#475569",
-                                border: "none",
-                              }}
-                              aria-label={`go-to-${idx}`}
-                            />
-                          );
-                        }) ?? null}
-                      </div>
+                        <svg className="w-3 h-3 md:w-4 md:h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
                     </div>
-
-                    <button
-                      onClick={nextAddOn}
-                      className="w-7 h-7 md:w-8 md:h-8 bg-[#B5B5B5] rounded-full flex items-center justify-center ml-1 z-30"
-                      aria-label="next"
-                    >
-                      <svg
-                        className="w-3 h-3 md:w-4 md:h-4 text-black"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={4}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </button>
                   </div>
-
-                  <div style={{ height: 12 }} />
                 </div>
 
                 {/* Action buttons */}
-                <div className="w-full md:w-auto">
-                  {/* make sure these show in one line on desktop as before */}
-                  <div className="overflow-x-visible md:overflow-visible">
-                    <div className="flex items-center gap-6 md:gap-16 flex-nowrap px-2 md:px-0 justify-between">
-                      {[
-                        { icon: ViewIcon, label: "View" },
-                        { icon: SeatIcon, label: "Seat layout" },
-                        { icon: TicketIcon, label: "Ticket info" },
-                      ].map((action, idx) => (
-                        <div
-                          key={idx}
-                          className="flex flex-col items-center flex-shrink-0 w-20 md:w-auto"
+                <div className="col-span-12 lg:col-span-4 w-full flex justify-center lg:justify-end">
+                  <div className="flex items-center gap-4 lg:gap-8 justify-between w-full lg:w-auto">
+                    {[
+                      { icon: ViewIcon, label: "View" },
+                      { icon: SeatIcon, label: "Seat layout" },
+                      { icon: TicketIcon, label: "Ticket info" }
+                    ].map((action, idx) => (
+                      <div key={idx} className="flex flex-col items-center flex-1 lg:flex-none w-auto">
+                        <button
+                          className="w-14 h-14 lg:w-16 lg:h-16 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
+                          style={{ background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)" }}
+                          aria-label={action.label}
                         >
-                          <button
-                            className="w-12 h-12 md:w-16 md:h-16 bg-[linear-gradient(180.23deg,_#1E1242_-0.04%,_#6549B8_99.57%)] rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
-                            aria-label={action.label}
-                          >
-                            <img
-                              src={action.icon}
-                              alt={action.label}
-                              className="w-6 h-6 md:w-8 md:h-8"
-                            />
-                          </button>
-                          <span
-                            className={`text-xs md:text-base mt-2 ${theme.text}`}
-                          >
-                            {action.label}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                          <img src={action.icon} alt={action.label} className="w-7 h-7 lg:w-8 lg:h-8" />
+                        </button>
+                        <span className={`text-xs lg:text-sm mt-2 font-medium text-center ${theme.text} whitespace-nowrap`}>{action.label}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
 
               {/* Bank + quarters + donut */}
-              <div
-                className={`rounded-xl md:rounded-2xl p-4 md:p-6 mt-6 md:mt-8`}
-                style={{
-                  backgroundColor: theme.innerCardBg,
-                  boxShadow: theme.smallCardShadow,
-                }}
-              >
-                <div className="flex flex-col lg:flex-row w-full gap-4 md:gap-6 items-start">
+              <div className={`rounded-xl md:rounded-2xl p-4 md:p-6 mt-6 md:mt-8`} style={{ ...cardStyle }}>
+                <div className="flex flex-col md:flex-row w-full gap-4 md:gap-6 items-start">
                   {/* Bank details */}
-                  <div className="w-full lg:w-[36%] lg:pr-6">
+                  <div className="w-full md:w-[36%] md:pr-6">
                     <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-5">
-                      <img
-                        src={BankIcon}
-                        alt="Bank"
-                        className={`w-5 h-5 md:w-6 md:h-6 ${
-                          !isDark ? "filter brightness-0" : ""
-                        }`}
-                      />
-                      <h3
-                        className={`text-lg md:text-xl font-extrabold tracking-wide ${theme.text}`}
-                      >
-                        Bank Details
-                      </h3>
+                      <img src={BankIcon} alt="Bank" className={`w-5 h-5 md:w-6 md:h-6 ${!isDark ? 'filter brightness-0' : ''}`} />
+                      <h3 className={`text-lg md:text-xl font-extrabold tracking-wide ${theme.text}`}>Bank Details</h3>
                     </div>
 
                     <div className="space-y-2 md:space-y-3 mb-6 md:mb-8 text-xs md:text-sm">
                       {[
-                        {
-                          label: "Bank name",
-                          value: "Federal Bank PVT",
-                          label2: "Amount before event",
-                          value2: "10,000",
-                        },
-                        {
-                          label: "Account no",
-                          value: "1234567890012",
-                          label2: "Amount after event",
-                          value2: "90,0000",
-                        },
-                        {
-                          label: "IFSC code",
-                          value: "FORDL0001147",
-                          label2: "Total Profit",
-                          value2: "8,90,000",
-                        },
+                        { label: "Bank name", value: "Federal Bank PVT", label2: "Amount before event", value2: "10,000" },
+                        { label: "Account no", value: "1234567890012", label2: "Amount after event", value2: "90,0000" },
+                        { label: "IFSC code", value: "FORDL0001147", label2: "Total Profit", value2: "8,90,000" }
                       ].map((row, idx) => (
-                        <div
-                          key={idx}
-                          className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2"
-                        >
+                        <div key={idx} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                           <div className="flex items-center gap-2">
-                            <p className={`text-xs ${theme.subText}`}>
-                              {row.label} :
-                            </p>
-                            <p
-                              className={`text-xs md:text-sm font-semibold ${theme.text}`}
-                            >
-                              {row.value}
-                            </p>
+                            <p className={`text-xs ${theme.subText}`}>{row.label} :</p>
+                            <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>{row.value}</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <p className={`text-xs ${theme.subText}`}>
-                              {row.label2} :
-                            </p>
-                            <p
-                              className={`text-xs md:text-sm font-semibold ${theme.text}`}
-                            >
-                              {row.value2}
-                            </p>
+                            <p className={`text-xs ${theme.subText}`}>{row.label2} :</p>
+                            <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>{row.value2}</p>
                           </div>
                         </div>
                       ))}
@@ -1284,20 +1024,14 @@ const PreviousEventView = () => {
                               boxShadow: theme.insetShadow,
                             }}
                           >
-                            <img
-                              src={DownloadIcon}
-                              alt="download"
-                              className={`w-5 h-5 ${
-                                !isDark ? "filter brightness-0" : ""
-                              }`}
-                            />
+                            <img src={DownloadIcon} alt="download" className={`w-5 h-5 ${!isDark ? 'filter brightness-0' : ''}`} />
                           </div>
                         </div>
 
                         <button
                           className={`w-full h-10 md:h-11 rounded-full flex items-center justify-center font-semibold text-sm md:text-base ${theme.text}`}
                           style={{
-                            backgroundColor: theme.innerCardBg.replace("bg-", ""),
+                            backgroundColor: theme.cardBg.replace('bg-', ''),
                             boxShadow: theme.buttonShadow,
                             paddingLeft: 48,
                             paddingRight: 20,
@@ -1310,19 +1044,15 @@ const PreviousEventView = () => {
                   </div>
 
                   {/* Divider - Hidden on mobile */}
-                  <div
-                    className={`hidden lg:block w-px bg-opacity-50 ${
-                      isDark ? "bg-[#151618]" : "bg-[#f1f1f1]"
-                    }`}
-                  />
+                  <div className={`hidden md:block w-px bg-[#6a47fa]`} />
 
                   {/* Quarters */}
                   <div className="relative flex-1 w-full">
                     {/* Scrollbar on left */}
                     <div className="absolute top-0 left-0 h-full w-2 bg-transparent z-10"></div>
 
-                    <div className="lg:pl-4 lg:pr-2 max-h-full lg:max-h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#4b5563] scrollbar-track-transparent [direction:rtl]">
-                      <div className="[direction:ltr] space-y-3 ml-2 py-4">
+                    <div className="md:pl-4 md:pr-2 max-h-full md:max-h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#6a47fa] scrollbar-track-transparent [direction:rtl]">
+                      <div className="[direction:ltr] space-y-3 ml-2">
                         {quarters.map((q, idx) => {
                           const pct = Math.max(4, Math.min(100, q.percentage));
 
@@ -1335,16 +1065,14 @@ const PreviousEventView = () => {
                                 background: isDark
                                   ? "linear-gradient(92.38deg, rgba(255,255,255,0.1) 0.43%, rgba(153,153,153,0.1) 99.63%)"
                                   : "linear-gradient(92.38deg, rgba(200,200,200,0.3) 0.43%, rgba(220,220,220,0.3) 99.63%)",
-                                boxShadow: theme.smallCardShadow,
+                                boxShadow: "none"
                               }}
                             >
                               <div className="flex flex-col md:flex-row items-start md:items-center justify-between w-full gap-2">
                                 <div className="flex items-center gap-2 md:gap-3">
                                   <span className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full bg-purple-500 inline-block flex-shrink-0" />
 
-                                  <h4
-                                    className={`text-sm md:text-base lg:text-lg font-semibold tracking-tight ${theme.text}`}
-                                  >
+                                  <h4 className={`text-sm md:text-base lg:text-lg font-semibold tracking-tight ${theme.text}`}>
                                     {q.period}
                                   </h4>
                                 </div>
@@ -1357,14 +1085,12 @@ const PreviousEventView = () => {
                                         width: 100,
                                         height: 10,
                                         background:
-                                          "linear-gradient(90deg, rgba(139,92,246,1) 0%, rgba(99,102,241,1) 100%)",
+                                          "linear-gradient(90deg, rgba(139,92,246,1) 0%, rgba(99,102,241,1) 100%)"
                                       }}
                                     />
                                   </div>
 
-                                  <div
-                                    className={`text-sm md:text-base font-semibold ${theme.text}`}
-                                  >
+                                  <div className={`text-sm md:text-base font-semibold ${theme.text}`}>
                                     {q.percentage}%
                                   </div>
                                 </div>
@@ -1372,21 +1098,13 @@ const PreviousEventView = () => {
 
                               <div className="mt-2 space-y-1">
                                 <div className="flex items-center gap-3 md:gap-4">
-                                  <div className={`text-xs ${theme.subText}`}>
-                                    Total Bookings
-                                  </div>
-                                  <div className="text-base md:text-lg font-bold text-emerald-400">
-                                    {q.bookings}
-                                  </div>
+                                  <div className={`text-xs ${theme.subText}`}>Total Bookings</div>
+                                  <div className="text-base md:text-lg font-bold text-emerald-400">{q.bookings}</div>
                                 </div>
 
                                 <div className="flex items-center gap-3 md:gap-4">
-                                  <div className={`text-xs ${theme.subText}`}>
-                                    Total earnings
-                                  </div>
-                                  <div className="text-base md:text-lg font-bold text-emerald-400">
-                                    {q.earnings}
-                                  </div>
+                                  <div className={`text-xs ${theme.subText}`}>Total earnings</div>
+                                  <div className="text-base md:text-lg font-bold text-emerald-400">{q.earnings}</div>
                                 </div>
                               </div>
                             </div>
@@ -1395,21 +1113,17 @@ const PreviousEventView = () => {
                       </div>
                     </div>
                   </div>
-
                   {/* Divider - Hidden on mobile */}
-                  <div
-                    className={`hidden lg:block w-px bg-opacity-50 ${
-                      isDark ? "bg-[#151618]" : "bg-gray-300"
-                    }`}
-                  />
+                  <div className={`hidden md:block w-px bg-[#6a47fa]`} />
 
                   {/* Donut chart (bigger + responsive inner text) */}
-                  <div className="w-full lg:w-[22%] lg:pl-6 flex flex-col items-center justify-center mt-6 lg:mt-0">
+                  {/* Donut chart (bigger + responsive inner text) */}
+                  <div className="w-full md:w-[25%] flex flex-col items-center justify-center mt-6 md:mt-0 border-t md:border-t-0 md:border-l border-gray-200/50 pt-6 md:pt-0 md:pr-12">
                     {/* control visual size with Tailwind widths; SVG scales inside */}
-                    <div className="relative w-48 md:w-56 lg:w-64 overflow-visible">
+                    <div className="relative w-40 sm:w-48 md:w-32 lg:w-48 xl:w-56 max-w-full overflow-visible">
                       {(() => {
-                        const R = 80; // radius inside viewBox (bigger)
-                        const stroke = 16; // stroke width (bigger)
+                        const R = 80;           // radius inside viewBox (bigger)
+                        const stroke = 16;     // stroke width (bigger)
                         const progress = 0.85; // 85%
                         const C = 2 * Math.PI * R;
                         return (
@@ -1424,7 +1138,7 @@ const PreviousEventView = () => {
                               cx="120"
                               cy="120"
                               r={R}
-                              stroke={isDark ? "#2a2d35" : "#d1d5db"}
+                              stroke={isDark ? "#2a2d35" : "#e5e7eb"}
                               strokeWidth={stroke}
                               fill="none"
                             />
@@ -1438,18 +1152,10 @@ const PreviousEventView = () => {
                               fill="none"
                               strokeDasharray={`${C * progress} ${C}`}
                               strokeLinecap="round"
-                              style={{
-                                transition: "stroke-dasharray .4s ease",
-                              }}
+                              style={{ transition: "stroke-dasharray .8s cubic-bezier(0.4, 0, 0.2, 1)" }}
                             />
                             <defs>
-                              <linearGradient
-                                id="gradient2"
-                                x1="0%"
-                                y1="0%"
-                                x2="100%"
-                                y2="100%"
-                              >
+                              <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
                                 <stop offset="0%" stopColor="#8b5cf6" />
                                 <stop offset="100%" stopColor="#6366f1" />
                               </linearGradient>
@@ -1461,21 +1167,21 @@ const PreviousEventView = () => {
                       {/* center labels (smaller label so it never overlaps) */}
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                         <span
-                          className={`${theme.text} font-extrabold`}
+                          className={`${theme.text} font-extrabold tracking-tight`}
                           style={{
                             lineHeight: 1,
                             // main percent — keep it readable but slightly smaller if needed
-                            fontSize: "clamp(18px, 3.4vw, 32px)",
+                            fontSize: "clamp(18px, 3.5vw, 32px)",
                           }}
                         >
                           85%
                         </span>
                         <span
-                          className={`${theme.subText}`}
+                          className={`${theme.subText} font-medium`}
                           style={{
-                            marginTop: 6,
-                            fontSize: "clamp(9px, 1.2vw, 12px)",
-                            maxWidth: "70%",
+                            marginTop: 4,
+                            fontSize: "clamp(9px, 1.2vw, 11px)",
+                            maxWidth: "80%",
                             textAlign: "center",
                             whiteSpace: "nowrap",
                             overflow: "hidden",
@@ -1483,14 +1189,12 @@ const PreviousEventView = () => {
                           }}
                           title="Total Tickets Sold"
                         >
-                          Total Tickets Sold
+                          Tickets Sold
                         </span>
                       </div>
                     </div>
 
-                    <p
-                      className={`text-center text-xs md:text-sm font-medium ${theme.subText}`}
-                    >
+                    <p className={`text-center text-xs md:text-sm font-semibold mt-3 w-full ${theme.subText}`}>
                       Total earnings
                     </p>
                   </div>
@@ -1502,11 +1206,26 @@ const PreviousEventView = () => {
 
         {/* Bottom Navigation - Mobile only */}
         <div className="md:hidden">
-          <BottomNavigation theme={theme} user={user} />
+          <BottomNavigation
+            theme={theme}
+            user={user}
+          />
         </div>
       </div>
+      {/* Add Image Modal */}
+      {showImageModal && (
+        <ImageModal
+          isOpen={showImageModal}
+          onClose={() => setShowImageModal(false)}
+          images={allImages}
+          currentIndex={currentImageIndex}
+          setCurrentIndex={setCurrentImageIndex}
+          theme={{ ...theme, isDark, shadowInset: theme.insetShadow }}
+          onNext={handleNextImage}
+          onPrev={handlePrevImage}
+        />
+      )}
     </>
   );
 };
-
 export default PreviousEventView;
