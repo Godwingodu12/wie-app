@@ -91,8 +91,6 @@ const SeatingLayoutModal = ({
     locality:geocodedDetails?.locality||defaultLocation.locality,
   };
 
-  const eventName = eventData.event_name || "Event Seating Layout";
-  const location = eventData.location || "Wayanad";
   const subLocation = eventData.venue || "Venue Address";
 
   const eventDates = eventData.event_dates?.[0];

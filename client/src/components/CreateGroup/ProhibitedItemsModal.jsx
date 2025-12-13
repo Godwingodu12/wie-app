@@ -28,21 +28,46 @@ const ProhibitedItemsModal = ({ isOpen, onClose, onSave, initialItems, darkMode 
   const [selectedItems, setSelectedItems] = useState(initialItems || []);
   const [customItem, setCustomItem] = useState("");
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [customItemError, setCustomItemError] = useState(null);
+
+  const VALID_CHARACTERS_REGEX = /^[a-zA-Z0-9\s\-\/,\.]+$/;
   const suggestions = [ "Umbrellas", "Wooden sticks", "Power bank", "Helmets", "Glass containers", "Laptops", "Laser pointer/Flashlight", "Outside food", "Alcohol", "Music instrument", "Toxics", "Chemicals", "Camera", "Selfie sticks", "Metal containers", "Bags", "Flammable", "Banners", "Cans", "Tins", "Bottles" ];
 
   useEffect(() => {
     if (isOpen) {
         setSelectedItems(initialItems || []);
+        setCustomItem(""); 
+        setCustomItemError(null);
     }
   }, [isOpen, initialItems]);
 
   const toggleItem = (item) => setSelectedItems((prev) => prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]);
   
-  const handleAddCustom = () => {
-    if (customItem.trim() && !selectedItems.includes(customItem.trim())) {
-      setSelectedItems((prev) => [...prev, customItem.trim()]);
-      setCustomItem("");
+const handleAddCustom = () => {
+    const trimmedItem = customItem.trim();
+    
+    if (!trimmedItem) {
+        setCustomItemError("Please enter an item name.");
+        return;
     }
+
+    if (!VALID_CHARACTERS_REGEX.test(trimmedItem)) {
+        setCustomItemError("Only letters, numbers, spaces, and common symbols (-, /, ,, .) are allowed.");
+        return;
+    }
+
+    if (selectedItems.includes(trimmedItem)) {
+        setCustomItemError("This item has already been added.");
+        return;
+    }
+    
+    setSelectedItems((prev) => [...prev, trimmedItem]);
+    setCustomItem("");
+    setCustomItemError(null);
+  };
+  const handleCustomItemChange = (e) => {
+    setCustomItem(e.target.value);
+    setCustomItemError(null); 
   };
 
   const handleSave = () => {
@@ -57,6 +82,7 @@ const ProhibitedItemsModal = ({ isOpen, onClose, onSave, initialItems, darkMode 
   const executeReset = () => {
     setSelectedItems([]);
     setCustomItem("");
+    setCustomItemError(null);
     setIsConfirmOpen(false);
   };
 
@@ -93,12 +119,15 @@ const ProhibitedItemsModal = ({ isOpen, onClose, onSave, initialItems, darkMode 
               <div className="relative flex-1 w-full">
                 <input
                   value={customItem}
-                  onChange={(e) => setCustomItem(e.target.value)}
+                  onChange={handleCustomItemChange}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddCustom()}
                   type="text"
                   placeholder="Enter a custom item..."
                   className={`w-full p-3 rounded-lg border ${darkMode ? "bg-gray-800 border-gray-600 text-white" : "bg-white border-gray-300 text-black"}`}
                 />
+                {customItemError && ( // Display error message
+                    <p className="text-sm text-red-500 mt-1">{customItemError}</p>
+                )}
               </div>
               <button
                 type="button"

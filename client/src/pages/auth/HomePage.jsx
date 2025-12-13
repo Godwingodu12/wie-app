@@ -50,20 +50,21 @@ const CustomScrollbarStyles = () => (
     }
     .main-scrollbar {
       scrollbar-width: thin;
-      scrollbar-color: #4f4f4f #212426;
+      scrollbar-color: #4f4f4f #212426 ;
     }
 
     /* Horizontal Scrollbar */
-    .horizontal-scrollbar::-webkit-scrollbar { height: 8px; }
-    .horizontal-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .horizontal-scrollbar::-webkit-scrollbar-thumb {
-      background-color: #4f4f4f;
-      border-radius: 10px;
-    }
-    .horizontal-scrollbar {
-       scrollbar-width: thin;
-       scrollbar-color: #4f4f4f transparent;
-    }
+.horizontal-scrollbar::-webkit-scrollbar { 
+    display: none; 
+}
+
+.horizontal-scrollbar {
+    scrollbar-width: none; 
+}
+
+.horizontal-scrollbar {
+    overflow-x: auto;
+}
 
     /* UI Scaling for larger screens */
     @media (min-width: 1280px) {
@@ -72,6 +73,21 @@ const CustomScrollbarStyles = () => (
         font-size: 18px;
       }
     }
+
+    .light-event-item:hover {
+  /* This is the light mode shadow: inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.8) */
+  box-shadow: 
+    inset 3px 3px 6px rgba(0, 0, 0, 0.1), 
+    inset -3px -3px 6px rgba(255, 255, 255, 0.8);
+}
+
+/* Dark Mode Hover Shadow */
+.dark-event-item:hover {
+  /* This is the dark mode shadow: inset 3px 3px 6px rgba(0,0,0,0.6), inset -3px -3px 6px rgba(60,60,60,0.3) */
+  box-shadow: 
+    inset 3px 3px 6px rgba(0, 0, 0, 0.6), 
+    inset -3px -3px 6px rgba(60, 60, 60, 0.3);
+}
   `}</style>
 );
 
@@ -985,14 +1001,7 @@ const HomePage = () => {
                               onClick={() =>
                                 navigate(`/ticket/live-event-view/${event._id}`)
                               }
-                              className={`flex items-center justify-between p-3 mb-2 rounded-2xl cursor-pointer transition-all duration-300`}
-                              style={{
-                                boxShadow: isSelected
-                                  ? isDark
-                                    ? "inset 3px 3px 6px rgba(0,0,0,0.6), inset -3px -3px 6px rgba(60,60,60,0.3)"
-                                    : "inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.8)"
-                                  : "none",
-                              }}
+                              className={`group hover:scale-105  flex items-center justify-between p-3 mb-2 rounded-2xl cursor-pointer transition-all duration-300 shadow-none ${isDark ? 'dark-event-item' : 'light-event-item'}`}
                             >
                               <div className="flex items-center gap-3">
                                 <img

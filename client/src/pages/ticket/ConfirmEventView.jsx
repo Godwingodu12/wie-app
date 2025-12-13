@@ -74,7 +74,6 @@ import HostEventModal from "../../components/Event/HostEventModal";
 import { default as getFormattedDateRange } from "../../components/ViewSingleEvent/formattedDateRange";
 import DateInformationModal from "../../components/ViewSingleEvent/DateInformationModal";
 
-
 const darkTheme = {
   isDark: true,
   text: "text-white",
@@ -93,7 +92,7 @@ const lightTheme = {
   mainBg: "#f9f9f9",
   cardBg: "#f1f1f1",
   insetBg: "#f9f9f9",
-shadowOutset: "5px 5px 10px #d4d4d4, -5px -5px 10px #ffffff",
+  shadowOutset: "5px 5px 10px #d4d4d4, -5px -5px 10px #ffffff",
   shadowInset: "inset 5px 5px 10px #c5c5c5, inset -5px -5px 10px #fbfbfb",
   textColor: "text-gray-700",
   arrowBgClass: "bg-gray-800",
@@ -157,8 +156,7 @@ const ConfirmEventView = () => {
   const groupId = eventData?.group_id || eventData?.groupId; // Derive groupId from fetched data
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [loadingCount, setLoadingCount] = useState(false);
-    const [showDateInfoModal, setShowDateInfoModal] = useState(false);
-  
+  const [showDateInfoModal, setShowDateInfoModal] = useState(false);
 
   const [isHostModalOpen, setIsHostModalOpen] = useState(false);
   const [selectedEventToHost, setSelectedEventToHost] = useState(null);
@@ -168,17 +166,12 @@ const ConfirmEventView = () => {
   const guidesToShow = viewportWidth >= 768 ? 3 : 1;
   const visibleTickets = viewportWidth >= 768 ? 3 : 1;
 
-
-  
-
-
   const allEventsAndSubEvents = useMemo(() => {
     if (!eventData) return [];
-    
+
     // Create a NEW array: [mainEvent, ...subEvents]
     return [eventData, ...(eventData.sub_events || [])];
-}, [eventData]); 
-  
+  }, [eventData]);
 
   useEffect(() => {
     const fetchAllEvents = async () => {
@@ -327,7 +320,6 @@ const ConfirmEventView = () => {
 
     return events;
   }, [eventData, groupData]);
-
 
   const handleConfirmDelete = async () => {
     setShowConfirmDeleteModal(false);
@@ -729,7 +721,7 @@ const ConfirmEventView = () => {
       setShowTicketModal(true);
     }
   };
-    const handleDateInfoClick = () => {
+  const handleDateInfoClick = () => {
     if (eventData?.event_dates?.length > 0) {
       setShowDateInfoModal(true);
     } else {
@@ -855,7 +847,6 @@ const ConfirmEventView = () => {
     handleCloseGroupModal();
   };
   const handlePrevImage = () => {
-    
     // Calculate total images: banner + logo + event_images
     let totalImages = 0;
     if (eventData?.event_banner) totalImages++;
@@ -889,7 +880,7 @@ const ConfirmEventView = () => {
       break;
   }
 
- return (
+  return (
     <div
       key={`main-container-${theme.isDark ? "dark" : "light"}`}
       className={`min-h-screen md:p-8 p-2 ${theme.text}`}
@@ -985,7 +976,7 @@ const ConfirmEventView = () => {
         </div>
 
         {/* 2. Action Buttons - Always on the far right, never wraps */}
-       
+
         <div className="flex items-center my-auto space-x-4 flex-shrink-0 ml-4">
           <ActionCircleButton
             theme={theme}
@@ -1002,7 +993,6 @@ const ConfirmEventView = () => {
             setAppalert={setAppAlert} // Use the new handler here
           />
         </div>
-        
       </div>
       <div className="flex  md:hidden justify-center items-center md:mb-10 mb-4 px-2 md:px-0">
         <div className=" md:hidden flex justify-center flex-grow">
@@ -1136,16 +1126,16 @@ const ConfirmEventView = () => {
                 </h3>
                 <div
                   style={{
-                    borderRadius: "23.51px",
+                    borderRadius: "31.51px",
                     boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                   }}
-                  className="p-3 rounded-xl"
+                  className="p-5 rounded-xl"
                 >
                   <div className="flex  justify-around">
                     <Card
                       theme={theme}
                       style={{
-                        borderRadius: "30px",
+                        borderRadius: "35px",
                         boxShadow: `6.13px 6.13px 12.26px 0px #0000002E inset, -6.13px -6.13px 12.26px 0px #FFFFFF14 inset`,
                       }}
                       className={`p-2 lg:py-5 my-2 flex flex-col items-center justify-center w-2/5 rounded-3xl border ${
@@ -1394,7 +1384,7 @@ const ConfirmEventView = () => {
                 </div>
               </div>
             </div>
-                       
+
             {allEventsAndSubEvents.length > 1 ? (
               <div className="w-full">
                 <h3 className={`text-lg font-semibold mb-1 ${theme.textColor}`}>
@@ -1403,7 +1393,7 @@ const ConfirmEventView = () => {
 
                 <div className="w-full">
                   <div className="relative">
-                    <div className="overflow-x-hidden overflow-y-hidden w-full">
+                    <div className="overflow-x-hidden bg-transparent pb-2 w-full">
                       <div
                         className="flex space-x-2 transition-transform duration-300 items-center py-3"
                         style={{
@@ -1437,7 +1427,7 @@ const ConfirmEventView = () => {
                                 opacity: 1,
                                 background: "#5E5CE6",
                                 border: "0.84px solid #C1C1C1",
-                                boxShadow: `${shadowDimensions} #3131A1D0, -${shadowDimensions} #9C9BF6C0`,
+                                boxShadow: `${shadowDimensions} #3131A180, -${shadowDimensions} #9C9BF670`,
                               };
                             } else {
                               return {
@@ -1530,7 +1520,7 @@ const ConfirmEventView = () => {
                     </div>
 
                     {/* Progress Bar (remains the same) */}
-                    <div className="w-1/2 mx-auto h-1 bg-gray-700/50 rounded-full mt-4">
+                    <div className="w-1/2 mx-auto h-1 bg-gray-700/50  rounded-full mt-4">
                       <div
                         className="h-full rounded-full"
                         style={{
@@ -2391,9 +2381,10 @@ const ConfirmEventView = () => {
           onClose={handleClosePOCModal} // Use the specific close handler
         />
       )}
-            {showDateInfoModal && (
+      {showDateInfoModal && (
         <DateInformationModal
           theme={theme}
+          eventData={eventData}
           eventStart={formattedDateRange.event_start_date}
           eventEnd={formattedDateRange.booking_end_date}
           bookingStart={formattedDateRange.booking_start_date}
