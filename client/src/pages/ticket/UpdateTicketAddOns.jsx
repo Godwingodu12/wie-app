@@ -13,7 +13,7 @@ import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import SeatingLayoutPreview from "../../components/CreateGroup/SeatingLayoutPreview.jsx";
-import SeatAssignmentModal from '../../components/CreateGroup/SeatAssignmentModal.jsx';
+import SeatAssignmentModal from "../../components/CreateGroup/SeatAssignmentModal.jsx";
 import Addon_Form_Icon from "../../assets/Event/Addon_Form_Icon.svg?react";
 import Date_Form_Icon from "../../assets/Event/Date_Form_Icon.svg?react";
 import Guest_Form_Icon from "../../assets/Event/Guest_Form_Icon.svg?react";
@@ -36,6 +36,9 @@ import languageOptions from "../../components/CreateGroup/languageOption.jsx";
 import seatingOptions from "../../components/CreateGroup/seatingOption.jsx";
 import eventCategories from "../../components/CreateGroup/eventCategories.jsx";
 import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.jsx";
+
+import darkThemeStyles from "../../components/CreateGroup/darkThemeStyles.jsx";
+import lightThemeStyles from "../../components/CreateGroup/lightThemeStyles.jsx";
 const UpdateTicketAddOns = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
@@ -73,11 +76,13 @@ const UpdateTicketAddOns = () => {
     message: "",
   });
   const [errors, setErrors] = useState({});
+  const errorFieldRefs = useRef({});
 
   // --- State for Banking Details ---
   const [useGroupBankAccount, setUseGroupBankAccount] = useState(false);
   const [groupHasBankAccount, setGroupHasBankAccount] = useState(false);
-  const [groupBankDetailsIncomplete, setGroupBankDetailsIncomplete] = useState(false);
+  const [groupBankDetailsIncomplete, setGroupBankDetailsIncomplete] =
+    useState(false);
   // --- State for Seating Details ---
   const [hasSeatingLayout, setHasSeatingLayout] = useState(false);
   const [isOnlineDateModalOpen, setIsOnlineDateModalOpen] = useState(false);
@@ -92,18 +97,20 @@ const UpdateTicketAddOns = () => {
   const [seatingLayoutFile, setSeatingLayoutFile] = useState(null);
   const [seatingLayoutPreview, setSeatingLayoutPreview] = useState(null);
   const [ticketTypeColors] = useState([
-    '#3B82F6', // Blue
-    '#e6e92eff', // Yellow
-    '#F59E0B', // Amber
-    '#EF4444', // Red
-    '#8B5CF6', // Purple
-    '#EC4899', // Pink
-    '#06B6D4', // Cyan
-    '#F97316', // Orange
+    "#3B82F6", // Blue
+    "#e6e92eff", // Yellow
+    "#F59E0B", // Amber
+    "#EF4444", // Red
+    "#8B5CF6", // Purple
+    "#EC4899", // Pink
+    "#06B6D4", // Cyan
+    "#F97316", // Orange
   ]);
   const getTicketTypeColor = (ticketId) => {
-    const index = formData.ticket_types.findIndex(t => t.id === ticketId);
-    return index !== -1 ? ticketTypeColors[index % ticketTypeColors.length] : '#6B7280';
+    const index = formData.ticket_types.findIndex((t) => t.id === ticketId);
+    return index !== -1
+      ? ticketTypeColors[index % ticketTypeColors.length]
+      : "#6B7280";
   };
   const showAlert = (data) => setAlert({ ...data, show: true });
   const hideAlert = () => setAlert(null);
@@ -406,8 +413,13 @@ const UpdateTicketAddOns = () => {
   };
 
   useEffect(() => {
-    localStorage.setItem("theme", darkMode ? "dark" : "light");
-    document.documentElement.classList.toggle("dark", darkMode);
+    let styleSheet = document.getElementById("dynamic-theme-styles");
+    if (!styleSheet) {
+      styleSheet = document.createElement("style");
+      styleSheet.id = "dynamic-theme-styles";
+      document.head.appendChild(styleSheet);
+    }
+    styleSheet.innerText = darkMode ? darkThemeStyles : lightThemeStyles;
   }, [darkMode]);
   useEffect(() => {
     fetchData();
@@ -425,7 +437,8 @@ const UpdateTicketAddOns = () => {
     setSeatAssignments({});
     setIsGenerating(false);
     if (rulesEditorRef.current) rulesEditorRef.current.innerHTML = "";
-    if (descriptionEditorRef.current) descriptionEditorRef.current.innerHTML = "";
+    if (descriptionEditorRef.current)
+      descriptionEditorRef.current.innerHTML = "";
   };
   useEffect(() => {
     if (ticketId) {
@@ -666,21 +679,26 @@ const UpdateTicketAddOns = () => {
     const file = e.target.files[0];
     if (file) {
       const validTypes = [
-        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       ];
-      
+
       if (!validTypes.includes(file.type)) {
         showAlert({
           type: "error",
           message: "Invalid File Type",
-          description: "Please upload an image (JPG, PNG), PDF, or Word document.",
+          description:
+            "Please upload an image (JPG, PNG), PDF, or Word document.",
         });
         return;
       }
-      
+
       // Check file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
         showAlert({
@@ -690,9 +708,9 @@ const UpdateTicketAddOns = () => {
         });
         return;
       }
-      
+
       setSeatingLayoutFile(file);
-      if (file.type.startsWith('image/')) {
+      if (file.type.startsWith("image/")) {
         setSeatingLayoutPreview(URL.createObjectURL(file));
       } else {
         setSeatingLayoutPreview(null);
@@ -705,160 +723,177 @@ const UpdateTicketAddOns = () => {
     }
   };
   const handleGenerateLayout = async () => {
-  // Validation
-  if (!seatingLayoutFile) {
-    showAlert({
-      type: "error",
-      message: "Missing Layout File",
-      description: "Please upload a seating layout file first.",
-    });
-    return;
-  }
+    // Validation
+    if (!seatingLayoutFile) {
+      showAlert({
+        type: "error",
+        message: "Missing Layout File",
+        description: "Please upload a seating layout file first.",
+      });
+      return;
+    }
 
-  if (!formData.total_capacity) {
-    showAlert({
-      type: "error",
-      message: "Missing Capacity",
-      description: "Please set total capacity before generating layout.",
-    });
-    return;
-  }
+    if (!formData.total_capacity) {
+      showAlert({
+        type: "error",
+        message: "Missing Capacity",
+        description: "Please set total capacity before generating layout.",
+      });
+      return;
+    }
 
-  setIsGenerating(true);
-  
-  try {
-    // Create minimal payload for layout generation
-    const formDataToSend = new FormData();
-    
-    // Add the flag FIRST
-    formDataToSend.append("generate_layout_only", "true");
-    
-    // Add capacity
-    formDataToSend.append("total_capacity", formData.total_capacity);
-    
-    // Add minimal sub_event data
-    const minimalSubEvent = {
-      total_capacity: formData.total_capacity,
-      location_type: "offline",
-      generate_layout_only: true,
-    };
-    formDataToSend.append("sub_event", JSON.stringify(minimalSubEvent));
-    
-    // Add the layout file
-    formDataToSend.append("ticket_layout", seatingLayoutFile);
-    
-    console.log('📤 Sending layout generation request:', {
-      hasFile: !!seatingLayoutFile,
-      fileName: seatingLayoutFile.name,
-      capacity: formData.total_capacity,
-    });
-    
-    const response = await updateTicketAddOns(ticketId, formDataToSend);
-    
-    if (response.seating_layout) {
-      const generatedLayout = response.seating_layout;
-      
-      // ✅ CRITICAL FIX: Validate and normalize received seats
-      if (generatedLayout.seats && Array.isArray(generatedLayout.seats)) {
-        console.log('🔍 Frontend: Validating received layout...');
-        
-        // Check for missing fields
-        const missingFields = generatedLayout.seats.filter(seat =>
-          seat.ticketTypeId === undefined ||
-          seat.ticketTypeName === undefined ||
-          seat.ticketTypeColor === undefined ||
-          seat.price === undefined
-        );
-        
-        if (missingFields.length > 0) {
-          console.warn('⚠️ Frontend: Received seats missing fields:', {
-            count: missingFields.length,
-            sample: missingFields[0]
+    setIsGenerating(true);
+
+    try {
+      // Create minimal payload for layout generation
+      const formDataToSend = new FormData();
+
+      // Add the flag FIRST
+      formDataToSend.append("generate_layout_only", "true");
+
+      // Add capacity
+      formDataToSend.append("total_capacity", formData.total_capacity);
+
+      // Add minimal sub_event data
+      const minimalSubEvent = {
+        total_capacity: formData.total_capacity,
+        location_type: "offline",
+        generate_layout_only: true,
+      };
+      formDataToSend.append("sub_event", JSON.stringify(minimalSubEvent));
+
+      // Add the layout file
+      formDataToSend.append("ticket_layout", seatingLayoutFile);
+
+      console.log("📤 Sending layout generation request:", {
+        hasFile: !!seatingLayoutFile,
+        fileName: seatingLayoutFile.name,
+        capacity: formData.total_capacity,
+      });
+
+      const response = await updateTicketAddOns(ticketId, formDataToSend);
+
+      if (response.seating_layout) {
+        const generatedLayout = response.seating_layout;
+
+        // ✅ CRITICAL FIX: Validate and normalize received seats
+        if (generatedLayout.seats && Array.isArray(generatedLayout.seats)) {
+          console.log("🔍 Frontend: Validating received layout...");
+
+          // Check for missing fields
+          const missingFields = generatedLayout.seats.filter(
+            (seat) =>
+              seat.ticketTypeId === undefined ||
+              seat.ticketTypeName === undefined ||
+              seat.ticketTypeColor === undefined ||
+              seat.price === undefined
+          );
+
+          if (missingFields.length > 0) {
+            console.warn("⚠️ Frontend: Received seats missing fields:", {
+              count: missingFields.length,
+              sample: missingFields[0],
+            });
+          }
+
+          // ✅ NORMALIZE all seats to ensure consistency
+          generatedLayout.seats = generatedLayout.seats.map((seat) => ({
+            seatId: String(seat.seatId || ""),
+            row: String(seat.row || ""),
+            column: Number(seat.column || 0),
+            isAvailable: seat.isAvailable !== false,
+            isSelected: false,
+            // ✅ CRITICAL: Ensure null for unassigned, not undefined
+            ticketTypeId:
+              seat.ticketTypeId !== undefined && seat.ticketTypeId !== null
+                ? String(seat.ticketTypeId)
+                : null,
+            ticketTypeName:
+              seat.ticketTypeName !== undefined && seat.ticketTypeName !== null
+                ? String(seat.ticketTypeName)
+                : null,
+            ticketTypeColor:
+              seat.ticketTypeColor !== undefined &&
+              seat.ticketTypeColor !== null
+                ? String(seat.ticketTypeColor)
+                : null,
+            price:
+              seat.price !== undefined && seat.price !== null
+                ? Number(seat.price)
+                : 0,
+          }));
+
+          // ✅ Final validation
+          const stillMissing = generatedLayout.seats.filter(
+            (seat) =>
+              seat.ticketTypeId === undefined ||
+              seat.ticketTypeName === undefined ||
+              seat.ticketTypeColor === undefined ||
+              seat.price === undefined
+          );
+
+          if (stillMissing.length > 0) {
+            console.error(
+              "❌ CRITICAL: Seats still missing fields after normalization:",
+              stillMissing[0]
+            );
+            throw new Error("Seat normalization failed on frontend");
+          }
+
+          console.log("✅ All seats validated and normalized:", {
+            total: generatedLayout.seats.length,
+            unassigned: generatedLayout.seats.filter(
+              (s) => s.ticketTypeId === null
+            ).length,
+            assigned: generatedLayout.seats.filter(
+              (s) => s.ticketTypeId !== null
+            ).length,
+            sampleSeat: generatedLayout.seats[0],
           });
         }
-        
-        // ✅ NORMALIZE all seats to ensure consistency
-        generatedLayout.seats = generatedLayout.seats.map(seat => ({
-          seatId: String(seat.seatId || ''),
-          row: String(seat.row || ''),
-          column: Number(seat.column || 0),
-          isAvailable: seat.isAvailable !== false,
-          isSelected: false,
-          // ✅ CRITICAL: Ensure null for unassigned, not undefined
-          ticketTypeId: seat.ticketTypeId !== undefined && seat.ticketTypeId !== null 
-            ? String(seat.ticketTypeId) 
-            : null,
-          ticketTypeName: seat.ticketTypeName !== undefined && seat.ticketTypeName !== null 
-            ? String(seat.ticketTypeName) 
-            : null,
-          ticketTypeColor: seat.ticketTypeColor !== undefined && seat.ticketTypeColor !== null 
-            ? String(seat.ticketTypeColor) 
-            : null,
-          price: seat.price !== undefined && seat.price !== null 
-            ? Number(seat.price) 
-            : 0
+
+        setGeneratedSeatingLayout(generatedLayout);
+        setShowSeatingPreview(true);
+
+        // Store file for final submission
+        setFormData((prev) => ({
+          ...prev,
+          ticket_layout: seatingLayoutFile,
         }));
-        
-        // ✅ Final validation
-        const stillMissing = generatedLayout.seats.filter(seat =>
-          seat.ticketTypeId === undefined ||
-          seat.ticketTypeName === undefined ||
-          seat.ticketTypeColor === undefined ||
-          seat.price === undefined
-        );
-        
-        if (stillMissing.length > 0) {
-          console.error('❌ CRITICAL: Seats still missing fields after normalization:', stillMissing[0]);
-          throw new Error('Seat normalization failed on frontend');
-        }
-        
-        console.log('✅ All seats validated and normalized:', {
-          total: generatedLayout.seats.length,
-          unassigned: generatedLayout.seats.filter(s => s.ticketTypeId === null).length,
-          assigned: generatedLayout.seats.filter(s => s.ticketTypeId !== null).length,
-          sampleSeat: generatedLayout.seats[0]
+
+        showAlert({
+          type: "success",
+          message: "Layout Generated!",
+          description: `Successfully generated ${
+            generatedLayout.seats?.length || 0
+          } seats. All seats are ready for assignment.`,
         });
+      } else {
+        throw new Error("No seating layout returned from server");
       }
-      
-      setGeneratedSeatingLayout(generatedLayout);
-      setShowSeatingPreview(true);
-      
-      // Store file for final submission
-      setFormData(prev => ({
-        ...prev,
-        ticket_layout: seatingLayoutFile,
-      }));
-      
+    } catch (error) {
+      console.error("❌ Generation error:", error);
+
+      let errorMessage = "Failed to generate seating layout";
+      let errorDescription = "";
+
+      if (error.response?.data) {
+        errorMessage = error.response.data.message || errorMessage;
+        errorDescription =
+          error.response.data.hint || error.response.data.error || "";
+      } else if (error.message) {
+        errorDescription = error.message;
+      }
+
       showAlert({
-        type: "success",
-        message: "Layout Generated!",
-        description: `Successfully generated ${generatedLayout.seats?.length || 0} seats. All seats are ready for assignment.`,
+        type: "error",
+        message: errorMessage,
+        description: errorDescription,
       });
-    } else {
-      throw new Error('No seating layout returned from server');
+    } finally {
+      setIsGenerating(false);
     }
-  } catch (error) {
-    console.error('❌ Generation error:', error);
-    
-    let errorMessage = "Failed to generate seating layout";
-    let errorDescription = "";
-    
-    if (error.response?.data) {
-      errorMessage = error.response.data.message || errorMessage;
-      errorDescription = error.response.data.hint || error.response.data.error || "";
-    } else if (error.message) {
-      errorDescription = error.message;
-    }
-    
-    showAlert({
-      type: "error",
-      message: errorMessage,
-      description: errorDescription,
-    });
-  } finally {
-    setIsGenerating(false);
-  }
-};
+  };
   const removeSeatingLayout = () => {
     setSeatingLayoutFile(null);
     setSeatingLayoutPreview(null);
@@ -866,11 +901,12 @@ const UpdateTicketAddOns = () => {
     setShowSeatingPreview(false);
     setIsGenerating(false);
     setSeatAssignments({});
-    
+
     showAlert({
       type: "info",
       message: "Layout Cleared",
-      description: "Seating layout has been removed. Upload a new file to generate a layout.",
+      description:
+        "Seating layout has been removed. Upload a new file to generate a layout.",
     });
   };
   const handleMultiMediaChange = (e) => {
@@ -944,8 +980,39 @@ const UpdateTicketAddOns = () => {
       return { ...prev, banking_details: newBankingDetails };
     });
   };
+  const scrollAndAlert = (newErrors) => {
+    const firstErrorField = Object.keys(newErrors)[0];
+    const firstErrorMessage = newErrors[firstErrorField];
+
+    showAlert({
+      type: "error",
+      message: "Validation Failed",
+      description: firstErrorMessage,
+    });
+
+    if (firstErrorField && errorFieldRefs.current[firstErrorField]) {
+      setTimeout(() => {
+        const element = errorFieldRefs.current[firstErrorField];
+        if (element && element.scrollIntoView) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 50);
+    }
+  };
   const validateForm = () => {
+    setErrors({});
+    hideAlert();
     const newErrors = {};
+    let isFormValid = true;
+
+    const addError = (field, message) => {
+      if (isFormValid) {
+        newErrors[field] = message;
+        isFormValid = false;
+      } else {
+        newErrors[field] = message;
+      }
+    };
     const parseDate = (dateString) => {
       if (!dateString || typeof dateString !== "string") return null;
       const parts = dateString.split("-");
@@ -963,16 +1030,57 @@ const UpdateTicketAddOns = () => {
         year: "numeric",
       });
     };
+    const simpleNameRegex = /^[a-zA-Z\s.,\-\/\(\)&']+$/;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (!formData.event_name.trim())
-      newErrors.event_name = "Event name is required.";
+      addError("event_name", "Event name is required.");
+    else if (!simpleNameRegex.test(formData.event_name.trim()))
+      addError("event_name", "Event name contains invalid characters.");
+
     if (!formData.event_category)
-      newErrors.event_category = "Event category is required.";
+      addError("event_category", "Event category is required.");
+
     if (!formData.event_subcategory)
-      newErrors.event_subcategory = "Event subcategory is required.";
+      addError("event_subcategory", "Event subcategory is required.");
+
     if (formData.event_dates.length === 0)
-      newErrors.event_dates = "At least one event date is required.";
+      addError("event_dates", "At least one event date is required.");
+    if (formData.event_language.length === 0)
+      addError("event_language", "At least one event language is required.");
+
+    if (!descriptionEditorRef.current?.innerText?.trim())
+      addError("event_description", "Event description is required.");
+    if (!formData.POCS || formData.POCS.length === 0)
+      addError("POCS", "At least one Point of Contact (POC) must be added.");
+    if (!formData.event_banner && !previews.event_banner) {
+      addError("event_banner", "Event Banner image is required.");
+    }
+
+    if (formData.hashtag && formData.hashtag.length > 0) {
+      const hasEmptyTag = formData.hashtag.some(
+        (tag) => !tag || tag.trim() === ""
+      );
+
+      if (hasEmptyTag) {
+        addError(
+          "hashtag",
+          "Hashtags cannot be empty. Please remove any blank tags."
+        );
+      }
+
+      const validHashtagRegex = /^#[a-zA-Z0-9_]{1,50}$/;
+      const hasInvalidFormat = formData.hashtag.some(
+        (tag) => !validHashtagRegex.test(tag)
+      );
+      if (hasInvalidFormat) {
+        addError(
+          "hashtag",
+          "Hashtags must start with '#' and contain only letters, numbers, and underscores (e.g., #MyEvent_2025)."
+        );
+      }
+    }
     if (
       mainEventStartDate &&
       mainEventEndDate &&
@@ -982,63 +1090,129 @@ const UpdateTicketAddOns = () => {
       const mainEnd = parseDate(mainEventEndDate);
       if (mainStart) mainStart.setHours(0, 0, 0, 0);
       if (mainEnd) mainEnd.setHours(23, 59, 59, 999);
+
       for (const subEventDate of formData.event_dates) {
         const subDate = parseDate(subEventDate.date);
         if (subDate) subDate.setHours(0, 0, 0, 0);
+
         if (subDate < mainStart || subDate > mainEnd) {
-          newErrors.event_dates = `The date ${formatAlertDate(
-            subDate
-          )} is outside the main event's range of ${formatAlertDate(
-            mainStart
-          )} to ${formatAlertDate(mainEnd)}.`;
+          addError(
+            "event_dates",
+            `The date ${formatAlertDate(
+              subDate
+            )} is outside the main event's range of ${formatAlertDate(
+              mainStart
+            )} to ${formatAlertDate(mainEnd)}.`
+          );
           break;
         }
       }
     }
     if (formData.location_type === "offline") {
       if (!formData.location.trim())
-        newErrors.location = "Location is required.";
-      if (!formData.venue.trim()) newErrors.venue = "Venue is required.";
-      if (!formData.seating_arrangement)
-        newErrors.seating_arrangement = "Seating arrangement is required.";
-    } else {
+        addError("location", "Location is required for offline events.");
+      if (!formData.venue.trim())
+        addError("venue", "Venue is required for offline events.");
+      else if (!simpleNameRegex.test(formData.venue.trim()))
+        addError("venue", "Venue contains invalid characters.");
+      if (!formData.seating_arrangement) {
+        addError(
+          "seating_arrangement",
+          "Seating arrangement is required for offline events."
+        );
+      }
+      console.log(formData.seating_arrangement);
       if (!formData.total_capacity)
-        newErrors.total_capacity = "Maximum capacity is required.";
+        addError(
+          "total_capacity",
+          "Maximum capacity is required for offline events."
+        );
+    } else {
+      if (!formData.total_capacity || isNaN(parseInt(formData.total_capacity)))
+        addError(
+          "total_capacity",
+          "Maximum capacity is required for online/recorded events."
+        );
     }
+
+    const minAge = parseInt(formData.min_age_allowed, 10);
+    const maxAge = formData.max_age_allowed
+      ? parseInt(formData.max_age_allowed, 10)
+      : null;
+
+    if (!formData.min_age_allowed || isNaN(minAge) || minAge < 1) {
+      addError(
+        "min_age_allowed",
+        "Minimum age for entry is required and must be 1 or greater."
+      );
+    } else if (maxAge !== null && maxAge < minAge) {
+      addError(
+        "max_age_allowed",
+        "Maximum age cannot be less than the minimum age."
+      );
+      addError(
+        "min_age_allowed",
+        "Minimum age cannot be greater than the maximum age."
+      ); // Add error to min field too
+    }
+    if (formData.booking_start_date) {
+      const startBooking = parseDate(formData.booking_start_date);
+
+      if (
+        startBooking &&
+        startBooking < new Date(new Date().setHours(0, 0, 0, 0))
+      ) {
+        addError(
+          "booking_start_date",
+          "Booking start date cannot be in the past."
+        );
+      }
+    }
+
     if (formData.payment_type) {
       if (!formData.booking_start_date)
-        newErrors.booking_start_date = "Booking start date is required.";
+        addError("booking_start_date", "Booking start date is required.");
+
       if (!formData.booking_end_date)
-        newErrors.booking_end_date = "Booking end date is required.";
-      if (
-        formData.booking_start_date &&
-        formData.booking_end_date &&
-        formData.event_dates.length > 0
-      ) {
-        const sortedSubEventDates = [...formData.event_dates].sort(
-          (a, b) =>
-            new Date(b.endDate || b.date) - new Date(a.endDate || a.date)
-        );
-        const latestSubEventEndDateString =
-          sortedSubEventDates[0].endDate || sortedSubEventDates[0].date;
+        addError("booking_end_date", "Booking end date is required.");
+
+      if (formData.booking_start_date && formData.booking_end_date) {
         const startBooking = parseDate(formData.booking_start_date);
         const endBooking = parseDate(formData.booking_end_date);
-        const latestSubEventEndDate = parseDate(latestSubEventEndDateString);
-        if (latestSubEventEndDate) {
-          latestSubEventEndDate.setHours(23, 59, 59, 999);
+
+        if (endBooking && startBooking && endBooking < startBooking) {
+          addError(
+            "booking_end_date",
+            "Booking end date cannot be before the start date."
+          );
         }
-        if (startBooking && endBooking && endBooking < startBooking) {
-          newErrors.booking_end_date =
-            "Booking end date cannot be before the start date.";
-        }
-        if (
-          latestSubEventEndDate &&
-          endBooking &&
-          endBooking > latestSubEventEndDate
-        ) {
-          newErrors.booking_end_date = `Booking must end on or before the sub-event ends on ${formatAlertDate(
-            latestSubEventEndDate
-          )}.`;
+
+        // Check booking end date against latest sub-event end date
+        if (formData.event_dates.length > 0) {
+          const sortedSubEventDates = [...formData.event_dates].sort(
+            (a, b) =>
+              new Date(b.endDate || b.date) - new Date(a.endDate || a.date)
+          );
+          const latestSubEventEndDateString =
+            sortedSubEventDates[0].endDate || sortedSubEventDates[0].date;
+          const latestSubEventEndDate = parseDate(latestSubEventEndDateString);
+
+          if (latestSubEventEndDate) {
+            latestSubEventEndDate.setHours(23, 59, 59, 999);
+          }
+
+          if (
+            latestSubEventEndDate &&
+            endBooking &&
+            endBooking > latestSubEventEndDate
+          ) {
+            addError(
+              "booking_end_date",
+              `Booking must end on or before the sub-event ends on ${formatAlertDate(
+                latestSubEventEndDate
+              )}.`
+            );
+          }
         }
       }
     }
@@ -1048,7 +1222,7 @@ const UpdateTicketAddOns = () => {
       formData.event_youtube_link &&
       !youtubeRegex.test(formData.event_youtube_link)
     ) {
-      newErrors.event_youtube_link = "Invalid YouTube URL format.";
+      addError("event_youtube_link", "Invalid YouTube URL format.");
     }
     const instagramRegex =
       /^(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._]{1,30}\/?/;
@@ -1056,15 +1230,33 @@ const UpdateTicketAddOns = () => {
       formData.event_instagram_link &&
       !instagramRegex.test(formData.event_instagram_link)
     ) {
-      newErrors.event_instagram_link = "Invalid Instagram URL format.";
+      addError("event_instagram_link", "Invalid Instagram URL format.");
     }
-    setErrors(newErrors);
+    if (formData.payment_type === "paid" && !useGroupBankAccount) {
+      const bankDetail = formData.banking_details?.[0] || {};
+
+      if (!bankDetail.bank_acc_type)
+        addError(
+          "bank_acc_type",
+          "Bank account type is required for paid events."
+        );
+
+      if (!bankDetail.bank_acc_holder?.trim())
+        addError(
+          "bank_acc_holder",
+          "Account holder name is required for paid events."
+        );
+
+      if (!bankDetail.bank_acc_no?.trim())
+        addError("bank_acc_no", "Account number is required for paid events.");
+
+      if (!bankDetail.bank_ifsc?.trim())
+        addError("bank_ifsc", "IFSC code is required for paid events.");
+    }
+
     if (Object.keys(newErrors).length > 0) {
-      showAlert({
-        type: "error",
-        message: "Validation Failed",
-        description: Object.values(newErrors)[0],
-      });
+      setErrors(newErrors);
+      scrollAndAlert(newErrors);
       return false;
     }
 
@@ -1078,424 +1270,470 @@ const UpdateTicketAddOns = () => {
     if (ampm === "PM" && hour24 !== 12) hour24 += 12;
     return `${hour24.toString().padStart(2, "0")}:${minutes}`;
   };
-const buildPayload = () => {
-  if (
-    formData.location_type === "online" ||
-    formData.location_type === "recorded"
-  ) {
-    for (const date of formData.event_dates) {
-      if (!date.eventLink || date.eventLink.trim() === "") {
-        showAlert({
-          type: "error",
-          message: "Event Link Missing",
-          description: `An event link is required for the date: ${new Date(
-            date.date + "T00:00:00"
-          ).toLocaleDateString()}. Please edit the date to add a link.`,
-        });
-        return null;
-      }
-    }
-  }
-  const ensureProhibitedItemsArray = () => {
-    if (Array.isArray(formData.prohibited_items)) {
-      const cleaned = formData.prohibited_items
-        .map((item) => {
-          if (typeof item === "string") return item.trim();
-          if (typeof item === "object" && item !== null) {
-            return item.name || item.item || item.value || String(item);
-          }
-          return String(item);
-        })
-        .filter(
-          (item) => item && item !== "undefined" && item !== "null" && item.trim() !== ""
-        );
-      return cleaned;
-    }
-
-    if (typeof formData.prohibited_items === "string") {
-      try {
-        const parsed = JSON.parse(formData.prohibited_items);
-        if (Array.isArray(parsed)) {
-          return parsed;
+  const buildPayload = () => {
+    if (
+      formData.location_type === "online" ||
+      formData.location_type === "recorded"
+    ) {
+      for (const date of formData.event_dates) {
+        if (!date.eventLink || date.eventLink.trim() === "") {
+          showAlert({
+            type: "error",
+            message: "Event Link Missing",
+            description: `An event link is required for the date: ${new Date(
+              date.date + "T00:00:00"
+            ).toLocaleDateString()}. Please edit the date to add a link.`,
+          });
+          return null;
         }
-      } catch (e) {
-        return null;
-      }
-      const split = formData.prohibited_items
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s);
-      if (split.length > 0) {
-        return split;
       }
     }
-    return [];
-  };
-  const ensureTicketTypesArray = () => {
-    const isSimplePaid =
-      formData.payment_type === "paid" &&
-      formData.location_type !== "offline";
-    if (!formData.ticket_types || formData.ticket_types.length === 0) {
-      if (isSimplePaid) {
-        return [
-          {
-            ticket_type: "Standard Ticket",
-            ticket_price: 0,
-            max_capacity: Number(formData.total_capacity) || 0,
-            ticket_photo: "",
-          },
-        ];
+    const ensureProhibitedItemsArray = () => {
+      if (Array.isArray(formData.prohibited_items)) {
+        const cleaned = formData.prohibited_items
+          .map((item) => {
+            if (typeof item === "string") return item.trim();
+            if (typeof item === "object" && item !== null) {
+              return item.name || item.item || item.value || String(item);
+            }
+            return String(item);
+          })
+          .filter(
+            (item) =>
+              item &&
+              item !== "undefined" &&
+              item !== "null" &&
+              item.trim() !== ""
+          );
+        return cleaned;
+      }
+
+      if (typeof formData.prohibited_items === "string") {
+        try {
+          const parsed = JSON.parse(formData.prohibited_items);
+          if (Array.isArray(parsed)) {
+            return parsed;
+          }
+        } catch (e) {
+          return null;
+        }
+        const split = formData.prohibited_items
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => s);
+        if (split.length > 0) {
+          return split;
+        }
       }
       return [];
-    }
-
-    if (Array.isArray(formData.ticket_types)) {
-      const processed = formData.ticket_types.map((t, index) => {
-        const ticket = {
-          ticket_type: t.name || t.ticket_type || "Standard Ticket",
-          ticket_price: Number(t.price || t.ticket_price || 0),
-          max_capacity: Number(t.capacity || t.max_capacity || 0),
-          ticket_photo: t.existingPhotoPath || t.ticket_photo || "",
-        };
-        return ticket;
-      });
-      if (isSimplePaid && processed.length > 0) {
-        processed[0].max_capacity = Number(formData.total_capacity) || 0;
+    };
+    const ensureTicketTypesArray = () => {
+      const isSimplePaid =
+        formData.payment_type === "paid" &&
+        formData.location_type !== "offline";
+      if (!formData.ticket_types || formData.ticket_types.length === 0) {
+        if (isSimplePaid) {
+          return [
+            {
+              ticket_type: "Standard Ticket",
+              ticket_price: 0,
+              max_capacity: Number(formData.total_capacity) || 0,
+              ticket_photo: "",
+            },
+          ];
+        }
+        return [];
       }
-      return processed;
-    }
-    return [];
-  };
-  const payload = {
-    event_name: formData.event_name,
-    event_category: formData.event_category,
-    event_subcategory: formData.event_subcategory,
-    event_type: formData.event_type,
-    event_language: formData.event_language,
-    min_age_allowed: parseInt(formData.min_age_allowed, 10) || 0,
-    max_age_allowed: parseInt(formData.max_age_allowed, 10) || 0,
-    kids_friendly: formData.kids_friendly,
-    pet_friendly: formData.pet_friendly,
-    location_type: formData.location_type,
-    event_date_type: formData.event_date_type,
-    total_capacity: formData.total_capacity, // ✅ ADD THIS
-    event_dates: formData.event_dates.map((d) => {
-      let eventLink = d.eventLink || "";
-      if (
-        eventLink &&
-        !eventLink.startsWith("http://") &&
-        !eventLink.startsWith("https://")
-      ) {
-        eventLink = "https://" + eventLink;
-      }
-      return {
-        start_date: d.date,
-        end_date: d.endDate || d.date,
-        start_time: convertTo24Hour(d.startTime, d.startAmPm),
-        end_time: convertTo24Hour(d.endTime, d.endAmPm),
-        event_link: eventLink,
-        video_name: d.videoName || "",
-        verification_event_code: d.verificationCode || "",
-      };
-    }),
-    event_instagram_link: formData.event_instagram_link,
-    event_youtube_link: formData.event_youtube_link,
-    event_description: descriptionEditorRef.current?.innerHTML || "",
-    event_rules_text: rulesEditorRef.current?.innerHTML || "",
-    hashtag: Array.isArray(formData.hashtag) ? formData.hashtag : [],
-    prohibited_items: ensureProhibitedItemsArray(),
-    ticket_types: ensureTicketTypesArray(),
-    payment_type: formData.payment_type,
-    POCS: formData.POCS,
-    guests: formData.guests.map((g) => ({
-      guest_name: g.name,
-      guest_link: g.link,
-    })),
-    booking_start_date: formData.booking_start_date,
-    booking_end_date: formData.booking_end_date,
-  };
-  if (formData.payment_type === "paid") {
-    payload.banking_details = formData.banking_details;
-  }
-  // CRITICAL: Handle offline events with seating layout
-  if (formData.location_type === "offline") {
-    payload.location = formData.location;
-    payload.venue = formData.venue;
-    payload.seating_arrangement = formData.seating_arrangement || "none";
-    payload.exact_map_location = formData.exact_map_location;
-    payload.gate_open_time = formData.gate_open_time;
 
-    // Handle seating layout if available
-    if (generatedSeatingLayout && generatedSeatingLayout.seats && generatedSeatingLayout.seats.length > 0) {
-      console.log('🎯 Building payload with seating layout:', {
-        totalSeats: generatedSeatingLayout.seats.length,
-        assignedSeats: generatedSeatingLayout.seats.filter(s => s.ticketTypeId).length,
-        assignments: Object.keys(seatAssignments).length
-      });
-      const ticketTypeMap = {};
-      formData.ticket_types.forEach(ticket => {
-        const id = String(ticket.id);
-        ticketTypeMap[id] = {
-          name: ticket.name || ticket.ticket_type || '',
-          price: Number(ticket.price || ticket.ticket_price || 0),
-          color: getTicketTypeColor(ticket.id)
-        };
-      });
-
-// Process seats with complete data - PRESERVE ALL ASSIGNMENTS
-      const processedSeats = generatedSeatingLayout.seats.map(seat => {
-        const seatId = String(seat.seatId);
-        // Get current assignment data from seat itself (already has complete data)
-        const ticketTypeId = seat.ticketTypeId ? String(seat.ticketTypeId) : null;
-        const ticketTypeName = seat.ticketTypeName || null;
-        const ticketTypeColor = seat.ticketTypeColor || null;
-        const price = seat.price !== undefined ? Number(seat.price) : 0;
-        return {
-          seatId: seatId,
-          row: String(seat.row),
-          column: Number(seat.column),
-          isAvailable: true,
-          isSelected: false,
-          ticketTypeId: ticketTypeId,
-          ticketTypeName: ticketTypeName,
-          ticketTypeColor: ticketTypeColor,
-          price: price
-        };
-      });
-      // Log validation
-      const assignedSeatsCount = processedSeats.filter(s => s.ticketTypeId).length;
-      const seatsWithPrice = processedSeats.filter(s => s.price > 0).length;
-      console.log('✅ Processed seats validation:', {
-        total: processedSeats.length,
-        assigned: assignedSeatsCount,
-        withPrice: seatsWithPrice
-      });
-      if (assignedSeatsCount !== seatsWithPrice) {
-        console.error('❌ MISMATCH: Some assigned seats missing prices!', {
-          assigned: assignedSeatsCount,
-          withPrice: seatsWithPrice
-        });
-      }
-      // Process assignments with complete data
-      const processedAssignments = Object.entries(seatAssignments)
-        .filter(([_, seatIds]) => Array.isArray(seatIds) && seatIds.length > 0)
-        .map(([typeId, seatIds]) => {
-          const normalizedTypeId = String(typeId);
-          const ticketDetails = ticketTypeMap[normalizedTypeId];
-          
-          if (!ticketDetails) {
-            console.warn(`⚠️ Missing ticket details for type ${normalizedTypeId}`);
-            return null;
-          }
-
-          return {
-            ticketTypeId: normalizedTypeId,
-            ticketTypeName: ticketDetails.name,
-            color: ticketDetails.color,
-            assignedSeats: seatIds.map(id => String(id)),
-            capacity: seatIds.length,
-            price: ticketDetails.price
+      if (Array.isArray(formData.ticket_types)) {
+        const processed = formData.ticket_types.map((t, index) => {
+          const ticket = {
+            ticket_type: t.name || t.ticket_type || "Standard Ticket",
+            ticket_price: Number(t.price || t.ticket_price || 0),
+            max_capacity: Number(t.capacity || t.max_capacity || 0),
+            ticket_photo: t.existingPhotoPath || t.ticket_photo || "",
           };
-        })
-        .filter(Boolean); // Remove null entries
-
-      payload.seating_layout = {
-        rows: (generatedSeatingLayout.rows || []).map(r => String(r)),
-        columns: Number(generatedSeatingLayout.columns || 0),
-        seats: processedSeats,
-        ticketTypeAssignments: processedAssignments
-      };
-      const invalidSeats = processedSeats.filter(s => 
-        s.ticketTypeId && (!s.ticketTypeName || s.price === undefined)
-      );
-      if (invalidSeats.length > 0) {
-        console.warn('⚠️ Warning: Some assigned seats missing complete data:', {
-          count: invalidSeats.length,
-          samples: invalidSeats.slice(0, 3)
+          return ticket;
         });
+        if (isSimplePaid && processed.length > 0) {
+          processed[0].max_capacity = Number(formData.total_capacity) || 0;
+        }
+        return processed;
       }
+      return [];
+    };
+    const payload = {
+      event_name: formData.event_name,
+      event_category: formData.event_category,
+      event_subcategory: formData.event_subcategory,
+      event_type: formData.event_type,
+      event_language: formData.event_language,
+      min_age_allowed: parseInt(formData.min_age_allowed, 10) || 0,
+      max_age_allowed: parseInt(formData.max_age_allowed, 10) || 0,
+      kids_friendly: formData.kids_friendly,
+      pet_friendly: formData.pet_friendly,
+      location_type: formData.location_type,
+      event_date_type: formData.event_date_type,
+      total_capacity: formData.total_capacity, // ✅ ADD THIS
+      event_dates: formData.event_dates.map((d) => {
+        let eventLink = d.eventLink || "";
+        if (
+          eventLink &&
+          !eventLink.startsWith("http://") &&
+          !eventLink.startsWith("https://")
+        ) {
+          eventLink = "https://" + eventLink;
+        }
+        return {
+          start_date: d.date,
+          end_date: d.endDate || d.date,
+          start_time: convertTo24Hour(d.startTime, d.startAmPm),
+          end_time: convertTo24Hour(d.endTime, d.endAmPm),
+          event_link: eventLink,
+          video_name: d.videoName || "",
+          verification_event_code: d.verificationCode || "",
+        };
+      }),
+      event_instagram_link: formData.event_instagram_link,
+      event_youtube_link: formData.event_youtube_link,
+      event_description: descriptionEditorRef.current?.innerHTML || "",
+      event_rules_text: rulesEditorRef.current?.innerHTML || "",
+      hashtag: Array.isArray(formData.hashtag) ? formData.hashtag : [],
+      prohibited_items: ensureProhibitedItemsArray(),
+      ticket_types: ensureTicketTypesArray(),
+      payment_type: formData.payment_type,
+      POCS: formData.POCS,
+      guests: formData.guests.map((g) => ({
+        guest_name: g.name,
+        guest_link: g.link,
+      })),
+      booking_start_date: formData.booking_start_date,
+      booking_end_date: formData.booking_end_date,
+    };
+    if (formData.payment_type === "paid") {
+      payload.banking_details = formData.banking_details;
     }
-  }
-  return payload;
-};
-const buildFormData = (payload) => {
-  const submissionForm = new FormData();
+    // CRITICAL: Handle offline events with seating layout
+    if (formData.location_type === "offline") {
+      payload.location = formData.location;
+      payload.venue = formData.venue;
+      payload.seating_arrangement = formData.seating_arrangement || "none";
+      payload.exact_map_location = formData.exact_map_location;
+      payload.gate_open_time = formData.gate_open_time;
 
-  // Add editing flag if in edit mode
-  if (isEditingSubEvent && editingSubEventId) {
-    submissionForm.append("editing_sub_event_id", editingSubEventId);
-  }
+      // Handle seating layout if available
+      if (
+        generatedSeatingLayout &&
+        generatedSeatingLayout.seats &&
+        generatedSeatingLayout.seats.length > 0
+      ) {
+        console.log("🎯 Building payload with seating layout:", {
+          totalSeats: generatedSeatingLayout.seats.length,
+          assignedSeats: generatedSeatingLayout.seats.filter(
+            (s) => s.ticketTypeId
+          ).length,
+          assignments: Object.keys(seatAssignments).length,
+        });
+        const ticketTypeMap = {};
+        formData.ticket_types.forEach((ticket) => {
+          const id = String(ticket.id);
+          ticketTypeMap[id] = {
+            name: ticket.name || ticket.ticket_type || "",
+            price: Number(ticket.price || ticket.ticket_price || 0),
+            color: getTicketTypeColor(ticket.id),
+          };
+        });
 
-  // CRITICAL: Deep clone payload to avoid mutation
-  const subEventData = JSON.parse(JSON.stringify(payload));
+        // Process seats with complete data - PRESERVE ALL ASSIGNMENTS
+        const processedSeats = generatedSeatingLayout.seats.map((seat) => {
+          const seatId = String(seat.seatId);
+          // Get current assignment data from seat itself (already has complete data)
+          const ticketTypeId = seat.ticketTypeId
+            ? String(seat.ticketTypeId)
+            : null;
+          const ticketTypeName = seat.ticketTypeName || null;
+          const ticketTypeColor = seat.ticketTypeColor || null;
+          const price = seat.price !== undefined ? Number(seat.price) : 0;
+          return {
+            seatId: seatId,
+            row: String(seat.row),
+            column: Number(seat.column),
+            isAvailable: true,
+            isSelected: false,
+            ticketTypeId: ticketTypeId,
+            ticketTypeName: ticketTypeName,
+            ticketTypeColor: ticketTypeColor,
+            price: price,
+          };
+        });
+        // Log validation
+        const assignedSeatsCount = processedSeats.filter(
+          (s) => s.ticketTypeId
+        ).length;
+        const seatsWithPrice = processedSeats.filter((s) => s.price > 0).length;
+        console.log("✅ Processed seats validation:", {
+          total: processedSeats.length,
+          assigned: assignedSeatsCount,
+          withPrice: seatsWithPrice,
+        });
+        if (assignedSeatsCount !== seatsWithPrice) {
+          console.error("❌ MISMATCH: Some assigned seats missing prices!", {
+            assigned: assignedSeatsCount,
+            withPrice: seatsWithPrice,
+          });
+        }
+        // Process assignments with complete data
+        const processedAssignments = Object.entries(seatAssignments)
+          .filter(
+            ([_, seatIds]) => Array.isArray(seatIds) && seatIds.length > 0
+          )
+          .map(([typeId, seatIds]) => {
+            const normalizedTypeId = String(typeId);
+            const ticketDetails = ticketTypeMap[normalizedTypeId];
 
-  // Log seating_layout BEFORE stringification
-  if (subEventData.seating_layout) {
-
-    // Verify all assigned seats have prices
-    const assignedSeats = subEventData.seating_layout.seats.filter(s => s.ticketTypeId);
-    const seatsWithoutPrice = assignedSeats.filter(s => !s.price || s.price === 0);
-    
-    if (seatsWithoutPrice.length > 0) {
-      console.error('❌ CRITICAL: Seats missing prices:', seatsWithoutPrice.map(s => ({
-        seatId: s.seatId,
-        typeId: s.ticketTypeId,
-        typeName: s.ticketTypeName,
-        price: s.price
-      })));
-    } else {
-      console.log('✅ All assigned seats have prices');
-    }
-  }
-
-  // Handle existing files in edit mode
-  if (isEditingSubEvent) {
-    // Preserve existing banner
-    if (!seatingLayoutFile && !formData.event_banner && previews.event_banner) {
-      const existingPath = typeof previews.event_banner === 'string' 
-        ? previews.event_banner 
-        : previews.event_banner?.data;
-      
-      if (existingPath) {
-        subEventData.existing_event_banner = existingPath;
-      }
-    }
-
-    // Preserve existing ticket_layout if no new file
-    if (!seatingLayoutFile && previews.ticket_layout) {
-      const existingPath = typeof previews.ticket_layout === 'string' 
-        ? previews.ticket_layout 
-        : previews.ticket_layout?.data;
-      
-      if (existingPath) {
-        subEventData.existing_ticket_layout = existingPath;
-      }
-    }
-  }
-
-  // CRITICAL: Stringify sub_event data
-  const jsonString = JSON.stringify(subEventData);
-  
-  // Log a snippet to verify structure
-  if (jsonString.includes('seating_layout')) {
-    const layoutStart = jsonString.indexOf('"seating_layout"');
-    const snippet = jsonString.substring(layoutStart, layoutStart + 500);
-  }
-
-  submissionForm.append("sub_event", jsonString);
-
-  // Append single file fields
-  if (formData.event_banner instanceof File) {
-    submissionForm.append("event_banner", formData.event_banner);
-  }
-
-  if (formData.event_logo instanceof File) {
-    submissionForm.append("event_logo", formData.event_logo);
-  }
-
-  if (formData.event_rules_file instanceof File) {
-    submissionForm.append("event_rules", formData.event_rules_file);
-  }
-
-  // CRITICAL: Handle ticket_layout file
-  if (formData.location_type === "offline") {
-    // Priority 1: New file from seatingLayoutFile
-    if (seatingLayoutFile instanceof File) {
-      submissionForm.append("ticket_layout", seatingLayoutFile);
-      console.log('📤 Appending NEW ticket_layout file:', seatingLayoutFile.name);
-    }
-    // Priority 2: File from formData
-    else if (formData.ticket_layout instanceof File) {
-      submissionForm.append("ticket_layout", formData.ticket_layout);
-      console.log('📤 Appending ticket_layout from formData');
-    }
-    // Priority 3: No new file in edit mode (existing handled above)
-    else if (isEditingSubEvent) {
-      console.log('ℹ️ Edit mode - no new ticket_layout file');
-    }
-  }
-
-  // Append event_images (multiple)
-  if (formData.event_images && formData.event_images.length > 0) {
-    formData.event_images.forEach((file) => {
-      submissionForm.append("event_images", file);
-    });
-    console.log(`📤 Appending ${formData.event_images.length} event_images`);
-  }
-
-  // Append guest profiles
-  if (formData.guests && formData.guests.length > 0) {
-    formData.guests.forEach((guest, index) => {
-      if (guest.rawFile instanceof File) {
-        submissionForm.append(`guest_profile_${index}`, guest.rawFile);
-      }
-    });
-  }
-
-  // Append ticket photos
-  if (formData.ticket_types && formData.ticket_types.length > 0) {
-    formData.ticket_types.forEach((ticket, index) => {
-      if (ticket.photoFile instanceof File) {
-        submissionForm.append(`ticket_photo_${index}`, ticket.photoFile);
-      }
-    });
-  }
-
-  // Append video files for recorded events
-  if (formData.location_type === "recorded" && formData.event_dates) {
-    formData.event_dates.forEach((date, index) => {
-      if (date.videoFile instanceof File) {
-        submissionForm.append(`video_file_${index}`, date.videoFile);
-      }
-      if (date.previewImageFile instanceof File) {
-        submissionForm.append(`preview_image_${index}`, date.previewImageFile);
-      }
-    });
-  }
-
-  // Debug: Log FormData contents
-  console.log('📦 Final FormData contents:');
-  let entryCount = 0;
-  for (let pair of submissionForm.entries()) {
-    entryCount++;
-    if (pair[0] === 'sub_event') {
-      const data = pair[1];
-      if (typeof data === 'string') {
-        console.log(`  ${pair[0]}: [JSON String] ${data.length} chars`);
-        
-        // Verify seating_layout is in the JSON
-        if (data.includes('seating_layout')) {
-          console.log('  ✅ sub_event contains seating_layout');
-          
-          // Parse and check structure
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.seating_layout) {
-              console.log('  ✅ seating_layout structure verified:', {
-                hasSeats: !!parsed.seating_layout.seats,
-                seatCount: parsed.seating_layout.seats?.length || 0,
-                assignedCount: parsed.seating_layout.seats?.filter(s => s.ticketTypeId).length || 0,
-                seatsWithPrice: parsed.seating_layout.seats?.filter(s => s.price > 0).length || 0
-              });
+            if (!ticketDetails) {
+              console.warn(
+                `⚠️ Missing ticket details for type ${normalizedTypeId}`
+              );
+              return null;
             }
-          } catch (e) {
-            console.error('  ❌ Failed to parse sub_event JSON:', e);
-          }
-        } else {
-          console.warn('  ⚠️ sub_event does NOT contain seating_layout!');
+
+            return {
+              ticketTypeId: normalizedTypeId,
+              ticketTypeName: ticketDetails.name,
+              color: ticketDetails.color,
+              assignedSeats: seatIds.map((id) => String(id)),
+              capacity: seatIds.length,
+              price: ticketDetails.price,
+            };
+          })
+          .filter(Boolean); // Remove null entries
+
+        payload.seating_layout = {
+          rows: (generatedSeatingLayout.rows || []).map((r) => String(r)),
+          columns: Number(generatedSeatingLayout.columns || 0),
+          seats: processedSeats,
+          ticketTypeAssignments: processedAssignments,
+        };
+        const invalidSeats = processedSeats.filter(
+          (s) => s.ticketTypeId && (!s.ticketTypeName || s.price === undefined)
+        );
+        if (invalidSeats.length > 0) {
+          console.warn(
+            "⚠️ Warning: Some assigned seats missing complete data:",
+            {
+              count: invalidSeats.length,
+              samples: invalidSeats.slice(0, 3),
+            }
+          );
         }
       }
-    } else if (pair[1] instanceof File) {
-      console.log(`  ${pair[0]}: [File] ${pair[1].name} (${pair[1].size} bytes)`);
-    } else {
-      const value = typeof pair[1] === 'string' && pair[1].length > 100 
-        ? pair[1].substring(0, 100) + '...' 
-        : pair[1];
-      console.log(`  ${pair[0]}: ${value}`);
     }
-  }
-  return submissionForm;
-};
+    return payload;
+  };
+  const buildFormData = (payload) => {
+    const submissionForm = new FormData();
+
+    // Add editing flag if in edit mode
+    if (isEditingSubEvent && editingSubEventId) {
+      submissionForm.append("editing_sub_event_id", editingSubEventId);
+    }
+
+    // CRITICAL: Deep clone payload to avoid mutation
+    const subEventData = JSON.parse(JSON.stringify(payload));
+
+    // Log seating_layout BEFORE stringification
+    if (subEventData.seating_layout) {
+      // Verify all assigned seats have prices
+      const assignedSeats = subEventData.seating_layout.seats.filter(
+        (s) => s.ticketTypeId
+      );
+      const seatsWithoutPrice = assignedSeats.filter(
+        (s) => !s.price || s.price === 0
+      );
+
+      if (seatsWithoutPrice.length > 0) {
+        console.error(
+          "❌ CRITICAL: Seats missing prices:",
+          seatsWithoutPrice.map((s) => ({
+            seatId: s.seatId,
+            typeId: s.ticketTypeId,
+            typeName: s.ticketTypeName,
+            price: s.price,
+          }))
+        );
+      } else {
+        console.log("✅ All assigned seats have prices");
+      }
+    }
+
+    // Handle existing files in edit mode
+    if (isEditingSubEvent) {
+      // Preserve existing banner
+      if (
+        !seatingLayoutFile &&
+        !formData.event_banner &&
+        previews.event_banner
+      ) {
+        const existingPath =
+          typeof previews.event_banner === "string"
+            ? previews.event_banner
+            : previews.event_banner?.data;
+
+        if (existingPath) {
+          subEventData.existing_event_banner = existingPath;
+        }
+      }
+
+      // Preserve existing ticket_layout if no new file
+      if (!seatingLayoutFile && previews.ticket_layout) {
+        const existingPath =
+          typeof previews.ticket_layout === "string"
+            ? previews.ticket_layout
+            : previews.ticket_layout?.data;
+
+        if (existingPath) {
+          subEventData.existing_ticket_layout = existingPath;
+        }
+      }
+    }
+
+    // CRITICAL: Stringify sub_event data
+    const jsonString = JSON.stringify(subEventData);
+
+    // Log a snippet to verify structure
+    if (jsonString.includes("seating_layout")) {
+      const layoutStart = jsonString.indexOf('"seating_layout"');
+      const snippet = jsonString.substring(layoutStart, layoutStart + 500);
+    }
+
+    submissionForm.append("sub_event", jsonString);
+
+    // Append single file fields
+    if (formData.event_banner instanceof File) {
+      submissionForm.append("event_banner", formData.event_banner);
+    }
+
+    if (formData.event_logo instanceof File) {
+      submissionForm.append("event_logo", formData.event_logo);
+    }
+
+    if (formData.event_rules_file instanceof File) {
+      submissionForm.append("event_rules", formData.event_rules_file);
+    }
+
+    // CRITICAL: Handle ticket_layout file
+    if (formData.location_type === "offline") {
+      // Priority 1: New file from seatingLayoutFile
+      if (seatingLayoutFile instanceof File) {
+        submissionForm.append("ticket_layout", seatingLayoutFile);
+        console.log(
+          "📤 Appending NEW ticket_layout file:",
+          seatingLayoutFile.name
+        );
+      }
+      // Priority 2: File from formData
+      else if (formData.ticket_layout instanceof File) {
+        submissionForm.append("ticket_layout", formData.ticket_layout);
+        console.log("📤 Appending ticket_layout from formData");
+      }
+      // Priority 3: No new file in edit mode (existing handled above)
+      else if (isEditingSubEvent) {
+        console.log("ℹ️ Edit mode - no new ticket_layout file");
+      }
+    }
+
+    // Append event_images (multiple)
+    if (formData.event_images && formData.event_images.length > 0) {
+      formData.event_images.forEach((file) => {
+        submissionForm.append("event_images", file);
+      });
+      console.log(`📤 Appending ${formData.event_images.length} event_images`);
+    }
+
+    // Append guest profiles
+    if (formData.guests && formData.guests.length > 0) {
+      formData.guests.forEach((guest, index) => {
+        if (guest.rawFile instanceof File) {
+          submissionForm.append(`guest_profile_${index}`, guest.rawFile);
+        }
+      });
+    }
+
+    // Append ticket photos
+    if (formData.ticket_types && formData.ticket_types.length > 0) {
+      formData.ticket_types.forEach((ticket, index) => {
+        if (ticket.photoFile instanceof File) {
+          submissionForm.append(`ticket_photo_${index}`, ticket.photoFile);
+        }
+      });
+    }
+
+    // Append video files for recorded events
+    if (formData.location_type === "recorded" && formData.event_dates) {
+      formData.event_dates.forEach((date, index) => {
+        if (date.videoFile instanceof File) {
+          submissionForm.append(`video_file_${index}`, date.videoFile);
+        }
+        if (date.previewImageFile instanceof File) {
+          submissionForm.append(
+            `preview_image_${index}`,
+            date.previewImageFile
+          );
+        }
+      });
+    }
+
+    // Debug: Log FormData contents
+    console.log("📦 Final FormData contents:");
+    let entryCount = 0;
+    for (let pair of submissionForm.entries()) {
+      entryCount++;
+      if (pair[0] === "sub_event") {
+        const data = pair[1];
+        if (typeof data === "string") {
+          console.log(`  ${pair[0]}: [JSON String] ${data.length} chars`);
+
+          // Verify seating_layout is in the JSON
+          if (data.includes("seating_layout")) {
+            console.log("  ✅ sub_event contains seating_layout");
+
+            // Parse and check structure
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.seating_layout) {
+                console.log("  ✅ seating_layout structure verified:", {
+                  hasSeats: !!parsed.seating_layout.seats,
+                  seatCount: parsed.seating_layout.seats?.length || 0,
+                  assignedCount:
+                    parsed.seating_layout.seats?.filter((s) => s.ticketTypeId)
+                      .length || 0,
+                  seatsWithPrice:
+                    parsed.seating_layout.seats?.filter((s) => s.price > 0)
+                      .length || 0,
+                });
+              }
+            } catch (e) {
+              console.error("  ❌ Failed to parse sub_event JSON:", e);
+            }
+          } else {
+            console.warn("  ⚠️ sub_event does NOT contain seating_layout!");
+          }
+        }
+      } else if (pair[1] instanceof File) {
+        console.log(
+          `  ${pair[0]}: [File] ${pair[1].name} (${pair[1].size} bytes)`
+        );
+      } else {
+        const value =
+          typeof pair[1] === "string" && pair[1].length > 100
+            ? pair[1].substring(0, 100) + "..."
+            : pair[1];
+        console.log(`  ${pair[0]}: ${value}`);
+      }
+    }
+    return submissionForm;
+  };
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.event_name.trim() === "" && existingSubEvents.length === 0) {
@@ -1611,70 +1849,74 @@ const buildFormData = (payload) => {
       saveFormDataToStorage(formData);
     }
   }, [formData, pageLoading, isEditMode]);
-useEffect(() => {
-  const callbackName = "initMapCallbackAddOns";
-  const scriptId = "google-maps-script";
+  useEffect(() => {
+    const callbackName = "initMapCallbackAddOns";
+    const scriptId = "google-maps-script";
 
-  // Set up callback FIRST, before any script checks
-  window[callbackName] = () => {
+    // Set up callback FIRST, before any script checks
+    window[callbackName] = () => {
+      if (window.google && window.google.maps && window.google.maps.places) {
+        setIsApiReady(true);
+      }
+    };
+
+    // Check if already loaded
     if (window.google && window.google.maps && window.google.maps.places) {
       setIsApiReady(true);
+      return () => {
+        delete window[callbackName];
+      };
     }
-  };
 
-  // Check if already loaded
-  if (window.google && window.google.maps && window.google.maps.places) {
-    setIsApiReady(true);
-    return () => {
+    // Check if script already exists
+    const existingScript = document.getElementById(scriptId);
+    if (existingScript) {
+      // Script exists, wait for it to load
+      if (window.google && window.google.maps && window.google.maps.places) {
+        setIsApiReady(true);
+      } else {
+        // Set up a listener for when it loads
+        const checkInterval = setInterval(() => {
+          if (
+            window.google &&
+            window.google.maps &&
+            window.google.maps.places
+          ) {
+            setIsApiReady(true);
+            clearInterval(checkInterval);
+          }
+        }, 100);
+
+        // Clear interval after 10 seconds to prevent infinite checking
+        setTimeout(() => clearInterval(checkInterval), 10000);
+      }
+
+      return () => {
+        delete window[callbackName];
+      };
+    }
+
+    // Create and load script
+    const script = document.createElement("script");
+    script.id = scriptId;
+    const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
+    script.async = true;
+    script.defer = true;
+
+    script.onerror = () => {
+      console.error("Failed to load Google Maps script");
+      setIsApiReady(false);
       delete window[callbackName];
     };
-  }
 
-  // Check if script already exists
-  const existingScript = document.getElementById(scriptId);
-  if (existingScript) {
-    // Script exists, wait for it to load
-    if (window.google && window.google.maps && window.google.maps.places) {
-      setIsApiReady(true);
-    } else {
-      // Set up a listener for when it loads
-      const checkInterval = setInterval(() => {
-        if (window.google && window.google.maps && window.google.maps.places) {
-          setIsApiReady(true);
-          clearInterval(checkInterval);
-        }
-      }, 100);
-      
-      // Clear interval after 10 seconds to prevent infinite checking
-      setTimeout(() => clearInterval(checkInterval), 10000);
-    }
-    
+    document.head.appendChild(script);
+
     return () => {
+      // Cleanup: remove callback
       delete window[callbackName];
     };
-  }
-
-  // Create and load script
-  const script = document.createElement("script");
-  script.id = scriptId;
-  const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
-  script.async = true;
-  script.defer = true;
-
-  script.onerror = () => {
-    console.error("Failed to load Google Maps script");
-    setIsApiReady(false);
-    delete window[callbackName];
-  };
-
-  document.head.appendChild(script);
-
-  return () => {
-    // Cleanup: remove callback
-    delete window[callbackName];
-  };
-}, []);
+  }, []);
   useEffect(() => {
     setDataLoaded(true);
   }, []);
@@ -1696,7 +1938,10 @@ useEffect(() => {
       }
 
       // Check if places library is loaded
-      if (!window.google.maps.places || !window.google.maps.places.Autocomplete) {
+      if (
+        !window.google.maps.places ||
+        !window.google.maps.places.Autocomplete
+      ) {
         console.error("Google Maps Places library not loaded yet");
         return;
       }
@@ -1758,20 +2003,21 @@ useEffect(() => {
       });
       // Autocomplete setup with comprehensive null checks
       if (
-        autocompleteRef.current && 
-        window.google && 
-        window.google.maps && 
-        window.google.maps.places && 
+        autocompleteRef.current &&
+        window.google &&
+        window.google.maps &&
+        window.google.maps.places &&
         window.google.maps.places.Autocomplete
       ) {
         try {
-          const autocompleteInstance = new window.google.maps.places.Autocomplete(
-            autocompleteRef.current,
-            {
-              fields: ["geometry", "name", "formatted_address"],
-              types: ["establishment", "geocode"],
-            }
-          );
+          const autocompleteInstance =
+            new window.google.maps.places.Autocomplete(
+              autocompleteRef.current,
+              {
+                fields: ["geometry", "name", "formatted_address"],
+                types: ["establishment", "geocode"],
+              }
+            );
           autocompleteInstance.addListener("place_changed", () => {
             const place = autocompleteInstance.getPlace();
             if (!place.geometry?.location) return;
@@ -2045,21 +2291,33 @@ useEffect(() => {
 
     try {
       const submissionForm = buildFormData(payload);
-       if (payload.seating_layout) {
-        console.log('🔍 FINAL PAYLOAD CHECK:', {
+      if (payload.seating_layout) {
+        console.log("🔍 FINAL PAYLOAD CHECK:", {
           totalSeats: payload.seating_layout.seats?.length || 0,
-          assignedSeats: payload.seating_layout.seats?.filter(s => s.ticketTypeId).length || 0,
-          seatsWithPrice: payload.seating_layout.seats?.filter(s => s.price > 0).length || 0,
-          assignments: payload.seating_layout.ticketTypeAssignments?.length || 0,
-          sampleAssignedSeat: payload.seating_layout.seats?.find(s => s.ticketTypeId)
+          assignedSeats:
+            payload.seating_layout.seats?.filter((s) => s.ticketTypeId)
+              .length || 0,
+          seatsWithPrice:
+            payload.seating_layout.seats?.filter((s) => s.price > 0).length ||
+            0,
+          assignments:
+            payload.seating_layout.ticketTypeAssignments?.length || 0,
+          sampleAssignedSeat: payload.seating_layout.seats?.find(
+            (s) => s.ticketTypeId
+          ),
         });
-        const assignedCount = payload.seating_layout.seats?.filter(s => s.ticketTypeId).length || 0;
-        const priceCount = payload.seating_layout.seats?.filter(s => s.price > 0).length || 0;
+        const assignedCount =
+          payload.seating_layout.seats?.filter((s) => s.ticketTypeId).length ||
+          0;
+        const priceCount =
+          payload.seating_layout.seats?.filter((s) => s.price > 0).length || 0;
         if (assignedCount > 0 && assignedCount !== priceCount) {
           showAlert({
-            type: 'error',
-            message: 'Data Validation Failed',
-            description: `${assignedCount - priceCount} assigned seats are missing price data. Please reassign seats.`
+            type: "error",
+            message: "Data Validation Failed",
+            description: `${
+              assignedCount - priceCount
+            } assigned seats are missing price data. Please reassign seats.`,
           });
           return;
         }
@@ -2327,114 +2585,148 @@ useEffect(() => {
             address: INITIAL_MAP_LOCATION.address,
           },
         }));
-       // Set previews - ensuring proper format
+        // Set previews - ensuring proper format
         setPreviews((prev) => ({
           ...prev,
           event_banner: subEvent.event_banner
             ? {
                 data: getTicketImageUrl(String(subEvent.event_banner)),
-                name: 'event_banner.jpg',
-                type: 'image'
+                name: "event_banner.jpg",
+                type: "image",
               }
             : null,
           event_logo: subEvent.event_logo
             ? {
                 data: getTicketImageUrl(String(subEvent.event_logo)),
-                name: 'event_logo.jpg',
-                type: 'image'
+                name: "event_logo.jpg",
+                type: "image",
               }
             : null,
           ticket_layout: subEvent.ticket_layout
             ? {
                 data: getTicketImageUrl(String(subEvent.ticket_layout)),
-                name: 'ticket_layout.jpg',
-                type: 'image'
+                name: "ticket_layout.jpg",
+                type: "image",
               }
             : null,
         }));
         if (subEvent.ticket_layout) {
           setHasSeatingLayout(true);
-          setSeatingLayoutPreview(getTicketImageUrl(String(subEvent.ticket_layout)));
+          setSeatingLayoutPreview(
+            getTicketImageUrl(String(subEvent.ticket_layout))
+          );
           setSeatingLayoutFile({
-            name: 'existing_layout.jpg',
-            type: 'image/jpeg',
+            name: "existing_layout.jpg",
+            type: "image/jpeg",
             isExisting: true,
-            url: getTicketImageUrl(String(subEvent.ticket_layout))
+            url: getTicketImageUrl(String(subEvent.ticket_layout)),
           });
-          
+
           // ✅ CRITICAL: Load seating layout with proper field handling
-          if (subEvent.seating_layout && subEvent.seating_layout.seats && subEvent.seating_layout.seats.length > 0) {
-            console.log('🔍 Loading existing seating layout:', {
+          if (
+            subEvent.seating_layout &&
+            subEvent.seating_layout.seats &&
+            subEvent.seating_layout.seats.length > 0
+          ) {
+            console.log("🔍 Loading existing seating layout:", {
               totalSeats: subEvent.seating_layout.seats.length,
               sampleSeat: subEvent.seating_layout.seats[0],
-              hasAssignments: !!subEvent.seating_layout.ticketTypeAssignments
+              hasAssignments: !!subEvent.seating_layout.ticketTypeAssignments,
             });
-            
+
             // ✅ ENSURE ALL 4 FIELDS ARE PRESERVED FROM DATABASE
             const loadedLayout = {
-              rows: (subEvent.seating_layout.rows || []).map(r => String(r)),
+              rows: (subEvent.seating_layout.rows || []).map((r) => String(r)),
               columns: Number(subEvent.seating_layout.columns || 0),
-              seats: (subEvent.seating_layout.seats || []).map(seat => {
+              seats: (subEvent.seating_layout.seats || []).map((seat) => {
                 // ✅ CRITICAL: Handle all possible field formats from DB
                 const seatData = {
-                  seatId: String(seat.seatId || ''),
-                  row: String(seat.row || ''),
+                  seatId: String(seat.seatId || ""),
+                  row: String(seat.row || ""),
                   column: Number(seat.column || 0),
                   isAvailable: seat.isAvailable !== false,
                   isSelected: false,
                   // ✅ PRESERVE EXACT VALUES FROM DB - NO FALLBACKS TO NULL
-                  ticketTypeId: seat.ticketTypeId !== undefined && seat.ticketTypeId !== null 
-                    ? String(seat.ticketTypeId) 
-                    : null,
-                  ticketTypeName: seat.ticketTypeName !== undefined && seat.ticketTypeName !== null 
-                    ? String(seat.ticketTypeName) 
-                    : null,
-                  ticketTypeColor: seat.ticketTypeColor !== undefined && seat.ticketTypeColor !== null 
-                    ? String(seat.ticketTypeColor) 
-                    : null,
-                  price: seat.price !== undefined && seat.price !== null 
-                    ? Number(seat.price) 
-                    : 0
+                  ticketTypeId:
+                    seat.ticketTypeId !== undefined &&
+                    seat.ticketTypeId !== null
+                      ? String(seat.ticketTypeId)
+                      : null,
+                  ticketTypeName:
+                    seat.ticketTypeName !== undefined &&
+                    seat.ticketTypeName !== null
+                      ? String(seat.ticketTypeName)
+                      : null,
+                  ticketTypeColor:
+                    seat.ticketTypeColor !== undefined &&
+                    seat.ticketTypeColor !== null
+                      ? String(seat.ticketTypeColor)
+                      : null,
+                  price:
+                    seat.price !== undefined && seat.price !== null
+                      ? Number(seat.price)
+                      : 0,
                 };
-                
+
                 return seatData;
               }),
-              ticketTypeAssignments: (subEvent.seating_layout.ticketTypeAssignments || [])
-                .filter(assignment => 
-                  assignment.ticketTypeName && 
-                  String(assignment.ticketTypeName).trim() !== '' &&
-                  assignment.assignedSeats &&
-                  Array.isArray(assignment.assignedSeats) &&
-                  assignment.assignedSeats.length > 0
+              ticketTypeAssignments: (
+                subEvent.seating_layout.ticketTypeAssignments || []
+              )
+                .filter(
+                  (assignment) =>
+                    assignment.ticketTypeName &&
+                    String(assignment.ticketTypeName).trim() !== "" &&
+                    assignment.assignedSeats &&
+                    Array.isArray(assignment.assignedSeats) &&
+                    assignment.assignedSeats.length > 0
                 )
-                .map(assignment => ({
-                  ticketTypeId: String(assignment.ticketTypeId || ''),
-                  ticketTypeName: String(assignment.ticketTypeName || ''),
+                .map((assignment) => ({
+                  ticketTypeId: String(assignment.ticketTypeId || ""),
+                  ticketTypeName: String(assignment.ticketTypeName || ""),
                   color: assignment.color ? String(assignment.color) : "",
-                  assignedSeats: (assignment.assignedSeats || []).map(s => String(s)),
+                  assignedSeats: (assignment.assignedSeats || []).map((s) =>
+                    String(s)
+                  ),
                   capacity: Number(assignment.capacity || 0),
-                  price: Number(assignment.price !== undefined && assignment.price !== null ? assignment.price : 0),
-                }))
+                  price: Number(
+                    assignment.price !== undefined && assignment.price !== null
+                      ? assignment.price
+                      : 0
+                  ),
+                })),
             };
-            
-            console.log('✅ Loaded layout verification:', {
+
+            console.log("✅ Loaded layout verification:", {
               totalSeats: loadedLayout.seats.length,
-              assignedSeats: loadedLayout.seats.filter(s => s.ticketTypeId).length,
-              seatsWithName: loadedLayout.seats.filter(s => s.ticketTypeName).length,
-              seatsWithPrice: loadedLayout.seats.filter(s => s.price > 0).length,
-              seatsWithColor: loadedLayout.seats.filter(s => s.ticketTypeColor).length,
-              sampleAssignedSeat: loadedLayout.seats.find(s => s.ticketTypeId)
+              assignedSeats: loadedLayout.seats.filter((s) => s.ticketTypeId)
+                .length,
+              seatsWithName: loadedLayout.seats.filter((s) => s.ticketTypeName)
+                .length,
+              seatsWithPrice: loadedLayout.seats.filter((s) => s.price > 0)
+                .length,
+              seatsWithColor: loadedLayout.seats.filter(
+                (s) => s.ticketTypeColor
+              ).length,
+              sampleAssignedSeat: loadedLayout.seats.find(
+                (s) => s.ticketTypeId
+              ),
             });
-            
+
             setGeneratedSeatingLayout(loadedLayout);
             setShowSeatingPreview(true);
-            
+
             // ✅ Rebuild seat assignments from loaded layout WITH VALIDATION
             const assignments = {};
             if (loadedLayout.seats && loadedLayout.seats.length > 0) {
-              loadedLayout.seats.forEach(seat => {
+              loadedLayout.seats.forEach((seat) => {
                 // ✅ ONLY add to assignments if ALL 4 fields are present
-                if (seat.ticketTypeId && seat.ticketTypeName && seat.ticketTypeColor && seat.price > 0) {
+                if (
+                  seat.ticketTypeId &&
+                  seat.ticketTypeName &&
+                  seat.ticketTypeColor &&
+                  seat.price > 0
+                ) {
                   const typeId = String(seat.ticketTypeId);
                   if (!assignments[typeId]) {
                     assignments[typeId] = [];
@@ -2443,20 +2735,28 @@ useEffect(() => {
                 }
               });
             }
-            
-            console.log('✅ Rebuilt seat assignments:', {
+
+            console.log("✅ Rebuilt seat assignments:", {
               assignmentCount: Object.keys(assignments).length,
-              assignments: assignments
+              assignments: assignments,
             });
-            
+
             setSeatAssignments(assignments);
-            
+
             // ✅ VALIDATION ALERT
-            const assignedSeats = loadedLayout.seats.filter(s => s.ticketTypeId);
-            const validSeats = assignedSeats.filter(s => s.ticketTypeName && s.ticketTypeColor && s.price > 0);
-            
+            const assignedSeats = loadedLayout.seats.filter(
+              (s) => s.ticketTypeId
+            );
+            const validSeats = assignedSeats.filter(
+              (s) => s.ticketTypeName && s.ticketTypeColor && s.price > 0
+            );
+
             if (assignedSeats.length > validSeats.length) {
-              console.warn(`⚠️ Warning: ${assignedSeats.length - validSeats.length} seats have incomplete assignment data`);
+              console.warn(
+                `⚠️ Warning: ${
+                  assignedSeats.length - validSeats.length
+                } seats have incomplete assignment data`
+              );
             }
           }
         }
@@ -2635,44 +2935,49 @@ useEffect(() => {
       <SeatAssignmentModal
         isOpen={showSeatAssignmentModal}
         onClose={() => setShowSeatAssignmentModal(false)}
-        onSave={(newAssignments) => {    
+        onSave={(newAssignments) => {
           if (!generatedSeatingLayout || !generatedSeatingLayout.seats) {
             showAlert({
-              type: 'error',
-              message: 'Layout Error',
-              description: 'No seating layout available. Please generate a layout first.'
+              type: "error",
+              message: "Layout Error",
+              description:
+                "No seating layout available. Please generate a layout first.",
             });
             return;
           }
-          
+
           const clonedAssignments = JSON.parse(JSON.stringify(newAssignments));
           setSeatAssignments(clonedAssignments);
-          
+
           // ✅ Create ticket type lookup map
           const ticketTypeMap = {};
-          formData.ticket_types.forEach(ticket => {
+          formData.ticket_types.forEach((ticket) => {
             const id = String(ticket.id);
             ticketTypeMap[id] = {
-              name: ticket.name || ticket.ticket_type || '',
+              name: ticket.name || ticket.ticket_type || "",
               price: Number(ticket.price || ticket.ticket_price || 0),
-              color: getTicketTypeColor(ticket.id)
+              color: getTicketTypeColor(ticket.id),
             };
           });
 
-          const updatedLayout = JSON.parse(JSON.stringify(generatedSeatingLayout));
-          
+          const updatedLayout = JSON.parse(
+            JSON.stringify(generatedSeatingLayout)
+          );
+
           // ✅ Update seats with complete data from ticket types
-          updatedLayout.seats = updatedLayout.seats.map(seat => {
-            const assignedEntry = Object.entries(clonedAssignments).find(([_, seatIds]) => 
-              seatIds && seatIds.includes(seat.seatId)
+          updatedLayout.seats = updatedLayout.seats.map((seat) => {
+            const assignedEntry = Object.entries(clonedAssignments).find(
+              ([_, seatIds]) => seatIds && seatIds.includes(seat.seatId)
             );
-            
+
             if (assignedEntry) {
               const [ticketTypeId] = assignedEntry;
               const ticketDetails = ticketTypeMap[String(ticketTypeId)];
-              
+
               if (!ticketDetails) {
-                console.error(`❌ Missing ticket details for ID ${ticketTypeId}`);
+                console.error(
+                  `❌ Missing ticket details for ID ${ticketTypeId}`
+                );
                 return seat; // Keep original seat if no details found
               }
 
@@ -2685,10 +2990,10 @@ useEffect(() => {
                 ticketTypeId: String(ticketTypeId),
                 ticketTypeName: ticketDetails.name,
                 ticketTypeColor: ticketDetails.color,
-                price: ticketDetails.price
+                price: ticketDetails.price,
               };
             }
-            
+
             // Keep existing assignment if no new assignment
             if (seat.ticketTypeId) {
               const existingDetails = ticketTypeMap[String(seat.ticketTypeId)];
@@ -2699,12 +3004,14 @@ useEffect(() => {
                 isAvailable: seat.isAvailable !== false,
                 isSelected: false,
                 ticketTypeId: String(seat.ticketTypeId),
-                ticketTypeName: existingDetails?.name || seat.ticketTypeName || null,
-                ticketTypeColor: existingDetails?.color || seat.ticketTypeColor || null,
-                price: existingDetails?.price || Number(seat.price || 0)
+                ticketTypeName:
+                  existingDetails?.name || seat.ticketTypeName || null,
+                ticketTypeColor:
+                  existingDetails?.color || seat.ticketTypeColor || null,
+                price: existingDetails?.price || Number(seat.price || 0),
               };
             }
-            
+
             // Unassigned seat
             return {
               seatId: seat.seatId,
@@ -2715,19 +3022,23 @@ useEffect(() => {
               ticketTypeId: null,
               ticketTypeName: null,
               ticketTypeColor: null,
-              price: 0
+              price: 0,
             };
           });
-          
+
           // ✅ Update assignments with complete data
-          updatedLayout.ticketTypeAssignments = Object.entries(clonedAssignments)
+          updatedLayout.ticketTypeAssignments = Object.entries(
+            clonedAssignments
+          )
             .filter(([_, seatIds]) => seatIds && seatIds.length > 0)
             .map(([typeId, seatIds]) => {
               const normalizedTypeId = String(typeId);
               const ticketDetails = ticketTypeMap[normalizedTypeId];
-              
+
               if (!ticketDetails) {
-                console.error(`❌ Missing ticket details for assignment ${normalizedTypeId}`);
+                console.error(
+                  `❌ Missing ticket details for assignment ${normalizedTypeId}`
+                );
                 return null;
               }
 
@@ -2737,37 +3048,45 @@ useEffect(() => {
                 color: ticketDetails.color,
                 assignedSeats: [...seatIds],
                 capacity: seatIds.length,
-                price: ticketDetails.price
+                price: ticketDetails.price,
               };
             })
             .filter(Boolean);
-          
+
           setGeneratedSeatingLayout(updatedLayout);
-          
+
           // ✅ Validation
-          const assignedSeats = updatedLayout.seats.filter(s => s.ticketTypeId);
-          const validSeats = assignedSeats.filter(s => s.ticketTypeName && s.price > 0);
-          
+          const assignedSeats = updatedLayout.seats.filter(
+            (s) => s.ticketTypeId
+          );
+          const validSeats = assignedSeats.filter(
+            (s) => s.ticketTypeName && s.price > 0
+          );
+
           if (validSeats.length < assignedSeats.length) {
             showAlert({
-              type: 'warning',
-              message: 'Incomplete Assignments',
-              description: `${assignedSeats.length - validSeats.length} seats are missing data. Please check ticket types.`
+              type: "warning",
+              message: "Incomplete Assignments",
+              description: `${
+                assignedSeats.length - validSeats.length
+              } seats are missing data. Please check ticket types.`,
             });
           } else {
             showAlert({
-              type: 'success',
-              message: 'Seats Assigned!',
-              description: `Assigned ${assignedSeats.length} seats with prices.`
+              type: "success",
+              message: "Seats Assigned!",
+              description: `Assigned ${assignedSeats.length} seats with prices.`,
             });
           }
         }}
-        seatingLayout={generatedSeatingLayout || { rows: [], columns: 0, seats: [] }}
-        ticketTypes={formData.ticket_types.map(t => ({ 
-          id: t.id, 
+        seatingLayout={
+          generatedSeatingLayout || { rows: [], columns: 0, seats: [] }
+        }
+        ticketTypes={formData.ticket_types.map((t) => ({
+          id: t.id,
           name: t.name || t.ticket_type,
           price: t.price || t.ticket_price || 0,
-          capacity: t.capacity || t.max_capacity || 0
+          capacity: t.capacity || t.max_capacity || 0,
         }))}
         existingAssignments={seatAssignments}
         ticketTypeColors={ticketTypeColors}
@@ -2913,7 +3232,6 @@ useEffect(() => {
               <form className="space-y-12" onSubmit={handleSubmit}>
                 {/* --- EVENT DETAILS SECTION --- */}
                 <div className="space-y-8">
-                  {/*... Other input fields like event_name, category etc. (No changes needed) ...*/}
                   <div>
                     <FormInput
                       label="Event name"
@@ -2924,11 +3242,14 @@ useEffect(() => {
                       required
                       darkMode={darkMode}
                       error={errors.event_name}
+                      ref={(el) => (errorFieldRefs.current.event_name = el)}
                     />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
+                    <div
+                      ref={(el) => (errorFieldRefs.current.event_category = el)}
+                    >
                       <label
                         htmlFor="event_category"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -2948,8 +3269,17 @@ useEffect(() => {
                           styles={CustomSelectStyles(darkMode, errors)}
                         />
                       </div>
+                      {errors.event_category && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {errors.event_category}
+                        </p>
+                      )}
                     </div>
-                    <div>
+                    <div
+                      ref={(el) =>
+                        (errorFieldRefs.current.event_subcategory = el)
+                      }
+                    >
                       <label
                         htmlFor="event_subcategory"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -2976,6 +3306,11 @@ useEffect(() => {
                         styles={CustomSelectStyles(darkMode, errors)}
                         isDisabled={!formData.event_category}
                       />
+                      {errors.event_subcategory && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {errors.event_subcategory}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -3155,7 +3490,9 @@ useEffect(() => {
                 {/* --- MORE DETAILS SECTION --- */}
                 <div className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
+                    <div
+                      ref={(el) => (errorFieldRefs.current.event_language = el)}
+                    >
                       <label
                         htmlFor="event_language"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -3174,9 +3511,15 @@ useEffect(() => {
                           )}
                           onChange={handleLanguageChange} // Use the new handler
                           placeholder="Select language(s)"
-                          styles={CustomSelectStyles(darkMode)}
+                          styles={CustomSelectStyles(darkMode, errors)}
                           classNamePrefix="react-select"
                         />
+
+                        {errors.event_language && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {errors.event_language}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <FormInput
@@ -3205,7 +3548,12 @@ useEffect(() => {
                   />
 
                   {formData.location_type === "offline" && (
-                    <div className="animate-fade-in">
+                    <div
+                      className="animate-fade-in"
+                      ref={(el) =>
+                        (errorFieldRefs.current.seating_arrangement = el)
+                      }
+                    >
                       <label
                         htmlFor="seating_arrangement"
                         className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
@@ -3225,6 +3573,11 @@ useEffect(() => {
                         styles={CustomSelectStyles(darkMode, errors)}
                         required={formData.location_type === "offline"}
                       />
+                      {errors.seating_arrangement && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {errors.seating_arrangement}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -3248,6 +3601,9 @@ useEffect(() => {
                       placeholder="https://instagram.com/..."
                       error={errors.event_instagram_link}
                       darkMode={darkMode}
+                      ref={(el) =>
+                        (errorFieldRefs.current.event_instagram_link = el)
+                      }
                     />
                     <FormInput
                       label="Youtube link (Optional)"
@@ -3259,6 +3615,9 @@ useEffect(() => {
                       placeholder="https://youtube.com/..."
                       error={errors.event_youtube_link}
                       darkMode={darkMode}
+                      ref={(el) =>
+                        (errorFieldRefs.current.event_youtube_link = el)
+                      }
                     />
                   </div>
 
@@ -3276,7 +3635,10 @@ useEffect(() => {
                 </div>
 
                 {/* --- DATES AND TIMES SECTION --- */}
-                <div className="space-y-6">
+                <div
+                  className="space-y-6"
+                  ref={(el) => (errorFieldRefs.current.event_dates = el)}
+                >
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                     Dates and times
                   </h2>
@@ -3659,9 +4021,17 @@ useEffect(() => {
                       Describe your event.
                     </p>
                     <div
-                      className={`mt-4 bg-transparent border rounded-lg ${
-                        darkMode ? "border-[#4A4A4A]" : "border-black"
-                      }`}
+                      ref={(el) =>
+                        (errorFieldRefs.current.event_description = el)
+                      }
+                      className={`mt-4 bg-transparent border rounded-lg 
+                        ${
+                          errors.event_description
+                            ? "border-red-500"
+                            : darkMode
+                            ? "border-[#4A4A4A]"
+                            : "border-black"
+                        }`}
                     >
                       <div
                         className={`p-2 border-b ${
@@ -3708,18 +4078,26 @@ useEffect(() => {
                         className="w-full min-h-[120px] p-3 focus:outline-none"
                       ></div>
                     </div>
+                    {errors.event_description && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.event_description}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 {/* --- POC & MEDIA SECTION --- */}
                 <div className="space-y-12">
-                  <div>
+                  <div ref={(el) => (errorFieldRefs.current.POCS = el)}>
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Point of Contact
                     </h2>
                     <p className="text-black dark:text-gray-400 text-sm">
                       Add POCs with whom event feedback will be shared.
                     </p>
+                    {errors.POCS && (
+                      <p className="text-red-500 text-xs mt-2">{errors.POCS}</p>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
                       <FormInput
                         label="POC Name"
@@ -3729,12 +4107,14 @@ useEffect(() => {
                         placeholder="Enter the name of the person"
                         required
                         darkMode={darkMode}
+                        error={errors.POC_name}
                       />
                       <FormInput
                         label="POC Email"
                         name="POC_email"
                         type="email"
                         value={poc.POC_email}
+                        error={errors.POC_email}
                         onChange={handlePocChange}
                         placeholder="Enter the email ID"
                         required
@@ -3748,6 +4128,7 @@ useEffect(() => {
                         type="tel"
                         value={poc.POC_contact}
                         onChange={handlePocChange}
+                        error={errors.POC_contact}
                         placeholder="Enter contact number"
                         required
                         darkMode={darkMode}
@@ -3806,17 +4187,28 @@ useEffect(() => {
                       Event Media
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      <FileInput
-                        id="event_banner"
-                        label="Event Banner"
-                        info="Required. 2:1 ratio recommended."
-                        preview={previews.event_banner}
-                        onFileChange={handleMediaFileChange}
-                        onRemove={removeMediaFile}
-                        darkMode={darkMode}
-                        acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
-                        maxSizeMB={50}
-                      />
+                      <div>
+                        <FileInput
+                          id="event_banner"
+                          label="Event Banner"
+                          info="Required. 2:1 ratio recommended."
+                          preview={previews.event_banner}
+                          onFileChange={handleMediaFileChange}
+                          onRemove={removeMediaFile}
+                          darkMode={darkMode}
+                          acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
+                          ref={(el) =>
+                            (errorFieldRefs.current.event_banner = el)
+                          }
+                          maxSizeMB={50}
+                        />
+                        {errors.event_banner && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {errors.event_banner}
+                          </p>
+                        )}
+                      </div>
+
                       <FileInput
                         id="event_logo"
                         label="Event or Organisation Logo"
@@ -4228,27 +4620,47 @@ useEffect(() => {
                         book their spot.
                       </p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 pt-2">
-                        <DateInput
-                          id="booking_start_date"
-                          label="Booking start date?"
-                          name="booking_start_date"
-                          value={formData.booking_start_date}
-                          onChange={handleInputChange}
-                          error={errors.booking_start_date}
-                          maxDate={subEventEndDate}
-                          darkMode={darkMode}
-                        />
-                        <DateInput
-                          id="booking_end_date"
-                          label="Booking end date?"
-                          name="booking_end_date"
-                          value={formData.booking_end_date}
-                          onChange={handleInputChange}
-                          error={errors.booking_end_date}
-                          darkMode={darkMode}
-                          minDate={formData.booking_start_date}
-                          maxDate={subEventEndDate}
-                        />
+                        <div>
+                          <DateInput
+                            id="booking_start_date"
+                            label="Booking start date?"
+                            name="booking_start_date"
+                            value={formData.booking_start_date}
+                            onChange={handleInputChange}
+                            error={errors.booking_start_date}
+                            maxDate={subEventEndDate}
+                            darkMode={darkMode}
+                            ref={(el) =>
+                              (errorFieldRefs.current.booking_start_date = el)
+                            }
+                          />
+                          {errors.booking_start_date && (
+                            <p className="text-red-500 text-xs mt-1">
+                              {errors.booking_start_date}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <DateInput
+                            id="booking_end_date"
+                            label="Booking end date?"
+                            name="booking_end_date"
+                            value={formData.booking_end_date}
+                            onChange={handleInputChange}
+                            error={errors.booking_end_date}
+                            darkMode={darkMode}
+                            minDate={formData.booking_start_date}
+                            maxDate={subEventEndDate}
+                            ref={(el) =>
+                              (errorFieldRefs.current.booking_end_date = el)
+                            }
+                          />
+                          {errors.booking_end_date && (
+                            <p className="text-red-500 text-xs mt-1">
+                              {errors.booking_end_date}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </section>
                   </div>
@@ -4262,16 +4674,21 @@ useEffect(() => {
                       </p>
                       {/* ALWAYS SHOW total_capacity for offline events */}
                       {(() => {
-                        const seating = (formData.seating_arrangement || "").toLowerCase().trim();
+                        const seating = (formData.seating_arrangement || "")
+                          .toLowerCase()
+                          .trim();
 
-                        let capacityLabel = "Total number of people allowed (capacity)?";
+                        let capacityLabel =
+                          "Total number of people allowed (capacity)?";
 
                         if (seating === "standing") {
-                          capacityLabel = "Maximum number of people allowed (capacity)?";
+                          capacityLabel =
+                            "Maximum number of people allowed (capacity)?";
                         } else if (seating === "seated") {
                           capacityLabel = "Total number of seats (capacity)?";
                         } else if (seating === "seated and standing") {
-                          capacityLabel = "Total number of seated people allowed (not for standing)?";
+                          capacityLabel =
+                            "Total number of seated people allowed (not for standing)?";
                         }
                         return (
                           <FormInput
@@ -4289,7 +4706,7 @@ useEffect(() => {
                           />
                         );
                       })()}
-                       {formData.location_type === "offline" &&
+                      {formData.location_type === "offline" &&
                         formData.payment_type === "paid" && (
                           <>
                             <button
@@ -4378,7 +4795,7 @@ useEffect(() => {
                           <FormInput
                             label="Ticket Price"
                             id="simpleTicketPrice"
-                            name="ticket_types[0].price" 
+                            name="ticket_types[0].price"
                             type="number"
                             value={formData.ticket_types[0]?.price || ""}
                             onChange={(e) => {
@@ -4440,7 +4857,9 @@ useEffect(() => {
                           </label>
                           <ToggleSwitch
                             checked={hasSeatingLayout}
-                            onChange={() => setHasSeatingLayout(!hasSeatingLayout)}
+                            onChange={() =>
+                              setHasSeatingLayout(!hasSeatingLayout)
+                            }
                             darkMode={darkMode}
                           />
                         </div>
@@ -4452,14 +4871,27 @@ useEffect(() => {
                               Upload seating layout
                               <InfoTooltip note="Upload an image or PDF of your venue's seating arrangement." />
                             </label>
-                            
+
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                               {/* Left: File Upload */}
                               <div className="space-y-4">
                                 <div className="flex justify-center rounded-lg border border-dashed border-black dark:border-gray-700 px-6 py-10 text-center">
-                                  <label htmlFor="seating-layout-upload-addon" className="cursor-pointer">
-                                    <svg className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                  <label
+                                    htmlFor="seating-layout-upload-addon"
+                                    className="cursor-pointer"
+                                  >
+                                    <svg
+                                      className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                                      />
                                     </svg>
                                     <p className="text-sm text-black dark:text-gray-400 mt-2">
                                       Drag your file(s) or browse
@@ -4479,20 +4911,33 @@ useEffect(() => {
                                     />
                                   </label>
                                 </div>
-                                
+
                                 {seatingLayoutFile && (
                                   <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                                     <div className="flex items-start justify-between">
                                       <div className="flex items-center gap-3">
-                                        <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        <svg
+                                          className="w-8 h-8 text-green-600 dark:text-green-400"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                          />
                                         </svg>
                                         <div>
                                           <p className="text-sm font-medium text-green-800 dark:text-green-200">
                                             {seatingLayoutFile.name}
                                           </p>
                                           <p className="text-xs text-green-600 dark:text-green-400">
-                                            {(seatingLayoutFile.size / 1024).toFixed(2)} KB
+                                            {(
+                                              seatingLayoutFile.size / 1024
+                                            ).toFixed(2)}{" "}
+                                            KB
                                           </p>
                                         </div>
                                       </div>
@@ -4502,41 +4947,77 @@ useEffect(() => {
                                         className="text-red-500 hover:text-red-700 dark:hover:text-red-400"
                                         title="Remove file"
                                       >
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        <svg
+                                          className="w-5 h-5"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M6 18L18 6M6 6l12 12"
+                                          />
                                         </svg>
                                       </button>
                                     </div>
                                   </div>
                                 )}
-                                
-                                {seatingLayoutFile && formData.total_capacity && (
-                                  <button
-                                    type="button"
-                                    onClick={handleGenerateLayout}
-                                    disabled={isGenerating}
-                                    className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-                                  >
-                                    {isGenerating ? (
-                                      <>
-                                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                        </svg>
-                                        Generating Layout...
-                                      </>
-                                    ) : (
-                                      <>
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                        </svg>
-                                        Generate Layout
-                                      </>
-                                    )}
-                                  </button>
-                                )}
+
+                                {seatingLayoutFile &&
+                                  formData.total_capacity && (
+                                    <button
+                                      type="button"
+                                      onClick={handleGenerateLayout}
+                                      disabled={isGenerating}
+                                      className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                                    >
+                                      {isGenerating ? (
+                                        <>
+                                          <svg
+                                            className="animate-spin h-5 w-5"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <circle
+                                              className="opacity-25"
+                                              cx="12"
+                                              cy="12"
+                                              r="10"
+                                              stroke="currentColor"
+                                              strokeWidth="4"
+                                              fill="none"
+                                            />
+                                            <path
+                                              className="opacity-75"
+                                              fill="currentColor"
+                                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            />
+                                          </svg>
+                                          Generating Layout...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <svg
+                                            className="w-5 h-5"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={2}
+                                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                            />
+                                          </svg>
+                                          Generate Layout
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
                               </div>
-                              
+
                               {/* Right: Preview */}
                               <div className="space-y-3">
                                 {generatedSeatingLayout ? (
@@ -4545,36 +5026,67 @@ useEffect(() => {
                                       <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                         Interactive Seat Map
                                       </p>
-                                      {formData.payment_type === "paid" && formData.ticket_types.length > 0 && (
-                                        <button
-                                          type="button"
-                                          onClick={() => setShowSeatAssignmentModal(true)}
-                                          className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors flex items-center gap-2"
-                                        >
-                                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                          </svg>
-                                          Assign Seats
-                                        </button>
-                                      )}
+                                      {formData.payment_type === "paid" &&
+                                        formData.ticket_types.length > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setShowSeatAssignmentModal(true)
+                                            }
+                                            className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors flex items-center gap-2"
+                                          >
+                                            <svg
+                                              className="w-4 h-4"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                            >
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                              />
+                                            </svg>
+                                            Assign Seats
+                                          </button>
+                                        )}
                                     </div>
                                     <div className="border-2 border-green-500 dark:border-green-600 rounded-lg overflow-hidden">
                                       <SeatingLayoutPreview
                                         seatingLayout={generatedSeatingLayout}
-                                        onSeatSelect={(seats) => console.log('Selected seats:', seats)}
+                                        onSeatSelect={(seats) =>
+                                          console.log("Selected seats:", seats)
+                                        }
                                         darkMode={darkMode}
                                         isExpandable={true}
-                                        ticketTypeAssignments={generatedSeatingLayout?.ticketTypeAssignments || []}
+                                        ticketTypeAssignments={
+                                          generatedSeatingLayout?.ticketTypeAssignments ||
+                                          []
+                                        }
                                       />
                                     </div>
                                   </>
                                 ) : (
                                   <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center min-h-[350px] flex flex-col items-center justify-center">
-                                    <svg className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                    <svg
+                                      className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600 mb-3"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={1.5}
+                                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                                      />
                                     </svg>
                                     <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
-                                      {formData.total_capacity && seatingLayoutFile ? '✓ Ready to generate' : 'No preview available'}
+                                      {formData.total_capacity &&
+                                      seatingLayoutFile
+                                        ? "✓ Ready to generate"
+                                        : "No preview available"}
                                     </p>
                                   </div>
                                 )}
@@ -4582,7 +5094,7 @@ useEffect(() => {
                             </div>
                           </div>
                         </div>
-                      )}                    
+                      )}
                     </section>
                   )}
                 </div>
@@ -4599,7 +5111,7 @@ useEffect(() => {
                     ? "Save changes & add new event +"
                     : "Add more sub events +"}
                 </button>
-                <div className="pt-8 flex justify-between items-center gap-4">
+                <div className="t-8 flex justify-end gap-4">
                   <div className="flex gap-4">
                     <button
                       type="button"
