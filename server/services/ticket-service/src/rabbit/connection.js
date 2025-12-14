@@ -1,5 +1,3 @@
-// Replace the entire connection.js file in ticket-service
-
 import amqp from 'amqplib';
 
 let connection;
