@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getMe } from "../../services/userService.js";
+import { getUserData } from "../../services/ticketService";
 import { useNavigate } from "react-router-dom";
 import { changePassword } from "../../services/authService.js";
 import SideBar from "../../components/HomePage/SideBar.jsx";
@@ -559,7 +559,7 @@ const ChangeUserPassword = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await getMe();
+        const res = await getUserData();
         setUser(res.data);
       } catch (err) {
         console.error("Failed to fetch user", err);
