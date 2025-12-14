@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { updateTicketMedia, getTicketById } from "../../services/ticketService";
-import { getMe } from "../../services/userService";
+import { getUserData } from "../../services/ticketService";
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import Alert from "../../components/CreateGroup/Alert";
@@ -115,7 +115,7 @@ const UpdateTicketMedia = () => {
   // Fetch user details to determine organization type
   const fetchUserDetails = async () => {
     try {
-      const response = await getMe();
+      const response = await getUserData();
 
       if (response.data) {
         setUserDetails(response.data);
