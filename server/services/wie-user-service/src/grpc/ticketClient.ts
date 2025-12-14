@@ -93,13 +93,9 @@ export interface GetAllGroupsResponse {
   groups: Group[];
   error?: string;
 }
-
 export const getAllLiveEvents = async (): Promise<GetAllLiveEventsResponse> => {
   return new Promise((resolve, reject) => {
-    const client = getClient();
-    
-    console.log('🔵 [User Service gRPC] Fetching all live events...');
-    
+    const client = getClient();    
     client.GetAllLiveEvents({}, (error: any, response: any) => {
       if (error) {
         console.error('❌ [User Service gRPC] Failed to fetch live events:', error.message);
@@ -107,10 +103,8 @@ export const getAllLiveEvents = async (): Promise<GetAllLiveEventsResponse> => {
       } else if (response.error) {
         console.error('❌ [User Service gRPC] Live events error:', response.error);
         reject(new Error(response.error));
-      } else {
-        console.log(`✅ [User Service gRPC] Fetched ${response.count} live events`);
-        
-        // Normalize all tickets
+      } else {        
+        // Normalize all tickets - PRESERVE sub-event fields
         const normalizedTickets = (response.tickets || []).map((ticket: any) => ({
           id: ticket.id || ticket._id,
           _id: ticket._id || ticket.id,
@@ -144,9 +138,12 @@ export const getAllLiveEvents = async (): Promise<GetAllLiveEventsResponse> => {
           revenue: ticket.revenue || 0,
           createdAt: ticket.createdAt || '',
           updatedAt: ticket.updatedAt || '',
+          // CRITICAL: Preserve sub-event identification fields
+          isSubEvent: ticket.isSubEvent || false,
+          parentEventId: ticket.parentEventId || null,
+          parentEventName: ticket.parentEventName || null,
           ...ticket
-        }));
-        
+        }));        
         resolve({
           count: response.count,
           tickets: normalizedTickets,
@@ -156,13 +153,9 @@ export const getAllLiveEvents = async (): Promise<GetAllLiveEventsResponse> => {
     });
   });
 };
-
 export const getAllGroups = async (): Promise<GetAllGroupsResponse> => {
   return new Promise((resolve, reject) => {
-    const client = getClient();
-    
-    console.log('🔵 [User Service gRPC] Fetching all groups...');
-    
+    const client = getClient();    
     client.GetAllGroups({}, (error: any, response: any) => {
       if (error) {
         console.error('❌ [User Service gRPC] Failed to fetch groups:', error.message);
@@ -170,9 +163,7 @@ export const getAllGroups = async (): Promise<GetAllGroupsResponse> => {
       } else if (response.error) {
         console.error('❌ [User Service gRPC] Groups error:', response.error);
         reject(new Error(response.error));
-      } else {
-        console.log(`✅ [User Service gRPC] Fetched ${response.count} groups`);
-        
+      } else {        
         // Normalize all groups
         const normalizedGroups = (response.groups || []).map((group: any) => ({
           id: group.id || group._id,
@@ -213,10 +204,7 @@ export const getTicketById = async (ticketId: string): Promise<Ticket> => {
       return;
     }
 
-    const client = getClient();
-    
-    console.log(`🔵 [User Service gRPC] Fetching ticket: ${ticketId}`);
-    
+    const client = getClient();    
     client.GetTicketById({ ticketId }, (error: any, response: any) => {
       if (error) {
         console.error(`❌ [User Service gRPC] Failed to fetch ticket: ${error.message}`);
@@ -227,9 +215,7 @@ export const getTicketById = async (ticketId: string): Promise<Ticket> => {
       } else if (!response.ticket) {
         console.error(`❌ [User Service gRPC] No ticket data received for: ${ticketId}`);
         reject(new Error('Ticket not found'));
-      } else {
-        console.log(`✅ [User Service gRPC] Successfully fetched ticket: ${ticketId}`);
-        
+      } else {        
         const ticket = response.ticket;
         const normalizedTicket: Ticket = {
           id: ticket.id || ticket._id,
@@ -280,11 +266,7 @@ export const getGroupById = async (groupId: string): Promise<Group> => {
       reject(new Error('Invalid group ID'));
       return;
     }
-
-    const client = getClient();
-    
-    console.log(`🔵 [User Service gRPC] Fetching group: ${groupId}`);
-    
+    const client = getClient();    
     client.GetGroupById({ groupId }, (error: any, response: any) => {
       if (error) {
         console.error(`❌ [User Service gRPC] Failed to fetch group: ${error.message}`);
@@ -295,9 +277,7 @@ export const getGroupById = async (groupId: string): Promise<Group> => {
       } else if (!response.group) {
         console.error(`❌ [User Service gRPC] No group data received for: ${groupId}`);
         reject(new Error('Group not found'));
-      } else {
-        console.log(`✅ [User Service gRPC] Successfully fetched group: ${groupId}`);
-        
+      } else {        
         const group = response.group;
         const normalizedGroup: Group = {
           id: group.id || group._id,
@@ -332,10 +312,7 @@ export const updateTicketStats = async (
   increment: number
 ): Promise<any> => {
   return new Promise((resolve, reject) => {
-    const client = getClient();
-    
-    console.log(`🔵 [User Service gRPC] Updating ticket stats: ${statType} by ${increment}`);
-    
+    const client = getClient();    
     client.UpdateTicketStats({ ticketId, statType, increment }, (error: any, response: any) => {
       if (error) {
         console.error(`❌ [User Service gRPC] Failed to update ticket stats: ${error.message}`);
@@ -346,7 +323,6 @@ export const updateTicketStats = async (
         console.warn('⚠️ [User Service gRPC] Continuing despite stats update failure');
         resolve({ success: false, error: response.error });
       } else {
-        console.log(`✅ [User Service gRPC] Successfully updated ticket stats`);
         resolve(response);
       }
     });
@@ -356,17 +332,11 @@ export const updateTicketStats = async (
 export const getTicketsByIds = async (ticketIds: string[]): Promise<any> => {
   return new Promise((resolve, reject) => {
     const validTicketIds = ticketIds.filter(id => id && id !== 'undefined' && id !== 'null');
-    
     if (validTicketIds.length === 0) {
-      console.error('❌ [User Service gRPC] No valid ticket IDs provided');
       reject(new Error('No valid ticket IDs provided'));
       return;
     }
-
-    const client = getClient();
-    
-    console.log(`🔵 [User Service gRPC] Fetching ${validTicketIds.length} tickets...`);
-    
+    const client = getClient();    
     client.GetTicketsByIds({ ticketIds: validTicketIds }, (error: any, response: any) => {
       if (error) {
         console.error(`❌ [User Service gRPC] Failed to fetch tickets: ${error.message}`);
@@ -375,7 +345,6 @@ export const getTicketsByIds = async (ticketIds: string[]): Promise<any> => {
         console.error(`❌ [User Service gRPC] Tickets error: ${response.error}`);
         reject(new Error(response.error));
       } else {
-        console.log(`✅ [User Service gRPC] Successfully fetched ${response.count} tickets`);
         resolve(response);
       }
     });
