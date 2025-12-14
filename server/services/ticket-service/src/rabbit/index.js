@@ -7,12 +7,10 @@ export const startConsumers = async () => {
     console.warn('⚠️ RabbitMQ not connected, skipping consumer setup');
     return;
   }
-
   // Handler for get-all-live-events
   await listenQueue('get-all-live-events', async (data) => {
     try {
       console.log('📥 Processing get-all-live-events request');
-      
       const tickets = await Ticket.find({ event_status: 'live' }).sort({
         createdAt: -1,
       });
@@ -29,7 +27,6 @@ export const startConsumers = async () => {
       };
     }
   });
-
   // Handler for get-all-groups
   await listenQueue('get-all-groups', async (data) => {
     try {
@@ -38,7 +35,6 @@ export const startConsumers = async () => {
       const groups = await Group.find({ status: 'active' }).sort({
         createdAt: -1,
       });
-
       return {
         count: groups.length,
         groups,
@@ -80,11 +76,9 @@ export const startConsumers = async () => {
           }
         }
       }
-
       if (!ticket) {
         return { error: 'Ticket not found' };
       }
-
       return ticket;
     } catch (error) {
       console.error('❌ Error in get-ticket-by-id handler:', error);
@@ -93,19 +87,14 @@ export const startConsumers = async () => {
   });
   // Handler for get-group-by-id
   await listenQueue('get-group-by-id', async (data) => {
-    try {
-      console.log('📥 Processing get-group-by-id request:', data.groupId);
-      
+    try {      
       if (!data.groupId) {
         return { error: 'Group ID is required' };
       }
-
       const group = await Group.findById(data.groupId);
-      
       if (!group) {
         return { error: 'Group not found' };
       }
-
       return group;
     } catch (error) {
       console.error('❌ Error in get-group-by-id handler:', error);
@@ -122,13 +111,11 @@ export const startConsumers = async () => {
       let ticket = await Ticket.findById(data.ticketId);
       let isSubEvent = false;
       let subEventIndex = -1;
-
       // ✅ If not found, search in sub_events
       if (!ticket) {
         ticket = await Ticket.findOne({
           'sub_events._id': data.ticketId
         });
-
         if (ticket) {
           isSubEvent = true;
           subEventIndex = ticket.sub_events.findIndex(
@@ -136,12 +123,10 @@ export const startConsumers = async () => {
           );
         }
       }
-      
       if (!ticket) {
         console.error(`❌ Ticket not found: ${data.ticketId}`);
         return { error: 'Ticket not found' };
       }
-
       // ✅ Update the appropriate field
       if (isSubEvent && subEventIndex !== -1) {
         // Update sub-event stats
@@ -245,5 +230,4 @@ export const startConsumers = async () => {
   });
   console.log('✅ All RabbitMQ consumers started successfully (Ticket Service)');
 };
-
 export { connectRabbitMQ };
