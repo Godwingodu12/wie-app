@@ -311,20 +311,61 @@ const mapGroupToProto = (group) => {
     razorpayAccountId: group.razorpayAccountId || ''
   };
 };
-
+const flattenEventsWithSubEvents = (tickets) => {
+  const flattenedEvents = [];
+  
+  tickets.forEach(ticket => {
+    // Convert to plain object if it's a Mongoose document
+    const ticketObj = ticket.toObject ? ticket.toObject() : ticket;
+    
+    // Add main event
+    flattenedEvents.push(ticketObj);
+    
+    // Add all sub-events as separate entries with parent reference
+    if (ticketObj.sub_events && Array.isArray(ticketObj.sub_events) && ticketObj.sub_events.length > 0) {      
+      ticketObj.sub_events.forEach(subEvent => {
+        // Convert sub-event to plain object
+        const subEventObj = subEvent.toObject ? subEvent.toObject() : subEvent;
+        
+        const subEventData = {
+          ...subEventObj,
+          // Inherit necessary fields from parent
+          groupId: ticketObj.groupId,
+          userId: ticketObj.userId,
+          payment_type: ticketObj.payment_type,
+          // Mark as sub-event with parent info
+          isSubEvent: true,
+          parentEventId: ticketObj._id.toString(),
+          parentEventName: ticketObj.event_name,
+          parentEventCategory: ticketObj.event_category,
+          parentEventBanner: ticketObj.event_banner,
+          parentEventLogo: ticketObj.event_logo,
+          // Ensure _id is properly set
+          _id: subEventObj._id,
+          id: subEventObj._id.toString()
+        };
+        flattenedEvents.push(subEventData);
+      });
+    }
+  });
+  const mainCount = tickets.length;
+  const subCount = flattenedEvents.length - mainCount;
+  return flattenedEvents;
+};
 const getAllLiveEvents = async (call, callback) => {
   try {
     const tickets = await Ticket.find({ event_status: 'live' }).sort({ createdAt: -1 });
+    const flattenedEvents = flattenEventsWithSubEvents(tickets);
     callback(null, {
-      count: tickets.length,
-      tickets: tickets.map(mapTicketToProto),
+      count: flattenedEvents.length,
+      tickets: flattenedEvents.map(mapTicketToProto),
       error: ''
     });
   } catch (error) {
+    console.error('❌ [gRPC Server] Error fetching live events:', error);
     callback(null, { count: 0, tickets: [], error: error.message });
   }
 };
-
 const getAllGroups = async (call, callback) => {
   try {
     const groups = await Group.find({ status: 'active' }).sort({ createdAt: -1 });
@@ -344,9 +385,7 @@ const getTicketById = async (call, callback) => {
     if (!ticketId) {
       return callback(null, { ticket: null, error: 'Ticket ID is required' });
     }
-
     let ticket = await Ticket.findById(ticketId);
-    
     if (!ticket) {
       ticket = await Ticket.findOne({ 'sub_events._id': ticketId });
       if (ticket) {
@@ -513,9 +552,7 @@ const getTicketsByIds = async (call, callback) => {
 
 const getTicketBookingStats = async (call, callback) => {
   try {
-    const { ticketId } = call.request;
-    console.log(`🔵 [gRPC Server] GetTicketBookingStats: ${ticketId}`);
-    
+    const { ticketId } = call.request;    
     // Get stats from the ticket document itself
     let ticket = await Ticket.findById(ticketId);
     let isSubEvent = false;
@@ -526,12 +563,6 @@ const getTicketBookingStats = async (call, callback) => {
         isSubEvent = true;
         const subEvent = ticket.sub_events.find(se => se._id.toString() === ticketId);
         if (subEvent) {
-          console.log(`✅ [gRPC Server] Sub-event stats found:`, {
-            totalBookings: subEvent.totalBookings || 0,
-            revenue: subEvent.revenue || 0,
-            totalTicketsSold: subEvent.totalTicketsSold || 0
-          });
-          
           return callback(null, {
             totalBookings: subEvent.totalBookings || 0,
             totalRevenue: subEvent.revenue || 0,
@@ -551,13 +582,6 @@ const getTicketBookingStats = async (call, callback) => {
         error: 'Ticket not found'
       });
     }
-
-    console.log(`✅ [gRPC Server] Main event stats found:`, {
-      totalBookings: ticket.totalBookings || 0,
-      revenue: ticket.revenue || 0,
-      totalTicketsSold: ticket.totalTicketsSold || 0
-    });
-
     callback(null, {
       totalBookings: ticket.totalBookings || 0,
       totalRevenue: ticket.revenue || 0,
