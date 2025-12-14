@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { getMe } from "../../services/userService.js";
+import { getUserData } from "../../services/ticketService";
 import { editProfile } from "../../services/authService.js";
 import { useNavigate } from "react-router-dom";
 import { getImageUrl, getOptimizedImageUrl } from "../../utils/imageUtils.js";
@@ -57,34 +57,44 @@ const EditProfile = () => {
     setIsDark(shouldBeDark);
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
-
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await getMe();
-        setUser(res.data);
+        const res = await getUserData();
+        const userData = res?.data?.user || res?.user || res?.data || res;
+        if (!userData) {
+          console.error("No user data found in response:", res);
+          return;
+        }
+        
+        setUser(userData);
 
         setFormData({
-          website: res.data.website || "",
-          bio: res.data.bio || "",
-          gender: res.data.gender || "Prefer not to say",
+          website: userData.website || "",
+          bio: userData.bio || "",
+          gender: userData.gender || "Prefer not to say",
           showBadge:
-            res.data.showBadge !== undefined ? res.data.showBadge : true,
+            userData.showBadge !== undefined ? userData.showBadge : true,
           showSuggestion:
-            res.data.showSuggestion !== undefined
-              ? res.data.showSuggestion
+            userData.showSuggestion !== undefined
+              ? userData.showSuggestion
               : true,
         });
-        if (res.data.image) {
-          setImagePreview(getImageUrl(res.data.image, "auth"));
+        
+        if (userData.image) {
+          setImagePreview(getImageUrl(userData.image, "auth"));
         }
       } catch (err) {
-        console.error("Failed to fetch user", err);
+        console.error("Failed to fetch user:", err);
+        console.error("Error details:", {
+          message: err.message,
+          response: err?.response?.data,
+          status: err?.response?.status
+        });
       }
     };
     fetchUser();
   }, []);
-
   const handleThemeToggle = () => {
     const newTheme = !isDark;
     setIsDark(newTheme);
