@@ -5,18 +5,13 @@ import { randomUUID } from 'crypto';
 import streamifier from 'streamifier';
 import dotenv from 'dotenv';
 dotenv.config();
-
-// Use memory storage instead of disk storage
 const storage = multer.memoryStorage();
-
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
   fileFilter: (req, file, cb) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     const ext = path.extname(file.originalname).toLowerCase();
-    
-    // Also check MIME type
     const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     
     if (!allowed.includes(ext) && !allowedMimeTypes.includes(file.mimetype)) {
@@ -25,34 +20,21 @@ const upload = multer({
     cb(null, true);
   },
 });
-
-/**
- * Upload image buffer to Cloudinary
- * @param {Buffer} buffer - File buffer from multer
- * @param {Object} options - Upload options
- * @returns {Promise<Object>} - Upload result with URL
- */
 export const uploadToCloudinary = (buffer, options = {}) => {
   return new Promise((resolve, reject) => {
     const {
       folder = 'WIE_AUTH/profile_images',
-      publicId = randomUUID(),
-      transformation = [
-        { quality: 'auto:good' },
-        { fetch_format: 'auto' }
-      ]
+      publicId = randomUUID()
     } = options;
 
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder,
         resource_type: 'image',
-        public_id: publicId,
-        transformation
+        public_id: publicId
       },
       (error, result) => {
         if (error) {
-          console.error('Cloudinary upload error:', error);
           reject(error);
         } else {
           resolve({
@@ -66,16 +48,9 @@ export const uploadToCloudinary = (buffer, options = {}) => {
         }
       }
     );
-
     streamifier.createReadStream(buffer).pipe(uploadStream);
   });
 };
-
-/**
- * Delete image from Cloudinary
- * @param {string} publicIdOrUrl - Public ID or full Cloudinary URL
- * @returns {Promise<Object>} - Deletion result
- */
 export const deleteFromCloudinary = async (publicIdOrUrl) => {
   try {
     if (!publicIdOrUrl) return null;
@@ -105,12 +80,6 @@ export const deleteFromCloudinary = async (publicIdOrUrl) => {
     throw error;
   }
 };
-
-/**
- * Extract public_id from Cloudinary URL
- * @param {string} url - Cloudinary URL
- * @returns {string|null} - Public ID or null
- */
 export const extractPublicId = (url) => {
   if (!url || !url.includes('cloudinary.com')) return null;
   
@@ -127,5 +96,4 @@ export const extractPublicId = (url) => {
   
   return null;
 };
-
 export default upload;

@@ -20,7 +20,6 @@ transactionApi.interceptors.request.use(
     return Promise.reject(error);
   }
 );
-
 // Response interceptor
 transactionApi.interceptors.response.use(
   (response) => response,

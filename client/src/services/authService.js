@@ -177,9 +177,7 @@ export const getFollowing = async (userId) => {
 };
 export const getOthersFollowers = async (userId) => {
   try {
-    console.log('🔍 Calling getOthersFollowers for userId:', userId);
     const res = await api.get(`/auth/get-followers/${userId}`);
-    console.log('✅ getOthersFollowers response:', res.data);
     return res.data;
   } catch (err) {
     console.error('getOthersFollowers error:', err);

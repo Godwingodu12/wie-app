@@ -1,14 +1,10 @@
-// Replace the ENTIRE consumer.js file in ticket-service
-
 import { getChannel, isChannelAvailable } from './connection.js';
 import { v4 as uuidv4 } from 'uuid';
-
 export const listenQueue = async (queueName, handler) => {
   if (!isChannelAvailable()) {
     console.warn(`⚠️ RabbitMQ channel not available, skipping queue: ${queueName}`);
     return;
   }
-
   try {
     const channel = getChannel();
     await channel.assertQueue(queueName, { durable: true });

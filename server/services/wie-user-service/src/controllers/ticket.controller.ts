@@ -7,7 +7,7 @@ import {
   getAllGroups,
   getTicketById,
   getGroupById,
-} from '../rabbit/ticketServiceClient';
+} from '../grpc/ticketClient';
 import { getUserProfile } from '../services/wie-user.service';
 const DEFAULT_SEARCH_RADIUS_KM = 200;
 const MAX_SUGGESTION_RADIUS_KM = 200;
@@ -367,7 +367,6 @@ export const getTicket = async (
 ): Promise<void> => {
   try {
     const { ticketId } = req.params;
-
     if (!ticketId) {
       res.status(400).json({
         success: false,
@@ -375,7 +374,6 @@ export const getTicket = async (
       });
       return;
     }
-
     let isSubEvent = false;
     let parentEvent = null;
     let eventData: any = null;

@@ -73,7 +73,6 @@ export const connectRabbitMQ = async (): Promise<void> => {
     isConnecting = false;
   }
 };
-
 export const getChannel = (): any => {
   if (!channel) {
     throw new Error('RabbitMQ channel is not available');

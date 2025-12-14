@@ -1,4 +1,3 @@
-// Replace the entire listenForUserRequests function in consumerConnections.js
 import { listenQueue } from './consumer.js';
 import { getUserData, getUser, getFollowersData } from '../services/auth.service.js';
 export const listenForUserRequests = async () => {
@@ -15,7 +14,6 @@ export const listenForUserRequests = async () => {
       return { error: error.message };
     }
   });
-
   // LISTEN FOR: chat-service
   // Handles BOTH: get single user AND search users
   await listenQueue('auth-get-user', async (payload) => {

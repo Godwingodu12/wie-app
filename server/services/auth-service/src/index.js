@@ -5,66 +5,63 @@ import connectDB from './config/db.js';
 import authRoutes from './routes/auth.routes.js';
 import session from 'express-session';
 import passport from './config/passport.config.js';
-import { connectRabbitMQ } from './rabbit/connection.js';
+import { startGrpcServer } from './grpc/server.js';
+import { connectRabbitMQ, isChannelAvailable } from './rabbit/connection.js';
 import { startConsumers } from './rabbit/index.js';
 dotenv.config();
 const app = express();
-// Middleware
+
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
 app.use(express.json());
-// Session configuration
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // true in production with HTTPS
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000
   }
 }));
-// Passport initialization
+
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
     success: true,
     message: 'Auth service is running',
-    cloudinary: 'enabled',
+    grpc: 'enabled',
+    rabbitmq: isChannelAvailable() ? 'connected' : 'disconnected',
     timestamp: new Date().toISOString()
   });
 });
 
-// Routes
 app.use('/api/auth', authRoutes);
 
 const PORT = process.env.PORT || 5000;
+const GRPC_PORT = process.env.GRPC_PORT || 50051;
 
 const startServer = async () => {
   try {
-    // Connect to MongoDB
     await connectDB();
-    console.log('✅ MongoDB connected');
 
-    // Try to connect to RabbitMQ (non-blocking)
+    startGrpcServer(GRPC_PORT);
+
     try {
       await connectRabbitMQ();
-      await startConsumers();
-      console.log('✅ RabbitMQ connected');
+      if (isChannelAvailable()) {
+        await startConsumers();
+      }
     } catch (rabbitError) {
-      console.warn('⚠️ RabbitMQ connection failed:', rabbitError.message);
-      console.log('💡 Server will continue without RabbitMQ');
+      //
     }
 
-    // Start server
     app.listen(PORT, () => {
-      console.log(`✅ Auth service running on port ${PORT}`);
+      //
     });
   } catch (err) {
-    console.error('❌ Error starting server:', err);
     process.exit(1);
   }
 };
-
 startServer();

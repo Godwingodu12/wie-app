@@ -1,14 +1,12 @@
 import { uploadToCloudinary, deleteFromCloudinary, extractPublicId } from '../middlewares/upload.js';
+
 export const uploadProfileImage = async (buffer, options = {}) => {
   try {
+    // Simple upload without transformations
     const result = await uploadToCloudinary(buffer, {
       folder: 'WIE_AUTH/profile_images',
-      transformation: [
-        { width: 500, height: 500, crop: 'limit' },
-        { quality: 'auto:good' },
-        { fetch_format: 'auto' }
-      ],
-      ...options
+      publicId: options.publicId || undefined
+      // ❌ NO transformation here
     });
     
     return result.url;
@@ -36,10 +34,10 @@ export const deleteProfileImage = async (imageUrl) => {
   }
 };
 
-export const replaceProfileImage = async (newImageBuffer, oldImageUrl) => {
+export const replaceProfileImage = async (newImageBuffer, oldImageUrl, options = {}) => {
   try {
     // Upload new image first
-    const newImageUrl = await uploadProfileImage(newImageBuffer);
+    const newImageUrl = await uploadProfileImage(newImageBuffer, options);
     
     // Delete old image if it exists
     if (oldImageUrl && oldImageUrl.includes('cloudinary.com')) {
