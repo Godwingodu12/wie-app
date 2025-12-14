@@ -623,10 +623,8 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
       res.status(401).json({ message: 'Unauthorized: User not authenticated' });
       return;
     }
-
     const userId = req.user.id;
     const user = await WIEUSER.findById(userId);
-
     if (!user) {
       res.status(404).json({ message: 'User not found' });
       return;
