@@ -19,7 +19,7 @@ import {
 } from "../utils/cloudinaryHelper.js";
 import { createNotification } from '../utils/notificationHelper.js';
 import multer from "multer";
-import { sendRPC } from "../rabbit/producer.js";
+import { getUserFromAuthService } from "../grpc/authClient.js";
 function parseJSONSafely(value, defaultValue = []) {
   if (!value) return defaultValue;
   if (typeof value === "string") {
@@ -39,13 +39,10 @@ function parseJSONSafely(value, defaultValue = []) {
 export const getUserData = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    const userData = await sendRPC("get-user", { userId });
-    if (userData?.error) {
-      return res.status(500).json({ 
-        message: "Error fetching user data", 
-        error: userData.error 
-      });
-    }
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }    
+    const userData = await getUserFromAuthService(userId, 3, true);
     if (!userData) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -54,10 +51,10 @@ export const getUserData = async (req, res) => {
       user: userData,
     });
   } catch (error) {
-    console.error("❌ Error fetching user:", error);
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message 
+    });
   }
 };
 export const CreateGroup = async (req, res) => {
@@ -71,7 +68,7 @@ export const CreateGroup = async (req, res) => {
     if (!["admin", "organisation"].includes(userRole)) {
       return res.status(400).json({ message: "Invalid user role" });
     }
-    const userData = await sendRPC("get-user", userId);
+    const userData = await getUserFromAuthService(userId);
     if (!userData) {
       return res
         .status(404)
