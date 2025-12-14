@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate, Link } from "react-router-dom";
 import { getGroups } from "../../services/ticketService";
-import { getMe } from "../../services/userService.js";
+import { getUserData } from "../../services/ticketService";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
 import { getImageUrl } from "../../utils/imageUtils";
 // Icons
@@ -37,7 +37,7 @@ const BottomNavigation = ({ theme }) => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await getMe();
+        const res = await getUserData();
         if (res && res.data) {
           setUserData(res.data);
           sessionStorage.setItem("userData", JSON.stringify(res.data));
