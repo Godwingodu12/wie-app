@@ -462,3 +462,11 @@ export const getPostalDetailsFromCoords = async (lat, lng) => {
     throw error;
   }
 };
+export const getAddOnEventLiveView = async (subEventId) => {
+  try {
+    const response = await api.get(`ticket/addon-event-live-view/${subEventId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
