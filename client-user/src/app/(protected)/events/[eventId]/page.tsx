@@ -32,7 +32,6 @@ export default function EventDetailPage() {
   const params = useParams();
   const router = useRouter();
   const eventId = params.eventId as string;
-
   const [event, setEvent] = useState<Event | SubEvent | null>(null);
   const [isSubEvent, setIsSubEvent] = useState(false);
   const [parentEvent, setParentEvent] = useState<ParentEventSummary | null>(null);
@@ -48,6 +47,21 @@ export default function EventDetailPage() {
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [hasBooked, setHasBooked] = useState(false);
   const [userBooking, setUserBooking] = useState<any>(null);
+  // Add this helper function at the top of your component (outside the component function)
+function isMainEvent(event: Event | SubEvent): event is Event {
+  return 'sub_events' in event;
+}
+
+// Then in your useEffect:
+useEffect(() => {
+  console.log('🔍 Event data:', event);
+  if (event && isMainEvent(event)) {
+    console.log('🔍 Sub events:', event.sub_events);
+    console.log('🔍 Number of sub events:', event.sub_events?.length || 0);
+  } else {
+    console.log('🔍 This is a SubEvent (no sub_events)');
+  }
+}, [event]);
   // Load Razorpay script
   useEffect(() => {
     const script = document.createElement('script');
@@ -499,7 +513,7 @@ const BookingModal = () => {
           }
           const parentName = hasParentFromEvent ? event.parentEventName : parentEvent?.event_name;
           return (
-            <div className="mb-4">
+            <div key="sub-event-badge" className="mb-4"> {/* ✅ Added key */}
               <span className="bg-purple-100 text-purple-800 px-4 py-2 rounded-full text-sm font-semibold">
                 Sub Event of {parentName}
               </span>
@@ -515,43 +529,41 @@ const BookingModal = () => {
                 <h1 className="text-4xl font-bold text-gray-900 mb-4">
                   {event.event_name}
                 </h1>
-                
                 <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
+                  <span key="category-badge" className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
                     {event.event_category}
                   </span>
                   {event.event_subcategory && (
-                    <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
+                    <span key="subcategory-badge" className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
                       {event.event_subcategory}
                     </span>
                   )}
                   {event.location_type === 'online' && (
-                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
+                    <span key="online-badge" className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
                       🌐 Online Event
                     </span>
                   )}
                   {event.location_type === 'recorded' && (
-                    <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-semibold">
+                    <span key="recorded-badge" className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-semibold">
                       📹 Recorded Event
                     </span>
                   )}
                   {event.kids_friendly && (
-                    <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm">
+                    <span key="kids-badge" className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm">
                       👶 Kids Friendly
                     </span>
                   )}
                   {event.pet_friendly && (
-                    <span className="bg-pink-100 text-pink-800 px-3 py-1 rounded-full text-sm">
+                    <span key="pet-badge" className="bg-pink-100 text-pink-800 px-3 py-1 rounded-full text-sm">
                       🐾 Pet Friendly
                     </span>
                   )}
                   {event.payment_type === 'free' && (
-                    <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-sm font-semibold">
+                    <span key="free-badge" className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-sm font-semibold">
                       🎉 FREE
                     </span>
                   )}
                 </div>
-
                 <p className="text-gray-700 text-lg leading-relaxed">
                   {event.event_description}
                 </p>
@@ -571,7 +583,7 @@ const BookingModal = () => {
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900">Date & Time</p>
                         {event.event_dates.map((date, index) => (
-                          <div key={index} className="text-gray-600 mt-1">
+                          <div key={`date-${index}`} className="text-gray-600 mt-1"> {/* ✅ Added key */}
                             <p className="font-medium">
                               {new Date(date.start_date).toLocaleDateString('en-US', {
                                 weekday: 'long',
@@ -605,7 +617,6 @@ const BookingModal = () => {
                       </div>
                     </div>
                   )}
-
                   {/* Location */}
                   {event.location && (
                     <div className="flex items-start gap-3">
@@ -687,7 +698,7 @@ const BookingModal = () => {
                   <h2 className="text-2xl font-bold text-gray-900 mb-4">⚠️ Prohibited Items</h2>
                   <ul className="list-disc list-inside space-y-2 text-gray-600">
                     {event.prohibited_items.map((item, index) => (
-                      <li key={index}>{item}</li>
+                      <li key={`prohibited-${index}`}>{item}</li>
                     ))}
                   </ul>
                 </div>
@@ -728,118 +739,119 @@ const BookingModal = () => {
                 </div>
               </Card>
             )}
-            {/* Sub-Events (for main events) */}
             {!isSubEvent && 'sub_events' in event && event.sub_events && event.sub_events.length > 0 && (
-            <Card>
+              <Card>
                 <div className="p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">
                     Related Sub Events ({event.sub_events.length})
-                </h2>
-                <div className="grid md:grid-cols-2 gap-4">
-                    {event.sub_events.map((subEvent) => (
-                    <div
-                        key={subEvent._id}
-                        onClick={() => router.push(`/events/${subEvent._id}`)}
-                        className="group relative bg-white border-2 border-gray-200 rounded-xl overflow-hidden hover:border-blue-500 hover:shadow-xl transition-all cursor-pointer"
-                    >
-                        {/* Sub-Event Image */}
-                        {subEvent.event_banner ? (
-                        <div className="relative h-40 w-full overflow-hidden">
-                            <img
-                            src={subEvent.event_banner}
-                            alt={subEvent.event_name}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                            />
-                            {subEvent.event_logo && (
-                            <img
-                                src={subEvent.event_logo}
-                                alt="logo"
-                                className="absolute bottom-2 right-2 w-12 h-12 rounded-full border-2 border-white shadow-md"
-                            />
+                  </h2>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {event.sub_events.map((subEvent) => {
+                      // ✅ Safely extract the ID
+                     const subEventId = (subEvent as any)._id?.toString() || (subEvent as any).id?.toString();
+                      if (!subEventId) {
+                        console.error('❌ Sub-event missing ID:', subEvent);
+                        return null;
+                      }
+
+                      return (
+                        <div
+                          key={subEventId}
+                          onClick={() => {
+                            router.push(`/events/${subEventId}`);
+                          }}
+                          className="group relative bg-white border-2 border-gray-200 rounded-xl overflow-hidden hover:border-blue-500 hover:shadow-xl transition-all cursor-pointer"
+                        >
+                          {/* Rest of your sub-event card JSX... */}
+                          {subEvent.event_banner ? (
+                            <div className="relative h-40 w-full overflow-hidden">
+                              <img
+                                src={subEvent.event_banner}
+                                alt={subEvent.event_name}
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                              />
+                              {subEvent.event_logo && (
+                                <img
+                                  src={subEvent.event_logo}
+                                  alt="logo"
+                                  className="absolute bottom-2 right-2 w-12 h-12 rounded-full border-2 border-white shadow-md"
+                                />
+                              )}
+                            </div>
+                          ) : (
+                            <div className="h-40 w-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
+                              <Calendar className="w-16 h-16 text-gray-400" />
+                            </div>
+                          )}
+
+                          <div className="p-4">
+                            <div className="mb-2">
+                              <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-1 rounded-full">
+                                Sub Event
+                              </span>
+                            </div>
+
+                            <h3 className="font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                              {subEvent.event_name}
+                            </h3>
+
+                            <p className="text-xs text-gray-600 mb-2 font-medium">
+                              📂 {subEvent.event_category}
+                            </p>
+
+                            {subEvent.location && (
+                              <div className="flex items-start gap-1 mb-2">
+                                <MapPin className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                                <p className="text-xs text-gray-500 line-clamp-1">
+                                  {subEvent.location}
+                                </p>
+                              </div>
                             )}
-                        </div>
-                        ) : (
-                        <div className="h-40 w-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
-                            <Calendar className="w-16 h-16 text-gray-400" />
-                        </div>
-                        )}
 
-                        {/* Sub-Event Content */}
-                        <div className="p-4">
-                        {/* Badge */}
-                        <div className="mb-2">
-                            <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-1 rounded-full">
-                            Sub Event
-                            </span>
-                        </div>
+                            {subEvent.event_dates?.[0] && (
+                              <div className="flex items-center gap-1 mb-3">
+                                <Calendar className="w-3 h-3 text-gray-400" />
+                                <p className="text-xs text-gray-500">
+                                  {new Date(subEvent.event_dates[0].start_date).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })}
+                                </p>
+                              </div>
+                            )}
 
-                        {/* Title */}
-                        <h3 className="font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
-                            {subEvent.event_name}
-                        </h3>
+                            {subEvent.payment_type === 'free' && (
+                              <span className="inline-block bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">
+                                FREE
+                              </span>
+                            )}
+                            {subEvent.payment_type === 'paid' && subEvent.ticket_types?.[0] && (
+                              <span className="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">
+                                ₹{subEvent.ticket_types[0].ticket_price}
+                              </span>
+                            )}
 
-                        {/* Category */}
-                        <p className="text-xs text-gray-600 mb-2 font-medium">
-                            📂 {subEvent.event_category}
-                        </p>
-
-                        {/* Location */}
-                        {subEvent.location && (
-                            <div className="flex items-start gap-1 mb-2">
-                            <MapPin className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                            <p className="text-xs text-gray-500 line-clamp-1">
-                                {subEvent.location}
-                            </p>
+                            <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="bg-blue-600 text-white rounded-full p-2">
+                                <ArrowLeft className="w-4 h-4 rotate-180" />
+                              </div>
                             </div>
-                        )}
-
-                        {/* Date */}
-                        {subEvent.event_dates?.[0] && (
-                            <div className="flex items-center gap-1 mb-3">
-                            <Calendar className="w-3 h-3 text-gray-400" />
-                            <p className="text-xs text-gray-500">
-                                {new Date(subEvent.event_dates[0].start_date).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                                })}
-                            </p>
-                            </div>
-                        )}
-
-                        {/* Price Badge */}
-                        {subEvent.payment_type === 'free' && (
-                            <span className="inline-block bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">
-                            FREE
-                            </span>
-                        )}
-                        {subEvent.payment_type === 'paid' && subEvent.ticket_types?.[0] && (
-                            <span className="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">
-                            ₹{subEvent.ticket_types[0].ticket_price}
-                            </span>
-                        )}
-
-                        {/* View Arrow */}
-                        <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="bg-blue-600 text-white rounded-full p-2">
-                            <ArrowLeft className="w-4 h-4 rotate-180" />
-                            </div>
+                          </div>
                         </div>
-                        </div>
-                    </div>
-                    ))}
+                      );
+                    })}
+                  </div>
                 </div>
-                </div>
-            </Card>
+              </Card>
             )}
             {/* Parent Event Display - handles both API response types */}
-            {(() => {
+           {(() => {
               const hasParentFromEvent = 'isSubEvent' in event && event.isSubEvent && event.parentEventId;
               const hasParentFromResponse = isSubEvent && parentEvent;
               if (!hasParentFromEvent && !hasParentFromResponse) {
                 return null;
               }
-              // Use parent data from event if available, otherwise use parentEvent
               const parentData = hasParentFromEvent ? {
                 _id: event.parentEventId!,
                 event_name: event.parentEventName!,
@@ -847,12 +859,9 @@ const BookingModal = () => {
                 event_banner: event.parentEventBanner,
                 event_logo: event.parentEventLogo,
               } : parentEvent;
-
-              // Add null check - this should never happen due to the guard above, but TypeScript needs it
               if (!parentData) {
                 return null;
               }
-
               return (
                 <Card>
                   <div className="p-6">
@@ -1122,7 +1131,7 @@ const BookingModal = () => {
                   <h3 className="text-xl font-bold text-gray-900 mb-4">Tags</h3>
                   <div className="flex flex-wrap gap-2">
                     {event.hashtag.map((tag, index) => (
-                      <span key={index} className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-sm">
+                      <span key={`hashtag-${index}-${tag}`} className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-sm">
                         #{tag}
                       </span>
                     ))}
