@@ -192,6 +192,7 @@ const LiveEventsPage = () => {
       name: subEvent.event_name,
       id: subEvent._id,
       category: subEvent.event_category,
+      banner: subEvent.event_banner,
     })) || [];
   const handleThemeToggle = () => {
     const newTheme = !isDark;
@@ -368,11 +369,11 @@ const LiveEventsPage = () => {
     );
   }
   const formattedDate = eventData?.event_dates?.[0]?.start_date
-  ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
-      month: "short", 
-      day: "numeric", 
+    ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
     })
-  : "N/A";
+    : "N/A";
   return (
     <>
       <style>{`
@@ -878,11 +879,15 @@ const LiveEventsPage = () => {
                               >
                                 <div className="flex flex-col items-center justify-between h-full">
                                   <div className="lg:w-10 lg:h-10 h-8 w-8 mt-4 rounded-full overflow-hidden flex items-center justify-center bg-white">
-                                    {/* Placeholder Ticket icon or event logo if available */}
-                                    {/* Assuming 'event' might not have a logo property here based on previous map, but if it does we use it.
-                                      Previous code used 'idx === 2 ? theme.purpleBtn' logic. I will stick to a clean icon if no logo.
-                                  */}
-                                    <Ticket className="w-5 h-5 text-black" />
+                                    {event.banner ? (
+                                      <img
+                                        src={event.banner}
+                                        alt={event.name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <Ticket className="w-5 h-5 text-black" />
+                                    )}
                                   </div>
                                   <div
                                     className={`lg:text-xs text-[10px] font-bold ${isDark ? "text-white" : "text-gray-900"
@@ -942,8 +947,8 @@ const LiveEventsPage = () => {
           {/* --- End of Main Content Area --- */}
 
           <BottomNavigation theme={theme} user={user} />
-        </div>
-      </div>
+        </div >
+      </div >
       {/* <-- This closing div was missing */}
     </>
   );
