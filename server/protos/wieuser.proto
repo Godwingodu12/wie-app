@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package wieuser;
+
+service WieUserService {
+  rpc GetWieUser(GetWieUserRequest) returns (WieUserResponse);
+}
+
+message GetWieUserRequest {
+  string userId = 1;
+}
+
+message WieUserResponse {
+  WieUser user = 1;
+  string error = 2;
+}
+
+message WieUser {
+  string id = 1;
+  string email = 2;
+  string contact_no = 3;
+  string name = 4;
+  string username = 5;
+  string profile_picture = 6;
+  string country_id = 7;
+  string role = 8;
+  string status = 9;
+  string bio = 10;
+  string location = 11;
+  double latitude = 12;
+  double longitude = 13;
+  bool isOnline = 14;
+  bool is_blocked = 15;
+  bool is_verified = 16;
+  string google_id = 17;
+  string auth_provider = 18;
+  string created_at = 19;
+  string updated_at = 20;
+}
