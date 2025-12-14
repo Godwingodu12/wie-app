@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "react-international-phone/style.css";
 import { PhoneInput, defaultCountries, parseCountry } from "react-international-phone";
-import { getMe } from "../../services/userService.js";
+import { getUserData } from "../../services/ticketService";
 import { personalDetails } from "../../services/authService.js";
 import { getImageUrl } from "../../utils/imageUtils.js";
 import SideBar from "../../components/HomePage/SideBar.jsx";
@@ -66,7 +66,7 @@ const PersonalDetails = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await getMe();
+        const res = await getUserData();
         console.log("User data fetched:", res.data); // Debug log
         setUser(res.data);
         setFormData({
