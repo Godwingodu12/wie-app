@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { updateTicketStats, getTicketStats } from '../clients/ticketServiceClient';
 import { InteractionModel, BookingModel } from '../models';
-import { sendRPC } from '../rabbit/producer';
+import { getTicketBookingStats } from '../clients/ticketServiceClient';
 import { prisma } from '../config/db';
 // Like/Unlike Event
 export const toggleLike = async (req: Request, res: Response) => {
@@ -170,22 +170,25 @@ export const toggleSave = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-// Get Event Stats
 export const getEventStats = async (req: Request, res: Response) => {
   try {
     const { ticketId } = req.params;
+
+    console.log(`🔵 [Transaction] Fetching event stats for ticket: ${ticketId}`);
+
     // Get interaction stats from database directly (no RabbitMQ needed)
     const stats = await prisma.interaction.groupBy({
       by: ['interactionType'],
       where: { ticketId },
       _count: true,
     });
+
     const statsMap = stats.reduce((acc: any, stat) => {
       acc[stat.interactionType] = stat._count;
       return acc;
     }, {});
-    // Get booking stats via RabbitMQ
+
+    // ✅ Get booking stats via gRPC instead of RabbitMQ
     let bookingStats = {
       totalBookings: 0,
       totalRevenue: 0,
@@ -193,20 +196,12 @@ export const getEventStats = async (req: Request, res: Response) => {
     };
 
     try {
-      const bookingResponse = await sendRPC(
-        'get-ticket-booking-stats',
-        { ticketId },
-        5000
-      );
-      if (bookingResponse.success) {
-        bookingStats = {
-          totalBookings: bookingResponse.totalBookings,
-          totalRevenue: bookingResponse.totalRevenue,
-          totalTicketsSold: bookingResponse.totalTicketsSold,
-        };
-      }
+      console.log(`🔵 [Transaction] Fetching booking stats via gRPC...`);
+      bookingStats = await getTicketBookingStats(ticketId);
+      console.log(`✅ [Transaction] Booking stats fetched:`, bookingStats);
     } catch (error: any) {
-      console.warn('⚠️ Could not fetch booking stats:', error.message);
+      console.warn('⚠️ [Transaction] Could not fetch booking stats:', error.message);
+      // Continue with zero stats
     }
 
     res.json({
@@ -222,11 +217,10 @@ export const getEventStats = async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('❌ Error fetching event stats:', error);
+    console.error('❌ [Transaction] Error fetching event stats:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
 // Get User's Liked Events
 export const getUserLikedEvents = async (req: Request, res: Response) => {
   try {
