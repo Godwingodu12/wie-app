@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { getMe } from "../../services/userService.js";
+import { getUserData } from "../../services/ticketService";
 import { getGroups } from "../../services/ticketService";
 import GroupSelectionModal from "../../components/modals/GroupSelectionModal";
 import { getImageUrl, getOptimizedImageUrl } from '../../utils/imageUtils.js';
@@ -62,7 +62,7 @@ const totalUnreadCount = useMemo(() => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await getMe();
+        const res = await getUserData();
         if (res && res.data) {
           setUserData(res.data);
           sessionStorage.setItem('userData', JSON.stringify(res.data));
