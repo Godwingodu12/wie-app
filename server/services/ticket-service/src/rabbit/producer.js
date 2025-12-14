@@ -1,8 +1,5 @@
-// Replace the ENTIRE producer.js file in ticket-service
-
 import { getChannel, isChannelAvailable } from './connection.js';
 import { v4 as uuidv4 } from 'uuid';
-
 export const sendRPC = async (queue, payload, timeout = 10000) => {
   if (!isChannelAvailable()) {
     throw new Error('RabbitMQ channel not available');
