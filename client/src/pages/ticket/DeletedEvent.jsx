@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { getMe } from "../../services/userService";
+import { getUserData } from "../../services/ticketService";
 import { getAllDeletedEvents,getGroupView,deleteEventPermenently,recoverDeletedEvent,deleteAllEvents,getDeletedEventById } from "../../services/ticketService.js";
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
@@ -66,7 +66,7 @@ const DeletedEvent = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await getMe();
+        const res = await getUserData();
         setUser(res.data);
       } catch (err) {
         console.error("Failed to fetch user", err);
