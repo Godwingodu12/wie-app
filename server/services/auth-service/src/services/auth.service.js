@@ -3,12 +3,12 @@ import Follow from "../models/follow.model.js";
 import mongoose from 'mongoose';
 import { hashPassword, comparePassword } from "../utils/hash.js";
 import { generateToken, verifyResetToken } from "../utils/jwt.js";
+import { logger } from '../utils/logger.js';
 import otpService from "../reposetory/otp.js";
 import upload, { uploadToCloudinary, deleteFromCloudinary } from "../middlewares/upload.js";
 import { generateOtp } from "../utils/otp.js";
 import { sendEmail } from "../utils/sendMail.js";
 import { sendSMSOTP } from "../utils/sendSMS.js";
-
 export const index = (req, res) => {
   res.json({ message: "Welcome to the authentication service" });
 };
@@ -16,16 +16,13 @@ const validateEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
-
 const validateContactNo = (contact_no) => {
   const phoneRegex = /^[+]?[0-9]{10,15}$/;
   return phoneRegex.test(contact_no);
 };
-
 const validatePassword = (password) => {
   return password && password.length >= 6;
 };
-
 const validateName = (name) => {
   return name && name.trim().length >= 2;
 };
@@ -276,7 +273,6 @@ export const organisationSignup = async (req, res) => {
       userToUpdate.password = hashed;
       if (image) userToUpdate.image = image;
       await userToUpdate.save();
-      console.log("Updated existing unverified organisation user with new email");
     }
     else {
       userToUpdate = await User.create({
@@ -318,7 +314,7 @@ export const organisationSignup = async (req, res) => {
     } else if (smsSent) {
       message += " OTP sent to SMS only. Email service temporarily unavailable.";
     } else {
-      message += " OTP generation successful, but delivery services are temporarily unavailable. Please try again.";
+      message += "OTP generation successful, but delivery services are temporarily unavailable. Please try again.";
     }
     return res.status(201).json({ 
       message,
@@ -341,7 +337,6 @@ export const login = async (req, res) => {
         .status(400)
         .json({ message: "Email and password are required" });
     }
-
     const user = await User.findOne({
       $or: [
         { email: identifier },
@@ -372,7 +367,6 @@ export const login = async (req, res) => {
     res.status(500).json({ message: "Login failed" });
   }
 };
-
 export const getUserById = async (req, res) => {
   try {
     const userId = req.params.id;
@@ -396,12 +390,9 @@ export const getUserById = async (req, res) => {
 export const verifyOTP = async (req, res) => {
   const { email, contact_no, otp } = req.body;
   try {
-    console.log("Verify OTP request:", { email, contact_no, otp });
-
     let user = null;
     let searchField;
     let searchValue;
-
     if (email && validateEmail(email)) {
       console.log("Searching for user by email:", email);
       user = await User.findOne({ email: email });
@@ -475,9 +466,8 @@ export const logout = async (req, res) => {
     if (user) {
       user.lastLogout = new Date();
       await user.save();
-      console.log("User logout time updated");
     }
-    res.json({
+    res.status(200).json({
       message: "Logout successful",
       success: true,
     });
@@ -641,7 +631,6 @@ export const resendOtp = async (req, res) => {
         success: false,
       });
     }
-
     res.status(200).json({
       message: `New OTP sent successfully to your ${sendMethod === 'email' ? 'email' : 'phone'}. Previous OTP has been invalidated.`,
       success: true,
@@ -798,7 +787,6 @@ export const findAllActiveUsers = async (req, res) => {
 };
 export const editProfile = async (req, res) => {
   try {
-    // Handle file upload with multer
     await new Promise((resolve, reject) => {
       upload.fields([
         { name: 'image', maxCount: 1 },
@@ -850,14 +838,12 @@ export const editProfile = async (req, res) => {
         user.contact_no = originalValues.contact_no;
       }
     }
-
     // Role-based field updates
     if (user.role === 'admin') {
       // Admin-specific fields
       if (req.body.website !== undefined) {
         user.website = req.body.website.trim() || originalValues.website;
       }
-
       if (req.body.bio !== undefined) {
         user.bio = req.body.bio.trim() || originalValues.bio;
       }
@@ -879,7 +865,6 @@ export const editProfile = async (req, res) => {
           user.address = originalValues.address;
         }
       }
-
       if (req.body.organisation_type !== undefined) {
         const validTypes = ['Private Limited', 'Public Limited', 'Partnership', 'Proprietorship', 'LLP', 
           'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Trust', 'Society','Government', 'Other'];
@@ -896,65 +881,66 @@ export const editProfile = async (req, res) => {
         user.bio = req.body.bio.trim() || originalValues.bio;
       }
     }
-    // Handle image upload to Cloudinary
     if (req.files && req.files.image && req.files.image[0]) {
       try {
         const imageFile = req.files.image[0];
-        console.log('Uploading profile image to Cloudinary...');
-        // Upload new image to Cloudinary
-        const uploadResult = await uploadToCloudinary(imageFile.buffer, {
-          folder: 'WIE_AUTH/profile_images',
-          transformation: [
-            { width: 500, height: 500, crop: 'limit' }, // Limit max dimensions
-            { quality: 'auto:good' },
-            { fetch_format: 'auto' }
-          ]
+        
+        console.log('📸 Processing profile image upload:', {
+          originalname: imageFile.originalname,
+          mimetype: imageFile.mimetype,
+          size: imageFile.size
         });
 
-        console.log('✅ Profile image uploaded:', uploadResult.url);
+        // Simple upload without any transformations
+        const uploadResult = await uploadToCloudinary(imageFile.buffer, {
+          folder: 'WIE_AUTH/profile_images',
+          publicId: `profile_${userId}_${Date.now()}`
+          // ❌ NO eager, NO transformation - just plain upload
+        });
 
-        // Delete old image from Cloudinary if it exists and is a Cloudinary URL
+        console.log('✅ Profile image uploaded successfully:', uploadResult.url);
+
+        // Delete old image from Cloudinary if it exists
         if (originalValues.image && originalValues.image.includes('cloudinary.com')) {
           try {
             await deleteFromCloudinary(originalValues.image);
-            console.log('✅ Old profile image deleted from Cloudinary');
+            console.log('✅ Old profile image deleted');
           } catch (deleteError) {
             console.warn('⚠️ Failed to delete old image:', deleteError.message);
-            // Continue anyway - new image is uploaded successfully
           }
         }
 
         // Update user with new Cloudinary URL
         user.image = uploadResult.url;
-
+        
       } catch (uploadError) {
         console.error('❌ Error uploading image to Cloudinary:', uploadError);
         throw new Error(`Image upload failed: ${uploadError.message}`);
       }
     }
-    // If no new image is uploaded, keep the existing image
-
-    // Save the updated user
     await user.save();
-
-    // Return user without password and only with role-appropriate fields
+    try {
+      const ticketServiceUrl = process.env.TICKET_SERVICE_URL || 'http://localhost:5003';
+      const axios = (await import('axios')).default;
+      await axios.post(
+        `${ticketServiceUrl}/api/internal/clear-user-cache`,
+        { userId: userId.toString() },
+        { timeout: 2000 }
+      ).catch(() => {});
+    } catch (err) {
+      // Ignore errors - cache clearing is best-effort
+    }
     const userResponse = user.toObject();
     delete userResponse.password;
-    
-    // Filter response based on role
     if (user.role === 'admin') {
-      // Remove organisation-specific fields from admin response
       delete userResponse.address;
       delete userResponse.organisation_type;
     }
-    
-    // Send success response
     return res.status(200).json({
       success: true,
       message: "Profile updated successfully",
       user: userResponse
     });
-
   } catch (err) {
     console.error("Edit profile error:", err);
     return res.status(500).json({
@@ -1062,7 +1048,6 @@ export const getUserData = async (payload) => {
       })
         .select('-password -__v') // Exclude only password and version
         .lean();
-
       if (!user) {
         console.warn(`⚠️ User not found: ${userId}`);
         return { error: 'User not found or inactive' };
@@ -1085,7 +1070,6 @@ export const getUserData = async (payload) => {
         following: followingCount
       };
 
-      console.log(`✅ User found with full data: ${user._id}`);
       return userWithCounts;
     }
 
@@ -1125,7 +1109,6 @@ export const getUserData = async (payload) => {
 };
 export const getUser = async (payload) => {
   try {
-    console.log('🔍 getUser called with payload:', JSON.stringify(payload));
     const { userId, action, query, excludeUserId } = payload;
     // Get single user by ID - RETURN ALL FIELDS
     if (userId && !action) {
@@ -1158,8 +1141,6 @@ export const getUser = async (payload) => {
         followers: followersCount,
         following: followingCount
       };
-
-      console.log(`✅ User found with full data: ${user._id}`);
       return userWithCounts;
     }
 
