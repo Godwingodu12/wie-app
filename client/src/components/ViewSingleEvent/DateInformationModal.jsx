@@ -1,7 +1,8 @@
 
-const DateInformationModal = ({ theme,eventStart,eventEnd, bookingStart, bookingEnd, timeOpen, onClose }) => {
+const DateInformationModal = ({ theme,eventData,eventStart,eventEnd, bookingStart, bookingEnd, timeOpen, onClose }) => {
     const bookingPeriod = `${bookingStart} – ${bookingEnd}`;
-    const eventPeriod=`${eventStart} – ${eventEnd}`;
+const isSingleDay = eventData.event_dates.length === 1 
+const eventPeriod = isSingleDay ? eventStart : `${eventStart} – ${eventEnd}`;
 
     const bgColor = theme.isDark ? '#242424' : '#F1F1F1'; // Dark card background
     const textColor = theme.isDark ? 'text-white' : 'text-gray-900';

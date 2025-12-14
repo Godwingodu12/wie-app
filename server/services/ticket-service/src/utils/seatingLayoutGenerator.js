@@ -21,14 +21,13 @@ const createSeatObject = (seatId, row, column) => ({
 });
 export const generateFallbackLayout = (totalCapacity) => {
   console.log('🔧 Generating fallback grid layout for capacity:', totalCapacity);
-
   const seatsPerRow = 10;
   const numRows = Math.ceil(totalCapacity / seatsPerRow);
   const rows = [];
   const seats = [];
 
   for (let r = 0; r < numRows; r++) {
-    const rowLabel = String.fromCharCode(65 + r); // A, B, C...
+    const rowLabel = String.fromCharCode(65 + r); 
     rows.push(rowLabel);
 
     const seatsInThisRow = Math.min(seatsPerRow, totalCapacity - (r * seatsPerRow));
@@ -278,35 +277,28 @@ const extractSeatsFromImageVisual = async (imagePath, totalCapacity) => {
 };
 const preprocessImageForSeatDetection = async (image) => {
   const processed = image.clone();
-  
   // Convert to grayscale
   processed.greyscale();
-  
   // Enhance contrast
   processed.contrast(0.3);
   processed.normalize();
-  
   // Apply edge detection to highlight seat boundaries
   processed.convolute([
     [-1, -1, -1],
     [-1,  8, -1],
     [-1, -1, -1]
   ]);
-
   return processed;
 };
 const detectSeatShapes = async (image, targetCapacity) => {
   const { width, height, data } = image.bitmap;
   const seats = [];
-  
   // Create a binary threshold image
   const threshold = 128;
   const visited = new Set();
-  
   // Blob detection parameters - MORE PERMISSIVE
   const minBlobSize = 15; // Reduced from 20
   const maxBlobSize = 8000; // Increased from 5000
-  
   // Find blobs (connected components)
   for (let y = 0; y < height; y += 2) {
     for (let x = 0; x < width; x += 2) {
@@ -359,11 +351,9 @@ const floodFill = (data, width, height, startX, startY, threshold, visited) => {
     minY: startY,
     maxY: startY,
   };
-
   while (stack.length > 0) {
     const [x, y] = stack.pop();
     const pixelKey = `${x},${y}`;
-
     if (visited.has(pixelKey)) continue;
     if (x < 0 || x >= width || y < 0 || y >= height) continue;
 

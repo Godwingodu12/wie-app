@@ -149,13 +149,12 @@ const ViewSingleEvent = () => {
   const guidesToShow = viewportWidth >= 768 ? 3 : 1;
   const visibleTickets = viewportWidth >= 768 ? 3 : 1;
 
-
   const allEventsAndSubEvents = useMemo(() => {
     if (!eventData) return [];
-    
+
     // Create a NEW array: [mainEvent, ...subEvents]
     return [eventData, ...(eventData.sub_events || [])];
-}, [eventData]);
+  }, [eventData]);
   useEffect(() => {
     const fetchAllEvents = async () => {
       try {
@@ -2348,6 +2347,7 @@ const ViewSingleEvent = () => {
       {showDateInfoModal && (
         <DateInformationModal
           theme={theme}
+          eventData={eventData}
           eventStart={formattedDateRange.event_start_date}
           eventEnd={formattedDateRange.booking_end_date}
           bookingStart={formattedDateRange.booking_start_date}
