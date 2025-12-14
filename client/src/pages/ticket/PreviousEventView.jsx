@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getMe } from "../../services/userService";
 import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
@@ -9,7 +8,6 @@ import { getMyPreviousEventView, getGroupView } from "../../services/ticketServi
 import { getImageUrl } from "../../utils/imageUtils";
 import { useSelector } from "react-redux";
 import { toast } from "react-hot-toast";
-
 import CalenderIcon from "../../assets/PreviousEventView/CalenderIcon.svg";
 import DownloadIcon from "../../assets/PreviousEventView/DownloadIcon.svg";
 import EarningIcon from "../../assets/PreviousEventView/EarningIcon.svg";
@@ -141,13 +139,8 @@ const PreviousEventView = () => {
       try {
         setLoading(true);
         setError(null);
-
-        console.log("Fetching previous event data for ticketId:", ticketId);
-
         // Fetch ticket data
         const ticketResponse = await getMyPreviousEventView(ticketId);
-        console.log("Ticket Response:", ticketResponse);
-
         // Extract event data - API returns { message, ticket }
         const data = ticketResponse?.ticket;
 
@@ -158,24 +151,27 @@ const PreviousEventView = () => {
         if (!data.event_name) {
           throw new Error("Invalid ticket data structure");
         }
-
-        console.log("Event Data:", data);
         setEventData(data);
-
-        // Fetch group data if groupId exists
         if (data.groupId) {
-          try {
-            const groupResponse = await getGroupView(data.groupId);
-            console.log("Group Response:", groupResponse);
-
-            const fetchedGroupData = groupResponse?.data?.group || groupResponse?.group || groupResponse?.data || groupResponse;
-            setGroupData(fetchedGroupData);
+          try {            
+            const groupResponse = await getGroupView(ticketId);            
+            const fetchedGroupData = groupResponse?.group || null;
+            if (fetchedGroupData) {
+              setGroupData(fetchedGroupData);
+            } else {
+              console.warn("⚠️ No group data in response:", groupResponse);
+            }
           } catch (groupErr) {
-            console.warn("Failed to fetch group data:", groupErr);
-            // Continue without group data
+            console.error("❌ Failed to fetch group data:", groupErr);
+            console.error("Error details:", {
+              message: groupErr.message,
+              response: groupErr?.response?.data,
+              status: groupErr?.response?.status
+            });
+            // Continue without group data - don't break the page
+            toast.error("Could not load organization details");
           }
         }
-
       } catch (err) {
         console.error("Failed to fetch event data:", err);
         const errorMessage = err?.response?.data?.message || err.message || "Failed to load event details.";
