@@ -1,8 +1,6 @@
 // Replace the entire consumerConnections.js file in ticket-service
-
 import { sendRPC } from './producer.js';
 import { isChannelAvailable } from './connection.js';
-
 // Cache for user data
 const userCache = new Map();
 const CACHE_TTL = 60000; // 1 minute cache
@@ -13,12 +11,10 @@ export const getUserFromAuthService = async (userId, retries = 3) => {
     console.error('❌ No userId provided');
     throw new Error('User ID is required');
   }
-
   if (!isChannelAvailable()) {
     console.warn('⚠️ RabbitMQ not available, cannot fetch user');
     throw new Error('RabbitMQ connection not available');
   }
-
   // Check cache first
   const cacheKey = `user:${userId}`;
   const cached = userCache.get(cacheKey);
@@ -27,18 +23,13 @@ export const getUserFromAuthService = async (userId, retries = 3) => {
     console.log(`✅ Returning cached user data for: ${userId}`);
     return cached.data;
   }
-
   let lastError;
-  
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       console.log(`🔄 Fetching user from auth-service (attempt ${attempt}/${retries}):`, userId);
-      
       const startTime = Date.now();
-      
       // Use sendRPC instead of publishToQueue
       const user = await sendRPC('get-user', { userId }, 8000);
-      
       const elapsedTime = Date.now() - startTime;
       console.log(`⏱️ Auth-service responded in ${elapsedTime}ms`);
       
