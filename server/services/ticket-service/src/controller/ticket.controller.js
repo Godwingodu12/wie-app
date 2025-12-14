@@ -3,6 +3,7 @@ import Ticket from "../models/ticket.model.js";
 import axios from 'axios';
 import TicketLike from '../models/ticketLike.model.js';
 import { createNotification } from '../utils/notificationHelper.js';
+import { logger } from '../utils/logger.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
 import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
 import { 
@@ -26,6 +27,14 @@ export const getGroupsTypes = async (req, res) => {
         const groups = await Group.find({ userId: userId });
         const adminGroups = groups.filter(group => group.grp_type === 'admin');
         const orgGroups = groups.filter(group => group.grp_type === 'organisation');
+        
+        logger.info('Groups retrieved successfully', {
+            userId,
+            userRole,
+            adminCount: adminGroups.length,
+            organisationCount: orgGroups.length
+        });
+        
         res.status(200).json({
             message: "Groups retrieved successfully",
             adminCount: adminGroups.length,
@@ -35,25 +44,34 @@ export const getGroupsTypes = async (req, res) => {
             organisationGroups: orgGroups
         });
     } catch (error) {
-        console.error("Error fetching groups:", error);
+        logger.error('Error fetching groups', {
+            error: error.message,
+            stack: error.stack,
+            userId: req.user?._id || req.user?.id
+        });
+        
         res.status(500).json({
             message: "Internal server error",
             error: error.message
         });
     }
 };
-// Helper function to get all sub-events for a ticket
+
 export const getTicketSubEvents = async (req, res) => {
   const ticketId = req.params.ticketId;
+  
   if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+    logger.warn('Invalid ticket ID format provided', { ticketId });
     return res.status(400).json({ 
       message: "Invalid ticket ID format" 
     });
   }
+  
   try {
     const ticket = await Ticket.findById(ticketId).select('sub_events event_name');
     
     if (!ticket) {
+      logger.warn('Ticket not found', { ticketId });
       return res.status(404).json({ message: "Ticket not found" });
     }
     res.status(200).json({
@@ -63,7 +81,11 @@ export const getTicketSubEvents = async (req, res) => {
       totalSubEvents: ticket.sub_events ? ticket.sub_events.length : 0
     });
   } catch (error) {
-    console.error("Error getting sub-events:", error);
+    logger.error('Error getting sub-events', {
+      error: error.message,
+      stack: error.stack,
+      ticketId
+    });
     res.status(500).json({ 
       message: "Internal server error", 
       error: error.message 
@@ -1533,13 +1555,11 @@ export const goLiveEvent = async(req, res) => {
   try {
     const userId = req.user._id || req.user.id;
     const ticketId = req.params.ticketId;
-    
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
         message: "Invalid ticket ID format"
       });
     }
-
     // Find ticket without populate first
     const ticket = await Ticket.findOne({ 
       _id: ticketId, 
@@ -1575,7 +1595,6 @@ export const goLiveEvent = async(req, res) => {
         }
       });
     }
-    
     // Check booking_start_date
     if (ticket.booking_start_date) {
       const bookingStartDate = new Date(ticket.booking_start_date);
@@ -1621,6 +1640,9 @@ export const goLiveEvent = async(req, res) => {
     }
     // All dates are valid, proceed to go live
     ticket.event_status = 'live';
+    ticket.sub_events.forEach(subEvent => {
+      subEvent.event_status = 'live';
+    });
     await ticket.save();
     // Now populate groupId after save
     await ticket.populate('groupId');
@@ -2139,7 +2161,6 @@ export const totalEventsCreatedCount = async (req, res) => {
   }
 };
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAP_API || 'AIzaSyB5MQdwuxFIG6Msf_At0bV2vPXuFwEkVkI'; 
-
 export const getPostalDetailsFromCoords = async (req, res) => {
     const { lat, lng } = req.query; 
 
@@ -2221,4 +2242,65 @@ export const getPostalDetailsFromCoords = async (req, res) => {
             error: error.message
         });
     }
+};
+export const getAddOnEventLiveView = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const subEventId = req.params.subEventId;
+    if (!subEventId || !subEventId.match(/^[0-9a-fA-F]{24}$/)) {
+      logger.warn('Invalid sub-event ID format', { subEventId, userId });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid sub-event ID format"
+      });
+    }
+    const ticket = await Ticket.findOne({ 
+      'sub_events._id': subEventId, 
+      userId: userId, 
+    });
+    if (!ticket) {
+      logger.warn('Ticket with sub-event not found', { subEventId, userId });
+      return res.status(404).json({
+        success: false,
+        message: "Sub-event not found or parent ticket is not live"
+      });
+    }
+    const subEvent = ticket.sub_events.find(
+      se => se._id.toString() === subEventId
+    );
+    if (!subEvent) {
+      logger.warn('Sub-event not found in ticket', { subEventId, ticketId: ticket._id, userId });
+      return res.status(404).json({
+        success: false,
+        message: "Sub-event not found"
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: "Sub-event retrieved successfully",
+      data: {
+        subEvent: subEvent,
+        parentEvent: {
+          _id: ticket._id,
+          event_name: ticket.event_name,
+          event_category: ticket.event_category,
+          event_status: ticket.event_status,
+          groupId: ticket.groupId,
+          userId: ticket.userId
+        }
+      }
+    });
+  } catch (error) {
+    logger.error('Error fetching sub-event', {
+      error: error.message,
+      stack: error.stack,
+      subEventId: req.params.subEventId,
+      userId: req.user?._id || req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 };
