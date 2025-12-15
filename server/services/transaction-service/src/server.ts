@@ -2,12 +2,12 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import 'dotenv/config';
 import Database from './config/db';
-import { connectRabbitMQ, isChannelAvailable } from './rabbit/connection';
-import { startConsumers } from './rabbit/index';
 import bookingRoutes from './routes/bookingRoutes';
 import interactionRoutes from './routes/interactionRoutes';
 import adminRoutes from './routes/adminRoutes';
 import webhookRoutes from './routes/webhookRoutes';
+import { connectRabbitMQ } from './rabbit';
+import { startConsumers } from './rabbit/index';
 
 const app = express();
 const PORT = process.env.PORT || 5007;
@@ -24,16 +24,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
-
-app.get('/health', (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    message: 'Transaction Service is running',
-    rabbitmq: isChannelAvailable() ? 'connected' : 'disconnected',
-    timestamp: new Date().toISOString(),
-  });
-});
-
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/interactions', interactionRoutes);
 app.use('/api/admin', adminRoutes);
@@ -52,35 +42,51 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
+// Start server
 const startServer = async () => {
   try {
+    // Connect to database
     await Database.connect();
-
-    try {
-      await connectRabbitMQ();
-      if (isChannelAvailable()) {
+    // Optionally connect to RabbitMQ (if RABBITMQ_URL is provided)
+    if (process.env.RABBITMQ_URL) {
+      try {
+        await connectRabbitMQ();
         await startConsumers();
+        console.log('✅ RabbitMQ connected and consumers started');
+      } catch (rabbitError: any) {
+        console.warn('⚠️ RabbitMQ connection failed, but server will continue running');
+        console.warn('⚠️ Features requiring RabbitMQ (notifications, queue consumers) will not work');
+        console.warn('⚠️ RabbitMQ will attempt to reconnect automatically...');
       }
-    } catch (rabbitError) {
-      //
+    } else {
+      console.warn('⚠️ RABBITMQ_URL not set, skipping RabbitMQ initialization');
+      console.warn('⚠️ Features requiring RabbitMQ (notifications, queue consumers) will not work');
     }
-
+    
+    // Start Express server
     app.listen(PORT, () => {
-      //
+      console.log(`🚀 Transaction Service running on port ${PORT}`);
     });
   } catch (error) {
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 };
+
+startServer();
 
 process.on('SIGTERM', async () => {
   await Database.disconnect();
   process.exit(0);
 });
-
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
 process.on('SIGINT', async () => {
   await Database.disconnect();
   process.exit(0);
 });
-
-startServer();

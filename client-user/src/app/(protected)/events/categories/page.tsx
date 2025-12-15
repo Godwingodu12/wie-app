@@ -11,12 +11,10 @@ import { MapPin, Navigation, Search, Filter, X, SlidersHorizontal, AlertCircle }
 import { EVENT_CATEGORIES, FilterEventsParams } from '@/types/ticket';
 import { EventCard } from '@/components/events/EventCard';
 import { EventFilterModal } from '@/components/events/EventFilterModal';
-
 export default function CategoryEventsPage() {
   const { user } = useAuth(true);
   const searchParams = useSearchParams();
   const categoryFromUrl = searchParams.get('category');
-  
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [locationInput, setLocationInput] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -59,6 +57,18 @@ export default function CategoryEventsPage() {
   const displayEventsByCategory = isUsingAdvancedFilter ? filteredEventsByCategory : eventsByCategory;
   const displayLoading = isUsingAdvancedFilter ? filterLoading : loading;
   const displayError = isUsingAdvancedFilter ? filterError : error;
+  const shouldIncludeSubEvents =
+    (!!selectedCategory && !isUsingAdvancedFilter) ||
+    (!!activeFilters.category && isUsingAdvancedFilter);
+
+  const displayEventsByCategoryWithSubEventLogic = Object.fromEntries(
+    Object.entries(displayEventsByCategory).map(([category, events]) => [
+      category,
+      shouldIncludeSubEvents
+        ? events
+        : events.filter((event: any) => !('isSubEvent' in event && event.isSubEvent)),
+    ]),
+  );
 
   // Initial load
   useEffect(() => {
@@ -375,9 +385,9 @@ export default function CategoryEventsPage() {
         )}
 
         {/* Main Results */}
-        {!displayLoading && Object.keys(displayEventsByCategory).length > 0 && (
+        {!displayLoading && Object.keys(displayEventsByCategoryWithSubEventLogic).length > 0 && (
           <div className="space-y-8">
-            {Object.entries(displayEventsByCategory).map(([category, events]) => (
+            {Object.entries(displayEventsByCategoryWithSubEventLogic).map(([category, events]) => (
               <div key={category}>
                 <h2 className="text-xl font-bold text-gray-900 mb-4">
                   {category}
@@ -401,9 +411,8 @@ export default function CategoryEventsPage() {
             ))}
           </div>
         )}
-
         {/* Empty State with Suggestions */}
-        {!displayLoading && Object.keys(displayEventsByCategory).length === 0 && (
+        {!displayLoading && Object.keys(displayEventsByCategoryWithSubEventLogic).length === 0 && (
           <Card className="text-center py-12 mb-8">
             <div className="max-w-md mx-auto">
               <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
