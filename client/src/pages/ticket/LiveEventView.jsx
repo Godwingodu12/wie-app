@@ -874,7 +874,7 @@ const LiveEventsPage = () => {
                                 className={`flex-shrink-0 lg:w-24 lg:h-36 w-20 h-28 p-2 rounded-xl transition-all duration-300 transform-gpu cursor-pointer hover:scale-105`}
                                 style={cardStyle}
                                 onClick={() => {
-                                  // Handle click if needed
+                                  navigate(`/ticket/live-add-on-event-view/${event.id}`);
                                 }}
                               >
                                 <div className="flex flex-col items-center justify-between h-full">
