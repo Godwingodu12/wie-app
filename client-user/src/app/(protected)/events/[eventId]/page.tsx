@@ -43,25 +43,33 @@ export default function EventDetailPage() {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [eventStats, setEventStats] = useState<any>(null);
   const [userLiked, setUserLiked] = useState(false);
+  const [showShareOptions, setShowShareOptions] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [hasBooked, setHasBooked] = useState(false);
   const [userBooking, setUserBooking] = useState<any>(null);
-  // Add this helper function at the top of your component (outside the component function)
-function isMainEvent(event: Event | SubEvent): event is Event {
-  return 'sub_events' in event;
-}
+  const isMainEvent = (event: Event | SubEvent): event is Event =>
+    'sub_events' in event;
 
-// Then in your useEffect:
-useEffect(() => {
-  console.log('🔍 Event data:', event);
-  if (event && isMainEvent(event)) {
-    console.log('🔍 Sub events:', event.sub_events);
-    console.log('🔍 Number of sub events:', event.sub_events?.length || 0);
-  } else {
-    console.log('🔍 This is a SubEvent (no sub_events)');
-  }
-}, [event]);
+  const normalizeStats = (stats: any) => ({
+    like: stats?.like ?? stats?.likes ?? 0,
+    share: stats?.share ?? stats?.shares ?? 0,
+    totalBookings: stats?.totalBookings ?? stats?.total_bookings ?? 0,
+    totalTicketsSold: stats?.totalTicketsSold ?? stats?.total_tickets_sold ?? 0,
+    views: stats?.views ?? stats?.view ?? 0,
+    saves: stats?.saves ?? stats?.save ?? 0,
+    ...stats,
+  });
+
+  useEffect(() => {
+    console.log('🔍 Event data:', event);
+    if (event && isMainEvent(event)) {
+      console.log('🔍 Sub events:', event.sub_events);
+      console.log('🔍 Number of sub events:', event.sub_events?.length || 0);
+    } else {
+      console.log('🔍 This is a SubEvent (no sub_events)');
+    }
+  }, [event]);
   // Load Razorpay script
   useEffect(() => {
     const script = document.createElement('script');
@@ -78,7 +86,7 @@ useEffect(() => {
       try {
         const response = await getEventStats(eventId);
         if (response.success) {
-          setEventStats(response.data.stats);
+          setEventStats(normalizeStats(response.data.stats));
         }
       } catch (error) {
         console.error('Error fetching event stats:', error);
@@ -118,7 +126,7 @@ useEffect(() => {
     try {
       const statsData = await getEventStats(eventId as string);
 
-      setEventStats(statsData?.data?.stats || null);
+      setEventStats(normalizeStats(statsData?.data?.stats || {}));
       setUserLiked(statsData?.data?.userInteractions?.liked ?? false);
 
     } catch (error) {
@@ -137,8 +145,53 @@ useEffect(() => {
 
   const handleShare = async (method: string) => {
     try {
+      const shareUrl =
+        typeof window !== 'undefined'
+          ? `${window.location.origin}/events/${eventId}`
+          : '';
+
+      if (shareUrl) {
+        const encodedUrl = encodeURIComponent(shareUrl);
+        const message = encodeURIComponent(
+          `Check out this event: ${event?.event_name || 'Event'}`
+        );
+
+        switch (method) {
+          case 'native':
+            if (navigator.share) {
+              await navigator.share({
+                title: event?.event_name || 'Event',
+                text: message,
+                url: shareUrl,
+              });
+            }
+            break;
+          case 'whatsapp':
+            window.open(`https://wa.me/?text=${message}%20${encodedUrl}`, '_blank');
+            break;
+          case 'facebook':
+            window.open(
+              `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+              '_blank'
+            );
+            break;
+          case 'twitter':
+            window.open(
+              `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${message}`,
+              '_blank'
+            );
+            break;
+          default:
+            if (navigator.clipboard) {
+              await navigator.clipboard.writeText(shareUrl);
+              alert('Link copied to clipboard');
+            }
+            break;
+        }
+      }
+
       await shareEvent(eventId as string, method);
-      alert('Event shared successfully!');
+      setShowShareOptions(false);
       loadEventStats();
     } catch (error: any) {
       console.error('Failed to share:', error);
@@ -438,6 +491,9 @@ const BookingModal = () => {
     </div>
   );
 };
+  const likeCount = eventStats?.like ?? eventStats?.likes ?? 0;
+  const shareCount = eventStats?.share ?? eventStats?.shares ?? 0;
+  const bookingCount = eventStats?.totalBookings ?? 0;
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -1014,24 +1070,65 @@ const BookingModal = () => {
                     Book Event Now
                   </button>
 
-                  {/* ADD THESE BUTTONS */}
-                  <div className="flex gap-2 mt-3">
-                    <button
-                      onClick={handleLike}
-                      className={`flex-1 py-2 rounded-lg border-2 transition-all ${
-                        userLiked
-                          ? 'bg-red-50 border-red-500 text-red-600'
-                          : 'border-gray-300 text-gray-600 hover:border-red-500 hover:text-red-600'
-                      }`}
-                    >
-                      ❤️ {userLiked ? 'Liked' : 'Like'} {eventStats?.like > 0 && `(${eventStats.like})`}
-                    </button>
-                    <button
-                      onClick={() => handleShare('general')}
-                      className="flex-1 py-2 rounded-lg border-2 border-gray-300 text-gray-600 hover:border-blue-500 hover:text-blue-600"
-                    >
-                      🔗 Share {eventStats?.share > 0 && `(${eventStats.share})`}
-                    </button>
+                  <div className="flex flex-col gap-2 mt-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleLike}
+                        className={`flex-1 py-2 rounded-lg border-2 transition-all ${
+                          userLiked
+                            ? 'bg-red-50 border-red-500 text-red-600'
+                            : 'border-gray-300 text-gray-600 hover:border-red-500 hover:text-red-600'
+                        }`}
+                      >
+                        ❤️ {userLiked ? 'Liked' : 'Like'} {likeCount > 0 && `(${likeCount})`}
+                      </button>
+                      <button
+                        onClick={() => setShowShareOptions((prev) => !prev)}
+                        className="flex-1 py-2 rounded-lg border-2 border-gray-300 text-gray-600 hover:border-blue-500 hover:text-blue-600"
+                      >
+                        🔗 Share {shareCount > 0 && `(${shareCount})`}
+                      </button>
+                      <button
+                        onClick={loadEventStats}
+                        className="flex-1 py-2 rounded-lg border-2 border-gray-300 text-gray-600 hover:border-green-500 hover:text-green-600"
+                      >
+                        🎟️ Booked {bookingCount > 0 && `(${bookingCount})`}
+                      </button>
+                    </div>
+                    {showShareOptions && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => handleShare('native')}
+                          className="py-2 rounded-lg border border-gray-200 text-gray-700 hover:border-blue-500"
+                        >
+                          📱 Device share
+                        </button>
+                        <button
+                          onClick={() => handleShare('whatsapp')}
+                          className="py-2 rounded-lg border border-gray-200 text-gray-700 hover:border-green-500"
+                        >
+                          🟢 WhatsApp
+                        </button>
+                        <button
+                          onClick={() => handleShare('facebook')}
+                          className="py-2 rounded-lg border border-gray-200 text-gray-700 hover:border-blue-700"
+                        >
+                          📘 Facebook
+                        </button>
+                        <button
+                          onClick={() => handleShare('twitter')}
+                          className="py-2 rounded-lg border border-gray-200 text-gray-700 hover:border-slate-500"
+                        >
+                          ✖️ X / Twitter
+                        </button>
+                        <button
+                          onClick={() => handleShare('copy')}
+                          className="py-2 rounded-lg border border-dashed border-gray-300 text-gray-700 hover:border-blue-500 col-span-2"
+                        >
+                          📋 Copy link
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -1156,12 +1253,18 @@ const BookingModal = () => {
                       {event.event_status.toUpperCase()}
                     </span>
                   </div>
-                  {event.like !== undefined && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600">Likes:</span>
-                      <span className="font-semibold text-gray-900">❤️ {event.like}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Likes:</span>
+                    <span className="font-semibold text-gray-900">❤️ {likeCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Shares:</span>
+                    <span className="font-semibold text-gray-900">🔗 {shareCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Total booked:</span>
+                    <span className="font-semibold text-gray-900">🎟️ {bookingCount}</span>
+                  </div>
                 </div>
               </div>
             </Card>
