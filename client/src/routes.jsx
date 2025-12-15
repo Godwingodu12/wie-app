@@ -44,6 +44,7 @@ import DeletedEventView from './pages/ticket/DeletedEventView';
 import ViewSingleSubEvent from './pages/ticket/ViewSingleSubEvent';
 import OthersFFE from './pages/auth/OthersFFE';
 import GetFollowerEventList from './pages/auth/GetFollowerEventList';
+import LiveAddOnEventView from './pages/ticket/LiveAddOnEventView';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
   if (!token || !user) {
@@ -443,6 +444,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={["admin", "organisation"]}>
           <OthersFFE/>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/live-add-on-event-view/:ticketId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <LiveAddOnEventView/>
           </ProtectedRoute>
         }
       />

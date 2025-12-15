@@ -11,6 +11,7 @@ import {
   getMyLiveEventView,
   getGroupView,
   getTicketById,
+  getAddOnEventLiveView,
 } from "../../services/ticketService";
 import {
   Radio,
@@ -31,12 +32,23 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  Hash,
 } from "lucide-react";
+import Card from "../../components/ViewSingleEvent/Card";
+import InsetCard from "../../components/ViewSingleEvent/InsetCard";
+import Bank_Details from "../../assets/ViewSingleEvent/Bank_Details.svg";
+import LeftIcon from "../../assets/ViewSingleEvent/LeftIcon.svg";
+import RightIcon from "../../assets/ViewSingleEvent/RightIcon.svg";
 
 const HEADER_HEIGHT = 72; // From HomePage
 
+const getNeumorphicShadows = (isDark) =>
+  isDark
+    ? "shadow-[inset_5px_5px_10px_#1a1b1e,inset_-5px_-5px_10px_#3c3f44]"
+    : "shadow-[inset_5px_5px_10px_#a4a4a4,inset_-5px_-5px_10px_#ffffff]";
+
 // Main Component
-const LiveEventsPage = () => {
+const LiveAddOnEventView = () => {
   const { user } = useSelector((state) => state.auth);
   const navigate = useNavigate();
   const { ticketId } = useParams();
@@ -65,15 +77,23 @@ const LiveEventsPage = () => {
         setLoading(true);
         setError(null);
 
-        // Fetch ticket data using getTicketById (matches ConfirmEventView)
-        const ticketResponse = await getTicketById(ticketId);
+        // Fetch sub-event data using getAddOnEventLiveView
+        const ticketResponse = await getAddOnEventLiveView(ticketId);
 
         // Extract event data - Handle multiple response structures (Robust extraction)
-        const data =
-          ticketResponse?.ticket ||
-          ticketResponse?.data?.ticket ||
-          ticketResponse?.data ||
-          ticketResponse;
+        let data;
+        if (ticketResponse?.data?.subEvent) {
+          data = {
+            ...ticketResponse.data.subEvent,
+            groupId: ticketResponse.data.parentEvent?.groupId,
+          };
+        } else {
+          data =
+            ticketResponse?.ticket ||
+            ticketResponse?.data?.ticket ||
+            ticketResponse?.data ||
+            ticketResponse;
+        }
 
         if (!data) {
           throw new Error("No event data received from server");
@@ -87,16 +107,18 @@ const LiveEventsPage = () => {
         if (data.groupId) {
           try {
             const groupResponse = await getGroupView(ticketId);
-            const fetchedGroupData =
+            const fetchedGroup =
               groupResponse?.data?.group ||
               groupResponse?.group ||
               groupResponse?.data ||
               groupResponse;
-            setGroupData(fetchedGroupData);
-            setGroupName(fetchedGroupData.name || "Unknown Group");
+
+            if (fetchedGroup) {
+              setGroupData(fetchedGroup);
+              setGroupName(fetchedGroup.name || "Unknown Group");
+            }
           } catch (groupErr) {
             console.warn("Failed to fetch group data:", groupErr);
-            // Continue without group data
           }
         }
       } catch (err) {
@@ -130,11 +152,58 @@ const LiveEventsPage = () => {
       addOnRevenueMonth: eventData.addon_revenue_month || "$0",
     }
     : null;
+
+  // Bank View Logic (Moved here to have access to eventData)
+  const allEventsForBankView = React.useMemo(() => {
+    if (!eventData) return [];
+
+    const currentEvent = {
+      name: eventData.event_name,
+      isPaid: eventData.payment_type === "paid",
+      isPrimary: true,
+      bankDetails:
+        eventData.banking_details || groupData?.banking_details || [],
+      order: 0,
+    };
+    return [currentEvent];
+  }, [eventData, groupData]);
+
+  const [currentEventBankIndex, setCurrentEventBankIndex] = useState(0);
+
+  const currentEventForBankView = React.useMemo(() => {
+    return allEventsForBankView[currentEventBankIndex] || {};
+  }, [allEventsForBankView, currentEventBankIndex]);
+
+  const currentBankDetailsList = React.useMemo(() => {
+    return currentEventForBankView.bankDetails || [];
+  }, [currentEventForBankView]);
+
+  const [currentBankDetailsIndex, setCurrentBankDetailsIndex] = useState(0);
+
+  const currentBankInfo = React.useMemo(() => {
+    return currentBankDetailsList[currentBankDetailsIndex] || {};
+  }, [currentBankDetailsList, currentBankDetailsIndex]);
+
+  const handlePrevEventForBankView = () => {
+    setCurrentEventBankIndex((prev) => {
+      const newIndex = prev === 0 ? allEventsForBankView.length - 1 : prev - 1;
+      setCurrentBankDetailsIndex(0);
+      return newIndex;
+    });
+  };
+
+  const handleNextEventForBankView = () => {
+    setCurrentEventBankIndex((prev) => {
+      const newIndex = prev === allEventsForBankView.length - 1 ? 0 : prev + 1;
+      setCurrentBankDetailsIndex(0);
+      return newIndex;
+    });
+  };
   // Theme setup from HomePage
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
+      "(prefers-color-scheme: dark)"
     ).matches;
     const shouldBeDark = savedTheme ? savedTheme === "dark" : systemPrefersDark;
     setIsDark(shouldBeDark);
@@ -369,35 +438,38 @@ const LiveEventsPage = () => {
     );
   }
   const formattedDate = eventData?.event_dates?.[0]?.start_date
-    ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    })
+    ? new Date(eventData.event_dates[0].start_date).toLocaleDateString(
+      "en-US",
+      {
+        month: "short",
+        day: "numeric",
+      }
+    )
     : "N/A";
   return (
     <>
       <style>{`
-        /* Main page scrollbar (using HomePage style) */
-        body::-webkit-scrollbar,
-        html::-webkit-scrollbar,
-        .overflow-y-auto::-webkit-scrollbar { width: 8px; }
-        body::-webkit-scrollbar-track,
-        html::-webkit-scrollbar-track,
-        .overflow-y-auto::-webkit-scrollbar-track { background: ${isDark ? "#1f2937" : "#f1f1f1"
+          /* Main page scrollbar (using HomePage style) */
+          body::-webkit-scrollbar,
+          html::-webkit-scrollbar,
+          .overflow-y-auto::-webkit-scrollbar { width: 8px; }
+          body::-webkit-scrollbar-track,
+          html::-webkit-scrollbar-track,
+          .overflow-y-auto::-webkit-scrollbar-track { background: ${isDark ? "#1f2937" : "#f1f1f1"
         }; }
-        body::-webkit-scrollbar-thumb,
-        html::-webkit-scrollbar-thumb,
-        .overflow-y-auto::-webkit-scrollbar-thumb { background: ${isDark ? "#4b5563" : "#cbd5e1"
+          body::-webkit-scrollbar-thumb,
+          html::-webkit-scrollbar-thumb,
+          .overflow-y-auto::-webkit-scrollbar-thumb { background: ${isDark ? "#4b5563" : "#cbd5e1"
         }; border-radius: 10px; }
-        body::-webkit-scrollbar-thumb:hover,
-        html::-webkit-scrollbar-thumb:hover,
-        .overflow-y-auto::-webkit-scrollbar-thumb:hover { background: ${isDark ? "#6b7280" : "#94a3b8"
+          body::-webkit-scrollbar-thumb:hover,
+          html::-webkit-scrollbar-thumb:hover,
+          .overflow-y-auto::-webkit-scrollbar-thumb:hover { background: ${isDark ? "#6b7280" : "#94a3b8"
         }; }
-        /* Hide scrollbar for specific elements */
-        .scrollbar-hide::-webkit-scrollbar {
-            display: none;
-        }
-      `}</style>
+          /* Hide scrollbar for specific elements */
+          .scrollbar-hide::-webkit-scrollbar {
+              display: none;
+          }
+        `}</style>
       <div
         className={`${theme.bg} ${theme.text} min-h-screen flex overflow-hidden transition-colors duration-300`}
       >
@@ -560,66 +632,205 @@ const LiveEventsPage = () => {
             {/* Main Dashboard Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 flex-1">
               {/* Left Column: Total Booking of Add-On Events Chart */}
-              <div
-                className={`lg:col-span-2 py-8 px-6 rounded-3xl ${theme.cardBgDarker} flex flex-col`}
-                style={{ ...cardStyle, borderRadius: "50px" }}
-              >
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
-                  <h3 className="text-base font-semibold uppercase tracking-wider">
-                    Total Booking of Add-On Events
-                  </h3>
-                </div>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-                  <div>
-                    <div className="text-3xl sm:text-4xl font-bold">
-                      {computedEventData?.addOnRevenue || "$0"}
-                    </div>
-                    <div className={`${theme.subText} text-base`}>
-                      Total amount
-                    </div>
+              {/* Left Column: Guides and Bank Details */}
+              <div className="lg:col-span-2 flex flex-col gap-8">
+                {/* Guides Container */}
+                <div
+                  style={{
+                    height: "252px",
+                    borderRadius: "36px",
+                    padding: "28px 21px",
+                    gap: "16px",
+                    border: "3px solid transparent",
+                    background:
+                      "linear-gradient(#212426, #212426) padding-box, linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%) border-box",
+                    boxShadow:
+                      "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
+                    ...cardStyle
+                  }}
+                  className={`py-8 px-6 rounded-3xl ${theme.cardBgDarker} flex flex-col h-full`}
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <Users className="w-6 h-6 text-yellow-500" />
+                    <h3 className={`text-lg font-bold ${theme.text}`}>GUIDES</h3>
                   </div>
-                  <div className={`p-4 rounded-2xl ${theme.bg} text-center`}>
-                    <div className={`${theme.subText} text-sm`}>
-                      Revenue of this month
-                    </div>
-                    <div className="text-xl font-bold">
-                      {computedEventData?.addOnRevenueMonth || "$0"}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-16 h-8" />
-                    <div
-                      className={`w-10 h-10 rounded-full border ${theme.border} flex items-center justify-center`}
-                    >
-                      <span className="text-sm font-bold">14%</span>
-                    </div>
+                  <div className="flex items-center justify-center flex-1">
+                    <p className={`${theme.subText} text-center`}>
+                      You haven't added any guides
+                    </p>
                   </div>
                 </div>
 
-                {/* Bar Chart */}
-                <div className="flex justify-around items-end flex-1 overflow-x-auto">
-                  {chartData.map((bar) => (
-                    <div
-                      key={bar.month}
-                      className="flex flex-col items-center gap-2"
-                    >
-                      <span className={`text-base ${theme.subText}`}>
-                        {bar.value}k
-                      </span>
+                {/* Bank Details Container (Updated to match ConfirmEvents.jsx) */}
+                {(() => {
+                  // Helper function for neumorphic shadows
+                  const getNeumorphicShadows = (isDark) => {
+                    if (isDark) {
+                      return "shadow-[8px_8px_12px_0px_#00000029,-8px_-8px_12px_0px_#FFFFFF0A]";
+                    } else {
+                      return "shadow-[8px_8px_12px_0px_#A0A0A099,-8px_-8px_12px_0px_#FFFFFF]";
+                    }
+                  };
+
+                  const bankDetails = currentBankDetailsList;
+                  const currentIndex = currentBankDetailsIndex;
+                  const currentAccount = currentBankInfo;
+                  const loadingBank = false; // Data is already loaded
+
+                  if (bankDetails.length === 0) {
+                    return (
                       <div
-                        className={`w-6 rounded-t-lg bg-green-500 ${bar.height}`}
-                      ></div>
-                      <span className={`text-base ${theme.subText}`}>
-                        {bar.month}
-                      </span>
+                        className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${theme.cardBg} ${getNeumorphicShadows(isDark)} flex flex-col justify-between`}
+                        style={{ minHeight: "280px" }}
+                      >
+                        {/* Always show Header even in empty state */}
+                        <header
+                          className="flex items-center justify-between pb-4 mb-6 flex-wrap gap-4"
+                        >
+                          <div className="flex items-center">
+                            <Landmark className="h-6 w-6 text-green-500" />
+                            <h1
+                              className={`ml-3 text-sm sm:text-base font-bold ${theme.text} tracking-wide`}
+                            >
+                              BANK ACCOUNT DETAILS
+                            </h1>
+                          </div>
+                        </header>
+
+                        <div className="flex flex-col items-center justify-center flex-1 text-center">
+                          <p className={`${theme.subText} text-lg font-medium`}>No bank account added</p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${theme.cardBg
+                        } ${getNeumorphicShadows(isDark)} flex flex-col justify-between`}
+                      style={{ minHeight: "280px" }}
+                    >
+                      {/* Card Header */}
+                      <header
+                        className={`flex items-center justify-between border-b ${isDark ? "border-gray-700" : "border-gray-200"
+                          } pb-4 mb-6 flex-wrap gap-4`}
+                      >
+                        <div className="flex items-center">
+                          <Landmark className="h-8 w-8 text-green-500" />
+                          <h1
+                            className={`ml-3 text-sm sm:text-base font-bold ${theme.text} tracking-wide`}
+                          >
+                            BANK ACCOUNT DETAILS
+                          </h1>
+                        </div>
+                        {bankDetails.length > 1 && (
+                          <button
+                            onClick={() => navigate('/ticket/bank-details')}
+                            className="whitespace-nowrap text-xs sm:text-sm font-semibold text-purple-600 border border-purple-300 rounded-full px-4 py-1.5 sm:px-5 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors duration-300"
+                          >
+                            see all
+                          </button>
+                        )}
+                      </header>
+
+                      {/* Card Body with Details */}
+                      <main className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 content-center">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className={`text-sm font-medium ${theme.subText}`}>
+                            Account holder:
+                          </p>
+                          <p
+                            className={`text-sm ${theme.text} ${isDark ? "bg-gray-700" : "bg-gray-500"
+                              } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[140px] md:max-w-[200px]`}
+                          >
+                            {currentAccount.bank_acc_holder || "N/A"}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className={`text-sm font-medium ${theme.subText}`}>
+                            Account type:
+                          </p>
+                          <p
+                            className={`text-sm ${theme.text} ${isDark ? "bg-gray-700" : "bg-gray-500"
+                              } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[140px] md:max-w-[200px]`}
+                          >
+                            {currentAccount.bank_acc_type || "N/A"}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className={`text-sm font-medium ${theme.subText}`}>IFSC code:</p>
+                          <p
+                            className={`text-sm ${theme.text} ${isDark ? "bg-gray-700" : "bg-gray-500"
+                              } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[140px] md:max-w-[200px]`}
+                          >
+                            {currentAccount.bank_ifsc || "N/A"}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className={`text-sm font-medium ${theme.subText}`}>
+                            Account number:
+                          </p>
+                          <p
+                            className={`text-sm ${theme.text} ${isDark ? "bg-gray-700" : "bg-gray-500"
+                              } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[140px] md:max-w-[200px]`}
+                          >
+                            {currentAccount.bank_acc_no || "N/A"}
+                          </p>
+                        </div>
+                      </main>
+
+                      {/* Card Footer/Pagination indicator */}
+                      <footer className="flex justify-center items-center gap-3 mt-6">
+                        {bankDetails.length > 1 && (
+                          <>
+                            <button
+                              onClick={() => setCurrentBankDetailsIndex(Math.max(0, currentIndex - 1))}
+                              disabled={currentIndex === 0}
+                              className={`text-xs ${currentIndex === 0
+                                ? "opacity-30 cursor-not-allowed"
+                                : "hover:opacity-80 cursor-pointer"
+                                } ${theme.text}`}
+                            >
+                              ←
+                            </button>
+                            <div className="flex gap-2">
+                              {bankDetails.map((_, index) => (
+                                <div
+                                  key={index}
+                                  onClick={() => setCurrentBankDetailsIndex(index)}
+                                  className={`w-2.5 h-2.5 rounded-full cursor-pointer transition-colors ${index === currentIndex
+                                    ? isDark
+                                      ? "bg-purple-500"
+                                      : "bg-purple-600"
+                                    : isDark
+                                      ? "bg-gray-600"
+                                      : "bg-gray-400"
+                                    }`}
+                                ></div>
+                              ))}
+                            </div>
+                            <button
+                              onClick={() => setCurrentBankDetailsIndex(Math.min(bankDetails.length - 1, currentIndex + 1))}
+                              disabled={currentIndex === bankDetails.length - 1}
+                              className={`text-xs ${currentIndex === bankDetails.length - 1
+                                ? "opacity-30 cursor-not-allowed"
+                                : "hover:opacity-80 cursor-pointer"
+                                } ${theme.text}`}
+                            >
+                              →
+                            </button>
+                          </>
+                        )}
+                        {bankDetails.length === 1 && (
+                          <div
+                            className={`w-2.5 h-2.5 ${isDark ? "bg-purple-500" : "bg-purple-600"
+                              } rounded-full`}
+                          ></div>
+                        )}
+                      </footer>
                     </div>
-                  ))}
-                </div>
-                <div
-                  className={`flex justify-between text-base ${theme.subText} mt-4 pt-4 border-t ${theme.border}`}
-                >
-                  <span>Coldpoly concert : $666.27k</span>
-                </div>
+                  );
+                })()}
               </div>
 
               {/* Right side: Ticket types, Seating layout, Calendar, and Add-on Events */}
@@ -651,7 +862,8 @@ const LiveEventsPage = () => {
                   {/* Calendar */}
                   <div className="flex-1">
                     <div
-                      className={`h-full p-4 sm:p-6 md:p-1 lg:p-6 ${isDark ? theme.cardBgDarker : ""}`}
+                      className={`h-full p-4 sm:p-6 md:p-1 lg:p-6 ${isDark ? theme.cardBgDarker : ""
+                        }`}
                       style={calendarSpecificCardStyle}
                     >
                       <div className="flex flex-row flex-nowrap overflow-x-auto scrollbar-hide items-center justify-between gap-2 w-full mb-4">
@@ -767,7 +979,8 @@ const LiveEventsPage = () => {
                         </div>
                       </div>
                       <div
-                        className={`grid grid-cols-7 gap-1 text-center rounded-3xl p-2 mb-2 mr-6 md:mr-0 ${isDark ? theme.bg : "bg-white"}`}
+                        className={`grid grid-cols-7 gap-1 text-center rounded-3xl p-2 mb-2 mr-6 md:mr-0 ${isDark ? theme.bg : "bg-white"
+                          }`}
                       >
                         {calendarDays.map((day, idx) => (
                           <div
@@ -823,132 +1036,71 @@ const LiveEventsPage = () => {
 
                 {/* Add-on Events */}
                 {/* Add-on Events */}
-                <div className="flex-1">
+                {/* HASHTAGS Section */}
+                <div className="">
                   <div
-                    className={`py-8 px-6 rounded-3xl ${theme.cardBgDarker} flex flex-col h-full`}
-                    style={{ ...cardStyle, borderRadius: "36px" }}
+                    className={`py-8 px-6 rounded-3xl ${theme.cardBgDarker} flex flex-col`}
+                    style={{ ...cardStyle, borderRadius: "36px", minHeight: "280px" }}
                   >
-                    <h3 className="text-sm font-semibold uppercase tracking-wider mb-4">
-                      Add-On Events
-                    </h3>
-                    <div className="flex items-center justify-between flex-1 px-4">
-                      <button className={`${theme.subText}`}>
-                        <ChevronLeft />
-                      </button>
-                      <div
-                        className="flex gap-4 overflow-x-auto py-4 scrollbar-hide"
-                        style={{
-                          scrollbarWidth: "none",
-                          msOverflowStyle: "none",
-                        }}
-                      >
-                        {addOnEvents.length > 0 ? (
-                          addOnEvents.map((event, idx) => {
-                            // Style logic adapted from ConfirmEventView
-                            const baseStyle = {
-                              borderRadius: "25.33px",
-                              transition:
-                                "all 300ms cubic-bezier(0.4, 0, 0.2, 1)",
-                            };
-                            const shadowDimensions =
-                              "6.75px 6.75px 10.13px 0px";
-
-                            // Using "inactive" style as base but with 100% opacity for better visibility in a list
-                            // or closely mimicking the "active" style for all since they are just items.
-                            // Let's use a style in between: fully visible but using theme colors.
-
-                            const cardStyle = {
-                              ...baseStyle,
-                              background: isDark ? "#212426" : "#E0E0E0",
-                              border: isDark
-                                ? "0.84px solid #33373A"
-                                : "0.84px solid #D0D0D0",
-                              boxShadow: isDark
-                                ? `${shadowDimensions} #00000015,-${shadowDimensions} #FFFFFF06`
-                                : `${shadowDimensions} #A0A0A040,-${shadowDimensions} #FFFFFF`,
-                            };
-
-                            return (
-                              <div
-                                key={event.id || idx}
-                                className={`flex-shrink-0 lg:w-24 lg:h-36 w-20 h-28 p-2 rounded-xl transition-all duration-300 transform-gpu cursor-pointer hover:scale-105`}
-                                style={cardStyle}
-                                onClick={() => {
-                                  navigate(`/ticket/live-add-on-event-view/${event.id}`);
-                                }}
-                              >
-                                <div className="flex flex-col items-center justify-between h-full">
-                                  <div className="lg:w-10 lg:h-10 h-8 w-8 mt-4 rounded-full overflow-hidden flex items-center justify-center bg-white">
-                                    {event.banner ? (
-                                      <img
-                                        src={event.banner}
-                                        alt={event.name}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : (
-                                      <Ticket className="w-5 h-5 text-black" />
-                                    )}
-                                  </div>
-                                  <div
-                                    className={`lg:text-xs text-[10px] font-bold ${isDark ? "text-white" : "text-gray-900"
-                                      } text-center leading-tight mt-2`}
-                                  >
-                                    {event.name}
-                                  </div>
-                                  <p
-                                    className={`text-[10px] text-center ${isDark ? "text-gray-400" : "text-gray-500"
-                                      } leading-none truncate w-full px-1 mb-1`}
-                                  >
-                                    {formattedDate}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <p className={`${theme.subText} text-center py-4`}>
-                            No add-on events available
-                          </p>
-                        )}
+                    {/* Hashtags Section - Replaces Add-On Events */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="bg-blue-500 rounded-full p-1.5 flex items-center justify-center">
+                        <Hash className="w-4 h-4 text-white" />
                       </div>
-                      <button className={`${theme.subText}`}>
-                        <ChevronRight />
-                      </button>
+                      <h3 className={`text-lg font-bold ${theme.text}`}>HASHTAGS</h3>
+                    </div>
+                    <div className="flex flex-wrap gap-[10px] content-start overflow-y-auto h-full p-2">
+                      {eventData?.hashtag && eventData.hashtag.length > 0 ? (
+                        eventData.hashtag.map((tag, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-center text-white"
+                            style={{
+                              width: "145px",
+                              height: "37px",
+                              background: "#249EFF",
+                              borderRadius: "12px",
+                              padding: "10px 40px",
+                              opacity: 1,
+                              // Angle 0 deg? Assuming normal rotation.
+                            }}
+                          >
+                            #{tag.replace(/^#/, "")}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex-1 flex items-center justify-center">
+                          <p className={`${theme.subText} text-sm text-center`}>
+                            No hashtags added
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
+                </div>
+                {/* Footer Buttons moved below Hashtags */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FooterButton
+                    theme={theme}
+                    icon={<MapPin />}
+                    text="Event location"
+                  />
+                  <FooterButton
+                    theme={theme}
+                    icon={<Download />}
+                    text="Download daily revenue report"
+                  />
                 </div>
               </div>
             </div>
 
             {/* Footer Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-              <FooterButton
-                theme={theme}
-                icon={<Users />}
-                text="Guests details"
-              />
-              <FooterButton
-                theme={theme}
-                icon={<MapPin />}
-                text="Event location"
-              />
-              <FooterButton
-                theme={theme}
-                icon={<Landmark />}
-                text="Bank account details of add-on events"
-              />
-              <FooterButton
-                theme={theme}
-                icon={<Download />}
-                text="Download daily revenue report"
-              />
-            </div>
           </main>
           {/* --- End of Main Content Area --- */}
 
           <BottomNavigation theme={theme} user={user} />
-        </div >
-      </div >
+        </div>
+      </div>
       {/* <-- This closing div was missing */}
     </>
   );
@@ -986,7 +1138,7 @@ function MonthSelector({
   return (
     <div
       className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
-        isDark,
+        isDark
       )} p-1 flex flex-col gap-1 w-24 shadow-lg`}
       style={style}
     >
@@ -1021,7 +1173,7 @@ function YearSelector({
   return (
     <div
       className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
-        isDark,
+        isDark
       )} p-1 flex flex-col gap-1 w-24 shadow-lg max-h-[13.5rem] overflow-y-auto`}
       style={style}
     >
@@ -1069,4 +1221,4 @@ const FooterButton = ({ theme, icon, text }) => (
     <span>{text}</span>
   </button>
 );
-export default LiveEventsPage;
+export default LiveAddOnEventView;
