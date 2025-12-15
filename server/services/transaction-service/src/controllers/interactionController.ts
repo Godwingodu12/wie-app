@@ -76,10 +76,14 @@ export const shareEvent = async (req: Request, res: Response) => {
 
     // Update ticket stats
     await updateTicketStats(ticketId, 'share', 1);
+    const shareCount = await InteractionModel.countByType(ticketId, 'SHARE');
 
     res.json({
       success: true,
       message: 'Event shared successfully',
+      data: {
+        shareCount,
+      },
     });
   } catch (error: any) {
     console.error('❌ Error sharing event:', error);
@@ -173,20 +177,11 @@ export const toggleSave = async (req: Request, res: Response) => {
 export const getEventStats = async (req: Request, res: Response) => {
   try {
     const { ticketId } = req.params;
+    const userId = req.user?.id;
 
     console.log(`🔵 [Transaction] Fetching event stats for ticket: ${ticketId}`);
 
-    // Get interaction stats from database directly (no RabbitMQ needed)
-    const stats = await prisma.interaction.groupBy({
-      by: ['interactionType'],
-      where: { ticketId },
-      _count: true,
-    });
-
-    const statsMap = stats.reduce((acc: any, stat) => {
-      acc[stat.interactionType] = stat._count;
-      return acc;
-    }, {});
+    const interactionStats = await InteractionModel.getTicketStatistics(ticketId);
 
     // ✅ Get booking stats via gRPC instead of RabbitMQ
     let bookingStats = {
@@ -208,11 +203,27 @@ export const getEventStats = async (req: Request, res: Response) => {
       success: true,
       data: {
         stats: {
-          likes: statsMap.LIKE || 0,
-          shares: statsMap.SHARE || 0,
-          views: statsMap.VIEW || 0,
-          saves: statsMap.SAVE || 0,
+          like: interactionStats.LIKE || 0,
+          likes: interactionStats.LIKE || 0,
+          share: interactionStats.SHARE || 0,
+          shares: interactionStats.SHARE || 0,
+          views: interactionStats.VIEW || 0,
+          view: interactionStats.VIEW || 0,
+          saves: interactionStats.SAVE || 0,
+          save: interactionStats.SAVE || 0,
+          feedback: interactionStats.FEEDBACK || 0,
           ...bookingStats,
+        },
+        userInteractions: {
+          liked: userId
+            ? await InteractionModel.hasUserInteracted(userId, ticketId, 'LIKE')
+            : false,
+          saved: userId
+            ? await InteractionModel.hasUserInteracted(userId, ticketId, 'SAVE')
+            : false,
+          shared: userId
+            ? await InteractionModel.hasUserInteracted(userId, ticketId, 'SHARE')
+            : false,
         },
       },
     });
