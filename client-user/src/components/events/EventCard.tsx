@@ -1,8 +1,9 @@
 'use client';
-import { useState, useEffect} from 'react';
+import { useState, useEffect, useCallback} from 'react';
 import { useRouter } from 'next/navigation';
 import { EventWithLocation } from '@/types/ticket';
-import { getEventStats } from '@/services/transactionService';
+import { getEventStats, toggleLike, shareEvent } from '@/services/transactionService';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   MapPin, 
   Calendar, 
@@ -13,19 +14,187 @@ import {
   MapPinned,
   Video,
   Heart,
-  TrendingUp
+  TrendingUp,
+  Share2,
+  Ticket
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
-
 interface EventCardProps {
   event: EventWithLocation;
   showDistance?: boolean;
 }
-
 export function EventCard({ event, showDistance = false }: EventCardProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [eventStats, setEventStats] = useState<any>(null);
   const [isLiked, setIsLiked] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Derived values from stats
+  const likeCount = eventStats ? (eventStats.like || eventStats.likes || 0) : 0;
+  const shareCount = eventStats ? (eventStats.share || eventStats.shares || 0) : 0;
+  const totalBookings = eventStats?.totalBookings ?? 0;
+  
+  const normalizeStats = (stats: any) => ({
+    like: stats?.like ?? stats?.likes ?? 0,
+    likes: stats?.likes ?? stats?.like ?? 0,
+    share: stats?.share ?? stats?.shares ?? 0,
+    shares: stats?.shares ?? stats?.share ?? 0,
+    totalBookings: stats?.totalBookings ?? 0,
+    ...stats,
+  });
+  
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await getEventStats(event._id);
+      if (response.success) {
+        const normalized = normalizeStats(response.data.stats);
+        setEventStats(normalized);
+        setIsLiked(response.data?.userInteractions?.liked ?? false);
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  }, [event._id]);
+  
+  const handleLikeClick = async (e: any) => {
+    e.stopPropagation();
+    
+    if (!user) {
+      alert('Please login to like events');
+      return;
+    }
+    
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      // Optimistically update UI
+      const prevLiked = isLiked;
+      setIsLiked(!prevLiked);
+      
+      setEventStats((prevStats: any) => {
+        if (!prevStats) return prevStats;
+        const normalized = normalizeStats(prevStats);
+        const currentLikes = normalized.like || normalized.likes || 0;
+        const delta = !prevLiked ? 1 : -1;
+        const newLikes = Math.max(0, currentLikes + delta);
+  
+        return {
+          ...normalized,
+          like: newLikes,
+          likes: newLikes,
+        };
+      });
+      
+      // Call API to update database
+      await toggleLike(event._id);
+      
+      // Refresh stats to get accurate data
+      await fetchStats();
+    } catch (err: any) {
+      // Revert on error
+      setIsLiked((prev) => !prev);
+      setEventStats((prevStats: any) => {
+        if (!prevStats) return prevStats;
+        const normalized = normalizeStats(prevStats);
+        const currentLikes = normalized.like || normalized.likes || 0;
+        const delta = isLiked ? 1 : -1;
+        const newLikes = Math.max(0, currentLikes + delta);
+        return {
+          ...normalized,
+          like: newLikes,
+          likes: newLikes,
+        };
+      });
+      
+      console.error('Error toggling like:', err);
+      alert(err.response?.data?.message || 'Failed to like event');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleShareClick = async (e: any) => {
+    e.stopPropagation();
+    
+    if (!user) {
+      alert('Please login to share events');
+      return;
+    }
+    
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      const url = `${window.location.origin}/events/${event._id}`;
+      let shareMethod = 'clipboard';
+      
+      // Try native share API first
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: event.event_name,
+            text: event.event_description || '',
+            url,
+          });
+          shareMethod = 'native';
+        } catch (shareErr: any) {
+          // User cancelled or share failed, fall back to clipboard
+          if (shareErr.name !== 'AbortError') {
+            throw shareErr;
+          }
+        }
+      }
+      
+      // Fallback to clipboard
+      if (shareMethod === 'clipboard' && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        alert('Event link copied to clipboard!');
+      }
+      
+      // Optimistically update UI
+      setEventStats((prevStats: any) => {
+        if (!prevStats) return prevStats;
+        const normalized = normalizeStats(prevStats);
+        const currentShares = normalized.share || normalized.shares || 0;
+        const newShares = currentShares + 1;
+  
+        return {
+          ...normalized,
+          share: newShares,
+          shares: newShares,
+        };
+      });
+      
+      // Call API to update database
+      await shareEvent(event._id, shareMethod);
+      
+      // Refresh stats to get accurate data
+      await fetchStats();
+    } catch (err: any) {
+      console.error('Error sharing event:', err);
+      // Revert optimistic update
+      setEventStats((prevStats: any) => {
+        if (!prevStats) return prevStats;
+        const normalized = normalizeStats(prevStats);
+        const currentShares = normalized.share || normalized.shares || 0;
+        const newShares = Math.max(0, currentShares - 1);
+        return {
+          ...normalized,
+          share: newShares,
+          shares: newShares,
+        };
+      });
+      
+      if (err.name !== 'AbortError') {
+        alert(err.response?.data?.message || 'Failed to share event');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   const handleCardClick = () => {
     router.push(`/events/${event._id}`);
   };
@@ -43,19 +212,8 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
     }
   };
   useEffect(() => {
-  const fetchStats = async () => {
-    try {
-      const response = await getEventStats(event._id);
-      if (response.success) {
-        setEventStats(response.data.stats);
-      }
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
-  };
-
-  fetchStats();
-}, [event._id]);
+    fetchStats();
+  }, [fetchStats]);
 
   // Get event start date
   const getEventStartDate = () => {
@@ -168,13 +326,6 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
             Sub Event
           </div>
         )}
-        {/* Like Badge */}
-        {eventStats && eventStats.likes > 0 && (
-          <div className="absolute bottom-3 right-3 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
-            <Heart className="w-3 h-3 fill-current" />
-            {eventStats.likes}
-          </div>
-        )}
       </div>
       {/* Event Details */}
       <div className="p-4 flex-1 flex flex-col">
@@ -256,9 +407,48 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
             </p>
           )}
         </div>
+        {/* Action Buttons - Like, Share, Bookings */}
+        <div className="flex items-center gap-2 pt-3 border-t border-gray-200">
+          {/* Like Button */}
+          <button
+            onClick={handleLikeClick}
+            disabled={isLoading || !user}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex-1 justify-center ${
+              isLiked
+                ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+            } ${isLoading || !user ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            title={!user ? 'Login to like' : isLiked ? 'Unlike event' : 'Like event'}
+          >
+            <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+            <span>{likeCount}</span>
+          </button>
+
+          {/* Share Button */}
+          <button
+            onClick={handleShareClick}
+            disabled={isLoading || !user}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex-1 justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 ${
+              isLoading || !user ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+            }`}
+            title={!user ? 'Login to share' : 'Share event'}
+          >
+            <Share2 className="w-4 h-4" />
+            <span>{shareCount}</span>
+          </button>
+
+          {/* Bookings Count Button (Display only) */}
+          <div
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium flex-1 justify-center bg-green-50 text-green-600"
+            title="Total bookings"
+          >
+            <Ticket className="w-4 h-4" />
+            <span>{totalBookings}</span>
+          </div>
+        </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+        <div className="flex items-center justify-between pt-3 mt-2 border-t border-gray-200">
           {/* Price */}
           <div className="flex items-center gap-1">
             <span className={`text-lg font-bold ${
@@ -280,7 +470,6 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
             <span className="group-hover:translate-x-1 transition-transform">→</span>
           </button>
         </div>
-
         {/* Event Tags/Languages */}
         {event.event_language && event.event_language.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-3">
