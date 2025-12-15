@@ -348,18 +348,14 @@ const HEADER_HEIGHT = 72;
 // UPDATED: Scrollbar now receives the isDark prop to change styles
 const CustomScrollbarStyles = ({ isDark }) => (
   <style>{`
-        .main-scrollbar {
-            scrollbar-color: ${isDark ? "#4f4f4f #232426" : "#c1c1c1 #f1f1f1"};
-            scrollbar-width: thin;
+        .main-scrollbar, .sidebar-content {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
         }
-        .main-scrollbar::-webkit-scrollbar { width: 8px; }
-        .main-scrollbar::-webkit-scrollbar-track { background: ${
-          isDark ? "#232426" : "#f1f1f1"
-        }; }
-        .main-scrollbar::-webkit-scrollbar-thumb {
-            background-color: ${isDark ? "#4f4f4f" : "#c1c1c1"};
-            border-radius: 10px;
-            border: 2px solid ${isDark ? "#232426" : "#f1f1f1"};
+        .main-scrollbar::-webkit-scrollbar, .sidebar-content::-webkit-scrollbar {
+            display: none;
+            width: 0;
+            height: 0;
         }
     `}</style>
 );
@@ -402,9 +398,8 @@ const SvgGroupCard = ({
               <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
             </div>
             <h3
-              className={`font-semibold text-[10px] sm:text-xs mt-2 ${
-                isDark ? "text-white" : "text-gray-800"
-              }`}
+              className={`font-semibold text-[10px] sm:text-xs mt-2 ${isDark ? "text-white" : "text-gray-800"
+                }`}
             >
               Add New Group
             </h3>
@@ -422,16 +417,14 @@ const SvgGroupCard = ({
               </div>
               <div className="mt-1 px-1">
                 <h3
-                  className={`font-semibold text-[10px] sm:text-xs line-clamp-1 ${
-                    isDark ? "text-white" : "text-gray-800"
-                  }`}
+                  className={`font-semibold text-[10px] sm:text-xs line-clamp-1 ${isDark ? "text-white" : "text-gray-800"
+                    }`}
                 >
                   {card.name}
                 </h3>
                 <p
-                  className={`text-[8px] sm:text-[10px] ${
-                    isDark ? "text-gray-400" : "text-gray-500"
-                  }`}
+                  className={`text-[8px] sm:text-[10px] ${isDark ? "text-gray-400" : "text-gray-500"
+                    }`}
                 >
                   {card.type}
                 </p>
@@ -441,9 +434,8 @@ const SvgGroupCard = ({
             <div className="flex-grow flex flex-col justify-center items-center w-full px-1 sm:px-2">
               <div className="w-full flex items-center gap-1 mb-1 sm:mb-2">
                 <div
-                  className={`w-full ${
-                    isDark ? "bg-white/20" : "bg-gray-200"
-                  } rounded-full h-1`}
+                  className={`w-full ${isDark ? "bg-white/20" : "bg-gray-200"
+                    } rounded-full h-1`}
                 >
                   <div
                     className={`${statColor} h-1 rounded-full`}
@@ -451,9 +443,8 @@ const SvgGroupCard = ({
                   ></div>
                 </div>
                 <span
-                  className={`text-[8px] sm:text-[10px] font-semibold whitespace-nowrap ${
-                    isDark ? "text-white" : "text-gray-800"
-                  }`}
+                  className={`text-[8px] sm:text-[10px] font-semibold whitespace-nowrap ${isDark ? "text-white" : "text-gray-800"
+                    }`}
                 >
                   {statPercentage}%
                 </span>
@@ -470,14 +461,12 @@ const SvgGroupCard = ({
             </div>
 
             <div
-              className={`flex-shrink-0 w-full border-t pt-1 pb-0.5 mt-auto ${
-                isDark ? "border-gray-700/50" : "border-gray-200"
-              }`}
+              className={`flex-shrink-0 w-full border-t pt-1 pb-0.5 mt-auto ${isDark ? "border-gray-700/50" : "border-gray-200"
+                }`}
             >
               <div
-                className={`flex justify-around items-center ${
-                  isDark ? "text-gray-300" : "text-gray-500"
-                }`}
+                className={`flex justify-around items-center ${isDark ? "text-gray-300" : "text-gray-500"
+                  }`}
               >
                 <div className="flex flex-col items-center space-y-0.5">
                   <HeartIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-red-500" />
@@ -753,11 +742,10 @@ const MonthSelector = ({
       {months.map((monthName, index) => (
         <button
           key={monthName}
-          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${
-            currentMonth === index
-              ? "bg-blue-600 text-blue-100"
-              : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
-          }`}
+          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentMonth === index
+            ? "bg-blue-600 text-blue-100"
+            : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
+            }`}
           onClick={() => {
             onSelectMonth(index);
             onClose();
@@ -792,11 +780,10 @@ const YearSelector = ({
       {years.map((yearNum) => (
         <button
           key={yearNum}
-          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${
-            currentYear === yearNum
-              ? "bg-blue-600 text-blue-100"
-              : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
-          }`}
+          className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentYear === yearNum
+            ? "bg-blue-600 text-blue-100"
+            : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
+            }`}
           onClick={() => {
             onSelectYear(yearNum);
             onClose();
@@ -1189,23 +1176,23 @@ const ViewGroups = () => {
 
   const theme = isDark
     ? {
-        bg: "bg-[#212426]",
-        text: "text-white",
-        subText: "text-[#c9c9cf]",
-        cardBg: "bg-[#232426]",
-        border: "border-[#23233a]",
-        inputBg: "bg-[#212426]",
-        specialButtonBg: "bg-[#21d18b]",
-      }
+      bg: "bg-[#212426]",
+      text: "text-white",
+      subText: "text-[#c9c9cf]",
+      cardBg: "bg-[#232426]",
+      border: "border-[#23233a]",
+      inputBg: "bg-[#212426]",
+      specialButtonBg: "bg-[#21d18b]",
+    }
     : {
-        bg: "bg-[#f9f9f9]",
-        text: "text-gray-900",
-        subText: "text-gray-600",
-        cardBg: "bg-[#f1f1f1]",
-        border: "border-gray-200",
-        inputBg: "bg-gray-100",
-        specialButtonBg: "bg-gradient-to-r from-purple-500 to-indigo-600",
-      };
+      bg: "bg-[#f9f9f9]",
+      text: "text-gray-900",
+      subText: "text-gray-600",
+      cardBg: "bg-[#f1f1f1]",
+      border: "border-gray-200",
+      inputBg: "bg-gray-100",
+      specialButtonBg: "bg-gradient-to-r from-purple-500 to-indigo-600",
+    };
 
   const outerShadow = {
     boxShadow: isDark
@@ -1436,8 +1423,8 @@ const ViewGroups = () => {
                 <div
                   style={{
                     boxShadow: isDark
-                        ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
-                        : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
+                      ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
+                      : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
                     paddingBottom: "1rem",
                     paddingTop: "1rem",
                     marginTop: "1rem",
@@ -1643,11 +1630,10 @@ const ViewGroups = () => {
                           </div>
                           <button
                             onClick={() => setSelectedDate(null)}
-                            className={`text-xs font-bold px-3 md:px-4 py-1 md:py-1.5 rounded-full transition-colors ${
-                              isDark
-                                ? "bg-blue-600 hover:bg-blue-500 text-white"
-                                : "bg-blue-500 hover:bg-blue-600 text-white"
-                            }`}
+                            className={`text-xs font-bold px-3 md:px-4 py-1 md:py-1.5 rounded-full transition-colors ${isDark
+                              ? "bg-blue-600 hover:bg-blue-500 text-white"
+                              : "bg-blue-500 hover:bg-blue-600 text-white"
+                              }`}
                           >
                             Clear filter
                           </button>
@@ -1670,11 +1656,10 @@ const ViewGroups = () => {
                                 setShowMonthSelector((s) => !s);
                                 setShowYearSelector(false);
                               }}
-                              className={`flex items-center px-2 md:px-3 py-1 md:py-1.5 rounded-full font-semibold text-xs md:text-sm ${
-                                theme.text
-                              } ${theme.cardBg} ${getButtonNeumorphicShadows(
-                                isDark
-                              )}`}
+                              className={`flex items-center px-2 md:px-3 py-1 md:py-1.5 rounded-full font-semibold text-xs md:text-sm ${theme.text
+                                } ${theme.cardBg} ${getButtonNeumorphicShadows(
+                                  isDark
+                                )}`}
                             >
                               {monthNames[month]}
                               <ChevronDown className="w-3 h-3 md:w-3.5 md:h-3.5 ml-1" />
@@ -1695,11 +1680,10 @@ const ViewGroups = () => {
                                 setShowYearSelector((s) => !s);
                                 setShowMonthSelector(false);
                               }}
-                              className={`flex items-center px-2 md:px-3 py-1 md:py-1.5 rounded-full font-semibold text-xs md:text-sm ${
-                                theme.text
-                              } ${theme.cardBg} ${getButtonNeumorphicShadows(
-                                isDark
-                              )}`}
+                              className={`flex items-center px-2 md:px-3 py-1 md:py-1.5 rounded-full font-semibold text-xs md:text-sm ${theme.text
+                                } ${theme.cardBg} ${getButtonNeumorphicShadows(
+                                  isDark
+                                )}`}
                             >
                               {year}
                               <ChevronDown className="w-3 h-3 md:w-3.5 md:h-3.5 ml-1" />
@@ -1735,7 +1719,7 @@ const ViewGroups = () => {
                           const isSelected =
                             selectedDate &&
                             dayInfo.fullDate.toDateString() ===
-                              selectedDate.toDateString();
+                            selectedDate.toDateString();
                           const isToday = dayInfo.isToday;
                           const isCurrentMonth = dayInfo.isCurrentMonth;
                           let textColorClass = isCurrentMonth
@@ -1780,9 +1764,8 @@ const ViewGroups = () => {
                           className={`${theme.bg} rounded-xl md:rounded-2xl p-1 md:p-2 flex flex-col items-center justify-center text-center gap-1 flex-1`}
                         >
                           <div
-                            className={`p-1 rounded-full ${
-                              statCardStyles[card.color].bg
-                            } ${statCardStyles[card.color].text}`}
+                            className={`p-1 rounded-full ${statCardStyles[card.color].bg
+                              } ${statCardStyles[card.color].text}`}
                           >
                             {card.icon}
                           </div>
@@ -1840,11 +1823,10 @@ const ViewGroups = () => {
                               </div>
                               <button
                                 onClick={() => setSelectedDate(null)}
-                                className={`text-xs font-bold px-4 py-1.5 rounded-full transition-colors ${
-                                  isDark
-                                    ? "bg-blue-600 hover:bg-blue-500 text-white"
-                                    : "bg-blue-500 hover:bg-blue-600 text-white"
-                                }`}
+                                className={`text-xs font-bold px-4 py-1.5 rounded-full transition-colors ${isDark
+                                  ? "bg-blue-600 hover:bg-blue-500 text-white"
+                                  : "bg-blue-500 hover:bg-blue-600 text-white"
+                                  }`}
                               >
                                 Clear filter
                               </button>
@@ -1867,11 +1849,9 @@ const ViewGroups = () => {
                                     setShowMonthSelector((s) => !s);
                                     setShowYearSelector(false);
                                   }}
-                                  className={`flex items-center px-3 lg:px-2 py-1.5 lg:py-1 rounded-full font-semibold text-sm lg:text-xs ${
-                                    theme.text
-                                  } ${
-                                    theme.cardBg
-                                  } ${getButtonNeumorphicShadows(isDark)}`}
+                                  className={`flex items-center px-3 lg:px-2 py-1.5 lg:py-1 rounded-full font-semibold text-sm lg:text-xs ${theme.text
+                                    } ${theme.cardBg
+                                    } ${getButtonNeumorphicShadows(isDark)}`}
                                 >
                                   {monthNames[month]}
 
@@ -1895,11 +1875,9 @@ const ViewGroups = () => {
                                     setShowYearSelector((s) => !s);
                                     setShowMonthSelector(false);
                                   }}
-                                  className={`flex items-center px-3 lg:px-2 py-1.5 lg:py-1 rounded-full font-semibold text-sm lg:text-xs ${
-                                    theme.text
-                                  } ${
-                                    theme.cardBg
-                                  } ${getButtonNeumorphicShadows(isDark)}`}
+                                  className={`flex items-center px-3 lg:px-2 py-1.5 lg:py-1 rounded-full font-semibold text-sm lg:text-xs ${theme.text
+                                    } ${theme.cardBg
+                                    } ${getButtonNeumorphicShadows(isDark)}`}
                                 >
                                   {year}
                                   <ChevronDown className="w-3.5 h-3.5 lg:w-3 lg:h-3 ml-1" />
@@ -1936,7 +1914,7 @@ const ViewGroups = () => {
                               const isSelected =
                                 selectedDate &&
                                 dayInfo.fullDate.toDateString() ===
-                                  selectedDate.toDateString();
+                                selectedDate.toDateString();
                               const isToday = dayInfo.isToday;
                               const isCurrentMonth = dayInfo.isCurrentMonth;
 
@@ -1986,9 +1964,8 @@ const ViewGroups = () => {
                               className={`${theme.bg} rounded-2xl p-1 flex flex-col items-center justify-center text-center gap-1 flex-1`}
                             >
                               <div
-                                className={`p-1 rounded-full ${
-                                  statCardStyles[card.color].bg
-                                } ${statCardStyles[card.color].text}`}
+                                className={`p-1 rounded-full ${statCardStyles[card.color].bg
+                                  } ${statCardStyles[card.color].text}`}
                               >
                                 {card.icon}
                               </div>
