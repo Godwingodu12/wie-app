@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getUserData } from "../../services/ticketService";
 import { getOtherProfile, findAllActiveUsers, followUser, unfollowUser, checkIsFollowing, logout} from "../../services/authService";
-import { getOthersEvents, totalEventsCreatedCount } from "../../services/ticketService";
+import { getOthersEvents, totalEventsCreatedCount,getOthersPastEvents ,getOtherLiveEvents} from "../../services/ticketService";
 import { getImageUrl } from "../../utils/imageUtils.js";
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
 import SideBar from "../../components/HomePage/SideBar.jsx";
@@ -26,6 +26,8 @@ import RightArrowIcon from "../../assets/PROFILEPAGE/RightArrowIcon.svg"
 import HandburgerIcon from "../../assets/PROFILEPAGE/HandburgerIcon.svg"
 import ProfileImage from "../../assets/PROFILEPAGE/ProfileImage.png";
 import GroupIcon from "../../assets/PROFILEPAGE/GroupIcon.svg";
+import PastEventIcon from "../../assets/PROFILEPAGE/PastEventIcon.svg";
+
 
 
 // Bottom Nav Icons
@@ -100,6 +102,30 @@ const CustomScrollbarStyles = () => (
         font-size: 16px;
       }
     }
+      /* FIX: Tablet buttons disappearing (ONLY tablets) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .profile-action-buttons {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 0.75rem;
+    padding-bottom: 6px;
+  }
+
+  /* 🔧 PREVENT BUTTONS FROM SHRINKING INTO CIRCLES */
+  .profile-action-buttons > button {
+    flex-shrink: 0;
+    white-space: nowrap;
+    min-height: 40px;
+    border-radius: 9999px;
+  }
+
+  .profile-action-buttons::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+
   `}</style>
 );
 
@@ -112,7 +138,10 @@ const OtherProfilePage = () => {
   const [users, setUsers] = useState([]);
   const [user, setUser] = useState(null);
   const [userImage, setUserImage] = useState(null);
-  const [profileUserEvents, setProfileUserEvents] = useState([]);
+  const [profileUserEvents, setProfileUserEvents] = useState([]); // optional keep for backward compatibility
+  const [allEvents, setAllEvents] = useState([]);
+  const [liveEvents, setLiveEvents] = useState([]);
+  const [pastEvents, setPastEvents] = useState([]);
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
   const [isFollowing, setIsFollowing] = useState(false);
@@ -128,6 +157,78 @@ const OtherProfilePage = () => {
   const [eventCountsMap, setEventCountsMap] = useState({});
   const [showMobileHamburgerMenu, setShowMobileHamburgerMenu] = useState(false);
   const mobileHamburgerRef = useRef(null);
+  const parseApiResponse = (response) => {
+  try {
+    if (!response) {
+      console.log("[parseApiResponse] No response provided");
+      return [];
+    }
+
+    console.log("[parseApiResponse] Input:", response);
+
+    // Handle axios-style responses
+    let payload = response;
+    if (response.data !== undefined) {
+      payload = response.data;
+      console.log("[parseApiResponse] Unwrapped response.data:", payload);
+    }
+
+    // If payload itself has a data property, unwrap again
+    if (payload && payload.data !== undefined) {
+      payload = payload.data;
+      console.log("[parseApiResponse] Unwrapped payload.data:", payload);
+    }
+
+    // Direct array
+    if (Array.isArray(payload)) {
+      console.log("[parseApiResponse] Found array, length:", payload.length);
+      return payload;
+    }
+
+    // Check for common event array keys
+    const eventKeys = ['tickets', 'events', 'data'];
+    for (const key of eventKeys) {
+      if (payload?.[key] && Array.isArray(payload[key])) {
+        console.log(`[parseApiResponse] Found array at payload.${key}, length:`, payload[key].length);
+        return payload[key];
+      }
+    }
+
+    // Check nested data.tickets or data.events
+    if (payload?.data) {
+      for (const key of eventKeys) {
+        if (payload.data[key] && Array.isArray(payload.data[key])) {
+          console.log(`[parseApiResponse] Found array at payload.data.${key}, length:`, payload.data[key].length);
+          return payload.data[key];
+        }
+      }
+    }
+
+    // Last resort: find any array in the object
+    if (typeof payload === "object" && payload !== null) {
+      const keys = Object.keys(payload);
+      for (const key of keys) {
+        if (Array.isArray(payload[key]) && payload[key].length > 0) {
+          console.log(`[parseApiResponse] Found array at payload.${key}, length:`, payload[key].length);
+          return payload[key];
+        }
+      }
+    }
+
+    // Fallback: check if original response is an array
+    if (Array.isArray(response)) {
+      console.log("[parseApiResponse] Original response is array, length:", response.length);
+      return response;
+    }
+
+    console.warn("[parseApiResponse] Could not find array in response");
+    return [];
+  } catch (err) {
+    console.error("[parseApiResponse] Error:", err);
+    return [];
+  }
+};
+
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -177,39 +278,160 @@ const OtherProfilePage = () => {
     fetchProfileUser();
   }, [userId, navigate]);
 
-  useEffect(() => {
-    const fetchProfileUserEvents = async () => {
-      if (!userId) return;
+//   useEffect(() => {
+//   // fetch all events for the profile user and categorize them
+//   const fetchAllEvents = async () => {
+//     if (!userId) {
+//       console.warn("[OtherProfilePage] fetchAllEvents: no userId, skipping");
+//       setAllEvents([]);
+//       setLiveEvents([]);
+//       setPastEvents([]);
+//       setEventsLoading(false);
+//       return;
+//     }
 
-      setEventsLoading(true);
-      try {
-        const response = await getOthersEvents(userId);
-        let events = [];
-        if (response?.tickets && Array.isArray(response.tickets)) {
-          events = response.tickets;
-        } else if (response?.data?.tickets && Array.isArray(response.data.tickets)) {
-          events = response.data.tickets;
-        } else if (response?.events && Array.isArray(response.events)) {
-          events = response.events;
-        } else if (response?.data?.events && Array.isArray(response.data.events)) {
-          events = response.data.events;
-        } else if (Array.isArray(response?.data)) {
-          events = response.data;
-        } else if (Array.isArray(response)) {
-          events = response;
-        }
-        setProfileUserEvents(events);
-      } catch (err) {
-        console.error("Error fetching events:", err);
-        console.error("Error details:", err.response?.data);
-        setProfileUserEvents([]);
-      } finally {
-        setEventsLoading(false);
+//     setEventsLoading(true);
+//     try {
+//       // pass userId to the service
+//       const response = await getOthersEvents(userId);
+//       console.log("[OtherProfilePage] getOthersEvents raw response:", response);
+
+//       const tickets = parseApiResponse(response);
+//       console.log("[OtherProfilePage] parsed tickets length:", Array.isArray(tickets) ? tickets.length : 0);
+
+//       if (tickets && tickets.length > 0) {
+//         const { all, live, past } = categorizeEvents(tickets);
+//         setAllEvents(all);
+//         setLiveEvents(live);
+//         setPastEvents(past);
+//       } else {
+//         setAllEvents([]);
+//         setLiveEvents([]);
+//         setPastEvents([]);
+//         console.warn("[OtherProfilePage] no tickets parsed from getOthersEvents");
+//       }
+//     } catch (err) {
+//       console.error("Failed to fetch all events:", err?.response?.data || err.message || err);
+//       setAllEvents([]);
+//       setLiveEvents([]);
+//       setPastEvents([]);
+//     } finally {
+//       setEventsLoading(false);
+//     }
+//   };
+
+//   fetchAllEvents();
+// // run when userId or profileUser changes (profileUser kept for safety)
+// }, [userId, profileUser]);
+
+
+//   // Optional: Fetch live events separately if you have separate endpoints
+//     useEffect(() => {
+//   const fetchLiveEvents = async () => {
+//     if (!userId) {
+//       console.warn("[OtherProfilePage] fetchLiveEvents: no userId, skipping");
+//       return;
+//     }
+//     try {
+//       const response = await getOtherLiveEvents(userId);
+//       console.log("[OtherProfilePage] getOtherLiveEvents raw response:", response);
+//       const events = parseApiResponse(response, "live events");
+//       if (events && events.length > 0) {
+//         // prefer the main fetch if it already populated liveEvents
+//         setLiveEvents(prev => (prev && prev.length > 0 ? prev : events));
+//       }
+//     } catch (err) {
+//       console.error("Failed to fetch live events:", err?.response?.data || err.message || err);
+//       // don't clear liveEvents here (main fetch is authoritative)
+//     }
+//   };
+
+//   // only call if we don't have liveEvents from the main fetch
+//   if (liveEvents.length === 0) fetchLiveEvents();
+// }, [userId, liveEvents.length]);
+
+
+//     // Optional: Fetch past events separately if you have separate endpoints
+//       useEffect(() => {
+//   const fetchPastEvents = async () => {
+//     if (!userId) {
+//       console.warn("[OtherProfilePage] fetchPastEvents: no userId, skipping");
+//       return;
+//     }
+
+//     try {
+//       const response = await getOthersPastEvents(userId);
+//       console.log("[OtherProfilePage] getOthersPastEvents raw response:", response);
+//       const events = parseApiResponse(response, "past events");
+//       if (events && events.length > 0) {
+//         setPastEvents(prev => (prev && prev.length > 0 ? prev : events));
+//       }
+//     } catch (err) {
+//       console.error("Failed to fetch past events:", err?.response?.data || err.message || err);
+//       // don't clear pastEvents here
+//     }
+//   };
+
+//   if (pastEvents.length === 0) fetchPastEvents();
+// }, [userId, pastEvents.length]);
+// Single consolidated effect to fetch and categorize all events
+// Single consolidated effect to fetch and categorize all events
+useEffect(() => {
+  const fetchAndCategorizeEvents = async () => {
+    if (!userId) {
+      console.warn("[OtherProfilePage] fetchAndCategorizeEvents: no userId, skipping");
+      setAllEvents([]);
+      setLiveEvents([]);
+      setPastEvents([]);
+      setEventsLoading(false);
+      return;
+    }
+
+    setEventsLoading(true);
+    console.log("=== FETCHING EVENTS FOR USER:", userId, "===");
+    
+    try {
+      // Fetch only the main events endpoint
+      const response = await getOthersEvents(userId);
+      console.log("API Response:", response);
+
+      // Parse the response
+      const allTickets = parseApiResponse(response);
+      console.log("Parsed tickets:", allTickets.length, allTickets);
+
+      if (allTickets && allTickets.length > 0) {
+        // Categorize all events into all/live/past
+        const categorized = categorizeEvents(allTickets);
+        
+        console.log("=== CATEGORIZATION RESULTS ===");
+        console.log("All Events:", categorized.all.length);
+        console.log("Live Events:", categorized.live.length, categorized.live);
+        console.log("Past Events:", categorized.past.length, categorized.past);
+
+        // Set the state
+        setAllEvents(categorized.all);
+        setLiveEvents(categorized.live);
+        setPastEvents(categorized.past);
+      } else {
+        console.warn("No events found");
+        setAllEvents([]);
+        setLiveEvents([]);
+        setPastEvents([]);
       }
-    };
 
-    fetchProfileUserEvents();
-  }, [userId]);
+    } catch (err) {
+      console.error("Failed to fetch events:", err?.response?.data || err.message || err);
+      setAllEvents([]);
+      setLiveEvents([]);
+      setPastEvents([]);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  fetchAndCategorizeEvents();
+}, [userId]);// Only re-run when userId changes
+
 
   // Fetch suggestions
   useEffect(() => {
@@ -674,57 +896,135 @@ const OtherProfilePage = () => {
       container.scrollBy({ left: 250, behavior: "smooth" });
     }
   };
+const categorizeEvents = (tickets) => {
+  console.log("=== CATEGORIZING", tickets.length, "EVENTS ===");
+  const now = new Date();
+  console.log("Current time:", now.toISOString());
+  
+  const all = [];
+  const live = [];
+  const past = [];
 
-  // Helper function to categorize events based on dates
-  const categorizeEvents = (tickets) => {
-    const now = new Date();
-    const all = [];
-    const live = [];
-    const past = [];
+  tickets.forEach((ticket, index) => {
+    all.push(ticket);
 
-    tickets.forEach(ticket => {
-      all.push(ticket);
+    // Try multiple possible field names for dates
+    const eventDate = ticket.event_date || ticket.eventDate || ticket.date || ticket.start_date || ticket.startDate;
+    const eventEndDate = ticket.event_end_date || ticket.eventEndDate || ticket.endDate || ticket.end_date;
+    const eventStatus = ticket.status || ticket.eventStatus || ticket.event_status;
 
-      const eventDate = ticket.event_date || ticket.eventDate || ticket.date;
-      const eventEndDate = ticket.event_end_date || ticket.eventEndDate || ticket.endDate;
-      const eventStatus = ticket.status || ticket.eventStatus;
-
-      if (eventDate) {
-        const startDate = new Date(eventDate);
-        const endDate = eventEndDate ? new Date(eventEndDate) : startDate;
-
-        if (startDate <= now && endDate >= now) {
-          live.push(ticket);
-        } else if (endDate < now) {
-          past.push(ticket);
-        }
-      } else if (eventStatus) {
-        if (eventStatus.toLowerCase() === 'live' || eventStatus.toLowerCase() === 'active') {
-          live.push(ticket);
-        } else if (eventStatus.toLowerCase() === 'completed' || eventStatus.toLowerCase() === 'ended') {
-          past.push(ticket);
-        }
-      }
+    console.log(`Event ${index} - "${ticket.event_name || ticket.name}":`, {
+      eventDate,
+      eventEndDate,
+      eventStatus,
+      fullTicket: ticket
     });
 
-    return { all, live, past };
-  };
+    if (eventDate) {
+      const startDate = new Date(eventDate);
+      const endDate = eventEndDate ? new Date(eventEndDate) : startDate;
 
-  // Get filtered events based on active tab
-  const getFilteredEvents = () => {
-    const { all, live, past } = categorizeEvents(profileUserEvents);
-    
-    switch (activeTab) {
-      case 'live':
-        return live;
-      case 'past':
-        return past;
-      default:
-        return all;
+      console.log(`  Dates - Start: ${startDate.toISOString()}, End: ${endDate.toISOString()}`);
+      console.log(`  Comparison - Start <= Now: ${startDate <= now}, End >= Now: ${endDate >= now}, End < Now: ${endDate < now}`);
+
+      if (startDate <= now && endDate >= now) {
+        live.push(ticket);
+        console.log("  ✓ LIVE EVENT");
+      } else if (endDate < now) {
+        past.push(ticket);
+        console.log("  ✓ PAST EVENT");
+      } else {
+        console.log("  → FUTURE EVENT (not categorized as live/past)");
+      }
+    } else if (eventStatus) {
+      console.log(`  Using status: "${eventStatus}"`);
+      const statusLower = eventStatus.toLowerCase();
+      if (statusLower === 'live' || statusLower === 'active' || statusLower === 'ongoing') {
+        live.push(ticket);
+        console.log("  ✓ LIVE EVENT (by status)");
+      } else if (statusLower === 'completed' || statusLower === 'ended' || statusLower === 'past') {
+        past.push(ticket);
+        console.log("  ✓ PAST EVENT (by status)");
+      }
+    } else {
+      console.warn("  ⚠ NO DATE OR STATUS FOUND - cannot categorize");
     }
-  };
+  });
 
-  const filteredEvents = getFilteredEvents();
+  console.log("=== CATEGORIZATION COMPLETE ===");
+  console.log("Total All:", all.length);
+  console.log("Total Live:", live.length);
+  console.log("Total Past:", past.length);
+
+  return { all, live, past };
+};
+
+// ---------- REPLACE WITH THIS BLOCK ----------
+/**
+ * Robust id normalizer - handles:
+ *  - string/number ids
+ *  - objects like { _id: '...' } or { id: '...' }
+ *  - nested user objects (event.user._id)
+ *  - arrays where first element contains id
+ */
+const normalizeId = (val) => {
+  if (val === null || val === undefined) return null;
+  if (Array.isArray(val)) return normalizeId(val[0]);
+  if (typeof val === 'object') {
+    if (val._id) return String(val._id);
+    if (val.id) return String(val.id);
+    if (val.user) return normalizeId(val.user);
+    if (val.creator) return normalizeId(val.creator);
+    return null;
+  }
+  return String(val);
+};
+
+const isEventByProfileUser = (event, profileUser) => {
+  if (!event || !profileUser) return false;
+  const profileId = normalizeId(profileUser._id || profileUser.id || profileUser);
+  if (!profileId) return false;
+
+  const candidates = [
+    event.userId,
+    event.user,
+    event.creatorId,
+    event._userId,
+    event.owner,
+    event.organizer,
+    event.createdBy,
+    event.creator,
+  ];
+
+  for (const cand of candidates) {
+    const candId = normalizeId(cand);
+    if (candId && candId === profileId) return true;
+  }
+
+  // Try matching by username or email as a last-resort fallback
+  if (event.user && typeof event.user === 'object') {
+    if (event.user.username && profileUser.username && event.user.username === profileUser.username) return true;
+    if (event.user.email && profileUser.email && event.user.email === profileUser.email) return true;
+  }
+
+  return false;
+};
+
+/**
+ * Returns filtered events for the active tab.
+ * If profileUser is not loaded yet, returns the unfiltered arrays (useful for debugging).
+ */
+const getFilteredEvents = () => {
+  switch (activeTab) {
+    case 'live': return liveEvents;
+    case 'past': return pastEvents;
+    default: return allEvents;
+  }
+};
+const filteredEvents = getFilteredEvents();
+
+// ---------- END REPLACEMENT BLOCK ----------
+
 
   const theme = isDark
     ? {
@@ -751,7 +1051,7 @@ const OtherProfilePage = () => {
         buttonBg: "bg-gradient-to-b from-gray-100 to-gray-200",
         buttonShadow: "shadow-md hover:shadow-lg",
         cardShadow: "8px 8px 24px rgba(0,0,0,0.1), -8px -8px 24px rgba(255,255,255,0.8)",
-        smallCardShadow: "6px 6px 12px #6a6a6a,-6px -6px 12px #ffffff",
+        smallCardShadow: "0 4px 10px rgba(0,0,0,0.35)",
         buttonHoverBg: "hover:bg-gray-100",
         notificationShadow: "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
       };
@@ -843,7 +1143,7 @@ const OtherProfilePage = () => {
               {/* Profile Card */}
               <div className={`rounded-2xl md:rounded-3xl lg:rounded-[3rem] p-4 md:p-4 lg:p-6 mt-2 md:mt-4 lg:mt-8 ${theme.cardBg} nest-hub-card transition-all duration-300 w-full overflow-hidden`} style={{boxShadow: theme.cardShadow}}>
                 {/* Mobile Layout */}
-                    <div className="flex md:hidden flex-col space-y-4">
+<div className="flex lg:hidden flex-col space-y-4">
                       <div className="flex flex-col gap-4">
                         {/* Top Row: Profile image + Name/Username */}
                         <div className="flex items-center gap-4">
@@ -900,25 +1200,93 @@ const OtherProfilePage = () => {
                           <p className={`text-xs ${theme.subText}`}>Following</p>
                         </div>
                       </div>
-                      {/* Buttons */}
-                      <div className="flex gap-2 justify-start items-center flex-nowrap overflow-x-auto">
-                        {['Edit profile', 'Share profile', 'Insight profile'].map((label, index) => (
-                          <button
-                            key={index}
-                            onClick={label === 'Edit profile' ? () => navigate('/settings/editprofile') : undefined}
-                            className={`whitespace-nowrap flex-shrink-0 px-4 py-2 rounded-full text-sm font-normal transition-all duration-200 ${
-                              isDark
-                                ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
-                                : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
+                      {/* Buttons mobile */}
+<div className="lg:hidden flex flex-wrap gap-2 p-1 justify-center items-center profile-action-buttons">
+  {/* Edit (if viewing your own profile) OR Follow (if viewing someone else) */}
+  {profileUser && user && profileUser._id === user._id ? (
+    <button
+      onClick={() => navigate('/settings/editprofile')}
+      className={`whitespace-nowrap flex-shrink-0 px-4 py-2 rounded-full text-sm font-normal transition-all duration-200 text-white bg-[#44444D] border border-[rgba(255,255,255,0.25)] shadow-[0px_0px_0px_1.49px_#2B2D43,0px_5.97px_8.95px_0px_#00000024,inset_0px_13.43px_20.89px_-7.46px_#FFFFFF4D]`}
+    >
+      Edit profile
+    </button>
+  ) : (
+    <button
+      onClick={handleFollowToggle}
+      disabled={followLoading}
+      className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:px-4 sm:py-2 sm:text-sm font-medium transition-all duration-200 ${
+        followLoading ? 'opacity-50 cursor-not-allowed' : ''
+      } ${
+        isFollowing
+          ? 'text-white bg-[#44444D] border border-[rgba(255,255,255,0.25)] shadow-[0px_0px_0px_1.49px_#2B2D43,0px_5.97px_8.95px_0px_#00000024,inset_0px_13.43px_20.89px_-7.46px_#FFFFFF4D]'
+          : 'text-white bg-[#5E5CE6] shadow-[0px_0px_0px_1px_#2B2D43,0px_4px_6px_0px_#00000024,inset_0px_9px_14px_-5px_#FFFFFF4D]'
+      }`}
+    >
+      {followLoading ? (
+        <span className="flex items-center gap-2">
+          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+          {isFollowing ? 'Unfollowing...' : 'Following...'}
+        </span>
+      ) : (
+        isFollowing ? 'Unfollow' : 'Follow +'
+      )}
+    </button>
+  )}
+
+  {/* Share profile (same inline style as desktop) */}
+  <button
+    onClick={handleShareProfile}
+    className="whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:px-4 sm:py-2 sm:text-sm font-medium transition-all duration-200"
+    style={
+      isDark
+        ? {
+            background: 'var(--SecondaryBtnColorsec, #44444D)',
+            color: 'white',
+            border: '0.75px solid rgba(255,255,255,0.25)',
+            boxShadow:
+              '0px 0px 0px 1.49px #2B2D43, 0px 5.97px 8.95px 0px #00000024, inset 0px 13.43px 20.89px -7.46px #FFFFFF4D',
+          }
+        : {
+            background: 'var(--SecondaryBtnColorsec, #44444D)',
+            color: 'white',
+            border: '0.5px solid rgba(255,255,255,0.35)',
+            boxShadow:
+              '0px 0px 0px 1px #2B2D43, 0px 4px 6px 0px #00000024, inset 0px 9px 14px -5px #FFFFFF4D',
+          }
+    }
+  >
+    Share profile
+  </button>
+
+  {/* Invite to group (same inline style as desktop) */}
+  <button
+    onClick={handleInviteToGroup}
+    className="whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:px-4 sm:py-2 sm:text-sm font-medium transition-all duration-200"
+    style={
+      isDark
+        ? {
+            background: 'var(--SecondaryBtnColorsec, #44444D)',
+            color: 'white',
+            border: '0.75px solid rgba(255,255,255,0.25)',
+            boxShadow:
+              '0px 0px 0px 1.49px #2B2D43, 0px 5.97px 8.95px 0px #00000024, inset 0px 13.43px 20.89px -7.46px #FFFFFF4D',
+          }
+        : {
+            background: 'var(--SecondaryBtnColorsec, #44444D)',
+            color: 'white',
+            border: '0.5px solid rgba(255,255,255,0.35)',
+            boxShadow:
+              '0px 0px 0px 1px #2B2D43, 0px 4px 6px 0px #00000024, inset 0px 9px 14px -5px #FFFFFF4D',
+          }
+    }
+  >
+    Invite to group
+  </button>
+</div>
+
                     </div>
                 {/* Desktop Layout */}
-                <div className="hidden md:flex justify-between items-center gap-6">
+<div className="hidden lg:flex justify-between items-center gap-6">
                   {/* Left side */}
                   <div className="flex items-start gap-6">
                     <img
@@ -934,16 +1302,23 @@ const OtherProfilePage = () => {
                       </p>
                       <p className={`whitespace-pre-line text-left text-xs md:text-sm leading-5 md:leading-6 break-words ${theme.subText}`}>
                         {profileUser.bio}</p>
-                      <div className="flex gap-2 md:gap-3 pt-2 md:pt-3 flex-wrap">
+                        {/*Button desktop*/}
+<div className="flex gap-2 md:gap-3 pt-2 md:pt-3 flex-wrap profile-action-buttons">
                         <button 
                           onClick={handleFollowToggle} 
                           disabled={followLoading}
                           className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
                             followLoading ? 'opacity-50 cursor-not-allowed' : ''
-                          } ${
-                            isFollowing
-                              ? 'text-white bg-gradient-to-b from-gray-600 to-gray-700 shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
-                              : 'text-white bg-gradient-to-b from-indigo-500 to-blue-500 shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110'
+                          } ${ isFollowing
+        ? (
+            isDark
+              ? "text-white bg-[#44444D] border border-[rgba(255,255,255,0.25)] shadow-[0px_0px_0px_1.49px_#2B2D43,0px_5.97px_8.95px_0px_#00000024,inset_0px_13.43px_20.89px_-7.46px_#FFFFFF4D] hover:brightness-110"
+              : "text-white bg-[#44444D] border border-[rgba(255,255,255,0.35)] shadow-[0px_0px_0px_1px_#2B2D43,0px_4px_6px_0px_#00000024,inset_0px_9px_14px_-5px_#FFFFFF4D] hover:brightness-110"
+
+          )
+        :                    "text-white bg-[#5E5CE6] shadow-[0px_0px_0px_1px_#2B2D43,0px_4px_6px_0px_#00000024,inset_0px_9px_14px_-5px_#FFFFFF4D] hover:brightness-110"
+
+
                           }`}
                         >
                           {followLoading ? (
@@ -957,21 +1332,47 @@ const OtherProfilePage = () => {
                         </button>
                         <button 
                           onClick={handleShareProfile}
-                          className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                            isDark 
-                              ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110' 
-                              : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
-                          }`}
+                            className="px-6 py-2 rounded-full text-sm font-medium transition-all duration-200"
+  style={
+    isDark
+      ? {
+          background: "var(--SecondaryBtnColorsec, #44444D)",
+          color: "white",
+          border: "0.75px solid rgba(255,255,255,0.25)",
+          boxShadow:
+            "0px 0px 0px 1.49px #2B2D43, 0px 5.97px 8.95px 0px #00000024, inset 0px 13.43px 20.89px -7.46px #FFFFFF4D",
+        }
+      : {
+          background: "var(--SecondaryBtnColorsec, #44444D)",
+          color: "white",
+          border: "0.5px solid rgba(255,255,255,0.35)",
+          boxShadow:
+            "0px 0px 0px 1px #2B2D43, 0px 4px 6px 0px #00000024, inset 0px 9px 14px -5px #FFFFFF4D",
+        }
+  }
                         >
                           Share profile
                         </button>
                         <button 
                           onClick={handleInviteToGroup}
-                          className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                            isDark 
-                              ? 'text-white bg-gradient-to-b from-[#3a3b3f] to-[#2c2d30] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.05),inset_-2px_-2px_4px_rgba(0,0,0,0.5)] hover:brightness-110' 
-                              : 'text-gray-800 bg-gradient-to-b from-gray-100 to-gray-200 shadow-md hover:shadow-lg hover:from-gray-200 hover:to-gray-300'
-                          }`}
+                           className="px-6 py-2 rounded-full text-sm font-medium transition-all duration-200"
+  style={
+    isDark
+      ? {
+          background: "var(--SecondaryBtnColorsec, #44444D)",
+          color: "white",
+          border: "0.75px solid rgba(255,255,255,0.25)",
+          boxShadow:
+            "0px 0px 0px 1.49px #2B2D43, 0px 5.97px 8.95px 0px #00000024, inset 0px 13.43px 20.89px -7.46px #FFFFFF4D",
+        }
+      : {
+          background: "var(--SecondaryBtnColorsec, #44444D)",
+          color: "white",
+          border: "0.5px solid rgba(255,255,255,0.35)",
+          boxShadow:
+            "0px 0px 0px 1px #2B2D43, 0px 4px 6px 0px #00000024, inset 0px 9px 14px -5px #FFFFFF4D",
+        }
+  }
                         >
                           Invite to group
                         </button>
@@ -990,23 +1391,86 @@ const OtherProfilePage = () => {
                       </button>
                     </div>
                     {/* Stats */}
-                    <div className={`rounded-[2rem] md:rounded-[2.5rem] px-6 md:px-8 lg:px-10 py-3 md:py-3.5 lg:py-4 flex gap-4 md:gap-6 lg:gap-8 transition-all duration-300 ${theme.cardBg}`} style={{boxShadow: theme.smallCardShadow}}>
-                      <div className="text-center flex flex-col items-center gap-1 md:gap-1.5" onClick={() =>navigate(`/auth/others-ffe/${profileUser._id}`, { state: { activeTab: "events" } })}>
-                        <img src={EventIcon} alt="Event" className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`} />
-                        <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{profileUser.eventsCount || profileUserEvents.length || 0}</p>
-                        <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Event created</p>
-                      </div>
-                      <div className="text-center flex flex-col items-center gap-1 md:gap-1.5" onClick={() => navigate(`/auth/others-ffe/${profileUser._id}`, { state: { activeTab: "followers" } })}>
-                        <img src={FollowersIcon} alt="Followers" className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`} />
-                        <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{profileUser.followersCount || profileUser.followers || 0}</p>
-                        <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Follower</p>
-                      </div>
-                      <div className="text-center flex flex-col items-center gap-1 md:gap-1.5" onClick={() => navigate(`/auth/others-ffe/${profileUser._id}`, { state: { activeTab: "following" } })}>
-                        <img src={FollowingIcon} alt="Following" className={`w-5 h-5 md:w-5 md:h-5 lg:w-6 lg:h-6 ${!isDark ? "filter brightness-0" : ""}`} />
-                        <p className={`text-2xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>{profileUser.following || 0}</p>
-                        <p className={`text-xs md:text-xs lg:text-sm ${theme.subText}`}>Following</p>
-                      </div>
-                    </div>
+<div
+  className={`
+    w-full 
+    md:max-w-full 
+    lg:w-[457px] 
+    h-[161px] 
+    flex justify-between items-center 
+    rounded-[24px] 
+    px-[24px] lg:px-[39px] 
+    pr-[24px] lg:pr-[42px] 
+    py-[25px] 
+    transition-all duration-300 
+    ${theme.cardBg} 
+    md:mb-6 lg:mb-0
+  `}
+  style={{
+    boxShadow: "-2px -2px 10px 0px rgba(99,99,99,0.21), 5px 6px 9px 0px rgba(0,0,0,0.46)",
+  }}
+>
+
+  {/* Event Created */}
+  <div
+    className="text-center flex flex-col items-center gap-1"
+    onClick={() =>
+      navigate(`/auth/others-ffe/${profileUser._id}`, {
+        state: { activeTab: "events" },
+      })
+    }
+  >
+    <img
+      src={EventIcon}
+      alt="Event"
+      className={`w-[24px] h-[24px] ${!isDark ? "filter brightness-0" : ""}`}
+    />
+    <p className={`text-2xl font-bold ${theme.text}`}>
+      {profileUser.eventsCount || profileUserEvents.length || 0}
+    </p>
+    <p className={`text-xs ${theme.subText}`}>Event created</p>
+  </div>
+
+  <div
+    className="text-center flex flex-col items-center gap-1"
+    onClick={() =>
+      navigate(`/auth/others-ffe/${profileUser._id}`, {
+        state: { activeTab: "followers" },
+      })
+    }
+  >
+    <img
+      src={FollowersIcon}
+      alt="Followers"
+      className={`w-[24px] h-[24px] ${!isDark ? "filter brightness-0" : ""}`}
+    />
+    <p className={`text-2xl font-bold ${theme.text}`}>
+      {profileUser.followersCount || profileUser.followers || 0}
+    </p>
+    <p className={`text-xs ${theme.subText}`}>Follower</p>
+  </div>
+
+  {/* Following */}
+  <div
+    className="text-center flex flex-col items-center gap-1"
+    onClick={() =>
+      navigate(`/auth/others-ffe/${profileUser._id}`, {
+        state: { activeTab: "following" },
+      })
+    }
+  >
+    <img
+      src={FollowingIcon}
+      alt="Following"
+      className={`w-[24px] h-[24px] ${!isDark ? "filter brightness-0" : ""}`}
+    />
+    <p className={`text-2xl font-bold ${theme.text}`}>
+      {profileUser.following || 0}
+    </p>
+    <p className={`text-xs ${theme.subText}`}>Following</p>
+  </div>
+</div>
+
                   </div>
                 </div>
                 {/* Modal */}
@@ -1064,11 +1528,14 @@ const OtherProfilePage = () => {
                       users.slice(0, 8).map((suggestedUser) => (
                         <div
                           key={suggestedUser._id}
-                          className="w-[200px] md:w-[246px] h-[280px] md:h-[363px] flex-shrink-0 rounded-3xl p-4 flex flex-col justify-between transition-all duration-300 hover:scale-105 cursor-pointer"
-                          style={{
-                            backgroundColor: isDark ? "#212426" : "#ffffff",
-                            boxShadow: theme.smallCardShadow,
-                          }}
+                          className={`w-[200px] md:w-[246px] h-[280px] md:h-[363px] flex-shrink-0 rounded-3xl p-4 flex flex-col justify-between 
+  transition-colors duration-200 cursor-pointer 
+  ${isDark ? "bg-[#212426] hover:bg-[#2A2D30]" : "bg-white hover:bg-[#F2F2F3]"}
+`}
+style={{
+  boxShadow: theme.smallCardShadow,
+}}
+
                           onClick={() => navigate(`/profile/${suggestedUser._id || suggestedUser.id}`)}
                         >
                           <div className="flex flex-col">
@@ -1206,10 +1673,10 @@ const OtherProfilePage = () => {
                           backgroundColor: activeTab === 'past' ? (isDark ? "#1a1d20" : "#f0f2f5") : 'transparent',
                           padding: "8px 10px",
                         }}
-                        onClick={() => setActiveTab('group')}
+                        onClick={() => setActiveTab('past')}
                       >
-                        <img src={GroupIcon} alt="Past events" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`} />
-                        <span className={`text-xs font-medium ${theme.text} whitespace-nowrap`}>Groups</span>
+                        <img src={PastEventIcon} alt="PastEvent" className={`w-4 h-4 ${!isDark ? "filter brightness-0" : ""}`} />
+                        <span className={`text-xs font-medium ${theme.text} whitespace-nowrap`}>Past events</span>
                       </div>
                     </div>
                   </div>
@@ -1261,8 +1728,8 @@ const OtherProfilePage = () => {
                       }}
                       onClick={() => setActiveTab('past')}
                     >
-                      <img src={GroupIcon} alt="Groups" className={`w-7 h-7 ${!isDark ? "filter brightness-0" : ""}`}/>
-                      <span className={`text-sm font-medium ${theme.text}`}>Groups</span>
+                      <img src={PastEventIcon} alt="PastEvent" className={`w-7 h-7 ${!isDark ? "filter brightness-0" : ""}`}/>
+                      <span className={`text-sm font-medium ${theme.text}`}>Past events</span>
                     </div>
                   </div>
                 </div>
@@ -1274,164 +1741,191 @@ const OtherProfilePage = () => {
                   </div>
                 ) : filteredEvents.length > 0 ? (
                   <div>
-                    {/* Desktop: 3 column grid */}
-                    <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-10 xl:gap-14 tablet-grid w-full">
-                      {filteredEvents.map((event, index) => (                       
-                        <div
-                          key={event._id || `event-${index}`}
-                          className="rounded-3xl overflow-hidden flex flex-col"
-                          style={{
-                            backgroundColor: isDark ? "#212426" : "#ffffff",
-                            boxShadow: theme.smallCardShadow,
-                          }}
-                        >
-                          {/* Event Image */}
-                          <div className="p-4">
-                            <img 
-                              src={event.event_banner || event.event_logo || event.event_image || event.banner || event.image || "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"}
-                              alt={event.event_name || event.name || "Event"}
-                              className="rounded-[1rem] h-70 w-full object-cover border-2 border-white border-opacity-50"
-                              onError={(e) => {
-                                e.target.src = "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
-                              }}
-                            />
-                          </div>
-                          {/* Event Info */}
-                          <div className="flex flex-col flex-1 p-4" onClick={() => handleViewEvent(event.userId, event._id)}>
-                            <div className="text-center mb-6">
-                              <h3 className={`font-bold text-base ${theme.text}`}>{event.event_name || event.name || "Event"}</h3>
-                              <p className={`text-sm ${theme.subText} mt-1`}>{event.event_category || event.category || "Event Type"}</p>
-                            </div>
+  {/* Desktop: SAME AS PROFILE PAGE */}
+  <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-[17.59px] w-full ml-4">
+    {filteredEvents.map((event, index) => (
+      <div
+        key={event._id || `event-${index}`}
+        className="overflow-hidden flex flex-col cursor-pointer hover:scale-[1.02] transition-transform duration-200"
+        style={{
+          width: "315.28px",
+          height: "380px",
+          borderRadius: "32.48px",
+          paddingTop: "19px",
+          paddingRight: "12.18px",
+          paddingBottom: "19px",
+          paddingLeft: "12.18px",
+          backgroundColor: isDark ? "#212426" : "#ffffff",
+          boxShadow: isDark
+            ? "-2px -2px 10px 0px #63636336, 5px 6px 9px 0px #00000075"
+            : "-2px -2px 10px 0px #E0E0E0, 5px 6px 9px 0px #00000033",
+          transform: "translateX(6px)",
+        }}
+      >
+        {/* Event Image */}
+        <div className="mb-3">
+          <img
+            src={
+              event.event_banner ||
+              event.event_logo ||
+              event.event_image ||
+              event.banner ||
+              event.image ||
+              "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
+            }
+            alt={event.event_name || event.name || "Event"}
+            className="rounded-[1rem] w-full object-cover border-2 border-white border-opacity-50"
+            style={{ height: "180px" }}
+            onError={(e) => {
+              e.target.src =
+                "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
+            }}
+          />
+        </div>
 
-                            {/* Stats */}
-                            <div className="flex justify-center items-center gap-20 text-sm mb-3">
-                              <div className="flex flex-col items-center">
-                                <img src={LikeIcon} alt="Likes" className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}/>
-                                <span className={theme.subText}>{event.likes || event.likesCount || "0"}</span>
-                              </div>
+        {/* Event Info */}
+        <div className="flex flex-col flex-1">
+          <div className="text-center mb-4">
+            <h3 className={`font-bold text-base ${theme.text} line-clamp-1`}>
+              {event.event_name || event.name || "Event"}
+            </h3>
+            <p className={`text-sm ${theme.subText} mt-1 line-clamp-1`}>
+              {event.event_category || event.category || "Event Type"}
+            </p>
+          </div>
 
-                              <div className="flex flex-col items-center">
-                                <img src={TicketIcon} alt="Tickets" className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}/>
-                                <span className={theme.subText}>{event.ticketsSold || event.registrations || event.attendeesCount || event.ticket_count || event.ticketCount || "0"}</span>
-                              </div>
+          {/* Stats */}
+          <div className="flex justify-center items-center gap-8 text-sm mb-4">
+            <div className="flex flex-col items-center">
+              <img
+                src={LikeIcon}
+                className={`w-5 h-5 mb-1 ${!isDark ? "brightness-0" : ""}`}
+              />
+              <span className={theme.subText}>
+                {event.likes || event.likesCount || "0"}
+              </span>
+            </div>
 
-                              <div className="flex flex-col items-center">
-                                <img src={SendIcon} alt="Shares" className={`w-5 h-5 ${!isDark ? "filter brightness-0" : ""}`}/>
-                                <span className={theme.subText}>{event.shares || event.sharesCount || "0"}</span>
-                              </div>
-                            </div>
+            <div className="flex flex-col items-center">
+              <img
+                src={TicketIcon}
+                className={`w-5 h-5 mb-1 ${!isDark ? "brightness-0" : ""}`}
+              />
+              <span className={theme.subText}>
+                {event.ticketsSold ||
+                  event.registrations ||
+                  event.ticketCount ||
+                  "0"}
+              </span>
+            </div>
 
-                            {/* View button */}
-                            <div className="flex justify-center pt-4">
-                              <button
-                                onClick={() => handleViewEvent(event.userId, event._id)}
-                                className="px-10 py-2 rounded-full text-white text-sm font-medium ml-4"
-                                style={{
-                                  background: "linear-gradient(180deg, #2e1745 0%, #7f53e7 100%)"
-                                }}
-                              >
-                                View
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+            <div className="flex flex-col items-center">
+              <img
+                src={SendIcon}
+                className={`w-5 h-5 mb-1 ${!isDark ? "brightness-0" : ""}`}
+              />
+              <span className={theme.subText}>
+                {event.shares || event.sharesCount || "0"}
+              </span>
+            </div>
+          </div>
 
-                    {/* Mobile: 2 column grid */}
-                    <div className="md:hidden grid grid-cols-2 gap-3">
-                      {filteredEvents.map((event, index) => (
-                        <div
-                          key={event._id || `event-${index}`}
-                          className="rounded-2xl overflow-hidden flex flex-col h-[240px]"
-                          style={{
-                            backgroundColor: isDark ? "#212426" : "#ffffff",
-                            boxShadow: theme.smallCardShadow,
-                          }}
-                          onClick={() => handleViewEvent(event.userId, event._id)}
-                        >
-                          {/* Event Image */}
-                          <div className="p-2">
-                            <img
-                              src={
-                                event.event_banner ||
-                                event.event_logo ||
-                                event.event_image ||
-                                event.banner ||
-                                event.image ||
-                                "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
-                              }
-                              alt={event.event_name || event.name || "Event"}
-                              className="rounded-xl h-[100px] w-full object-cover"
-                              onError={(e) => {
-                                e.target.src = "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2";
-                              }}
-                            />
-                          </div>
+          {/* View Button */}
+          <div className="flex justify-center mt-auto">
+            <button
+              onClick={() => handleViewEvent(event.userId, event._id)}
+              className="px-10 py-2 rounded-full text-white text-sm font-medium"
+              style={{
+                background:
+                  "linear-gradient(180deg, #2e1745 0%, #7f53e7 100%)",
+              }}
+            >
+              View
+            </button>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
 
-                          {/* Event Info */}
-                          <div className="flex flex-col flex-1 p-2 justify-between">
-                            <div className="text-center mb-2">
-                              <h3 className={`font-bold text-sm ${theme.text} truncate`}>
-                                {event.event_name || event.name || "Event"}
-                              </h3>
-                              <p className={`text-xs ${theme.subText} mt-1 truncate`}>
-                                {event.event_category || event.category || "Event Type"}
-                              </p>
-                            </div>
+  {/* Mobile: SAME AS PROFILE PAGE */}
+  <div className="md:hidden grid grid-cols-2 gap-3">
+    {filteredEvents.map((event, index) => (
+      <div
+        key={event._id || `event-${index}`}
+        className="rounded-2xl overflow-hidden flex flex-col"
+        style={{
+          height: "280px",
+          backgroundColor: isDark ? "#212426" : "#ffffff",
+          boxShadow: isDark
+            ? "-2px -2px 10px 0px #63636336, 5px 6px 9px 0px #00000075"
+            : "-2px -2px 10px 0px #E0E0E0, 5px 6px 9px 0px #00000033",
+        }}
+        onClick={() => handleViewEvent(event.userId, event._id)}
+      >
+        <div className="p-2">
+          <img
+            src={
+              event.event_banner ||
+              event.event_logo ||
+              event.event_image ||
+              event.banner ||
+              event.image ||
+              "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2"
+            }
+            className="rounded-xl w-full object-cover"
+            style={{ height: "120px" }}
+          />
+        </div>
 
-                            {/* Stats */}
-                            <div className="flex justify-center items-center gap-3 text-xs">
-                              <div className="flex flex-col items-center">
-                                <img
-                                  src={LikeIcon}
-                                  alt="Likes"
-                                  className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}
-                                />
-                                <span className={theme.subText}>
-                                  {event.likes || event.likesCount || "0"}
-                                </span>
-                              </div>
+        <div className="flex flex-col flex-1 p-2 justify-between">
+          <div className="text-center mb-2">
+            <h3 className={`font-bold text-sm ${theme.text} line-clamp-1`}>
+              {event.event_name || event.name || "Event"}
+            </h3>
+            <p className={`text-xs ${theme.subText} mt-1 line-clamp-1`}>
+              {event.event_category || event.category || "Event Type"}
+            </p>
+          </div>
 
-                              <div className="flex flex-col items-center">
-                                <img
-                                  src={TicketIcon}
-                                  alt="Tickets"
-                                  className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}
-                                />
-                                <span className={theme.subText}>
-                                  {event.ticketsSold ||
-                                    event.registrations ||
-                                    event.attendeesCount ||
-                                    event.ticket_count ||
-                                    event.ticketCount ||
-                                    "0"}
-                                </span>
-                              </div>
+          <div className="flex justify-center items-center gap-3 text-xs">
+            <div className="flex flex-col items-center">
+              <img src={LikeIcon} className={`w-3 h-3 ${!isDark ? "brightness-0" : ""}`} />
+              <span className={theme.subText}>{event.likes || "0"}</span>
+            </div>
 
-                              <div className="flex flex-col items-center">
-                                <img
-                                  src={SendIcon}
-                                  alt="Shares"
-                                  className={`w-3 h-3 ${!isDark ? "filter brightness-0" : ""}`}
-                                />
-                                <span className={theme.subText}>
-                                  {event.shares || event.sharesCount || "0"}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+            <div className="flex flex-col items-center">
+              <img src={TicketIcon} className={`w-3 h-3 ${!isDark ? "brightness-0" : ""}`} />
+              <span className={theme.subText}>
+                {event.ticketsSold || event.ticketCount || "0"}
+              </span>
+            </div>
+
+            <div className="flex flex-col items-center">
+              <img src={SendIcon} className={`w-3 h-3 ${!isDark ? "brightness-0" : ""}`} />
+              <span className={theme.subText}>{event.shares || "0"}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+
                 ) : (
                   <div className="flex flex-col items-center justify-center py-16 md:py-24">
                     <div className={`w-24 h-24 rounded-full ${theme.cardBg} flex items-center justify-center mb-6`} style={{boxShadow: theme.smallCardShadow}}>
                       <img src={EventIcon} alt="No Events" className={`w-12 h-12 opacity-50 ${!isDark ? 'filter brightness-0' : ''}`} />
                     </div>
-                    <h3 className={`text-xl font-medium ${theme.text} mb-4`}>No {activeTab !== 'all' ? activeTab : ''} events found</h3>
-                    <p className={`text-sm ${theme.subText} text-center max-w-md`}>{profileUser.name} hasn't created any {activeTab !== 'all' ? activeTab : ''} events yet.</p>
+                    <h3 className={`text-xl font-medium ${theme.text} mb-4`}>
+  No {activeTab !== "all" ? activeTab : ""} {activeTab === "groups" ? "" : "events"} found
+</h3>
+
+<p className={`text-sm ${theme.subText} text-center max-w-md`}>
+  {profileUser.name} hasn't created any {activeTab !== "all" ? activeTab : ""}{" "}
+  {activeTab === "groups" ? "" : "events"} yet.
+</p>
+
                   </div>
                 )}
               </div>
