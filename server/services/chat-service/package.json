@@ -16,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.3",
     "amqplib": "^0.10.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
