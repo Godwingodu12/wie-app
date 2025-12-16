@@ -598,7 +598,203 @@ const getTicketBookingStats = async (call, callback) => {
     });
   }
 };
+const updateTicketCancellation = async (call, callback) => {
+  try {
+    const { ticketId, increment } = call.request;
 
+    console.log(`📥 [gRPC] UpdateTicketCancellation called for ticket: ${ticketId}, increment: ${increment}`);
+
+    if (!ticketId) {
+      return callback(null, {
+        success: false,
+        ticketId: '',
+        newValue: 0,
+        error: 'ticketId is required'
+      });
+    }
+
+    // Try to find main ticket first
+    let ticket = await Ticket.findById(ticketId);
+    let isSubEvent = false;
+    let subEventIndex = -1;
+
+    // If not found, check if it's a sub-event
+    if (!ticket) {
+      ticket = await Ticket.findOne({ 'sub_events._id': ticketId });
+      if (ticket) {
+        isSubEvent = true;
+        subEventIndex = ticket.sub_events.findIndex(se => se._id.toString() === ticketId);
+      }
+    }
+
+    if (!ticket) {
+      return callback(null, {
+        success: false,
+        ticketId: ticketId,
+        newValue: 0,
+        error: 'Ticket not found'
+      });
+    }
+
+    // Update cancellation count
+    if (isSubEvent && subEventIndex !== -1) {
+      const subEvent = ticket.sub_events[subEventIndex];
+      const currentCancellations = subEvent.total_cancellation || 0;
+      const newCancellations = currentCancellations + increment;
+      
+      subEvent.total_cancellation = newCancellations;
+      ticket.markModified('sub_events');
+      await ticket.save();
+
+      console.log(`✅ [gRPC] Updated cancellations for sub-event ${ticketId}: ${currentCancellations} -> ${newCancellations}`);
+
+      callback(null, {
+        success: true,
+        ticketId: ticketId,
+        newValue: newCancellations,
+        error: ''
+      });
+    } else {
+      const currentCancellations = ticket.total_cancellation || 0;
+      const newCancellations = currentCancellations + increment;
+
+      ticket.total_cancellation = newCancellations;
+      await ticket.save();
+
+      console.log(`✅ [gRPC] Updated cancellations for ticket ${ticketId}: ${currentCancellations} -> ${newCancellations}`);
+
+      callback(null, {
+        success: true,
+        ticketId: ticketId,
+        newValue: newCancellations,
+        error: ''
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ [gRPC] UpdateTicketCancellation error:', error);
+    callback(null, {
+      success: false,
+      ticketId: call.request.ticketId || '',
+      newValue: 0,
+      error: error.message
+    });
+  }
+};
+const getPreviousEventStats = async (call, callback) => {
+  try {
+    const { ticketId } = call.request;
+
+    console.log(`📥 [gRPC] GetPreviousEventStats called for ticket: ${ticketId}`);
+
+    if (!ticketId) {
+      return callback(null, {
+        totalLikes: 0,
+        totalShares: 0,
+        totalBookings: 0,
+        totalRevenue: 0,
+        totalCancellations: 0,
+        tagCount: 0,
+        bankDetails: [],
+        subEvents: [],
+        monthlyStats: [],
+        quarterStats: [],
+        ticketTypeStats: [],
+        totalCapacityPercentage: 0,
+        error: 'ticketId is required'
+      });
+    }
+
+    let ticket = await Ticket.findById(ticketId)
+      .select('like share totalBookings revenue total_cancellation hashtag banking_details sub_events total_capacity ticket_types')
+      .lean();
+
+    let isSubEvent = false;
+
+    if (!ticket) {
+      const parentTicket = await Ticket.findOne({ 'sub_events._id': ticketId });
+      if (parentTicket) {
+        const subEvent = parentTicket.sub_events.find(se => se._id.toString() === ticketId);
+        if (subEvent) {
+          isSubEvent = true;
+          ticket = {
+            like: subEvent.like || 0,
+            share: subEvent.share || 0,
+            totalBookings: subEvent.totalBookings || 0,
+            revenue: subEvent.revenue || 0,
+            total_cancellation: subEvent.total_cancellation || 0,
+            hashtag: subEvent.hashtag || [],
+            banking_details: subEvent.banking_details || [],
+            sub_events: [],
+            total_capacity: subEvent.total_capacity || '',
+            ticket_types: subEvent.ticket_types || []
+          };
+        }
+      }
+    }
+
+    if (!ticket) {
+      return callback(null, {
+        totalLikes: 0,
+        totalShares: 0,
+        totalBookings: 0,
+        totalRevenue: 0,
+        totalCancellations: 0,
+        tagCount: 0,
+        bankDetails: [],
+        subEvents: [],
+        monthlyStats: [],
+        quarterStats: [],
+        ticketTypeStats: [],
+        totalCapacityPercentage: 0,
+        error: 'Ticket not found'
+      });
+    }
+
+    const response = {
+      totalLikes: ticket.like || 0,
+      totalShares: ticket.share || 0,
+      totalBookings: ticket.totalBookings || 0,
+      totalRevenue: ticket.revenue || 0,
+      totalCancellations: ticket.total_cancellation || 0,
+      tagCount: ticket.hashtag?.length || 0,
+      bankDetails: (ticket.banking_details || []).map(bank => ({
+        bank_acc_type: bank.bank_acc_type || '',
+        bank_acc_no: bank.bank_acc_no || '',
+        bank_ifsc: bank.bank_ifsc || '',
+        bank_acc_holder: bank.bank_acc_holder || ''
+      })),
+      subEvents: mapSubEvents(ticket.sub_events || []),
+      monthlyStats: [],
+      quarterStats: [],
+      ticketTypeStats: [],
+      totalCapacityPercentage: 0,
+      error: ''
+    };
+
+    console.log(`✅ [gRPC] GetPreviousEventStats completed for ticket ${ticketId}`);
+
+    callback(null, response);
+
+  } catch (error) {
+    console.error('❌ [gRPC] GetPreviousEventStats error:', error);
+    callback(null, {
+      totalLikes: 0,
+      totalShares: 0,
+      totalBookings: 0,
+      totalRevenue: 0,
+      totalCancellations: 0,
+      tagCount: 0,
+      bankDetails: [],
+      subEvents: [],
+      monthlyStats: [],
+      quarterStats: [],
+      ticketTypeStats: [],
+      totalCapacityPercentage: 0,
+      error: error.message
+    });
+  }
+};
 export const startGrpcServer = (port = 50052) => {
   const server = new grpc.Server();
   server.addService(ticketProto.TicketService.service, {
@@ -608,7 +804,9 @@ export const startGrpcServer = (port = 50052) => {
     GetGroupById: getGroupById,
     UpdateTicketStats: updateTicketStats,
     GetTicketsByIds: getTicketsByIds,
-    GetTicketBookingStats: getTicketBookingStats
+    GetTicketBookingStats: getTicketBookingStats,
+    UpdateTicketCancellation: updateTicketCancellation,
+    GetPreviousEventStats: getPreviousEventStats,
   });
   server.bindAsync(
     `0.0.0.0:${port}`,
