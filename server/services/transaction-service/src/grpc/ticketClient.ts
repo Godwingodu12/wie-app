@@ -15,13 +15,9 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   defaults: true,
   oneofs: true
 });
-
 const ticketProto = grpc.loadPackageDefinition(packageDefinition).ticket as any;
-
 const TICKET_SERVICE_URL = process.env.TICKET_GRPC_URL || 'localhost:50052';
-
 let client: any = null;
-
 const getClient = () => {
   if (!client) {
     client = new ticketProto.TicketService(
@@ -163,6 +159,42 @@ export const getTicketBookingStats = async (ticketId: string): Promise<BookingSt
           totalRevenue: response.totalRevenue || 0,
           totalTicketsSold: response.totalTicketsSold || 0,
         });
+      }
+    });
+  });
+};
+export const updateTicketCancellation = async (
+  ticketId: string,
+  increment: number
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const client = getClient();
+    
+    client.UpdateTicketCancellation(
+      { ticketId, increment },
+      (error: any, response: any) => {
+        if (error) {
+          reject(new Error(`Failed to update cancellation: ${error.message}`));
+        } else if (response.error) {
+          reject(new Error(response.error));
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
+};
+export const getPreviousEventStats = async (ticketId: string): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    const client = getClient();
+    
+    client.GetPreviousEventStats({ ticketId }, (error: any, response: any) => {
+      if (error) {
+        reject(new Error(`Failed to fetch event stats: ${error.message}`));
+      } else if (response.error) {
+        reject(new Error(response.error));
+      } else {
+        resolve(response);
       }
     });
   });
