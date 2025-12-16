@@ -4,6 +4,7 @@ import { prisma } from '../config/db';
 import { SettlementService } from '../services/settlementService';
 import RazorpayService from '../config/razorpay';
 import { getTicketById, getGroupById, updateTicketStats } from '../clients/ticketServiceClient';
+import { updateTicketCancellation } from '../grpc/ticketClient';
 import { getUserById } from '../clients/userServiceClient';
 import { generateQRCode } from '../utils/qrGenerator';
 import { createNotification } from '../utils/notificationHelper';
@@ -745,19 +746,15 @@ export const verifyPayment = async (req: Request, res: Response) => {
 export const getUserBookings = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
-
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
-
     const { status, limit = 50, skip = 0 } = req.query;
-
     const result = await BookingModel.findByUserId(userId, {
       status: status as any,
       limit: parseInt(limit as string),
       skip: parseInt(skip as string),
     });
-
     res.json({
       success: true,
       data: {
@@ -777,21 +774,16 @@ export const getBookingById = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     const { bookingId } = req.params;
-
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
-
     const booking = await BookingModel.findById(bookingId);
-
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
-
     if (booking.userId !== userId) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
-
     res.json({
       success: true,
       data: { booking },
@@ -806,79 +798,114 @@ export const cancelBooking = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     const { bookingId } = req.params;
     const { cancellationReason } = req.body;
-
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
-
     const booking = await BookingModel.findById(bookingId);
-
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
-
     if (booking.userId !== userId) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
-
     if (booking.bookingStatus === 'CANCELLED') {
       return res.status(400).json({
         success: false,
         message: 'Booking is already cancelled',
       });
     }
-    // Cancel booking and increment cancellation count
     const updatedBooking = await BookingModel.cancel(bookingId, cancellationReason);
-    // If payment was completed, initiate refund
-    if (booking.paymentStatus === 'COMPLETED' && booking.razorpayPaymentId) {
-      const ticketAmount = parseFloat(booking.subtotal.toString());
-      const refundAmount = parseFloat(ticketAmount.toFixed(2)); // Ensure 2 decimal places
+    const ticketAmount = parseFloat(booking.subtotal.toString());
+    const isPaidBooking = ticketAmount > 0 && booking.paymentStatus === 'COMPLETED' && booking.razorpayPaymentId;
+    if (isPaidBooking) {
+      const refundAmount = parseFloat(ticketAmount.toFixed(2));
+      
       try {
         const razorpay = RazorpayService.getInstance(
           process.env.RAZORPAY_KEY_ID!,
           process.env.RAZORPAY_KEY_SECRET!
         );
         
-        // Get payment details to fetch UPI/payment info
-        const paymentDetails = await RazorpayService.getPaymentDetails(
-          razorpay,
-          booking.razorpayPaymentId.trim()
-        );
-
-        console.log('💳 Payment Details:', {
-          id: paymentDetails.id,
-          status: paymentDetails.status,
-          method: paymentDetails.method,
-          amount: parseFloat((paymentDetails.amount / 100).toFixed(2)),
-          captured: paymentDetails.captured,
-          vpa: paymentDetails.vpa || paymentDetails.upi?.vpa,
-        });
-
-        if (paymentDetails.status !== 'captured' || !paymentDetails.captured) {
-          throw new Error(`Payment cannot be refunded. Status: ${paymentDetails.status}`);
+        if (!booking.razorpayPaymentId) {
+          throw new Error('No payment ID found for this booking');
         }
-
-        // Initiate refund with payment method info
+    
+        // ✅ Get payment details first
+        console.log(`🔍 Fetching payment details for: ${booking.razorpayPaymentId.trim()}`);
+        
+        let paymentDetails;
+        try {
+          paymentDetails = await RazorpayService.getPaymentDetails(
+            razorpay,
+            booking.razorpayPaymentId.trim()
+          );
+          
+          console.log(`📋 Payment details:`, {
+            id: paymentDetails.id,
+            status: paymentDetails.status,
+            captured: paymentDetails.captured,
+            amount: paymentDetails.amount,
+            method: paymentDetails.method
+          });
+          
+        } catch (paymentErr: any) {
+          console.error('❌ Failed to fetch payment details:', paymentErr.message);
+          throw new Error(`Cannot verify payment status: ${paymentErr.message}`);
+        }
+    
+        // ✅ Verify payment is captured
+        if (!paymentDetails) {
+          throw new Error('Payment details not found');
+        }
+    
+        if (paymentDetails.status !== 'captured') {
+          throw new Error(`Payment not captured. Current status: ${paymentDetails.status}`);
+        }
+    
+        if (!paymentDetails.captured) {
+          throw new Error('Payment capture flag is false');
+        }
+    
+        // ✅ Calculate refund amount (in rupees, not paise)
+        const paymentAmountInRupees = parseFloat((paymentDetails.amount / 100).toFixed(2));
+        
+        console.log(`💰 Refund calculation:`, {
+          ticketAmount: ticketAmount,
+          platformFee: parseFloat(booking.platformFee.toString()),
+          totalPaid: parseFloat(booking.totalAmount.toString()),
+          paymentAmountFromRazorpay: paymentAmountInRupees,
+          refundAmount: refundAmount
+        });
+    
+        // ✅ Verify refund amount doesn't exceed payment
+        if (refundAmount > paymentAmountInRupees) {
+          throw new Error(`Refund amount (₹${refundAmount}) exceeds payment amount (₹${paymentAmountInRupees})`);
+        }
+    
+        if (refundAmount <= 0) {
+          throw new Error('Invalid refund amount: must be greater than 0');
+        }
+    
+        // ✅ Initiate refund with minimal notes
+        console.log(`🔄 Initiating refund of ₹${refundAmount} for payment ${booking.razorpayPaymentId.trim()}`);
+        
         const refund = await RazorpayService.initiateRefund(
           razorpay,
           booking.razorpayPaymentId.trim(),
           refundAmount,
-          { 
+          {
             booking_id: booking.bookingId,
-            reason: (cancellationReason || 'Booking cancelled').substring(0, 512),
-            ticket_amount: parseFloat(ticketAmount.toFixed(2)),
-            platform_fee_retained: parseFloat(booking.platformFee.toString()),
+            reason: 'Booking cancelled'
           }
         );
-
-        console.log('✅ Refund initiated successfully:', {
-          refundId: refund.id,
+    
+        console.log(`✅ Refund created:`, {
+          id: refund.id,
           status: refund.status,
-          amount: parseFloat((refund.amount / 100).toFixed(2)),
-          paymentMethod: paymentDetails.method,
-          vpa: paymentDetails.vpa || paymentDetails.upi?.vpa,
+          amount: refund.amount,
+          speed: refund.speed
         });
-
+    
         // Update booking with refund info
         await BookingModel.update(bookingId, {
           refundAmount: refundAmount,
@@ -886,8 +913,8 @@ export const cancelBooking = async (req: Request, res: Response) => {
           refundId: refund.id,
           refundInitiatedAt: new Date(),
         });
-
-        // Log refund transaction with payment method details
+    
+        // Log refund transaction
         await PaymentTransactionModel.create({
           bookingId: booking.id,
           razorpayOrderId: booking.razorpayOrderId || `refund_${booking.razorpayPaymentId}`,
@@ -902,7 +929,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
             refund: {
               id: refund.id,
               status: refund.status,
-              amount: parseFloat((refund.amount / 100).toFixed(2)), // Convert to rupees with 2 decimals
+              amount: parseFloat((refund.amount / 100).toFixed(2)),
               amount_in_paise: refund.amount,
               speed: refund.speed,
             },
@@ -910,16 +937,16 @@ export const cancelBooking = async (req: Request, res: Response) => {
               id: paymentDetails.id,
               method: paymentDetails.method,
               vpa: paymentDetails.vpa || paymentDetails.upi?.vpa,
-              amount: parseFloat((paymentDetails.amount / 100).toFixed(2)), // Convert to rupees with 2 decimals
+              amount: paymentAmountInRupees,
               amount_in_paise: paymentDetails.amount,
             },
             refundInitiatedAt: new Date().toISOString(),
-            ticketAmount: parseFloat(ticketAmount.toFixed(2)),
+            ticketAmount: ticketAmount,
             platformFeeRetained: parseFloat(booking.platformFee.toString()),
             totalAmountPaid: parseFloat(booking.totalAmount.toString()),
           } as any,
         });
-
+    
         await createNotification({
           userId,
           type: 'refund_initiated',
@@ -928,42 +955,56 @@ export const cancelBooking = async (req: Request, res: Response) => {
           bookingId: String(booking.id),
           ticketId: booking.ticketId,
         });
-
+    
+        console.log(`✅ Refund initiated successfully: ₹${refundAmount} for booking ${booking.bookingId}`);
+    
       } catch (refundError: any) {
         console.error('❌ Refund initiation failed:', {
           error: refundError.message,
           bookingId: booking.bookingId,
           amount: refundAmount,
+          paymentId: booking.razorpayPaymentId,
+          paymentStatus: booking.paymentStatus
         });
-        
+    
+        // Mark refund as failed
         await BookingModel.update(bookingId, {
           refundStatus: 'FAILED',
           refundAmount: refundAmount,
         });
-        
+    
+        // Notify user about manual refund
         await createNotification({
           userId,
           type: 'refund_failed',
           title: 'Refund Processing',
-          message: `Your booking has been cancelled. Refund of ₹${refundAmount.toFixed(2)} will be processed manually within 5-7 business days.`,
+          message: `Your booking has been cancelled. Refund of ₹${refundAmount.toFixed(2)} will be processed manually within 5-7 business days. Please contact support if you have questions.`,
           bookingId: String(booking.id),
           ticketId: booking.ticketId,
         });
       }
+    } else {      
+      await createNotification({
+        userId,
+        type: 'booking_cancelled',
+        title: 'Registration Cancelled',
+        message: `Your registration for ${(booking.eventDetails as any).eventName} has been cancelled successfully`,
+        bookingId: String(booking.id),
+        ticketId: booking.ticketId,
+      });
     }
-    // Update ticket stats (always update, regardless of refund status)
     try {
-      // Update ticket stats (always update, regardless of refund status)
       await safeUpdateTicketStats(booking.ticketId, 'totalBookings', -1);
       await safeUpdateTicketStats(booking.ticketId, 'totalTicketsSold', -booking.quantity);
       const ticketRevenue = parseFloat(booking.subtotal.toString());
-      await safeUpdateTicketStats(booking.ticketId, 'revenue', -ticketRevenue);
+      if (ticketRevenue > 0) {
+        await safeUpdateTicketStats(booking.ticketId, 'revenue', -ticketRevenue);
+      }
+      // ✅ Update cancellation count
+      await updateTicketCancellation(booking.ticketId, 1);
     } catch (statsError) {
       console.error('❌ Error updating ticket stats:', statsError);
-      // Don't fail the cancellation if stats update fails
     }
-
-    // Get user's cancellation stats
     let cancellationStats;
     try {
       cancellationStats = await BookingModel.getUserCancellationStats(userId);
@@ -972,22 +1013,13 @@ export const cancelBooking = async (req: Request, res: Response) => {
       cancellationStats = { totalCancellations: 0, totalCancelledTickets: 0 };
     }
 
-    // Send cancellation notification
-    await createNotification({
-      userId,
-      type: 'booking_cancelled',
-      title: 'Booking Cancelled',
-      message: `Your booking for ${(booking.eventDetails as any).eventName} has been cancelled successfully`,
-      bookingId: String(booking.id),
-      ticketId: booking.ticketId,
-    });
     res.json({
       success: true,
       message: 'Booking cancelled successfully',
       data: { 
         booking: updatedBooking,
         cancellationStats,
-        refundStatus: booking.paymentStatus === 'COMPLETED' ? 
+        refundStatus: isPaidBooking ? 
           (updatedBooking.refundStatus || 'PROCESSING') : 
           'NOT_APPLICABLE',
       },
@@ -1000,7 +1032,6 @@ export const cancelBooking = async (req: Request, res: Response) => {
     });
   }
 };
-// Get user's cancellation statistics
 export const getUserCancellationStats = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -1028,7 +1059,6 @@ export const trackRefund = async (req: Request, res: Response) => {
     if (!result.booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
-
     if (result.booking.userId !== userId) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
@@ -1041,5 +1071,84 @@ export const trackRefund = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+export const getDailyBookingStats = async (req: Request, res: Response) => {
+  try {
+    const { ticketId } = req.params;
+
+    if (!ticketId) {
+      return res.status(400).json({
+        success: false,
+        message: 'ticketId is required',
+      });
+    }
+
+    const dailyStats = await BookingModel.getDailyBookingStats(ticketId);
+
+    res.json({
+      success: true,
+      data: dailyStats,
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching daily booking stats:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch daily booking stats',
+    });
+  }
+};
+export const getMonthlyBookingStats = async (req: Request, res: Response) => {
+  try {
+    const { ticketId } = req.params;
+    const { startDate, endDate } = req.query;
+    if (!ticketId) {
+      return res.status(400).json({
+        success: false,
+        message: 'ticketId is required',
+      });
+    }
+
+    const stats = await BookingModel.getMonthlyBookingStats(
+      ticketId,
+      startDate as string,
+      endDate as string
+    );
+
+    res.json({
+      success: true,
+      data: stats,
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching monthly booking stats:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch monthly booking stats',
+    });
+  }
+};
+export const getTicketTypeStats = async (req: Request, res: Response) => {
+  try {
+    const { ticketId } = req.params;
+
+    if (!ticketId) {
+      return res.status(400).json({
+        success: false,
+        message: 'ticketId is required',
+      });
+    }
+
+    const typeStats = await BookingModel.getTicketTypeStats(ticketId);
+
+    res.json({
+      success: true,
+      data: typeStats,
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching ticket type stats:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch ticket type stats',
+    });
   }
 };
