@@ -23,7 +23,7 @@ export const toggleLike = async (req: Request, res: Response) => {
       // Update ticket stats
       await updateTicketStats(ticketId, 'like', -1);
 
-      return res.json({
+      return res.status(200).json({
         success: true,
         liked: false,
         message: 'Event unliked',
@@ -40,7 +40,7 @@ export const toggleLike = async (req: Request, res: Response) => {
     // Update ticket stats
     await updateTicketStats(ticketId, 'like', 1);
 
-    res.json({
+    res.status(200).json({
       success: true,
       liked: true,
       message: 'Event liked',
@@ -78,7 +78,7 @@ export const shareEvent = async (req: Request, res: Response) => {
     await updateTicketStats(ticketId, 'share', 1);
     const shareCount = await InteractionModel.countByType(ticketId, 'SHARE');
 
-    res.json({
+    res.status(200).json({
       success: true,
       message: 'Event shared successfully',
       data: {
@@ -90,7 +90,6 @@ export const shareEvent = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-// Record View
 export const recordView = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -99,16 +98,13 @@ export const recordView = async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
-
     // Check if already viewed in last 24 hours
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-
     const interactions = await InteractionModel.findByUserId(userId, {
       type: 'VIEW',
       limit: 100,
     });
-
     const recentView = interactions.interactions.find(
       (i) =>
         i.ticketId === ticketId &&
@@ -123,10 +119,7 @@ export const recordView = async (req: Request, res: Response) => {
           ticketId,
           interactionType: 'VIEW',
         });
-        // Update ticket stats only when a new view is recorded
-        await updateTicketStats(ticketId, 'totalBookings', 1);
       } catch (error: any) {
-        // If duplicate key error (P2002), it means view was just created by another request
         if (error.code === 'P2002') {
           console.log(`ℹ️ View already exists for user ${userId} and ticket ${ticketId}`);
         } else {
@@ -134,8 +127,7 @@ export const recordView = async (req: Request, res: Response) => {
         }
       }
     }
-
-    res.json({
+    res.status(200).json({
       success: true,
       message: 'View recorded',
     });
@@ -161,21 +153,19 @@ export const toggleSave = async (req: Request, res: Response) => {
       // Unsave
       await InteractionModel.delete(existing.id);
 
-      return res.json({
+      return res.status(200).json({
         success: true,
         saved: false,
         message: 'Event removed from saved',
       });
     }
-
     // Save
     await InteractionModel.create({
       userId,
       ticketId,
       interactionType: 'SAVE',
     });
-
-    res.json({
+    res.status(200).json({
       success: true,
       saved: true,
       message: 'Event saved',
@@ -189,42 +179,36 @@ export const getEventStats = async (req: Request, res: Response) => {
   try {
     const { ticketId } = req.params;
     const userId = req.user?.id;
-
-    console.log(`🔵 [Transaction] Fetching event stats for ticket: ${ticketId}`);
-
     const interactionStats = await InteractionModel.getTicketStatistics(ticketId);
-
-    // ✅ Get booking stats via gRPC instead of RabbitMQ
     let bookingStats = {
       totalBookings: 0,
       totalRevenue: 0,
       totalTicketsSold: 0,
     };
-
     try {
-      console.log(`🔵 [Transaction] Fetching booking stats via gRPC...`);
       bookingStats = await getTicketBookingStats(ticketId);
-      console.log(`✅ [Transaction] Booking stats fetched:`, bookingStats);
     } catch (error: any) {
       console.warn('⚠️ [Transaction] Could not fetch booking stats:', error.message);
-      // Continue with zero stats
     }
-
-    res.json({
+    // ✅ FIXED: Normalize the stats to ensure both singular and plural forms
+    const normalizedStats = {
+      like: interactionStats.LIKE || 0,
+      likes: interactionStats.LIKE || 0,
+      share: interactionStats.SHARE || 0,
+      shares: interactionStats.SHARE || 0,
+      views: interactionStats.VIEW || 0,
+      view: interactionStats.VIEW || 0,
+      saves: interactionStats.SAVE || 0,
+      save: interactionStats.SAVE || 0,
+      feedback: interactionStats.FEEDBACK || 0,
+      totalBookings: bookingStats.totalBookings || 0,
+      totalRevenue: bookingStats.totalRevenue || 0,
+      totalTicketsSold: bookingStats.totalTicketsSold || 0,
+    };
+    res.status(200).json({
       success: true,
       data: {
-        stats: {
-          like: interactionStats.LIKE || 0,
-          likes: interactionStats.LIKE || 0,
-          share: interactionStats.SHARE || 0,
-          shares: interactionStats.SHARE || 0,
-          views: interactionStats.VIEW || 0,
-          view: interactionStats.VIEW || 0,
-          saves: interactionStats.SAVE || 0,
-          save: interactionStats.SAVE || 0,
-          feedback: interactionStats.FEEDBACK || 0,
-          ...bookingStats,
-        },
+        stats: normalizedStats,
         userInteractions: {
           liked: userId
             ? await InteractionModel.hasUserInteracted(userId, ticketId, 'LIKE')
@@ -259,7 +243,7 @@ export const getUserLikedEvents = async (req: Request, res: Response) => {
       skip: parseInt(skip as string),
     });
 
-    res.json({
+    res.status(200).json({
       success: true,
       data: {
         ticketIds,
@@ -288,7 +272,7 @@ export const getUserSavedEvents = async (req: Request, res: Response) => {
       skip: parseInt(skip as string),
     });
 
-    res.json({
+    res.status(200).json({
       success: true,
       data: {
         ticketIds,
@@ -347,7 +331,7 @@ export const submitFeedback = async (req: Request, res: Response) => {
         updatedAt: new Date().toISOString(),
       });
 
-      return res.json({
+      return res.status(200).json({
         success: true,
         message: 'Feedback updated successfully',
       });
@@ -363,8 +347,7 @@ export const submitFeedback = async (req: Request, res: Response) => {
         comment,
       },
     });
-
-    res.json({
+    res.status(200).json({
       success: true,
       message: 'Feedback submitted successfully',
     });
