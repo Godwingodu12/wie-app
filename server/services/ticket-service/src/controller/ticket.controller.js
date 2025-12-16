@@ -2304,3 +2304,309 @@ export const getAddOnEventLiveView = async (req, res) => {
     });
   }
 };
+export const getPreviousEventStatistics = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+
+    const ticket = await Ticket.findById(ticketId).lean();
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ticket not found'
+      });
+    }
+
+    // This would require aggregating booking data by date
+    // For now, returning mock structure - implement with actual booking aggregation
+    const monthlyStats = [
+      { month: 'JAN', bookings: 0, earnings: 0 },
+      { month: 'FEB', bookings: 0, earnings: 0 },
+      // ... add more months
+    ];
+
+    const quarterStats = [
+      { 
+        period: 'January - August', 
+        bookings: 0, 
+        earnings: 0,
+        percentage: 0
+      },
+      // ... add more quarters
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        monthlyStats,
+        quarterStats
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching event statistics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch statistics',
+      error: error.message
+    });
+  }
+};
+const TRANSACTION_SERVICE_URL = process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5002';
+// Helper to fetch booking stats from transaction service
+async function fetchBookingStats(ticketId, endpoint) {
+  try {
+    const response = await axios.get(`${TRANSACTION_SERVICE_URL}/api/bookings/stats/${endpoint}/${ticketId}`);
+    return response.data.data;
+  } catch (error) {
+    console.error(`Error fetching ${endpoint} stats:`, error.message);
+    return null;
+  }
+}
+export const getPreviousEventView = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+
+    const ticket = await Ticket.findById(ticketId)
+      .select('event_name event_banner event_logo event_images like share total_cancellation hashtag banking_details sub_events total_capacity ticket_types totalBookings totalTicketsSold revenue event_dates groupId')
+      .lean();
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ticket not found'
+      });
+    }
+
+    // Calculate tag count
+    const tagCount = ticket.hashtag ? ticket.hashtag.length : 0;
+
+    // Calculate total capacity percentage
+    const totalCapacity = parseInt(ticket.total_capacity) || 0;
+    const totalCapacityPercentage = totalCapacity > 0 
+      ? Math.round((ticket.totalTicketsSold / totalCapacity) * 100) 
+      : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        eventName: ticket.event_name,
+        eventBanner: ticket.event_banner,
+        eventLogo: ticket.event_logo,
+        eventImages: ticket.event_images,
+        totalLikes: ticket.like || 0,
+        totalShares: ticket.share || 0,
+        totalBookings: ticket.totalBookings || 0,
+        totalRevenue: ticket.revenue || 0,
+        totalCancellations: ticket.total_cancellation || 0,
+        tagCount,
+        bankDetails: ticket.banking_details || [],
+        subEvents: ticket.sub_events || [],
+        totalCapacityPercentage,
+        eventDates: ticket.event_dates || [],
+        groupId: ticket.groupId
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching previous event view:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch event details',
+      error: error.message
+    });
+  }
+};
+// Helper function to generate quarterly stats
+function generateQuarterlyStats(monthlyStats, startDate, endDate) {
+  if (!monthlyStats || monthlyStats.length === 0) {
+    return [];
+  }
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  // Group months into quarters based on event duration
+  const quarters = [];
+  let currentQuarter = {
+    period: '',
+    months: [],
+    bookings: 0,
+    earnings: 0
+  };
+
+  monthlyStats.forEach((month, index) => {
+    currentQuarter.months.push(month.month);
+    currentQuarter.bookings += month.bookings;
+    currentQuarter.earnings += month.revenue;
+
+    // Create quarter every 3 months or at the end
+    if ((index + 1) % 3 === 0 || index === monthlyStats.length - 1) {
+      currentQuarter.period = `${currentQuarter.months[0]} - ${currentQuarter.months[currentQuarter.months.length - 1]}`;
+      
+      // Calculate percentage based on total tickets
+      const totalBookings = monthlyStats.reduce((sum, m) => sum + m.bookings, 0);
+      currentQuarter.percentage = totalBookings > 0 
+        ? Math.round((currentQuarter.bookings / totalBookings) * 100) 
+        : 0;
+
+      quarters.push({
+        period: currentQuarter.period,
+        bookings: currentQuarter.bookings.toString(),
+        earnings: currentQuarter.earnings.toFixed(2),
+        percentage: currentQuarter.percentage
+      });
+
+      // Reset for next quarter
+      currentQuarter = {
+        period: '',
+        months: [],
+        bookings: 0,
+        earnings: 0
+      };
+    }
+  });
+  return quarters;
+}
+export const getPreviousEventMonthlyStats = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+
+    const ticket = await Ticket.findById(ticketId)
+      .select('event_dates total_capacity ticket_types')
+      .lean();
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ticket not found'
+      });
+    }
+
+    // Get date range from event
+    const startDate = ticket.event_dates?.[0]?.start_date;
+    const endDate = ticket.event_dates?.[ticket.event_dates.length - 1]?.end_date || startDate;
+
+    if (!startDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Event dates not found'
+      });
+    }
+
+    // Fetch monthly stats from transaction service
+    const monthlyStats = await fetchBookingStats(ticketId, `monthly?startDate=${startDate}&endDate=${endDate}`);
+
+    // Calculate quarterly stats based on event dates
+    const quarters = generateQuarterlyStats(monthlyStats || [], startDate, endDate);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        monthlyStats: monthlyStats || [],
+        quarterStats: quarters
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching monthly stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch statistics',
+      error: error.message
+    });
+  }
+};
+export const getPreviousEventCapacityStats = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+
+    const ticket = await Ticket.findById(ticketId)
+      .select('total_capacity ticket_types totalTicketsSold sub_events')
+      .lean();
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ticket not found'
+      });
+    }
+
+    // Fetch ticket type stats from transaction service
+    const typeStats = await fetchBookingStats(ticketId, 'ticket-types');
+
+    // Calculate ticket type statistics with capacity
+    const ticketTypeStats = ticket.ticket_types.map(type => {
+      const soldData = typeStats?.find(s => s.ticketType === type.ticket_type) || { soldCount: 0, revenue: 0 };
+      const maxCapacity = type.max_capacity || 0;
+      const percentage = maxCapacity > 0 ? Math.round((soldData.soldCount / maxCapacity) * 100) : 0;
+
+      return {
+        ticketType: type.ticket_type,
+        soldCount: soldData.soldCount,
+        maxCapacity,
+        percentage,
+        revenue: soldData.revenue
+      };
+    });
+
+    // Calculate overall capacity
+    const totalCapacity = parseInt(ticket.total_capacity) || 0;
+    const totalCapacityPercentage = totalCapacity > 0 
+      ? Math.round((ticket.totalTicketsSold / totalCapacity) * 100) 
+      : 0;
+
+    // Process sub-events if they exist
+    const subEventStats = [];
+    if (ticket.sub_events && ticket.sub_events.length > 0) {
+      for (const subEvent of ticket.sub_events) {
+        const subTypeStats = await fetchBookingStats(subEvent._id, 'ticket-types');
+        
+        const subTicketTypes = subEvent.ticket_types?.map(type => {
+          const soldData = subTypeStats?.find(s => s.ticketType === type.ticket_type) || { soldCount: 0, revenue: 0 };
+          const maxCapacity = type.max_capacity || 0;
+          const percentage = maxCapacity > 0 ? Math.round((soldData.soldCount / maxCapacity) * 100) : 0;
+
+          return {
+            ticketType: type.ticket_type,
+            soldCount: soldData.soldCount,
+            maxCapacity,
+            percentage,
+            revenue: soldData.revenue
+          };
+        }) || [];
+
+        const subTotalCapacity = parseInt(subEvent.total_capacity) || 0;
+        const subTotalSold = subEvent.totalTicketsSold || 0;
+        const subPercentage = subTotalCapacity > 0 
+          ? Math.round((subTotalSold / subTotalCapacity) * 100) 
+          : 0;
+
+        subEventStats.push({
+          eventId: subEvent._id,
+          eventName: subEvent.event_name,
+          totalCapacity: subTotalCapacity,
+          totalSold: subTotalSold,
+          percentage: subPercentage,
+          ticketTypes: subTicketTypes
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        mainEvent: {
+          totalCapacity,
+          totalSold: ticket.totalTicketsSold || 0,
+          percentage: totalCapacityPercentage,
+          ticketTypes: ticketTypeStats
+        },
+        subEvents: subEventStats
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching capacity stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch capacity statistics',
+      error: error.message
+    });
+  }
+};
