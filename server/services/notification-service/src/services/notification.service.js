@@ -1,14 +1,9 @@
 import Notification from '../models/notification.model.js';
 import { emitToUser } from '../socket/socket.js';
-
-// Create notification handler (called by RabbitMQ)
 export const createNotificationHandler = async (notificationData) => {
   try {
     const notification = new Notification(notificationData);
-    await notification.save();
-    
-    console.log('📢 Notification created, emitting to user:', notification.userId);
-    
+    await notification.save();    
     // Emit real-time notification to the user via Socket.IO
     const emitted = emitToUser(notification.userId.toString(), 'new-notification', {
       notification: notification.toObject(),
