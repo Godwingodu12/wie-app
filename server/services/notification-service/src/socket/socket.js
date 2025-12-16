@@ -3,16 +3,36 @@ import jwt from 'jsonwebtoken';
 let io;
 const userSockets = new Map(); 
 export const initializeSocket = (server) => {
+  const allowedOrigins = [
+    ...(process.env.CORS_ORIGIN 
+      ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()) 
+      : []),
+    ...(process.env.USER_CORS_ORIGIN
+      ? process.env.USER_CORS_ORIGIN.split(',').map(origin => origin.trim()) 
+      : [])
+  ].filter(Boolean);
+
   io = new Server(server, {
     cors: {
-      origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+      origin: (origin, callback) => {
+        // Allow requests with no origin
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+          callback(null, true);
+        } else {
+          console.warn(`⚠️ Socket CORS blocked origin: ${origin}`);
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true,
       methods: ['GET', 'POST']
     },
     pingTimeout: 60000,
     pingInterval: 25000,
     transports: ['websocket', 'polling'],
-    allowEIO3: true
+    allowEIO3: true,
+    path: '/socket.io/'
   });
 
   // Authentication middleware
@@ -113,7 +133,6 @@ export const emitToUser = (userId, event, data) => {
   const socketId = userSockets.get(userId);
   if (socketId && io) {
     io.to(socketId).emit(event, data);
-    console.log(`✅ Emitted ${event} to user ${userId}`);
     return true;
   }
   console.warn(`⚠️ Cannot emit ${event} - user ${userId} not connected`);
@@ -122,7 +141,6 @@ export const emitToUser = (userId, event, data) => {
 export const emitToChat = (chatId, event, data) => {
   if (io) {
     io.to(chatId).emit(event, data);
-    console.log(`✅ Emitted ${event} to chat ${chatId}`);
     return true;
   }
   console.warn(`⚠️ Cannot emit ${event} - Socket.IO not initialized`);
