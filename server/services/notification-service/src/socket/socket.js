@@ -55,8 +55,6 @@ export const initializeSocket = (server) => {
         console.error('❌ No userId found in decoded token:', decoded);
         return next(new Error('Authentication error: Invalid token format'));
       }
-      
-      console.log('✅ Socket authenticated for user:', socket.userId);
       next();
     } catch (error) {
       console.error('❌ Socket authentication failed:', error.message);
@@ -64,7 +62,6 @@ export const initializeSocket = (server) => {
     }
   });
   io.on('connection', (socket) => {
-    console.log('🔌 User connected:', socket.userId, '| Socket ID:', socket.id);
     // Store user's socket connection (handle multiple devices)
     const existingSocketId = userSockets.get(socket.userId);
     if (existingSocketId && existingSocketId !== socket.id) {
@@ -75,22 +72,18 @@ export const initializeSocket = (server) => {
     socket.broadcast.emit('user-online', { userId: socket.userId });
     // Join user's personal room
     socket.join(socket.userId);
-    console.log(`📥 User ${socket.userId} joined personal room`);
     // Handle join chat room
     socket.on('join-chat', (chatId) => {
-      console.log(`📥 User ${socket.userId} joining chat: ${chatId}`);
       socket.join(chatId);
       socket.emit('joined-chat', { chatId }); // Confirm to client
     });
     // Handle leave chat room
     socket.on('leave-chat', (chatId) => {
-      console.log(`📤 User ${socket.userId} leaving chat: ${chatId}`);
       socket.leave(chatId);
       socket.emit('left-chat', { chatId }); // Confirm to client
     });
     // Handle typing indicator
     socket.on('typing', ({ chatId, isTyping }) => {
-      console.log(`⌨️ User ${socket.userId} typing in chat ${chatId}: ${isTyping}`);
       socket.to(chatId).emit('user-typing', {
         userId: socket.userId,
         chatId,
@@ -107,7 +100,6 @@ export const initializeSocket = (server) => {
     });
     // Handle disconnect
     socket.on('disconnect', (reason) => {
-      console.log('🔌 User disconnected:', socket.userId, '| Reason:', reason);
       // Only remove if this is the current socket for this user
       if (userSockets.get(socket.userId) === socket.id) {
         userSockets.delete(socket.userId);
@@ -120,7 +112,6 @@ export const initializeSocket = (server) => {
       console.error('❌ Socket error for user', socket.userId, ':', error);
     });
   });
-  console.log('✅ Socket.IO initialized');
   return io;
 };
 export const getIO = () => {
