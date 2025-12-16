@@ -5,11 +5,13 @@ package ticket;
 service TicketService {
   rpc GetAllLiveEvents(GetAllLiveEventsRequest) returns (GetAllLiveEventsResponse);
   rpc GetAllGroups(GetAllGroupsRequest) returns (GetAllGroupsResponse);
-  rpc GetTicketById(GetTicketByIdRequest) returns (TicketResponse);  // ✅ Fixed
+  rpc GetTicketById(GetTicketByIdRequest) returns (TicketResponse);
   rpc GetGroupById(GetGroupByIdRequest) returns (GroupResponse);
   rpc UpdateTicketStats(UpdateTicketStatsRequest) returns (UpdateTicketStatsResponse);
   rpc GetTicketsByIds(GetTicketsByIdsRequest) returns (GetTicketsByIdsResponse);
   rpc GetTicketBookingStats(GetBookingStatsRequest) returns (BookingStatsResponse);
+  rpc UpdateTicketCancellation(UpdateCancellationRequest) returns (UpdateCancellationResponse);
+  rpc GetPreviousEventStats(GetPreviousEventStatsRequest) returns (PreviousEventStatsResponse);
 }
 
 message GetAllLiveEventsRequest {}
@@ -31,8 +33,6 @@ message GetAllGroupsResponse {
 message GetTicketByIdRequest {
   string ticketId = 1;
 }
-
-// ✅ Removed duplicate GetTicketByIdResponse - use TicketResponse instead
 
 message GetGroupByIdRequest {
   string groupId = 1;
@@ -70,7 +70,6 @@ message GetTicketsByIdsResponse {
   string error = 4;
 }
 
-// ✅ NEW: Booking stats messages
 message GetBookingStatsRequest {
   string ticketId = 1;
 }
@@ -80,6 +79,59 @@ message BookingStatsResponse {
   double totalRevenue = 2;
   int32 totalTicketsSold = 3;
   string error = 4;
+}
+
+message UpdateCancellationRequest {
+  string ticketId = 1;
+  int32 increment = 2;
+}
+
+message UpdateCancellationResponse {
+  bool success = 1;
+  string ticketId = 2;
+  int32 newValue = 3;
+  string error = 4;
+}
+
+message GetPreviousEventStatsRequest {
+  string ticketId = 1;
+}
+
+message MonthlyStats {
+  string month = 1;
+  int32 bookings = 2;
+  double earnings = 3;
+}
+
+message QuarterStats {
+  string period = 1;
+  int32 bookings = 2;
+  double earnings = 3;
+  double percentage = 4;
+}
+
+message TicketTypeStats {
+  string ticketType = 1;
+  int32 soldCount = 2;
+  int32 maxCapacity = 3;
+  double percentage = 4;
+  double revenue = 5;
+}
+
+message PreviousEventStatsResponse {
+  int32 totalLikes = 1;
+  int32 totalShares = 2;
+  int32 totalBookings = 3;
+  double totalRevenue = 4;
+  int32 totalCancellations = 5;
+  int32 tagCount = 6;
+  repeated BankingDetails bankDetails = 7;
+  repeated SubEvent subEvents = 8;
+  repeated MonthlyStats monthlyStats = 9;
+  repeated QuarterStats quarterStats = 10;
+  repeated TicketTypeStats ticketTypeStats = 11;
+  double totalCapacityPercentage = 12;
+  string error = 13;
 }
 
 message TicketResponse {
@@ -94,7 +146,7 @@ message Guest {
 }
 
 message TicketType {
-  string _id = 1;  // ✅ Added _id field
+  string _id = 1;
   string ticket_type = 2;
   double ticket_price = 3;
   string ticket_photo = 4;
@@ -242,13 +294,14 @@ message SubEvent {
   int32 totalBookings = 45;
   int32 totalTicketsSold = 46;
   double revenue = 47;
-  string createdAt = 48;
-  string updatedAt = 49;
+  int32 total_cancellation = 48;
+  string createdAt = 49;
+  string updatedAt = 50;
 }
 
 message TicketData {
   string id = 1;
-  string _id = 2;  // ✅ Added _id field
+  string _id = 2;
   string event_name = 3;
   string event_category = 4;
   string event_subcategory = 5;
@@ -294,29 +347,29 @@ message TicketData {
   int32 totalBookings = 45;
   int32 totalTicketsSold = 46;
   double revenue = 47;
-  bool event_ticket_offer = 48;
-  repeated OfferTicket offerTickets = 49;
-  repeated SubEvent sub_events = 50;
-  string groupId = 51;
-  string userId = 52;
-  string event_status = 53;
-  string updated_by = 54;
-  string updated_at = 55;
-  FormProgress form_progress = 56;
-  bool terms_accepted = 57;
-  string terms_accepted_at = 58;
-  string company_terms_version = 59;
-  string createdAt = 60;
-  string updatedAt = 61;
-  // ✅ Added missing Razorpay fields
-  bool razorpayEnabled = 62;
-  string razorpayKeyId = 63;
-  string razorpayKeySecret = 64;
+  int32 total_cancellation = 48;
+  bool event_ticket_offer = 49;
+  repeated OfferTicket offerTickets = 50;
+  repeated SubEvent sub_events = 51;
+  string groupId = 52;
+  string userId = 53;
+  string event_status = 54;
+  string updated_by = 55;
+  string updated_at = 56;
+  FormProgress form_progress = 57;
+  bool terms_accepted = 58;
+  string terms_accepted_at = 59;
+  string company_terms_version = 60;
+  string createdAt = 61;
+  string updatedAt = 62;
+  bool razorpayEnabled = 63;
+  string razorpayKeyId = 64;
+  string razorpayKeySecret = 65;
 }
 
 message GroupData {
   string id = 1;
-  string _id = 2;  // ✅ Added _id field
+  string _id = 2;
   string name = 3;
   string grp_type = 4;
   string organisation_type = 5;
