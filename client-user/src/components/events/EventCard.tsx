@@ -43,20 +43,41 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
     totalBookings: stats?.totalBookings ?? 0,
     ...stats,
   });
-  
   const fetchStats = useCallback(async () => {
     try {
       const response = await getEventStats(event._id);
-      if (response.success) {
-        const normalized = normalizeStats(response.data.stats);
+      if (response.success && response.data) {
+        const stats = response.data.stats;
+        const normalized = {
+          like: stats.like ?? stats.likes ?? 0,
+          likes: stats.likes ?? stats.like ?? 0,
+          share: stats.share ?? stats.shares ?? 0,
+          shares: stats.shares ?? stats.share ?? 0,
+          totalBookings: stats.totalBookings ?? 0,
+          totalRevenue: stats.totalRevenue ?? 0,
+          totalTicketsSold: stats.totalTicketsSold ?? 0,
+          views: stats.views ?? stats.view ?? 0,
+          saves: stats.saves ?? stats.save ?? 0,
+        };        
         setEventStats(normalized);
         setIsLiked(response.data?.userInteractions?.liked ?? false);
       }
     } catch (error) {
       console.error('Error fetching stats:', error);
+      // Set default stats on error
+      setEventStats({
+        like: 0,
+        likes: 0,
+        share: 0,
+        shares: 0,
+        totalBookings: 0,
+        totalRevenue: 0,
+        totalTicketsSold: 0,
+        views: 0,
+        saves: 0,
+      });
     }
   }, [event._id]);
-  
   const handleLikeClick = async (e: any) => {
     e.stopPropagation();
     
@@ -68,53 +89,44 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
     if (isLoading) return;
     
     setIsLoading(true);
+    
+    // Save current state for rollback
+    const prevLiked = isLiked;
+    const prevStats = eventStats;
+    
     try {
       // Optimistically update UI
-      const prevLiked = isLiked;
       setIsLiked(!prevLiked);
       
-      setEventStats((prevStats: any) => {
-        if (!prevStats) return prevStats;
-        const normalized = normalizeStats(prevStats);
-        const currentLikes = normalized.like || normalized.likes || 0;
+      setEventStats((prev: any) => {
+        if (!prev) return prev;
         const delta = !prevLiked ? 1 : -1;
-        const newLikes = Math.max(0, currentLikes + delta);
+        const newLikes = Math.max(0, (prev.like || 0) + delta);
   
         return {
-          ...normalized,
+          ...prev,
           like: newLikes,
           likes: newLikes,
         };
       });
       
       // Call API to update database
-      await toggleLike(event._id);
+      const response = await toggleLike(event._id);      
+      // ✅ FIXED: Wait a bit for database to sync, then refresh stats
+      setTimeout(async () => {
+        await fetchStats();
+      }, 300);
       
-      // Refresh stats to get accurate data
-      await fetchStats();
     } catch (err: any) {
       // Revert on error
-      setIsLiked((prev) => !prev);
-      setEventStats((prevStats: any) => {
-        if (!prevStats) return prevStats;
-        const normalized = normalizeStats(prevStats);
-        const currentLikes = normalized.like || normalized.likes || 0;
-        const delta = isLiked ? 1 : -1;
-        const newLikes = Math.max(0, currentLikes + delta);
-        return {
-          ...normalized,
-          like: newLikes,
-          likes: newLikes,
-        };
-      });
-      
       console.error('Error toggling like:', err);
+      setIsLiked(prevLiked);
+      setEventStats(prevStats);
       alert(err.response?.data?.message || 'Failed to like event');
     } finally {
       setIsLoading(false);
     }
   };
-  
   const handleShareClick = async (e: any) => {
     e.stopPropagation();
     
@@ -126,6 +138,10 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
     if (isLoading) return;
     
     setIsLoading(true);
+    
+    // Save current state for rollback
+    const prevStats = eventStats;
+    
     try {
       const url = `${window.location.origin}/events/${event._id}`;
       let shareMethod = 'clipboard';
@@ -140,53 +156,38 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
           });
           shareMethod = 'native';
         } catch (shareErr: any) {
-          // User cancelled or share failed, fall back to clipboard
           if (shareErr.name !== 'AbortError') {
             throw shareErr;
           }
+          return; // User cancelled
         }
       }
-      
       // Fallback to clipboard
       if (shareMethod === 'clipboard' && navigator.clipboard) {
         await navigator.clipboard.writeText(url);
         alert('Event link copied to clipboard!');
       }
-      
       // Optimistically update UI
-      setEventStats((prevStats: any) => {
-        if (!prevStats) return prevStats;
-        const normalized = normalizeStats(prevStats);
-        const currentShares = normalized.share || normalized.shares || 0;
-        const newShares = currentShares + 1;
+      setEventStats((prev: any) => {
+        if (!prev) return prev;
+        const newShares = (prev.share || 0) + 1;
   
         return {
-          ...normalized,
+          ...prev,
           share: newShares,
           shares: newShares,
         };
       });
       
       // Call API to update database
-      await shareEvent(event._id, shareMethod);
-      
-      // Refresh stats to get accurate data
-      await fetchStats();
+      await shareEvent(event._id, shareMethod);      
+      // ✅ FIXED: Refresh stats after share
+      setTimeout(async () => {
+        await fetchStats();
+      }, 300);
     } catch (err: any) {
       console.error('Error sharing event:', err);
-      // Revert optimistic update
-      setEventStats((prevStats: any) => {
-        if (!prevStats) return prevStats;
-        const normalized = normalizeStats(prevStats);
-        const currentShares = normalized.share || normalized.shares || 0;
-        const newShares = Math.max(0, currentShares - 1);
-        return {
-          ...normalized,
-          share: newShares,
-          shares: newShares,
-        };
-      });
-      
+      setEventStats(prevStats);
       if (err.name !== 'AbortError') {
         alert(err.response?.data?.message || 'Failed to share event');
       }
@@ -194,7 +195,6 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
       setIsLoading(false);
     }
   };
-  
   const handleCardClick = () => {
     router.push(`/events/${event._id}`);
   };
