@@ -3,16 +3,36 @@ import jwt from 'jsonwebtoken';
 let io;
 const userSockets = new Map(); 
 export const initializeSocket = (server) => {
+  const allowedOrigins = [
+    ...(process.env.CORS_ORIGIN 
+      ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()) 
+      : []),
+    ...(process.env.USER_CORS_ORIGIN
+      ? process.env.USER_CORS_ORIGIN.split(',').map(origin => origin.trim()) 
+      : [])
+  ].filter(Boolean);
+
   io = new Server(server, {
     cors: {
-      origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+      origin: (origin, callback) => {
+        // Allow requests with no origin
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+          callback(null, true);
+        } else {
+          console.warn(`⚠️ Socket CORS blocked origin: ${origin}`);
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true,
       methods: ['GET', 'POST']
     },
     pingTimeout: 60000,
     pingInterval: 25000,
     transports: ['websocket', 'polling'],
-    allowEIO3: true
+    allowEIO3: true,
+    path: '/socket.io/'
   });
 
   // Authentication middleware
@@ -35,8 +55,6 @@ export const initializeSocket = (server) => {
         console.error('❌ No userId found in decoded token:', decoded);
         return next(new Error('Authentication error: Invalid token format'));
       }
-      
-      console.log('✅ Socket authenticated for user:', socket.userId);
       next();
     } catch (error) {
       console.error('❌ Socket authentication failed:', error.message);
@@ -44,7 +62,6 @@ export const initializeSocket = (server) => {
     }
   });
   io.on('connection', (socket) => {
-    console.log('🔌 User connected:', socket.userId, '| Socket ID:', socket.id);
     // Store user's socket connection (handle multiple devices)
     const existingSocketId = userSockets.get(socket.userId);
     if (existingSocketId && existingSocketId !== socket.id) {
@@ -55,22 +72,18 @@ export const initializeSocket = (server) => {
     socket.broadcast.emit('user-online', { userId: socket.userId });
     // Join user's personal room
     socket.join(socket.userId);
-    console.log(`📥 User ${socket.userId} joined personal room`);
     // Handle join chat room
     socket.on('join-chat', (chatId) => {
-      console.log(`📥 User ${socket.userId} joining chat: ${chatId}`);
       socket.join(chatId);
       socket.emit('joined-chat', { chatId }); // Confirm to client
     });
     // Handle leave chat room
     socket.on('leave-chat', (chatId) => {
-      console.log(`📤 User ${socket.userId} leaving chat: ${chatId}`);
       socket.leave(chatId);
       socket.emit('left-chat', { chatId }); // Confirm to client
     });
     // Handle typing indicator
     socket.on('typing', ({ chatId, isTyping }) => {
-      console.log(`⌨️ User ${socket.userId} typing in chat ${chatId}: ${isTyping}`);
       socket.to(chatId).emit('user-typing', {
         userId: socket.userId,
         chatId,
@@ -87,7 +100,6 @@ export const initializeSocket = (server) => {
     });
     // Handle disconnect
     socket.on('disconnect', (reason) => {
-      console.log('🔌 User disconnected:', socket.userId, '| Reason:', reason);
       // Only remove if this is the current socket for this user
       if (userSockets.get(socket.userId) === socket.id) {
         userSockets.delete(socket.userId);
@@ -100,7 +112,6 @@ export const initializeSocket = (server) => {
       console.error('❌ Socket error for user', socket.userId, ':', error);
     });
   });
-  console.log('✅ Socket.IO initialized');
   return io;
 };
 export const getIO = () => {
@@ -113,7 +124,6 @@ export const emitToUser = (userId, event, data) => {
   const socketId = userSockets.get(userId);
   if (socketId && io) {
     io.to(socketId).emit(event, data);
-    console.log(`✅ Emitted ${event} to user ${userId}`);
     return true;
   }
   console.warn(`⚠️ Cannot emit ${event} - user ${userId} not connected`);
@@ -122,7 +132,6 @@ export const emitToUser = (userId, event, data) => {
 export const emitToChat = (chatId, event, data) => {
   if (io) {
     io.to(chatId).emit(event, data);
-    console.log(`✅ Emitted ${event} to chat ${chatId}`);
     return true;
   }
   console.warn(`⚠️ Cannot emit ${event} - Socket.IO not initialized`);

@@ -318,15 +318,6 @@ export const createBooking = async (req: Request, res: Response) => {
       currency: 'INR',
       status: 'PENDING',
     });
-    // Send notification
-    await createNotification({
-      userId,
-      type: 'booking_pending',
-      title: 'Booking Created',
-      message: `Your booking for ${ticket.event_name} is pending payment`,
-      bookingId: String(booking.id),      ticketId,
-      link: `/bookings/${booking.id}`,
-    });
     res.status(201).json({
       success: true,
       message: 'Booking created successfully',
@@ -526,18 +517,6 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
       currency: 'INR',
       status: 'PENDING',
     });
-
-    // Send notification
-    await createNotification({
-      userId,
-      type: 'booking_pending',
-      title: 'Booking Created',
-      message: `Your booking for ${ticket.event_name} is pending payment`,
-      bookingId: String(booking.id),
-      ticketId,
-      link: `/bookings/${booking.id}`,
-    });
-
     res.status(201).json({
       success: true,
       message: 'Seated booking created successfully',
@@ -711,7 +690,6 @@ export const verifyPayment = async (req: Request, res: Response) => {
       contact: paymentDetails.contact ? String(paymentDetails.contact) : undefined,
       webhookData: paymentDetails as any,
     });
-
     // Update ticket stats
     await safeUpdateTicketStats(booking.ticketId, 'totalBookings', 1);
     await safeUpdateTicketStats(booking.ticketId, 'totalTicketsSold', booking.quantity);
@@ -721,7 +699,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
     await createNotification({
       userId,
       type: 'booking_confirmed',
-      title: 'Booking Confirmed! 🎉',
+      title: 'Booking Confirmed!',
       message: `Your booking for ${(booking.eventDetails as any).eventName} is confirmed`,
       bookingId: String(booking.id),
       ticketId: booking.ticketId,

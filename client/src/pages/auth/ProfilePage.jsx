@@ -112,6 +112,21 @@ const CustomScrollbarStyles = () => (
         font-size: 16px;
       }
     }
+      /* FIX: Tablet buttons disappearing (ONLY tablets) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .profile-action-buttons {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 0.5rem;
+    padding-bottom: 4px;
+  }
+
+  .profile-action-buttons::-webkit-scrollbar {
+    display: none;
+  }
+}
+
   `}</style>
 );
 
@@ -788,8 +803,7 @@ useEffect(() => {
       {showMenu && (
         <div
           className={`absolute ${
-            isDesktop ? "right-0 top-12" : "right-0 top-10"
-          } z-50 ${theme.cardBg} rounded-lg ${theme.border} min-w-[150px] py-2`}
+isDesktop ? "right-0 top-14" : "right-0 top-12"          } z-50 ${theme.cardBg} rounded-lg ${theme.border} min-w-[150px] py-2`}
           style={{ boxShadow: theme.smallCardShadow }}
         >
           <button
@@ -973,7 +987,7 @@ useEffect(() => {
                     style={{ boxShadow: theme.cardShadow }}
                   >
                     {/* Profile Card - Mobile View Section */}
-                    <div className="flex md:hidden flex-col space-y-4">
+<div className="flex lg:hidden flex-col space-y-4">
                       <div className="flex flex-col gap-4">
                         {/* Top Row: Profile image + Name/Username */}
                         <div className="flex items-center gap-4">
@@ -1069,8 +1083,9 @@ useEffect(() => {
                           </p>
                         </div>
                       </div>
+                      
                       {/* Buttons mobile - same visual styles as desktop */}
-<div className="md:hidden flex gap-1 p-1 justify-start items-center flex-nowrap overflow-hidden">
+<div className="lg:hidden flex flex-wrap gap-2 p-1 justify-center items-center profile-action-buttons">
   {/*
     Compute shared style object once (desktop uses the same),
     then reuse it for each mobile button.
@@ -1094,7 +1109,8 @@ useEffect(() => {
 
     // Use the desktop className so mobile buttons look identical.
     const desktopBtnClass =
-      "whitespace-nowrap flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200";
+  "whitespace-nowrap flex-shrink-0 px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm rounded-full font-medium transition-all duration-200";
+
 
     return (
       <>
@@ -1133,7 +1149,7 @@ useEffect(() => {
 
                     </div>
                     {/* Desktop Layout - Keep original exactly as it was */}
-                    <div className="hidden md:flex justify-between items-center gap-6">
+<div className="hidden lg:flex justify-between items-center gap-6">
                       {/* Left side */}
                       <div className="flex items-start gap-6">
                         <img
@@ -1168,7 +1184,7 @@ useEffect(() => {
                             {user.website}
                           </p>
                           {/*button desktop */}
-                          <div className="flex gap-2 md:gap-3 pt-2 md:pt-3 flex-wrap">
+<div className="flex gap-2 md:gap-3 pt-2 md:pt-3 flex-wrap profile-action-buttons">
                             <button
                               onClick={() => navigate("/settings/editprofile")}
                               className="px-6 py-2 rounded-full text-sm font-medium transition-all duration-200"

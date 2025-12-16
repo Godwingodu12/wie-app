@@ -305,7 +305,7 @@ useEffect(() => {
         subCardBg: "#f2f2f2",
         border: "border-gray-300",
         notificationShadow: "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)",
-        smallCardShadow: "6px 6px 12px #6a6a6a,-6px -6px 12px #ffffff",
+        smallCardShadow: "0 4px 10px rgba(0,0,0,0.35)",
       };
 
   return (
@@ -399,12 +399,12 @@ useEffect(() => {
                           <img
                             src={getImageUrl(suggestedUser.image, 'auth') || ProfileImage}    
                             alt={suggestedUser.name}
-                            className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover flex-shrink-0"
+className="w-12 h-12 sm:w-14 sm:h-14 md:w-20 md:h-20 rounded-full object-cover flex-shrink-0"
                           />
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <h3 className={`text-base md:text-lg font-semibold ${theme.text} truncate`}>
+<h3 className={`text-sm sm:text-base md:text-lg font-semibold ${theme.text} truncate`}>
                                 {suggestedUser.name}
                               </h3>
                               {suggestedUser.verified && (
@@ -452,7 +452,7 @@ useEffect(() => {
                             handleSuggestionFollowToggle(userId);
                           }}
                           disabled={followingStates[userId]}
-className={`px-5 py-2 md:px-6 md:py-2.5 rounded-full text-white text-sm md:text-base font-semibold transition-all duration-200 ${
+className={`px-3 py-1.5 sm:px-4 sm:py-2 md:px-6 md:py-2.5 rounded-full text-white text-xs sm:text-sm md:text-base font-semibold transition-all duration-200 whitespace-nowrap ${
                             followingMap[userId]
                               ? 'bg-[#44444D] shadow-[0px_3px_6px_rgba(0,0,0,0.25)] hover:bg-[#50505A]'
                               : 'bg-[#249EFF] hover:bg-blue-600'

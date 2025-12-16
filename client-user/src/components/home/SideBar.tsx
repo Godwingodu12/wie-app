@@ -13,6 +13,8 @@ import NotificationsIcon from '@/assets/Home/NotificationsIcon.svg';
 import EventsIcon from '@/assets/Home/EventsIcon.svg';
 import SettingsIcon from '@/assets/Home/SettingsIcon.svg';
 import DefaultAvatar from '@/assets/Home/Ellipse 14.png';
+import { getUserNotifications } from '@/services/notificationService';
+import realtimeNotificationService from '@/services/realtimeNotificationService';
 
 interface NavItem {
   id: string;
@@ -30,6 +32,7 @@ interface SideBarProps {
 const SideBar: React.FC<SideBarProps> = ({ userName = 'User Name', userAvatar }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [notificationCount, setNotificationCount] = useState<number>(0);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -44,13 +47,67 @@ const SideBar: React.FC<SideBarProps> = ({ userName = 'User Name', userAvatar })
     return () => window.removeEventListener('resize', checkScreen);
   }, []);
 
+  // Load unread notification count
+  useEffect(() => {
+    const fetchNotificationCount = async () => {
+      try {
+        const res = await getUserNotifications({ limit: 0 });
+        setNotificationCount(res.unreadCount || 0);
+      } catch (error) {
+        console.error('Failed to load notification count:', error);
+      }
+    };
+
+    fetchNotificationCount();
+  }, []);
+
+// Subscribe to real-time notification events
+useEffect(() => {
+  const handleNewNotification = (data: any) => {
+    setNotificationCount((prev) => prev + 1);
+  };
+
+  const handleNotificationRead = (data: any) => {
+    setNotificationCount((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleAllNotificationsRead = () => {
+    setNotificationCount(0);
+  };
+
+  const handleNotificationDeleted = (data: any) => {
+    // Recalculate notification count when deleted
+    getUserNotifications({ limit: 0 })
+      .then((res) => setNotificationCount(res.unreadCount || 0))
+      .catch(() => {});
+  };
+
+  realtimeNotificationService.on('new-notification', handleNewNotification);
+  realtimeNotificationService.on('notification-read', handleNotificationRead);
+  realtimeNotificationService.on('all-notifications-read', handleAllNotificationsRead);
+  realtimeNotificationService.on('notification-deleted', handleNotificationDeleted);
+
+  return () => {
+    realtimeNotificationService.off('new-notification', handleNewNotification);
+    realtimeNotificationService.off('notification-read', handleNotificationRead);
+    realtimeNotificationService.off('all-notifications-read', handleAllNotificationsRead);
+    realtimeNotificationService.off('notification-deleted', handleNotificationDeleted);
+  };
+}, []);
+
   const mainNavItems: NavItem[] = [
     { id: 'home', label: 'Home', icon: HomeIcon, path: '/home' },
     { id: 'explore', label: 'Explore', icon: ExploreIcon, path: '/explore' },
     { id: 'reels', label: 'Reels', icon: ReelIcon, path: '/reels' },
     { id: 'messages', label: 'Messages', icon: MessageIcon, path: '/messages', notificationCount: 5 },
     { id: 'connections', label: 'Connections', icon: ConnectionsIcon, path: '/connections', notificationCount: 12 },
-    { id: 'notifications', label: 'Notifications', icon: NotificationsIcon, path: '/notifications', notificationCount: 3 },
+    {
+      id: 'notifications',
+      label: 'Notifications',
+      icon: NotificationsIcon,
+      path: '/notification', // match Next.js route (/app/(protected)/notification/page.tsx)
+      notificationCount: notificationCount,
+    },
     { id: 'events', label: 'Events', icon: EventsIcon, path: '/events/nearby' },
   ];
 
@@ -71,14 +128,14 @@ const SideBar: React.FC<SideBarProps> = ({ userName = 'User Name', userAvatar })
               onClick={() => handleNavClick(item.path)}
               className="flex flex-col items-center gap-1 relative"
             >
-              <div className="relative">
-                <Image src={item.icon} alt={item.label} width={24} height={24} className={isActive(item.path) ? 'opacity-100' : 'opacity-60'} />
-                {item.notificationCount && item.notificationCount > 0 && (
-                  <span className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-[8px] font-semibold text-white flex items-center justify-center">
-                    {item.notificationCount > 99 ? '99+' : item.notificationCount}
-                  </span>
-                )}
-              </div>
+            <div className="relative">
+              <Image src={item.icon} alt={item.label} width={24} height={24} className={isActive(item.path) ? 'opacity-100' : 'opacity-60'} />
+              {item.notificationCount !== undefined && item.notificationCount > 0 && (
+                <span className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-[8px] font-semibold text-white flex items-center justify-center">
+                  {item.notificationCount > 99 ? '99+' : item.notificationCount}
+                </span>
+              )}
+            </div>
               <span className={`text-[10px] ${isActive(item.path) ? 'text-white' : 'text-[#6F7680]'}`}>{item.label}</span>
             </button>
           ))}
@@ -118,7 +175,7 @@ const SideBar: React.FC<SideBarProps> = ({ userName = 'User Name', userAvatar })
             {!isCollapsed && (
               <>
                 <span className={`flex-1 font-medium text-sm tracking-tight text-left ${isActive(item.path) ? 'text-white' : 'text-[#a0a0a0]'}`} style={{ fontFamily: 'Inter, sans-serif' }}>{item.label}</span>
-                {item.notificationCount && item.notificationCount > 0 && (
+                {item.notificationCount !== undefined && item.notificationCount > 0 && (
                   <span className="min-w-6 h-4 px-1.5 py-1 rounded-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] font-semibold text-[10px] text-white flex items-center justify-center">
                     {item.notificationCount > 99 ? '99+' : item.notificationCount}
                   </span>
