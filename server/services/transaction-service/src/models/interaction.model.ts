@@ -229,16 +229,32 @@ export class InteractionModel {
       averageRating: parseFloat(averageRating.toFixed(2)),
     };
   }
-
-  /**
-   * Update interaction metadata
-   */
   static async updateMetadata(id: string, metadata: any): Promise<Interaction> {
     return await prisma.interaction.update({
       where: { id },
       data: { metadata },
     });
   }
+  static async upsert(data: CreateInteractionData): Promise<Interaction> {
+    return await prisma.interaction.upsert({
+      where: {
+        userId_ticketId_interactionType: {
+          userId: data.userId,
+          ticketId: data.ticketId,
+          interactionType: data.interactionType,
+        },
+      },
+      update: {
+        metadata: data.metadata || null,
+        createdAt: new Date(), // Update timestamp on each view
+      },
+      create: {
+        userId: data.userId,
+        ticketId: data.ticketId,
+        interactionType: data.interactionType,
+        metadata: data.metadata || null,
+      },
+    });
+  }
 }
-
 export default InteractionModel;

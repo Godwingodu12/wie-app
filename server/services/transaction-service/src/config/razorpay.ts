@@ -79,45 +79,72 @@ class RazorpayService {
     notes?: any
   ): Promise<any> {
     try {
+      // ✅ Validate inputs
       if (!paymentId || paymentId.trim() === '') {
         throw new Error('Invalid payment ID');
       }
-
+  
       if (!amount || amount <= 0) {
-        throw new Error('Invalid refund amount');
+        throw new Error('Invalid refund amount: must be greater than 0');
       }
-
+  
+      // ✅ Convert to paise (Razorpay uses paise)
       const refundAmountInPaise = Math.round(amount * 100);
-
-      // Create minimal refund request
+  
+      console.log(`🔄 Creating refund request:`, {
+        paymentId: paymentId.trim(),
+        amountInRupees: amount,
+        amountInPaise: refundAmountInPaise
+      });
+  
+      // ✅ Create minimal refund request
       const refundRequest: any = {
         amount: refundAmountInPaise,
         speed: 'normal'
       };
-
-      // Only add notes if provided and valid
+  
+      // ✅ Only add notes if provided and valid
       if (notes && typeof notes === 'object' && Object.keys(notes).length > 0) {
         const cleanNotes: any = {};
-        Object.keys(notes).forEach(key => {
-          if (notes[key] !== undefined && notes[key] !== null) {
-            cleanNotes[key] = String(notes[key]).substring(0, 512);
-          }
-        });
+        
+        // Only keep simple string fields
+        if (notes.booking_id) {
+          cleanNotes.booking_id = String(notes.booking_id).substring(0, 255);
+        }
+        if (notes.reason) {
+          cleanNotes.reason = String(notes.reason).substring(0, 255);
+        }
         
         if (Object.keys(cleanNotes).length > 0) {
           refundRequest.notes = cleanNotes;
         }
       }
-
+  
+      console.log(`📤 Sending refund request to Razorpay:`, refundRequest);
+  
+      // ✅ Call Razorpay API
       const refund = await razorpay.payments.refund(
         paymentId.trim(),
         refundRequest
       );
-
+      console.log(`✅ Refund response from Razorpay:`, {
+        id: refund.id,
+        status: refund.status,
+        amount: refund.amount,
+      });
       return refund;
     } catch (error: any) {
+      console.error('❌ Razorpay refund error:', {
+        message: error.message,
+        description: error.error?.description,
+        code: error.error?.code,
+        field: error.error?.field,
+        reason: error.error?.reason
+      });
+  
+      // ✅ Extract meaningful error message
       if (error.error) {
-        const errorMessage = error.error.description || error.message || 'Unknown refund error';
+        const errorMessage = error.error.description || error.error.reason || error.message || 'Unknown refund error';
         const errorCode = error.error.code || 'REFUND_ERROR';
         
         throw new Error(`Razorpay ${errorCode}: ${errorMessage}`);

@@ -10,10 +10,9 @@ import {
   getUserCancellationStats,
   trackRefund,
   createSeatedBooking,
-  getBookedSeats
+  getBookedSeats,getDailyBookingStats, getMonthlyBookingStats, getTicketTypeStats
 } from '../controllers/bookingController';
 import { authenticate } from '../middleware/auth';
-
 const router: express.Router = express.Router();
 router.post('/create-seated', authenticate, createSeatedBooking);
 router.get('/booked-seats/:ticketId', authenticate, getBookedSeats);
@@ -26,5 +25,7 @@ router.get('/cancellation-stats', authenticate, getUserCancellationStats);
 router.get('/:bookingId', authenticate, getBookingById);
 router.post('/:bookingId/cancel', authenticate, cancelBooking);
 router.get('/:bookingId/refund/track', authenticate, trackRefund);
-
+router.get('/stats/daily/:ticketId', getDailyBookingStats);
+router.get('/stats/monthly/:ticketId', getMonthlyBookingStats);
+router.get('/stats/ticket-types/:ticketId', getTicketTypeStats);
 export default router;

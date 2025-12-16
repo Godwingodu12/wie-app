@@ -5,7 +5,8 @@ import { uploadGroupFiles } from '../middlewares/upload.js';
 import {getUserData,CreateGroup, UpdateGroup,createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
 getTicketById,deleteTicket,deleteSubEvent,deleteEventPermenently,deleteAllEvents,viewTickets, getAllDeletedEvents,getDeletedEventById,recoverDeletedEvent,getAllGroups,getAllLiveEvents} from '../services/ticket.service.js';
 import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getGroupById,getOtherGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getMyPreviousEventView,getOthersEvents,getOthersEventsById,getOtherLiveEvents,
-getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getAddOnEventLiveView,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted,getPostalDetailsFromCoords } from '../controller/ticket.controller.js';
+getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getAddOnEventLiveView,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted,getPostalDetailsFromCoords,
+getPreviousEventView,getPreviousEventStatistics,getPreviousEventMonthlyStats,getPreviousEventCapacityStats } from '../controller/ticket.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);
@@ -65,4 +66,8 @@ router.get('/total-events-created-count',protect, totalEventsCreatedCount);
 router.get('/get-postal-details', getPostalDetailsFromCoords);
 router.get('/get-all-live-events',getAllLiveEvents);
 router.get('/get-all-groups', getAllGroups);
+router.get('/previous-event-statistics/:ticketId', getPreviousEventStatistics);
+router.get('/previous-event-view/:ticketId', getPreviousEventView);
+router.get('/previous-event-monthly-stats/:ticketId', getPreviousEventMonthlyStats);
+router.get('/previous-event-capacity-stats/:ticketId', getPreviousEventCapacityStats);
 export default router;

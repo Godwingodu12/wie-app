@@ -4,7 +4,7 @@ import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
-import { getMyPreviousEventView, getGroupView } from "../../services/ticketService";
+import { getMyPreviousEventView, getGroupView, getPreviousEventMonthlyStats, getPreviousEventCapacityStats,getPreviousEventView } from "../../services/ticketService";
 import { getImageUrl } from "../../utils/imageUtils";
 import { useSelector } from "react-redux";
 import { toast } from "react-hot-toast";
@@ -113,7 +113,9 @@ const PreviousEventView = () => {
   const navigate = useNavigate();
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
-
+  const [monthlyStats, setMonthlyStats] = useState([]);
+  const [quarterStats, setQuarterStats] = useState([]);
+  const [capacityStats, setCapacityStats] = useState(null);
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -130,48 +132,83 @@ const PreviousEventView = () => {
   };
   useEffect(() => {
     const fetchAndSetData = async () => {
-      if (!ticketId) { // or ticketId depending on your route parameter
+      if (!ticketId) {
         setError("Event ID not found in URL parameters.");
         setLoading(false);
         return;
       }
-
+  
       try {
         setLoading(true);
         setError(null);
-        // Fetch ticket data
-        const ticketResponse = await getMyPreviousEventView(ticketId);
-        // Extract event data - API returns { message, ticket }
-        const data = ticketResponse?.ticket;
-
-        if (!data) {
-          throw new Error("No ticket data received from server");
+        
+        // ✅ Fetch main event data
+        const eventResponse = await getPreviousEventView(ticketId);
+        
+        if (!eventResponse.success) {
+          throw new Error(eventResponse.message || "Failed to load event data");
         }
-
-        if (!data.event_name) {
-          throw new Error("Invalid ticket data structure");
+  
+        const data = eventResponse.data;
+        
+        // Transform data to match component structure
+        const transformedData = {
+          event_name: data.eventName,
+          event_banner: data.eventBanner,
+          event_logo: data.eventLogo,
+          event_images: data.eventImages || [],
+          like: data.totalLikes,
+          share_count: data.totalShares,
+          total_bookings: data.totalBookings,
+          total_earnings: data.totalRevenue,
+          total_cancellations: data.totalCancellations,
+          hashtag: Array(data.tagCount).fill('#'),
+          banking_details: data.bankDetails,
+          sub_events: data.subEvents,
+          event_dates: data.eventDates,
+          total_capacity: data.totalCapacity,
+        };
+        
+        setEventData(transformedData);
+  
+        // ✅ Fetch monthly and quarterly stats
+        try {
+          const statsResponse = await getPreviousEventMonthlyStats(ticketId);
+          if (statsResponse.success) {
+            setMonthlyStats(statsResponse.data.monthlyStats || []);
+            setQuarterStats(statsResponse.data.quarterStats || []);
+          }
+        } catch (statsErr) {
+          console.warn("Monthly stats not available:", statsErr);
+          setMonthlyStats([]);
+          setQuarterStats([]);
         }
-        setEventData(data);
+  
+        // ✅ Fetch capacity stats
+        try {
+          const capacityResponse = await getPreviousEventCapacityStats(ticketId);
+          if (capacityResponse.success) {
+            setCapacityStats(capacityResponse.data);
+          }
+        } catch (capacityErr) {
+          console.warn("Capacity stats not available:", capacityErr);
+          setCapacityStats(null);
+        }
+  
+        // Fetch group data if exists
         if (data.groupId) {
-          try {            
-            const groupResponse = await getGroupView(ticketId);            
+          try {
+            const groupResponse = await getGroupView(ticketId);
             const fetchedGroupData = groupResponse?.group || null;
             if (fetchedGroupData) {
               setGroupData(fetchedGroupData);
-            } else {
-              console.warn("⚠️ No group data in response:", groupResponse);
             }
           } catch (groupErr) {
             console.error("❌ Failed to fetch group data:", groupErr);
-            console.error("Error details:", {
-              message: groupErr.message,
-              response: groupErr?.response?.data,
-              status: groupErr?.response?.status
-            });
-            // Continue without group data - don't break the page
             toast.error("Could not load organization details");
           }
         }
+        
       } catch (err) {
         console.error("Failed to fetch event data:", err);
         const errorMessage = err?.response?.data?.message || err.message || "Failed to load event details.";
@@ -181,7 +218,7 @@ const PreviousEventView = () => {
         setLoading(false);
       }
     };
-
+  
     fetchAndSetData();
   }, [ticketId]);
 
@@ -230,43 +267,62 @@ const PreviousEventView = () => {
       ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
       : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
   };
+  const chartData = useMemo(() => {
+    if (!monthlyStats || monthlyStats.length === 0) {
+      return [
+        { month: "JAN", value: "0", percentage: 0 },
+        { month: "FEB", value: "0", percentage: 0 },
+        { month: "MAR", value: "0", percentage: 0 },
+        { month: "APR", value: "0", percentage: 0 },
+        { month: "MAY", value: "0", percentage: 0 },
+        { month: "JUN", value: "0", percentage: 0 },
+        { month: "JUL", value: "0", percentage: 0 },
+        { month: "AUG", value: "0", percentage: 0 }
+      ];
+    }
 
-  const chartData = [
-    { month: "JAN", value: "320k", percentage: 55 },
-    { month: "FEB", value: "320k", percentage: 75 },
-    { month: "MAR", value: "320k", percentage: 65 },
-    { month: "APR", value: "320k", percentage: 45 },
-    { month: "MAY", value: "320k", percentage: 85 },
-    { month: "JUN", value: "320k", percentage: 70 },
-    { month: "JUL", value: "320k", percentage: 80 },
-    { month: "AUG", value: "320k", percentage: 95 }
-  ];
-
-  const quarters = [
-    { period: "January - August", bookings: "6552", earnings: "645721", percentage: 54 },
-    { period: "August - October", bookings: "6552", earnings: "645721", percentage: 54 },
-    { period: "October - December", bookings: "6552", earnings: "645721", percentage: 54 }
-  ];
-
-  const addOnEvents = [
-    { name: "Cricket", icon: "🏏" },
-    { name: "Drama", icon: "🎭" },
-    { name: "Music", icon: "🎵" }
-  ];
-
+    const maxRevenue = Math.max(...monthlyStats.map(m => m.revenue), 1);
+    
+    return monthlyStats.map(stat => ({
+      month: stat.month,
+      value: `${(stat.revenue / 1000).toFixed(1)}k`,
+      percentage: Math.round((stat.revenue / maxRevenue) * 100)
+    }));
+  }, [monthlyStats]);
+  const quarters = useMemo(() => {
+    if (!quarterStats || quarterStats.length === 0) {
+      return [
+        { period: "No Data", bookings: "0", earnings: "0", percentage: 0 }
+      ];
+    }
+    return quarterStats;
+  }, [quarterStats]);
+  const addOnEvents = useMemo(() => {
+    if (eventData?.sub_events && eventData.sub_events.length > 0) {
+      return eventData.sub_events.map(subEvent => ({
+        id: subEvent._id,
+        name: subEvent.event_name,
+        icon: "🎭", // You can map categories to icons
+        ticketId: subEvent._id
+      }));
+    }
+    return [
+      { name: "No Add-on Events", icon: "📅", ticketId: null }
+    ];
+  }, [eventData]);
+  const handleSubEventClick = (subEventTicketId) => {
+    if (subEventTicketId) {
+      navigate(`/previous-event/${subEventTicketId}`);
+    }
+  };
   const [activeIndex, setActiveIndex] = useState(Math.floor(addOnEvents.length / 2 || 1));
-
   const prevAddOn = () => setActiveIndex((i) => (i - 1 + addOnEvents.length) % addOnEvents.length);
   const nextAddOn = () => setActiveIndex((i) => (i + 1) % addOnEvents.length);
-
   // Image Modal Logic
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
   const allImages = useMemo(() => {
-    // Collect all images: banner, logo, and event_images
-    const images = [];
-
+  const images = [];
     // Add banner if exists
     if (eventData?.event_banner) {
       const bannerUrl = getImageUrl(eventData.event_banner, "ticket");
@@ -690,14 +746,47 @@ const PreviousEventView = () => {
                     <h3 className={`hidden sm:block text-lg md:text-xl lg:text-2xl font-bold tracking-wide ${theme.text}`}>{eventData.event_name}</h3>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 lg:gap-6 w-full">
-                    {[
-                      { title: "Total event earnings", value: "645721", accent: "text-emerald-400", icon: EarningIcon },
-                      { title: "Total bookings", value: "6552", accent: "text-blue-400", icon: TicketIcon, isBlue: true },
-                      { title: "Total cancellation", value: "24", accent: "text-red-400", icon: CancelIcon },
-                      { title: "People liked", value: "7.2 K", accent: "text-red-400", icon: LikeIcon },
-                      { title: "People Shared", value: "2.8 K", accent: "text-blue-400", icon: ShareIcon, needsInvert: true },
-                      { title: "Tag Count", value: "8.5 K", accent: isDark ? "text-white" : "text-gray-900", icon: TagIcon, needsInvert: true }
-                    ].map((st, i) => (
+                  {[
+                    { 
+                      title: "Total event earnings", 
+                      value: eventData.total_earnings || "0", 
+                      accent: "text-emerald-400", 
+                      icon: EarningIcon 
+                    },
+                    { 
+                      title: "Total bookings", 
+                      value: eventData.total_bookings || "0", 
+                      accent: "text-blue-400", 
+                      icon: TicketIcon, 
+                      isBlue: true 
+                    },
+                    { 
+                      title: "Total cancellation", 
+                      value: eventData.total_cancellations || "0", 
+                      accent: "text-red-400", 
+                      icon: CancelIcon 
+                    },
+                    { 
+                      title: "People liked", 
+                      value: eventData.like || "0", 
+                      accent: "text-red-400", 
+                      icon: LikeIcon 
+                    },
+                    { 
+                      title: "People Shared", 
+                      value: eventData.share_count || "0", 
+                      accent: "text-blue-400", 
+                      icon: ShareIcon, 
+                      needsInvert: true 
+                    },
+                    { 
+                      title: "Tag Count", 
+                      value: eventData.hashtag?.length || "0", 
+                      accent: isDark ? "text-white" : "text-gray-900", 
+                      icon: TagIcon, 
+                      needsInvert: true 
+                    }
+                  ].map((st, i) => (
                       <div
                         key={i}
                         className={`relative rounded-2xl md:rounded-3xl p-3 md:p-4 lg:p-6 flex flex-col justify-between w-full h-full`}
@@ -751,7 +840,7 @@ const PreviousEventView = () => {
                   <div className="flex items-center justify-between mb-4 md:mb-6">
                     <div className="flex items-center gap-2 md:gap-3">
                       <img src={LiveEventIcon} alt="Live Events" className="w-4 h-4 md:w-6 md:h-6" />
-                      <h3 className={`text-xs md:text-lg font-bold tracking-wide ${theme.text}`}>LIVE EVENTS EARNING STATISTICS</h3>
+                      <h3 className={`text-xs md:text-lg font-bold tracking-wide ${theme.text}`}>PREVIOUS EVENT EARNING STATISTICS</h3>
                     </div>
 
                     <div className="flex items-center gap-1 text-emerald-400 text-xs md:text-sm font-semibold">
@@ -979,26 +1068,58 @@ const PreviousEventView = () => {
                       <img src={BankIcon} alt="Bank" className={`w-5 h-5 md:w-6 md:h-6 ${!isDark ? 'filter brightness-0' : ''}`} />
                       <h3 className={`text-lg md:text-xl font-extrabold tracking-wide ${theme.text}`}>Bank Details</h3>
                     </div>
-
                     <div className="space-y-2 md:space-y-3 mb-6 md:mb-8 text-xs md:text-sm">
-                      {[
-                        { label: "Bank name", value: "Federal Bank PVT", label2: "Amount before event", value2: "10,000" },
-                        { label: "Account no", value: "1234567890012", label2: "Amount after event", value2: "90,0000" },
-                        { label: "IFSC code", value: "FORDL0001147", label2: "Total Profit", value2: "8,90,000" }
-                      ].map((row, idx) => (
-                        <div key={idx} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-                          <div className="flex items-center gap-2">
-                            <p className={`text-xs ${theme.subText}`}>{row.label} :</p>
-                            <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>{row.value}</p>
+                      {eventData.banking_details && eventData.banking_details.length > 0 ? (
+                        eventData.banking_details.map((bank, idx) => (
+                          <div key={idx} className="space-y-2">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                              <div className="flex items-center gap-2">
+                                <p className={`text-xs ${theme.subText}`}>Bank name :</p>
+                                <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>
+                                  {bank.bank_acc_holder || "N/A"}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <p className={`text-xs ${theme.subText}`}>Amount before event :</p>
+                                <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>
+                                  {eventData.total_earnings ? (eventData.total_earnings * 0.1).toFixed(2) : "0"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                              <div className="flex items-center gap-2">
+                                <p className={`text-xs ${theme.subText}`}>Account no :</p>
+                                <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>
+                                  {bank.bank_acc_no || "N/A"}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <p className={`text-xs ${theme.subText}`}>Amount after event :</p>
+                                <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>
+                                  {eventData.total_earnings || "0"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                              <div className="flex items-center gap-2">
+                                <p className={`text-xs ${theme.subText}`}>IFSC code :</p>
+                                <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>
+                                  {bank.bank_ifsc || "N/A"}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <p className={`text-xs ${theme.subText}`}>Total Profit :</p>
+                                <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>
+                                  {eventData.total_earnings ? (eventData.total_earnings * 0.9).toFixed(2) : "0"}
+                                </p>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <p className={`text-xs ${theme.subText}`}>{row.label2} :</p>
-                            <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>{row.value2}</p>
-                          </div>
-                        </div>
-                      ))}
+                        ))
+                      ) : (
+                        <p className={`text-sm ${theme.subText}`}>No banking details available</p>
+                      )}
                     </div>
-
                     {/* Download button */}
                     <div className="w-full flex justify-center mt-4">
                       <div className="relative flex items-center w-full md:w-[250px]">
@@ -1111,16 +1232,16 @@ const PreviousEventView = () => {
                   </div>
                   {/* Divider - Hidden on mobile */}
                   <div className={`hidden md:block w-px bg-[#6a47fa]`} />
-
-                  {/* Donut chart (bigger + responsive inner text) */}
                   {/* Donut chart (bigger + responsive inner text) */}
                   <div className="w-full md:w-[25%] flex flex-col items-center justify-center mt-6 md:mt-0 border-t md:border-t-0 md:border-l border-gray-200/50 pt-6 md:pt-0 md:pr-12">
                     {/* control visual size with Tailwind widths; SVG scales inside */}
                     <div className="relative w-40 sm:w-48 md:w-32 lg:w-48 xl:w-56 max-w-full overflow-visible">
                       {(() => {
-                        const R = 80;           // radius inside viewBox (bigger)
-                        const stroke = 16;     // stroke width (bigger)
-                        const progress = 0.85; // 85%
+                        const R = 80;
+                        const stroke = 16;
+                        const progress = capacityStats?.mainEvent?.percentage 
+                          ? capacityStats.mainEvent.percentage / 100 
+                          : 0.85;
                         const C = 2 * Math.PI * R;
                         return (
                           <svg
@@ -1129,7 +1250,6 @@ const PreviousEventView = () => {
                             className="w-full h-auto transform -rotate-90"
                             aria-hidden="true"
                           >
-                            {/* background ring */}
                             <circle
                               cx="120"
                               cy="120"
@@ -1138,7 +1258,6 @@ const PreviousEventView = () => {
                               strokeWidth={stroke}
                               fill="none"
                             />
-                            {/* progress ring */}
                             <circle
                               cx="120"
                               cy="120"
@@ -1160,17 +1279,15 @@ const PreviousEventView = () => {
                         );
                       })()}
 
-                      {/* center labels (smaller label so it never overlaps) */}
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                         <span
                           className={`${theme.text} font-extrabold tracking-tight`}
                           style={{
                             lineHeight: 1,
-                            // main percent — keep it readable but slightly smaller if needed
                             fontSize: "clamp(18px, 3.5vw, 32px)",
                           }}
                         >
-                          85%
+                          {capacityStats?.mainEvent?.percentage || 0}%
                         </span>
                         <span
                           className={`${theme.subText} font-medium`}
@@ -1189,9 +1306,8 @@ const PreviousEventView = () => {
                         </span>
                       </div>
                     </div>
-
                     <p className={`text-center text-xs md:text-sm font-semibold mt-3 w-full ${theme.subText}`}>
-                      Total earnings
+                      Total earnings: ₹{eventData.total_earnings || 0}
                     </p>
                   </div>
                 </div>
