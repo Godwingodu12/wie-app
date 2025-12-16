@@ -12,6 +12,7 @@ import {
   getGroupView,
   getTicketById,
   getAddOnEventLiveView,
+  getEventMetrics, // Import the new service function
 } from "../../services/ticketService";
 import {
   Radio,
@@ -39,6 +40,9 @@ import InsetCard from "../../components/ViewSingleEvent/InsetCard";
 import Bank_Details from "../../assets/ViewSingleEvent/Bank_Details.svg";
 import LeftIcon from "../../assets/ViewSingleEvent/LeftIcon.svg";
 import RightIcon from "../../assets/ViewSingleEvent/RightIcon.svg";
+import { getImageUrl } from "../../utils/imageUtils";
+import TicketDetailModal from "../../components/ViewSingleEvent/TicketDetailModal";
+import SeatingLayoutModal from "../../components/ViewSingleEvent/SeatingLayoutModal";
 
 const HEADER_HEIGHT = 72; // From HomePage
 
@@ -54,6 +58,13 @@ const LiveAddOnEventView = () => {
   const { ticketId } = useParams();
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
+
+  // Modal State
+  const [showSeatingModal, setShowSeatingModal] = useState(false);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [currentSeatingIndex, setCurrentSeatingIndex] = useState(0);
+  const [currentTicketIndex, setCurrentTicketIndex] = useState(0);
+
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showMonthSelector, setShowMonthSelector] = useState(false);
@@ -61,6 +72,7 @@ const LiveAddOnEventView = () => {
   // API State Management
   const [eventData, setEventData] = useState(null);
   const [groupData, setGroupData] = useState(null);
+  const [metrics, setMetrics] = useState(null); // State for metrics
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [groupName, setGroupName] = useState("");
@@ -121,6 +133,17 @@ const LiveAddOnEventView = () => {
             console.warn("Failed to fetch group data:", groupErr);
           }
         }
+
+        // Fetch event metrics
+        try {
+          const metricsResponse = await getEventMetrics(ticketId);
+          if (metricsResponse?.data) {
+            setMetrics(metricsResponse.data);
+          }
+        } catch (metricsErr) {
+          console.warn("Failed to fetch event metrics:", metricsErr);
+          // Don't block the UI if metrics fail, just use defaults
+        }
       } catch (err) {
         console.error("Failed to fetch live event data:", err);
         const errorMessage =
@@ -142,12 +165,12 @@ const LiveAddOnEventView = () => {
     ? {
       name: eventData.event_name || "Event Name",
       creator: eventData.created_by || "Unknown Creator",
-      // These fields might need backend calculation
-      totalRevenue: eventData.total_revenue || "0",
-      totalBooking: eventData.total_bookings || "0",
+      // These fields are now fetched from getEventMetrics, falling back to eventData or defaults
+      totalRevenue: metrics?.totalRevenue ?? eventData.total_revenue ?? "0",
+      totalBooking: metrics?.totalBooking ?? eventData.total_bookings ?? "0",
       totalCancellation: eventData.total_cancellations || "0",
-      totalLikes: eventData.like || "0",
-      totalShare: eventData.share_count || "0",
+      totalLikes: metrics?.totalLikes ?? eventData.like ?? "0",
+      totalShare: metrics?.totalShare ?? eventData.share_count ?? "0",
       addOnRevenue: eventData.addon_revenue || "$0",
       addOnRevenueMonth: eventData.addon_revenue_month || "$0",
     }
@@ -199,11 +222,57 @@ const LiveAddOnEventView = () => {
       return newIndex;
     });
   };
+
+  const formatImagePath = (path) => getImageUrl(path, "ticket");
+
+  // Helper for Seating Events
+  const seatingEvents = React.useMemo(() => {
+    if (!eventData) return [];
+    const allEvents = [];
+    if (eventData.location_type === "offline" && eventData.ticket_layout) {
+      allEvents.push(eventData);
+    }
+    // Sub-events usually don't have their own sub-events, but keeping logic consistent
+    if (eventData.sub_events) {
+      eventData.sub_events.forEach((sub) => {
+        if (sub.location_type === "offline" && sub.ticket_layout) {
+          allEvents.push(sub);
+        }
+      });
+    }
+    return allEvents;
+  }, [eventData]);
+
+  const ticketTypes = eventData?.ticket_types || [];
+
+  const handlePrevSeating = () => {
+    const len = seatingEvents.length;
+    if (len === 0) return;
+    setCurrentSeatingIndex((prev) => (prev === 0 ? len - 1 : prev - 1));
+  };
+
+  const handleNextSeating = () => {
+    const len = seatingEvents.length;
+    if (len === 0) return;
+    setCurrentSeatingIndex((prev) => (prev + 1) % len);
+  };
+
+  const handlePrevTicket = () => {
+    const len = ticketTypes.length;
+    if (len === 0) return;
+    setCurrentTicketIndex((prev) => (prev === 0 ? len - 1 : prev - 1));
+  };
+
+  const handleNextTicket = () => {
+    const len = ticketTypes.length;
+    if (len === 0) return;
+    setCurrentTicketIndex((prev) => (prev + 1) % len);
+  };
   // Theme setup from HomePage
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)"
+      "(prefers-color-scheme: dark)",
     ).matches;
     const shouldBeDark = savedTheme ? savedTheme === "dark" : systemPrefersDark;
     setIsDark(shouldBeDark);
@@ -284,6 +353,15 @@ const LiveAddOnEventView = () => {
       purpleBtn: "bg-gradient-to-r from-[#6a47fa] to-[#5a3fea]",
       activePill: "bg-white text-black",
       inactivePill: "bg-transparent text-white border border-gray-700",
+      // Modal specific theme props
+      mainBg: "#212426",
+      insetBg: "#2e3133",
+      shadowOutset:
+        "6px 6px 12px 0px #00000040, -6px -6px 12px 0px #FFFFFF0D",
+      shadowInset:
+        "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14",
+      textColor: "text-white",
+      isDark: true,
     }
     : {
       bg: "bg-[#f0f2f5]",
@@ -297,6 +375,15 @@ const LiveAddOnEventView = () => {
       purpleBtn: "bg-gradient-to-r from-[#6a47fa] to-[#5a3fea] text-white",
       activePill: "bg-black text-white",
       inactivePill: "bg-transparent text-black border border-gray-300",
+      // Modal specific theme props
+      mainBg: "#f0f2f5",
+      insetBg: "#ffffff",
+      shadowOutset:
+        "6px 6px 12px 0px rgba(0,0,0,0.1), -6px -6px 12px 0px rgba(255,255,255,0.8)",
+      shadowInset:
+        "inset 6px 6px 12px 0px rgba(0,0,0,0.05), inset -6px -6px 12px 0px rgba(255,255,255,0.8)",
+      textColor: "text-gray-900",
+      isDark: false,
     };
 
   // Neumorphism shadow style from HomePage
@@ -393,11 +480,12 @@ const LiveAddOnEventView = () => {
   };
 
   const calendarSpecificCardStyle = isDark
-    ? { ...cardStyle, borderRadius: "36px" }
+    ? { ...cardStyle, borderRadius: "36px", boxShadow: "none" }
     : {
-      background: "#F1F1F1",
-      borderRadius: "24px",
-      boxShadow: "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
+      background: "#FFFFFF",
+      borderRadius: "36px",
+      boxShadow: "none",
+      border: "none",
     };
   // Loading State
   if (loading) {
@@ -443,7 +531,7 @@ const LiveAddOnEventView = () => {
       {
         month: "short",
         day: "numeric",
-      }
+      },
     )
     : "N/A";
   return (
@@ -583,7 +671,7 @@ const LiveAddOnEventView = () => {
                 value={computedEventData?.totalBooking || "0"}
                 color={theme.subText}
               />
-              {/* Right Side: Total Cancellation & Combined Likes/Share */}
+              {/* Right Side: Combined Likes/Share (Total Cancellation removed) */}
               <StatCard
                 theme={theme}
                 shadow={{ ...cardStyle, borderRadius: "20px" }}
@@ -646,13 +734,15 @@ const LiveAddOnEventView = () => {
                       "linear-gradient(#212426, #212426) padding-box, linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%) border-box",
                     boxShadow:
                       "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
-                    ...cardStyle
+                    ...cardStyle,
                   }}
                   className={`py-8 px-6 rounded-3xl ${theme.cardBgDarker} flex flex-col h-full`}
                 >
                   <div className="flex items-center gap-3 mb-4">
                     <Users className="w-6 h-6 text-yellow-500" />
-                    <h3 className={`text-lg font-bold ${theme.text}`}>GUIDES</h3>
+                    <h3 className={`text-lg font-bold ${theme.text}`}>
+                      GUIDES
+                    </h3>
                   </div>
                   <div className="flex items-center justify-center flex-1">
                     <p className={`${theme.subText} text-center`}>
@@ -680,13 +770,15 @@ const LiveAddOnEventView = () => {
                   if (bankDetails.length === 0) {
                     return (
                       <div
-                        className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${theme.cardBg} ${getNeumorphicShadows(isDark)} flex flex-col justify-between`}
-                        style={{ minHeight: "280px" }}
+                        className={`w-full p-4 sm:p-6 rounded-3xl font-sans ${theme.cardBgDarker} flex flex-col justify-between`}
+                        style={{
+                          minHeight: "280px",
+                          borderRadius: "36px",
+                          ...cardStyle,
+                        }}
                       >
                         {/* Always show Header even in empty state */}
-                        <header
-                          className="flex items-center justify-between pb-4 mb-6 flex-wrap gap-4"
-                        >
+                        <header className="flex items-center justify-between pb-4 mb-6 flex-wrap gap-4">
                           <div className="flex items-center">
                             <Landmark className="h-6 w-6 text-green-500" />
                             <h1
@@ -698,7 +790,9 @@ const LiveAddOnEventView = () => {
                         </header>
 
                         <div className="flex flex-col items-center justify-center flex-1 text-center">
-                          <p className={`${theme.subText} text-lg font-medium`}>No bank account added</p>
+                          <p className={`${theme.subText} text-lg font-medium`}>
+                            No bank account added
+                          </p>
                         </div>
                       </div>
                     );
@@ -706,9 +800,12 @@ const LiveAddOnEventView = () => {
 
                   return (
                     <div
-                      className={`w-full rounded-[50px] p-4 sm:p-6 font-sans ${theme.cardBg
-                        } ${getNeumorphicShadows(isDark)} flex flex-col justify-between`}
-                      style={{ minHeight: "280px" }}
+                      className={`w-full p-4 sm:p-6 rounded-3xl font-sans ${theme.cardBgDarker} flex flex-col justify-between`}
+                      style={{
+                        minHeight: "280px",
+                        borderRadius: "36px",
+                        ...cardStyle,
+                      }}
                     >
                       {/* Card Header */}
                       <header
@@ -725,7 +822,7 @@ const LiveAddOnEventView = () => {
                         </div>
                         {bankDetails.length > 1 && (
                           <button
-                            onClick={() => navigate('/ticket/bank-details')}
+                            onClick={() => navigate("/ticket/bank-details")}
                             className="whitespace-nowrap text-xs sm:text-sm font-semibold text-purple-600 border border-purple-300 rounded-full px-4 py-1.5 sm:px-5 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors duration-300"
                           >
                             see all
@@ -758,7 +855,9 @@ const LiveAddOnEventView = () => {
                           </p>
                         </div>
                         <div className="flex items-center justify-between gap-2">
-                          <p className={`text-sm font-medium ${theme.subText}`}>IFSC code:</p>
+                          <p className={`text-sm font-medium ${theme.subText}`}>
+                            IFSC code:
+                          </p>
                           <p
                             className={`text-sm ${theme.text} ${isDark ? "bg-gray-700" : "bg-gray-500"
                               } text-white rounded-md px-3 py-1 shadow-sm truncate max-w-[140px] md:max-w-[200px]`}
@@ -784,11 +883,15 @@ const LiveAddOnEventView = () => {
                         {bankDetails.length > 1 && (
                           <>
                             <button
-                              onClick={() => setCurrentBankDetailsIndex(Math.max(0, currentIndex - 1))}
+                              onClick={() =>
+                                setCurrentBankDetailsIndex(
+                                  Math.max(0, currentIndex - 1),
+                                )
+                              }
                               disabled={currentIndex === 0}
                               className={`text-xs ${currentIndex === 0
-                                ? "opacity-30 cursor-not-allowed"
-                                : "hover:opacity-80 cursor-pointer"
+                                  ? "opacity-30 cursor-not-allowed"
+                                  : "hover:opacity-80 cursor-pointer"
                                 } ${theme.text}`}
                             >
                               ←
@@ -797,24 +900,33 @@ const LiveAddOnEventView = () => {
                               {bankDetails.map((_, index) => (
                                 <div
                                   key={index}
-                                  onClick={() => setCurrentBankDetailsIndex(index)}
+                                  onClick={() =>
+                                    setCurrentBankDetailsIndex(index)
+                                  }
                                   className={`w-2.5 h-2.5 rounded-full cursor-pointer transition-colors ${index === currentIndex
-                                    ? isDark
-                                      ? "bg-purple-500"
-                                      : "bg-purple-600"
-                                    : isDark
-                                      ? "bg-gray-600"
-                                      : "bg-gray-400"
+                                      ? isDark
+                                        ? "bg-purple-500"
+                                        : "bg-purple-600"
+                                      : isDark
+                                        ? "bg-gray-600"
+                                        : "bg-gray-400"
                                     }`}
                                 ></div>
                               ))}
                             </div>
                             <button
-                              onClick={() => setCurrentBankDetailsIndex(Math.min(bankDetails.length - 1, currentIndex + 1))}
+                              onClick={() =>
+                                setCurrentBankDetailsIndex(
+                                  Math.min(
+                                    bankDetails.length - 1,
+                                    currentIndex + 1,
+                                  ),
+                                )
+                              }
                               disabled={currentIndex === bankDetails.length - 1}
                               className={`text-xs ${currentIndex === bankDetails.length - 1
-                                ? "opacity-30 cursor-not-allowed"
-                                : "hover:opacity-80 cursor-pointer"
+                                  ? "opacity-30 cursor-not-allowed"
+                                  : "hover:opacity-80 cursor-pointer"
                                 } ${theme.text}`}
                             >
                               →
@@ -841,6 +953,13 @@ const LiveAddOnEventView = () => {
                   <div className="flex flex-row md:flex-col items-center justify-center gap-4">
                     <div className="flex flex-col items-center gap-2">
                       <button
+                        onClick={() => {
+                          if (ticketTypes && ticketTypes.length > 0) {
+                            setShowTicketModal(true);
+                          } else {
+                            toast.error("No ticket types available.");
+                          }
+                        }}
                         className={`w-16 h-16 rounded-2xl flex items-center justify-center ${theme.purpleBtn} text-white`}
                       >
                         <Ticket className="w-8 h-8 filter brightness-0 invert" />
@@ -849,6 +968,7 @@ const LiveAddOnEventView = () => {
                     </div>
                     <div className="flex flex-col items-center gap-2">
                       <button
+                        onClick={() => setShowSeatingModal(true)}
                         className={`w-16 h-16 rounded-2xl flex items-center justify-center ${theme.purpleBtn} text-white`}
                       >
                         <Armchair className="w-8 h-8 filter brightness-0 invert" />
@@ -871,7 +991,7 @@ const LiveAddOnEventView = () => {
                           <button
                             onClick={handlePrevMonth}
                             style={{
-                              boxShadow: controlShadow,
+                              boxShadow: "none",
                               borderRadius: "30px",
                             }}
                             className={`flex items-center justify-center ${calendarBg} w-10 h-10 md:w-12 md:h-12 flex-shrink-0`}
@@ -884,7 +1004,7 @@ const LiveAddOnEventView = () => {
                           <button
                             onClick={handleNextMonth}
                             style={{
-                              boxShadow: controlShadow,
+                              boxShadow: "none",
                               borderRadius: "30px",
                             }}
                             className={`flex items-center justify-center ${calendarBg} w-10 h-10 md:w-12 md:h-12 flex-shrink-0`}
@@ -905,7 +1025,7 @@ const LiveAddOnEventView = () => {
                                 setShowYearSelector(false);
                               }}
                               style={{
-                                boxShadow: controlShadow,
+                                boxShadow: "none",
                                 borderRadius: "30px",
                                 paddingLeft: "12px",
                                 paddingRight: "12px",
@@ -945,7 +1065,7 @@ const LiveAddOnEventView = () => {
                                 setShowMonthSelector(false);
                               }}
                               style={{
-                                boxShadow: controlShadow,
+                                boxShadow: "none",
                                 borderRadius: "30px",
                                 paddingLeft: "12px",
                                 paddingRight: "12px",
@@ -1040,14 +1160,20 @@ const LiveAddOnEventView = () => {
                 <div className="">
                   <div
                     className={`py-8 px-6 rounded-3xl ${theme.cardBgDarker} flex flex-col`}
-                    style={{ ...cardStyle, borderRadius: "36px", minHeight: "280px" }}
+                    style={{
+                      ...cardStyle,
+                      borderRadius: "36px",
+                      minHeight: "280px",
+                    }}
                   >
                     {/* Hashtags Section - Replaces Add-On Events */}
                     <div className="flex items-center gap-3 mb-4">
                       <div className="bg-blue-500 rounded-full p-1.5 flex items-center justify-center">
                         <Hash className="w-4 h-4 text-white" />
                       </div>
-                      <h3 className={`text-lg font-bold ${theme.text}`}>HASHTAGS</h3>
+                      <h3 className={`text-lg font-bold ${theme.text}`}>
+                        HASHTAGS
+                      </h3>
                     </div>
                     <div className="flex flex-wrap gap-[10px] content-start overflow-y-auto h-full p-2">
                       {eventData?.hashtag && eventData.hashtag.length > 0 ? (
@@ -1095,6 +1221,29 @@ const LiveAddOnEventView = () => {
             </div>
 
             {/* Footer Buttons */}
+            {showSeatingModal && (
+              <SeatingLayoutModal
+                eventData={seatingEvents[currentSeatingIndex] || eventData}
+                theme={theme}
+                onClose={() => setShowSeatingModal(false)}
+                totalSeatingLayouts={seatingEvents.length}
+                currentSeatingIndex={currentSeatingIndex}
+                onPrevSeating={handlePrevSeating}
+                onNextSeating={handleNextSeating}
+                formatImagePath={formatImagePath}
+              />
+            )}
+            {showTicketModal && (
+              <TicketDetailModal
+                theme={theme}
+                onClose={() => setShowTicketModal(false)}
+                ticketTypes={ticketTypes}
+                currentTicketIndex={currentTicketIndex}
+                onPrevTicket={handlePrevTicket}
+                onNextTicket={handleNextTicket}
+                formatImagePath={formatImagePath}
+              />
+            )}
           </main>
           {/* --- End of Main Content Area --- */}
 
@@ -1138,7 +1287,7 @@ function MonthSelector({
   return (
     <div
       className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
-        isDark
+        isDark,
       )} p-1 flex flex-col gap-1 w-24 shadow-lg`}
       style={style}
     >
@@ -1146,8 +1295,8 @@ function MonthSelector({
         <button
           key={monthName}
           className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentMonth === index
-            ? "bg-blue-600 text-blue-100"
-            : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
+              ? "bg-blue-600 text-blue-100"
+              : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
             }`}
           onClick={() => {
             onSelectMonth(index);
@@ -1173,7 +1322,7 @@ function YearSelector({
   return (
     <div
       className={`${theme.cardBg} rounded-xl ${getButtonNeumorphicShadows(
-        isDark
+        isDark,
       )} p-1 flex flex-col gap-1 w-24 shadow-lg max-h-[13.5rem] overflow-y-auto`}
       style={style}
     >
@@ -1181,8 +1330,8 @@ function YearSelector({
         <button
           key={yearNum}
           className={`w-full px-2 py-1.5 rounded-md text-sm font-semibold text-left transition-colors duration-150 ${currentYear === yearNum
-            ? "bg-blue-600 text-blue-100"
-            : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
+              ? "bg-blue-600 text-blue-100"
+              : `${theme.text} hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900`
             }`}
           onClick={() => {
             onSelectYear(yearNum);
