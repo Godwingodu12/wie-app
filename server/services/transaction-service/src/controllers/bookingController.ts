@@ -4,7 +4,7 @@ import { prisma } from '../config/db';
 import { SettlementService } from '../services/settlementService';
 import RazorpayService from '../config/razorpay';
 import { getTicketById, getGroupById, updateTicketStats } from '../clients/ticketServiceClient';
-import { updateTicketCancellation } from '../grpc/ticketClient';
+import { updateTicketCancellation, getEventDates } from '../grpc/ticketClient';
 import { getUserById } from '../clients/userServiceClient';
 import { generateQRCode } from '../utils/qrGenerator';
 import { createNotification } from '../utils/notificationHelper';
@@ -814,81 +814,107 @@ export const cancelBooking = async (req: Request, res: Response) => {
         message: 'Booking is already cancelled',
       });
     }
+    // ✅ NEW: Fetch event dates from ticket service
+    let eventDates;
+    try {
+      eventDates = await getEventDates(booking.ticketId);
+    } catch (eventErr: any) {
+      console.error('❌ Failed to fetch event dates:', eventErr.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Unable to verify event timing. Please try again later.',
+      });
+    }
+    // ✅ NEW: Validate 4-hour cancellation window
+    if (eventDates && eventDates.start_date) {
+      try {
+        const eventStartDate = new Date(eventDates.start_date);
+        // If start_time is provided, combine it with the date
+        if (eventDates.start_time) {
+          // Parse time (format: "HH:MM" or "HH:MM:SS")
+          const timeParts = eventDates.start_time.split(':');
+          eventStartDate.setHours(
+            parseInt(timeParts[0]),
+            parseInt(timeParts[1]),
+            parseInt(timeParts[2] || '0')
+          );
+        } else {
+          // If no time specified, assume midnight
+          eventStartDate.setHours(0, 0, 0, 0);
+        }
+        const now = new Date();
+        const fourHoursBeforeEvent = new Date(eventStartDate.getTime() - (4 * 60 * 60 * 1000));
+        // Check if current time is within 4 hours of event start
+        if (now > fourHoursBeforeEvent) {
+          const hoursUntilEvent = (eventStartDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+          if (hoursUntilEvent < 0) {
+            return res.status(400).json({
+              success: false,
+              message: 'Cannot cancel booking. The event has already started or passed.',
+              eventStartTime: eventStartDate.toISOString(),
+            });
+          } else {
+            return res.status(400).json({
+              success: false,
+              message: `Cannot cancel booking. Cancellations must be made at least 4 hours before the event. Time remaining: ${hoursUntilEvent.toFixed(1)} hours.`,
+              eventStartTime: eventStartDate.toISOString(),
+              hoursUntilEvent: parseFloat(hoursUntilEvent.toFixed(1)),
+            });
+          }
+        }
+      } catch (dateErr: any) {
+        console.error('❌ Error parsing event date:', dateErr);
+        return res.status(500).json({
+          success: false,
+          message: 'Unable to verify event timing. Please contact support.',
+        });
+      }
+    } else {
+      console.warn('⚠️ Event dates not found for ticket:', booking.ticketId);
+    }
+    // Cancel booking and increment cancellation count
     const updatedBooking = await BookingModel.cancel(bookingId, cancellationReason);
     const ticketAmount = parseFloat(booking.subtotal.toString());
     const isPaidBooking = ticketAmount > 0 && booking.paymentStatus === 'COMPLETED' && booking.razorpayPaymentId;
     if (isPaidBooking) {
       const refundAmount = parseFloat(ticketAmount.toFixed(2));
-      
       try {
         const razorpay = RazorpayService.getInstance(
           process.env.RAZORPAY_KEY_ID!,
           process.env.RAZORPAY_KEY_SECRET!
         );
-        
         if (!booking.razorpayPaymentId) {
           throw new Error('No payment ID found for this booking');
-        }
-    
-        // ✅ Get payment details first
-        console.log(`🔍 Fetching payment details for: ${booking.razorpayPaymentId.trim()}`);
-        
+        }        
         let paymentDetails;
         try {
           paymentDetails = await RazorpayService.getPaymentDetails(
             razorpay,
             booking.razorpayPaymentId.trim()
           );
-          
-          console.log(`📋 Payment details:`, {
-            id: paymentDetails.id,
-            status: paymentDetails.status,
-            captured: paymentDetails.captured,
-            amount: paymentDetails.amount,
-            method: paymentDetails.method
-          });
-          
         } catch (paymentErr: any) {
           console.error('❌ Failed to fetch payment details:', paymentErr.message);
           throw new Error(`Cannot verify payment status: ${paymentErr.message}`);
         }
-    
         // ✅ Verify payment is captured
         if (!paymentDetails) {
           throw new Error('Payment details not found');
         }
-    
         if (paymentDetails.status !== 'captured') {
           throw new Error(`Payment not captured. Current status: ${paymentDetails.status}`);
         }
-    
         if (!paymentDetails.captured) {
           throw new Error('Payment capture flag is false');
         }
-    
         // ✅ Calculate refund amount (in rupees, not paise)
         const paymentAmountInRupees = parseFloat((paymentDetails.amount / 100).toFixed(2));
-        
-        console.log(`💰 Refund calculation:`, {
-          ticketAmount: ticketAmount,
-          platformFee: parseFloat(booking.platformFee.toString()),
-          totalPaid: parseFloat(booking.totalAmount.toString()),
-          paymentAmountFromRazorpay: paymentAmountInRupees,
-          refundAmount: refundAmount
-        });
-    
         // ✅ Verify refund amount doesn't exceed payment
         if (refundAmount > paymentAmountInRupees) {
           throw new Error(`Refund amount (₹${refundAmount}) exceeds payment amount (₹${paymentAmountInRupees})`);
         }
-    
         if (refundAmount <= 0) {
           throw new Error('Invalid refund amount: must be greater than 0');
-        }
-    
-        // ✅ Initiate refund with minimal notes
-        console.log(`🔄 Initiating refund of ₹${refundAmount} for payment ${booking.razorpayPaymentId.trim()}`);
-        
+        }        
         const refund = await RazorpayService.initiateRefund(
           razorpay,
           booking.razorpayPaymentId.trim(),
@@ -898,14 +924,6 @@ export const cancelBooking = async (req: Request, res: Response) => {
             reason: 'Booking cancelled'
           }
         );
-    
-        console.log(`✅ Refund created:`, {
-          id: refund.id,
-          status: refund.status,
-          amount: refund.amount,
-          speed: refund.speed
-        });
-    
         // Update booking with refund info
         await BookingModel.update(bookingId, {
           refundAmount: refundAmount,
@@ -913,7 +931,6 @@ export const cancelBooking = async (req: Request, res: Response) => {
           refundId: refund.id,
           refundInitiatedAt: new Date(),
         });
-    
         // Log refund transaction
         await PaymentTransactionModel.create({
           bookingId: booking.id,
@@ -946,7 +963,6 @@ export const cancelBooking = async (req: Request, res: Response) => {
             totalAmountPaid: parseFloat(booking.totalAmount.toString()),
           } as any,
         });
-    
         await createNotification({
           userId,
           type: 'refund_initiated',
@@ -955,9 +971,6 @@ export const cancelBooking = async (req: Request, res: Response) => {
           bookingId: String(booking.id),
           ticketId: booking.ticketId,
         });
-    
-        console.log(`✅ Refund initiated successfully: ₹${refundAmount} for booking ${booking.bookingId}`);
-    
       } catch (refundError: any) {
         console.error('❌ Refund initiation failed:', {
           error: refundError.message,
@@ -966,13 +979,11 @@ export const cancelBooking = async (req: Request, res: Response) => {
           paymentId: booking.razorpayPaymentId,
           paymentStatus: booking.paymentStatus
         });
-    
         // Mark refund as failed
         await BookingModel.update(bookingId, {
           refundStatus: 'FAILED',
           refundAmount: refundAmount,
         });
-    
         // Notify user about manual refund
         await createNotification({
           userId,
@@ -983,7 +994,8 @@ export const cancelBooking = async (req: Request, res: Response) => {
           ticketId: booking.ticketId,
         });
       }
-    } else {      
+    } else {
+      // ✅ Free event or unpaid booking - no refund needed      
       await createNotification({
         userId,
         type: 'booking_cancelled',
@@ -993,6 +1005,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
         ticketId: booking.ticketId,
       });
     }
+    // ✅ Update ticket stats (always update, regardless of payment type)
     try {
       await safeUpdateTicketStats(booking.ticketId, 'totalBookings', -1);
       await safeUpdateTicketStats(booking.ticketId, 'totalTicketsSold', -booking.quantity);
@@ -1005,6 +1018,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
     } catch (statsError) {
       console.error('❌ Error updating ticket stats:', statsError);
     }
+    // Get user's cancellation stats
     let cancellationStats;
     try {
       cancellationStats = await BookingModel.getUserCancellationStats(userId);
@@ -1012,8 +1026,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
       console.error('❌ Error getting cancellation stats:', statsError);
       cancellationStats = { totalCancellations: 0, totalCancelledTickets: 0 };
     }
-
-    res.json({
+    res.status(200).json({
       success: true,
       message: 'Booking cancelled successfully',
       data: { 

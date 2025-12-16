@@ -199,3 +199,36 @@ export const getPreviousEventStats = async (ticketId: string): Promise<any> => {
     });
   });
 };
+export const getEventDates = async (ticketId: string): Promise<{
+  start_date: string;
+  start_time?: string;
+  end_date?: string;
+  end_time?: string;
+} | null> => {
+  return new Promise((resolve, reject) => {
+    const client = getClient();
+    
+    client.GetTicketById({ ticketId }, (error: any, response: any) => {
+      if (error) {
+        reject(new Error(`Failed to fetch event dates: ${error.message}`));
+      } else if (response.error) {
+        reject(new Error(response.error));
+      } else if (!response.ticket) {
+        reject(new Error('Ticket not found'));
+      } else {
+        // Extract first event date
+        const eventDates = response.ticket.event_dates?.[0];
+        if (eventDates) {
+          resolve({
+            start_date: eventDates.start_date,
+            start_time: eventDates.start_time,
+            end_date: eventDates.end_date,
+            end_time: eventDates.end_time
+          });
+        } else {
+          resolve(null);
+        }
+      }
+    });
+  });
+};

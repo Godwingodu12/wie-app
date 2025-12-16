@@ -11,7 +11,12 @@ import {
   getMyLiveEventView,
   getGroupView,
   getTicketById,
+  getEventMetrics, // Import the new service function
 } from "../../services/ticketService";
+import { getImageUrl } from "../../utils/imageUtils";
+import SeatingLayoutModal from "../../components/ViewSingleEvent/SeatingLayoutModal";
+
+import TicketDetailModal from "../../components/ViewSingleEvent/TicketDetailModal";
 import {
   Radio,
   ArrowLeft,
@@ -42,6 +47,12 @@ const LiveEventsPage = () => {
   const { ticketId } = useParams();
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
+
+  // Modal State
+  const [showSeatingModal, setShowSeatingModal] = useState(false);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [currentSeatingIndex, setCurrentSeatingIndex] = useState(0);
+  const [currentTicketIndex, setCurrentTicketIndex] = useState(0);
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showMonthSelector, setShowMonthSelector] = useState(false);
@@ -49,6 +60,7 @@ const LiveEventsPage = () => {
   // API State Management
   const [eventData, setEventData] = useState(null);
   const [groupData, setGroupData] = useState(null);
+  const [metrics, setMetrics] = useState(null); // State for metrics
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [groupName, setGroupName] = useState("");
@@ -99,6 +111,18 @@ const LiveEventsPage = () => {
             // Continue without group data
           }
         }
+
+        // Fetch event metrics
+        try {
+          const metricsResponse = await getEventMetrics(ticketId);
+          if (metricsResponse?.data) {
+            setMetrics(metricsResponse.data);
+          }
+        } catch (metricsErr) {
+          console.warn("Failed to fetch event metrics:", metricsErr);
+          // Don't block the UI if metrics fail, just use defaults
+        }
+
       } catch (err) {
         console.error("Failed to fetch live event data:", err);
         const errorMessage =
@@ -120,12 +144,12 @@ const LiveEventsPage = () => {
     ? {
       name: eventData.event_name || "Event Name",
       creator: eventData.created_by || "Unknown Creator",
-      // These fields might need backend calculation
-      totalRevenue: eventData.total_revenue || "0",
-      totalBooking: eventData.total_bookings || "0",
-      totalCancellation: eventData.total_cancellations || "0",
-      totalLikes: eventData.like || "0",
-      totalShare: eventData.share_count || "0",
+      // These fields are now fetched from getEventMetrics, falling back to eventData or defaults
+      totalRevenue: metrics?.totalRevenue ?? eventData.total_revenue ?? "0",
+      totalBooking: metrics?.totalBooking ?? eventData.total_bookings ?? "0",
+      // totalCancellation removed
+      totalLikes: metrics?.totalLikes ?? eventData.like ?? "0",
+      totalShare: metrics?.totalShare ?? eventData.share_count ?? "0",
       addOnRevenue: eventData.addon_revenue || "$0",
       addOnRevenueMonth: eventData.addon_revenue_month || "$0",
     }
@@ -201,6 +225,51 @@ const LiveEventsPage = () => {
     localStorage.setItem("theme", newTheme ? "dark" : "light");
   };
 
+  const formatImagePath = (path) => getImageUrl(path, "ticket");
+
+  // Helper for Seating Events
+  const seatingEvents = React.useMemo(() => {
+    if (!eventData) return [];
+    const allEvents = [];
+    if (eventData.location_type === "offline" && eventData.ticket_layout) {
+      allEvents.push(eventData);
+    }
+    if (eventData.sub_events) {
+      eventData.sub_events.forEach((sub) => {
+        if (sub.location_type === "offline" && sub.ticket_layout) {
+          allEvents.push(sub);
+        }
+      });
+    }
+    return allEvents;
+  }, [eventData]);
+
+  const ticketTypes = eventData?.ticket_types || [];
+
+  const handlePrevSeating = () => {
+    const len = seatingEvents.length;
+    if (len === 0) return;
+    setCurrentSeatingIndex((prev) => (prev === 0 ? len - 1 : prev - 1));
+  };
+
+  const handleNextSeating = () => {
+    const len = seatingEvents.length;
+    if (len === 0) return;
+    setCurrentSeatingIndex((prev) => (prev + 1) % len);
+  };
+
+  const handlePrevTicket = () => {
+    const len = ticketTypes.length;
+    if (len === 0) return;
+    setCurrentTicketIndex((prev) => (prev === 0 ? len - 1 : prev - 1));
+  };
+
+  const handleNextTicket = () => {
+    const len = ticketTypes.length;
+    if (len === 0) return;
+    setCurrentTicketIndex((prev) => (prev + 1) % len);
+  };
+
   // Theme object from HomePage
   const theme = isDark
     ? {
@@ -215,6 +284,13 @@ const LiveEventsPage = () => {
       purpleBtn: "bg-gradient-to-r from-[#6a47fa] to-[#5a3fea]",
       activePill: "bg-white text-black",
       inactivePill: "bg-transparent text-white border border-gray-700",
+      // Modal specific theme props
+      mainBg: "#212426",
+      insetBg: "#2e3133",
+      shadowOutset: "6px 6px 12px 0px #00000040, -6px -6px 12px 0px #FFFFFF0D",
+      shadowInset: "inset 6px 6px 12px 0px #0000002E, inset -6px -6px 12px 0px #FFFFFF14",
+      textColor: "text-white",
+      isDark: true,
     }
     : {
       bg: "bg-[#f0f2f5]",
@@ -228,6 +304,13 @@ const LiveEventsPage = () => {
       purpleBtn: "bg-gradient-to-r from-[#6a47fa] to-[#5a3fea] text-white",
       activePill: "bg-black text-white",
       inactivePill: "bg-transparent text-black border border-gray-300",
+      // Modal specific theme props
+      mainBg: "#f0f2f5",
+      insetBg: "#ffffff",
+      shadowOutset: "6px 6px 12px 0px rgba(0,0,0,0.1), -6px -6px 12px 0px rgba(255,255,255,0.8)",
+      shadowInset: "inset 6px 6px 12px 0px rgba(0,0,0,0.05), inset -6px -6px 12px 0px rgba(255,255,255,0.8)",
+      textColor: "text-gray-900",
+      isDark: false,
     };
 
   // Neumorphism shadow style from HomePage
@@ -324,11 +407,12 @@ const LiveEventsPage = () => {
   };
 
   const calendarSpecificCardStyle = isDark
-    ? { ...cardStyle, borderRadius: "36px" }
+    ? { ...cardStyle, borderRadius: "36px", boxShadow: "none" }
     : {
-      background: "#F1F1F1",
-      borderRadius: "24px",
-      boxShadow: "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
+      background: "#FFFFFF",
+      borderRadius: "36px",
+      boxShadow: "none",
+      border: "none",
     };
   // Loading State
   if (loading) {
@@ -511,7 +595,7 @@ const LiveEventsPage = () => {
                 value={computedEventData?.totalBooking || "0"}
                 color={theme.subText}
               />
-              {/* Right Side: Total Cancellation & Combined Likes/Share */}
+              {/* Right Side: Combined Likes/Share (Total Cancellation removed) */}
               <StatCard
                 theme={theme}
                 shadow={{ ...cardStyle, borderRadius: "20px" }}
@@ -630,6 +714,13 @@ const LiveEventsPage = () => {
                   <div className="flex flex-row md:flex-col items-center justify-center gap-4">
                     <div className="flex flex-col items-center gap-2">
                       <button
+                        onClick={() => {
+                          if (ticketTypes && ticketTypes.length > 0) {
+                            setShowTicketModal(true);
+                          } else {
+                            toast.error("No ticket types available.");
+                          }
+                        }}
                         className={`w-16 h-16 rounded-2xl flex items-center justify-center ${theme.purpleBtn} text-white`}
                       >
                         <Ticket className="w-8 h-8 filter brightness-0 invert" />
@@ -638,6 +729,7 @@ const LiveEventsPage = () => {
                     </div>
                     <div className="flex flex-col items-center gap-2">
                       <button
+                        onClick={() => setShowSeatingModal(true)}
                         className={`w-16 h-16 rounded-2xl flex items-center justify-center ${theme.purpleBtn} text-white`}
                       >
                         <Armchair className="w-8 h-8 filter brightness-0 invert" />
@@ -659,7 +751,7 @@ const LiveEventsPage = () => {
                           <button
                             onClick={handlePrevMonth}
                             style={{
-                              boxShadow: controlShadow,
+                              boxShadow: "none",
                               borderRadius: "30px",
                             }}
                             className={`flex items-center justify-center ${calendarBg} w-10 h-10 md:w-12 md:h-12 flex-shrink-0`}
@@ -672,7 +764,7 @@ const LiveEventsPage = () => {
                           <button
                             onClick={handleNextMonth}
                             style={{
-                              boxShadow: controlShadow,
+                              boxShadow: "none",
                               borderRadius: "30px",
                             }}
                             className={`flex items-center justify-center ${calendarBg} w-10 h-10 md:w-12 md:h-12 flex-shrink-0`}
@@ -693,7 +785,7 @@ const LiveEventsPage = () => {
                                 setShowYearSelector(false);
                               }}
                               style={{
-                                boxShadow: controlShadow,
+                                boxShadow: "none",
                                 borderRadius: "30px",
                                 paddingLeft: "12px",
                                 paddingRight: "12px",
@@ -733,7 +825,7 @@ const LiveEventsPage = () => {
                                 setShowMonthSelector(false);
                               }}
                               style={{
-                                boxShadow: controlShadow,
+                                boxShadow: "none",
                                 borderRadius: "30px",
                                 paddingLeft: "12px",
                                 paddingRight: "12px",
@@ -918,10 +1010,10 @@ const LiveEventsPage = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </div >
 
             {/* Footer Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+            < div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8" >
               <FooterButton
                 theme={theme}
                 icon={<Users />}
@@ -942,11 +1034,35 @@ const LiveEventsPage = () => {
                 icon={<Download />}
                 text="Download daily revenue report"
               />
-            </div>
+            </div >
+            {/* Modals */}
+            {showSeatingModal && (
+              <SeatingLayoutModal
+                eventData={seatingEvents[currentSeatingIndex] || eventData}
+                theme={theme}
+                onClose={() => setShowSeatingModal(false)}
+                totalSeatingLayouts={seatingEvents.length}
+                currentSeatingIndex={currentSeatingIndex}
+                onPrevSeating={handlePrevSeating}
+                onNextSeating={handleNextSeating}
+                formatImagePath={formatImagePath}
+              />
+            )}
+            {showTicketModal && (
+              <TicketDetailModal
+                theme={theme}
+                onClose={() => setShowTicketModal(false)}
+                ticketTypes={ticketTypes}
+                currentTicketIndex={currentTicketIndex}
+                onPrevTicket={handlePrevTicket}
+                onNextTicket={handleNextTicket}
+                formatImagePath={formatImagePath}
+              />
+            )}
           </main>
           {/* --- End of Main Content Area --- */}
 
-          <BottomNavigation theme={theme} user={user} />
+          < BottomNavigation theme={theme} user={user} />
         </div >
       </div >
       {/* <-- This closing div was missing */}

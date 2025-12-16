@@ -81,7 +81,21 @@ export default function CategoryEventsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryFromUrl]);
-
+// Periodic refresh of event stats every 30 seconds when page is visible
+useEffect(() => {
+  if (typeof window === 'undefined') return;
+  
+  const refreshInterval = setInterval(() => {
+    if (!document.hidden) {
+      Object.values(displayEventsByCategoryWithSubEventLogic).forEach((events: any) => {
+        events.forEach((event: any) => {
+          event.loadEventStats();
+        });
+      });
+    }
+  }, 10000); // Every 10 seconds
+  return () => clearInterval(refreshInterval);
+}, []);
   // Handle GPS location search
   const handleUseCurrentLocation = async () => {
     try {
