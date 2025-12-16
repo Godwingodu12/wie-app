@@ -374,5 +374,120 @@ export class BookingModel {
       refundTransactions: booking?.paymentTransactions || []
     };
   }
+  static async getDailyBookingStats(ticketId: string): Promise<any[]> {
+    const bookings = await prisma.booking.findMany({
+      where: {
+        ticketId,
+        bookingStatus: 'CONFIRMED',
+        paymentStatus: 'COMPLETED',
+      },
+      select: {
+        createdAt: true,
+        quantity: true,
+        subtotal: true,
+      },
+    });
+
+    // Group by date
+    const dailyStats = bookings.reduce((acc: any, booking) => {
+      const date = new Date(booking.createdAt).toISOString().split('T')[0];
+      
+      if (!acc[date]) {
+        acc[date] = {
+          date,
+          bookings: 0,
+          ticketsSold: 0,
+          revenue: 0,
+        };
+      }
+      
+      acc[date].bookings += 1;
+      acc[date].ticketsSold += booking.quantity;
+      acc[date].revenue += parseFloat(booking.subtotal.toString());
+      
+      return acc;
+    }, {});
+
+    return Object.values(dailyStats).sort((a: any, b: any) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+  }
+  static async getMonthlyBookingStats(ticketId: string, startDate: string, endDate: string): Promise<any[]> {
+    const bookings = await prisma.booking.findMany({
+      where: {
+        ticketId,
+        bookingStatus: 'CONFIRMED',
+        paymentStatus: 'COMPLETED',
+        createdAt: {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        },
+      },
+      select: {
+        createdAt: true,
+        quantity: true,
+        subtotal: true,
+      },
+    });
+
+    // Group by month
+    const monthlyStats = bookings.reduce((acc: any, booking) => {
+      const date = new Date(booking.createdAt);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthName = date.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+      
+      if (!acc[monthKey]) {
+        acc[monthKey] = {
+          month: monthName,
+          year: date.getFullYear(),
+          bookings: 0,
+          ticketsSold: 0,
+          revenue: 0,
+        };
+      }
+      
+      acc[monthKey].bookings += 1;
+      acc[monthKey].ticketsSold += booking.quantity;
+      acc[monthKey].revenue += parseFloat(booking.subtotal.toString());
+      
+      return acc;
+    }, {});
+
+    return Object.values(monthlyStats);
+  }
+  static async getTicketTypeStats(ticketId: string): Promise<any[]> {
+    const bookings = await prisma.booking.findMany({
+      where: {
+        ticketId,
+        bookingStatus: 'CONFIRMED',
+        paymentStatus: 'COMPLETED',
+      },
+      select: {
+        ticketType: true,
+        quantity: true,
+        subtotal: true,
+      },
+    });
+
+    // Group by ticket type
+    const typeStats = bookings.reduce((acc: any, booking) => {
+      const type = booking.ticketType;
+      
+      if (!acc[type]) {
+        acc[type] = {
+          ticketType: type,
+          soldCount: 0,
+          revenue: 0,
+        };
+      }
+      
+      acc[type].soldCount += booking.quantity;
+      acc[type].revenue += parseFloat(booking.subtotal.toString());
+      
+      return acc;
+    }, {});
+
+    return Object.values(typeStats);
+  }
 }
 export default BookingModel;
