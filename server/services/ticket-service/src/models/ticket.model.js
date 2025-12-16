@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-
 // Guest Schema
 const guestSchema = new mongoose.Schema({
   guest_name: { type: String },
@@ -181,6 +180,7 @@ const subEventSchema = new mongoose.Schema({
   totalBookings: { type: Number, required: false, default: 0 },
   totalTicketsSold: { type: Number, required: false, default: 0 }, 
   revenue: { type: Number, required: false, default: 0 },
+  total_cancellation: { type: Number, required: false, default: 0 },
 }, { timestamps: true });
 // Main Ticket Schema (Event)
 const ticketSchema = new mongoose.Schema({
@@ -246,7 +246,6 @@ const ticketSchema = new mongoose.Schema({
       default: Date.now
     }
   }], // Array of image objects (max 10)
-  
   // Event Details
   hashtag: [{ type: String }], // Array of hashtags
   payment_type: { type: String, enum: ['free', 'paid'], required: false },
@@ -296,6 +295,7 @@ const ticketSchema = new mongoose.Schema({
   totalBookings: { type: Number, required: false, default: 0 },
   totalTicketsSold: { type: Number, required: false, default: 0 }, 
   revenue: { type: Number, required: false, default: 0 },
+  total_cancellation: { type: Number, required: false, default: 0 },
   //ticket offer or bulk booking
   event_ticket_offer: { type: Boolean, default: false },
   offerTickets: [offerTicketSchema],
