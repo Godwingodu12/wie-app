@@ -116,14 +116,25 @@ export const recordView = async (req: Request, res: Response) => {
     );
 
     if (!recentView) {
-      // Record new view
-      await InteractionModel.create({
-        userId,
-        ticketId,
-        interactionType: 'VIEW',
-      });
-      // Update ticket stats
+      // Record new view only if no recent view exists
+      try {
+        await InteractionModel.upsert({
+          userId,
+          ticketId,
+          interactionType: 'VIEW',
+        });
+        // Update ticket stats only when a new view is recorded
+        await updateTicketStats(ticketId, 'totalBookings', 1);
+      } catch (error: any) {
+        // If duplicate key error (P2002), it means view was just created by another request
+        if (error.code === 'P2002') {
+          console.log(`ℹ️ View already exists for user ${userId} and ticket ${ticketId}`);
+        } else {
+          throw error; // Re-throw other errors
+        }
+      }
     }
+
     res.json({
       success: true,
       message: 'View recorded',
