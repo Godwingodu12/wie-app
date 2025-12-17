@@ -40,10 +40,22 @@ async function startServer() {
 
     startGrpcServer(GRPC_PORT);
 
-    app.listen(PORT, () => {
-      //
+    const server = app.listen(PORT, () => {
+      console.log(`✅ WIE User Service running on port ${PORT}`);
+    });
+
+    server.on('error', (error: any) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use. Please free the port or change PORT in your .env file.`);
+        console.error(`   You can find the process using: netstat -ano | findstr :${PORT}`);
+        process.exit(1);
+      } else {
+        console.error('❌ Server error:', error);
+        process.exit(1);
+      }
     });
   } catch (error) {
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 }
