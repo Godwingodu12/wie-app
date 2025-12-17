@@ -111,8 +111,6 @@ const LiveEventsPage = () => {
             // Continue without group data
           }
         }
-
-        // Fetch event metrics
         try {
           const metricsResponse = await getEventMetrics(ticketId);
           if (metricsResponse?.data) {
@@ -120,9 +118,14 @@ const LiveEventsPage = () => {
           }
         } catch (metricsErr) {
           console.warn("Failed to fetch event metrics:", metricsErr);
-          // Don't block the UI if metrics fail, just use defaults
+          // Set default metrics on failure to prevent undefined errors
+          setMetrics({
+            totalRevenue: 0,
+            totalBooking: 0,
+            totalLikes: 0,
+            totalShare: 0
+          });
         }
-
       } catch (err) {
         console.error("Failed to fetch live event data:", err);
         const errorMessage =
