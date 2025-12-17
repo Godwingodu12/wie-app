@@ -2614,19 +2614,19 @@ export const getEventMetrics = async (req, res) => {
   try {
     const { ticketId } = req.params;
     const userId = req.user._id || req.user.id;
+
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
         message: "Invalid ticket ID format"
       });
     }
-    let ticket = await Ticket.findOne({ _id: ticketId, userId: userId });
-    if (!ticket) {
-      return res.status(404).json({
-        message: "Event not found"
-      });
-    }
+
     let metrics = {};
     let found = false;
+
+    // First, check if it's a main event
+    let ticket = await Ticket.findOne({ _id: ticketId, userId: userId });
+    
     if (ticket) {
       // It's a main event
       metrics = {
@@ -2638,24 +2638,40 @@ export const getEventMetrics = async (req, res) => {
       found = true;
     } else {
       // Check if it's a sub-event
-      ticket = await Ticket.findOne({ 'sub_events._id': ticketId, userId: userId });
-      if (!ticket) {
-        return res.status(404).json({ message: "Event not found" });
+      ticket = await Ticket.findOne({ 
+        'sub_events._id': ticketId, 
+        userId: userId 
+      });
+      
+      if (ticket) {
+        // Find the specific sub-event
+        const subEvent = ticket.sub_events.find(
+          sub => sub._id.toString() === ticketId
+        );
+        
+        if (subEvent) {
+          metrics = {
+            totalRevenue: subEvent.revenue || 0,
+            totalBooking: subEvent.totalBookings || 0,
+            totalLikes: subEvent.like || 0,
+            totalShare: subEvent.share || 0
+          };
+          found = true;
+        }
       }
-      metrics = {
-        totalRevenue: ticket.revenue || 0,
-        totalBooking: ticket.totalBookings || 0,
-        totalLikes: ticket.like || 0,
-        totalShare: ticket.share || 0
-      };
     }
+
     if (!found) {
-       return res.status(404).json({ message: "Event not found" });
+      return res.status(404).json({ 
+        message: "Event not found" 
+      });
     }
+
     res.status(200).json({
       message: "Event metrics retrieved successfully",
       data: metrics
     });
+
   } catch (error) {
     console.error("Error fetching event metrics:", error);
     res.status(500).json({
