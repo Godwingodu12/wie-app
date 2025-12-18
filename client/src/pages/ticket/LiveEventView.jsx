@@ -5,6 +5,9 @@ import ThemeToggle from "../../components/HomePage/ThemeToggle";
 import SearchBar from "../../components/HomePage/SearchBar";
 import SideBar from "../../components/HomePage/SideBar";
 import BottomNavigation from "../../components/HomePage/BottomNavigation";
+import SeatingLayoutModal from "../../components/ViewSingleEvent/SeatingLayoutModal";
+import GuideModal from "../../components/ViewSingleEvent/GuideModal";
+import EventLocationModal from "../../components/ViewSingleEvent/EventLocationModal";
 import WieLogo from "../../assets/HomePage/WieLogo.svg?url";
 import { toast } from "react-hot-toast";
 import {
@@ -14,8 +17,6 @@ import {
   getEventMetrics, // Import the new service function
 } from "../../services/ticketService";
 import { getImageUrl } from "../../utils/imageUtils";
-import SeatingLayoutModal from "../../components/ViewSingleEvent/SeatingLayoutModal";
-
 import TicketDetailModal from "../../components/ViewSingleEvent/TicketDetailModal";
 import {
   Radio,
@@ -37,7 +38,7 @@ import {
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
-
+import ActionCircleButton from "../../components/ViewSingleEvent/ActionCircleButton";
 const HEADER_HEIGHT = 72; // From HomePage
 
 // Main Component
@@ -53,10 +54,14 @@ const LiveEventsPage = () => {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [currentSeatingIndex, setCurrentSeatingIndex] = useState(0);
   const [currentTicketIndex, setCurrentTicketIndex] = useState(0);
+  const [showBankAccountDetailsModal, setShowBankAccountDetailsModal] = useState(false);
+  const [showEventLocationModal, setShowEventLocationModal] = useState(false);
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showMonthSelector, setShowMonthSelector] = useState(false);
   const [showYearSelector, setShowYearSelector] = useState(false);
+  const [appAlert, setAppAlert] = useState(null);
+  const [showGuideModal, setShowGuideModal] = useState(false);
   // API State Management
   const [eventData, setEventData] = useState(null);
   const [groupData, setGroupData] = useState(null);
@@ -64,6 +69,8 @@ const LiveEventsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [groupName, setGroupName] = useState("");
+  const [selectedGuest, setSelectedGuest] = useState(null);
+
   // Fetch event data
   useEffect(() => {
     const fetchEventData = async () => {
@@ -123,7 +130,8 @@ const LiveEventsPage = () => {
             totalRevenue: 0,
             totalBooking: 0,
             totalLikes: 0,
-            totalShare: 0
+            totalShare: 0,
+            total_cancellation: 0,
           });
         }
       } catch (err) {
@@ -141,7 +149,7 @@ const LiveEventsPage = () => {
 
     fetchEventData();
   }, [ticketId]);
-
+  const groupId = eventData?.group_id || eventData?.groupId;
   // Computed values from API data
   const computedEventData = eventData
     ? {
@@ -150,9 +158,9 @@ const LiveEventsPage = () => {
       // These fields are now fetched from getEventMetrics, falling back to eventData or defaults
       totalRevenue: metrics?.totalRevenue ?? eventData.total_revenue ?? "0",
       totalBooking: metrics?.totalBooking ?? eventData.total_bookings ?? "0",
-      // totalCancellation removed
       totalLikes: metrics?.totalLikes ?? eventData.like ?? "0",
       totalShare: metrics?.totalShare ?? eventData.share_count ?? "0",
+      totalCancellation: metrics?.total_cancellation ?? eventData.total_cancellations ?? "0",
       addOnRevenue: eventData.addon_revenue || "$0",
       addOnRevenueMonth: eventData.addon_revenue_month || "$0",
     }
@@ -227,6 +235,19 @@ const LiveEventsPage = () => {
     document.documentElement.classList.toggle("dark", newTheme);
     localStorage.setItem("theme", newTheme ? "dark" : "light");
   };
+  const handleLocationClick = () => {
+    if (eventData.location_type === "offline") {
+      setShowEventLocationModal(true);
+    } else {
+      setAppAlert({
+        message: "Location Inapplicable",
+        description:
+          "Location details are not applicable for this online/recorded event.",
+        type: "error",
+        show: true,
+      });
+    }
+  };
 
   const formatImagePath = (path) => getImageUrl(path, "ticket");
 
@@ -246,6 +267,39 @@ const LiveEventsPage = () => {
     }
     return allEvents;
   }, [eventData]);
+  // Google Maps API initialization
+useEffect(() => {
+  const callbackName = "initLiveEventMapCallback";
+  const scriptId = "google-maps-live-event-script";
+
+  if (window.google && window.google.maps) {
+    setIsApiReady(true);
+    return;
+  }
+
+  if (!window[callbackName]) {
+    window[callbackName] = () => {
+      setIsApiReady(true);
+    };
+  }
+
+  const existingScript = document.getElementById(scriptId);
+  if (existingScript) {
+    setIsApiReady(true);
+    return;
+  }
+
+  const script = document.createElement("script");
+  script.id = scriptId;
+  const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=${callbackName}`;
+  script.async = true;
+  script.defer = true;
+  document.head.appendChild(script);
+}, []);
+
+// Add state for API ready
+const [isApiReady, setIsApiReady] = useState(false);
 
   const ticketTypes = eventData?.ticket_types || [];
 
@@ -394,6 +448,10 @@ const LiveEventsPage = () => {
       n.setFullYear(y);
       return n;
     });
+  };
+  const handleCloseGuideModal = () => {
+    setShowGuideModal(false);
+    setSelectedGuest(null);
   };
 
   // A darker/flatter shadow for the inner cards, closer to the screenshot
@@ -568,8 +626,16 @@ const LiveEventsPage = () => {
                   </div>
                 </div>
               </div>
-
               {/* Filter Pills (Right) */}
+              <div className="flex items-center my-auto space-x-4 flex-shrink-0 ml-auto mr-4">
+                <ActionCircleButton
+                  theme={theme}
+                  type="edit"
+                  groupId={groupId}
+                  ticketId={ticketId}
+                  setAppAlert={setAppAlert}
+                />
+              </div>
               <div className="flex items-center gap-3 flex-wrap pb-2 lg:pb-0 mt-4 lg:mt-0">
                 <button
                   className={`px-6 py-2 rounded-full text-sm font-medium transition-colors ${theme.inactivePill} ml-auto lg:ml-0 text-blue-500`}
@@ -1014,30 +1080,50 @@ const LiveEventsPage = () => {
                 </div>
               </div>
             </div >
-
             {/* Footer Buttons */}
-            < div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8" >
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
               <FooterButton
                 theme={theme}
                 icon={<Users />}
                 text="Guests details"
+                onClick={() => {
+                  const guests = eventData?.guests || [];
+                  if (guests.length > 0) {
+                    // Open GuideModal with first guest
+                    setSelectedGuest(guests[0]);
+                    setShowGuideModal(true);
+                  } else {
+                    toast.error("No guest details available for this event.");
+                  }
+                }}
               />
               <FooterButton
                 theme={theme}
                 icon={<MapPin />}
                 text="Event location"
+                onClick={handleLocationClick}
               />
               <FooterButton
                 theme={theme}
                 icon={<Landmark />}
-                text="Bank account details of add-on events"
+                text="Bank account details"
+                onClick={() => {
+                  if (eventData?.banking_details && eventData.banking_details.length > 0) {
+                    setShowBankAccountDetailsModal(true);
+                  } else {
+                    toast.error("No bank account details available for this event.");
+                  }
+                }}
               />
               <FooterButton
                 theme={theme}
                 icon={<Download />}
                 text="Download daily revenue report"
+                onClick={() => {
+                  toast.success("Download feature coming soon!");
+                }}
               />
-            </div >
+            </div>
             {/* Modals */}
             {showSeatingModal && (
               <SeatingLayoutModal
@@ -1051,6 +1137,7 @@ const LiveEventsPage = () => {
                 formatImagePath={formatImagePath}
               />
             )}
+
             {showTicketModal && (
               <TicketDetailModal
                 theme={theme}
@@ -1062,9 +1149,38 @@ const LiveEventsPage = () => {
                 formatImagePath={formatImagePath}
               />
             )}
+
+            {showGuideModal && selectedGuest && (
+              <GuideModal
+                guest={selectedGuest}
+                theme={theme}
+                onClose={() => {
+                  setShowGuideModal(false);
+                  setSelectedGuest(null);
+                }}
+                formatImagePath={formatImagePath}
+                setAppAlert={setAppAlert}
+              />
+            )}
+
+            {showEventLocationModal && (
+              <EventLocationModal
+                eventData={eventData}
+                theme={theme}
+                onClose={() => setShowEventLocationModal(false)}
+                setAppAlert={setAppAlert}
+              />
+            )}
+
+            {showBankAccountDetailsModal && (
+              <BankAccountDetailsModal
+                theme={theme}
+                onClose={() => setShowBankAccountDetailsModal(false)}
+                eventData={eventData}
+              />
+            )}
           </main>
           {/* --- End of Main Content Area --- */}
-
           < BottomNavigation theme={theme} user={user} />
         </div >
       </div >
@@ -1176,9 +1292,9 @@ const StatCard = ({ theme, shadow, icon, title, value, color = "" }) => {
     </div>
   );
 };
-
-const FooterButton = ({ theme, icon, text }) => (
+const FooterButton = ({ theme, icon, text, onClick }) => (
   <button
+    onClick={onClick}
     className={`flex items-center justify-center text-center gap-3 p-4 rounded-full text-white font-medium text-sm hover:opacity-90 transition-opacity`}
     style={{
       background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)",
@@ -1187,5 +1303,73 @@ const FooterButton = ({ theme, icon, text }) => (
     {icon}
     <span>{text}</span>
   </button>
+);
+// Bank Account Details Modal Component
+const BankAccountDetailsModal = ({ theme, onClose, eventData }) => {
+  // Extract bank details from the banking_details array
+  const bankDetailsArray = eventData?.banking_details || [];
+  const bankDetails = bankDetailsArray.length > 0 ? bankDetailsArray[0] : null;
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+      <div
+        className={`${theme.cardBg} rounded-3xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto`}
+        style={{
+          boxShadow: theme.isDark
+            ? "8px 8px 16px 0px #00000040, -8px -8px 16px 0px #FFFFFF0D"
+            : "8px 8px 16px 0px #0000001A, -8px -8px 16px 0px #FFFFFF80",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h2 className={`text-2xl font-bold ${theme.text}`}>
+            Bank Account Details
+          </h2>
+          <button
+            onClick={onClose}
+            className={`${theme.text} hover:opacity-70 transition-opacity`}
+          >
+            <XCircle size={24} />
+          </button>
+        </div>
+
+        {bankDetails ? (
+          <div className="space-y-4">
+            <DetailRow
+              label="Account Holder Name"
+              value={bankDetails.bank_acc_holder || "N/A"}
+              theme={theme}
+            />
+            <DetailRow
+              label="Account Number"
+              value={bankDetails.bank_acc_no || "N/A"}
+              theme={theme}
+            />
+            <DetailRow
+              label="IFSC Code"
+              value={bankDetails.bank_ifsc || "N/A"}
+              theme={theme}
+            />
+            <DetailRow
+              label="Account Type"
+              value={bankDetails.bank_acc_type || "N/A"}
+              theme={theme}
+            />
+          </div>
+        ) : (
+          <div className={`text-center py-8 ${theme.subText}`}>
+            <p>No bank account details available for this event.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+// Helper component for bank details rows
+const DetailRow = ({ label, value, theme }) => (
+  <div className={`p-4 rounded-xl ${theme.bg}`}>
+    <div className={`text-sm ${theme.subText} mb-1`}>{label}</div>
+    <div className={`text-base font-semibold ${theme.text}`}>{value}</div>
+  </div>
 );
 export default LiveEventsPage;

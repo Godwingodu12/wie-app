@@ -1738,7 +1738,6 @@ export const createTicketBasicInfo = async (req, res) => {
         return guestData;
       });
     }
-
     // Create ticket data object
     const ticketData = {
       event_name: event_name.trim(),
@@ -1761,7 +1760,7 @@ export const createTicketBasicInfo = async (req, res) => {
       POCS: parseJSONSafely(POCS, []),
       groupId,
       userId,
-      event_status: "pending",
+      // event_status is now only set for new tickets, not updates
       created_by: userId,
       updated_by: userId,
       created_at: new Date(),
@@ -1773,7 +1772,6 @@ export const createTicketBasicInfo = async (req, res) => {
         additional_info: false,
       },
     };
-
     // Process prohibited items
     const processedProhibitedItems = (() => {
       const rawItems = prohibited_items;
@@ -1857,7 +1855,6 @@ export const createTicketBasicInfo = async (req, res) => {
     // Create or update ticket
     let ticket;
     let responseMessage;
-
     if (ticketId) {
       ticket = await Ticket.findById(ticketId);
       if (!ticket) {
@@ -1865,24 +1862,30 @@ export const createTicketBasicInfo = async (req, res) => {
           message: "Ticket not found",
         });
       }
-
       if (ticket.userId.toString() !== userId.toString()) {
         return res.status(403).json({
           message: "You don't have permission to update this ticket",
         });
       }
-
+    
+      // Preserve the current event_status when updating
+      const currentEventStatus = ticket.event_status;
+      
       Object.assign(ticket, ticketData);
+      
+      // Restore the original event_status to prevent it from being reset to 'pending'
+      ticket.event_status = currentEventStatus;
+      
       ticket.updated_by = userId;
       ticket.updated_at = new Date();
       await ticket.save();
       responseMessage = "Event updated successfully";
     } else {
+      ticketData.event_status = "pending";
       ticket = new Ticket(ticketData);
       await ticket.save();
       responseMessage = "Event created successfully";
     }
-
     // Build response
     const responseData = {
       message: responseMessage,

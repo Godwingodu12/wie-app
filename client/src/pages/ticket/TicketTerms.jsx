@@ -12,12 +12,10 @@ import Alert from "../../components/CreateGroup/Alert";
 import TcIcon from "../../assets/Event/T&cIcon.svg?react";
 import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
 import getInitialTheme from "../../components/CreateGroup/getIntialTheme.jsx";
-
 const EventTermsAndConditionsPage = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-
   // --- State Management ---
   const [isChecked, setIsChecked] = useState(false);
   const [isPreviewChecked, setIsPreviewChecked] = useState(false);
@@ -186,6 +184,10 @@ const EventTermsAndConditionsPage = () => {
       setIsLoading(false);
     }
   };
+  const handleSaveAndHostLive = () => {
+    if (!ticketId) return;
+    navigate(`/live-event-view/${ticketId}`);
+  };  
   if (dataLoading) {
     return (
       <div className="dark bg-[#111111] min-h-screen flex items-center justify-center text-white">
@@ -193,6 +195,7 @@ const EventTermsAndConditionsPage = () => {
       </div>
     );
   }
+  const eventStatus = ticketData?.event_status;
   return (
     <div className={darkMode ? "dark" : ""}>
       <ScrollBarStyle isDark={darkMode} />
@@ -316,21 +319,36 @@ const EventTermsAndConditionsPage = () => {
                 >
                   {dataLoading ? "Loading..." : "Go back"}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSaveForLater}
-                  disabled={isLoading || !isChecked || !isPreviewChecked}
-                  className="px-6 py-2.5 rounded-lg font-medium bg-gray-200 dark:bg-[#2B2B2B] text-gray-800 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {isLoading ? "Saving..." : "Save for later"}
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading || !isChecked || !isPreviewChecked}
-                  className="px-6 py-2.5 rounded-lg font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-[#2B2B2B] disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
-                >
-                  {isLoading ? "Hosting event..." : "Host event"}
-                </button>
+                {(eventStatus === "confirmed" || eventStatus === "pending") && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleSaveForLater}
+                      disabled={isLoading || !isChecked || !isPreviewChecked}
+                      className="px-6 py-2.5 rounded-lg font-medium bg-gray-200 dark:bg-[#2B2B2B] text-gray-800 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isLoading ? "Saving..." : "Save for later"}
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={isLoading || !isChecked || !isPreviewChecked}
+                      className="px-6 py-2.5 rounded-lg font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-[#2B2B2B] disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isLoading ? "Hosting event..." : "Host event"}
+                    </button>
+                  </>
+                )}
+                {/* LIVE */}
+                {eventStatus === "live" && (
+                  <button
+                    type="button"
+                    onClick={handleSaveAndHostLive}
+                    className="px-6 py-2.5 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+                  >
+                    Save & Host
+                  </button>
+                )}
               </div>
             </form>
           </div>
