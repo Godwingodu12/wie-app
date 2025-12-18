@@ -5,6 +5,8 @@ import ThemeToggle from "../../components/HomePage/ThemeToggle";
 import SearchBar from "../../components/HomePage/SearchBar";
 import SideBar from "../../components/HomePage/SideBar";
 import BottomNavigation from "../../components/HomePage/BottomNavigation";
+import EventLocationModal from "../../components/ViewSingleEvent/EventLocationModal";
+import GuideModal from "../../components/ViewSingleEvent/GuideModal";
 import WieLogo from "../../assets/HomePage/WieLogo.svg?url";
 import { toast } from "react-hot-toast";
 import {
@@ -64,7 +66,9 @@ const LiveAddOnEventView = () => {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [currentSeatingIndex, setCurrentSeatingIndex] = useState(0);
   const [currentTicketIndex, setCurrentTicketIndex] = useState(0);
-
+  const [showEventLocationModal, setShowEventLocationModal] = useState(false);
+  const [isApiReady, setIsApiReady] = useState(false);
+  const [appAlert, setAppAlert] = useState(null);
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showMonthSelector, setShowMonthSelector] = useState(false);
@@ -76,6 +80,32 @@ const LiveAddOnEventView = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [groupName, setGroupName] = useState("");
+  const [showGuideModal, setShowGuideModal] = useState(false);
+  const [selectedGuest, setSelectedGuest] = useState(null);
+  const [currentGuideIndex, setCurrentGuideIndex] = useState(0);
+  const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  const handleGuestClick = (guest) => {
+    setSelectedGuest(guest);
+    setShowGuideModal(true);
+  };
+  const handleCloseGuideModal = () => {
+    setShowGuideModal(false);
+    setSelectedGuest(null);
+  };
+  const handlePrevGuide = () => {
+    setCurrentGuideIndex((prev) => Math.max(0, prev - 1));
+  };
+  
+  const handleNextGuide = () => {
+    const guidesToShow = viewportWidth >= 768 ? 3 : 2;
+    const maxIndex = Math.max(0, (eventData?.guests?.length || 0) - guidesToShow);
+    setCurrentGuideIndex((prev) => Math.min(maxIndex, prev + 1));
+  };
   // Fetch event data
   useEffect(() => {
     const fetchEventData = async () => {
@@ -98,6 +128,7 @@ const LiveAddOnEventView = () => {
           data = {
             ...ticketResponse.data.subEvent,
             groupId: ticketResponse.data.parentEvent?.groupId,
+            parentEventId: ticketResponse.data.parentEvent?._id, // Store parent event ID
           };
         } else {
           data =
@@ -115,8 +146,28 @@ const LiveAddOnEventView = () => {
           throw new Error("Invalid event data structure");
         }
         setEventData(data);
-        // Fetch group data if groupId exists
-        if (data.groupId) {
+
+        // Fetch group data using parent event ID if available
+        if (data.parentEventId) {
+          try {
+            const groupResponse = await getGroupView(data.parentEventId); // Use parent event ID instead
+            const fetchedGroup =
+              groupResponse?.data?.group ||
+              groupResponse?.group ||
+              groupResponse?.data ||
+              groupResponse;
+
+            if (fetchedGroup) {
+              setGroupData(fetchedGroup);
+              setGroupName(fetchedGroup.name || "Unknown Group");
+            }
+          } catch (groupErr) {
+            console.warn("Failed to fetch group data:", groupErr);
+            // Don't block UI, continue without group data
+          }
+        } else if (data.groupId) {
+          // Fallback: If we have groupId but no parentEventId, try with current ticketId
+          // (This might fail but worth trying)
           try {
             const groupResponse = await getGroupView(ticketId);
             const fetchedGroup =
@@ -130,7 +181,7 @@ const LiveAddOnEventView = () => {
               setGroupName(fetchedGroup.name || "Unknown Group");
             }
           } catch (groupErr) {
-            console.warn("Failed to fetch group data:", groupErr);
+            console.warn("Failed to fetch group data with ticketId:", groupErr);
           }
         }
 
@@ -159,7 +210,6 @@ const LiveAddOnEventView = () => {
 
     fetchEventData();
   }, [ticketId]);
-
   // Computed values from API data
   const computedEventData = eventData
     ? {
@@ -168,9 +218,9 @@ const LiveAddOnEventView = () => {
       // These fields are now fetched from getEventMetrics, falling back to eventData or defaults
       totalRevenue: metrics?.totalRevenue ?? eventData.total_revenue ?? "0",
       totalBooking: metrics?.totalBooking ?? eventData.total_bookings ?? "0",
-      totalCancellation: eventData.total_cancellations || "0",
       totalLikes: metrics?.totalLikes ?? eventData.like ?? "0",
       totalShare: metrics?.totalShare ?? eventData.share_count ?? "0",
+      totalCancellation: metrics?.total_cancellation ?? eventData.total_cancellations ?? "0",
       addOnRevenue: eventData.addon_revenue || "$0",
       addOnRevenueMonth: eventData.addon_revenue_month || "$0",
     }
@@ -190,7 +240,49 @@ const LiveAddOnEventView = () => {
     };
     return [currentEvent];
   }, [eventData, groupData]);
+// Google Maps API initialization
+useEffect(() => {
+  const callbackName = "initLiveEventMapCallback";
+  const scriptId = "google-maps-live-event-script";
 
+  if (window.google && window.google.maps) {
+    setIsApiReady(true);
+    return;
+  }
+
+  if (!window[callbackName]) {
+    window[callbackName] = () => {
+      setIsApiReady(true);
+    };
+  }
+
+  const existingScript = document.getElementById(scriptId);
+  if (existingScript) {
+    setIsApiReady(true);
+    return;
+  }
+
+  const script = document.createElement("script");
+  script.id = scriptId;
+  const apiKey = import.meta.env.VITE_GOOGLE_MAP_API;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=${callbackName}`;
+  script.async = true;
+  script.defer = true;
+  document.head.appendChild(script);
+}, []);
+  const handleLocationClick = () => {
+    if (eventData.location_type === "offline") {
+      setShowEventLocationModal(true);
+    } else {
+      setAppAlert({
+        message: "Location Inapplicable",
+        description:
+          "Location details are not applicable for this online/recorded event.",
+        type: "error",
+        show: true,
+      });
+    }
+  };
   const [currentEventBankIndex, setCurrentEventBankIndex] = useState(0);
 
   const currentEventForBankView = React.useMemo(() => {
@@ -262,7 +354,6 @@ const LiveAddOnEventView = () => {
     if (len === 0) return;
     setCurrentTicketIndex((prev) => (prev === 0 ? len - 1 : prev - 1));
   };
-
   const handleNextTicket = () => {
     const len = ticketTypes.length;
     if (len === 0) return;
@@ -729,28 +820,104 @@ const LiveAddOnEventView = () => {
                     borderRadius: "36px",
                     padding: "28px 21px",
                     gap: "16px",
-                    border: "3px solid transparent",
-                    background:
-                      "linear-gradient(#212426, #212426) padding-box, linear-gradient(286.41deg, #171717 -2.79%, #343434 101.27%) border-box",
-                    boxShadow:
-                      "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A",
                     ...cardStyle,
                   }}
                   className={`py-8 px-6 rounded-3xl ${theme.cardBgDarker} flex flex-col h-full`}
                 >
                   <div className="flex items-center gap-3 mb-4">
                     <Users className="w-6 h-6 text-yellow-500" />
-                    <h3 className={`text-lg font-bold ${theme.text}`}>
-                      GUIDES
-                    </h3>
+                    <h3 className={`text-lg font-bold ${theme.text}`}>Guest</h3>
                   </div>
-                  <div className="flex items-center justify-center flex-1">
-                    <p className={`${theme.subText} text-center`}>
-                      You haven't added any guides
-                    </p>
-                  </div>
-                </div>
 
+                  {eventData?.guests && eventData.guests.length > 0 ? (
+                    <div className="flex items-center gap-2 h-full">
+                      {/* Previous Button */}
+                      <button
+                        onClick={handlePrevGuide}
+                        disabled={currentGuideIndex === 0}
+                        className={`flex-shrink-0 p-2 rounded-full ${
+                          currentGuideIndex === 0
+                            ? "opacity-30 cursor-not-allowed"
+                            : "hover:opacity-70 cursor-pointer"
+                        } ${theme.text}`}
+                      >
+                        <ChevronLeft size={20} />
+                      </button>
+                      {/* Guide Carousel Container */}
+                      <div className="flex-grow relative overflow-hidden h-full py-2">
+                        <div className="flex justify-center items-start h-full">
+                          <div
+                            className="flex items-center gap-4 transition-transform duration-300 -mt-2"
+                            style={{
+                              transform: `translateX(calc(-${
+                                currentGuideIndex * (viewportWidth >= 768 ? 33.33 : 50)
+                              }%))`,
+                            }}
+                          >
+                            {eventData.guests.map((guest, index) => (
+                              <div
+                                key={guest.guest_name || index}
+                                onClick={() => handleGuestClick(guest)}
+                                style={{
+                                  borderRadius: "17.82px",
+                                  background: theme.isDark ? "#212426" : "#E0E0E0",
+                                  boxShadow: theme.isDark
+                                    ? `3.71px 4.45px 6.68px 0px #00000075,
+                                      -1.48px -1.48px 7.42px 0px #63636336`
+                                    : `3.71px 4.45px 6.68px 0px #A0A0A099,
+                                      -1.48px -1.48px 7.42px 0px #FFFFFF`,
+                                  minWidth: viewportWidth >= 768 ? 'calc(33.33% - 10.67px)' : 'calc(50% - 8px)',
+                                  flexShrink: 0,
+                                }}
+                                className="
+                                  p-4 text-center rounded-lg cursor-pointer
+                                  transition-transform duration-300
+                                  hover:-translate-y-1
+                                "
+                              >
+                                <div
+                                  className="relative w-full rounded-lg mx-auto mb-3 overflow-hidden"
+                                  style={{ paddingTop: '100%' }}
+                                >
+                                  <img
+                                    src={getImageUrl(guest.guest_profile, 'ticket')}
+                                    alt={guest.guest_name}
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                  />
+                                </div>
+                                <p className={`text-base font-medium ${theme.textColor} truncate px-1`}>
+                                  {guest.guest_name}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      {/* Next Button */}
+                      <button
+                        onClick={handleNextGuide}
+                        disabled={
+                          currentGuideIndex >=
+                          (eventData?.guests?.length || 0) - (viewportWidth >= 768 ? 3 : 2)
+                        }
+                        className={`flex-shrink-0 p-2 rounded-full ${
+                          currentGuideIndex >=
+                          (eventData?.guests?.length || 0) - (viewportWidth >= 768 ? 3 : 2)
+                            ? "opacity-30 cursor-not-allowed"
+                            : "hover:opacity-70 cursor-pointer"
+                        } ${theme.text}`}
+                      >
+                        <ChevronRight size={20} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center flex-1">
+                      <p className={`${theme.subText} text-center`}>
+                        You haven't added any guides or guest.
+                      </p>
+                    </div>
+                  )}
+                </div>
                 {/* Bank Details Container (Updated to match ConfirmEvents.jsx) */}
                 {(() => {
                   // Helper function for neumorphic shadows
@@ -1206,11 +1373,12 @@ const LiveAddOnEventView = () => {
                 </div>
                 {/* Footer Buttons moved below Hashtags */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FooterButton
-                    theme={theme}
-                    icon={<MapPin />}
-                    text="Event location"
-                  />
+                <FooterButton
+                  theme={theme}
+                  icon={<MapPin />}
+                  text="Event location"
+                  onClick={handleLocationClick}
+                />
                   <FooterButton
                     theme={theme}
                     icon={<Download />}
@@ -1233,6 +1401,23 @@ const LiveAddOnEventView = () => {
                 formatImagePath={formatImagePath}
               />
             )}
+            {showEventLocationModal && isApiReady && (
+              <EventLocationModal
+                eventData={eventData}
+                theme={theme}
+                onClose={() => setShowEventLocationModal(false)}
+                setAppAlert={setAppAlert}
+              />
+            )}
+            {showGuideModal && selectedGuest && (
+              <GuideModal
+                guest={selectedGuest}
+                theme={theme}
+                onClose={handleCloseGuideModal}
+                formatImagePath={formatImagePath}
+                setAppAlert={setAppAlert}
+              />
+            )}
             {showTicketModal && (
               <TicketDetailModal
                 theme={theme}
@@ -1246,7 +1431,6 @@ const LiveAddOnEventView = () => {
             )}
           </main>
           {/* --- End of Main Content Area --- */}
-
           <BottomNavigation theme={theme} user={user} />
         </div>
       </div>
@@ -1358,9 +1542,9 @@ const StatCard = ({ theme, shadow, icon, title, value, color = "" }) => {
     </div>
   );
 };
-
-const FooterButton = ({ theme, icon, text }) => (
+const FooterButton = ({ theme, icon, text, onClick }) => (
   <button
+    onClick={onClick}
     className={`flex items-center justify-center text-center gap-3 p-4 rounded-full text-white font-medium text-sm hover:opacity-90 transition-opacity`}
     style={{
       background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)",
