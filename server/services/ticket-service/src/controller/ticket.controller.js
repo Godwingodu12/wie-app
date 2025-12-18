@@ -2633,7 +2633,8 @@ export const getEventMetrics = async (req, res) => {
         totalRevenue: ticket.revenue || 0,
         totalBooking: ticket.totalBookings || 0,
         totalLikes: ticket.like || 0,
-        totalShare: ticket.share || 0
+        totalShare: ticket.share || 0,
+        total_cancellation: ticket.total_cancellation || 0,
       };
       found = true;
     } else {
@@ -2654,7 +2655,8 @@ export const getEventMetrics = async (req, res) => {
             totalRevenue: subEvent.revenue || 0,
             totalBooking: subEvent.totalBookings || 0,
             totalLikes: subEvent.like || 0,
-            totalShare: subEvent.share || 0
+            totalShare: subEvent.share || 0,
+            total_cancellation: subEvent.total_cancellation || 0,
           };
           found = true;
         }
