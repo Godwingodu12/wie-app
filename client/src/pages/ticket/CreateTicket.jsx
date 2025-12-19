@@ -1042,28 +1042,63 @@ const CreateTicket = () => {
         "Maximum age cannot be less than minimum age."
       );
     }
-
     if (formData.event_dates.length === 0) {
       addError(
         "event_dates",
         "At least one event date and time must be added."
       );
     } else {
-      const dateValidationFailed = formData.event_dates.some(
-        (item) =>
-          !item.date ||
-          !item.startTime ||
-          !item.startAmPm ||
-          !item.endTime ||
-          !item.endAmPm
-      );
-
-      if (dateValidationFailed) {
-        addError(
-          "event_dates",
-          "One or more event dates are missing required time fields."
+      // FIX: Different validation based on location_type
+      if (formData.location_type === "offline") {
+        // Offline events require complete time information
+        const dateValidationFailed = formData.event_dates.some(
+          (item) =>
+            !item.date ||
+            !item.startTime ||
+            !item.startAmPm ||
+            !item.endTime ||
+            !item.endAmPm
         );
+
+        if (dateValidationFailed) {
+          addError(
+            "event_dates",
+            "One or more event dates are missing required time fields."
+          );
+        }
+      } else if (formData.location_type === "online") {
+        // Online events require date, times, and event link
+        const dateValidationFailed = formData.event_dates.some(
+          (item) =>
+            !item.date ||
+            !item.startTime ||
+            !item.startAmPm ||
+            !item.endTime ||
+            !item.endAmPm ||
+            !item.eventLink // Event link is required for online events
+        );
+
+        if (dateValidationFailed) {
+          addError(
+            "event_dates",
+            "Online events require date, time, and event link for each entry."
+          );
+        }
+      } else if (formData.location_type === "recorded") {
+        // Recorded events only require date (no times needed)
+        const dateValidationFailed = formData.event_dates.some(
+          (item) => !item.date
+        );
+
+        if (dateValidationFailed) {
+          addError(
+            "event_dates",
+            "One or more event dates are missing the required date field."
+          );
+        }
       }
+
+      // Hashtag validation (existing code - keep as is)
       if (formData.hashtag && formData.hashtag.length > 0) {
         const hasEmptyTag = formData.hashtag.some(
           (tag) => !tag || tag.trim() === ""
@@ -1085,6 +1120,7 @@ const CreateTicket = () => {
         }
       }
 
+      // Past date validation (existing code - keep as is)
       const currentDate = new Date();
       currentDate.setHours(0, 0, 0, 0);
       const isPastDate = formData.event_dates.some((item) => {
@@ -1100,7 +1136,6 @@ const CreateTicket = () => {
         addError("event_dates", "The event date cannot be a date in the past.");
       }
     }
-
     if (formData.gatesOpenEarly && formData.location_type === "offline") {
       if (
         !formData.gate_open_hour ||
