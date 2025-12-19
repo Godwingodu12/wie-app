@@ -279,9 +279,6 @@ export class BookingModel {
       totalCancelledTickets: stats._sum.quantity || 0,
     };
   }
-  /**
-   * Get booking statistics for a group
-   */
   static async getGroupStatistics(groupId: string) {
     return await prisma.booking.aggregate({
       where: {
@@ -295,10 +292,6 @@ export class BookingModel {
       _count: true,
     });
   }
-
-  /**
-   * Get booking statistics for a ticket
-   */
   static async getTicketStatistics(ticketId: string) {
     const stats = await prisma.booking.groupBy({
       by: ['bookingStatus'],
@@ -312,10 +305,6 @@ export class BookingModel {
 
     return stats;
   }
-
-  /**
-   * Count booked tickets for a specific ticket type
-   */
   static async countBookedTickets(
     ticketId: string,
     ticketType: string
@@ -488,6 +477,72 @@ export class BookingModel {
     }, {});
 
     return Object.values(typeStats);
+  }
+  static async findByTicketIdWithStatus(
+    ticketId: string,
+    statuses: string[],
+    dateRange?: { gte: Date; lte: Date }
+  ): Promise<Booking[]> {
+    // Map status strings to valid BookingStatus enum values
+    const validStatuses = statuses
+      .map(s => {
+        const upper = s.toUpperCase();
+        // Map 'COMPLETED' to 'CONFIRMED' since COMPLETED doesn't exist in enum
+        if (upper === 'COMPLETED') return 'CONFIRMED';
+        return upper as BookingStatus;
+      })
+      .filter(s => ['PENDING', 'CONFIRMED', 'CANCELLED'].includes(s));
+
+    const where: any = {
+      ticketId,
+      bookingStatus: { in: validStatuses },
+    };
+
+    if (dateRange) {
+      where.createdAt = dateRange;
+    }
+
+    return await prisma.booking.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+  static async getBookingsByDayOfMonth(
+    ticketId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<Array<{ day: number; count: number; revenue: number }>> {
+    const bookings = await prisma.booking.findMany({
+      where: {
+        ticketId,
+        createdAt: { gte: startDate, lte: endDate },
+        bookingStatus: 'CONFIRMED',
+        paymentStatus: 'COMPLETED',
+      },
+      select: {
+        createdAt: true,
+        totalAmount: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    // Group by day
+    const dailyStats = bookings.reduce((acc: any, booking) => {
+      const day = new Date(booking.createdAt).getDate();
+      
+      if (!acc[day]) {
+        acc[day] = { day, count: 0, revenue: 0 };
+      }
+      
+      acc[day].count += 1;
+      acc[day].revenue += parseFloat(booking.totalAmount?.toString() || '0');
+      
+      return acc;
+    }, {});
+
+    return Object.values(dailyStats);
   }
 }
 export default BookingModel;
