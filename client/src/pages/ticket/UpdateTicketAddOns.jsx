@@ -1253,7 +1253,45 @@ const UpdateTicketAddOns = () => {
       if (!bankDetail.bank_ifsc?.trim())
         addError("bank_ifsc", "IFSC code is required for paid events.");
     }
-
+    // Validate ticket details for paid events
+    if (formData.payment_type === "paid") {
+      if (formData.location_type !== "offline") {
+        // For online/recorded events, validate simple ticket structure
+        const ticket = formData.ticket_types[0];
+        
+        if (!ticket || !ticket.price || Number(ticket.price) <= 0) {
+          addError(
+            "ticket_types",
+            "Ticket price is required and must be greater than 0 for paid events."
+          );
+        }
+        
+        if (!ticket || !ticket.capacity || Number(ticket.capacity) <= 0) {
+          addError(
+            "ticket_types",
+            "Ticket quantity is required and must be greater than 0 for paid events."
+          );
+        }
+        
+        // Ensure capacity doesn't exceed total_capacity
+        if (ticket && ticket.capacity && formData.total_capacity) {
+          if (Number(ticket.capacity) > Number(formData.total_capacity)) {
+            addError(
+              "ticket_types",
+              `Ticket quantity (${ticket.capacity}) cannot exceed total event capacity (${formData.total_capacity}).`
+            );
+          }
+        }
+      } else {
+        // Offline validation
+        if (formData.payment_type === "paid" && (!formData.ticket_types || formData.ticket_types.length === 0)) {
+          addError(
+            "ticket_types",
+            "At least one ticket type is required for paid offline events."
+          );
+        }
+      }
+    }
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       scrollAndAlert(newErrors);
@@ -1330,17 +1368,11 @@ const UpdateTicketAddOns = () => {
     const ensureTicketTypesArray = () => {
       const isSimplePaid =
         formData.payment_type === "paid" &&
-        formData.location_type !== "offline";
+        (formData.location_type === "online" || formData.location_type === "recorded");
       if (!formData.ticket_types || formData.ticket_types.length === 0) {
         if (isSimplePaid) {
-          return [
-            {
-              ticket_type: "Standard Ticket",
-              ticket_price: 0,
-              max_capacity: Number(formData.total_capacity) || 0,
-              ticket_photo: "",
-            },
-          ];
+          // Return empty array - will be caught by validation
+          return [];
         }
         return [];
       }
@@ -1356,7 +1388,9 @@ const UpdateTicketAddOns = () => {
           return ticket;
         });
         if (isSimplePaid && processed.length > 0) {
-          processed[0].max_capacity = Number(formData.total_capacity) || 0;
+          if (!processed[0].max_capacity) {
+            processed[0].max_capacity = Number(formData.total_capacity) || 0;
+          }
         }
         return processed;
       }
@@ -1780,7 +1814,6 @@ const UpdateTicketAddOns = () => {
           }
         }
       }
-
       setIsSubmitting(true);
       try {
         const payload = buildPayload();
@@ -4615,6 +4648,138 @@ const UpdateTicketAddOns = () => {
                       <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                         Ticketing details
                       </h2>
+                      {(() => {
+  // Debug logging
+  console.log("🔍 Ticket Input Visibility Check:");
+  console.log("  - location_type:", formData.location_type);
+  console.log("  - payment_type:", formData.payment_type);
+  console.log("  - Is NOT offline?", formData.location_type !== "offline");
+  console.log("  - Is paid?", formData.payment_type === "paid");
+  console.log("  - Should show?", formData.location_type !== "offline" && formData.payment_type === "paid");
+  
+  return formData.location_type !== "offline" && formData.payment_type === "paid";
+})() && (
+  <div className="space-y-6 pt-4">
+    <div className="flex items-center justify-between">
+      <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 text-xs font-medium rounded-md">
+        {formData.location_type === "online" ? "Online Event" : "Recorded Event"}
+      </span>
+    </div>
+    
+    <div className="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-lg space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Ticket Price (₹)
+            <span className="text-red-500 ml-1">*</span>
+          </label>
+          <input
+            type="number"
+            value={formData.ticket_types[0]?.price || ""}
+            onChange={(e) => {
+              const newValue = e.target.value;
+              console.log("💰 Price input changed:", newValue);
+              setFormData((prev) => {
+                const newTickets = prev.ticket_types.length > 0
+                  ? [...prev.ticket_types]
+                  : [{
+                      id: Date.now(),
+                      name: "Standard Ticket",
+                      price: "",
+                      capacity: "",
+                      image: "https://via.placeholder.com/150",
+                      photoFile: null,
+                      existingPhotoPath: "",
+                    }];
+                newTickets[0].price = newValue;
+                console.log("✅ Updated ticket_types:", newTickets);
+                return { ...prev, ticket_types: newTickets };
+              });
+            }}
+            placeholder="Enter price (e.g., 500)"
+            className={`w-full px-4 py-3 rounded-lg border transition-all duration-300 ${
+              darkMode 
+                ? "bg-[#1E1E1E] text-white border-[#4A4A4A] focus:border-indigo-500" 
+                : "bg-white text-black border-gray-300 focus:border-indigo-500"
+            } focus:outline-none focus:ring-2 focus:ring-indigo-500/50`}
+          />
+          {errors.ticket_types && (
+            <p className="text-red-500 text-xs mt-1">Ticket price is required</p>
+          )}
+        </div>
+        
+        <div>
+          <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Total Ticket Quantity
+            <span className="text-red-500 ml-1">*</span>
+          </label>
+          <input
+            type="number"
+            value={formData.ticket_types[0]?.capacity || ""}
+            onChange={(e) => {
+              const newValue = e.target.value;
+              console.log("🎫 Capacity input changed:", newValue);
+              setFormData((prev) => {
+                const newTickets = prev.ticket_types.length > 0
+                  ? [...prev.ticket_types]
+                  : [{
+                      id: Date.now(),
+                      name: "Standard Ticket",
+                      price: "",
+                      capacity: "",
+                      image: "https://via.placeholder.com/150",
+                      photoFile: null,
+                      existingPhotoPath: "",
+                    }];
+                newTickets[0].capacity = newValue;
+                console.log("✅ Updated ticket_types:", newTickets);
+                return { ...prev, ticket_types: newTickets };
+              });
+            }}
+            placeholder="Enter available quantity"
+            className={`w-full px-4 py-3 rounded-lg border transition-all duration-300 ${
+              darkMode 
+                ? "bg-[#1E1E1E] text-white border-[#4A4A4A] focus:border-indigo-500" 
+                : "bg-white text-black border-gray-300 focus:border-indigo-500"
+            } focus:outline-none focus:ring-2 focus:ring-indigo-500/50`}
+          />
+          {errors.ticket_types && (
+            <p className="text-red-500 text-xs mt-1">Ticket quantity is required</p>
+          )}
+        </div>
+      </div>
+      
+      <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+        <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p className="text-sm text-blue-800 dark:text-blue-200">
+          For {formData.location_type} events, you only need to set a single ticket price and quantity. 
+          The capacity should match your {formData.location_type === "online" ? "platform limits" : "video access limits"}.
+        </p>
+      </div>
+      
+      {formData.ticket_types[0]?.price && formData.ticket_types[0]?.capacity && (
+        <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+              Ticket Summary
+            </p>
+          </div>
+          <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
+            <p>• Ticket Type: <span className="font-medium">Standard Ticket</span></p>
+            <p>• Price per ticket: <span className="font-medium">₹{Number(formData.ticket_types[0].price).toLocaleString()}</span></p>
+            <p>• Available quantity: <span className="font-medium">{formData.ticket_types[0].capacity} tickets</span></p>
+            <p>• Potential revenue: <span className="font-medium">₹{(Number(formData.ticket_types[0].price) * Number(formData.ticket_types[0].capacity)).toLocaleString()}</span></p>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+)}
                       <p className="text-black dark:text-gray-400 text-sm">
                         Add ticket types, set prices, and control how attendees
                         book their spot.
@@ -4790,66 +4955,6 @@ const UpdateTicketAddOns = () => {
                             )}
                           </>
                         )}
-                      {formData.location_type !== "offline" && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
-                          <FormInput
-                            label="Ticket Price"
-                            id="simpleTicketPrice"
-                            name="ticket_types[0].price"
-                            type="number"
-                            value={formData.ticket_types[0]?.price || ""}
-                            onChange={(e) => {
-                              const newValue = e.target.value;
-                              setFormData((prev) => {
-                                const newTickets =
-                                  prev.ticket_types.length > 0
-                                    ? [...prev.ticket_types]
-                                    : [
-                                        {
-                                          name: "Standard Ticket",
-                                          price: "",
-                                          capacity: "",
-                                          image: "",
-                                          existingPhotoPath: "",
-                                        },
-                                      ];
-                                newTickets[0].price = newValue;
-                                return { ...prev, ticket_types: newTickets };
-                              });
-                            }}
-                            placeholder="Enter Price (e.g., 500)"
-                            darkMode={darkMode}
-                          />
-                          <FormInput
-                            label="Total Ticket Capacity"
-                            id="simpleTicketCapacity"
-                            name="ticket_types[0].capacity"
-                            type="number"
-                            value={formData.ticket_types[0]?.capacity || ""}
-                            onChange={(e) => {
-                              const newValue = e.target.value;
-                              setFormData((prev) => {
-                                const newTickets =
-                                  prev.ticket_types.length > 0
-                                    ? [...prev.ticket_types]
-                                    : [
-                                        {
-                                          name: "Standard Ticket",
-                                          price: "",
-                                          capacity: "",
-                                          image: "",
-                                          existingPhotoPath: "",
-                                        },
-                                      ];
-                                newTickets[0].capacity = newValue;
-                                return { ...prev, ticket_types: newTickets };
-                              });
-                            }}
-                            placeholder="Enter total capacity"
-                            darkMode={darkMode}
-                          />
-                        </div>
-                      )}
                       {formData.location_type === "offline" && (
                         <div className="flex items-center justify-between mt-6">
                           <label className="font-medium text-gray-900 dark:text-white text-md">
