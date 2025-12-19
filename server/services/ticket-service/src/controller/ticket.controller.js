@@ -6,6 +6,7 @@ import { createNotification } from '../utils/notificationHelper.js';
 import { logger } from '../utils/logger.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
 import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
+import { getBookingStatsByDate, getBookingGrowthStats, getMonthlyBookingChart } from '../grpc/bookingClient.js';
 import { 
   generateSeatingLayoutFromFile, 
   validateSeatingLayout,
@@ -487,14 +488,12 @@ export const updateSubEvent = async (req, res) => {
             validOptions: validAccountTypes,
           });
         }
-
         // Validate bank_acc_no
         if (!banking.bank_acc_no || String(banking.bank_acc_no).trim() === "") {
           return res.status(400).json({
             message: `bank_acc_no is required for banking detail ${index + 1}`,
           });
         }
-
         if (!/^\d+$/.test(String(banking.bank_acc_no).trim())) {
           return res.status(400).json({
             message: `Invalid bank account number format for banking detail ${index + 1}`,
@@ -2678,6 +2677,190 @@ export const getEventMetrics = async (req, res) => {
     console.error("Error fetching event metrics:", error);
     res.status(500).json({
       message: "An error occurred while fetching event metrics",
+      error: error.message
+    });
+  }
+};
+// Get event statistics for a specific date
+export const getEventStatsByDate = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const { selectedDate } = req.query;
+    const userId = req.user._id || req.user.id;
+
+    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: "Invalid ticket ID format" });
+    }
+
+    if (!selectedDate) {
+      return res.status(400).json({ message: "Selected date is required" });
+    }
+
+    // Check if ticket exists and belongs to user
+    let ticket = await Ticket.findOne({ _id: ticketId, userId });
+    let isSubEvent = false;
+
+    if (!ticket) {
+      ticket = await Ticket.findOne({ 'sub_events._id': ticketId, userId });
+      isSubEvent = true;
+    }
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    // Check if selected date is within event dates
+    const eventDates = isSubEvent 
+      ? ticket.sub_events.find(sub => sub._id.toString() === ticketId)?.event_dates
+      : ticket.event_dates;
+
+    if (!eventDates || eventDates.length === 0) {
+      return res.status(400).json({ message: "Event dates not found" });
+    }
+
+    const selectedDateObj = new Date(selectedDate);
+    const startDate = new Date(eventDates[0].start_date);
+    const endDate = new Date(eventDates[eventDates.length - 1].end_date || eventDates[0].end_date);
+
+    if (selectedDateObj < startDate || selectedDateObj > endDate) {
+      return res.status(400).json({ 
+        message: "Your event is not present on the selected date",
+        eventStartDate: startDate,
+        eventEndDate: endDate
+      });
+    }
+
+    // Fetch booking stats from transaction service via gRPC
+    const bookingStats = await getBookingStatsByDate(ticketId, selectedDate);
+
+    res.status(200).json({
+      message: "Event statistics retrieved successfully",
+      data: {
+        selectedDate,
+        totalBookings: bookingStats.totalBookings,
+        totalRevenue: bookingStats.totalRevenue,
+        totalTickets: bookingStats.totalTickets,
+        eventDateRange: {
+          start: startDate,
+          end: endDate
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error("Error fetching event stats by date:", error);
+    res.status(500).json({
+      message: "An error occurred while fetching event statistics",
+      error: error.message
+    });
+  }
+};
+
+// Get booking growth statistics
+export const getEventGrowthStats = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const { selectedDate, comparisonType } = req.query;
+    const userId = req.user._id || req.user.id;
+
+    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: "Invalid ticket ID format" });
+    }
+
+    if (!selectedDate) {
+      return res.status(400).json({ message: "Selected date is required" });
+    }
+
+    // Verify ticket ownership
+    let ticket = await Ticket.findOne({ _id: ticketId, userId });
+    if (!ticket) {
+      ticket = await Ticket.findOne({ 'sub_events._id': ticketId, userId });
+    }
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    // Determine comparison type based on event dates
+    let finalComparisonType = comparisonType || 'daily';
+    
+    const eventDates = ticket.event_dates || [];
+    if (eventDates.length > 0) {
+      const startDate = new Date(eventDates[0].start_date);
+      const endDate = new Date(eventDates[eventDates.length - 1].end_date || eventDates[0].end_date);
+      const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+
+      if (ticket.event_date_type === 'weekly' || daysDiff >= 7) {
+        finalComparisonType = 'weekly';
+      } else if (daysDiff >= 30) {
+        finalComparisonType = 'monthly';
+      }
+    }
+
+    // Fetch growth stats from transaction service
+    const growthStats = await getBookingGrowthStats(ticketId, selectedDate, finalComparisonType);
+
+    res.status(200).json({
+      message: "Growth statistics retrieved successfully",
+      data: {
+        selectedDate,
+        growthPercentage: growthStats.growthPercentage,
+        currentPeriodBookings: growthStats.currentPeriodBookings,
+        previousPeriodBookings: growthStats.previousPeriodBookings,
+        comparisonType: growthStats.comparisonType
+      }
+    });
+
+  } catch (error) {
+    console.error("Error fetching growth stats:", error);
+    res.status(500).json({
+      message: "An error occurred while fetching growth statistics",
+      error: error.message
+    });
+  }
+};
+
+// Get monthly booking chart data
+export const getEventMonthlyChart = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const { year, month } = req.query;
+    const userId = req.user._id || req.user.id;
+
+    if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: "Invalid ticket ID format" });
+    }
+
+    if (!year || !month) {
+      return res.status(400).json({ message: "Year and month are required" });
+    }
+
+    // Verify ticket ownership
+    let ticket = await Ticket.findOne({ _id: ticketId, userId });
+    if (!ticket) {
+      ticket = await Ticket.findOne({ 'sub_events._id': ticketId, userId });
+    }
+
+    if (!ticket) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    // Fetch chart data from transaction service
+    const chartData = await getMonthlyBookingChart(ticketId, parseInt(year), parseInt(month));
+
+    res.status(200).json({
+      message: "Monthly chart data retrieved successfully",
+      data: {
+        year: parseInt(year),
+        month: parseInt(month),
+        chartData: chartData.chartData || []
+      }
+    });
+
+  } catch (error) {
+    console.error("Error fetching monthly chart:", error);
+    res.status(500).json({
+      message: "An error occurred while fetching chart data",
       error: error.message
     });
   }

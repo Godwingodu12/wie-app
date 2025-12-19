@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package booking;
+
+service BookingService {
+  rpc GetBookingStatsByDate(BookingStatsByDateRequest) returns (BookingStatsByDateResponse);
+  rpc GetBookingGrowthStats(BookingGrowthStatsRequest) returns (BookingGrowthStatsResponse);
+  rpc GetMonthlyBookingChart(MonthlyBookingChartRequest) returns (MonthlyBookingChartResponse);
+}
+
+message BookingStatsByDateRequest {
+  string ticketId = 1;
+  string selectedDate = 2;
+}
+
+message BookingStatsByDateResponse {
+  int32 totalBookings = 1;
+  double totalRevenue = 2;
+  int32 totalTickets = 3;
+  string bookingDate = 4;
+}
+
+message BookingGrowthStatsRequest {
+  string ticketId = 1;
+  string selectedDate = 2;
+  string comparisonType = 3;
+}
+
+message BookingGrowthStatsResponse {
+  int32 currentPeriodBookings = 1;
+  int32 previousPeriodBookings = 2;
+  string growthPercentage = 3;
+  string comparisonType = 4;
+}
+
+message MonthlyBookingChartRequest {
+  string ticketId = 1;
+  int32 year = 2;
+  int32 month = 3;
+}
+
+message ChartDataPoint {
+  int32 day = 1;
+  int32 bookingCount = 2;
+  double revenue = 3;
+}
+
+message MonthlyBookingChartResponse {
+  repeated ChartDataPoint chartData = 1;
+}

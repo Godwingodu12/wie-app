@@ -14,7 +14,7 @@ import {
   getMyLiveEventView,
   getGroupView,
   getTicketById,
-  getEventMetrics, // Import the new service function
+  getEventMetrics,getEventStatsByDate, getEventGrowthStats, getEventMonthlyChart
 } from "../../services/ticketService";
 import { getImageUrl } from "../../utils/imageUtils";
 import TicketDetailModal from "../../components/ViewSingleEvent/TicketDetailModal";
@@ -48,7 +48,10 @@ const LiveEventsPage = () => {
   const { ticketId } = useParams();
   const [isDark, setIsDark] = useState(true);
   const [searchValue, setSearchValue] = useState("");
-
+  const [selectedDateStats, setSelectedDateStats] = useState(null);
+  const [growthStats, setGrowthStats] = useState(null);
+  const [monthlyChartData, setMonthlyChartData] = useState([]);
+  const [dateError, setDateError] = useState(null);
   // Modal State
   const [showSeatingModal, setShowSeatingModal] = useState(false);
   const [showTicketModal, setShowTicketModal] = useState(false);
@@ -70,100 +73,183 @@ const LiveEventsPage = () => {
   const [error, setError] = useState(null);
   const [groupName, setGroupName] = useState("");
   const [selectedGuest, setSelectedGuest] = useState(null);
+// Update the fetchEventData useEffect to also fetch initial growth stats
+useEffect(() => {
+  const fetchEventData = async () => {
+    if (!ticketId) {
+      setError("Event ID not found in URL parameters.");
+      setLoading(false);
+      return;
+    }
 
-  // Fetch event data
-  useEffect(() => {
-    const fetchEventData = async () => {
-      if (!ticketId) {
-        setError("Event ID not found in URL parameters.");
-        setLoading(false);
-        return;
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch ticket data using getTicketById (matches ConfirmEventView)
+      const ticketResponse = await getTicketById(ticketId);
+
+      // Extract event data - Handle multiple response structures (Robust extraction)
+      const data =
+        ticketResponse?.ticket ||
+        ticketResponse?.data?.ticket ||
+        ticketResponse?.data ||
+        ticketResponse;
+
+      if (!data) {
+        throw new Error("No event data received from server");
       }
 
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Fetch ticket data using getTicketById (matches ConfirmEventView)
-        const ticketResponse = await getTicketById(ticketId);
-
-        // Extract event data - Handle multiple response structures (Robust extraction)
-        const data =
-          ticketResponse?.ticket ||
-          ticketResponse?.data?.ticket ||
-          ticketResponse?.data ||
-          ticketResponse;
-
-        if (!data) {
-          throw new Error("No event data received from server");
-        }
-
-        if (!data.event_name) {
-          throw new Error("Invalid event data structure");
-        }
-        setEventData(data);
-        // Fetch group data if groupId exists
-        if (data.groupId) {
-          try {
-            const groupResponse = await getGroupView(ticketId);
-            const fetchedGroupData =
-              groupResponse?.data?.group ||
-              groupResponse?.group ||
-              groupResponse?.data ||
-              groupResponse;
-            setGroupData(fetchedGroupData);
-            setGroupName(fetchedGroupData.name || "Unknown Group");
-          } catch (groupErr) {
-            console.warn("Failed to fetch group data:", groupErr);
-            // Continue without group data
-          }
-        }
+      if (!data.event_name) {
+        throw new Error("Invalid event data structure");
+      }
+      setEventData(data);
+      
+      // Fetch group data if groupId exists
+      if (data.groupId) {
         try {
-          const metricsResponse = await getEventMetrics(ticketId);
-          if (metricsResponse?.data) {
-            setMetrics(metricsResponse.data);
-          }
-        } catch (metricsErr) {
-          console.warn("Failed to fetch event metrics:", metricsErr);
-          // Set default metrics on failure to prevent undefined errors
-          setMetrics({
-            totalRevenue: 0,
-            totalBooking: 0,
-            totalLikes: 0,
-            totalShare: 0,
-            total_cancellation: 0,
-          });
+          const groupResponse = await getGroupView(ticketId);
+          const fetchedGroupData =
+            groupResponse?.data?.group ||
+            groupResponse?.group ||
+            groupResponse?.data ||
+            groupResponse;
+          setGroupData(fetchedGroupData);
+          setGroupName(fetchedGroupData.name || "Unknown Group");
+        } catch (groupErr) {
+          console.warn("Failed to fetch group data:", groupErr);
         }
-      } catch (err) {
-        console.error("Failed to fetch live event data:", err);
-        const errorMessage =
-          err?.response?.data?.message ||
-          err.message ||
-          "Failed to load event details.";
-        toast.error(errorMessage);
-        setError(errorMessage);
-      } finally {
-        setLoading(false);
       }
-    };
+      
+      try {
+        const metricsResponse = await getEventMetrics(ticketId);
+        if (metricsResponse?.data) {
+          setMetrics(metricsResponse.data);
+        }
+      } catch (metricsErr) {
+        console.warn("Failed to fetch event metrics:", metricsErr);
+        setMetrics({
+          totalRevenue: 0,
+          totalBooking: 0,
+          totalLikes: 0,
+          totalShare: 0,
+          total_cancellation: 0,
+        });
+      }
 
-    fetchEventData();
-  }, [ticketId]);
+      // Fetch initial growth stats (yesterday vs day before)
+      try {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayFormatted = yesterday.toISOString().split('T')[0];
+        
+        const initialGrowthResponse = await getEventGrowthStats(
+          ticketId, 
+          yesterdayFormatted, 
+          'daily'
+        );
+        if (initialGrowthResponse?.data) {
+          setGrowthStats(initialGrowthResponse.data);
+        }
+      } catch (growthErr) {
+        console.warn("Failed to fetch initial growth stats:", growthErr);
+      }
+
+    } catch (err) {
+      console.error("Failed to fetch live event data:", err);
+      const errorMessage =
+        err?.response?.data?.message ||
+        err.message ||
+        "Failed to load event details.";
+      toast.error(errorMessage);
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchEventData();
+}, [ticketId]);
   const groupId = eventData?.group_id || eventData?.groupId;
+// Replace the existing useEffect for date-based stats
+useEffect(() => {
+  const fetchDateBasedStats = async () => {
+    if (!eventData || !ticketId) return;
+
+    // Don't fetch date-specific stats on initial load
+    // Only fetch when user explicitly selects a date
+    const isInitialLoad = currentDate.toDateString() === new Date().toDateString();
+    
+    if (isInitialLoad) {
+      // On initial load, just use the metrics from getEventMetrics
+      console.log('Initial load - using total metrics');
+      return;
+    }
+
+    const formattedDate = currentDate.toISOString().split('T')[0];
+
+    try {
+      // Fetch stats for selected date
+      const statsResponse = await getEventStatsByDate(ticketId, formattedDate);
+      if (statsResponse?.data) {
+        setSelectedDateStats(statsResponse.data);
+        setDateError(null);
+      }
+
+      // Fetch growth stats
+      const growthResponse = await getEventGrowthStats(ticketId, formattedDate, 'daily');
+      if (growthResponse?.data) {
+        setGrowthStats(growthResponse.data);
+      }
+
+      // Fetch monthly chart data
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+      const chartResponse = await getEventMonthlyChart(ticketId, year, month);
+      if (chartResponse?.data) {
+        setMonthlyChartData(chartResponse.data.chartData || []);
+      }
+
+    } catch (error) {
+      console.error("Error fetching date-based stats:", error);
+      if (error.response?.status === 400 && error.response?.data?.message) {
+        setDateError(error.response.data.message);
+        toast.error(error.response.data.message);
+        // Clear date-specific stats but keep showing total stats
+        setSelectedDateStats(null);
+        setGrowthStats(null);
+        setMonthlyChartData([]);
+      }
+    }
+  };
+
+  // Only fetch if we have eventData
+  if (eventData) {
+    fetchDateBasedStats();
+  }
+}, [currentDate, ticketId, eventData]);
+// Add a button to reset to total view
+const handleResetToTotalView = () => {
+  setCurrentDate(new Date());
+  setSelectedDateStats(null);
+  setGrowthStats(null);
+  setMonthlyChartData([]);
+  setDateError(null);
+};
   // Computed values from API data
   const computedEventData = eventData
     ? {
-      name: eventData.event_name || "Event Name",
-      creator: eventData.created_by || "Unknown Creator",
-      // These fields are now fetched from getEventMetrics, falling back to eventData or defaults
-      totalRevenue: metrics?.totalRevenue ?? eventData.total_revenue ?? "0",
-      totalBooking: metrics?.totalBooking ?? eventData.total_bookings ?? "0",
-      totalLikes: metrics?.totalLikes ?? eventData.like ?? "0",
-      totalShare: metrics?.totalShare ?? eventData.share_count ?? "0",
-      totalCancellation: metrics?.total_cancellation ?? eventData.total_cancellations ?? "0",
-      addOnRevenue: eventData.addon_revenue || "$0",
-      addOnRevenueMonth: eventData.addon_revenue_month || "$0",
-    }
+        name: eventData.event_name || "Event Name",
+        creator: eventData.created_by || "Unknown Creator",
+        // Use selectedDateStats if available, otherwise use metrics
+        totalRevenue: selectedDateStats?.totalRevenue ?? metrics?.totalRevenue ?? eventData.total_revenue ?? "0",
+        totalBooking: selectedDateStats?.totalBookings ?? metrics?.totalBooking ?? eventData.total_bookings ?? "0",
+        totalLikes: metrics?.totalLikes ?? eventData.like ?? "0",
+        totalShare: metrics?.totalShare ?? eventData.share_count ?? "0",
+        totalCancellation: metrics?.total_cancellation ?? eventData.total_cancellations ?? "0",
+        addOnRevenue: eventData.addon_revenue || "$0",
+        addOnRevenueMonth: eventData.addon_revenue_month || "$0",
+      }
     : null;
   // Theme setup from HomePage
   useEffect(() => {
@@ -175,33 +261,22 @@ const LiveEventsPage = () => {
     setIsDark(shouldBeDark);
     document.documentElement.classList.toggle("dark", shouldBeDark);
   }, []);
-  const chartData = eventData?.revenue_data || [
-    { month: "JAN", value: 320, height: "h-24" },
-    { month: "FEB", value: 320, height: "h-32" },
-    { month: "MAR", value: 320, height: "h-28" },
-    { month: "APR", value: 320, height: "h-20" },
-    { month: "MAY", value: 320, height: "h-40" },
-    { month: "JUN", value: 320, height: "h-28" },
-    { month: "JUL", value: 320, height: "h-24" },
-    { month: "AUG", value: 320, height: "h-16" },
-  ];
+// Remove the static chartData definition and replace with this:
+const chartData = React.useMemo(() => {
+  if (monthlyChartData && monthlyChartData.length > 0) {
+    // User selected a specific date, show monthly chart
+    return monthlyChartData.map(item => ({
+      month: `Day ${item.day}`,
+      value: item.revenue / 1000, // Convert to k
+      bookingCount: item.bookingCount,
+      height: Math.max(20, Math.min(160, (item.bookingCount || 1) * 15)) // Dynamic height in pixels
+    }));
+  }
+  
+  // Show default message - no static data
+  return [];
+}, [monthlyChartData]);
   const generateCalendarDays = () => {
-    // Rely on currentDate state for calendar navigation
-    // We want to show a week or a month? The original code showed a week starting from event date or today.
-    // To support "Calendar Controls" (Month/Year), we usually show the whole month or at least a week within that month.
-    // The user's request is "check for calendar controls... implement the same buttons".
-    // I will anchor the 7-day view to the 'currentDate' state.
-
-    // Logic: Show 7 days starting from the beginning of the week of 'currentDate'
-    // OR if we want to show strict days of the selected month/year.
-    // Let's stick to the "week" view but updated by the controls for now, as the grid is 7 cols but only 1 row (based on original code).
-    // Wait, original code: for (let i = 0; i < 7; i++)
-
-    // Better Approach: 'currentDate' represents the focal point.
-    // If the user changes Month/Year, 'currentDate' updates.
-    // We display the week containing 'currentDate', or just the first 7 days of that month?
-    // Let's display the week containing 'currentDate'.
-
     const dayOfWeek = currentDate.getDay();
     const startOfWeek = new Date(currentDate);
     startOfWeek.setDate(currentDate.getDate() - dayOfWeek);
@@ -513,12 +588,35 @@ const [isApiReady, setIsApiReady] = useState(false);
       </div>
     );
   }
-  const formattedDate = eventData?.event_dates?.[0]?.start_date
-    ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
+// Replace the existing formattedDate and formattedEndDate logic with this:
+const formattedDate = eventData?.event_dates?.[0]?.start_date
+  ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
+      year: "numeric",
     })
-    : "N/A";
+  : "N/A";
+
+const formattedEndDate = eventData?.event_dates?.[0]?.end_date
+  ? new Date(eventData.event_dates[0].end_date).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
+  : null;
+
+// Check if dates are the same
+const isSameDate = eventData?.event_dates?.[0]?.start_date && 
+                   eventData?.event_dates?.[0]?.end_date &&
+                   new Date(eventData.event_dates[0].start_date).toDateString() === 
+                   new Date(eventData.event_dates[0].end_date).toDateString();
+
+const displayDate = isSameDate 
+  ? formattedDate 
+  : (formattedDate !== "N/A" && formattedEndDate 
+      ? `${formattedDate} - ${formattedEndDate}` 
+      : formattedDate);
+
   return (
     <>
       <style>{`
@@ -640,11 +738,10 @@ const [isApiReady, setIsApiReady] = useState(false);
                 <button
                   className={`px-6 py-2 rounded-full text-sm font-medium transition-colors ${theme.inactivePill} ml-auto lg:ml-0 text-blue-500`}
                 >
-                  January 22 - January 29
+                  {displayDate}
                 </button>
               </div>
             </div>
-
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               {/* Left Side: Total Revenue & Total Booking */}
@@ -653,7 +750,7 @@ const [isApiReady, setIsApiReady] = useState(false);
                 shadow={{ ...cardStyle, borderRadius: "20px" }}
                 icon={<Lock />}
                 title="TOTAL REVENUE"
-                value={`$${computedEventData?.totalRevenue || "0"}`}
+                value={`${computedEventData?.totalRevenue || "0"}`}
                 color={theme.subText}
               />
               <StatCard
@@ -661,7 +758,7 @@ const [isApiReady, setIsApiReady] = useState(false);
                 shadow={{ ...cardStyle, borderRadius: "20px" }}
                 icon={<LayoutGrid />}
                 title="TOTAL BOOKING"
-                value={computedEventData?.totalBooking || "0"}
+                value={computedEventData.totalBooking}
                 color={theme.subText}
               />
               {/* Right Side: Combined Likes/Share (Total Cancellation removed) */}
@@ -712,69 +809,101 @@ const [isApiReady, setIsApiReady] = useState(false);
 
             {/* Main Dashboard Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 flex-1">
-              {/* Left Column: Total Booking of Add-On Events Chart */}
+              {/* Left Column: Total Booking of Events Chart */}
               <div
                 className={`lg:col-span-2 py-8 px-6 rounded-3xl ${theme.cardBgDarker} flex flex-col`}
                 style={{ ...cardStyle, borderRadius: "50px" }}
               >
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
                   <h3 className="text-base font-semibold uppercase tracking-wider">
-                    Total Booking of Add-On Events
+                    LIVE EVENTS EARNING STATISTICS
                   </h3>
                 </div>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
                   <div>
                     <div className="text-3xl sm:text-4xl font-bold">
-                      {computedEventData?.addOnRevenue || "$0"}
+                      {selectedDateStats?.totalRevenue || computedEventData?.totalRevenue || "0"}
                     </div>
                     <div className={`${theme.subText} text-base`}>
-                      Total amount
+                      {selectedDateStats 
+                        ? `Revenue on ${new Date(currentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` 
+                        : 'Total Revenue (All Time)'}
                     </div>
                   </div>
                   <div className={`p-4 rounded-2xl ${theme.bg} text-center`}>
                     <div className={`${theme.subText} text-sm`}>
-                      Revenue of this month
+                      {selectedDateStats ? 'Bookings on selected date' : 'Total Bookings (All Time)'}
                     </div>
                     <div className="text-xl font-bold">
-                      {computedEventData?.addOnRevenueMonth || "$0"}
+                      {selectedDateStats 
+                        ? selectedDateStats.totalBookings 
+                        : (computedEventData?.totalBooking || "0")}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <TrendingUp className="w-16 h-8" />
+                    <TrendingUp className={`w-16 h-8 ${parseFloat(growthStats?.growthPercentage || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`} />
                     <div
                       className={`w-10 h-10 rounded-full border ${theme.border} flex items-center justify-center`}
                     >
-                      <span className="text-sm font-bold">14%</span>
+                      <span className="text-sm font-bold">
+                        {growthStats 
+                          ? `${parseFloat(growthStats.growthPercentage) >= 0 ? '+' : ''}${parseFloat(growthStats.growthPercentage).toFixed(0)}%` 
+                          : 'N/A'}
+                      </span>
                     </div>
                   </div>
                 </div>
-
-                {/* Bar Chart */}
-                <div className="flex justify-around items-end flex-1 overflow-x-auto">
-                  {chartData.map((bar) => (
+              {/* Bar Chart */}
+              <div className="flex justify-around items-end flex-1 overflow-x-auto min-h-[200px] px-2">
+                {chartData.length > 0 ? (
+                  chartData.map((bar, index) => (
                     <div
-                      key={bar.month}
-                      className="flex flex-col items-center gap-2"
+                      key={index}
+                      className="flex flex-col items-center gap-2 min-w-[40px]"
                     >
-                      <span className={`text-base ${theme.subText}`}>
-                        {bar.value}k
+                      <span className={`text-xs ${theme.subText}`}>
+                        ₹{typeof bar.value === 'number' ? bar.value.toFixed(1) : bar.value}k
                       </span>
                       <div
-                        className={`w-6 rounded-t-lg bg-green-500 ${bar.height}`}
+                        className={`w-6 rounded-t-lg bg-green-500 transition-all duration-300`}
+                        style={{
+                          height: `${bar.height}px`
+                        }}
                       ></div>
-                      <span className={`text-base ${theme.subText}`}>
+                      <span className={`text-xs ${theme.subText}`}>
                         {bar.month}
                       </span>
+                      <span className={`text-[10px] ${theme.subText} opacity-70`}>
+                        {bar.bookingCount} booking{bar.bookingCount !== 1 ? 's' : ''}
+                      </span>
                     </div>
-                  ))}
-                </div>
+                  ))
+                ) : (
+                  <div className={`flex flex-col items-center justify-center ${theme.subText} text-center w-full gap-3`}>
+                    <TrendingUp className="w-12 h-12 opacity-30" />
+                    <div>
+                      <p className="text-base font-medium">No Booking Data Available</p>
+                      <p className="text-xs mt-1 opacity-70">
+                        {dateError 
+                          ? dateError 
+                          : selectedDateStats 
+                            ? 'Select a date within the event period to view statistics' 
+                            : 'Bookings will appear here once customers make purchases'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
                 <div
-                  className={`flex justify-between text-base ${theme.subText} mt-4 pt-4 border-t ${theme.border}`}
+                  className={`flex justify-between text-sm ${theme.subText} mt-4 pt-4 border-t ${theme.border}`}
                 >
-                  <span>Coldpoly concert : $666.27k</span>
+                  <span>
+                    {selectedDateStats 
+                      ? `Selected Date: ${new Date(currentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` 
+                      : `Event: ${computedEventData?.name || 'N/A'}`}
+                  </span>
                 </div>
               </div>
-
               {/* Right side: Ticket types, Seating layout, Calendar, and Add-on Events */}
               <div className="lg:col-span-2 flex flex-col gap-8">
                 {/* Top section: Ticket types, Seating layout, and Calendar */}
@@ -808,7 +937,6 @@ const [isApiReady, setIsApiReady] = useState(false);
                       </span>
                     </div>
                   </div>
-
                   {/* Calendar */}
                   <div className="flex-1">
                     <div
@@ -825,10 +953,7 @@ const [isApiReady, setIsApiReady] = useState(false);
                             }}
                             className={`flex items-center justify-center ${calendarBg} w-10 h-10 md:w-12 md:h-12 flex-shrink-0`}
                           >
-                            <ChevronLeft
-                              className={`${theme.text}`}
-                              size={20}
-                            />
+                            <ChevronLeft className={`${theme.text}`} size={20} />
                           </button>
                           <button
                             onClick={handleNextMonth}
@@ -838,10 +963,7 @@ const [isApiReady, setIsApiReady] = useState(false);
                             }}
                             className={`flex items-center justify-center ${calendarBg} w-10 h-10 md:w-12 md:h-12 flex-shrink-0`}
                           >
-                            <ChevronRight
-                              className={`${theme.text}`}
-                              size={20}
-                            />
+                            <ChevronRight className={`${theme.text}`} size={20} />
                           </button>
                         </div>
 
@@ -861,14 +983,10 @@ const [isApiReady, setIsApiReady] = useState(false);
                               }}
                               className={`flex items-center justify-between ${calendarBg} flex-1 min-w-[90px] h-10 md:h-12`}
                             >
-                              <span
-                                className={`text-sm font-semibold ${theme.text}`}
-                              >
+                              <span className={`text-sm font-semibold ${theme.text}`}>
                                 {fullMonths[currentDate.getMonth()]}
                               </span>
-                              <ChevronDown
-                                className={`w-4 h-4 ${theme.text}`}
-                              />
+                              <ChevronDown className={`w-4 h-4 ${theme.text}`} />
                             </button>
                             {showMonthSelector && (
                               <div className="absolute z-20 mt-2 right-0">
@@ -901,14 +1019,10 @@ const [isApiReady, setIsApiReady] = useState(false);
                               }}
                               className={`flex items-center justify-between ${calendarBg} flex-1 min-w-[80px] h-10 md:h-12`}
                             >
-                              <span
-                                className={`text-sm font-semibold ${theme.text}`}
-                              >
+                              <span className={`text-sm font-semibold ${theme.text}`}>
                                 {currentDate.getFullYear()}
                               </span>
-                              <ChevronDown
-                                className={`w-4 h-4 ${theme.text}`}
-                              />
+                              <ChevronDown className={`w-4 h-4 ${theme.text}`} />
                             </button>
                             {showYearSelector && (
                               <div className="absolute z-20 mt-2 right-0">
@@ -927,37 +1041,56 @@ const [isApiReady, setIsApiReady] = useState(false);
                           </div>
                         </div>
                       </div>
+
+                      {/* Reset Button - Place BEFORE calendar grid */}
+                      {selectedDateStats && (
+                        <div className="mb-3 flex justify-center">
+                          <button
+                            onClick={handleResetToTotalView}
+                            className={`text-xs px-4 py-2 rounded-full ${theme.purpleBtn} text-white hover:opacity-90 transition-opacity flex items-center gap-2`}
+                          >
+                            <ArrowLeft size={14} />
+                            View All Time Stats
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Calendar Grid */}
                       <div
-                        className={`grid grid-cols-7 gap-1 text-center rounded-3xl p-2 mb-2 mr-6 md:mr-0 ${isDark ? theme.bg : "bg-white"}`}
+                        className={`grid grid-cols-7 gap-1 text-center rounded-3xl p-2 mb-2 mr-6 md:mr-0 ${
+                          isDark ? theme.bg : "bg-white"
+                        }`}
                       >
                         {calendarDays.map((day, idx) => (
                           <div
                             key={idx}
-                            className={`flex flex-col items-center justify-center p-0.5 transition-all duration-300 ${day.active ? "text-white" : ""
-                              }`}
+                            onClick={() => setCurrentDate(new Date(day.fullDate))}
+                            className={`flex flex-col items-center justify-center p-0.5 transition-all duration-300 cursor-pointer hover:opacity-80 ${
+                              day.active ? "text-white" : ""
+                            }`}
                             style={
                               day.active
                                 ? {
-                                  backgroundColor: "#5E5CE6",
-                                  borderRadius: "9999px",
-                                  marginTop: "-2px",
-                                  marginBottom: "-2px",
-                                  zIndex: 10,
-                                  height: "auto",
-                                  minHeight: "50px",
-                                  width: "100%",
-                                  maxWidth: "36px",
-                                  marginLeft: "auto",
-                                  marginRight: "auto",
-                                }
+                                    backgroundColor: "#5E5CE6",
+                                    borderRadius: "9999px",
+                                    marginTop: "-2px",
+                                    marginBottom: "-2px",
+                                    zIndex: 10,
+                                    height: "auto",
+                                    minHeight: "50px",
+                                    width: "100%",
+                                    maxWidth: "36px",
+                                    marginLeft: "auto",
+                                    marginRight: "auto",
+                                  }
                                 : {
-                                  height: "auto",
-                                  minHeight: "40px",
-                                  width: "100%",
-                                  maxWidth: "36px",
-                                  marginLeft: "auto",
-                                  marginRight: "auto",
-                                }
+                                    height: "auto",
+                                    minHeight: "40px",
+                                    width: "100%",
+                                    maxWidth: "36px",
+                                    marginLeft: "auto",
+                                    marginRight: "auto",
+                                  }
                             }
                           >
                             <span className="text-[9px] uppercase mb-1 opacity-80">
@@ -969,13 +1102,23 @@ const [isApiReady, setIsApiReady] = useState(false);
                           </div>
                         ))}
                       </div>
+
+                      {/* Growth Stats */}
                       <div className="flex justify-between items-center mt-6">
                         <div className="text-sm">
                           <span className={`opacity-50`}>Common growth</span>{" "}
-                          14% from last day
+                          {growthStats 
+                            ? `${parseFloat(growthStats.growthPercentage) >= 0 ? '+' : ''}${growthStats.growthPercentage}%` 
+                            : 'N/A'} from last {growthStats?.comparisonType || 'day'}
                         </div>
-                        <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-sm font-bold text-black">
-                          64%
+                        <div className={`w-12 h-12 rounded-full ${
+                          parseFloat(growthStats?.growthPercentage || 0) >= 0 
+                            ? 'bg-green-500' 
+                            : 'bg-red-500'
+                        } flex items-center justify-center text-sm font-bold text-white`}>
+                          {growthStats 
+                            ? `${Math.abs(parseFloat(growthStats.growthPercentage)).toFixed(0)}%` 
+                            : 'N/A'}
                         </div>
                       </div>
                     </div>

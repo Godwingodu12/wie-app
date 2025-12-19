@@ -5,6 +5,7 @@ import Database from './config/db';
 import bookingRoutes from './routes/bookingRoutes';
 import interactionRoutes from './routes/interactionRoutes';
 import adminRoutes from './routes/adminRoutes';
+import { startGrpcServer } from './grpc/server';
 import webhookRoutes from './routes/webhookRoutes';
 import { connectRabbitMQ } from './rabbit';
 import { startConsumers } from './rabbit/index';
@@ -47,6 +48,8 @@ const startServer = async () => {
   try {
     // Connect to database
     await Database.connect();
+    startGrpcServer();
+    console.log('✅ gRPC server started');
     // Optionally connect to RabbitMQ (if RABBITMQ_URL is provided)
     if (process.env.RABBITMQ_URL) {
       try {
