@@ -510,3 +510,39 @@ export const getPreviousEventStatistics = async (ticketId) => {
     throw error;
   }
 };
+// Update these functions with correct paths
+export const getEventStatsByDate = async (ticketId, selectedDate) => {
+  try {
+    const response = await api.get(`/ticket/event-stats-by-date/${ticketId}`, {
+      params: { selectedDate }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error in getEventStatsByDate:', error);
+    throw error;
+  }
+};
+
+export const getEventGrowthStats = async (ticketId, selectedDate, comparisonType) => {
+  try {
+    const response = await api.get(`/ticket/event-growth-stats/${ticketId}`, {
+      params: { selectedDate, comparisonType }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error in getEventGrowthStats:', error);
+    throw error;
+  }
+};
+
+export const getEventMonthlyChart = async (ticketId, year, month) => {
+  try {
+    const response = await api.get(`/ticket/event-monthly-chart/${ticketId}`, {
+      params: { year, month }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error in getEventMonthlyChart:', error);
+    throw error;
+  }
+};
