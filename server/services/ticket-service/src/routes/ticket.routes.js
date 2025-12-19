@@ -6,7 +6,7 @@ import {getUserData,CreateGroup, UpdateGroup,createTicketBasicInfo, getGroups, g
 getTicketById,deleteTicket,deleteSubEvent,deleteEventPermenently,deleteAllEvents,viewTickets, getAllDeletedEvents,getDeletedEventById,recoverDeletedEvent,getAllGroups,getAllLiveEvents} from '../services/ticket.service.js';
 import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getGroupById,getOtherGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getMyPreviousEventView,getOthersEvents,getOthersEventsById,getOtherLiveEvents,
 getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getAddOnEventLiveView,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted,getPostalDetailsFromCoords,
-getPreviousEventView,getPreviousEventStatistics,getPreviousEventMonthlyStats,getPreviousEventCapacityStats,getEventMetrics } from '../controller/ticket.controller.js';
+getPreviousEventView,getPreviousEventStatistics,getPreviousEventMonthlyStats,getPreviousEventCapacityStats,getEventMetrics,getEventStatsByDate, getEventGrowthStats, getEventMonthlyChart } from '../controller/ticket.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);
@@ -71,4 +71,7 @@ router.get('/previous-event-view/:ticketId', getPreviousEventView);
 router.get('/previous-event-monthly-stats/:ticketId', getPreviousEventMonthlyStats);
 router.get('/previous-event-capacity-stats/:ticketId', getPreviousEventCapacityStats);
 router.get('/event-metrics/:ticketId', getEventMetrics);
+router.get('/event-stats-by-date/:ticketId', protect, getEventStatsByDate);
+router.get('/event-growth-stats/:ticketId', protect, getEventGrowthStats);
+router.get('/event-monthly-chart/:ticketId', protect, getEventMonthlyChart);
 export default router;
