@@ -39,6 +39,22 @@ import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.
 
 import darkThemeStyles from "../../components/CreateGroup/darkThemeStyles.jsx";
 import lightThemeStyles from "../../components/CreateGroup/lightThemeStyles.jsx";
+import FileMediaInput from "../../components/CreateGroup/FileMediaInput.jsx";
+import SortablePhoto from "../../components/CreateGroup/SortablePhoto.jsx";
+import { 
+  DndContext, 
+  closestCenter, 
+  MouseSensor, 
+  TouchSensor, 
+  useSensor, 
+  useSensors 
+} from "@dnd-kit/core";
+import { 
+  arrayMove, 
+  SortableContext, 
+  rectSortingStrategy, 
+  verticalListSortingStrategy 
+} from "@dnd-kit/sortable";
 const UpdateTicketAddOns = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
@@ -70,6 +86,8 @@ const UpdateTicketAddOns = () => {
   const [videoFiles, setVideoFiles] = useState({});
   const [previewImageFiles, setPreviewImageFiles] = useState({});
   const [alert, setAlert] = useState(null);
+  const [isReorderingImages, setIsReorderingImages] = useState(false);
+const [isReorderingVideos, setIsReorderingVideos] = useState(false);
   const [confirmState, setConfirmState] = useState({
     isOpen: false,
     onConfirm: null,
@@ -171,8 +189,9 @@ const UpdateTicketAddOns = () => {
     total_capacity: "",
     ticket_layout: null,
     event_banner: null,
-    event_logo: null,
+    event_portrait: null,
     event_images: [],
+    event_videos: [],
     existing_event_images: [],
     exact_map_location: {
       latitude: INITIAL_MAP_LOCATION.lat.toString(),
@@ -184,12 +203,16 @@ const UpdateTicketAddOns = () => {
   const [previews, setPreviews] = useState({
     ticket_layout: null,
     event_banner: null,
-    event_logo: null,
+    event_portrait: null,
+    event_images: [], 
+  event_videos: [],
   });
   const categoryOptions = Object.keys(eventCategories).map((category) => ({
     value: category,
     label: category,
   }));
+
+  
   const subCategoryOptions = formData.event_category
     ? eventCategories[formData.event_category].map((sub) => ({
         value: sub,
@@ -611,7 +634,7 @@ const UpdateTicketAddOns = () => {
           "Please fill in all Point of Contact fields: Name, Email, and Contact Number.",
       });
       return;
-    }
+}
 
     // 2. Check for duplicate email
     const isDuplicateEmail = formData.POCS.some(
@@ -663,6 +686,17 @@ const UpdateTicketAddOns = () => {
       setFormData((prev) => ({ ...prev, [type]: fileToProcess }));
       const previewUrl = URL.createObjectURL(fileToProcess);
       setPreviews((prev) => ({ ...prev, [type]: previewUrl }));
+    }
+  };
+    const removeSingleFile = (type) => {
+    setPreviews((prev) => ({ ...prev, [type]: null }));
+    setFormData((prev) => ({ ...prev, [type]: null }));
+    setErrors((prev) => ({ ...prev, [type]: null }));
+    const savedStateJSON = sessionStorage.getItem(storageKey);
+    if (savedStateJSON) {
+      const savedState = JSON.parse(savedStateJSON);
+      savedState[type] = null;
+      sessionStorage.setItem(storageKey, JSON.stringify(savedState));
     }
   };
   const removeMediaFile = (type) => {
@@ -909,45 +943,45 @@ const UpdateTicketAddOns = () => {
         "Seating layout has been removed. Upload a new file to generate a layout.",
     });
   };
-  const handleMultiMediaChange = (e) => {
-    const newFiles = Array.from(e.target.files);
-    if (newFiles.length === 0) return;
+const handleMultipleFileChange = async (e, targetField) => {
+  const files = Array.from(e.target.files);
+  if (files.length === 0) return;
 
-    setFormData((prev) => {
-      const currentFiles = prev.event_images;
-      const filesToAdd = newFiles.slice(0, 10 - currentFiles.length);
-      if (newFiles.length > filesToAdd.length) {
-        showAlert({
-          type: "error",
-          message: "Limit Exceeded",
-          description: `You can only upload a maximum of 10 images. ${filesToAdd.length} were added.`,
-        });
-      }
-      return { ...prev, event_images: [...currentFiles, ...filesToAdd] };
+  const limit = targetField === 'event_images' ? 10 : 5;
+  const currentCount = previews[targetField]?.length || 0;
+
+  if (currentCount + files.length > limit) {
+    showAlert({
+      type: "error",
+      message: "Limit Reached",
+      description: `Max ${limit} files allowed for this section.`
     });
-    e.target.value = "";
-  };
-  const handleRemoveLastImage = () => {
-    setFormData((prev) => {
-      if (prev.event_images.length > 0) {
-        const updatedImages = prev.event_images.slice(0, -1);
-        if (
-          updatedImages.length + (prev.existing_event_images?.length || 0) <
-          2
-        ) {
-          setShowExtraMedia(false);
-        }
-        return { ...prev, event_images: updatedImages };
-      } else if (prev.existing_event_images?.length > 0) {
-        const updatedExisting = prev.existing_event_images.slice(0, -1);
-        if (updatedExisting.length < 2) {
-          setShowExtraMedia(false);
-        }
-        return { ...prev, existing_event_images: updatedExisting };
-      }
-      return prev;
-    });
-  };
+    return;
+  }
+
+  setLoading(true);
+  // Using URL.createObjectURL for faster, more reliable previews
+  const newItems = files.map((file) => ({
+    id: `${file.name}-${Date.now()}-${Math.random()}`, // Unique string ID
+    preview: URL.createObjectURL(file), // Visually shows the image/video
+    name: file.name,
+    isExisting: false,
+    mimeType: file.type,
+    originalFile: file,
+  }));
+
+  setPreviews((prev) => ({
+    ...prev,
+    [targetField]: [...(prev[targetField] || []), ...newItems],
+  }));
+
+  setFormData((prev) => ({
+    ...prev,
+    [targetField]: [...(prev[targetField] || []), ...newItems.map(i => i.originalFile)],
+  }));
+  setLoading(false);
+};
+
 
   const handleSaveOrUpdateTickets = (updatedTickets) => {
     setFormData((prev) => ({ ...prev, ticket_types: updatedTickets }));
@@ -1113,8 +1147,6 @@ const UpdateTicketAddOns = () => {
         addError("location", "Location is required for offline events.");
       if (!formData.venue.trim())
         addError("venue", "Venue is required for offline events.");
-      else if (!simpleNameRegex.test(formData.venue.trim()))
-        addError("venue", "Venue contains invalid characters.");
       if (!formData.seating_arrangement) {
         addError(
           "seating_arrangement",
@@ -1541,6 +1573,36 @@ const UpdateTicketAddOns = () => {
 
     // CRITICAL: Deep clone payload to avoid mutation
     const subEventData = JSON.parse(JSON.stringify(payload));
+    if (!(formData.event_portrait instanceof File) && previews.event_portrait?.data) {
+    // Extract the raw path/URL from the preview data
+    subEventData.existing_event_portrait = previews.event_portrait.data;
+  }
+
+  // 2. Sync Reorderable Image Gallery
+subEventData.existing_event_images = previews.event_images
+  ?.filter(img => img.isExisting)
+  .map(img => img.path || img.preview);// Send the server path
+
+  // 3. Sync Reorderable Video Gallery
+  subEventData.existing_event_videos = previews.event_videos
+    ?.filter(vid => vid.isExisting)
+    .map(vid => vid.path || vid.preview);
+
+
+    // Add this inside buildFormData before 'return submissionForm'
+console.log("🚀 FRONTEND SENDING:");
+for (let pair of submissionForm.entries()) {
+  if (pair[0] === 'sub_event') {
+    const parsed = JSON.parse(pair[1]);
+    console.log("📝 JSON Payload:", {
+      existing_images: parsed.existing_event_images?.length,
+      existing_videos: parsed.existing_event_videos?.length,
+      existing_portrait: parsed.existing_event_portrait
+    });
+  } else {
+    console.log(`📂 File Field: ${pair[0]} - ${pair[1] instanceof File ? pair[1].name : 'Not a file'}`);
+  }
+}
 
     // Log seating_layout BEFORE stringification
     if (subEventData.seating_layout) {
@@ -1614,9 +1676,9 @@ const UpdateTicketAddOns = () => {
       submissionForm.append("event_banner", formData.event_banner);
     }
 
-    if (formData.event_logo instanceof File) {
-      submissionForm.append("event_logo", formData.event_logo);
-    }
+if (formData.event_portrait instanceof File) {
+    submissionForm.append("event_portrait", formData.event_portrait);
+  }
 
     if (formData.event_rules_file instanceof File) {
       submissionForm.append("event_rules", formData.event_rules_file);
@@ -1645,11 +1707,17 @@ const UpdateTicketAddOns = () => {
 
     // Append event_images (multiple)
     if (formData.event_images && formData.event_images.length > 0) {
-      formData.event_images.forEach((file) => {
-        submissionForm.append("event_images", file);
-      });
+      formData.event_images.forEach(file => {
+      submitData.append("event_images", file);
+      hasNewFiles = true;
+    });
       console.log(`📤 Appending ${formData.event_images.length} event_images`);
     }
+    if (formData.event_videos && formData.event_videos.length > 0) {
+  formData.event_videos.forEach((file) => {
+    submissionForm.append("event_videos", file);
+  });
+}
 
     // Append guest profiles
     if (formData.guests && formData.guests.length > 0) {
@@ -2373,6 +2441,76 @@ const UpdateTicketAddOns = () => {
     await populateFormWithSubEventData(subEventId);
     window.scrollTo({ top: 400, behavior: "smooth" });
   };
+  const handleRemoveImage = (index, targetField) => {
+  setFormData((prev) => {
+    const updatedList = [...prev[targetField]];
+    updatedList.splice(index, 1);
+    return { ...prev, [targetField]: updatedList };
+  });
+};
+const removeImageFromList = (idToRemove, targetField = 'event_images') => {
+  setPreviews((prev) => {
+    const itemToRemove = prev[targetField].find(img => img.id === idToRemove);
+    // Cleanup local URL memory
+    if (itemToRemove && itemToRemove.preview?.startsWith('blob:')) {
+      URL.revokeObjectURL(itemToRemove.preview);
+    }
+    return {
+      ...prev,
+      [targetField]: prev[targetField].filter((item) => item.id !== idToRemove),
+    };
+  });
+
+  // Keep formData files count in sync for the backend
+  setFormData((prev) => ({
+    ...prev,
+    [targetField]: prev[targetField].filter((_, index) => {
+       const previewItem = previews[targetField][index];
+       return previewItem?.id !== idToRemove;
+    })
+  }));
+};
+
+const handleDragEnd = (event, targetField) => {
+  const { active, over } = event;
+
+  if (active.id !== over.id) {
+    setPreviews((prev) => {
+      const oldIndex = prev[targetField].findIndex((item) => item.id === active.id);
+      const newIndex = prev[targetField].findIndex((item) => item.id === over.id);
+
+      return {
+        ...prev,
+        [targetField]: arrayMove(prev[targetField], oldIndex, newIndex),
+      };
+    });
+  }
+};
+const sensors = useSensors(
+  useSensor(MouseSensor, {
+    activationConstraint: { distance: 10 }, // Drag starts only after moving 10px
+  }),
+  useSensor(TouchSensor, {
+    activationConstraint: { delay: 250, tolerance: 5 },
+  })
+);
+
+const handleReorderToggle = (targetField) => {
+  // Ensure we check for the correct string passed from the button
+  const isImage = targetField === 'event_images' || targetField === 'image_upload_addon';
+  const setState = isImage ? setIsReorderingImages : setIsReorderingVideos;
+  const currentState = isImage ? isReorderingImages : isReorderingVideos;
+
+  if (currentState) {
+    showAlert({
+      type: "success",
+      message: "Order Saved",
+      description: `${isImage ? 'Image' : 'Video'} sequence updated.`
+    });
+  }
+  setState(!currentState);
+};
+
   const populateFormWithSubEventData = async (subEventId) => {
     setSubEventLoading(true);
     try {
@@ -2524,6 +2662,22 @@ const UpdateTicketAddOns = () => {
 
           return [];
         })();
+        const imagePreviews = (subEvent.event_images || []).map((img, index) => ({
+          id: img.public_id || `img-${index}`, // Unique ID for dragging
+          preview: getTicketImageUrl(img.path || img),
+          name: img.originalName || `Image ${index + 1}`,
+          isExisting: true,
+          path: img.path || img // Store raw path for backend reordering sync
+        }));
+
+        // 2. Prepare Video Gallery Previews (NEW)
+        const videoPreviews = (subEvent.event_videos || []).map((vid, index) => ({
+          id: vid.public_id || `vid-${index}`, // Unique ID for dragging
+          preview: getTicketImageUrl(vid.path || vid), // Ensure helper returns a valid URL
+          name: vid.originalName || `Video ${index + 1}`,
+          isExisting: true,
+          path: vid.path || vid
+        }));
         setFormData((prev) => ({
           ...prev,
           event_name: subEvent.event_name || "",
@@ -2584,6 +2738,10 @@ const UpdateTicketAddOns = () => {
             longitude: INITIAL_MAP_LOCATION.lng.toString(),
             address: INITIAL_MAP_LOCATION.address,
           },
+          existing_event_images: subEvent.event_images || [],
+          existing_event_videos: subEvent.event_videos || [],
+          event_images: [], // Reset local file uploads
+          event_videos: [], // Reset local file uploads
         }));
         // Set previews - ensuring proper format
         setPreviews((prev) => ({
@@ -2595,6 +2753,8 @@ const UpdateTicketAddOns = () => {
                 type: "image",
               }
             : null,
+            event_images: imagePreviews, 
+          event_videos: videoPreviews,
           event_logo: subEvent.event_logo
             ? {
                 data: getTicketImageUrl(String(subEvent.event_logo)),
@@ -2602,6 +2762,8 @@ const UpdateTicketAddOns = () => {
                 type: "image",
               }
             : null,
+
+            event_portrait: subEvent.event_portrait ? { data: getTicketImageUrl(subEvent.event_portrait) } : null,
           ticket_layout: subEvent.ticket_layout
             ? {
                 data: getTicketImageUrl(String(subEvent.ticket_layout)),
@@ -2780,6 +2942,9 @@ const UpdateTicketAddOns = () => {
           if (subEvent.event_images.length > 1) {
             setShowExtraMedia(true);
           }
+        }
+        if (imagePreviews.length > 1 || videoPreviews.length > 0) {
+          setShowExtraMedia(true);
         }
 
         if (descriptionEditorRef.current) {
@@ -4186,183 +4351,146 @@ const UpdateTicketAddOns = () => {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Event Media
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      <div>
-                        <FileInput
-                          id="event_banner"
-                          label="Event Banner"
-                          info="Required. 2:1 ratio recommended."
-                          preview={previews.event_banner}
-                          onFileChange={handleMediaFileChange}
-                          onRemove={removeMediaFile}
-                          darkMode={darkMode}
-                          acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
-                          ref={(el) =>
-                            (errorFieldRefs.current.event_banner = el)
-                          }
-                          maxSizeMB={50}
-                        />
-                        {errors.event_banner && (
-                          <p className="text-red-500 text-xs mt-1">
-                            {errors.event_banner}
-                          </p>
-                        )}
-                      </div>
+                    <div className="gap-8">
+    <FileMediaInput
+      id="event_banner"
+      label="Event Banner*"
+                                    aspectRatio={1 / 1}
+      info="Required. 2:1 ratio recommended. JPG, PNG, WEBP."
+      preview={previews.event_banner}
+      onFileChange={handleMediaFileChange}
+      onRemove={removeSingleFile}
+      darkMode={darkMode}
+      acceptedFiles=".jpg,.jpeg,.png,.webp"
+      maxSizeMB={1.5}
+      ref={(el) => (errorFieldRefs.current.event_banner = el)}
+    />
+    
+    <FileMediaInput
+      id="event_portrait"
+      label="Portrait image (for mobile app)"
+      aspectRatio={3 / 4}
+      info="Resolution: (900px by 1200px)"
+      preview={previews.event_portrait}
+      onFileChange={handleMediaFileChange}
+      onRemove={removeSingleFile}
+      darkMode={darkMode}
+      acceptedFiles=".jpg,.jpeg,.png,.webp"
+      maxSizeMB={1.5}
+    />
+  </div>
+                    {/* --- IMAGE GALLERY --- */}
+  <div className="mt-8">
+    <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+      <label className="text-sm font-medium text-white flex items-center gap-2">
+        Image galleries <InfoTooltip note="Max 10 images. 1.5MB max." />
+      </label>
 
-                      <FileInput
-                        id="event_logo"
-                        label="Event or Organisation Logo"
-                        info="Optional. 1:1 ratio recommended."
-                        preview={previews.event_logo}
-                        onFileChange={handleMediaFileChange}
-                        onRemove={removeMediaFile}
-                        darkMode={darkMode}
-                        acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
-                        maxSizeMB={50}
-                      />
-                      <div>
-                        <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
-                          Images and videos
-                        </label>
-                        <div
-                          className={`relative rounded-lg text-center bg-gray-100 dark:bg-[#2B2B2B] min-h-[180px] flex justify-center items-center border-2 border-dashed ${
-                            formData.event_images.length > 0 ||
-                            formData.existing_event_images?.length > 0
-                              ? "border-indigo-500"
-                              : "border-black dark:border-gray-600"
-                          } overflow-hidden`}
-                        >
-                          {formData.event_images.length > 0 ||
-                          formData.existing_event_images?.length > 0 ? (
-                            <>
-                              <img
-                                src={
-                                  formData.event_images.length > 0
-                                    ? URL.createObjectURL(
-                                        formData.event_images[0]
-                                      )
-                                    : formData.existing_event_images[0]
-                                }
-                                alt="Preview"
-                                className="absolute inset-0 w-full h-full object-cover"
-                              />
-                              <button
-                                type="button"
-                                onClick={handleRemoveLastImage}
-                                className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center z-10"
-                              >
-                                &times;
-                              </button>
+    </div>
+    <div className="p-3 rounded-xl border border-dashed border-gray-600">
+      <div className="flex gap-2">
+        <button type="button" onClick={() => handleReorderToggle('event_images')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingImages ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
+          <span className="text-lg">⠿</span> {isReorderingImages ? "Done" : "Reorder"}
+        </button>
+<button 
+  type="button" 
+  disabled={previews.event_images?.length >= 10} // Disable if 10 reached
+  onClick={() => document.getElementById('image_upload_addon').click()} 
+  className={`px-3 py-1 text-xs rounded text-white transition-all ${
+    previews.event_images?.length >= 10 
+      ? "bg-gray-500 cursor-not-allowed opacity-50" 
+      : "bg-indigo-600 hover:bg-indigo-700"
+  }`}
+>
+  {previews.event_images?.length >= 10 ? "Limit Reached" : "Browse file"}
+</button>      </div>
+<DndContext 
+  sensors={sensors} 
+  collisionDetection={closestCenter} 
+  onDragEnd={(e) => handleDragEnd(e, 'event_images')}
+>
+  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
+    <SortableContext 
+      // Mapping to just the ID strings is crucial for dnd-kit
+      items={previews.event_images?.map(img => img.id) || []} 
+      strategy={rectSortingStrategy}
+    >
+      {previews.event_images?.map((img) => (
+        <SortablePhoto
+          key={img.id} 
+          img={img} 
+          isReordering={isReorderingImages} 
+          onRemove={(id) => removeImageFromList(id, 'event_images')}
+          targetField="event_images" 
+        />
+      ))}
+    </SortableContext>
+    {/* Hidden file input */}
+    <input 
+       id="image_upload_addon" 
+       type="file" 
+       multiple 
+       className="hidden" 
+       onChange={(e) => handleMultipleFileChange(e, 'event_images')} 
+    />
+  </div>
+</DndContext>
+    </div>
 
-                              {formData.event_images.length +
-                                (formData.existing_event_images?.length || 0) <
-                                10 && (
-                                <label
-                                  htmlFor="multi-media-upload"
-                                  className="absolute top-1/2 -translate-y-1/2 right-2 bg-indigo-600 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer hover:bg-indigo-700 transition z-10"
-                                  title="Add another image"
-                                >
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-5 w-5"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    strokeWidth={2}
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M12 4v16m8-8H4"
-                                    />
-                                  </svg>
-                                </label>
-                              )}
+  </div>
 
-                              {formData.event_images.length +
-                                (formData.existing_event_images?.length || 0) >
-                                1 && (
-                                <div
-                                  onClick={() =>
-                                    setShowExtraMedia(!showExtraMedia)
-                                  }
-                                  className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-4xl font-bold cursor-pointer"
-                                >
-                                  +
-                                  {formData.event_images.length +
-                                    (formData.existing_event_images?.length ||
-                                      0) -
-                                    1}
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <label
-                              htmlFor="multi-media-upload"
-                              className="cursor-pointer flex flex-col items-center gap-2"
-                            >
-                              <svg
-                                className="w-8 h-8 text-gray-400"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                              </svg>
-                              <span className="text-indigo-500 dark:text-indigo-400 font-semibold">
-                                Click to browse
-                              </span>
-                            </label>
-                          )}
-                          <input
-                            id="multi-media-upload"
-                            type="file"
-                            multiple
-                            className="sr-only"
-                            onChange={handleMultiMediaChange}
-                            accept="image/*,video/*"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    {showExtraMedia &&
-                      formData.event_images.length +
-                        (formData.existing_event_images?.length || 0) >
-                        1 && (
-                        <div className="animate-fade-in">
-                          <p className="text-sm font-medium text-black dark:text-gray-400 mb-2">
-                            Additional Media
-                          </p>
-                          <div className="flex overflow-x-auto space-x-4 p-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg">
-                            {formData.existing_event_images
-                              ?.slice(1)
-                              .map((url, index) => (
-                                <div
-                                  key={`existing-${index}`}
-                                  className="flex-shrink-0"
-                                >
-                                  <img
-                                    src={url}
-                                    alt={`Existing media ${index + 1}`}
-                                    className="h-24 w-auto aspect-video object-cover rounded-md"
-                                  />
-                                </div>
-                              ))}
-                            {formData.event_images.map((file, index) => (
-                              <div
-                                key={`new-${index}`}
-                                className="flex-shrink-0"
-                              >
-                                <img
-                                  src={URL.createObjectURL(file)}
-                                  alt={`New media ${index + 1}`}
-                                  className="h-24 w-auto aspect-video object-cover rounded-md"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+  {/* --- VIDEO GALLERY --- */}
+  <div className="mt-10">
+    <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+      <label className="text-sm font-medium text-white flex items-center gap-2">
+        Video sneak peek <InfoTooltip note="Max 5 videos." />
+      </label>
+
+    </div>
+    <div className="p-3 rounded-xl border border-dashed border-gray-600 ">
+            <div className="flex gap-2">
+        <button type="button" onClick={() => handleReorderToggle('event_videos')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingVideos ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
+          <span className="text-lg">⠿</span> {isReorderingVideos ? "Done" : "Reorder"}
+        </button>
+<button 
+  type="button" 
+  disabled={previews.event_videos?.length >= 5} // Disable if 5 reached
+  onClick={() => document.getElementById('video_upload_addon').click()} 
+  className={`px-3 py-1 text-xs rounded text-white transition-all ${
+    previews.event_videos?.length >= 5 
+      ? "bg-gray-500 cursor-not-allowed opacity-50" 
+      : "bg-indigo-600 hover:bg-indigo-700"
+  }`}
+>
+  {previews.event_videos?.length >= 5 ? "Limit Reached" : "Browse file"}
+</button>      </div>
+<DndContext 
+  sensors={sensors} 
+  collisionDetection={closestCenter} 
+  onDragEnd={(e) => handleDragEnd(e, 'event_videos')}
+>
+  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
+    <SortableContext 
+      items={previews.event_videos?.map(vid => vid.id) || []} 
+      strategy={rectSortingStrategy}
+    >
+      {previews.event_videos?.map((vid) => (
+        <SortablePhoto
+          key={vid.id} 
+          img={vid} 
+          isReordering={isReorderingVideos} 
+          onRemove={(id) => removeImageFromList(id, 'event_videos')}
+          targetField="event_videos" 
+        />
+      ))}
+    </SortableContext>
+    <input id="video_upload_addon" type="file" multiple accept="video/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_videos')} />
+  </div>
+</DndContext>
+    </div>
+
+
+  </div>
                   </div>
                 </div>
                 <div className="space-y-12">
