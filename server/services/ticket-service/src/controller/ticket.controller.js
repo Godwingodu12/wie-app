@@ -94,6 +94,9 @@ export const getTicketSubEvents = async (req, res) => {
   }
 };
 export const updateSubEvent = async (req, res) => {
+  let processedFiles = {}; 
+  let guestProfileFiles = {};
+  let ticketPhotoFiles = {};
   try {
     const { ticketId, subEventId } = req.params;
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
@@ -186,10 +189,14 @@ export const updateSubEvent = async (req, res) => {
     const existingSubEvent = ticket.sub_events[subEventIndex];
 
     // Process file uploads
-    const processedFiles = {};
-    const uploadedFiles = await processFileUploads(req.files || {});
-    const guestProfileFiles = {};
-    const ticketPhotoFiles = {};
+const uploadedFiles = await processFileUploads(req.files || {});    const guestProfileFiles = {};
+processedFiles = uploadedFiles;
+    console.log("📦 BACKEND RECEIVED FILES:", Object.keys(req.files || {}));
+console.log("☁️ CLOUDINARY UPLOADED RESULTS:", {
+  portrait: uploadedFiles.event_portrait ? "UPLOADED" : "MISSING",
+  images_count: uploadedFiles.event_images?.length || 0,
+  videos_count: uploadedFiles.event_videos?.length || 0
+});
     
     // Process guest profiles and ticket photos
     Object.keys(uploadedFiles).forEach(fieldName => {
@@ -233,6 +240,18 @@ export const updateSubEvent = async (req, res) => {
         processedFiles.event_banner_public_id = bannerFile.public_id;
       }
     }
+    if (uploadedFiles.event_portrait) {
+      let portraitFile = uploadedFiles.event_portrait;
+      if (typeof portraitFile === 'string') {
+        processedFiles.event_portrait = portraitFile;
+      } else if (Array.isArray(portraitFile) && portraitFile.length > 0) {
+        processedFiles.event_portrait = portraitFile[0].path;
+        processedFiles.event_portrait_public_id = portraitFile[0].public_id;
+      } else if (portraitFile.path) {
+        processedFiles.event_portrait = portraitFile.path;
+        processedFiles.event_portrait_public_id = portraitFile.public_id;
+      }
+    }
     
     // Handle event logo
     if (uploadedFiles.event_logo) {
@@ -249,23 +268,36 @@ export const updateSubEvent = async (req, res) => {
     }
     
     // Handle event images
-    if (uploadedFiles.event_images && uploadedFiles.event_images.length > 0) {
-      if (uploadedFiles.event_images.length <= 10) {
-        const validImages = uploadedFiles.event_images.filter(file => 
-          file.path && file.originalName
-        );
-        
-        if (validImages.length > 0) {
-          processedFiles.event_images = validImages.map(file => ({
-            path: file.path,
-            originalName: file.originalName,
-            mimeType: file.mimeType,
-            size: file.size,
-            public_id: file.public_id,
-            resource_type: file.resource_type,
-            uploadedAt: new Date()
-          }));
-        }
+if (uploadedFiles.event_images) {
+  // Ensure we are taking the full array from processFileUploads
+  const newImages = Array.isArray(uploadedFiles.event_images) 
+    ? uploadedFiles.event_images 
+    : [uploadedFiles.event_images];
+
+  processedFiles.event_images = newImages.map(file => ({
+    path: file.path || file.cloudinaryUrl || file,
+    originalName: file.originalName || "image",
+    mimeType: file.mimeType || "image/jpeg",
+    size: file.size || 0,
+    public_id: file.public_id || "",
+    uploadedAt: new Date()
+  }));
+}
+    if (uploadedFiles.event_videos && uploadedFiles.event_videos.length > 0) {
+      const validVideos = uploadedFiles.event_videos.filter(file => 
+        file.path && file.originalName
+      );
+      
+      if (validVideos.length > 0) {
+        processedFiles.event_videos = validVideos.map(file => ({
+          path: file.path,
+          originalName: file.originalName,
+          mimeType: file.mimeType,
+          size: file.size,
+          public_id: file.public_id,
+          resource_type: 'video', // Force resource type
+          uploadedAt: new Date()
+        }));
       }
     }
     
@@ -619,6 +651,7 @@ export const updateSubEvent = async (req, res) => {
     // Build updated sub-event object
     const updatedSubEvent = {
       ...existingSubEvent.toObject(),
+      ...updateData,
       _id: existingSubEvent._id,
       
       // Basic fields
@@ -678,7 +711,45 @@ export const updateSubEvent = async (req, res) => {
       // File uploads with fallback to existing
       event_banner: processedFiles.event_banner || existingSubEvent.event_banner,
       event_logo: processedFiles.event_logo || existingSubEvent.event_logo,
-      event_images: processedFiles.event_images || existingSubEvent.event_images || [],
+event_portrait: (processedFiles.event_portrait?.path || processedFiles.event_portrait) || 
+                       updateData.existing_event_portrait || 
+                       existingSubEvent.event_portrait,
+      event_portrait_public_id: processedFiles.event_portrait?.public_id || existingSubEvent.event_portrait_public_id,
+      event_images: [
+        ...(parseJSONSafely(updateData.existing_event_images, []).map(item => {
+          // If the frontend sent a string URL (due to reorder), wrap it back into an object
+          if (typeof item === 'string') {
+            return {
+              path: item,
+              originalName: "existing_image",
+              mimeType: "image/jpeg",
+              size: 0,
+              // Note: Ensure extractPublicId is exported from your cloudinaryHelper.js
+              public_id: typeof extractPublicId === 'function' ? extractPublicId(item) : "",
+              uploadedAt: new Date()
+            };
+          }
+          return item;
+        })),
+        ...(Array.isArray(processedFiles.event_images) ? processedFiles.event_images : (processedFiles.event_images ? [processedFiles.event_images] : []))
+      ],
+event_videos: [
+        ...(parseJSONSafely(updateData.existing_event_videos, []).map(item => {
+          if (typeof item === 'string') {
+            return {
+              path: item,
+              originalName: "existing_video",
+              mimeType: "video/mp4",
+              size: 0,
+              public_id: typeof extractPublicId === 'function' ? extractPublicId(item) : "",
+              uploadedAt: new Date()
+            };
+          }
+          return item;
+        })),
+        ...(Array.isArray(processedFiles.event_videos) ? processedFiles.event_videos : (processedFiles.event_videos ? [processedFiles.event_videos] : []))
+      ],
+    
     };
 
     // Handle event_rules
@@ -825,6 +896,12 @@ export const updateSubEvent = async (req, res) => {
     await ticket.save();
     const savedTicket = await Ticket.findById(ticketId);
     const savedSubEvent = savedTicket.sub_events[subEventIndex];
+    console.log("💾 FINAL OBJECT TO SAVE:", {
+  name: updatedSubEvent.event_name,
+  portrait: updatedSubEvent.event_portrait, // Check if this is a URL string
+  images_array_size: updatedSubEvent.event_images?.length,
+  videos_array_size: updatedSubEvent.event_videos?.length
+});
     if (savedSubEvent.seating_layout && savedSubEvent.seating_layout.seats) {
       console.log('🔍 POST-SAVE VERIFICATION:');
       
@@ -908,10 +985,18 @@ export const updateSubEvent = async (req, res) => {
       const filesToDelete = [];
       if (processedFiles.event_banner_public_id) filesToDelete.push(processedFiles.event_banner_public_id);
       if (processedFiles.event_logo_public_id) filesToDelete.push(processedFiles.event_logo_public_id);
+      if (processedFiles.event_portrait_public_id) filesToDelete.push(processedFiles.event_portrait_public_id);
       if (processedFiles.ticket_layout_public_id) filesToDelete.push(processedFiles.ticket_layout_public_id);
+      if (processedFiles.event_videos && Array.isArray(processedFiles.event_videos)) {
+      processedFiles.event_videos.forEach(vid => {
+        if (vid.public_id) filesToDelete.push(vid.public_id);
+      });
+    }
       if (processedFiles.event_images && Array.isArray(processedFiles.event_images)) {
     processedFiles.event_images.forEach(img => {
       if (img.public_id) filesToDelete.push(img.public_id);
+
+
     });
   }
   if (processedFiles.event_rules && processedFiles.event_rules.public_id) {

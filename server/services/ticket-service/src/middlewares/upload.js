@@ -90,8 +90,16 @@ const ticketMediaFileFilter = (req, file, cb) => {
         allowed: [...imageTypes, ...docTypes],  // ✅ Accept both images and PDFs
         errorMsg: 'Ticket layout must be an image file (JPG, JPEG, PNG, GIF, WEBP) or PDF'
       },
+      event_portrait: {
+    allowed: imageTypes,
+    errorMsg: 'Portrait image must be an image file (JPG, JPEG, PNG, GIF, WEBP)'
+  },
+  event_videos: {
+    allowed: videoTypes,
+    errorMsg: 'Event videos must be valid video files (MP4, AVI, MOV, etc.)'
+  },
       event_images: {
-        allowed: [...imageTypes, ...videoTypes],
+        allowed: imageTypes,
         errorMsg: 'Event images must be image or video files'
       },
       video_file: {
@@ -220,6 +228,8 @@ export const getCloudinaryFolder = (fieldname) => {
     event_logo: 'WIE_EVENTS/event_logos',
     event_banner: 'WIE_EVENTS/event_banners',
     event_images: 'WIE_EVENTS/event_images',
+    event_portrait: 'WIE_EVENTS/event_portraits',
+    event_videos: 'WIE_EVENTS/event_videos',
     ticket_photo: 'WIE_EVENTS/ticket_photos',
     ticket_layout: 'WIE_EVENTS/ticket_layouts',
     video_file: 'WIE_EVENTS/event_videos',
@@ -237,7 +247,11 @@ export const getCloudinaryFolder = (fieldname) => {
   return 'WIE_EVENTS/misc';
 };
 export const getResourceType = (fieldname, mimetype) => {
-  if (fieldname.startsWith('video_file') || mimetype?.startsWith('video/')) {
+  if (
+    fieldname.startsWith('video_file') || 
+    fieldname === 'event_videos' || // Add this
+    mimetype?.startsWith('video/')
+  ) {
     return 'video';
   }
   
@@ -381,10 +395,12 @@ export const uploadTicketMedia = (req, res, next) => {
     { name: 'event_banner', maxCount: 1 },
     { name: 'ticket_layout', maxCount: 1 },
     { name: 'event_rules', maxCount: 1 },
+    { name: 'event_portrait', maxCount: 1 },
     { name: 'college_authorisation', maxCount: 1 },
     
     // Multiple files
     { name: 'event_images', maxCount: 10 },
+  { name: 'event_videos', maxCount: 5 },
     
     // Guest profiles (0-9)
     { name: 'guest_profile_0', maxCount: 1 },

@@ -126,7 +126,16 @@ const subEventSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
       }
-    }],  
+    }], 
+    // Add these after event_banner in ticketSchema
+  event_portrait: { type: String, required: false },
+  event_videos: [{
+    path: { type: String, required: true },
+    originalName: { type: String, required: true },
+    mimeType: { type: String, required: true },
+    size: { type: Number, required: true },
+    uploadedAt: { type: Date, default: Date.now }
+  }], 
   // Event Details
   hashtag: [{ type: String }], // Array of hashtags
   payment_type: { type: String, enum: ['free', 'paid'], required: true },
@@ -245,7 +254,15 @@ const ticketSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     }
-  }], // Array of image objects (max 10)
+  }], 
+  event_portrait: { type: String, required: false },
+  event_videos: [{
+    path: { type: String, required: true },
+    originalName: { type: String, required: true },
+    mimeType: { type: String, required: true },
+    size: { type: Number, required: true },
+    uploadedAt: { type: Date, default: Date.now }
+  }],// Array of image objects (max 10)
   // Event Details
   hashtag: [{ type: String }], // Array of hashtags
   payment_type: { type: String, enum: ['free', 'paid'], required: false },
