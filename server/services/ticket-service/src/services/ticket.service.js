@@ -2176,79 +2176,61 @@ export const updateTicketMedia = async (req, res) => {
       updateData.event_banner = eventBannerUrl;
     }
     if (eventPortraitUrl) updateData.event_portrait = eventPortraitUrl; // NEW DATA
-
-if (req.body.existing_event_images || (event_images && event_images.length > 0)) {
-      const existingTicket = await Ticket.findById(req.params.ticketId);
+    if (req.body.existing_event_images || event_images.length > 0) {
+      const existingTicket = await Ticket.findById(ticketId);
       const keepPaths = JSON.parse(req.body.existing_event_images || "[]");
       const finalOrder = JSON.parse(req.body.image_order || "[]");
-
-      // Filter: Only keep what frontend sent
-      let survivors = (existingTicket?.event_images || []).filter(img => keepPaths.includes(img.path));
-
-      // Map new uploads
-      const newUploads = (event_images || []).map(file => ({
+      // 1️⃣ Keep only images user retained
+      const keptImages = (existingTicket?.event_images || []).filter(img =>
+        keepPaths.includes(img.path)
+      );
+      // 2️⃣ Map newly uploaded images (IMPORTANT: include size)
+      const newUploadedImages = (event_images || []).map(file => ({
         path: file.path,
         originalName: file.originalName,
         mimeType: file.mimeType,
+        size: file.size, // ✅ REQUIRED BY SCHEMA
         uploadedAt: new Date()
       }));
-
-      let combined = [...survivors, ...newUploads];
-
-      // 🛠️ Apply Sort
-      if (finalOrder.length > 0) {
-        combined.sort((a, b) => finalOrder.indexOf(a.path || a.originalName) - finalOrder.indexOf(b.path || b.originalName));
-      }
-      updateData.event_images = combined;
-    }
-    // Re-apply sort order if provided
-    if (req.body.image_order) {
-        try {
-            const order = JSON.parse(req.body.image_order);
-            combinedImages.sort((a, b) => {
-                const valA = a.path || a.originalName;
-                const valB = b.path || b.originalName;
-                return order.indexOf(valA) - order.indexOf(valB);
-            });
-        } catch (e) { console.error("Sort failed:", e.message); }
-    }
-
-    // Update the data object to be saved
-    updateData.event_images = combinedImages.slice(0, 10);
     
-    console.log("📊 DB Sync Summary:", {
-        dbHad: existingTicket?.event_images?.length || 0,
-        keeping: keepPaths.length,
-        actuallyMatched: filteredExisting.length,
-        removed: (existingTicket?.event_images?.length || 0) - filteredExisting.length,
-        finalTotal: updateData.event_images.length
-    });
-
-
-    // 2. Process VIDEOS
+      // 3️⃣ Merge
+      let combinedImages = [...keptImages, ...newUploadedImages];
+    
+      // 4️⃣ Apply frontend order
+      if (finalOrder.length > 0) {
+        combinedImages.sort((a, b) => {
+          const aKey = a.path || a.originalName;
+          const bKey = b.path || b.originalName;
+          return finalOrder.indexOf(aKey) - finalOrder.indexOf(bKey);
+        });
+      }
+      updateData.event_images = combinedImages.slice(0, 10);
+    }
     if (event_videos.length > 0 || req.body.existing_event_videos || req.body.video_order) {
       const existingTicket = await Ticket.findById(ticketId);
-      
       const keepVideoPaths = JSON.parse(req.body.existing_event_videos || "[]");
-      
-      let filteredExistingVideos = (existingTicket?.event_videos || []).filter(vid => 
-        keepVideoPaths.includes(vid.path)
+      const videoOrder = JSON.parse(req.body.video_order || "[]");
+    
+      const keptVideos = (existingTicket?.event_videos || []).filter(v =>
+        keepVideoPaths.includes(v.path)
       );
-
+    
       const newVideos = event_videos.map(file => ({
         path: file.path,
         originalName: file.originalName,
         mimeType: file.mimeType,
-        size: file.size,
-        uploadedAt: new Date(),
+        size: file.size, // ✅ REQUIRED
+        uploadedAt: new Date()
       }));
-
-      let combinedVideos = [...filteredExistingVideos, ...newVideos];
-
-      if (req.body.video_order) {
-        const vOrder = JSON.parse(req.body.video_order);
-        combinedVideos.sort((a, b) => vOrder.indexOf(a.path) - vOrder.indexOf(b.path));
+    
+      let combinedVideos = [...keptVideos, ...newVideos];
+    
+      if (videoOrder.length > 0) {
+        combinedVideos.sort(
+          (a, b) => videoOrder.indexOf(a.path) - videoOrder.indexOf(b.path)
+        );
       }
+    
       updateData.event_videos = combinedVideos.slice(0, 5);
     }
     // Add college authorization file if uploaded
