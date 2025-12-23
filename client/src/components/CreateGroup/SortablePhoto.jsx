@@ -1,38 +1,72 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const SortablePhoto = ({ img, onRemove, isReordering, targetField }) => {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: img.id });
+const SortablePhoto = ({
+  img,
+  onRemove,
+  isReordering,
+  targetField,
+  onPreview,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id: img.id,
+    disabled: !isReordering,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    cursor: isReordering ? "grab" : "default",
+    cursor: isReordering ? "grab" : "pointer",
     touchAction: "none",
   };
+
+  const isVideo =
+    targetField === "event_videos" ||
+    img.type?.startsWith("video");
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...(isReordering ? { ...attributes, ...listeners } : {})}
-      className="relative aspect-square rounded-lg overflow-hidden border border-gray-700 group"
+      {...attributes}
+      {...listeners}
+      className="relative aspect-square rounded-lg overflow-hidden border border-gray-700 bg-black"
+      onClick={() => !isReordering && onPreview?.(img)}
     >
-      <img src={img.preview} className="w-full h-full object-cover" alt="gallery" />
-      
-      {/* Show play icon if it's a video */}
-      {targetField === 'event_videos' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-          <span className="text-white">▶</span>
-        </div>
+      {/* IMAGE PREVIEW */}
+      {!isVideo && (
+        <img
+          src={img.preview}
+          alt="preview"
+          className="w-full h-full object-cover"
+        />
       )}
 
-      {/* Only show remove button if NOT reordering */}
+      {/* VIDEO PREVIEW */}
+      {isVideo && (
+        <video
+          src={img.preview}
+          className="w-full h-full object-cover"
+          controls
+          preload="metadata"
+        />
+      )}
+
+      {/* Remove button */}
       {!isReordering && (
         <button
           type="button"
-          onClick={() => onRemove(img.id, targetField)}
-          className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs z-10"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(img.id, targetField);
+          }}
+          className="absolute top-1 right-1 bg-black/70 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs z-10"
         >
           &times;
         </button>
