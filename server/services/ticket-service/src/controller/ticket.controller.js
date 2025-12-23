@@ -520,12 +520,14 @@ if (uploadedFiles.event_images) {
             validOptions: validAccountTypes,
           });
         }
+
         // Validate bank_acc_no
         if (!banking.bank_acc_no || String(banking.bank_acc_no).trim() === "") {
           return res.status(400).json({
             message: `bank_acc_no is required for banking detail ${index + 1}`,
           });
         }
+
         if (!/^\d+$/.test(String(banking.bank_acc_no).trim())) {
           return res.status(400).json({
             message: `Invalid bank account number format for banking detail ${index + 1}`,
