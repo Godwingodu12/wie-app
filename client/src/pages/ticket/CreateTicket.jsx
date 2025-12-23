@@ -1068,16 +1068,48 @@ const CreateTicket = () => {
         }
       } else if (formData.location_type === "online") {
         // Online events require date, times, and event link
-        const dateValidationFailed = formData.event_dates.some(
-          (item) =>
-            !item.date ||
-            !item.startTime ||
-            !item.startAmPm ||
-            !item.endTime ||
-            !item.endAmPm ||
-            !item.eventLink // Event link is required for online events
-        );
-
+        const dateValidationFailed = formData.event_dates.some((item) => {
+          // Check date
+          if (!item.date) {
+            console.log("Missing date:", item);
+            return true;
+          }
+          
+          // Check start time - handle both 12-hour and 24-hour formats
+          if (!item.startTime || (typeof item.startTime === 'string' && item.startTime.trim() === '')) {
+            console.log("Missing or empty startTime:", item);
+            return true;
+          }
+          
+          // Only check startAmPm if it's not in 24-hour format (24-hour format won't have AM/PM)
+          const is24HourFormat = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(item.startTime);
+          if (!is24HourFormat && (!item.startAmPm || item.startAmPm.trim() === '')) {
+            console.log("Missing or empty startAmPm:", item);
+            return true;
+          }
+          
+          // Check end time
+          if (!item.endTime || (typeof item.endTime === 'string' && item.endTime.trim() === '')) {
+            console.log("Missing or empty endTime:", item);
+            return true;
+          }
+          
+          // Only check endAmPm if it's not in 24-hour format
+          if (!is24HourFormat && (!item.endAmPm || item.endAmPm.trim() === '')) {
+            console.log("Missing or empty endAmPm:", item);
+            return true;
+          }
+          
+          // Check for event link (it might be stored as eventLink or event_link)
+          const hasEventLink = item.eventLink || item.event_link;
+          if (!hasEventLink || (typeof hasEventLink === 'string' && hasEventLink.trim() === '')) {
+            console.log("Missing or empty event link:", item);
+            return true;
+          }
+          
+          return false;
+        });
+        
         if (dateValidationFailed) {
           addError(
             "event_dates",

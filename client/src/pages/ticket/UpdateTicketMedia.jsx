@@ -106,7 +106,7 @@ const UpdateTicketMedia = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [ticketData, setTicketData] = useState(null);
-  const [userDetails, setUserDetails] = useState(null); // Added for consistency
+  const [userDetails, setUserDetails] = useState(null); 
   const [alert, setAlert] = useState(null);
 const [isReorderingImages, setIsReorderingImages] = useState(false);
 const [isReorderingVideos, setIsReorderingVideos] = useState(false);
@@ -947,6 +947,9 @@ const handleSubmit = async (e) => {
 
 
 </div>
+
+
+            </div>
 
               {errors.general && (
                 <p className="text-red-500 mt-4 text-center font-medium">

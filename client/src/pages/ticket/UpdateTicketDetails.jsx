@@ -1686,9 +1686,6 @@ const UpdateTicketDetails = () => {
                 {paymentType === "paid" && (
                   <section className="space-y-6">
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        Ticketing details
-                      </h2>
                       {errors.tickets && (
                         <p className="text-red-500 text-sm ">
                           Please add at least one ticket type for this paid
@@ -1696,14 +1693,12 @@ const UpdateTicketDetails = () => {
                         </p>
                       )}
                     </div>
-
                     {isOfflinePaid && (
                       <>
                         <p className="text-black dark:text-gray-400 text-sm">
                           Add ticket types, set prices, and control how
                           attendees book their spot.
                         </p>
-
                         <button
                           type="button"
                           onClick={handleOpenModalForAdd}
@@ -1775,40 +1770,6 @@ const UpdateTicketDetails = () => {
                           </div>
                         )}
                       </>
-                    )}
-
-                    {isOnlineOrRecordedPaid && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 pt-2">
-                        <DateInput
-                          id="booking_start_date"
-                          label="Booking start date?"
-                          name="booking_start_date"
-                          value={bookingStartDate} // This is still a string, e.g., "2025-10-13"
-                          onChange={(e) => setBookingStartDate(e.target.value)} // This still works perfectly!
-                          error={errors.booking_start_date}
-                          required
-                          darkMode={darkMode} // Pass your dark mode state here
-                          maxDate={eventEndDate}
-                          ref={(el) =>
-                            (errorFieldRefs.current.booking_start_date = el)
-                          }
-                        />
-                        <DateInput
-                          id="booking_end_date"
-                          label="Booking_end_date?"
-                          name="booking_end_date"
-                          value={bookingEndDate} // This is still a string, e.g., "2025-10-13"
-                          onChange={(e) => setBookingEndDate(e.target.value)} // This still works perfectly!
-                          error={errors.booking_end_date}
-                          required
-                          darkMode={darkMode} // Pass your dark mode state here
-                          maxDate={eventEndDate}
-                          minDate={bookingStartDate}
-                          ref={(el) =>
-                            (errorFieldRefs.current.booking_end_date = el)
-                          }
-                        />
-                      </div>
                     )}
                   </section>
                 )}
@@ -2218,6 +2179,121 @@ const UpdateTicketDetails = () => {
                   </div>
                 )}
               </section>
+              {/* Simple Ticket Details for Online/Recorded Paid Events */}
+              {isOnlineOrRecordedPaid && (
+                <section className="bg-[#f1f1f1] dark:bg-[#2B2B2B] p-8 rounded-lg space-y-6 animate-fade-in shadow-sm dark:shadow-none">
+                  <div className="flex items-center space-x-4">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      Ticket Details
+                    </h2>
+                  </div>
+                  <p className="text-black dark:text-gray-400 text-sm">
+                    Set the price and total capacity for your {locationType} event tickets.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 pt-2">
+                    <div ref={(el) => (errorFieldRefs.current.simpleTicketPrice = el)}>
+                      <label
+                        htmlFor="simpleTicketPrice"
+                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
+                      >
+                        Ticket Price (₹) <span className="text-red-500 ml-1">*</span>
+                        <InfoTooltip note="Set the price per ticket for your event." />
+                      </label>
+                      <input
+                        type="number"
+                        id="simpleTicketPrice"
+                        name="simpleTicketPrice"
+                        value={simpleTicketPrice}
+                        onChange={(e) => {
+                          setSimpleTicketPrice(e.target.value);
+                          setErrors((prev) => ({ ...prev, simpleTicketPrice: null }));
+                        }}
+                        placeholder="Enter ticket price"
+                        min="1"
+                        step="1"
+                        className={`w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white rounded-md p-3 ${
+                          errors.simpleTicketPrice
+                            ? "border-2 border-red-500"
+                            : "border border-black dark:border-gray-700"
+                        }`}
+                      />
+                      {errors.simpleTicketPrice && (
+                        <p className="text-red-500 text-xs mt-1">
+                          Ticket price is required and must be greater than 0.
+                        </p>
+                      )}
+                    </div>
+
+                    <div ref={(el) => (errorFieldRefs.current.simpleTicketCapacity = el)}>
+                      <label
+                        htmlFor="simpleTicketCapacity"
+                        className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
+                      >
+                        Total Ticket Capacity <span className="text-red-500 ml-1">*</span>
+                        <InfoTooltip note="Maximum number of tickets available for sale." />
+                      </label>
+                      <input
+                        type="number"
+                        id="simpleTicketCapacity"
+                        name="simpleTicketCapacity"
+                        value={simpleTicketCapacity}
+                        onChange={(e) => {
+                          setSimpleTicketCapacity(e.target.value);
+                          setErrors((prev) => ({ ...prev, simpleTicketCapacity: null }));
+                        }}
+                        placeholder="Enter total capacity"
+                        min="1"
+                        step="1"
+                        className={`w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white rounded-md p-3 ${
+                          errors.simpleTicketCapacity
+                            ? "border-2 border-red-500"
+                            : "border border-black dark:border-gray-700"
+                        }`}
+                      />
+                      {errors.simpleTicketCapacity && (
+                        <p className="text-red-500 text-xs mt-1">
+                          Ticket capacity is required and must be a positive number.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {simpleTicketPrice && simpleTicketCapacity && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
+                      <div className="flex items-start gap-2">
+                        <svg
+                          className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                            Ticket Summary
+                          </p>
+                          <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                            Price per ticket: ₹{Number(simpleTicketPrice).toLocaleString()}
+                          </p>
+                          <p className="text-xs text-blue-700 dark:text-blue-300">
+                            Total tickets: {Number(simpleTicketCapacity).toLocaleString()}
+                          </p>
+                          <p className="text-xs text-blue-700 dark:text-blue-300 font-semibold mt-1">
+                            Maximum Revenue: ₹{(Number(simpleTicketPrice) * Number(simpleTicketCapacity)).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </section>
+              )}
               <section className="space-y-6">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   Ticketing details
