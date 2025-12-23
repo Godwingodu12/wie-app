@@ -333,10 +333,10 @@ const OnlineDatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode
     
     const handleSave = () => {
         if (selectedDates.length === 0) {
-             if (showAlert) {
+            if (showAlert) {
                 showAlert({ type: 'warning', message: 'No Dates Selected', description: 'Please select at least one date to save.' });
-             }
-             return;
+            }
+            return;
         }
         
         for (const dateEntry of selectedDates) {
@@ -352,24 +352,18 @@ const OnlineDatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode
                 return; // Stop the save process
             }
         }
-
-        // Convert to 24-hour format and REMOVE redundant 12-hour fields (startAmPm, endAmPm) for clean saving
-        const finalDates = selectedDates.map(d => {
-            // Destructure to remove display-only 12-hour fields
-            const { startTime: displayStartTime, startAmPm, endTime: displayEndTime, endAmPm, ...rest } = d;
-
-            return {
-                ...rest,
-                startTime: convertTo24Hour(displayStartTime, startAmPm),
-                endTime: convertTo24Hour(displayEndTime, endAmPm),
-            };
-        });
+    
+        // KEEP all fields including startAmPm and endAmPm for validation in CreateTicket.jsx
+        const finalDates = selectedDates.map(d => ({
+            ...d,
+            // Ensure eventLink is present (even if empty)
+            eventLink: d.eventLink || '',
+            verificationCode: d.verificationCode || ''
+        }));
         
         onSave(finalDates, dateType);
         onClose();
     };
-
-
     if (!isOpen) return null;
 
     return (
