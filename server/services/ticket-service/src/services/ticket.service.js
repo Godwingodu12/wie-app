@@ -2051,11 +2051,19 @@ export const updateTicketMedia = async (req, res) => {
     }
     // Upload files to Cloudinary
     const uploadedFiles = await processFileUploads(req.files || {});
+
+    let updateData = {
+      "form_progress.media": true,
+      updated_by: req.user._id || req.user.id,
+      updated_at: new Date(),
+    };
     // Extract URLs directly - these are already complete Cloudinary URLs
     const eventLogoUrl = uploadedFiles.event_logo || null;
     const eventBannerUrl = uploadedFiles.event_banner || null;
     const collegeAuthorisationUrl = uploadedFiles.college_authorisation || null;
+    const eventPortraitUrl = uploadedFiles.event_portrait || null;
     const event_images = uploadedFiles.event_images || [];
+    const event_videos = uploadedFiles.event_videos || [];
     const userRole = req.user?.role;
     let organisation_type = null;
     if (userRole === "organisation") {
@@ -2084,13 +2092,22 @@ export const updateTicketMedia = async (req, res) => {
     } else {
       console.log("👤 User role is not organization:", userRole);
     }
-
+ console.log("🔍 Syncing Images. Body contains keep-list:")
     // Check if any new media files were uploaded
-    const hasNewMediaFiles =
-      !!eventLogoUrl || !!eventBannerUrl || event_images.length > 0;
+   const hasNewMediaFiles =
+      !!eventLogoUrl || !!eventBannerUrl || !!eventPortraitUrl || event_images.length > 0 || event_videos.length > 0;
     const hasNewCollegeAuth = !!collegeAuthorisationUrl;
 
-    if (!hasNewMediaFiles && !hasNewCollegeAuth) {
+    const isSyncingGallery = !!(
+  req.body.existing_event_images || 
+  req.body.image_order || 
+  req.body.existing_event_videos || 
+  req.body.video_order||
+  req.body.delete_event_portrait || // Add these flags
+  req.body.delete_event_logo
+);
+
+    if (!hasNewMediaFiles && !hasNewCollegeAuth && !isSyncingGallery) {
       const existingTicket = await Ticket.findById(ticketId);
       if (!existingTicket) {
         return res.status(404).json({
@@ -2146,7 +2163,7 @@ export const updateTicketMedia = async (req, res) => {
       });
     }
     const userId = req.user._id || req.user.id;
-    const updateData = {
+     updateData = {
       "form_progress.media": true,
       updated_by: userId,
       updated_at: new Date(),
@@ -2158,101 +2175,63 @@ export const updateTicketMedia = async (req, res) => {
     if (eventBannerUrl) {
       updateData.event_banner = eventBannerUrl;
     }
-    // Process event_images with append logic
-    if (event_images.length > 0) {
-      // Fetch existing ticket to get current event_images
+    if (eventPortraitUrl) updateData.event_portrait = eventPortraitUrl; // NEW DATA
+    if (req.body.existing_event_images || event_images.length > 0) {
       const existingTicket = await Ticket.findById(ticketId);
-      const existingImages = existingTicket?.event_images || [];
-
-      // Check total count (existing + new)
-      const totalImageCount = existingImages.length + event_images.length;
-      if (totalImageCount > 10) {
-        // Cleanup uploaded files before returning error
-        const filesToDelete = [];
-        if (eventLogoUrl) filesToDelete.push(eventLogoUrl);
-        if (eventBannerUrl) filesToDelete.push(eventBannerUrl);
-        if (collegeAuthorisationUrl)
-          filesToDelete.push(collegeAuthorisationUrl);
-        event_images.forEach((img) => filesToDelete.push(img.path));
-
-        await Promise.all(
-          filesToDelete.map((url) =>
-            deleteFromCloudinary(url).catch((err) =>
-              console.error("Cleanup error:", err.message)
-            )
-          )
-        );
-
-        return res.status(400).json({
-          message: `Cannot add ${event_images.length} new files. Maximum 10 files allowed (currently have ${existingImages.length})`,
-          uploaded_count: event_images.length,
-          existing_count: existingImages.length,
-          max_allowed: 10,
-        });
-      }
-
-      // Validate video count
-      const videoExtensions = [
-        ".mp4",
-        ".avi",
-        ".mov",
-        ".wmv",
-        ".flv",
-        ".webm",
-        ".mkv",
-      ];
-      const existingVideoCount = existingImages.filter((img) => {
-        if (!img.mimeType && !img.originalName) return false;
-        if (img.mimeType && img.mimeType.startsWith("video/")) return true;
-        const ext =
-          "." + (img.originalName || "").toLowerCase().split(".").pop();
-        return videoExtensions.includes(ext);
-      }).length;
-
-      const newVideoCount = event_images.filter((file) => {
-        if (!file.mimeType) return false;
-        return file.mimeType.startsWith("video/");
-      }).length;
-
-      const totalVideoCount = existingVideoCount + newVideoCount;
-
-      if (totalVideoCount > 1) {
-        // Cleanup uploaded files before returning error
-        const filesToDelete = [];
-        if (eventLogoUrl) filesToDelete.push(eventLogoUrl);
-        if (eventBannerUrl) filesToDelete.push(eventBannerUrl);
-        if (collegeAuthorisationUrl)
-          filesToDelete.push(collegeAuthorisationUrl);
-        event_images.forEach((img) => filesToDelete.push(img.path));
-
-        await Promise.all(
-          filesToDelete.map((url) =>
-            deleteFromCloudinary(url).catch((err) =>
-              console.error("Cleanup error:", err.message)
-            )
-          )
-        );
-
-        return res.status(400).json({
-          message: `Maximum 1 video allowed. You already have ${existingVideoCount} video(s)`,
-          existing_videos: existingVideoCount,
-          new_videos: newVideoCount,
-          max_videos_allowed: 1,
-        });
-      }
-
-      // Append new images to existing ones
-      const newImages = event_images.map((file) => ({
+      const keepPaths = JSON.parse(req.body.existing_event_images || "[]");
+      const finalOrder = JSON.parse(req.body.image_order || "[]");
+      // 1️⃣ Keep only images user retained
+      const keptImages = (existingTicket?.event_images || []).filter(img =>
+        keepPaths.includes(img.path)
+      );
+      // 2️⃣ Map newly uploaded images (IMPORTANT: include size)
+      const newUploadedImages = (event_images || []).map(file => ({
         path: file.path,
         originalName: file.originalName,
         mimeType: file.mimeType,
-        size: file.size,
-        public_id: file.public_id,
-        resource_type: file.resource_type,
-        uploadedAt: new Date(),
+        size: file.size, // ✅ REQUIRED BY SCHEMA
+        uploadedAt: new Date()
       }));
-
-      updateData.event_images = [...existingImages, ...newImages];
+    
+      // 3️⃣ Merge
+      let combinedImages = [...keptImages, ...newUploadedImages];
+    
+      // 4️⃣ Apply frontend order
+      if (finalOrder.length > 0) {
+        combinedImages.sort((a, b) => {
+          const aKey = a.path || a.originalName;
+          const bKey = b.path || b.originalName;
+          return finalOrder.indexOf(aKey) - finalOrder.indexOf(bKey);
+        });
+      }
+      updateData.event_images = combinedImages.slice(0, 10);
+    }
+    if (event_videos.length > 0 || req.body.existing_event_videos || req.body.video_order) {
+      const existingTicket = await Ticket.findById(ticketId);
+      const keepVideoPaths = JSON.parse(req.body.existing_event_videos || "[]");
+      const videoOrder = JSON.parse(req.body.video_order || "[]");
+    
+      const keptVideos = (existingTicket?.event_videos || []).filter(v =>
+        keepVideoPaths.includes(v.path)
+      );
+    
+      const newVideos = event_videos.map(file => ({
+        path: file.path,
+        originalName: file.originalName,
+        mimeType: file.mimeType,
+        size: file.size, // ✅ REQUIRED
+        uploadedAt: new Date()
+      }));
+    
+      let combinedVideos = [...keptVideos, ...newVideos];
+    
+      if (videoOrder.length > 0) {
+        combinedVideos.sort(
+          (a, b) => videoOrder.indexOf(a.path) - videoOrder.indexOf(b.path)
+        );
+      }
+    
+      updateData.event_videos = combinedVideos.slice(0, 5);
     }
     // Add college authorization file if uploaded
     if (collegeAuthorisationUrl) {
@@ -2292,15 +2271,18 @@ export const updateTicketMedia = async (req, res) => {
       message: "Ticket media updated successfully",
       ticket: updatedTicket,
       ticketId: ticketId,
-      uploadedFiles: {
+uploadedFiles: {
         event_logo: !!eventLogoUrl,
         event_banner: !!eventBannerUrl,
+        event_portrait: !!eventPortraitUrl,
         event_images: event_images.length,
+        event_videos: event_videos.length,
         college_authorisation: !!collegeAuthorisationUrl,
       },
       uploadedUrls: {
         event_logo: eventLogoUrl,
         event_banner: eventBannerUrl,
+        event_portrait:eventPortraitUrl,
         college_authorisation: collegeAuthorisationUrl,
       },
       organisationType: organisation_type || "Not specified",
@@ -2318,6 +2300,7 @@ export const updateTicketMedia = async (req, res) => {
         filesToDelete.push(eventLogoUrl);
       if (typeof eventBannerUrl !== "undefined" && eventBannerUrl)
         filesToDelete.push(eventBannerUrl);
+      if (typeof eventPortraitUrl !== "undefined" && eventPortraitUrl) filesToDelete.push(eventPortraitUrl);
       if (
         typeof collegeAuthorisationUrl !== "undefined" &&
         collegeAuthorisationUrl
@@ -2329,6 +2312,13 @@ export const updateTicketMedia = async (req, res) => {
         event_images.length > 0
       ) {
         event_images.forEach((img) => filesToDelete.push(img.path));
+      }
+            if (
+        typeof event_videos !== "undefined" &&
+        event_videos &&
+        event_videos.length > 0
+      ) {
+        event_videos.forEach((vid) => filesToDelete.push(vid.path));
       }
       if (filesToDelete.length > 0) {
         await Promise.all(
@@ -2478,6 +2468,25 @@ export const updateTicketAddOns = async (req, res) => {
           hint: "Please upload a ticket layout file"
         });
       }
+ updateData = {
+    "form_progress.media": true,
+    updated_by: req.user._id,
+    updated_at: new Date()
+};
+
+const singleFields = ["event_logo", "event_banner", "event_portrait", "college_authorisation"];
+
+singleFields.forEach(field => {
+  if (uploadedFiles[field]) {
+    updateData[field] = uploadedFiles[field]; // New upload
+  } else if (req.body[`existing_${field}`]) {
+    updateData[field] = req.body[`existing_${field}`]; // Keep existing
+  } else if (req.body[`delete_${field}`] === "true") {
+    // 🛠️ THIS IS THE FIX:
+    // If we don't do this, MongoDB keeps the old image on refresh.
+    updateData[field] = ""; 
+  }
+});
 
       // Get capacity from request
       let totalCapacity = 0;
@@ -3011,6 +3020,17 @@ export const updateTicketAddOns = async (req, res) => {
           processedFiles.event_logo_public_id = logoPublicId || "";
         }
       }
+      if (uploadedFiles.event_portrait) {
+        let portraitFile = uploadedFiles.event_portrait;
+        // Map to string URL (similar to your banner logic)
+        processedFiles.event_portrait = typeof portraitFile === "string" 
+            ? portraitFile 
+            : (Array.isArray(portraitFile) ? portraitFile[0].path : portraitFile.path);
+        
+        processedFiles.event_portrait_public_id = (typeof portraitFile === "object") 
+            ? (Array.isArray(portraitFile) ? portraitFile[0].public_id : portraitFile.public_id) 
+            : "";
+    }
 
       // Handle event images (array in schema)
       if (uploadedFiles.event_images && uploadedFiles.event_images.length > 0) {
@@ -3046,6 +3066,16 @@ export const updateTicketAddOns = async (req, res) => {
           }
         });
       }
+      if (uploadedFiles.event_videos && uploadedFiles.event_videos.length > 0) {
+        processedFiles.event_videos = uploadedFiles.event_videos.map((file) => ({
+            path: file.path || file,
+            originalName: file.originalName || file.originalname || "uploaded_video",
+            mimeType: file.mimeType || file.mimetype || "video/mp4",
+            size: file.size || 0,
+            public_id: file.public_id || "",
+            uploadedAt: new Date(),
+        }));
+    }
 
       // Handle event rules
       if (uploadedFiles.event_rules) {
@@ -3680,6 +3710,7 @@ export const updateTicketAddOns = async (req, res) => {
         event_logo: String(
           processedFiles.event_logo || existingSubEvent.event_logo || ""
         ),
+        event_portrait: processedFiles.event_portrait || subEventData.existing_event_portrait || existingSubEvent.event_portrait,
         event_images:
           processedFiles.event_images && processedFiles.event_images.length > 0
             ? processedFiles.event_images.map((img) => ({
@@ -3690,6 +3721,9 @@ export const updateTicketAddOns = async (req, res) => {
                 uploadedAt: new Date(img.uploadedAt),
               }))
             : existingSubEvent.event_images || [],
+            event_videos: (processedFiles.event_videos?.length > 0) 
+            ? processedFiles.event_videos 
+            : (subEventData.existing_event_videos || existingSubEvent.event_videos),
       };
       if (subEventData.location_type === "offline") {
         updatedSubEvent.seating_arrangement = String(
@@ -4355,6 +4389,10 @@ export const updateTicketAddOns = async (req, res) => {
       }),
       event_banner: String(processedFiles.event_banner || ""),
       event_logo: String(processedFiles.event_logo || ""),
+      event_portrait: processedFiles.event_portrait || subEventData.existing_event_portrait || "",
+      event_videos: (processedFiles.event_videos && processedFiles.event_videos.length > 0)
+        ? processedFiles.event_videos 
+        : (parseJSONSafely(subEventData.existing_event_videos, [])),
       event_images: (processedFiles.event_images || []).map((img) => ({
         path: String(img.path),
         originalName: String(img.originalName),
@@ -4666,6 +4704,9 @@ export const updateTicketAddOns = async (req, res) => {
         if (processedFiles.event_logo_public_id) {
           filesToDelete.push(processedFiles.event_logo_public_id);
         }
+        if (processedFiles.event_portrait_public_id) {
+        filesToDelete.push(processedFiles.event_portrait_public_id);
+    }
         if (processedFiles.ticket_layout_public_id) {
           filesToDelete.push(processedFiles.ticket_layout_public_id);
         }
@@ -4678,6 +4719,11 @@ export const updateTicketAddOns = async (req, res) => {
             if (img.public_id) filesToDelete.push(img.public_id);
           });
         }
+        if (processedFiles.event_videos && Array.isArray(processedFiles.event_videos)) {
+        processedFiles.event_videos.forEach(vid => {
+            if (vid.public_id) filesToDelete.push(vid.public_id);
+        });
+    }
 
         if (processedFiles.event_rules && processedFiles.event_rules.public_id) {
           filesToDelete.push(processedFiles.event_rules.public_id);
