@@ -1554,14 +1554,23 @@ subEventData.existing_event_images = previews.event_images
   subEventData.existing_event_videos = previews.event_videos
     ?.filter(vid => vid.isExisting)
     .map(vid => vid.path || vid.preview);
+
+
     // Add this inside buildFormData before 'return submissionForm'
-    for (let pair of submissionForm.entries()) {
-      if (pair[0] === 'sub_event') {
-        const parsed = JSON.parse(pair[1]);
-      } else {
-        console.log(`📂 File Field: ${pair[0]} - ${pair[1] instanceof File ? pair[1].name : 'Not a file'}`);
-      }
-    }
+console.log("🚀 FRONTEND SENDING:");
+for (let pair of submissionForm.entries()) {
+  if (pair[0] === 'sub_event') {
+    const parsed = JSON.parse(pair[1]);
+    console.log("📝 JSON Payload:", {
+      existing_images: parsed.existing_event_images?.length,
+      existing_videos: parsed.existing_event_videos?.length,
+      existing_portrait: parsed.existing_event_portrait
+    });
+  } else {
+    console.log(`📂 File Field: ${pair[0]} - ${pair[1] instanceof File ? pair[1].name : 'Not a file'}`);
+  }
+}
+
     // Log seating_layout BEFORE stringification
     if (subEventData.seating_layout) {
       // Verify all assigned seats have prices
@@ -1656,14 +1665,16 @@ if (formData.event_portrait instanceof File) {
     // Append event_images (multiple)
     if (formData.event_images && formData.event_images.length > 0) {
       formData.event_images.forEach(file => {
-        submissionForm.append("event_images", file);
-      });
+      submitData.append("event_images", file);
+      hasNewFiles = true;
+    });
+      console.log(`📤 Appending ${formData.event_images.length} event_images`);
     }
     if (formData.event_videos && formData.event_videos.length > 0) {
-      formData.event_videos.forEach((file) => {
-        submissionForm.append("event_videos", file);
-      });
-    }
+  formData.event_videos.forEach((file) => {
+    submissionForm.append("event_videos", file);
+  });
+}
 
     // Append guest profiles
     if (formData.guests && formData.guests.length > 0) {
@@ -4260,15 +4271,15 @@ const handleReorderToggle = (targetField) => {
                     {/* --- IMAGE GALLERY --- */}
   <div className="mt-8">
     <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-      <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
-        Image galleries
-        <InfoTooltip note="Max 10 images. 1.5MB max." />
+      <label className="text-sm font-medium text-white flex items-center gap-2">
+        Image galleries <InfoTooltip note="Max 10 images. 1.5MB max." />
       </label>
+
     </div>
     <div className="p-3 rounded-xl border border-dashed border-gray-600">
       <div className="flex gap-2">
         <button type="button" onClick={() => handleReorderToggle('event_images')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingImages ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
-          <span className="text-lg">⠿</span> {isReorderingImages ? "Done" : "Drag and Re-order"}
+          <span className="text-lg">⠿</span> {isReorderingImages ? "Done" : "Reorder"}
         </button>
 <button 
   type="button" 
@@ -4320,15 +4331,15 @@ const handleReorderToggle = (targetField) => {
   {/* --- VIDEO GALLERY --- */}
   <div className="mt-10">
     <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-      <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
-        Video sneak peek
-        <InfoTooltip note="Max 5 videos." />
+      <label className="text-sm font-medium text-white flex items-center gap-2">
+        Video sneak peek <InfoTooltip note="Max 5 videos." />
       </label>
+
     </div>
     <div className="p-3 rounded-xl border border-dashed border-gray-600 ">
             <div className="flex gap-2">
         <button type="button" onClick={() => handleReorderToggle('event_videos')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingVideos ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
-          <span className="text-lg">⠿</span> {isReorderingVideos ? "Done" : "Drag and Re-order"}
+          <span className="text-lg">⠿</span> {isReorderingVideos ? "Done" : "Reorder"}
         </button>
 <button 
   type="button" 

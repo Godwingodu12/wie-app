@@ -10,6 +10,7 @@ import { SlSizeFullscreen } from "react-icons/sl";
 import { arrayMove } from "@dnd-kit/sortable";
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import { SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
+
 import MediaIcon from "../../assets/Event/MediaIcon.svg?react";
 import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
 import FileInput from "../../components/CreateGroup/FileInput.jsx";
@@ -107,9 +108,8 @@ const UpdateTicketMedia = () => {
   const [ticketData, setTicketData] = useState(null);
   const [userDetails, setUserDetails] = useState(null); 
   const [alert, setAlert] = useState(null);
-  const [viewerFile, setViewerFile] = useState(null);
-  const [isReorderingImages, setIsReorderingImages] = useState(false);
-  const [isReorderingVideos, setIsReorderingVideos] = useState(false);
+const [isReorderingImages, setIsReorderingImages] = useState(false);
+const [isReorderingVideos, setIsReorderingVideos] = useState(false);
 
 const [removedFields, setRemovedFields] = useState([]);
   const storageKey = `ticketMediaFormData_${ticketId}`;
@@ -488,18 +488,16 @@ const handleMultipleFileChange = async (e, targetField) => {
 };
 const handleDragEnd = (event, targetField) => {
   const { active, over } = event;
-
-  if (!over || active.id === over.id) return;
-
-  setPreviews((prev) => {
-    const oldIndex = prev[targetField].findIndex(i => i.id === active.id);
-    const newIndex = prev[targetField].findIndex(i => i.id === over.id);
-
-    return {
-      ...prev,
-      [targetField]: arrayMove(prev[targetField], oldIndex, newIndex),
-    };
-  });
+  if (active.id !== over.id) {
+    setPreviews((prev) => {
+      const oldIndex = prev[targetField].findIndex((item) => item.id === active.id);
+      const newIndex = prev[targetField].findIndex((item) => item.id === over.id);
+      return {
+        ...prev,
+        [targetField]: arrayMove(prev[targetField], oldIndex, newIndex),
+      };
+    });
+  }
 };
 const handleReorderToggle = (targetField) => {
   const isImage = targetField === 'event_images';
@@ -836,17 +834,22 @@ const handleSubmit = async (e) => {
     }
   }}
 />
-</div>
+              </div>
+{/* --- IMAGE GALLERY --- */}
 <div className="mt-8">
+
   <div className=" justify-between items-center mb-4  pb-2">
-    <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
-    Image galleries
-    <InfoTooltip note="Max 10 videos. Max Size :1.5MB, Only .jpeg, .jpg files allowed Resolution: (900px by 1200px)" />
+    <label className="text-sm font-medium text-white flex items-center gap-2">
+      Image galleries<InfoTooltip note="Max 10 videos. Max Size :1.5MB, Only .jpeg, .jpg files allowed Resolution: (900px by 1200px)" />
     </label>
+
+
 </div>
   <div className=" rounded-xl border border-dashed border-gray-600 p-3">
     <div className="flex gap-2 justify-end">
-    <button 
+
+     
+        <button 
     type="button" 
     onClick={() => handleReorderToggle('event_images')} // Call the function here
     className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 transition-colors ${
@@ -856,7 +859,7 @@ const handleSubmit = async (e) => {
     }`}
   >
     <span className="text-lg">⠿</span> 
-    {isReorderingImages ? "Done Re-ordering" : "Drag and Re-order"}
+    {isReorderingImages ? "Done Reordering" : "Reorder"}
   </button>
   
   <button 
@@ -874,15 +877,15 @@ const handleSubmit = async (e) => {
     onDragEnd={(e) => handleDragEnd(e, 'event_images')}
   >
     <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 p-6  ">
-    <SortableContext items={previews.event_images.map(img => img.id)} strategy={rectSortingStrategy}>
+      <SortableContext items={previews.event_images} strategy={rectSortingStrategy}>
         {previews.event_images.map((img) => (
           <SortablePhoto
-          key={img.id}
-          id={img.id}                
-          img={img}
-          isReordering={isReorderingImages}
-          onRemove={(id) => removeImageFromList(id, "event_images")}
-         />
+            key={img.id} 
+            img={img} 
+            isReordering={isReorderingImages} 
+            onRemove={removeImageFromList}
+            targetField="event_images" 
+          />
         ))}
       </SortableContext>
       <input id="image_upload" type="file" multiple accept="image/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_images')} />
@@ -892,53 +895,58 @@ const handleSubmit = async (e) => {
 
 
 </div>
-            <div className="mt-10">
-              <div className="flex justify-between items-center mb-4 pb-2">
-                <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                  Video sneak peek
-                  <InfoTooltip note="Max 5 videos. Duration 10s–1m." />
-                </label>
-              </div>
-              <div className="rounded-xl border border-dashed border-gray-600 p-3"> 
-                <div className="flex gap-2 justify-end">
-                  <button 
-                    type="button" 
-                    onClick={() => handleReorderToggle('event_videos')}
-                    className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 transition-colors ${
-                      isReorderingVideos ? "bg-green-600 text-white border-green-500" : "bg-[#2B2B2B] text-gray-300"
-                    }`}
-                  >
-                    <span className="text-lg">⠿</span> {isReorderingVideos ? "Done Re-ordering" : "Drag and Re-order"}
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => document.getElementById('video_input').click()}
-                    className="px-3 py-1 bg-[#4F46E5] text-xs text-white rounded hover:bg-[#4338CA]"
-                  >
-                    Browse file
-                  </button>
-                </div>
-                  <DndContext 
-                collisionDetection={closestCenter} 
-                onDragEnd={(e) => handleDragEnd(e, 'event_videos')}
-              >
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 p-6 ">
-                  <SortableContext items={previews.event_videos || []} strategy={rectSortingStrategy}>
-                    {previews.event_videos?.map((vid) => (
-                      <SortablePhoto
-                      key={vid.id}
-                      img={vid}
-                      isReordering={isReorderingVideos}
-                      onRemove={(id) => removeImageFromList(id, 'event_videos')}
-                      targetField="event_videos"
-                      onPreview={(file) => setViewerFile(file)}
-                    />
-                    ))}
-                  </SortableContext>
-                  <input id="video_input" type="file" multiple accept="video/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_videos')} />
-                </div>
-              </DndContext>
-              </div>
+
+{/* --- VIDEO SNEAK PEEK --- */}
+{/* --- VIDEO SNEAK PEEK --- */}
+<div className="mt-10">
+  <div className="flex justify-between items-center mb-4 pb-2">
+    <label className="text-sm font-medium text-white flex items-center gap-2">
+      Video sneak peek <InfoTooltip note="Max 5 videos. Duration 10s-1m." />
+    </label>
+    
+  </div>
+  <div className="rounded-xl border border-dashed border-gray-600 p-3"> 
+    <div className="flex gap-2 justify-end">
+      <button 
+        type="button" 
+        onClick={() => handleReorderToggle('event_videos')}
+        className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 transition-colors ${
+          isReorderingVideos ? "bg-green-600 text-white border-green-500" : "bg-[#2B2B2B] text-gray-300"
+        }`}
+      >
+        <span className="text-lg">⠿</span> {isReorderingVideos ? "Done Reordering" : "Reorder"}
+      </button>
+      <button 
+        type="button" 
+        onClick={() => document.getElementById('video_input').click()}
+        className="px-3 py-1 bg-[#4F46E5] text-xs text-white rounded hover:bg-[#4338CA]"
+      >
+        Browse file
+      </button>
+    </div>
+      <DndContext 
+    collisionDetection={closestCenter} 
+    onDragEnd={(e) => handleDragEnd(e, 'event_videos')}
+  >
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 p-6 ">
+      <SortableContext items={previews.event_videos || []} strategy={rectSortingStrategy}>
+        {previews.event_videos?.map((vid) => (
+          <SortablePhoto
+            key={vid.id} 
+            img={vid} // SortablePhoto can be used for videos if it renders the preview correctly
+            isReordering={isReorderingVideos} 
+            onRemove={(id) => removeImageFromList(id, 'event_videos')}
+            targetField="event_videos" 
+          />
+        ))}
+      </SortableContext>
+      <input id="video_input" type="file" multiple accept="video/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_videos')} />
+    </div>
+  </DndContext>
+  </div>
+
+
+</div>
 
 
             </div>
