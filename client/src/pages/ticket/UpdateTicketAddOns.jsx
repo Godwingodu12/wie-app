@@ -39,6 +39,22 @@ import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.
 
 import darkThemeStyles from "../../components/CreateGroup/darkThemeStyles.jsx";
 import lightThemeStyles from "../../components/CreateGroup/lightThemeStyles.jsx";
+import FileMediaInput from "../../components/CreateGroup/FileMediaInput.jsx";
+import SortablePhoto from "../../components/CreateGroup/SortablePhoto.jsx";
+import { 
+  DndContext, 
+  closestCenter, 
+  MouseSensor, 
+  TouchSensor, 
+  useSensor, 
+  useSensors 
+} from "@dnd-kit/core";
+import { 
+  arrayMove, 
+  SortableContext, 
+  rectSortingStrategy, 
+  verticalListSortingStrategy 
+} from "@dnd-kit/sortable";
 const UpdateTicketAddOns = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
@@ -70,6 +86,8 @@ const UpdateTicketAddOns = () => {
   const [videoFiles, setVideoFiles] = useState({});
   const [previewImageFiles, setPreviewImageFiles] = useState({});
   const [alert, setAlert] = useState(null);
+  const [isReorderingImages, setIsReorderingImages] = useState(false);
+const [isReorderingVideos, setIsReorderingVideos] = useState(false);
   const [confirmState, setConfirmState] = useState({
     isOpen: false,
     onConfirm: null,
@@ -171,8 +189,9 @@ const UpdateTicketAddOns = () => {
     total_capacity: "",
     ticket_layout: null,
     event_banner: null,
-    event_logo: null,
+    event_portrait: null,
     event_images: [],
+    event_videos: [],
     existing_event_images: [],
     exact_map_location: {
       latitude: INITIAL_MAP_LOCATION.lat.toString(),
@@ -184,12 +203,16 @@ const UpdateTicketAddOns = () => {
   const [previews, setPreviews] = useState({
     ticket_layout: null,
     event_banner: null,
-    event_logo: null,
+    event_portrait: null,
+    event_images: [], 
+  event_videos: [],
   });
   const categoryOptions = Object.keys(eventCategories).map((category) => ({
     value: category,
     label: category,
   }));
+
+  
   const subCategoryOptions = formData.event_category
     ? eventCategories[formData.event_category].map((sub) => ({
         value: sub,
@@ -611,7 +634,7 @@ const UpdateTicketAddOns = () => {
           "Please fill in all Point of Contact fields: Name, Email, and Contact Number.",
       });
       return;
-    }
+}
 
     // 2. Check for duplicate email
     const isDuplicateEmail = formData.POCS.some(
@@ -663,6 +686,17 @@ const UpdateTicketAddOns = () => {
       setFormData((prev) => ({ ...prev, [type]: fileToProcess }));
       const previewUrl = URL.createObjectURL(fileToProcess);
       setPreviews((prev) => ({ ...prev, [type]: previewUrl }));
+    }
+  };
+    const removeSingleFile = (type) => {
+    setPreviews((prev) => ({ ...prev, [type]: null }));
+    setFormData((prev) => ({ ...prev, [type]: null }));
+    setErrors((prev) => ({ ...prev, [type]: null }));
+    const savedStateJSON = sessionStorage.getItem(storageKey);
+    if (savedStateJSON) {
+      const savedState = JSON.parse(savedStateJSON);
+      savedState[type] = null;
+      sessionStorage.setItem(storageKey, JSON.stringify(savedState));
     }
   };
   const removeMediaFile = (type) => {
@@ -764,13 +798,6 @@ const UpdateTicketAddOns = () => {
 
       // Add the layout file
       formDataToSend.append("ticket_layout", seatingLayoutFile);
-
-      console.log("📤 Sending layout generation request:", {
-        hasFile: !!seatingLayoutFile,
-        fileName: seatingLayoutFile.name,
-        capacity: formData.total_capacity,
-      });
-
       const response = await updateTicketAddOns(ticketId, formDataToSend);
 
       if (response.seating_layout) {
@@ -778,8 +805,6 @@ const UpdateTicketAddOns = () => {
 
         // ✅ CRITICAL FIX: Validate and normalize received seats
         if (generatedLayout.seats && Array.isArray(generatedLayout.seats)) {
-          console.log("🔍 Frontend: Validating received layout...");
-
           // Check for missing fields
           const missingFields = generatedLayout.seats.filter(
             (seat) =>
@@ -839,17 +864,6 @@ const UpdateTicketAddOns = () => {
             );
             throw new Error("Seat normalization failed on frontend");
           }
-
-          console.log("✅ All seats validated and normalized:", {
-            total: generatedLayout.seats.length,
-            unassigned: generatedLayout.seats.filter(
-              (s) => s.ticketTypeId === null
-            ).length,
-            assigned: generatedLayout.seats.filter(
-              (s) => s.ticketTypeId !== null
-            ).length,
-            sampleSeat: generatedLayout.seats[0],
-          });
         }
 
         setGeneratedSeatingLayout(generatedLayout);
@@ -909,45 +923,45 @@ const UpdateTicketAddOns = () => {
         "Seating layout has been removed. Upload a new file to generate a layout.",
     });
   };
-  const handleMultiMediaChange = (e) => {
-    const newFiles = Array.from(e.target.files);
-    if (newFiles.length === 0) return;
+const handleMultipleFileChange = async (e, targetField) => {
+  const files = Array.from(e.target.files);
+  if (files.length === 0) return;
 
-    setFormData((prev) => {
-      const currentFiles = prev.event_images;
-      const filesToAdd = newFiles.slice(0, 10 - currentFiles.length);
-      if (newFiles.length > filesToAdd.length) {
-        showAlert({
-          type: "error",
-          message: "Limit Exceeded",
-          description: `You can only upload a maximum of 10 images. ${filesToAdd.length} were added.`,
-        });
-      }
-      return { ...prev, event_images: [...currentFiles, ...filesToAdd] };
+  const limit = targetField === 'event_images' ? 10 : 5;
+  const currentCount = previews[targetField]?.length || 0;
+
+  if (currentCount + files.length > limit) {
+    showAlert({
+      type: "error",
+      message: "Limit Reached",
+      description: `Max ${limit} files allowed for this section.`
     });
-    e.target.value = "";
-  };
-  const handleRemoveLastImage = () => {
-    setFormData((prev) => {
-      if (prev.event_images.length > 0) {
-        const updatedImages = prev.event_images.slice(0, -1);
-        if (
-          updatedImages.length + (prev.existing_event_images?.length || 0) <
-          2
-        ) {
-          setShowExtraMedia(false);
-        }
-        return { ...prev, event_images: updatedImages };
-      } else if (prev.existing_event_images?.length > 0) {
-        const updatedExisting = prev.existing_event_images.slice(0, -1);
-        if (updatedExisting.length < 2) {
-          setShowExtraMedia(false);
-        }
-        return { ...prev, existing_event_images: updatedExisting };
-      }
-      return prev;
-    });
-  };
+    return;
+  }
+
+  setLoading(true);
+  // Using URL.createObjectURL for faster, more reliable previews
+  const newItems = files.map((file) => ({
+    id: `${file.name}-${Date.now()}-${Math.random()}`, // Unique string ID
+    preview: URL.createObjectURL(file), // Visually shows the image/video
+    name: file.name,
+    isExisting: false,
+    mimeType: file.type,
+    originalFile: file,
+  }));
+
+  setPreviews((prev) => ({
+    ...prev,
+    [targetField]: [...(prev[targetField] || []), ...newItems],
+  }));
+
+  setFormData((prev) => ({
+    ...prev,
+    [targetField]: [...(prev[targetField] || []), ...newItems.map(i => i.originalFile)],
+  }));
+  setLoading(false);
+};
+
 
   const handleSaveOrUpdateTickets = (updatedTickets) => {
     setFormData((prev) => ({ ...prev, ticket_types: updatedTickets }));
@@ -1113,15 +1127,12 @@ const UpdateTicketAddOns = () => {
         addError("location", "Location is required for offline events.");
       if (!formData.venue.trim())
         addError("venue", "Venue is required for offline events.");
-      else if (!simpleNameRegex.test(formData.venue.trim()))
-        addError("venue", "Venue contains invalid characters.");
       if (!formData.seating_arrangement) {
         addError(
           "seating_arrangement",
           "Seating arrangement is required for offline events."
         );
       }
-      console.log(formData.seating_arrangement);
       if (!formData.total_capacity)
         addError(
           "total_capacity",
@@ -1253,45 +1264,7 @@ const UpdateTicketAddOns = () => {
       if (!bankDetail.bank_ifsc?.trim())
         addError("bank_ifsc", "IFSC code is required for paid events.");
     }
-    // Validate ticket details for paid events
-    if (formData.payment_type === "paid") {
-      if (formData.location_type !== "offline") {
-        // For online/recorded events, validate simple ticket structure
-        const ticket = formData.ticket_types[0];
-        
-        if (!ticket || !ticket.price || Number(ticket.price) <= 0) {
-          addError(
-            "ticket_types",
-            "Ticket price is required and must be greater than 0 for paid events."
-          );
-        }
-        
-        if (!ticket || !ticket.capacity || Number(ticket.capacity) <= 0) {
-          addError(
-            "ticket_types",
-            "Ticket quantity is required and must be greater than 0 for paid events."
-          );
-        }
-        
-        // Ensure capacity doesn't exceed total_capacity
-        if (ticket && ticket.capacity && formData.total_capacity) {
-          if (Number(ticket.capacity) > Number(formData.total_capacity)) {
-            addError(
-              "ticket_types",
-              `Ticket quantity (${ticket.capacity}) cannot exceed total event capacity (${formData.total_capacity}).`
-            );
-          }
-        }
-      } else {
-        // Offline validation
-        if (formData.payment_type === "paid" && (!formData.ticket_types || formData.ticket_types.length === 0)) {
-          addError(
-            "ticket_types",
-            "At least one ticket type is required for paid offline events."
-          );
-        }
-      }
-    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       scrollAndAlert(newErrors);
@@ -1368,11 +1341,17 @@ const UpdateTicketAddOns = () => {
     const ensureTicketTypesArray = () => {
       const isSimplePaid =
         formData.payment_type === "paid" &&
-        (formData.location_type === "online" || formData.location_type === "recorded");
+        formData.location_type !== "offline";
       if (!formData.ticket_types || formData.ticket_types.length === 0) {
         if (isSimplePaid) {
-          // Return empty array - will be caught by validation
-          return [];
+          return [
+            {
+              ticket_type: "Standard Ticket",
+              ticket_price: 0,
+              max_capacity: Number(formData.total_capacity) || 0,
+              ticket_photo: "",
+            },
+          ];
         }
         return [];
       }
@@ -1388,9 +1367,7 @@ const UpdateTicketAddOns = () => {
           return ticket;
         });
         if (isSimplePaid && processed.length > 0) {
-          if (!processed[0].max_capacity) {
-            processed[0].max_capacity = Number(formData.total_capacity) || 0;
-          }
+          processed[0].max_capacity = Number(formData.total_capacity) || 0;
         }
         return processed;
       }
@@ -1461,13 +1438,6 @@ const UpdateTicketAddOns = () => {
         generatedSeatingLayout.seats &&
         generatedSeatingLayout.seats.length > 0
       ) {
-        console.log("🎯 Building payload with seating layout:", {
-          totalSeats: generatedSeatingLayout.seats.length,
-          assignedSeats: generatedSeatingLayout.seats.filter(
-            (s) => s.ticketTypeId
-          ).length,
-          assignments: Object.keys(seatAssignments).length,
-        });
         const ticketTypeMap = {};
         formData.ticket_types.forEach((ticket) => {
           const id = String(ticket.id);
@@ -1505,11 +1475,6 @@ const UpdateTicketAddOns = () => {
           (s) => s.ticketTypeId
         ).length;
         const seatsWithPrice = processedSeats.filter((s) => s.price > 0).length;
-        console.log("✅ Processed seats validation:", {
-          total: processedSeats.length,
-          assigned: assignedSeatsCount,
-          withPrice: seatsWithPrice,
-        });
         if (assignedSeatsCount !== seatsWithPrice) {
           console.error("❌ MISMATCH: Some assigned seats missing prices!", {
             assigned: assignedSeatsCount,
@@ -1575,7 +1540,28 @@ const UpdateTicketAddOns = () => {
 
     // CRITICAL: Deep clone payload to avoid mutation
     const subEventData = JSON.parse(JSON.stringify(payload));
+    if (!(formData.event_portrait instanceof File) && previews.event_portrait?.data) {
+    // Extract the raw path/URL from the preview data
+    subEventData.existing_event_portrait = previews.event_portrait.data;
+  }
 
+  // 2. Sync Reorderable Image Gallery
+subEventData.existing_event_images = previews.event_images
+  ?.filter(img => img.isExisting)
+  .map(img => img.path || img.preview);// Send the server path
+
+  // 3. Sync Reorderable Video Gallery
+  subEventData.existing_event_videos = previews.event_videos
+    ?.filter(vid => vid.isExisting)
+    .map(vid => vid.path || vid.preview);
+    // Add this inside buildFormData before 'return submissionForm'
+    for (let pair of submissionForm.entries()) {
+      if (pair[0] === 'sub_event') {
+        const parsed = JSON.parse(pair[1]);
+      } else {
+        console.log(`📂 File Field: ${pair[0]} - ${pair[1] instanceof File ? pair[1].name : 'Not a file'}`);
+      }
+    }
     // Log seating_layout BEFORE stringification
     if (subEventData.seating_layout) {
       // Verify all assigned seats have prices
@@ -1596,8 +1582,6 @@ const UpdateTicketAddOns = () => {
             price: s.price,
           }))
         );
-      } else {
-        console.log("✅ All assigned seats have prices");
       }
     }
 
@@ -1648,41 +1632,37 @@ const UpdateTicketAddOns = () => {
       submissionForm.append("event_banner", formData.event_banner);
     }
 
-    if (formData.event_logo instanceof File) {
-      submissionForm.append("event_logo", formData.event_logo);
-    }
+if (formData.event_portrait instanceof File) {
+    submissionForm.append("event_portrait", formData.event_portrait);
+  }
 
     if (formData.event_rules_file instanceof File) {
       submissionForm.append("event_rules", formData.event_rules_file);
     }
-
     // CRITICAL: Handle ticket_layout file
     if (formData.location_type === "offline") {
       // Priority 1: New file from seatingLayoutFile
       if (seatingLayoutFile instanceof File) {
         submissionForm.append("ticket_layout", seatingLayoutFile);
-        console.log(
-          "📤 Appending NEW ticket_layout file:",
-          seatingLayoutFile.name
-        );
       }
       // Priority 2: File from formData
       else if (formData.ticket_layout instanceof File) {
         submissionForm.append("ticket_layout", formData.ticket_layout);
-        console.log("📤 Appending ticket_layout from formData");
       }
       // Priority 3: No new file in edit mode (existing handled above)
       else if (isEditingSubEvent) {
-        console.log("ℹ️ Edit mode - no new ticket_layout file");
       }
     }
-
     // Append event_images (multiple)
     if (formData.event_images && formData.event_images.length > 0) {
-      formData.event_images.forEach((file) => {
+      formData.event_images.forEach(file => {
         submissionForm.append("event_images", file);
       });
-      console.log(`📤 Appending ${formData.event_images.length} event_images`);
+    }
+    if (formData.event_videos && formData.event_videos.length > 0) {
+      formData.event_videos.forEach((file) => {
+        submissionForm.append("event_videos", file);
+      });
     }
 
     // Append guest profiles
@@ -1717,36 +1697,18 @@ const UpdateTicketAddOns = () => {
         }
       });
     }
-
     // Debug: Log FormData contents
-    console.log("📦 Final FormData contents:");
     let entryCount = 0;
     for (let pair of submissionForm.entries()) {
       entryCount++;
       if (pair[0] === "sub_event") {
         const data = pair[1];
         if (typeof data === "string") {
-          console.log(`  ${pair[0]}: [JSON String] ${data.length} chars`);
-
           // Verify seating_layout is in the JSON
           if (data.includes("seating_layout")) {
-            console.log("  ✅ sub_event contains seating_layout");
-
             // Parse and check structure
             try {
               const parsed = JSON.parse(data);
-              if (parsed.seating_layout) {
-                console.log("  ✅ seating_layout structure verified:", {
-                  hasSeats: !!parsed.seating_layout.seats,
-                  seatCount: parsed.seating_layout.seats?.length || 0,
-                  assignedCount:
-                    parsed.seating_layout.seats?.filter((s) => s.ticketTypeId)
-                      .length || 0,
-                  seatsWithPrice:
-                    parsed.seating_layout.seats?.filter((s) => s.price > 0)
-                      .length || 0,
-                });
-              }
             } catch (e) {
               console.error("  ❌ Failed to parse sub_event JSON:", e);
             }
@@ -1755,15 +1717,11 @@ const UpdateTicketAddOns = () => {
           }
         }
       } else if (pair[1] instanceof File) {
-        console.log(
-          `  ${pair[0]}: [File] ${pair[1].name} (${pair[1].size} bytes)`
-        );
       } else {
         const value =
           typeof pair[1] === "string" && pair[1].length > 100
             ? pair[1].substring(0, 100) + "..."
             : pair[1];
-        console.log(`  ${pair[0]}: ${value}`);
       }
     }
     return submissionForm;
@@ -1814,6 +1772,7 @@ const UpdateTicketAddOns = () => {
           }
         }
       }
+
       setIsSubmitting(true);
       try {
         const payload = buildPayload();
@@ -1938,7 +1897,6 @@ const UpdateTicketAddOns = () => {
     script.defer = true;
 
     script.onerror = () => {
-      console.error("Failed to load Google Maps script");
       setIsApiReady(false);
       delete window[callbackName];
     };
@@ -1966,7 +1924,6 @@ const UpdateTicketAddOns = () => {
     }
     const initializeMap = () => {
       if (!window.google || !window.google.maps || !window.google.maps.Map) {
-        console.error("Google Maps API not fully loaded yet");
         return;
       }
 
@@ -1975,7 +1932,6 @@ const UpdateTicketAddOns = () => {
         !window.google.maps.places ||
         !window.google.maps.places.Autocomplete
       ) {
-        console.error("Google Maps Places library not loaded yet");
         return;
       }
       const initialCenter =
@@ -2325,20 +2281,6 @@ const UpdateTicketAddOns = () => {
     try {
       const submissionForm = buildFormData(payload);
       if (payload.seating_layout) {
-        console.log("🔍 FINAL PAYLOAD CHECK:", {
-          totalSeats: payload.seating_layout.seats?.length || 0,
-          assignedSeats:
-            payload.seating_layout.seats?.filter((s) => s.ticketTypeId)
-              .length || 0,
-          seatsWithPrice:
-            payload.seating_layout.seats?.filter((s) => s.price > 0).length ||
-            0,
-          assignments:
-            payload.seating_layout.ticketTypeAssignments?.length || 0,
-          sampleAssignedSeat: payload.seating_layout.seats?.find(
-            (s) => s.ticketTypeId
-          ),
-        });
         const assignedCount =
           payload.seating_layout.seats?.filter((s) => s.ticketTypeId).length ||
           0;
@@ -2406,6 +2348,76 @@ const UpdateTicketAddOns = () => {
     await populateFormWithSubEventData(subEventId);
     window.scrollTo({ top: 400, behavior: "smooth" });
   };
+  const handleRemoveImage = (index, targetField) => {
+  setFormData((prev) => {
+    const updatedList = [...prev[targetField]];
+    updatedList.splice(index, 1);
+    return { ...prev, [targetField]: updatedList };
+  });
+};
+const removeImageFromList = (idToRemove, targetField = 'event_images') => {
+  setPreviews((prev) => {
+    const itemToRemove = prev[targetField].find(img => img.id === idToRemove);
+    // Cleanup local URL memory
+    if (itemToRemove && itemToRemove.preview?.startsWith('blob:')) {
+      URL.revokeObjectURL(itemToRemove.preview);
+    }
+    return {
+      ...prev,
+      [targetField]: prev[targetField].filter((item) => item.id !== idToRemove),
+    };
+  });
+
+  // Keep formData files count in sync for the backend
+  setFormData((prev) => ({
+    ...prev,
+    [targetField]: prev[targetField].filter((_, index) => {
+       const previewItem = previews[targetField][index];
+       return previewItem?.id !== idToRemove;
+    })
+  }));
+};
+
+const handleDragEnd = (event, targetField) => {
+  const { active, over } = event;
+
+  if (active.id !== over.id) {
+    setPreviews((prev) => {
+      const oldIndex = prev[targetField].findIndex((item) => item.id === active.id);
+      const newIndex = prev[targetField].findIndex((item) => item.id === over.id);
+
+      return {
+        ...prev,
+        [targetField]: arrayMove(prev[targetField], oldIndex, newIndex),
+      };
+    });
+  }
+};
+const sensors = useSensors(
+  useSensor(MouseSensor, {
+    activationConstraint: { distance: 10 }, // Drag starts only after moving 10px
+  }),
+  useSensor(TouchSensor, {
+    activationConstraint: { delay: 250, tolerance: 5 },
+  })
+);
+
+const handleReorderToggle = (targetField) => {
+  // Ensure we check for the correct string passed from the button
+  const isImage = targetField === 'event_images' || targetField === 'image_upload_addon';
+  const setState = isImage ? setIsReorderingImages : setIsReorderingVideos;
+  const currentState = isImage ? isReorderingImages : isReorderingVideos;
+
+  if (currentState) {
+    showAlert({
+      type: "success",
+      message: "Order Saved",
+      description: `${isImage ? 'Image' : 'Video'} sequence updated.`
+    });
+  }
+  setState(!currentState);
+};
+
   const populateFormWithSubEventData = async (subEventId) => {
     setSubEventLoading(true);
     try {
@@ -2557,6 +2569,22 @@ const UpdateTicketAddOns = () => {
 
           return [];
         })();
+        const imagePreviews = (subEvent.event_images || []).map((img, index) => ({
+          id: img.public_id || `img-${index}`, // Unique ID for dragging
+          preview: getTicketImageUrl(img.path || img),
+          name: img.originalName || `Image ${index + 1}`,
+          isExisting: true,
+          path: img.path || img // Store raw path for backend reordering sync
+        }));
+
+        // 2. Prepare Video Gallery Previews (NEW)
+        const videoPreviews = (subEvent.event_videos || []).map((vid, index) => ({
+          id: vid.public_id || `vid-${index}`, // Unique ID for dragging
+          preview: getTicketImageUrl(vid.path || vid), // Ensure helper returns a valid URL
+          name: vid.originalName || `Video ${index + 1}`,
+          isExisting: true,
+          path: vid.path || vid
+        }));
         setFormData((prev) => ({
           ...prev,
           event_name: subEvent.event_name || "",
@@ -2617,6 +2645,10 @@ const UpdateTicketAddOns = () => {
             longitude: INITIAL_MAP_LOCATION.lng.toString(),
             address: INITIAL_MAP_LOCATION.address,
           },
+          existing_event_images: subEvent.event_images || [],
+          existing_event_videos: subEvent.event_videos || [],
+          event_images: [], // Reset local file uploads
+          event_videos: [], // Reset local file uploads
         }));
         // Set previews - ensuring proper format
         setPreviews((prev) => ({
@@ -2628,6 +2660,8 @@ const UpdateTicketAddOns = () => {
                 type: "image",
               }
             : null,
+            event_images: imagePreviews, 
+          event_videos: videoPreviews,
           event_logo: subEvent.event_logo
             ? {
                 data: getTicketImageUrl(String(subEvent.event_logo)),
@@ -2635,6 +2669,8 @@ const UpdateTicketAddOns = () => {
                 type: "image",
               }
             : null,
+
+            event_portrait: subEvent.event_portrait ? { data: getTicketImageUrl(subEvent.event_portrait) } : null,
           ticket_layout: subEvent.ticket_layout
             ? {
                 data: getTicketImageUrl(String(subEvent.ticket_layout)),
@@ -2661,12 +2697,6 @@ const UpdateTicketAddOns = () => {
             subEvent.seating_layout.seats &&
             subEvent.seating_layout.seats.length > 0
           ) {
-            console.log("🔍 Loading existing seating layout:", {
-              totalSeats: subEvent.seating_layout.seats.length,
-              sampleSeat: subEvent.seating_layout.seats[0],
-              hasAssignments: !!subEvent.seating_layout.ticketTypeAssignments,
-            });
-
             // ✅ ENSURE ALL 4 FIELDS ARE PRESERVED FROM DATABASE
             const loadedLayout = {
               rows: (subEvent.seating_layout.rows || []).map((r) => String(r)),
@@ -2729,23 +2759,6 @@ const UpdateTicketAddOns = () => {
                   ),
                 })),
             };
-
-            console.log("✅ Loaded layout verification:", {
-              totalSeats: loadedLayout.seats.length,
-              assignedSeats: loadedLayout.seats.filter((s) => s.ticketTypeId)
-                .length,
-              seatsWithName: loadedLayout.seats.filter((s) => s.ticketTypeName)
-                .length,
-              seatsWithPrice: loadedLayout.seats.filter((s) => s.price > 0)
-                .length,
-              seatsWithColor: loadedLayout.seats.filter(
-                (s) => s.ticketTypeColor
-              ).length,
-              sampleAssignedSeat: loadedLayout.seats.find(
-                (s) => s.ticketTypeId
-              ),
-            });
-
             setGeneratedSeatingLayout(loadedLayout);
             setShowSeatingPreview(true);
 
@@ -2768,12 +2781,6 @@ const UpdateTicketAddOns = () => {
                 }
               });
             }
-
-            console.log("✅ Rebuilt seat assignments:", {
-              assignmentCount: Object.keys(assignments).length,
-              assignments: assignments,
-            });
-
             setSeatAssignments(assignments);
 
             // ✅ VALIDATION ALERT
@@ -2813,6 +2820,9 @@ const UpdateTicketAddOns = () => {
           if (subEvent.event_images.length > 1) {
             setShowExtraMedia(true);
           }
+        }
+        if (imagePreviews.length > 1 || videoPreviews.length > 0) {
+          setShowExtraMedia(true);
         }
 
         if (descriptionEditorRef.current) {
@@ -4219,183 +4229,146 @@ const UpdateTicketAddOns = () => {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Event Media
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      <div>
-                        <FileInput
-                          id="event_banner"
-                          label="Event Banner"
-                          info="Required. 2:1 ratio recommended."
-                          preview={previews.event_banner}
-                          onFileChange={handleMediaFileChange}
-                          onRemove={removeMediaFile}
-                          darkMode={darkMode}
-                          acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
-                          ref={(el) =>
-                            (errorFieldRefs.current.event_banner = el)
-                          }
-                          maxSizeMB={50}
-                        />
-                        {errors.event_banner && (
-                          <p className="text-red-500 text-xs mt-1">
-                            {errors.event_banner}
-                          </p>
-                        )}
-                      </div>
+                    <div className="gap-8">
+    <FileMediaInput
+      id="event_banner"
+      label="Event Banner*"
+                                    aspectRatio={1 / 1}
+      info="Required. 2:1 ratio recommended. JPG, PNG, WEBP."
+      preview={previews.event_banner}
+      onFileChange={handleMediaFileChange}
+      onRemove={removeSingleFile}
+      darkMode={darkMode}
+      acceptedFiles=".jpg,.jpeg,.png,.webp"
+      maxSizeMB={1.5}
+      ref={(el) => (errorFieldRefs.current.event_banner = el)}
+    />
+    
+    <FileMediaInput
+      id="event_portrait"
+      label="Portrait image (for mobile app)"
+      aspectRatio={3 / 4}
+      info="Resolution: (900px by 1200px)"
+      preview={previews.event_portrait}
+      onFileChange={handleMediaFileChange}
+      onRemove={removeSingleFile}
+      darkMode={darkMode}
+      acceptedFiles=".jpg,.jpeg,.png,.webp"
+      maxSizeMB={1.5}
+    />
+  </div>
+                    {/* --- IMAGE GALLERY --- */}
+  <div className="mt-8">
+    <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+      <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+        Image galleries
+        <InfoTooltip note="Max 10 images. 1.5MB max." />
+      </label>
+    </div>
+    <div className="p-3 rounded-xl border border-dashed border-gray-600">
+      <div className="flex gap-2">
+        <button type="button" onClick={() => handleReorderToggle('event_images')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingImages ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
+          <span className="text-lg">⠿</span> {isReorderingImages ? "Done" : "Drag and Re-order"}
+        </button>
+<button 
+  type="button" 
+  disabled={previews.event_images?.length >= 10} // Disable if 10 reached
+  onClick={() => document.getElementById('image_upload_addon').click()} 
+  className={`px-3 py-1 text-xs rounded text-white transition-all ${
+    previews.event_images?.length >= 10 
+      ? "bg-gray-500 cursor-not-allowed opacity-50" 
+      : "bg-indigo-600 hover:bg-indigo-700"
+  }`}
+>
+  {previews.event_images?.length >= 10 ? "Limit Reached" : "Browse file"}
+</button>      </div>
+<DndContext 
+  sensors={sensors} 
+  collisionDetection={closestCenter} 
+  onDragEnd={(e) => handleDragEnd(e, 'event_images')}
+>
+  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
+    <SortableContext 
+      // Mapping to just the ID strings is crucial for dnd-kit
+      items={previews.event_images?.map(img => img.id) || []} 
+      strategy={rectSortingStrategy}
+    >
+      {previews.event_images?.map((img) => (
+        <SortablePhoto
+          key={img.id} 
+          img={img} 
+          isReordering={isReorderingImages} 
+          onRemove={(id) => removeImageFromList(id, 'event_images')}
+          targetField="event_images" 
+        />
+      ))}
+    </SortableContext>
+    {/* Hidden file input */}
+    <input 
+       id="image_upload_addon" 
+       type="file" 
+       multiple 
+       className="hidden" 
+       onChange={(e) => handleMultipleFileChange(e, 'event_images')} 
+    />
+  </div>
+</DndContext>
+    </div>
 
-                      <FileInput
-                        id="event_logo"
-                        label="Event or Organisation Logo"
-                        info="Optional. 1:1 ratio recommended."
-                        preview={previews.event_logo}
-                        onFileChange={handleMediaFileChange}
-                        onRemove={removeMediaFile}
-                        darkMode={darkMode}
-                        acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
-                        maxSizeMB={50}
-                      />
-                      <div>
-                        <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2">
-                          Images and videos
-                        </label>
-                        <div
-                          className={`relative rounded-lg text-center bg-gray-100 dark:bg-[#2B2B2B] min-h-[180px] flex justify-center items-center border-2 border-dashed ${
-                            formData.event_images.length > 0 ||
-                            formData.existing_event_images?.length > 0
-                              ? "border-indigo-500"
-                              : "border-black dark:border-gray-600"
-                          } overflow-hidden`}
-                        >
-                          {formData.event_images.length > 0 ||
-                          formData.existing_event_images?.length > 0 ? (
-                            <>
-                              <img
-                                src={
-                                  formData.event_images.length > 0
-                                    ? URL.createObjectURL(
-                                        formData.event_images[0]
-                                      )
-                                    : formData.existing_event_images[0]
-                                }
-                                alt="Preview"
-                                className="absolute inset-0 w-full h-full object-cover"
-                              />
-                              <button
-                                type="button"
-                                onClick={handleRemoveLastImage}
-                                className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center z-10"
-                              >
-                                &times;
-                              </button>
+  </div>
 
-                              {formData.event_images.length +
-                                (formData.existing_event_images?.length || 0) <
-                                10 && (
-                                <label
-                                  htmlFor="multi-media-upload"
-                                  className="absolute top-1/2 -translate-y-1/2 right-2 bg-indigo-600 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer hover:bg-indigo-700 transition z-10"
-                                  title="Add another image"
-                                >
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-5 w-5"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    strokeWidth={2}
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M12 4v16m8-8H4"
-                                    />
-                                  </svg>
-                                </label>
-                              )}
+  {/* --- VIDEO GALLERY --- */}
+  <div className="mt-10">
+    <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+      <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+        Video sneak peek
+        <InfoTooltip note="Max 5 videos." />
+      </label>
+    </div>
+    <div className="p-3 rounded-xl border border-dashed border-gray-600 ">
+            <div className="flex gap-2">
+        <button type="button" onClick={() => handleReorderToggle('event_videos')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingVideos ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
+          <span className="text-lg">⠿</span> {isReorderingVideos ? "Done" : "Drag and Re-order"}
+        </button>
+<button 
+  type="button" 
+  disabled={previews.event_videos?.length >= 5} // Disable if 5 reached
+  onClick={() => document.getElementById('video_upload_addon').click()} 
+  className={`px-3 py-1 text-xs rounded text-white transition-all ${
+    previews.event_videos?.length >= 5 
+      ? "bg-gray-500 cursor-not-allowed opacity-50" 
+      : "bg-indigo-600 hover:bg-indigo-700"
+  }`}
+>
+  {previews.event_videos?.length >= 5 ? "Limit Reached" : "Browse file"}
+</button>      </div>
+<DndContext 
+  sensors={sensors} 
+  collisionDetection={closestCenter} 
+  onDragEnd={(e) => handleDragEnd(e, 'event_videos')}
+>
+  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
+    <SortableContext 
+      items={previews.event_videos?.map(vid => vid.id) || []} 
+      strategy={rectSortingStrategy}
+    >
+      {previews.event_videos?.map((vid) => (
+        <SortablePhoto
+          key={vid.id} 
+          img={vid} 
+          isReordering={isReorderingVideos} 
+          onRemove={(id) => removeImageFromList(id, 'event_videos')}
+          targetField="event_videos" 
+        />
+      ))}
+    </SortableContext>
+    <input id="video_upload_addon" type="file" multiple accept="video/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_videos')} />
+  </div>
+</DndContext>
+    </div>
 
-                              {formData.event_images.length +
-                                (formData.existing_event_images?.length || 0) >
-                                1 && (
-                                <div
-                                  onClick={() =>
-                                    setShowExtraMedia(!showExtraMedia)
-                                  }
-                                  className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-4xl font-bold cursor-pointer"
-                                >
-                                  +
-                                  {formData.event_images.length +
-                                    (formData.existing_event_images?.length ||
-                                      0) -
-                                    1}
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <label
-                              htmlFor="multi-media-upload"
-                              className="cursor-pointer flex flex-col items-center gap-2"
-                            >
-                              <svg
-                                className="w-8 h-8 text-gray-400"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                              </svg>
-                              <span className="text-indigo-500 dark:text-indigo-400 font-semibold">
-                                Click to browse
-                              </span>
-                            </label>
-                          )}
-                          <input
-                            id="multi-media-upload"
-                            type="file"
-                            multiple
-                            className="sr-only"
-                            onChange={handleMultiMediaChange}
-                            accept="image/*,video/*"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    {showExtraMedia &&
-                      formData.event_images.length +
-                        (formData.existing_event_images?.length || 0) >
-                        1 && (
-                        <div className="animate-fade-in">
-                          <p className="text-sm font-medium text-black dark:text-gray-400 mb-2">
-                            Additional Media
-                          </p>
-                          <div className="flex overflow-x-auto space-x-4 p-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg">
-                            {formData.existing_event_images
-                              ?.slice(1)
-                              .map((url, index) => (
-                                <div
-                                  key={`existing-${index}`}
-                                  className="flex-shrink-0"
-                                >
-                                  <img
-                                    src={url}
-                                    alt={`Existing media ${index + 1}`}
-                                    className="h-24 w-auto aspect-video object-cover rounded-md"
-                                  />
-                                </div>
-                              ))}
-                            {formData.event_images.map((file, index) => (
-                              <div
-                                key={`new-${index}`}
-                                className="flex-shrink-0"
-                              >
-                                <img
-                                  src={URL.createObjectURL(file)}
-                                  alt={`New media ${index + 1}`}
-                                  className="h-24 w-auto aspect-video object-cover rounded-md"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+
+  </div>
                   </div>
                 </div>
                 <div className="space-y-12">
@@ -4648,138 +4621,182 @@ const UpdateTicketAddOns = () => {
                       <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                         Ticketing details
                       </h2>
-                      {(() => {
-  // Debug logging
-  console.log("🔍 Ticket Input Visibility Check:");
-  console.log("  - location_type:", formData.location_type);
-  console.log("  - payment_type:", formData.payment_type);
-  console.log("  - Is NOT offline?", formData.location_type !== "offline");
-  console.log("  - Is paid?", formData.payment_type === "paid");
-  console.log("  - Should show?", formData.location_type !== "offline" && formData.payment_type === "paid");
-  
-  return formData.location_type !== "offline" && formData.payment_type === "paid";
-})() && (
-  <div className="space-y-6 pt-4">
-    <div className="flex items-center justify-between">
-      <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 text-xs font-medium rounded-md">
-        {formData.location_type === "online" ? "Online Event" : "Recorded Event"}
-      </span>
-    </div>
-    
-    <div className="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-lg space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Ticket Price (₹)
-            <span className="text-red-500 ml-1">*</span>
-          </label>
-          <input
-            type="number"
-            value={formData.ticket_types[0]?.price || ""}
-            onChange={(e) => {
-              const newValue = e.target.value;
-              console.log("💰 Price input changed:", newValue);
-              setFormData((prev) => {
-                const newTickets = prev.ticket_types.length > 0
-                  ? [...prev.ticket_types]
-                  : [{
-                      id: Date.now(),
-                      name: "Standard Ticket",
-                      price: "",
-                      capacity: "",
-                      image: "https://via.placeholder.com/150",
-                      photoFile: null,
-                      existingPhotoPath: "",
-                    }];
-                newTickets[0].price = newValue;
-                console.log("✅ Updated ticket_types:", newTickets);
-                return { ...prev, ticket_types: newTickets };
-              });
-            }}
-            placeholder="Enter price (e.g., 500)"
-            className={`w-full px-4 py-3 rounded-lg border transition-all duration-300 ${
-              darkMode 
-                ? "bg-[#1E1E1E] text-white border-[#4A4A4A] focus:border-indigo-500" 
-                : "bg-white text-black border-gray-300 focus:border-indigo-500"
-            } focus:outline-none focus:ring-2 focus:ring-indigo-500/50`}
-          />
-          {errors.ticket_types && (
-            <p className="text-red-500 text-xs mt-1">Ticket price is required</p>
-          )}
-        </div>
-        
-        <div>
-          <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Total Ticket Quantity
-            <span className="text-red-500 ml-1">*</span>
-          </label>
-          <input
-            type="number"
-            value={formData.ticket_types[0]?.capacity || ""}
-            onChange={(e) => {
-              const newValue = e.target.value;
-              console.log("🎫 Capacity input changed:", newValue);
-              setFormData((prev) => {
-                const newTickets = prev.ticket_types.length > 0
-                  ? [...prev.ticket_types]
-                  : [{
-                      id: Date.now(),
-                      name: "Standard Ticket",
-                      price: "",
-                      capacity: "",
-                      image: "https://via.placeholder.com/150",
-                      photoFile: null,
-                      existingPhotoPath: "",
-                    }];
-                newTickets[0].capacity = newValue;
-                console.log("✅ Updated ticket_types:", newTickets);
-                return { ...prev, ticket_types: newTickets };
-              });
-            }}
-            placeholder="Enter available quantity"
-            className={`w-full px-4 py-3 rounded-lg border transition-all duration-300 ${
-              darkMode 
-                ? "bg-[#1E1E1E] text-white border-[#4A4A4A] focus:border-indigo-500" 
-                : "bg-white text-black border-gray-300 focus:border-indigo-500"
-            } focus:outline-none focus:ring-2 focus:ring-indigo-500/50`}
-          />
-          {errors.ticket_types && (
-            <p className="text-red-500 text-xs mt-1">Ticket quantity is required</p>
-          )}
-        </div>
-      </div>
-      
-      <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-        <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <p className="text-sm text-blue-800 dark:text-blue-200">
-          For {formData.location_type} events, you only need to set a single ticket price and quantity. 
-          The capacity should match your {formData.location_type === "online" ? "platform limits" : "video access limits"}.
-        </p>
-      </div>
-      
-      {formData.ticket_types[0]?.price && formData.ticket_types[0]?.capacity && (
-        <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-sm font-semibold text-green-800 dark:text-green-200">
-              Ticket Summary
-            </p>
-          </div>
-          <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
-            <p>• Ticket Type: <span className="font-medium">Standard Ticket</span></p>
-            <p>• Price per ticket: <span className="font-medium">₹{Number(formData.ticket_types[0].price).toLocaleString()}</span></p>
-            <p>• Available quantity: <span className="font-medium">{formData.ticket_types[0].capacity} tickets</span></p>
-            <p>• Potential revenue: <span className="font-medium">₹{(Number(formData.ticket_types[0].price) * Number(formData.ticket_types[0].capacity)).toLocaleString()}</span></p>
-          </div>
-        </div>
-      )}
-    </div>
-  </div>
-)}
+                      {(formData.location_type === "online" || formData.location_type === "recorded") && 
+                        formData.payment_type === "paid" && (
+                          <div className="bg-[#f1f1f1] dark:bg-[#2B2B2B] p-8 rounded-lg space-y-6 animate-fade-in shadow-sm dark:shadow-none mt-8">
+                            <div className="flex items-center space-x-4">
+                              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                Ticket Details
+                              </h2>
+                            </div>
+                            <p className="text-black dark:text-gray-400 text-sm">
+                              Set the price and total capacity for your {formData.location_type} event tickets.
+                            </p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 pt-2">
+                              <div ref={(el) => (errorFieldRefs.current.simpleTicketPrice = el)}>
+                                <label
+                                  htmlFor="simpleTicketPrice"
+                                  className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
+                                >
+                                  Ticket Price (₹) <span className="text-red-500 ml-1">*</span>
+                                  <InfoTooltip note="Set the price per ticket for your event." />
+                                </label>
+                                <input
+                                  type="number"
+                                  id="simpleTicketPrice"
+                                  name="simpleTicketPrice"
+                                  value={
+                                    formData.ticket_types && formData.ticket_types[0] 
+                                      ? (formData.ticket_types[0].price || formData.ticket_types[0].ticket_price || "") 
+                                      : ""
+                                  }
+                                  onChange={(e) => {
+                                    const newValue = e.target.value;
+                                    setFormData((prev) => {
+                                      const newTickets = prev.ticket_types && prev.ticket_types.length > 0
+                                        ? [...prev.ticket_types]
+                                        : [{
+                                            id: Date.now(),
+                                            name: "Standard Ticket",
+                                            ticket_type: "Standard Ticket",
+                                            price: "",
+                                            ticket_price: "",
+                                            capacity: prev.total_capacity || "",
+                                            max_capacity: prev.total_capacity || "",
+                                            image: "",
+                                            existingPhotoPath: "",
+                                          }];
+                                      
+                                      newTickets[0] = {
+                                        ...newTickets[0],
+                                        price: newValue,
+                                        ticket_price: newValue,
+                                      };
+                                      
+                                      return { ...prev, ticket_types: newTickets };
+                                    });
+                                    setErrors((prev) => ({ ...prev, simpleTicketPrice: null }));
+                                  }}
+                                  placeholder="Enter ticket price"
+                                  min="1"
+                                  step="1"
+                                  className={`w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white rounded-md p-3 ${
+                                    errors.simpleTicketPrice
+                                      ? "border-2 border-red-500"
+                                      : "border border-black dark:border-gray-700"
+                                  }`}
+                                />
+                                {errors.simpleTicketPrice && (
+                                  <p className="text-red-500 text-xs mt-1">
+                                    Ticket price is required and must be greater than 0.
+                                  </p>
+                                )}
+                              </div>
+
+                              <div ref={(el) => (errorFieldRefs.current.simpleTicketCapacity = el)}>
+                                <label
+                                  htmlFor="simpleTicketCapacity"
+                                  className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-2"
+                                >
+                                  Total Ticket Capacity <span className="text-red-500 ml-1">*</span>
+                                  <InfoTooltip note="Maximum number of tickets available for sale." />
+                                </label>
+                                <input
+                                  type="number"
+                                  id="simpleTicketCapacity"
+                                  name="simpleTicketCapacity"
+                                  value={formData.total_capacity || ""}
+                                  onChange={(e) => {
+                                    const newValue = e.target.value;
+                                    setFormData((prev) => {
+                                      const newTickets = prev.ticket_types && prev.ticket_types.length > 0
+                                        ? [...prev.ticket_types]
+                                        : [{
+                                            id: Date.now(),
+                                            name: "Standard Ticket",
+                                            ticket_type: "Standard Ticket",
+                                            price: prev.ticket_types?.[0]?.price || "",
+                                            ticket_price: prev.ticket_types?.[0]?.ticket_price || "",
+                                            capacity: "",
+                                            max_capacity: "",
+                                            image: "",
+                                            existingPhotoPath: "",
+                                          }];
+                                      
+                                      newTickets[0] = {
+                                        ...newTickets[0],
+                                        capacity: newValue,
+                                        max_capacity: newValue,
+                                      };
+                                      
+                                      return { 
+                                        ...prev, 
+                                        total_capacity: newValue,
+                                        ticket_types: newTickets 
+                                      };
+                                    });
+                                    setErrors((prev) => ({ ...prev, simpleTicketCapacity: null }));
+                                  }}
+                                  placeholder="Enter total capacity"
+                                  min="1"
+                                  step="1"
+                                  className={`w-full bg-gray-100 dark:bg-[#1c1c1f] text-gray-900 dark:text-white rounded-md p-3 ${
+                                    errors.simpleTicketCapacity
+                                      ? "border-2 border-red-500"
+                                      : "border border-black dark:border-gray-700"
+                                  }`}
+                                />
+                                {errors.simpleTicketCapacity && (
+                                  <p className="text-red-500 text-xs mt-1">
+                                    Ticket capacity is required and must be a positive number.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Summary Display */}
+                            {formData.ticket_types && 
+                            formData.ticket_types[0] && 
+                            (formData.ticket_types[0].price || formData.ticket_types[0].ticket_price) && 
+                            formData.total_capacity && (
+                              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
+                                <div className="flex items-start gap-2">
+                                  <svg
+                                    className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                    />
+                                  </svg>
+                                  <div>
+                                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                                      Ticket Summary
+                                    </p>
+                                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                                      Price per ticket: ₹{Number(formData.ticket_types[0].price || formData.ticket_types[0].ticket_price).toLocaleString()}
+                                    </p>
+                                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                                      Total tickets: {Number(formData.total_capacity).toLocaleString()}
+                                    </p>
+                                    <p className="text-xs text-blue-700 dark:text-blue-300 font-semibold mt-1">
+                                      Maximum Revenue: ₹{(
+                                        Number(formData.ticket_types[0].price || formData.ticket_types[0].ticket_price) * 
+                                        Number(formData.total_capacity)
+                                      ).toLocaleString()}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       <p className="text-black dark:text-gray-400 text-sm">
                         Add ticket types, set prices, and control how attendees
                         book their spot.
