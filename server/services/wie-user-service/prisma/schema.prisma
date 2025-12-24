@@ -12,6 +12,7 @@ model Country {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   countryCode String    @unique @map("country_code") @db.VarChar(10)
   countryName String    @map("country_name") @db.VarChar(100)
+  phoneCode   String?   @map("phone_code") @db.VarChar(10)  
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   
   // Relations
