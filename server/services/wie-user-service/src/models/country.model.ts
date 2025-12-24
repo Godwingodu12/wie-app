@@ -6,6 +6,7 @@ export interface Country {
   id: string;
   country_code: string;
   country_name: string;
+  phone_code: string | null;
   created_at: Date;
 }
 
@@ -14,10 +15,10 @@ const toDatabaseFormat = (country: any): Country => {
     id: country.id,
     country_code: country.countryCode,
     country_name: country.countryName,
+    phone_code: country.phoneCode || null,  
     created_at: country.createdAt,
   };
 };
-
 class CountryModel {
   async findAll(): Promise<Country[]> {
     const countries = await prisma.country.findMany({
@@ -44,5 +45,4 @@ class CountryModel {
     await prisma.$disconnect();
   }
 }
-
 export default new CountryModel();
