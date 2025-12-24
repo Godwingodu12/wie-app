@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import WIEUSER from '../models/wieuser.model';
 import COUNTRY from '../models/country.model';
+import OTP from '../models/otp.model';
 import { hashPassword, comparePassword } from '../utils/hash';
 import { generateToken } from '../utils/jwt';
 import otpService from '../reposetory/otp';
@@ -15,6 +16,8 @@ import {
   validatePassword,
   validateName,
 } from '../utils/validation.js';
+import { createClient } from 'redis';
+const redis = createClient();
 // Store temporary signup data in memory (in production, use Redis)
 const tempUserStore = new Map<string, any>();
 // Auto-delete unverified users after 15 minutes
@@ -45,13 +48,22 @@ export const getCountries = async (req: Request, res: Response): Promise<void> =
     res.status(500).json({ message: 'Failed to fetch countries', error: error.message });
   }
 };
+const validateCountryCode = async (countryCode: string): Promise<boolean> => {
+  const country = await COUNTRY.findByCode(countryCode);
+  return !!country;
+};
 export const signupSendOtp = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, contact_no, password, country_id } = req.body;
+    const { email, contact_no, password, country_code } = req.body;
 
     // Validation
     if (!password || !validatePassword(password)) {
       res.status(400).json({ message: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    if (!country_code) {
+      res.status(400).json({ message: 'Country is required' });
       return;
     }
 
@@ -70,15 +82,17 @@ export const signupSendOtp = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Validate country (required)
-    if (!country_id) {
-      res.status(400).json({ message: 'Country is required' });
+    // Validate country exists
+    const isValidCountry = await validateCountryCode(country_code);
+    if (!isValidCountry) {
+      res.status(400).json({ message: 'Invalid country selected' });
       return;
     }
 
-    const country = await COUNTRY.findById(country_id);
+    // Get country details (you'll need this for country_id)
+    const country = await COUNTRY.findByCode(country_code);
     if (!country) {
-      res.status(400).json({ message: 'Invalid country selected' });
+      res.status(400).json({ message: 'Country not found' });
       return;
     }
 
@@ -104,38 +118,31 @@ export const signupSendOtp = async (req: Request, res: Response): Promise<void> 
     // Generate temporary user ID
     const tempUserId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Store user data temporarily (expires in 15 minutes)
+    // Store user data temporarily (expires in 2 minutes)
     tempUserStore.set(tempUserId, {
       email: email || null,
       contact_no: contact_no || null,
       hashedPassword,
-      country_id: country_id,
+      country_id: country.id, // FIXED: Use country.id instead of country_code
       createdAt: Date.now(),
     });
-
-    // Clean up after 15 minutes
+    // Clean up after 2 minutes
     setTimeout(() => {
       tempUserStore.delete(tempUserId);
-      console.log(`⏰ Temp user data expired: ${tempUserId}`);
-    }, 15 * 60 * 1000);
-
+    }, 2 * 60 * 1000);
     // Generate and send OTP
     const otp = generateOtp();
-    await otpService.insertOTP(tempUserId, otp, 5, 'signup'); // 5 minutes expiration
-
+    await otpService.insertOTP(tempUserId, otp, 2, 'signup'); // 2 minutes expiration
     if (email) {
       await sendEmail(email, otp);
-      console.log(`✅ OTP sent to email: ${email}`);
     }
-
     if (contact_no) {
       await sendSMSOTP(contact_no, otp);
-      console.log(`✅ OTP sent to contact: ${contact_no}`);
     }
     res.status(200).json({
       message: 'OTP sent successfully',
       tempUserId,
-      expiresIn: '5 minutes',
+      expiresIn: '2 minutes',
     });
   } catch (error: any) {
     console.error('Signup OTP error:', error);
@@ -491,10 +498,20 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 };
 export const resendOtp = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { userId } = req.body; // Can be tempUserId or real userId
+    const { userId } = req.body;
 
     if (!userId) {
       res.status(400).json({ message: 'User ID is required' });
+      return;
+    }
+
+    // Check OTP limit first
+    const limitCheck = await otpService.checkOtpLimit(userId);
+    if (!limitCheck.allowed) {
+      res.status(429).json({ 
+        message: limitCheck.message,
+        remainingAttempts: 0
+      });
       return;
     }
 
@@ -502,7 +519,6 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
     let contact_no = null;
     let isTemp = false;
 
-    // Check if it's a temporary user ID (for signup)
     if (userId.startsWith('temp_')) {
       isTemp = true;
       const userData = tempUserStore.get(userId);
@@ -513,42 +529,43 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
         });
         return;
       }
-
       email = userData.email;
       contact_no = userData.contact_no;
     } else {
-      // Real user (for login or re-verification)
       const user = await WIEUSER.findById(userId);
-      
       if (!user) {
         res.status(404).json({ message: 'User not found' });
         return;
       }
-
       email = user.email;
       contact_no = user.contact_no;
     }
-
     // Generate and send new OTP
     const otp = generateOtp();
     await otpService.insertOTP(userId, otp, 5, isTemp ? 'signup' : 'login');
-
     if (email) {
       await sendEmail(email, otp);
-      console.log(`✅ OTP resent to email: ${email}`);
     }
-
     if (contact_no) {
       await sendSMSOTP(contact_no, otp);
-      console.log(`✅ OTP resent to contact: ${contact_no}`);
     }
-
     res.status(200).json({ 
       message: 'OTP resent successfully',
-      expiresIn: '5 minutes'
+      expiresIn: '5 minutes',
+      remainingAttempts: limitCheck.remainingAttempts - 1
     });
   } catch (error: any) {
     console.error('Resend OTP error:', error);
+    
+    // Handle rate limit errors
+    if (error.message?.includes('Too many OTP requests')) {
+      res.status(429).json({ 
+        message: error.message,
+        remainingAttempts: 0
+      });
+      return;
+    }
+    
     res.status(500).json({ message: 'Failed to resend OTP', error: error.message });
   }
 };
@@ -749,15 +766,44 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       });
       return;
     }
+
+    // Check OTP limit BEFORE attempting to send
+    const limitCheck = await otpService.checkOtpLimit(user.id);
+    if (!limitCheck.allowed) {
+      res.status(429).json({
+        success: false,
+        message: limitCheck.message,
+        remainingAttempts: 0,
+      });
+      return;
+    }
+
     // Generate OTP
     const otp = generateOtp();
+
     // Save OTP to database with 10 minute expiry
-    await otpService.insertOTP(user.id, otp, 10);
+    try {
+      await otpService.insertOTP(user.id, otp, 10, 'reset');
+    } catch (otpError: any) {
+      // Handle rate limit errors from insertOTP
+      if (otpError.message?.includes('Too many OTP requests')) {
+        res.status(429).json({
+          success: false,
+          message: otpError.message,
+          remainingAttempts: 0,
+        });
+        return;
+      }
+      throw otpError; // Re-throw other errors
+    }
+
     // Send OTP via email or SMS
     if (email) {
       await sendEmail(email, otp);
+      console.log(`✅ Password reset OTP sent to email: ${email}`);
     } else if (contact_no) {
       await sendSMSOTP(contact_no, otp);
+      console.log(`✅ Password reset OTP sent to contact: ${contact_no}`);
     }
     res.status(200).json({
       success: true,
@@ -765,9 +811,22 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       data: {
         userId: user.id,
       },
+      remainingAttempts: limitCheck.remainingAttempts - 1, // Include remaining attempts
+      expiresIn: '10 minutes',
     });
   } catch (error: any) {
     console.error('Forgot password error:', error);
+    
+    // Handle specific error types
+    if (error.message?.includes('Too many OTP requests')) {
+      res.status(429).json({
+        success: false,
+        message: error.message,
+        remainingAttempts: 0,
+      });
+      return;
+    }
+
     res.status(500).json({
       success: false,
       message: 'Failed to process forgot password request',
@@ -775,14 +834,16 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     });
   }
 };
-// Verify OTP for Password Reset
-export const verifyResetOTP = async (req: Request, res: Response): Promise<void> => {
+export const verifyResetOTP = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const { userId, otp } = req.body;
     if (!userId || !otp) {
       res.status(400).json({
         success: false,
-        message: 'User ID and OTP are required',
+        message: "User ID and OTP are required",
       });
       return;
     }
@@ -790,33 +851,55 @@ export const verifyResetOTP = async (req: Request, res: Response): Promise<void>
     if (!user) {
       res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
       return;
     }
-    const isValid = await otpService.verifyOtp(userId, otp);
-    if (!isValid) {
+    // Verify OTP (Strict Latest Check)
+    const latestOtp = await OTP.findLatestByUser(userId);
+    if (!latestOtp) {
       res.status(400).json({
         success: false,
-        message: 'Invalid or expired OTP',
+        message: "Invalid or expired OTP",
       });
       return;
     }
+    // Check if the latest OTP matches the provided value
+    if (latestOtp.otp_value !== otp) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid or expired OTP",
+      });
+      return;
+    }
+
+    // Check for expiration
+    if (new Date() > new Date(latestOtp.expires_at)) {
+      await otpService.deleteAllOtps(userId);
+      res.status(400).json({
+        success: false,
+        message: "OTP has expired. Please request a new one.",
+      });
+      return;
+    }
+
+    // OTP is valid
+    await otpService.deleteAllOtps(userId);
     // Generate temporary token for password reset using the actual user data
     const resetToken = generateToken(user);
     res.status(200).json({
       success: true,
-      message: 'OTP verified successfully',
+      message: "OTP verified successfully",
       data: {
         resetToken,
         userId,
       },
     });
   } catch (error: any) {
-    console.error('Verify reset OTP error:', error);
+    console.error("Verify reset OTP error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to verify OTP',
+      message: "Failed to verify OTP",
       error: error.message,
     });
   }
