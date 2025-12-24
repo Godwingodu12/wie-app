@@ -13,15 +13,17 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Country } from '@/types';
 import SideBar from '@/components/home/SideBar';
+import { useSidebar } from '@/context/SidebarContext';
 import DummyAvatar from '@/assets/Home/dummypost.png';
 import { Alert } from "@/components/events/Alert";
 function ProfileContent() {
+  const { isCollapsed, isMobile } = useSidebar();
   const { user, loading: authLoading } = useAuth(true);
   const searchParams = useSearchParams();
   const passwordSet = searchParams.get("password-set");
   const dispatch = useDispatch();
   const router = useRouter();
-  
+
   const [formData, setFormData] = useState({
     name: '',
     username: '',
@@ -50,14 +52,14 @@ function ProfileContent() {
         setPageLoading(false);
       }
     };
-    
+
     initPage();
   }, []);
   const fetchUserProfile = async () => {
     try {
       const profile = await getProfile();
       setCurrentProfile(profile);
-      
+
       // Update form data with fetched profile
       setFormData({
         name: profile?.name || '',
@@ -65,12 +67,12 @@ function ProfileContent() {
         bio: profile?.bio || '',
         country_id: profile?.country_id || '',
       });
-      
+
       // Update sidebar data
       const userName = profile?.name || profile?.username || 'User';
       const userAvatar = profile?.profile_picture || (typeof DummyAvatar === 'string' ? DummyAvatar : DummyAvatar.src);
       setProfileData({ name: userName, avatar: userAvatar });
-      
+
       // Also update Redux state with fresh data from server
       dispatch(updateUser(profile));
     } catch (err) {
@@ -102,7 +104,7 @@ function ProfileContent() {
 
     try {
       setLoading(true);
-      
+
       // Only send fields that have values
       const updateData: any = {};
       if (formData.name?.trim()) updateData.name = formData.name.trim();
@@ -111,19 +113,19 @@ function ProfileContent() {
       if (formData.country_id) updateData.country_id = formData.country_id;
 
       const updatedUser = await updateProfile(updateData);
-      
+
       // Update Redux state (this also updates localStorage and cookie)
       dispatch(updateUser(updatedUser));
-      
+
       // Update local state
       setCurrentProfile(updatedUser);
       setProfileData({
         name: updatedUser.name || updatedUser.username || 'User',
         avatar: updatedUser.profile_picture || profileData.avatar,
       });
-      
+
       setSuccess('Profile updated successfully!');
-      
+
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
@@ -155,11 +157,16 @@ function ProfileContent() {
 
   const displayUser = currentProfile || user;
 
+  const marginLeft = isMobile ? '0' : (isCollapsed ? '80px' : '281px');
+
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
-      <SideBar userName={profileData.name} userAvatar={profileData.avatar} />
-      
-      <main className="ml-0 md:ml-20 lg:ml-[281px] pb-20 md:pb-0 transition-all duration-300">
+      <SideBar />
+
+      <main
+        className={`w-full transition-all duration-300 ease-in-out ${isMobile ? 'pb-24' : ''}`}
+        style={{ marginLeft }}
+      >
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Header
             title="Your Profile"
@@ -172,7 +179,7 @@ function ProfileContent() {
                 type: "success",
                 show: true,
               }}
-              onClose={() => router.replace('/profile')} 
+              onClose={() => router.replace('/profile')}
             />
           )}
           <Card className="bg-[#1a1a1a] border border-[#2D2F39]">
@@ -307,13 +314,13 @@ function ProfileContent() {
                     Set Password
                   </Button>
                 )}
-                <Button 
-                  type="submit" 
-                  loading={loading} 
+                <Button
+                  type="submit"
+                  loading={loading}
                   className="flex-1 bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] hover:opacity-90"
                 >
                   {loading ? 'Updating...' : 'Update Profile'}
-                </Button>      
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -342,5 +349,4 @@ export default function ProfilePage() {
     </Suspense>
   );
 }
-
 export const dynamic = 'force-dynamic';
