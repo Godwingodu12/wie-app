@@ -1,37 +1,38 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { loginStart, loginSuccess, loginFailure } from '@/features/auth/authSlice';
 import { login } from '@/services/wieUserService';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import { GoogleAuthButton } from './GoogleAuthButton';
 import Link from 'next/link';
+import Image from 'next/image';
+import EyeIcon from '@/assets/Auth/Eye.svg';
 
 export const LoginForm: React.FC = () => {
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
+  const [formData, setFormData] = useState({
+    identifier: '',
+    password: '',
+  });
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+  const [showPassword, setShowPassword] = useState(false);
+
   const dispatch = useDispatch();
   const router = useRouter();
-  const searchParams = useSearchParams();
 
-  // Add this useEffect to handle errors from Google callback
-  useEffect(() => {
-    const errorParam = searchParams.get('error');
-    if (errorParam) {
-      setError(decodeURIComponent(errorParam));
-    }
-  }, [searchParams]);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    if (!identifier || !password) {
+
+    if (!formData.identifier || !formData.password) {
       setError('Please fill in all fields');
       return;
     }
@@ -39,18 +40,22 @@ export const LoginForm: React.FC = () => {
     try {
       setLoading(true);
       dispatch(loginStart());
-      
-      const response = await login({ identifier, password });
-      
+
+      const payload = {
+        identifier: formData.identifier.trim(),
+        password: formData.password,
+      };
+
+      const response = await login(payload);
+
       if (response.token && response.user) {
         dispatch(loginSuccess({ token: response.token, user: response.user }));
         router.push('/home');
       } else {
-        throw new Error('Invalid response from server');
+        throw new Error();
       }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Login failed';
-      setError(errorMessage);
+      setError(err.response?.data?.message || 'Login failed');
       dispatch(loginFailure());
     } finally {
       setLoading(false);
@@ -58,67 +63,79 @@ export const LoginForm: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-md">
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="w-full flex flex-col">
+      <form onSubmit={handleSubmit} className="space-y-5">
+
+        {/* Email / Phone */}
         <Input
-          label="Email or Phone Number"
           type="text"
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          placeholder="Enter email or phone number"
+          name="identifier"
+          value={formData.identifier}
+          onChange={handleChange}
+          placeholder="Email or phone number"
           required
         />
-        
-        <Input
-          label="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Enter password"
-          required
-        />
-        <div className="flex justify-end">
-          <Link 
-            href="/forgot-password" 
-            className="text-sm text-blue-600 hover:underline"
+
+        {/* Password */}
+        <div className="relative">
+          <Input
+            type={showPassword ? 'text' : 'password'}
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            placeholder="Password"
+            required
+            className="pr-14"
+          />
+
+          <button
+            type="button"
+            onClick={() => setShowPassword(p => !p)}
+            className="absolute right-5 top-1/2 -translate-y-1/2 z-20 opacity-70 hover:opacity-100 transition"
           >
-            Forgot Password?
+            <Image
+              src={EyeIcon}
+              alt={showPassword ? 'Hide password' : 'Show password'}
+              width={20}
+              height={20}
+            />
+          </button>
+        </div>
+
+        {/* Forgot password */}
+        <div className="text-center text-sm text-white/60">
+          Forgot password?{' '}
+          <Link href="/forgot-password" className="text-[#8a63d7] hover:underline">
+            Reset password
           </Link>
         </div>
 
+        {/* Error */}
         {error && (
-          <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
+          <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 p-3 rounded-lg">
             {error}
           </div>
         )}
 
-        <Button type="submit" loading={loading} className="w-full">
+        {/* Login button */}
+        <Button
+          type="submit"
+          loading={loading}
+          className="w-full h-[56px] rounded-full text-white bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD]"
+        >
           Login
         </Button>
+
+        {/* Footer */}
+        <p className="text-center text-sm text-white/60">
+          New here?{' '}
+          <Link href="/signup" className="text-[#8a63d7] hover:underline">
+            Create an account
+          </Link>
+        </p>
       </form>
-
-      <div className="mt-4">
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Or continue with</span>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <GoogleAuthButton />
-        </div>
-      </div>
-
-      <p className="mt-4 text-center text-sm text-gray-600">
-        Don't have an account?{' '}
-        <Link href="/signup" className="text-blue-600 hover:underline">
-          Sign up
-        </Link>
-      </p>
     </div>
   );
 };
+
 export default LoginForm;
