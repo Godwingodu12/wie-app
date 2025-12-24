@@ -52,10 +52,12 @@ export interface SignupVerifyOtpRequest {
 export interface ResendOtpRequest {
   userId: string; 
 }
+
 export interface Country {
   id: string;
   country_code: string;  
   country_name: string;  
+  phone_code: string | null;
   created_at: string;
 }
 export interface ApiResponse<T = any> {
@@ -65,6 +67,7 @@ export interface ApiResponse<T = any> {
   token?: string;
   user?: User;
   tempUserId?: string;  
+  remainingAttempts?: number;
   expiresIn?: string;
   error?: string;
 }
