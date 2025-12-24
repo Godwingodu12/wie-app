@@ -79,10 +79,6 @@ class OtpModel {
     });
     return otp ? toDatabaseFormat(otp) : null;
   }
-
-  /**
-   * Find latest OTP for a user
-   */
   async findLatestByUser(userId: string): Promise<OTP | null> {
     const otp = await prisma.otp.findFirst({
       where: { userId },
@@ -90,10 +86,6 @@ class OtpModel {
     });
     return otp ? toDatabaseFormat(otp) : null;
   }
-
-  /**
-   * Find latest OTP for a temp ID
-   */
   async findLatestByTempId(tempId: string): Promise<OTP | null> {
     const otp = await prisma.otp.findFirst({
       where: { tempId },
@@ -230,7 +222,25 @@ class OtpModel {
     });
     return count;
   }
-
+  async countAttemptsByIdentifier(identifier: string, minutes: number = 15): Promise<number> {
+    const cutoffTime = new Date(Date.now() - minutes * 60000);
+    
+    const isTemporary = identifier.startsWith('temp_');
+    
+    const count = await prisma.otp.count({
+      where: {
+        ...(isTemporary 
+          ? { tempId: identifier } 
+          : { userId: identifier }
+        ),
+        createdAt: {
+          gte: cutoffTime,
+        },
+      },
+    });
+    
+    return count;
+  }
   async disconnect(): Promise<void> {
     await prisma.$disconnect();
   }
