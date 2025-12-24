@@ -5,62 +5,77 @@ import { useRouter } from 'next/navigation';
 import { signupSendOtp, getCountries } from '@/services/wieUserService';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import { GoogleAuthButton } from './GoogleAuthButton';
+import Image from 'next/image';
 import Link from 'next/link';
 import { Country } from '@/types';
-import { CountrySelect } from '../ui/CountrySelect';
+import CountrySelect from '../ui/CountrySelect';
+import EyeIcon from '@/assets/Auth/Eye.svg';
+import DownArrow from '@/assets/Auth/DownArrow.svg';
+
 export const SignupForm: React.FC = () => {
   const [formData, setFormData] = useState({
-    identifier: '', // This will hold either email or phone
+    identifier: '',
     password: '',
-    confirmPassword: '',
-    country_id: '',
+    country_code: '',
   });
+
   const [countries, setCountries] = useState<Country[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+  const [showPassword, setShowPassword] = useState(false);
+
   const router = useRouter();
 
+  /* -------------------- LOAD COUNTRIES -------------------- */
   useEffect(() => {
+    const loadCountries = async () => {
+      try {
+        const res = await getCountries();
+        console.log('📍 Countries received:', res); // DEBUG
+        console.log('📍 First country:', res[0]); // DEBUG
+        setCountries(res);
+
+        // Default country (India or first available)
+        if (res.length) {
+          const defaultCountry = res.find(c => c.country_code === 'IN') || res[0];
+          console.log('📍 Default country selected:', defaultCountry); // DEBUG
+          setFormData(prev => ({
+            ...prev,
+            country_code: defaultCountry.country_code,
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to load countries:', err);
+        setError('Failed to load countries');
+      }
+    };
+
     loadCountries();
   }, []);
 
-  const loadCountries = async () => {
-    try {
-      const data = await getCountries();
-      setCountries(data);
-    } catch (err) {
-      console.error('Failed to load countries:', err);
-      setError('Failed to load countries');
-    }
-  };
+  /* -------------------- HELPERS -------------------- */
+  const isEmail = (input: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const isPhoneNumber = (input: string) =>
+    /^[\d\s+\-()]+$/.test(input) && /\d{5,}/.test(input.replace(/\D/g, ''));
+
+  /* -------------------- HANDLERS -------------------- */
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  // Detect if input is email or phone number
-  const isEmail = (input: string): boolean => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
-  };
-
-  const isPhoneNumber = (input: string): boolean => {
-    // Check if it contains only digits, spaces, +, -, (, )
-    return /^[\d\s+\-()]+$/.test(input) && /\d{5,}/.test(input.replace(/\D/g, ''));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (!formData.identifier) {
       setError('Email or phone number is required');
       return;
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+    if (!formData.country_code) {
+      setError('Country is required');
       return;
     }
 
@@ -69,131 +84,139 @@ export const SignupForm: React.FC = () => {
       return;
     }
 
-    if (!formData.country_id) {
-      setError('Country is required');
-      return;
-    }
-
     try {
       setLoading(true);
-      
+
+      const trimmed = formData.identifier.trim();
+      const selectedCountry = countries.find(c => c.country_code === formData.country_code);
+
       const signupData: any = {
         password: formData.password,
-        country_id: formData.country_id,
+        country_code: formData.country_code,
       };
 
-      // Detect if identifier is email or phone
-      const trimmedIdentifier = formData.identifier.trim();
-      
-      if (isEmail(trimmedIdentifier)) {
-        signupData.email = trimmedIdentifier;
-      } else if (isPhoneNumber(trimmedIdentifier)) {
-        signupData.contact_no = trimmedIdentifier;
+      if (isEmail(trimmed)) {
+        signupData.email = trimmed;
+      } else if (isPhoneNumber(trimmed)) {
+        // Remove any non-digit characters from phone number
+        const cleanPhone = trimmed.replace(/\D/g, '');
+        
+        // Attach country phone code if available
+        if (selectedCountry?.phone_code) {
+          // Remove leading + from phone code for storage
+          const phoneCode = selectedCountry.phone_code.replace(/^\+/, '');
+          signupData.contact_no = `${phoneCode}${cleanPhone}`;
+        } else {
+          signupData.contact_no = cleanPhone;
+        }
       } else {
-        setError('Please enter a valid email or phone number');
-        setLoading(false);
+        setError('Invalid email or phone number');
         return;
       }
 
-      const response = await signupSendOtp(signupData);
-      
-      if (response.tempUserId) {
-        // Navigate to OTP verification page
-        const method = signupData.email ? 'email' : 'phone';
-        router.push(`/verify-otp?tempUserId=${response.tempUserId}&method=${method}&identifier=${encodeURIComponent(trimmedIdentifier)}`);
+      const res = await signupSendOtp(signupData);
+
+      if (res?.tempUserId) {
+        router.push(
+          `/verify-otp?tempUserId=${res.tempUserId}&method=${
+            signupData.email ? 'email' : 'phone'
+          }&identifier=${encodeURIComponent(trimmed)}`
+        );
       } else {
-        setError('Failed to send OTP. Please try again.');
+        setError('OTP sending failed');
       }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Signup failed';
-      setError(errorMessage);
+      console.error('Signup error:', err);
+      setError(err.response?.data?.message || 'Signup failed');
     } finally {
       setLoading(false);
     }
   };
 
-  // Get country flag emoji
-  const getCountryFlag = (countryCode: string): string => {
-    if (!countryCode || countryCode.length !== 2) return '🌐';
-    
-    const codePoints = countryCode
-      .toUpperCase()
-      .split('')
-      .map(char => 127397 + char.charCodeAt(0));
-    return String.fromCodePoint(...codePoints);
-  };
-
+  /* -------------------- UI -------------------- */
   return (
-    <div className="w-full max-w-md">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          label="Email or Phone Number"
-          type="text"
-          name="identifier"
-          value={formData.identifier}
-          onChange={handleChange}
-          placeholder="Enter your email or phone number"
-          required
-        />
+    <div className="w-full flex flex-col">
+      <form onSubmit={handleSubmit} className="space-y-5">
 
-        <Input
-          label="Password"
-          type="password"
-          name="password"
-          value={formData.password}
-          onChange={handleChange}
-          placeholder="Enter password (min 6 characters)"
-          required
-        />
-
-        <Input
-          label="Confirm Password"
-          type="password"
-          name="confirmPassword"
-          value={formData.confirmPassword}
-          onChange={handleChange}
-          placeholder="Confirm your password"
-          required
-        />
-
-        <div className="w-full">
-          <CountrySelect
-            countries={countries}
-            value={formData.country_id}
+        {/* EMAIL / PHONE + COUNTRY */}
+        <div className="relative w-full">
+          <Input
+            type="text"
+            name="identifier"
+            value={formData.identifier}
             onChange={handleChange}
+            placeholder="Email or phone number"
             required
+            className="pr-36"
+          />
+
+          {/* Country dropdown inside input */}
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            <span className="text-[#363739]">|</span>
+
+            <CountrySelect
+              countries={countries}
+              value={formData.country_code}
+              onChange={(code) =>
+                setFormData(prev => ({ ...prev, country_code: code }))
+              }
+              required
             />
+
+            <Image
+              src={DownArrow}
+              alt="Arrow"
+              width={14}
+              height={14}
+              className="opacity-60 pointer-events-none"
+            />
+          </div>
         </div>
+
+        {/* PASSWORD */}
+        <div className="relative">
+          <Input
+            type={showPassword ? 'text' : 'password'}
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            placeholder="Password"
+            required
+            className="pr-14"
+          />
+
+          <button
+            type="button"
+            onClick={() => setShowPassword(p => !p)}
+            className="absolute right-5 top-1/2 -translate-y-1/2"
+          >
+            <Image src={EyeIcon} alt="Toggle password" width={20} height={20} />
+          </button>
+        </div>
+
         {error && (
-          <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
+          <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 p-3 rounded-lg">
             {error}
           </div>
         )}
-        <Button type="submit" loading={loading} className="w-full">
-          Sign Up
+
+        <p className="text-center text-sm text-white/60">
+          Already have an account?{' '}
+          <Link href="/login" className="text-[#8a63d7] hover:underline">
+            Login
+          </Link>
+        </p>
+
+        <Button
+          type="submit"
+          loading={loading}
+          className="w-full h-[56px] rounded-full text-white bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD]"
+        >
+          Register
         </Button>
       </form>
-      <div className="mt-4">
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Or continue with</span>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <GoogleAuthButton />
-        </div>
-      </div>
-      <p className="mt-4 text-center text-sm text-gray-600">
-        Already have an account?{' '}
-        <Link href="/login" className="text-blue-600 hover:underline">
-          Login
-        </Link>
-      </p>
     </div>
   );
 };
+
 export default SignupForm;
