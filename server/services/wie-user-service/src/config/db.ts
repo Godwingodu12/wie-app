@@ -14,14 +14,15 @@ interface PoolConfig {
 
 class Database {
   private pool: pkg.Pool | null = null;
+  public isConnected: boolean = false; // Add this property
 
   async connect(): Promise<void> {
     try {
       const config: PoolConfig = {
-        host: 'localhost',
-        port: 5432,
+        host: process.env.DB_HOST || 'localhost',
+        port: Number(process.env.DB_PORT) || 5432,
         database: process.env.DB_NAME || 'wie-user-auth',
-        user: 'postgres',
+        user: process.env.DB_USER || 'postgres',
         password: process.env.DB_PASSWORD || 'WIE123',
         max: 20,
         idleTimeoutMillis: 30000,
@@ -30,16 +31,22 @@ class Database {
 
       this.pool = new Pool(config);
 
+      // Add error handler
+      this.pool.on('error', (err) => {
+        console.error('❌ Unexpected database error:', err);
+        this.isConnected = false;
+      });
+
       // Test connection
       const client = await this.pool.connect();
       console.log('✅ PostgreSQL connected (WIE User Service)');
+      this.isConnected = true;
       client.release();
 
-      // Only connect - don't create tables here
-      // Tables should be created via migrations
     } catch (err) {
       console.error('❌ PostgreSQL connection error:', err);
-      process.exit(1);
+      this.isConnected = false;
+      throw err; // Don't exit process, let the caller handle it
     }
   }
 
@@ -60,7 +67,18 @@ class Database {
   async close(): Promise<void> {
     if (this.pool) {
       await this.pool.end();
+      this.isConnected = false;
       console.log('✅ Database connection closed');
+    }
+  }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      if (!this.pool) return false;
+      const result = await this.pool.query('SELECT 1');
+      return result.rows.length > 0;
+    } catch {
+      return false;
     }
   }
 }

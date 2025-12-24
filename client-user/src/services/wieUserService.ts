@@ -25,7 +25,6 @@ export const getIndex = async (): Promise<ApiResponse> => {
     throw err;
   }
 };
-
 export const getCountries = async (): Promise<Country[]> => {
   try {
     const res = await api.get<ApiResponse<Country[]>>('/user/countries');
@@ -36,7 +35,6 @@ export const getCountries = async (): Promise<Country[]> => {
     throw err;
   }
 };
-
 export const signupSendOtp = async (
   data: SignupSendOtpRequest
 ): Promise<ApiResponse> => {
@@ -49,7 +47,6 @@ export const signupSendOtp = async (
     throw err;
   }
 };
-
 export const signupVerifyOtp = async (
   data: SignupVerifyOtpRequest
 ): Promise<ApiResponse> => {
@@ -90,7 +87,6 @@ export const login = async (data: LoginRequest): Promise<ApiResponse> => {
     throw err;
   }
 };
-
 export const resendOtp = async (
   data: ResendOtpRequest
 ): Promise<ApiResponse> => {
