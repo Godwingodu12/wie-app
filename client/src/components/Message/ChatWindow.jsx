@@ -1078,7 +1078,7 @@ const ChatWindow = ({ chat, onBack, isDark }) => {
           <button
             type="submit"
             disabled={!newMessage.trim() || sending || !isConnected}
-            className="p-3 rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+            className="w-12 h-12 rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center flex-shrink-0"
             style={{ backgroundColor: "#7263F3" }}
           >
             {sending ? (
