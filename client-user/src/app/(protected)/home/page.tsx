@@ -15,7 +15,7 @@ import ShareCountIcon from "@/assets/Home/ShareCount.svg";
 import SaveIcon from "@/assets/Home/ShareIcon.svg";
 import QrCode from "@/assets/Home/QrCode.png";
 
-import UserJpg from "@/assets/Home/user.jpg";
+import ProfileImage from "@/assets/profile/ProfileImage.jpg";
 import DanceImg from "@/assets/Home/danceImg.jpg";
 import FoodImg from "@/assets/Home/foodImg.jpg";
 import EntertainmentImg from "@/assets/Home/entertainmentImg.jpg";
@@ -75,30 +75,30 @@ interface Post {
 // --- Dummy Data ---
 
 const dummyStories: Story[] = [
-  { id: "1", username: "Your story", avatar: "", hasStory: false, isOwn: true },
-  { id: "2", username: "Gokul", avatar: "/avatars/gokul.jpg", hasStory: true },
+  { id: "1", username: "Your story", avatar: ProfileImage.src, hasStory: false, isOwn: true },
+  { id: "2", username: "Gokul", avatar: ProfileImage.src, hasStory: true },
   {
     id: "3",
     username: "Sangeeth",
-    avatar: "/avatars/sangeeth.jpg",
+    avatar: ProfileImage.src,
     hasStory: true,
   },
   {
     id: "4",
     username: "Ajeesh",
-    avatar: "/avatars/ajeesh.jpg",
+    avatar: ProfileImage.src,
     hasStory: true,
   },
   {
     id: "5",
     username: "Sangeeth",
-    avatar: "/avatars/sangeeth2.jpg",
+    avatar: ProfileImage.src,
     hasStory: true,
   },
   {
     id: "6",
     username: "Sangeeth",
-    avatar: "/avatars/sangeeth3.jpg",
+    avatar: ProfileImage.src,
     hasStory: true,
   },
 ];
@@ -108,7 +108,7 @@ const dummyPosts: Post[] = [
     id: "1",
     user: {
       name: "SangeethPalliyal",
-      avatar: "/avatars/sangeeth.jpg",
+      avatar: ProfileImage.src,
       location: "Azrael, Empuraan",
       isVerified: true,
     },
@@ -120,13 +120,13 @@ const dummyPosts: Post[] = [
     description:
       "Mesmerizing colors and graceful movements! This tropical bird truly embodies the beauty of nature...",
     hashtags: ["#nature", "#birds", "#tropical"],
-    likedBy: [{ name: "Gokul_Gopalan", avatar: "/avatars/gokul.jpg" }],
+    likedBy: [{ name: "Gokul_Gopalan", avatar: ProfileImage.src }],
   },
   {
     id: "2",
     user: {
       name: "Joyal K Francis",
-      avatar: "/avatars/joyal.jpg",
+      avatar: ProfileImage.src,
       location: "Kochi, India",
       isVerified: false,
     },
@@ -137,7 +137,7 @@ const dummyPosts: Post[] = [
     shares: 100,
     description: "Night lights in the city. #UrbanLife",
     hashtags: ["#city", "#night", "#vibes"],
-    likedBy: [{ name: "Sangeeth", avatar: "/avatars/sangeeth.jpg" }],
+    likedBy: [{ name: "Sangeeth", avatar: ProfileImage.src }],
   },
 ];
 
@@ -302,14 +302,14 @@ export default function HomePage() {
       : n.toString();
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans selection:bg-[#8860D9] selection:text-white">
+    <div className="h-screen overflow-y-auto scrollbar-hide bg-[#0C1014] text-white font-sans selection:bg-[#8860D9] selection:text-white">
       <style jsx global>{`
         .scrollbar-hide::-webkit-scrollbar {
-            display: none;
+          display: none;
         }
         .scrollbar-hide {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
       `}</style>
       <SideBar />
@@ -340,7 +340,7 @@ export default function HomePage() {
                       <div className="w-full h-full rounded-full bg-[#1a1a1a] overflow-hidden relative">
                         {/* Used UserJpg for all stories as requested */}
                         <Image
-                          src={UserJpg}
+                          src={ProfileImage}
                           alt={story.username}
                           fill
                           className="object-cover"
@@ -359,7 +359,6 @@ export default function HomePage() {
                 ))}
               </div>
             </div>
-
 
             {/* --- Event Categories (Integrated from your code) --- */}
             <div className="relative mx-[30px]">
@@ -445,7 +444,7 @@ export default function HomePage() {
               {dummyPosts.map((post) => {
                 const { text: desc, truncated } = truncateText(
                   post.description,
-                  18,
+                  18
                 );
                 const isExpanded = expandedPosts.has(post.id);
 
@@ -454,12 +453,12 @@ export default function HomePage() {
                     key={post.id}
                     className="w-full flex flex-col gap-3 mb-4"
                   >
-                    {/* Header */}
+                      {/* Header */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-[38px] h-[38px] rounded-full overflow-hidden bg-[#222]">
                           <Image
-                            src={UserDemoIcon}
+                            src={post.user.avatar}
                             alt={post.user.name}
                             width={38}
                             height={38}
@@ -576,12 +575,12 @@ export default function HomePage() {
                       )}
                     </div>
 
-                    {/* Liked By */}
+                      {/* Liked By */}
                     <div className="px-1 flex items-center gap-2">
                       <div className="flex -space-x-1.5">
                         <div className="w-4 h-4 rounded-full border border-black relative bg-gray-700">
                           <Image
-                            src={UserDemoIcon}
+                            src={ProfileImage}
                             alt=""
                             fill
                             className="rounded-full"
@@ -589,7 +588,7 @@ export default function HomePage() {
                         </div>
                         <div className="w-4 h-4 rounded-full border border-black relative bg-gray-700">
                           <Image
-                            src={UserDemoIcon}
+                            src={ProfileImage}
                             alt=""
                             fill
                             className="rounded-full"
@@ -597,7 +596,7 @@ export default function HomePage() {
                         </div>
                         <div className="w-4 h-4 rounded-full border border-black relative bg-gray-700">
                           <Image
-                            src={UserDemoIcon}
+                            src={ProfileImage}
                             alt=""
                             fill
                             className="rounded-full"
@@ -755,11 +754,14 @@ export default function HomePage() {
             {/* Footer Section */}
             <div className="flex flex-col gap-4 mt-4 border-t border-white/5 pt-6 text-[11px] text-[#dbdbdb]">
               <div className="flex flex-col gap-3">
-                <span className="font-medium">
-                  Download mobile app
-                </span>
+                <span className="font-medium">Download mobile app</span>
                 <div className="w-24 h-24 relative">
-                  <Image src={QrCode} alt="QR Code" fill className="object-contain" />
+                  <Image
+                    src={QrCode}
+                    alt="QR Code"
+                    fill
+                    className="object-contain"
+                  />
                 </div>
               </div>
 
