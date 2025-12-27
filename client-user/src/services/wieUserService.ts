@@ -77,6 +77,28 @@ export const setPasswordForGoogleUser = async (data: SetPasswordRequest): Promis
     throw err;
   }
 };
+export const getMicrosoftAuthUrl = async (): Promise<string> => {
+  try {
+    const res = await api.get<ApiResponse<{ authUrl: string }>>(
+      '/user/microsoft-auth'
+    );
+    return res.data.data?.authUrl || '';
+  } catch (err) {
+    console.error('getMicrosoftAuthUrl error:', err);
+    throw err;
+  } 
+};
+export const getAppleAuthUrl = async (): Promise<string> => {
+  try {
+    const res = await api.get<ApiResponse<{ authUrl: string }>>(
+      '/user/apple-auth'
+    );
+    return res.data.data?.authUrl || '';
+  } catch (err) {
+    console.error('getAppleAuthUrl error:', err);
+    throw err;
+  }
+};
 export const login = async (data: LoginRequest): Promise<ApiResponse> => {
   try {
     const res = await api.post<ApiResponse>('/user/login', data);
@@ -220,6 +242,37 @@ export const changePassword = async (
     return res.data;
   } catch (err) {
     console.error('changePassword error:', err);
+    throw err;
+  }
+};
+export const searchUsers = async (query: string, page: number = 1, limit: number = 20): Promise<any> => {
+  try {
+    const res = await api.get('/user/search', {
+      params: { query, page, limit }
+    });
+    return res.data;
+  } catch (err) {
+    console.error('searchUsers error:', err);
+    throw err;
+  }
+};
+export const getUserById = async (userId: string): Promise<User> => {
+  try {
+    const res = await api.get(`/user/${userId}`);
+    return res.data.user;
+  } catch (err) {
+    console.error('getUserById error:', err);
+    throw err;
+  }
+};
+export const getSuggestedUsers = async (limit: number = 10): Promise<User[]> => {
+  try {
+    const res = await api.get('/user/suggested', {
+      params: { limit }
+    });
+    return res.data.users;
+  } catch (err) {
+    console.error('getSuggestedUsers error:', err);
     throw err;
   }
 };
