@@ -149,11 +149,9 @@ export const SignupForm: React.FC = () => {
             required
             className="pr-36"
           />
-
           {/* Country dropdown inside input */}
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 z-10">
             <span className="text-[#363739]">|</span>
-
             <CountrySelect
               countries={countries}
               value={formData.country_code}
@@ -162,17 +160,8 @@ export const SignupForm: React.FC = () => {
               }
               required
             />
-
-            <Image
-              src={DownArrow}
-              alt="Arrow"
-              width={14}
-              height={14}
-              className="opacity-60 pointer-events-none"
-            />
           </div>
         </div>
-
         {/* PASSWORD */}
         <div className="relative">
           <Input
