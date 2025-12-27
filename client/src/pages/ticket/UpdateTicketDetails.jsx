@@ -597,7 +597,7 @@ const UpdateTicketDetails = () => {
       });
       return;
     }
-    // Validate file type
+
     const validTypes = [
       "image/jpeg",
       "image/jpg",
@@ -608,6 +608,7 @@ const UpdateTicketDetails = () => {
       "application/msword",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ];
+    
     if (!validTypes.includes(seatingLayoutFile.type)) {
       showAlert({
         type: "error",
@@ -617,17 +618,15 @@ const UpdateTicketDetails = () => {
       });
       return;
     }
+
     setIsGenerating(true);
+    
     try {
-      // Create FormData with ONLY the required fields for layout generation
       const formData = new FormData();
       formData.append("ticket_layout", seatingLayoutFile);
       formData.append("total_capacity", totalCapacity);
-
-      // IMPORTANT: Add payment_type to avoid validation error
       formData.append("payment_type", paymentType);
 
-      // Add banking details if paid event
       if (paymentType === "paid") {
         formData.append("use_group_bank_account", useGroupBankAccount);
         if (!useGroupBankAccount && bankingDetails.length > 0) {
@@ -635,7 +634,6 @@ const UpdateTicketDetails = () => {
         }
       }
 
-      // Add booking dates if available
       if (bookingStartDate) {
         formData.append("booking_start_date", bookingStartDate);
       }
@@ -643,7 +641,6 @@ const UpdateTicketDetails = () => {
         formData.append("booking_end_date", bookingEndDate);
       }
 
-      // Add ticket types if available (for offline paid events)
       const locationType = mainEventData?.location_type;
       if (paymentType === "paid") {
         if (locationType === "offline" && tickets.length > 0) {
@@ -655,7 +652,6 @@ const UpdateTicketDetails = () => {
           }));
           formData.append("ticket_types", JSON.stringify(cleanTicketTypes));
         } else if (locationType === "online" || locationType === "recorded") {
-          // For online/recorded, use simple ticket
           if (simpleTicketPrice && simpleTicketCapacity) {
             const simpleTicket = [
               {
@@ -669,13 +665,12 @@ const UpdateTicketDetails = () => {
           }
         }
       }
-      // Call the API
+
       const response = await updateTicketDetails(ticketId, formData);
-      // Extract the generated seating layout from response
+
       if (response.ticket?.seating_layout) {
         const generatedLayout = response.ticket.seating_layout;
 
-        // Ensure all seats have price initialized to 0 if not present
         if (generatedLayout.seats && Array.isArray(generatedLayout.seats)) {
           generatedLayout.seats = generatedLayout.seats.map((seat) => ({
             ...seat,
@@ -685,62 +680,85 @@ const UpdateTicketDetails = () => {
 
         setGeneratedSeatingLayout(generatedLayout);
         setShowSeatingPreview(true);
-      } else if (response.seating_layout_info) {
-        // Alternative: if backend returns layout info separately
-        const layout =
-          response.ticket?.seating_layout || response.seating_layout;
-        if (layout) {
-          setGeneratedSeatingLayout(layout);
-          setShowSeatingPreview(true);
-
-          showAlert({
-            type: "success",
-            message: "Layout Generated!",
-            description: `Successfully generated ${layout.totalSeats} seats.`,
-          });
-        } else {
-          throw new Error("Seating layout structure not found in response");
-        }
+        
+        // Show success with detection details
+        const detectedCount = generatedLayout.totalSeats || generatedLayout.seats?.length || 0;
+        const variance = generatedLayout.variancePercentage || 0;
+        
+        showAlert({
+          type: "success",
+          message: "Layout Generated Successfully!",
+          description: `Detected ${detectedCount} seats from your layout image. ${
+            variance > 0 ? `Variance from expected: ${variance}%` : ''
+          }`,
+        });
       } else {
-        console.warn("⚠️ No seating layout in response:", response);
-        throw new Error(
-          "No seating layout returned from server. The file may need processing."
-        );
+        throw new Error("No seating layout returned from server");
       }
     } catch (error) {
       console.error("❌ Generation error:", error);
-      console.error("Error details:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
 
       let errorMessage = "Failed to generate seating layout.";
       let errorDescription = "";
+      let actionButtons = null;
 
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-        errorDescription =
-          error.response.data.hint || error.response.data.error || "";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      // Provide helpful guidance
-      if (errorMessage.includes("detect") || errorMessage.includes("visible")) {
-        errorDescription =
-          "Tips:\n• Use a high-contrast image\n• Ensure seats are clearly visible\n• Avoid low-quality or blurry images\n• Try a PDF or diagram instead";
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        errorMessage = errorData.message || errorMessage;
+        
+        // Handle capacity mismatch specifically
+        if (errorData.detectionDetails) {
+          const { detectedSeats, expectedSeats, variance } = errorData.detectionDetails;
+          
+          errorDescription = (
+            <div className="space-y-3">
+              <p className="text-sm">{errorData.hint}</p>
+              <div className="bg-white dark:bg-gray-800 rounded p-3 text-xs">
+                <p><strong>Detected:</strong> {detectedSeats} seats</p>
+                <p><strong>Expected:</strong> {expectedSeats} seats</p>
+                <p><strong>Variance:</strong> {variance}</p>
+              </div>
+              {detectedSeats > 0 && (
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => {
+                      setTotalCapacity(detectedSeats.toString());
+                      hideAlert();
+                      showAlert({
+                        type: "info",
+                        message: "Capacity Updated",
+                        description: `Total capacity adjusted to ${detectedSeats}. Click "Generate Layout" again.`,
+                      });
+                    }}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700"
+                  >
+                    Use Detected Count ({detectedSeats})
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSeatingLayoutFile(null);
+                      setSeatingLayoutPreview(null);
+                      hideAlert();
+                    }}
+                    className="px-4 py-2 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
+                  >
+                    Try Different Image
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        } else {
+          errorDescription = errorData.hint || errorData.error || errorMessage;
+        }
       }
 
       showAlert({
         type: "error",
-        message: "Cannot Generate Layout",
-        description: errorDescription || errorMessage,
+        message: errorMessage,
+        description: errorDescription || "Please try a different image with clearer seat markers.",
       });
 
-      // Clear the file so user can try again
-      setSeatingLayoutFile(null);
-      setSeatingLayoutPreview(null);
     } finally {
       setIsGenerating(false);
     }
@@ -2156,20 +2174,30 @@ const UpdateTicketDetails = () => {
                               d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                             />
                           </svg>
-                          <div>
+                          <div className="flex-1">
                             <p className="text-sm font-semibold text-green-800 dark:text-green-200">
                               Layout Generated Successfully!
                             </p>
                             <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                              Detected: {generatedSeatingLayout.totalSeats}{" "}
-                              seats, {generatedSeatingLayout.rows?.length} rows
-                              {generatedSeatingLayout.layoutStyle &&
-                                ` • Style: ${generatedSeatingLayout.layoutStyle}`}
+                              {generatedSeatingLayout.layoutType === 'grid-generated' ? (
+                                <>
+                                  <strong>Grid Layout:</strong> Generated {generatedSeatingLayout.totalSeats} seats 
+                                  in {generatedSeatingLayout.gridDimensions?.rows} rows × {generatedSeatingLayout.gridDimensions?.cols} columns
+                                  <br />
+                                  <span className="text-yellow-700 dark:text-yellow-400">
+                                    ⓘ Image detection found too few seats, so a uniform grid was created based on your total capacity.
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  Detected: {generatedSeatingLayout.totalSeats} seats, {generatedSeatingLayout.rows?.length} rows
+                                  {generatedSeatingLayout.layoutStyle && ` • Style: ${generatedSeatingLayout.layoutStyle}`}
+                                </>
+                              )}
                             </p>
                             {Object.keys(seatAssignments).length > 0 && (
                               <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                                ✓ {Object.values(seatAssignments).flat().length}{" "}
-                                seats assigned to ticket types
+                                ✓ {Object.values(seatAssignments).flat().length} seats assigned to ticket types
                               </p>
                             )}
                           </div>

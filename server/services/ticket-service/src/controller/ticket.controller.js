@@ -1167,7 +1167,7 @@ export const getMyEvents = async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
         const tickets = await Ticket.find({ userId: userId,event_status: { $in: ['pending', 'confirmed', 'live', 'completed'] } })
-        .sort({ createdAt: -1 }) // newest first
+        .sort({ updatedAt: -1 }) 
         .exec();
         res.status(200).json({
             message: "My All Tickets retrieved successfully",
@@ -1215,7 +1215,7 @@ export const getMyLiveEvents = async (req, res) => {
         const tickets = await Ticket.find({ 
             userId: userId, 
             event_status: 'live',
-        });
+        }).sort({ updatedAt: -1 }) .exec();
         res.status(200).json({
             message: "My Live Tickets retrieved successfully",
             tickets: tickets
@@ -1267,7 +1267,7 @@ export const getMyPastEvents = async (req, res) => {
         const tickets = await Ticket.find({ 
             userId: userId,
             event_status: 'completed',
-        });
+        }).sort({ updatedAt: -1 }) .exec();
         res.status(200).json({
             message: "My Past Tickets retrieved successfully",
             tickets: tickets
@@ -1325,7 +1325,7 @@ export const getMyUpcomingEvents = async (req, res) => {
         const tickets = await Ticket.find({ 
             userId: userId,
             event_status: 'confirmed'
-        }).lean(); // Use .lean() for better performance
+        }).lean().sort({ updatedAt: -1 }) .exec(); // Use .lean() for better performance
         
         // Filter tickets where the event hasn't ended yet
         const upcomingTickets = tickets.filter(ticket => {
@@ -1368,7 +1368,7 @@ export const getOthersEvents = async (req, res) => {
     let tickets = await Ticket.find({
       userId: other,
       event_status: ['completed', 'live']
-    });
+    })
     tickets = tickets.sort((a, b) => {
       const aDates = a.event_dates || [];
       const bDates = b.event_dates || [];
@@ -1430,7 +1430,7 @@ export const getOtherLiveEvents = async(req, res)=>{
                 event_status: 'live',
                 start_date: { $lte: currentDate },
                 end_date: { $gte: currentDate }
-            });
+            }).sort({ updatedAt: -1 }).exec();
       res.status(200).json({
             message: "Other User Live Tickets retrieved successfully",
             tickets: tickets

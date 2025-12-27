@@ -2468,25 +2468,23 @@ export const updateTicketAddOns = async (req, res) => {
           hint: "Please upload a ticket layout file"
         });
       }
- updateData = {
-    "form_progress.media": true,
-    updated_by: req.user._id,
-    updated_at: new Date()
-};
+      const updateData = {
+        "form_progress.media": true,
+        updated_by: req.user._id,
+        updated_at: new Date()
+      };
 
-const singleFields = ["event_logo", "event_banner", "event_portrait", "college_authorisation"];
+      const singleFields = ["event_logo", "event_banner", "event_portrait", "college_authorisation"];
 
-singleFields.forEach(field => {
-  if (uploadedFiles[field]) {
-    updateData[field] = uploadedFiles[field]; // New upload
-  } else if (req.body[`existing_${field}`]) {
-    updateData[field] = req.body[`existing_${field}`]; // Keep existing
-  } else if (req.body[`delete_${field}`] === "true") {
-    // 🛠️ THIS IS THE FIX:
-    // If we don't do this, MongoDB keeps the old image on refresh.
-    updateData[field] = ""; 
-  }
-});
+      singleFields.forEach(field => {
+        if (uploadedFiles[field]) {
+          updateData[field] = uploadedFiles[field]; // New upload
+        } else if (req.body[`existing_${field}`]) {
+          updateData[field] = req.body[`existing_${field}`]; // Keep existing
+        } else if (req.body[`delete_${field}`] === "true") {
+          updateData[field] = ""; 
+        }
+      });
 
       // Get capacity from request
       let totalCapacity = 0;
@@ -2523,24 +2521,30 @@ singleFields.forEach(field => {
             totalCapacity,
             layoutFileData.mimeType
           );
+          
           if (localFilePath !== layoutFileData.localPath) {
             await cleanupTempFile(localFilePath);
           }
+          
           const normalizedSeats = generatedLayout.seats.map(seat => normalizeSeatData(seat));
+          
           console.log('✅ Normalized seats for generation-only mode:', {
             total: normalizedSeats.length,
             sampleSeat: normalizedSeats[0]
           });
+          
           const missingFields = normalizedSeats.filter(seat =>
             seat.ticketTypeId === undefined ||
             seat.ticketTypeName === undefined ||
             seat.ticketTypeColor === undefined ||
             seat.price === undefined
           );
+          
           if (missingFields.length > 0) {
             console.error('❌ CRITICAL: Seats still missing fields after normalization:', missingFields[0]);
             throw new Error('Seat normalization failed');
           }
+          
           // Return immediately with generated layout
           return res.status(200).json({
             message: "Seating layout generated successfully",
@@ -2553,11 +2557,12 @@ singleFields.forEach(field => {
         }
       } catch (layoutError) {
         console.error('❌ Layout generation failed:', layoutError);
+        
         // Try fallback
         try {
           const fallbackLayout = generateFallbackLayout(totalCapacity);
-          // ✅ Normalize fallback seats too
           const normalizedSeats = fallbackLayout.seats.map(seat => normalizeSeatData(seat));
+          
           return res.status(200).json({
             message: "Seating layout generated using fallback method",
             seating_layout: {
@@ -5028,9 +5033,7 @@ export const updateTicketDetails = async (req, res) => {
             } catch (uploadError) {
               processedFiles.seating_layout = seatingLayout;
             }
-            
             await cleanupTempFile(localFilePath);
-            
           } catch (error) {
             // NO FALLBACK - Return error to user
             if (localFilePath) {
@@ -5040,16 +5043,66 @@ export const updateTicketDetails = async (req, res) => {
                 // Silent cleanup failure
               }
             }
+            
+            // Log the full error for debugging
+            console.error('❌ Full error details:', error);
+            console.error('Error name:', error.name);
+            console.error('Error message:', error.message);
+            console.error('Error stack:', error.stack);
+            
+            // Check if it's a timeout error
+            if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+              return res.status(400).json({
+                message: 'Seating layout generation timed out',
+                error: 'The image processing took too long. This usually happens with very large or complex images.',
+                hint: 'Please try one of these solutions:',
+                suggestions: [
+                  'Use a smaller image (resize to max 2000x2000 pixels)',
+                  'Compress the image to reduce file size',
+                  'Simplify the layout image (remove unnecessary details)',
+                  'Ensure the Python service is running: python seat_detector.py',
+                  'Try uploading a different format (PNG works best)'
+                ]
+              });
+            }
+            
+            // Check if Python service is not running
+            if (error.code === 'ECONNREFUSED' || error.message.includes('connect ECONNREFUSED')) {
+              return res.status(400).json({
+                message: 'Cannot connect to seat detection service',
+                error: 'The Python seat detection service is not running',
+                hint: 'Please start the Python service',
+                suggestions: [
+                  'Open a terminal in: server/services/seat-detector/',
+                  'Activate virtual environment: venv\\Scripts\\activate',
+                  'Run: python seat_detector.py',
+                  'Wait for "Uvicorn running on http://0.0.0.0:8001"',
+                  'Then try uploading the layout again'
+                ]
+              });
+            }
+            
+            // For other errors, show the actual error message
             return res.status(400).json({
-              message: 'Failed to extract seating layout from uploaded file',
-              error: error.message,
-              hint: 'Please ensure your layout file contains clearly visible seat labels (A1, B2, C3, etc.) with good contrast. Supported formats: Images (JPG, PNG), PDF, Word documents.',
+              message: 'Failed to generate seating layout',
+              error: error.message || 'Unknown error occurred',
+              errorType: error.name || 'Error',
+              detectedSeats: error.message.includes('Detected') ? parseInt(error.message.match(/\d+/)?.[0]) : 0,
+              expectedSeats: total_capacity,
+              hint: 'There was an issue processing your layout file',
               suggestions: [
-                'Check that seat labels are clearly visible and readable',
-                'Ensure good contrast between seat labels and background',
-                'Use a high-resolution image or clear PDF',
-                'Verify seat labels follow format: Letter(s) + Number (e.g., A1, B12, AA5)'
-              ]
+                'Check the Node.js server console for detailed error logs',
+                'Check the Python service console for processing logs',
+                'Verify the image file is not corrupted',
+                'Ensure total_capacity matches the seats in your image',
+                'Try a simpler layout image with clear seat markers'
+              ],
+              debug: {
+                errorCode: error.code,
+                errorMessage: error.message,
+                hasResponse: !!error.response,
+                responseData: error.response?.data
+              }
             });
           }
         }
