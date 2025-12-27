@@ -1,5 +1,5 @@
 import express from 'express';
-import { index,getCountries,signupSendOtp,signupVerifyOtp,login,resendOtp,getProfile,updateProfile,googleAuth,googleCallback,forgotPassword,verifyResetOTP,resetPassword,getUserLocation,updateUserLocation, checkCanSetPassword,setPasswordForGoogleUser,changePassword } from '../services/wie-user.service';
+import { index,getCountries,signupSendOtp,signupVerifyOtp,login,resendOtp,getProfile,updateProfile,googleAuth,googleCallback,getMicrosoftAuthUrl,getAppleAuthUrl,forgotPassword,verifyResetOTP,resetPassword,getUserLocation,updateUserLocation, checkCanSetPassword,setPasswordForGoogleUser,changePassword,searchUsers,getUserById,getSuggestedUsers } from '../services/wie-user.service';
 import { authenticateToken } from '../middlewares/auth.middleware';
 const router: express.Router = express.Router();
 router.get('/', index);
@@ -13,6 +13,8 @@ router.post('/set-password-for-google-user', authenticateToken, setPasswordForGo
 router.post('/change-password', authenticateToken, changePassword);
 router.get('/google/auth', googleAuth);
 router.get('/google/callback', googleCallback);
+router.get('/microsoft-auth', getMicrosoftAuthUrl);
+router.get('/apple-auth', getAppleAuthUrl);
 router.get('/get-profile', authenticateToken, getProfile);
 router.put('/update-profile', authenticateToken, updateProfile);
 router.post('/forgot-password', forgotPassword);
@@ -20,4 +22,7 @@ router.post('/verify-reset-otp', verifyResetOTP);
 router.post('/reset-password', resetPassword);
 router.get('/get-location', authenticateToken, getUserLocation);
 router.put('/update-location', authenticateToken, updateUserLocation);
+router.get('/search', authenticateToken, searchUsers);
+router.get('/suggested', authenticateToken, getSuggestedUsers);
+router.get('/:userId', authenticateToken, getUserById);
 export default router;
