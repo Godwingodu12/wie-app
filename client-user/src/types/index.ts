@@ -11,6 +11,9 @@ export interface User {
   role?: string;
   status?: string;
   bio?: string | null;
+  followers_count?: number;
+  following_count?: number;
+  posts_count?: number;
   location?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -97,3 +100,38 @@ export interface ResetPasswordRequest {
   userId: string;
   newPassword: string;
 } 
+// Add to existing file
+export interface FollowUser {
+  userId: string;
+  followedAt: string;
+  name?: string;
+  username?: string;
+  profile_picture?: string;
+  bio?: string;
+}
+
+export interface FollowersResponse {
+  followers: FollowUser[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export interface FollowingResponse {
+  following: FollowUser[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export interface FollowStatsResponse {
+  followers: number;
+  following: number;
+}
+
+export interface SearchUsersResponse {
+  users: User[];
+  total: number;
+  page: number;
+  totalPages: number;
+}

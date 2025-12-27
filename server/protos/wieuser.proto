@@ -4,8 +4,18 @@ package wieuser;
 
 service WieUserService {
   rpc GetWieUser(GetWieUserRequest) returns (WieUserResponse);
+  rpc IncrementFollowing(UserIdRequest) returns (EmptyResponse);
+  rpc DecrementFollowing(UserIdRequest) returns (EmptyResponse);
+  rpc IncrementFollowers(UserIdRequest) returns (EmptyResponse);
+  rpc DecrementFollowers(UserIdRequest) returns (EmptyResponse);
+}
+message UserIdRequest {
+  string userId = 1;
 }
 
+message EmptyResponse {
+  bool success = 1;
+}
 message GetWieUserRequest {
   string userId = 1;
 }

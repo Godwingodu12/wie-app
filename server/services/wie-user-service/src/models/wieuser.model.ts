@@ -15,6 +15,9 @@ export interface WieUser {
   status: string;
   bio?: string | null;
   location: string;
+  following_count: number;
+  followers_count: number;
+  posts_count: number;
   latitude?: number | null;     
   longitude?: number | null;
   isOnline: boolean; 
@@ -52,7 +55,10 @@ const toDatabaseFormat = (user: any): WieUser => {
     role: user.role,
     status: user.status,
     bio: user.bio,
-    location: user.location,          
+    location: user.location,    
+    following_count: user.followingCount,
+    followers_count: user.followersCount,
+    posts_count: user.postsCount,      
     latitude: user.latitude,          
     longitude: user.longitude, 
     isOnline: user.isOnline, 
@@ -98,27 +104,65 @@ class WieUserModel {
     });
     return user ? toDatabaseFormat(user) : null;
   }
-
+  async count(search?: string): Promise<number> {
+    return prisma.wieUser.count({
+      where: search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { username: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+              { contactNo: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {},
+    });
+  }
   async findByUsername(username: string): Promise<WieUser | null> {
     const user = await prisma.wieUser.findUnique({
       where: { username },
     });
     return user ? toDatabaseFormat(user) : null;
   }
-
   async findById(id: string): Promise<WieUser | null> {
     const user = await prisma.wieUser.findUnique({
       where: { id },
     });
     return user ? toDatabaseFormat(user) : null;
   }
-
   async findByGoogleId(google_id: string): Promise<WieUser | null> {  // NEW
     const user = await prisma.wieUser.findUnique({
       where: { googleId: google_id },
     });
     return user ? toDatabaseFormat(user) : null;
   }
+async findMany(
+  page: number,
+  limit: number,
+  search?: string
+): Promise<WieUser[]> {
+  const skip = (page - 1) * limit;
+
+  const users = await prisma.wieUser.findMany({
+    where: search
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { username: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } },
+            { contactNo: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {},
+    skip,
+    take: limit,
+    orderBy: {
+      followersCount: 'desc',
+    },
+  });
+
+  return users.map(toDatabaseFormat);
+}
 
   async findByEmailOrContactNo(identifier: string): Promise<WieUser | null> {
     const user = await prisma.wieUser.findFirst({
@@ -281,10 +325,48 @@ class WieUserModel {
     
     return result.count;
   }
-
+  async incrementFollowers(userId: string) {
+    await prisma.wieUser.update({
+      where: { id: userId },
+      data: {
+        followersCount: { increment: 1 },
+      },
+    });
+  }
+  async incrementFollowing(userId: string) {
+  await prisma.wieUser.update({
+    where: { id: userId },
+    data: {
+      followingCount: { increment: 1 },
+    },
+  });
+}
+  async decrementFollowing(userId: string) {
+    await prisma.wieUser.update({
+      where: { id: userId },  
+      data: {
+        followingCount: { decrement: 1 },
+      },
+    });
+  }
+  async decrementFollowers(userId: string) {
+    await prisma.wieUser.update({
+      where: { id: userId },
+      data: {
+        followersCount: { decrement: 1 },
+      },
+    });
+  }
+  async incrementPosts(userId: string) {
+    await prisma.wieUser.update({
+      where: { id: userId },
+      data: {
+        postsCount: { increment: 1 },
+      },
+    });
+  }
   async disconnect(): Promise<void> {
     await prisma.$disconnect();
   }
 }
-
 export default new WieUserModel();

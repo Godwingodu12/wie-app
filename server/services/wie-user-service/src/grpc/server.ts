@@ -1,10 +1,7 @@
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import WieUserModel from '../models/wieuser.model';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import WieUserModel from '../models/wieuser.model.js';
 const PROTO_PATH = path.join(
   __dirname,
   '../../../../protos/wieuser.proto'
@@ -57,12 +54,74 @@ const getWieUser = async (call: any, callback: any) => {
     callback(null, { user: null, error: error.message });
   }
 };
+const incrementFollowing = async (call: any, callback: any) => {
+  try {
+    const { userId } = call.request;
+    if (!userId) {
+      return callback(null, { success: false });
+    }
+    await WieUserModel.incrementFollowing(userId);
+    callback(null, { success: true });
+  } catch (error: any) {
+    console.error('Increment following error:', error);
+    callback(null, { success: false });
+  }
+};
+
+const decrementFollowing = async (call: any, callback: any) => {
+  try {
+    const { userId } = call.request;
+    if (!userId) {
+      return callback(null, { success: false });
+    }
+    await WieUserModel.decrementFollowing(userId);
+    callback(null, { success: true });
+  } catch (error: any) {
+    console.error('Decrement following error:', error);
+    callback(null, { success: false });
+  }
+};
+
+const incrementFollowers = async (call: any, callback: any) => {
+  try {
+    const { userId } = call.request;
+    if (!userId) {
+      return callback(null, { success: false });
+    }
+    await WieUserModel.incrementFollowers(userId);
+    callback(null, { success: true });
+  } catch (error: any) {
+    console.error('Increment followers error:', error);
+    callback(null, { success: false });
+  }
+};
+
+const decrementFollowers = async (call: any, callback: any) => {
+  try {
+    const { userId } = call.request;
+    if (!userId) {
+      return callback(null, { success: false });
+    }
+    await WieUserModel.decrementFollowers(userId);
+    callback(null, { success: true });
+  } catch (error: any) {
+    console.error('Decrement followers error:', error);
+    callback(null, { success: false });
+  }
+};
+
+// Update the server.addService call
 export const startGrpcServer = (port: number = 50053) => {
   const server = new grpc.Server();
 
   server.addService(wieUserProto.WieUserService.service, {
     GetWieUser: getWieUser,
+    IncrementFollowing: incrementFollowing,
+    DecrementFollowing: decrementFollowing,
+    IncrementFollowers: incrementFollowers,
+    DecrementFollowers: decrementFollowers,
   });
+
   server.bindAsync(
     `0.0.0.0:${port}`,
     grpc.ServerCredentials.createInsecure(),

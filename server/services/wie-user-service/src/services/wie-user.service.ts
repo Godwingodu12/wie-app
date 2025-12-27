@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import WIEUSER from '../models/wieuser.model';
+import WIEUSER, { WieUser } from '../models/wieuser.model';
 import COUNTRY from '../models/country.model';
 import OTP from '../models/otp.model';
 import { hashPassword, comparePassword } from '../utils/hash';
@@ -316,6 +316,46 @@ export const googleCallback = async (req: Request, res: Response): Promise<void>
   } catch (error: any) {
     console.error('Google Callback Error:', error);
     res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Google authentication failed')}`);
+  }
+};
+export const getMicrosoftAuthUrl = async (req: Request, res: Response): Promise<void> => {  
+  try {
+    const clientId = process.env.MICROSOFT_CLIENT_ID;
+    const redirectUri = process.env.MICROSOFT_REDIRECT_URI;
+    const scope = encodeURIComponent('User.Read');
+    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri || '')}&response_mode=query&scope=${scope}&state=12345`;
+    res.status(200).json({
+      success: true,
+      message: 'Microsoft OAuth URL generated',
+      data: { authUrl },
+    });
+  } catch (error: any) {
+    console.error('Microsoft Auth URL Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate Microsoft OAuth URL',
+      error: error.message,
+    });
+  }
+};
+export const getAppleAuthUrl = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const clientId = process.env.APPLE_CLIENT_ID;
+    const redirectUri = process.env.APPLE_REDIRECT_URI;
+    const scope = encodeURIComponent('name email');
+    const authUrl = `https://appleid.apple.com/auth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri || '')}&response_mode=form_post&scope=${scope}&state=12345`; 
+    res.status(200).json({
+      success: true,
+      message: 'Apple OAuth URL generated',
+      data: { authUrl },
+    });
+  } catch (error: any) {
+    console.error('Apple Auth URL Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate Apple OAuth URL',
+      error: error.message,
+    });
   }
 };
 export const checkCanSetPassword = async (req: Request, res: Response): Promise<void> => {
@@ -1091,5 +1131,170 @@ export const updateUserLocation = async (req: Request, res: Response): Promise<v
   } catch (error: any) {
     console.error('Update location error:', error);
     res.status(500).json({ message: 'Failed to update location', error: error.message });
+  }
+};
+const isValidUUID = (uuid: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+};
+export const searchUsers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { query, page = '1', limit = '20' } = req.query;
+    const userId = req.user?.id; 
+    if (!query || typeof query !== 'string') {
+      res.status(400).json({ 
+        success: false,
+        message: 'Search query is required' 
+      });
+      return;
+    }
+
+    // Validate current user ID
+    if (userId && !isValidUUID(userId)) {
+      res.status(401).json({ 
+        success: false,
+        message: 'Invalid authentication' 
+      });
+      return;
+    }
+
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+
+    const users = await WIEUSER.findMany(pageNum, limitNum, query);
+    const total: number = await WIEUSER.count(query);
+
+    // Filter out current user and blocked users
+    const filteredUsers = users.filter(
+      (u: WieUser) => u.id !== userId && !u.is_blocked && u.status === 'active'
+    );
+
+    res.status(200).json({
+      success: true,
+      users: filteredUsers.map((u: WieUser) => ({
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        email: u.email,
+        profile_picture: u.profile_picture,
+        bio: u.bio,
+        is_verified: u.is_verified,
+        followers_count: u.followers_count,
+        following_count: u.following_count,
+      })),
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum),
+    });
+  } catch (error: any) {
+    console.error('Search users error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to search users',
+      error: error.message,
+    });
+  }
+};
+export const getUserById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    // Validate UUID format
+    if (!userId || !isValidUUID(userId)) {
+      res.status(400).json({ 
+        success: false,
+        message: 'Invalid user ID format' 
+      });
+      return;
+    }
+    
+    const user = await WIEUSER.findById(userId);
+    
+    if (!user) {
+      res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
+      return;
+    }
+
+    // Don't show blocked or inactive users
+    if (user.is_blocked || user.status !== 'active') {
+      res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        contact_no: user.contact_no,
+        profile_picture: user.profile_picture,
+        bio: user.bio,
+        location: user.location,
+        is_verified: user.is_verified,
+        followers_count: user.followers_count,
+        following_count: user.following_count,
+        posts_count: user.posts_count,
+        created_at: user.created_at,
+        auth_provider: user.auth_provider,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get user by ID error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get user',
+      error: error.message,
+    });
+  }
+};
+export const getSuggestedUsers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id; 
+    const { limit = '10' } = req.query;
+    const limitNum = Number(limit);
+    
+    // Validate current user ID
+    if (userId && !isValidUUID(userId)) {
+      res.status(401).json({ 
+        success: false,
+        message: 'Invalid authentication' 
+      });
+      return;
+    }
+    
+    // Get more users than needed so we can filter
+    const users = await WIEUSER.findMany(1, limitNum * 2);
+    
+    // Filter out current user and blocked users, then limit results
+    const filteredUsers = users
+      .filter((u: WieUser) => u.id !== userId && !u.is_blocked && u.status === 'active')
+      .slice(0, limitNum);
+
+    res.status(200).json({
+      success: true,
+      users: filteredUsers.map((u: WieUser) => ({
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        profile_picture: u.profile_picture,
+        bio: u.bio,
+        is_verified: u.is_verified,
+        followers_count: u.followers_count,
+      })),
+    });
+  } catch (error: any) {
+    console.error('Get suggested users error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get suggested users',
+      error: error.message,
+    });
   }
 };
