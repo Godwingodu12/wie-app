@@ -34,6 +34,9 @@ model WieUser {
   status          String    @default("pending") @db.VarChar(20)
   bio             String?   @db.Text
   location        String?   @db.Text
+  followingCount  Int       @default(0) @map("following_count")
+  followersCount  Int       @default(0) @map("followers_count")
+  postsCount      Int       @default(0) @map("posts_count")
   latitude        Float?    @map("latitude")  @db.DoublePrecision
   longitude       Float?    @map("longitude") @db.DoublePrecision
   isOnline        Boolean   @default(false) @map("is_online")
@@ -43,7 +46,6 @@ model WieUser {
   authProvider    String    @default("local") @map("auth_provider") @db.VarChar(20)  // NEW: 'local' or 'google'
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
-  
   // Relations
   country         Country?  @relation(fields: [countryId], references: [id], onDelete: SetNull)
   otps            Otp[]
