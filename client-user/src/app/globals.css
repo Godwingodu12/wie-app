@@ -16,3 +16,23 @@ body {
     )
     rgb(var(--background-start-rgb));
 }
+/* React Image Crop Styles */
+.ReactCrop {
+  max-width: 100%;
+}
+
+.ReactCrop__crop-selection {
+  border: 2px solid #8860D9;
+  box-shadow: 0 0 0 9999em rgba(0, 0, 0, 0.5);
+}
+
+.ReactCrop__drag-handle {
+  background-color: #8860D9;
+  border: 2px solid #fff;
+  width: 14px;
+  height: 14px;
+}
+
+.ReactCrop__drag-handle::after {
+  border-color: #fff;
+}
