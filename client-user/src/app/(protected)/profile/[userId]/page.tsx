@@ -7,7 +7,10 @@ import { Loader2, UserPlus, UserCheck, MapPin, Calendar, ArrowLeft } from 'lucid
 import SideBar from '@/components/home/SideBar';
 import { useSidebar } from '@/context/SidebarContext';
 import { getUserById, getSuggestedUsers } from '@/services/wieUserService';
+import OtherFollowersModal from "@/components/profile/OtherFollowersModal";
+import OtherFollowingModal from "@/components/profile/OtherFollowingModal";
 import { followUser, unfollowUser, isFollowing, getFollowStats } from '@/services/followService';
+import ProfileTabs from '@/components/profile/ProfileTabs';
 import { useAuth } from '@/hooks/useAuth';
 import { User } from '@/types';
 import DefaultAvatar from '@/assets/Home/Ellipse 14.png';
@@ -26,10 +29,11 @@ export default function UserProfilePage() {
   const [followLoading, setFollowLoading] = useState(false);
   const [stats, setStats] = useState({ followers: 0, following: 0 });
   const [suggestedFollowStatus, setSuggestedFollowStatus] = useState<Record<string, boolean>>({});
-
+  const [activeTab, setActiveTab] = useState<'posts' | 'reels' | 'feed' | 'tags'>('posts');
   const marginLeft = isMobile ? '0' : (isCollapsed ? '80px' : '281px');
   const isOwnProfile = currentUser?.id === userId;
-
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [showFollowingModal, setShowFollowingModal] = useState(false);
   useEffect(() => {
     if (userId) {
       fetchUserData();
@@ -81,13 +85,10 @@ export default function UserProfilePage() {
       console.error('Failed to fetch suggested users:', error);
     }
   };
-
   const handleFollowToggle = async () => {
     if (!user) return;
-
     try {
       setFollowLoading(true);
-
       if (isFollowingUser) {
         await unfollowUser(userId);
         setIsFollowingUser(false);
@@ -95,6 +96,7 @@ export default function UserProfilePage() {
       } else {
         await followUser(userId);
         setIsFollowingUser(true);
+        // ✅ Update stats immediately
         setStats(prev => ({ ...prev, followers: prev.followers + 1 }));
       }
     } catch (error) {
@@ -103,7 +105,6 @@ export default function UserProfilePage() {
       setFollowLoading(false);
     }
   };
-
   const handleSuggestedFollowToggle = async (suggestedUserId: string) => {
     try {
       if (suggestedFollowStatus[suggestedUserId]) {
@@ -173,7 +174,6 @@ export default function UserProfilePage() {
           <div className="flex flex-col lg:flex-row gap-8">
             {/* Main Profile Section */}
             <div className="flex-1">
-              {/* Profile Header */}
               <div className="bg-[#1a1a1a] border border-[#2D2F39] rounded-xl p-6 sm:p-8 mb-6">
                 <div className="flex flex-col sm:flex-row items-start gap-6">
                   {/* Avatar */}
@@ -262,23 +262,23 @@ export default function UserProfilePage() {
                     {user.username && (
                       <p className="text-gray-400 mb-4">@{user.username}</p>
                     )}
-
                     {/* Stats */}
                     <div className="flex items-center justify-center sm:justify-start gap-6 mb-4">
-                      <div className="text-center">
-                        <p className="text-xl sm:text-2xl font-bold text-white">{user.posts_count || 0}</p>
-                        <p className="text-xs sm:text-sm text-gray-400">Posts</p>
-                      </div>
-                      <div className="text-center cursor-pointer hover:opacity-80 transition-opacity">
+                      <button 
+                        className="text-center cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => setShowFollowersModal(true)}
+                      >
                         <p className="text-xl sm:text-2xl font-bold text-white">{stats.followers}</p>
                         <p className="text-xs sm:text-sm text-gray-400">Followers</p>
-                      </div>
-                      <div className="text-center cursor-pointer hover:opacity-80 transition-opacity">
+                      </button>
+                      <button 
+                        className="text-center cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => setShowFollowingModal(true)}
+                      >
                         <p className="text-xl sm:text-2xl font-bold text-white">{stats.following}</p>
                         <p className="text-xs sm:text-sm text-gray-400">Following</p>
-                      </div>
+                      </button>
                     </div>
-
                     {/* Bio */}
                     {user.bio && (
                       <p className="text-gray-300 mb-4 leading-relaxed">{user.bio}</p>
@@ -304,16 +304,16 @@ export default function UserProfilePage() {
                   </div>
                 </div>
               </div>
-
-              {/* Posts Section (Placeholder) */}
-              <div className="bg-[#1a1a1a] border border-[#2D2F39] rounded-xl p-6 sm:p-8">
-                <h2 className="text-xl font-bold text-white mb-4">Posts</h2>
-                <div className="text-center py-12">
-                  <p className="text-gray-400">No posts yet</p>
-                </div>
+              <div className="w-full">
+                <ProfileTabs 
+                  userId={userId} 
+                  isMobile={isMobile} 
+                  isOwnProfile={isOwnProfile}
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                />
               </div>
             </div>
-
             {/* Suggested Users Sidebar - Only show if not own profile */}
             {!isOwnProfile && !isMobile && suggestedUsers.length > 0 && (
               <div className="w-full lg:w-80 flex-shrink-0">
@@ -467,6 +467,24 @@ export default function UserProfilePage() {
           )}
         </div>
       </main>
+    <OtherFollowersModal
+      isOpen={showFollowersModal}
+      onClose={() => setShowFollowersModal(false)}
+      userId={userId}
+      userName={user?.name ?? undefined}
+      onFollowingCountChange={(change) => {
+        setStats(prev => ({ ...prev, following: Math.max(0, prev.following + change) }));
+      }}
+    />
+    <OtherFollowingModal
+      isOpen={showFollowingModal}
+      onClose={() => setShowFollowingModal(false)}
+      userId={userId}
+      userName={user?.name ?? undefined}
+      onFollowingCountChange={(change) => {
+        setStats(prev => ({ ...prev, following: Math.max(0, prev.following + change) }));
+      }}
+    />
     </div>
   );
 }

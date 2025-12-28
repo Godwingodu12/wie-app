@@ -19,7 +19,6 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 
 const followProto = grpc.loadPackageDefinition(packageDefinition).follow as any;
 
-// gRPC method implementations
 const followUser = async (call: any, callback: any) => {
   try {
     const followerId = call.metadata.get('user-id')[0];
@@ -61,7 +60,11 @@ const unfollowUser = async (call: any, callback: any) => {
 const getFollowers = async (call: any, callback: any) => {
   try {
     const { userId, page, limit } = call.request;
-    const result = await followService.getFollowers(userId, page || 1, limit || 20);
+    const result = await followService.getFollowers(
+      userId,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 20
+    );
     callback(null, result);
   } catch (error: any) {
     callback(null, { followers: [], total: 0, error: error.message });
@@ -71,7 +74,11 @@ const getFollowers = async (call: any, callback: any) => {
 const getFollowing = async (call: any, callback: any) => {
   try {
     const { userId, page, limit } = call.request;
-    const result = await followService.getFollowing(userId, page || 1, limit || 20);
+    const result = await followService.getFollowing(
+      userId,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 20
+    );
     callback(null, result);
   } catch (error: any) {
     callback(null, { following: [], total: 0, error: error.message });
@@ -113,3 +120,4 @@ export const startGrpcServer = (port: number = 50058) => {
 
   return server;
 };
+export default startGrpcServer;

@@ -44,6 +44,7 @@ model WieUser {
   isVerified      Boolean   @default(false) @map("is_verified")
   googleId        String?   @unique @map("google_id") @db.VarChar(255)  // NEW: Google OAuth ID
   authProvider    String    @default("local") @map("auth_provider") @db.VarChar(20)  // NEW: 'local' or 'google'
+  tokenVersion    Int      @default(0) @map("token_version") 
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   // Relations

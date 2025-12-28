@@ -10,6 +10,7 @@ import { sendEmail } from '../utils/sendMail';
 import { sendSMSOTP } from '../utils/sendSMS';
 import { isLocalAuthUser } from '../utils/password';
 import { getGoogleAuthUrl, getGoogleUserInfo } from '../utils/google-oauth';
+import { uploadProfileImage, replaceProfileImage } from '../utils/cloudinaryHelper';
 import {
   validateEmail,
   validateContactNo,
@@ -536,6 +537,26 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ message: 'Login failed', error: error.message });
   }
 };
+export const logout = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+    const userId = req.user.id;
+    await WIEUSER.incrementTokenVersion(req.user.id);
+
+    res.status(200).json({ 
+      message: 'Logged out successfully from all devices' 
+    });
+  } catch (error: any) {
+    console.error('Logout error:', error);
+    res.status(500).json({ 
+      message: 'Logout failed', 
+      error: error.message 
+    });
+  }
+};
 export const resendOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { userId } = req.body;
@@ -616,7 +637,40 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       return;
     }
     const userId = req.user.id;
-    const { name, username, country_id, bio, profile_picture } = req.body;
+    const { name, username, country_id, bio } = req.body;
+    
+    // Get current user data to check for existing profile picture
+    const currentUser = await WIEUSER.findById(userId);
+    if (!currentUser) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    let profilePictureUrl = currentUser.profile_picture;
+
+    // Handle profile picture upload
+    if (req.file) {
+      try {
+        if (currentUser.profile_picture) {
+          // Replace existing image
+          profilePictureUrl = await replaceProfileImage(
+            req.file.buffer,
+            currentUser.profile_picture
+          );
+        } else {
+          // Upload new image
+          profilePictureUrl = await uploadProfileImage(req.file.buffer);
+        }
+      } catch (uploadError: any) {
+        console.error('Profile picture upload error:', uploadError);
+        res.status(500).json({ 
+          message: 'Failed to upload profile picture',
+          error: uploadError.message 
+        });
+        return;
+      }
+    }
+
     let countryName = null;
     let countryCode = null;
     if (country_id) {
@@ -628,12 +682,13 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       countryName = country.country_name;
       countryCode = country.country_code;
     }
+
     const updatedUser = await WIEUSER.updateProfile(userId, {
       name,
       username,
       country_id,
       bio,
-      profile_picture,
+      profile_picture: profilePictureUrl || undefined,
     });
 
     // If country_id exists but we didn't fetch it above, get it now
@@ -644,6 +699,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         countryCode = country.country_code;
       }
     }
+
     res.status(200).json({
       message: 'Profile updated successfully',
       user: {

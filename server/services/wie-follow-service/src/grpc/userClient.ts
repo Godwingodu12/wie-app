@@ -13,81 +13,160 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   longs: String,
   enums: String,
   defaults: true,
-  oneofs: true
+  oneofs: true,
 });
 
-const wieUserProto = grpc.loadPackageDefinition(packageDefinition).wieuser as any;
+const wieUserProto = grpc.loadPackageDefinition(packageDefinition) as any;
 
-const USER_SERVICE_URL = process.env.USER_GRPC_URL || 'localhost:50053';
-
+// ✅ Initialize client with error handling
 let client: any = null;
 
-const getClient = () => {
+try {
+  // FIX: Use correct package name 'wieuser.WieUserService'
+  client = new wieUserProto.wieuser.WieUserService(
+    process.env.USER_GRPC_URL || 'localhost:50053',
+    grpc.credentials.createInsecure()
+  );
+  console.log('✅ gRPC User Client initialized successfully');
+} catch (error) {
+  console.error('❌ Failed to initialize gRPC User Client:', error);
+}
+
+// Helper function to check if client is available
+const ensureClient = () => {
   if (!client) {
-    client = new wieUserProto.WieUserService(
-      USER_SERVICE_URL,
-      grpc.credentials.createInsecure()
-    );
+    throw new Error('gRPC client is not initialized. Check USER_GRPC_URL configuration.');
   }
   return client;
 };
 
 export const incrementFollowing = async (userId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
-    const client = getClient();
-    
-    client.IncrementFollowing({ userId }, (error: any, response: any) => {
-      if (error) {
-        console.error('❌ Failed to increment following:', error.message);
-        reject(error);
-      } else {
-        resolve();
-      }
-    });
-  });
-};
-
-export const decrementFollowing = async (userId: string): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    const client = getClient();
-    
-    client.DecrementFollowing({ userId }, (error: any, response: any) => {
-      if (error) {
-        console.error('❌ Failed to decrement following:', error.message);
-        reject(error);
-      } else {
-        resolve();
-      }
-    });
+    try {
+      const grpcClient = ensureClient();
+      grpcClient.IncrementFollowing({ userId }, (error: any, response: any) => {
+        if (error) {
+          console.error('gRPC IncrementFollowing error:', error);
+          reject(error);
+          return;
+        }
+        resolve(response);
+      });
+    } catch (error) {
+      console.error('gRPC client error:', error);
+      reject(error);
+    }
   });
 };
 
 export const incrementFollowers = async (userId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
-    const client = getClient();
-    
-    client.IncrementFollowers({ userId }, (error: any, response: any) => {
-      if (error) {
-        console.error('❌ Failed to increment followers:', error.message);
-        reject(error);
-      } else {
-        resolve();
-      }
-    });
+    try {
+      const grpcClient = ensureClient();
+      grpcClient.IncrementFollowers({ userId }, (error: any, response: any) => {
+        if (error) {
+          console.error('gRPC IncrementFollowers error:', error);
+          reject(error);
+          return;
+        }
+        resolve(response);
+      });
+    } catch (error) {
+      console.error('gRPC client error:', error);
+      reject(error);
+    }
+  });
+};
+
+export const decrementFollowing = async (userId: string): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    try {
+      const grpcClient = ensureClient();
+      grpcClient.DecrementFollowing({ userId }, (error: any, response: any) => {
+        if (error) {
+          console.error('gRPC DecrementFollowing error:', error);
+          reject(error);
+          return;
+        }
+        resolve(response);
+      });
+    } catch (error) {
+      console.error('gRPC client error:', error);
+      reject(error);
+    }
   });
 };
 
 export const decrementFollowers = async (userId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
-    const client = getClient();
-    
-    client.DecrementFollowers({ userId }, (error: any, response: any) => {
-      if (error) {
-        console.error('❌ Failed to decrement followers:', error.message);
-        reject(error);
-      } else {
-        resolve();
-      }
-    });
+    try {
+      const grpcClient = ensureClient();
+      grpcClient.DecrementFollowers({ userId }, (error: any, response: any) => {
+        if (error) {
+          console.error('gRPC DecrementFollowers error:', error);
+          reject(error);
+          return;
+        }
+        resolve(response);
+      });
+    } catch (error) {
+      console.error('gRPC client error:', error);
+      reject(error);
+    }
   });
 };
+
+// ✅ Get single user details
+export const getUserById = async (userId: string): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    if (!userId) {
+      resolve(null);
+      return;
+    }
+
+    try {
+      const grpcClient = ensureClient();
+      
+      grpcClient.GetWieUser({ userId }, (error: any, response: any) => {
+        if (error) {
+          console.error('gRPC GetWieUser error:', error);
+          resolve(null);
+          return;
+        }
+        
+        if (response?.user) {
+          console.log(`✅ Fetched user ${userId} via gRPC`);
+          resolve(response.user);
+        } else {
+          console.log(`⚠️  User ${userId} not found`);
+          resolve(null);
+        }
+      });
+    } catch (error) {
+      console.error('gRPC client initialization error:', error);
+      resolve(null);
+    }
+  });
+};
+
+// ✅ Get multiple users details (batch fetch)
+export const getUsersByIds = async (userIds: string[]): Promise<any[]> => {
+  if (!userIds || userIds.length === 0) {
+    return [];
+  }
+
+  try {
+    // Fetch all users in parallel
+    const userPromises = userIds.map(id => getUserById(id));
+    const users = await Promise.all(userPromises);
+    
+    // Filter out null values
+    const validUsers = users.filter(user => user !== null);    
+    return validUsers;
+  } catch (error) {
+    console.error('Error fetching multiple users:', error);
+    return [];
+  }
+};
+
+export default client;

@@ -19,6 +19,8 @@ export interface User {
   longitude?: number | null;
   is_blocked?: boolean;
   is_verified?: boolean;
+  token_version?: number;
+  isOnline?: boolean;
   auth_provider?: string;
   created_at?: string | Date;
   updated_at?: string | Date;
