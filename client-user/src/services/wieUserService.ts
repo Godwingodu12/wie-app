@@ -109,6 +109,15 @@ export const login = async (data: LoginRequest): Promise<ApiResponse> => {
     throw err;
   }
 };
+export const logout = async (): Promise<ApiResponse> => {
+  try {
+    const res = await api.post<ApiResponse>('/user/logout');
+    return res.data;
+  } catch (err) {
+    console.error('logout error:', err);
+    throw err;
+  }
+};
 export const resendOtp = async (
   data: ResendOtpRequest
 ): Promise<ApiResponse> => {
@@ -134,10 +143,16 @@ export const getProfile = async (): Promise<User> => {
   }
 };
 export const updateProfile = async (
-  data: UpdateProfileRequest
+  data: UpdateProfileRequest | FormData
 ): Promise<User> => {
   try {
-    const res = await api.put<ApiResponse>('/user/update-profile', data);
+    const headers: Record<string, string> = {};
+    if (data instanceof FormData) {
+      headers['Content-Type'] = 'multipart/form-data';
+    }
+    const res = await api.put<ApiResponse>('/user/update-profile', data, {
+      headers,
+    });
     if (!res.data.user) {
       throw new Error('User data not found in response');
     }
