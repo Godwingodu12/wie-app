@@ -6,7 +6,7 @@ export interface WieUser {
   id: string;
   email?: string | null;
   contact_no?: string | null;
-  password?: string | null;  // Made nullable for OAuth
+  password?: string | null;  
   name?: string | null;
   username?: string | null;
   profile_picture?: string | null;
@@ -24,6 +24,7 @@ export interface WieUser {
   is_blocked: boolean;
   is_verified: boolean;
   google_id?: string | null;  
+  token_version: number;
   auth_provider: string;  
   created_at: Date;
   updated_at: Date;
@@ -32,13 +33,22 @@ export interface WieUser {
 export interface CreateUserInput {
   email?: string;
   contact_no?: string;
-  password?: string;  // Made optional for OAuth
+  password?: string;  
   name?: string;
   username?: string;
   profile_picture?: string;
   country_id?: string;
-  google_id?: string;  // NEW
-  auth_provider?: string;  // NEW
+  role?: string;
+  status?: string;
+  location?: string;
+  latitude?: number;
+  longitude?: number;
+  isOnline?: boolean;
+  is_blocked?: boolean;
+  is_verified?: boolean;
+  token_version?: number;
+  google_id?: string;  
+  auth_provider?: string;  
 }
 
 // Helper function to convert Prisma camelCase to snake_case
@@ -64,8 +74,9 @@ const toDatabaseFormat = (user: any): WieUser => {
     isOnline: user.isOnline, 
     is_blocked: user.isBlocked,
     is_verified: user.isVerified,
-    google_id: user.googleId,  // NEW
-    auth_provider: user.authProvider,  // NEW
+    google_id: user.googleId,  
+    token_version: user.tokenVersion,
+    auth_provider: user.authProvider, 
     created_at: user.createdAt,
     updated_at: user.updatedAt,
   };
@@ -97,7 +108,16 @@ class WieUserModel {
     });
     return user ? toDatabaseFormat(user) : null;
   }
-
+async incrementTokenVersion(id: string): Promise<WieUser> {
+    const user = await prisma.wieUser.update({
+      where: { id },
+      data: {
+        tokenVersion: { increment: 1 },
+        updatedAt: new Date(),
+      },
+    });
+    return toDatabaseFormat(user);
+}
   async findByContactNo(contact_no: string): Promise<WieUser | null> {
     const user = await prisma.wieUser.findUnique({
       where: { contactNo: contact_no },
