@@ -636,7 +636,19 @@ useEffect(() => {
       setLoading(false);
     }
   };
-
+  const handleShareProfile = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: `${user.name}'s Profile`,
+        text: `Check out ${user.name}'s profile on WIE`,
+        url: window.location.href,
+      });
+    } else {
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        alert('Profile link copied to clipboard!');
+      });
+    }
+  };
   const handleLogout = async () => {
     try {
       sessionStorage.removeItem("userData");
@@ -1125,7 +1137,7 @@ isDesktop ? "right-0 top-14" : "right-0 top-12"          } z-50 ${theme.cardBg} 
 
         {/* Share profile */}
         <button
-          // onClick={handleShareProfile}
+          onClick={handleShareProfile}
           className={desktopBtnClass}
           style={sharedStyle}
         >
@@ -1208,7 +1220,7 @@ isDesktop ? "right-0 top-14" : "right-0 top-12"          } z-50 ${theme.cardBg} 
 >
                               Edit profile
                             </button>
-                            <button
+                            <button onClick={handleShareProfile}
   className="px-6 py-2 rounded-full text-sm font-medium transition-all duration-200"
   style={
     isDark
