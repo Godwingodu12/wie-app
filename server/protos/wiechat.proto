@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package wiechat;
+
+service WieChatService {
+  rpc CheckChatPermission(ChatPermissionRequest) returns (ChatPermissionResponse);
+  rpc IsBlocked(BlockCheckRequest) returns (BlockCheckResponse);
+}
+
+message ChatPermissionRequest {
+  string senderId = 1;
+  string receiverId = 2;
+}
+
+message ChatPermissionResponse {
+  string permission = 1; // 'direct', 'request', 'blocked', 'disabled'
+  string reason = 2;
+}
+
+message BlockCheckRequest {
+  string userId = 1;
+  string targetUserId = 2;
+}
+
+message BlockCheckResponse {
+  bool isBlocked = 1;
+}
