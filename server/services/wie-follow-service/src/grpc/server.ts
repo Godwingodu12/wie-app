@@ -94,18 +94,63 @@ const isFollowing = async (call: any, callback: any) => {
     callback(null, { isFollowing: false, error: error.message });
   }
 };
+const getFollowerIds = async (call: any, callback: any) => {
+  try {
+    const { userId } = call.request;
+    
+    const followers = await followService.getFollowers(userId, 1, 10000);
+    const followerIds = followers.followers.map((f: any) => f.id);
+    
+    callback(null, { followerIds });
+  } catch (error: any) {
+    callback(null, { followerIds: [] });
+  }
+};
+const getRelationship = async (call: any, callback: any) => {
+  try {
+    const { userId, targetUserId } = call.request;
+    
+    const [follows, followedBy] = await Promise.all([
+      followService.isFollowing(userId, targetUserId),
+      followService.isFollowing(targetUserId, userId)
+    ]);
+    
+    callback(null, {
+      follows,
+      followedBy,
+      isMutual: follows && followedBy
+    });
+  } catch (error: any) {
+    callback(null, { follows: false, followedBy: false, isMutual: false });
+  }
+};
 
+const checkMutualFollow = async (call: any, callback: any) => {
+  try {
+    const { userId, targetUserId } = call.request;
+    
+    const [follows, followedBy] = await Promise.all([
+      followService.isFollowing(userId, targetUserId),
+      followService.isFollowing(targetUserId, userId)
+    ]);
+    
+    callback(null, { isMutual: follows && followedBy });
+  } catch (error: any) {
+    callback(null, { isMutual: false });
+  }
+};
 export const startGrpcServer = (port: number = 50058) => {
   const server = new grpc.Server();
-
   server.addService(followProto.FollowService.service, {
     FollowUser: followUser,
     UnfollowUser: unfollowUser,
     GetFollowers: getFollowers,
     GetFollowing: getFollowing,
     IsFollowing: isFollowing,
+    GetFollowerIds: getFollowerIds,           
+    GetRelationship: getRelationship,         
+    CheckMutualFollow: checkMutualFollow,   
   });
-
   server.bindAsync(
     `0.0.0.0:${port}`,
     grpc.ServerCredentials.createInsecure(),
@@ -114,10 +159,7 @@ export const startGrpcServer = (port: number = 50058) => {
         console.error('❌ Failed to bind gRPC server:', error);
         return;
       }
-      console.log(`✅ gRPC Follow Service running on port ${boundPort}`);
     }
   );
-
   return server;
 };
-export default startGrpcServer;
