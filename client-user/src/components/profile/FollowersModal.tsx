@@ -24,13 +24,13 @@ interface FollowersModalProps {
   onCountChange?: (type: 'following' | 'followers', change: number) => void;
 }
 
-export default function FollowersModal({ 
-  isOpen, 
-  onClose, 
-  userId, 
-  userName, 
-  isOwnProfile = false, 
-  onCountChange 
+export default function FollowersModal({
+  isOpen,
+  onClose,
+  userId,
+  userName,
+  isOwnProfile = false,
+  onCountChange
 }: FollowersModalProps) {
   const router = useRouter();
   const [followers, setFollowers] = useState<Follower[]>([]);
@@ -52,16 +52,16 @@ const fetchFollowers = async () => {
         (data.followers || []).map(async (follower: any) => {
           try {
             const status = await checkFollowStatus(follower.userId || follower.id);
-            return { 
-              ...follower, 
+            return {
+              ...follower,
               userId: follower.userId || follower.id,
-              isFollowing: status.isFollowing 
+              isFollowing: status.isFollowing
             };
           } catch {
-            return { 
-              ...follower, 
+            return {
+              ...follower,
               userId: follower.userId || follower.id,
-              isFollowing: false 
+              isFollowing: false
             };
           }
         })
@@ -211,11 +211,7 @@ const handleFollowToggle = async (followerId: string, isCurrentlyFollowing: bool
                           <h3 className="text-white font-medium text-sm truncate">
                             {user.name || user.username || 'User'}
                           </h3>
-                          {user.is_verified && (
-                            <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                          )}
+
                         </div>
                         <p className="text-gray-400 text-xs truncate">@{user.username || 'username'}</p>
                       </div>
