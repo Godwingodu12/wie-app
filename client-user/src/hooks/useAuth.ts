@@ -1,38 +1,33 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useEffect } from 'react';
+import { useSelector } from 'react-redux';
 import { useRouter } from 'next/navigation';
 import { RootState } from '@/features/store';
-import { restoreAuth } from '@/features/auth/authSlice';
 
 export const useAuth = (requireAuth: boolean = false) => {
-  const dispatch = useDispatch();
   const router = useRouter();
-  const { user, token, isAuthenticated, loading } = useSelector(
-    (state: RootState) => state.auth
-  );
-  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Add null check for auth state
+  const authState = useSelector((state: RootState) => state?.auth);
+  const { user, token, isAuthenticated, loading } = authState || {
+    user: null,
+    token: null,
+    isAuthenticated: false,
+    loading: true
+  };
 
-  // Restore auth from localStorage on mount (only once)
-  useEffect(() => {
-    if (!isInitialized) {
-      dispatch(restoreAuth());
-      setIsInitialized(true);
-    }
-  }, [dispatch, isInitialized]);
   // Handle protected route redirect
   useEffect(() => {
-    // Only redirect after auth has been initialized and is not loading
-    if (isInitialized && !loading && requireAuth && !isAuthenticated) {
+    if (!loading && requireAuth && !isAuthenticated) {
       router.push('/login');
     }
-  }, [requireAuth, loading, isAuthenticated, router, isInitialized]);
+  }, [requireAuth, loading, isAuthenticated, router]);
 
   return { 
     user, 
     token, 
     isAuthenticated, 
-    loading: loading || !isInitialized // Consider loading until initialized
+    loading
   };
 };
