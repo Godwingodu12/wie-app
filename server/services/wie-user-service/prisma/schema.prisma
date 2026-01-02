@@ -40,17 +40,19 @@ model WieUser {
   latitude        Float?    @map("latitude")  @db.DoublePrecision
   longitude       Float?    @map("longitude") @db.DoublePrecision
   isOnline        Boolean   @default(false) @map("is_online")
+  lastSeenAt    DateTime?  @map("last_seen_at") @db.Timestamp(6)
   isBlocked       Boolean   @default(false) @map("is_blocked")
   isVerified      Boolean   @default(false) @map("is_verified")
   googleId        String?   @unique @map("google_id") @db.VarChar(255)  // NEW: Google OAuth ID
   authProvider    String    @default("local") @map("auth_provider") @db.VarChar(20)  // NEW: 'local' or 'google'
   tokenVersion    Int      @default(0) @map("token_version") 
+  allowMessagesFrom String    @default("everyone") @map("allow_messages_from") @db.VarChar(20)
+  allowMessageRequests Boolean   @default(false) @map("allow_message_requests")
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   // Relations
   country         Country?  @relation(fields: [countryId], references: [id], onDelete: SetNull)
   otps            Otp[]
-  
   @@map("wie_users")
 }
 
