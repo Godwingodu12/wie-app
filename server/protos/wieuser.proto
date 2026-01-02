@@ -1,18 +1,46 @@
 syntax = "proto3";
-
 package wieuser;
-
 service WieUserService {
   rpc GetWieUser(GetWieUserRequest) returns (WieUserResponse);
   rpc IncrementFollowing(UserIdRequest) returns (EmptyResponse);
   rpc DecrementFollowing(UserIdRequest) returns (EmptyResponse);
   rpc IncrementFollowers(UserIdRequest) returns (EmptyResponse);
   rpc DecrementFollowers(UserIdRequest) returns (EmptyResponse);
+  rpc UpdateOnlineStatus(UpdateOnlineStatusRequest) returns (EmptyResponse);
+  rpc GetOnlineStatus(UserIdRequest) returns (OnlineStatusResponse);
+  rpc GetUsersByIds(GetUsersByIdsRequest) returns (GetUsersByIdsResponse);
+  rpc GetUserPrivacySettings(UserIdRequest) returns (PrivacySettingsResponse);
+  rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
+}
+message GetUsersByIdsRequest {
+  repeated string userIds = 1;
+}
+message GetUsersByIdsResponse {
+  repeated WieUser users = 1;
+}
+message PrivacySettingsResponse {
+  string allow_messages_from = 1; // 'everyone', 'followers', 'mutuals', 'none'
+  bool allow_message_requests = 2;
+}
+message SearchUsersRequest {
+  string query = 1;
+  string excludeUserId = 2;
+  int32 limit = 3;
+}
+message UpdateOnlineStatusRequest {
+  string userId = 1;
+  bool isOnline = 2;
+}
+message OnlineStatusResponse {
+  bool isOnline = 1;
+  string lastSeenAt = 2;
+}
+message SearchUsersResponse {
+  repeated WieUser users = 1;
 }
 message UserIdRequest {
   string userId = 1;
 }
-
 message EmptyResponse {
   bool success = 1;
 }
@@ -40,6 +68,7 @@ message WieUser {
   double latitude = 12;
   double longitude = 13;
   bool isOnline = 14;
+  string last_seen_at = 21;
   bool is_blocked = 15;
   bool is_verified = 16;
   string google_id = 17;

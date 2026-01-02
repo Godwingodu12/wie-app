@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 
 export default function HomePage() {
-  const { isAuthenticated, loading } = useAuth(false); // Don't require auth
+  const { isAuthenticated, loading } = useAuth(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -49,12 +49,12 @@ export default function HomePage() {
           
           <div className="flex justify-center space-x-4">
             <Link href="/signup">
-              <Button size="lg">
+              <Button>
                 Get Started
               </Button>
             </Link>
             <Link href="/login">
-              <Button variant="outline" size="lg">
+              <Button>
                 Login
               </Button>
             </Link>

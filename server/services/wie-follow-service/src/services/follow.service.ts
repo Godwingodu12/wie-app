@@ -35,7 +35,6 @@ export const followUser = async (followerId: string, followingId: string): Promi
     followingId
   };
 };
-
 export const unfollowUser = async (followerId: string, followingId: string): Promise<any> => {
   if (!followerId || !followingId) {
     throw new Error('Follower ID and Following ID are required');

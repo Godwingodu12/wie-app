@@ -25,11 +25,11 @@ interface FollowingModalProps {
   onCountChange?: (change: number) => void;
 }
 
-export default function FollowingModal({ 
-  isOpen, 
-  onClose, 
-  userId, 
-  userName, 
+export default function FollowingModal({
+  isOpen,
+  onClose,
+  userId,
+  userName,
   isOwnProfile = false,
   onCountChange
 }: FollowingModalProps) {
@@ -64,13 +64,13 @@ const handleUnfollow = async (followingUserId: string) => {
   try {
     setActionLoadingId(followingUserId);
     await unfollowUser(followingUserId);
-    
-    setFollowing(prev => prev.map(user => 
-      user.id === followingUserId 
+
+    setFollowing(prev => prev.map(user =>
+      user.id === followingUserId
         ? { ...user, isFollowing: false }
         : user
     ));
-    
+
     if (onCountChange) {
       onCountChange(-1);
     }
@@ -87,13 +87,13 @@ const handleFollow = async (followingUserId: string) => {
   try {
     setActionLoadingId(followingUserId);
     await followUser(followingUserId);
-    
-    setFollowing(prev => prev.map(user => 
-      user.id === followingUserId 
+
+    setFollowing(prev => prev.map(user =>
+      user.id === followingUserId
         ? { ...user, isFollowing: true }
         : user
     ));
-    
+
     if (onCountChange) {
       onCountChange(1);
     }
@@ -204,11 +204,7 @@ const handleFollow = async (followingUserId: string) => {
                           <h3 className="text-white font-medium text-sm truncate">
                             {user.name || user.username || 'User'}
                           </h3>
-                          {user.is_verified && (
-                            <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                          )}
+
                         </div>
                         <p className="text-gray-400 text-xs truncate">@{user.username || 'username'}</p>
                       </div>
@@ -226,8 +222,8 @@ const handleFollow = async (followingUserId: string) => {
                         }}
                         disabled={actionLoadingId === user.id}
                         className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all disabled:opacity-50 flex items-center gap-1.5 ${
-                        user.isFollowing 
-                            ? 'bg-[#2C2C2E] hover:bg-[#3C3C3E] text-white' 
+                        user.isFollowing
+                            ? 'bg-[#2C2C2E] hover:bg-[#3C3C3E] text-white'
                             : 'bg-[#8860D9] hover:bg-[#7550C9] text-white'
                         }`}
                     >

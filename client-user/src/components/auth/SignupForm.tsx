@@ -23,22 +23,16 @@ export const SignupForm: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
   const router = useRouter();
-
-  /* -------------------- LOAD COUNTRIES -------------------- */
   useEffect(() => {
     const loadCountries = async () => {
       try {
         const res = await getCountries();
-        console.log('📍 Countries received:', res); // DEBUG
-        console.log('📍 First country:', res[0]); // DEBUG
         setCountries(res);
 
         // Default country (India or first available)
         if (res.length) {
           const defaultCountry = res.find(c => c.country_code === 'IN') || res[0];
-          console.log('📍 Default country selected:', defaultCountry); // DEBUG
           setFormData(prev => ({
             ...prev,
             country_code: defaultCountry.country_code,
@@ -132,12 +126,9 @@ export const SignupForm: React.FC = () => {
       setLoading(false);
     }
   };
-
-  /* -------------------- UI -------------------- */
   return (
     <div className="w-full flex flex-col">
       <form onSubmit={handleSubmit} className="space-y-5">
-
         {/* EMAIL / PHONE + COUNTRY */}
         <div className="relative w-full">
           <Input

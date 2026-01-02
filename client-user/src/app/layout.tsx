@@ -2,9 +2,10 @@
 
 import { Inter } from 'next/font/google';
 import './globals.css';
-import { Provider } from 'react-redux';
-import { store } from '@/features/store';
+import { Providers } from '@/features/Providers';
 import NotificationInitializer from '@/components/notifications/NotificationInitializer';
+import ChatInitializer from '@/components/chat/ChatInitializer';
+import HeartbeatManager from '@/components/auth/HeartbeatManager';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -16,9 +17,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <Provider store={store}>
-          <NotificationInitializer>{children}</NotificationInitializer>
-        </Provider>
+        <Providers>
+          <HeartbeatManager />
+          <NotificationInitializer>
+            <ChatInitializer>
+              {children}
+            </ChatInitializer>
+          </NotificationInitializer>
+        </Providers>
       </body>
     </html>
   );

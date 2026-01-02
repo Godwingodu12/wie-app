@@ -300,6 +300,7 @@ export const googleCallback = async (req: Request, res: Response): Promise<void>
       res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Your account has been blocked. Please contact support.')}`);
       return;
     }
+    await WIEUSER.updateOnlineStatus(user.id, true);
     const token = generateToken(user);
     const userData = {
       id: user.id,
@@ -510,7 +511,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       });
       return;
     }
-
+    await WIEUSER.updateOnlineStatus(user.id, true);
     const token = generateToken(user);
     res.status(200).json({
       message: 'Login successful',
@@ -525,6 +526,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         country_id: user.country_id,
         role: user.role,
         status: user.status,
+        isOnline: true,  
+        last_seen_at: null,
         is_blocked: user.is_blocked,
         is_verified: user.is_verified,
         auth_provider: user.auth_provider,
@@ -544,10 +547,11 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
       return;
     }
     const userId = req.user.id;
+    await WIEUSER.updateOnlineStatus(userId, false);
     await WIEUSER.incrementTokenVersion(req.user.id);
-
     res.status(200).json({ 
-      message: 'Logged out successfully from all devices' 
+      message: 'Logged out successfully from all devices',
+      isOnline: false  
     });
   } catch (error: any) {
     console.error('Logout error:', error);
@@ -769,6 +773,8 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
         longitude: user.longitude,
         role: user.role,
         status: user.status,
+        isOnline: user.isOnline,
+        last_seen_at: user.lastSeenAt, 
         is_blocked: user.is_blocked,
         is_verified: user.is_verified,
         auth_provider: user.auth_provider,
@@ -1294,6 +1300,9 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
         bio: user.bio,
         location: user.location,
         is_verified: user.is_verified,
+        is_blocked: user.is_blocked,
+        isOnline: user.isOnline,
+        last_seen_at: user.lastSeenAt,
         followers_count: user.followers_count,
         following_count: user.following_count,
         posts_count: user.posts_count,
@@ -1352,5 +1361,45 @@ export const getSuggestedUsers = async (req: Request, res: Response): Promise<vo
       message: 'Failed to get suggested users',
       error: error.message,
     });
+  }
+};
+export const updateHeartbeat = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    const userId = req.user.id;
+    
+    // Update online status and last seen
+    await WIEUSER.updateOnlineStatus(userId, true);
+
+    res.status(200).json({
+      success: true,
+      message: 'Heartbeat updated',
+    });
+  } catch (error: any) {
+    console.error('Heartbeat error:', error);
+    res.status(500).json({ 
+      message: 'Failed to update heartbeat', 
+      error: error.message 
+    });
+  }
+};
+// Cleanup stale online users (users who haven't sent heartbeat in 2 minutes)
+export const cleanupStaleOnlineUsers = async (): Promise<void> => {
+  try {
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    
+    // Find users marked online but haven't updated in 2 minutes
+    const staleUsers = await WIEUSER.findStaleOnlineUsers(twoMinutesAgo);
+    
+    for (const user of staleUsers) {
+      await WIEUSER.updateOnlineStatus(user.id, false);
+      console.log(`🔄 Marked user ${user.id} as offline (stale heartbeat)`);
+    }
+  } catch (error: any) {
+    console.error('❌ Error cleaning up stale users:', error);
   }
 };

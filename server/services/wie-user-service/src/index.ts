@@ -7,7 +7,7 @@ import userRoutes from './routes/user.routes';
 import ticketRoutes from './routes/ticket.routes';
 import otpService from './reposetory/otp';
 import { startGrpcServer } from './grpc/server';
-
+import { cleanupStaleOnlineUsers } from './services/wie-user.service';
 dotenv.config();
 
 const app: Application = express();
@@ -38,7 +38,10 @@ app.use((req, res, next) => {
 
 app.use('/api/user', userRoutes);
 app.use('/api/tickets', ticketRoutes);
-
+// Start cleanup interval (every 30 seconds)
+setInterval(async () => {
+  await cleanupStaleOnlineUsers();
+}, 30000);
 app.get('/health', async (req, res) => {
   try {
     const dbStatus = db.isConnected ? 'connected' : 'disconnected';
@@ -132,14 +135,10 @@ async function startServer() {
 
     // Start HTTP server
     const server = app.listen(PORT, () => {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log(`✅ ${INSTANCE_ID} running on port ${PORT}`);
       console.log(`📍 HTTP: http://localhost:${PORT}`);
       console.log(`📍 gRPC: localhost:${GRPC_PORT}`);
-      console.log(`📍 Health: http://localhost:${PORT}/health`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     });
-
     server.on('error', (error: any) => {
       if (error.code === 'EADDRINUSE') {
         console.error(`❌ Port ${PORT} is already in use`);
@@ -151,26 +150,16 @@ async function startServer() {
         process.exit(1);
       }
     });
-
     // Graceful shutdown
     const gracefulShutdown = async (signal: string) => {
-      console.log(`\n📡 ${signal} received, starting graceful shutdown...`);
-
       // Stop accepting new connections
       server.close(async () => {
-        console.log('✅ HTTP server closed');
-
         // Cleanup services
         try {
-          console.log('🧹 Cleaning up OTP service...');
           otpService.cleanup();
-          
           console.log('🧹 Disconnecting Redis...');
           await redisClient.disconnect();
-          
-          console.log('🧹 Closing database connection...');
           await db.close();
-          
           console.log('✅ All connections closed');
           process.exit(0);
         } catch (error) {

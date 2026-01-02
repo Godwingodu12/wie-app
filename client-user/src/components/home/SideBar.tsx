@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import WieUserLogo from "@/assets/Home/WieUserLogo.svg";
-import SlidingButton from "@/assets/Home/SlidingButton.svg";
 import HomeIcon from "@/assets/Home/HomeIcon.svg";
 import ExploreIcon from "@/assets/Home/ExploreIcon.svg";
 import ReelIcon from "@/assets/Home/ReelIcon.svg";
@@ -12,11 +11,12 @@ import ConnectionsIcon from "@/assets/Home/ConnectionsIcon.png";
 import NotificationsIcon from "@/assets/Home/NotificationsIcon.svg";
 import EventsIcon from "@/assets/Home/EventsIcon.svg";
 import SettingsIcon from "@/assets/Home/SettingsIcon.svg";
-import ProfileImage from "@/assets/profile/ProfileImage.jpg";
 import { getUserNotifications } from "@/services/notificationService";
+import { getUnreadMessageCount } from "@/services/chatService";
 import realtimeNotificationService from "@/services/realtimeNotificationService";
 import { getFollowStats } from "@/services/followService";
-
+import socketService from "@/services/socketService";
+import { NotificationPopup } from "@/components/notifications/NotificationPopup";
 interface NavItem {
   id: string;
   label: string;
@@ -29,15 +29,17 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSidebar } from "@/context/SidebarContext";
 
 const SideBar: React.FC = () => {
-  const { isCollapsed, toggleCollapse, isMobile } = useSidebar();
+  const { isCollapsed, setIsCollapsed, isMobile } = useSidebar();
   const { user, token } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   const userName = user?.name || user?.username || "User Name";
   const userAvatar = user?.profile_picture || (user as any)?.default_profile_picture;
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState<number>(0);
   const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
+  const [totalUnreadMessages, setTotalUnreadMessages] = useState<number>(0);
 
   // Load unread notification count
   useEffect(() => {
@@ -54,7 +56,6 @@ const SideBar: React.FC = () => {
       fetchNotificationCount();
     }
   }, [user]);
-
   // Load follow stats
   useEffect(() => {
     const fetchFollowStats = async () => {
@@ -71,11 +72,26 @@ const SideBar: React.FC = () => {
     fetchFollowStats();
   }, [user?.id]);
 
+  // Load unread message count
+  useEffect(() => {
+    const fetchUnreadMessageCount = async () => {
+      if (!user || !token) return;
+      
+      try {
+        const res = await getUnreadMessageCount();
+        setTotalUnreadMessages(res.unreadCount || 0);
+      } catch (error) {
+        console.error("Failed to load unread message count:", error);
+      }
+    };
+
+    fetchUnreadMessageCount();
+  }, [user, token]);
+
   // Subscribe to real-time notification events
   useEffect(() => {
     if (!user || !token) return;
 
-    // Ensure socket is connected
     realtimeNotificationService.connect(token);
 
     const handleNewNotification = (data: any) => {
@@ -91,7 +107,6 @@ const SideBar: React.FC = () => {
     };
 
     const handleNotificationDeleted = (data: any) => {
-      // Recalculate notification count when deleted
       getUserNotifications({ limit: 0 })
         .then((res) => setNotificationCount(res.unreadCount || 0))
         .catch(() => {});
@@ -99,32 +114,40 @@ const SideBar: React.FC = () => {
 
     realtimeNotificationService.on("new-notification", handleNewNotification);
     realtimeNotificationService.on("notification-read", handleNotificationRead);
-    realtimeNotificationService.on(
-      "all-notifications-read",
-      handleAllNotificationsRead
-    );
-    realtimeNotificationService.on(
-      "notification-deleted",
-      handleNotificationDeleted
-    );
+    realtimeNotificationService.on("all-notifications-read", handleAllNotificationsRead);
+    realtimeNotificationService.on("notification-deleted", handleNotificationDeleted);
 
     return () => {
-      realtimeNotificationService.off(
-        "new-notification",
-        handleNewNotification
-      );
-      realtimeNotificationService.off(
-        "notification-read",
-        handleNotificationRead
-      );
-      realtimeNotificationService.off(
-        "all-notifications-read",
-        handleAllNotificationsRead
-      );
-      realtimeNotificationService.off(
-        "notification-deleted",
-        handleNotificationDeleted
-      );
+      realtimeNotificationService.off("new-notification", handleNewNotification);
+      realtimeNotificationService.off("notification-read", handleNotificationRead);
+      realtimeNotificationService.off("all-notifications-read", handleAllNotificationsRead);
+      realtimeNotificationService.off("notification-deleted", handleNotificationDeleted);
+    };
+  }, [user, token]);
+
+  // Subscribe to real-time message events
+  useEffect(() => {
+    if (!user || !token) return;
+
+    const socket = socketService.getSocket();
+    if (!socket) return;
+
+    const handleNewMessage = () => {
+      setTotalUnreadMessages((prev) => prev + 1);
+    };
+
+    const handleMessagesRead = () => {
+      getUnreadMessageCount()
+        .then((res) => setTotalUnreadMessages(res.unreadCount || 0))
+        .catch(() => {});
+    };
+
+    socket.on('new-message-notification', handleNewMessage);
+    socket.on('messages-read', handleMessagesRead);
+
+    return () => {
+      socket.off('new-message-notification', handleNewMessage);
+      socket.off('messages-read', handleMessagesRead);
     };
   }, [user, token]);
 
@@ -136,8 +159,8 @@ const SideBar: React.FC = () => {
       id: "messages",
       label: "Messages",
       icon: MessageIcon,
-      path: "/messages",
-      notificationCount: 5,
+      path: "/message",
+      notificationCount: totalUnreadMessages,
     },
     {
       id: "connections",
@@ -158,8 +181,19 @@ const SideBar: React.FC = () => {
 
   const mobileNavItems = mainNavItems.slice(0, 5);
 
-  const handleNavClick = (path: string) => router.push(path);
-  const isActive = (path: string) => pathname === path;
+  const handleNavClick = (path: string) => {
+    if (path === "/notification") {
+      setIsNotificationOpen(!isNotificationOpen);
+      return;
+    }
+    router.push(path);
+  };
+  const isActive = (path: string) => {
+    if (isNotificationOpen) {
+      return path === "/notification";
+    }
+    return pathname === path;
+  }; 
 
   // Mobile Bottom Navigation
   if (isMobile) {
@@ -217,21 +251,21 @@ const SideBar: React.FC = () => {
         }
       `}</style>
       <aside
+        onMouseEnter={() => !isMobile && setIsCollapsed(false)}
+        onMouseLeave={() => !isMobile && setIsCollapsed(true)}
         className={`fixed left-0 top-0 h-screen flex flex-col transition-all duration-300 ease-in-out z-50 ${
-          isCollapsed ? "w-[105px] p-4" : "w-[281px] p-6"
+          isCollapsed ? "w-[92px] p-4" : "w-[281px] p-6"
         }`}
         style={{
-          background: '#3A3A3A1A',
-          borderRight: '0.5px solid',
-          borderImageSource: 'linear-gradient(270deg, rgba(32, 32, 32, 0.4) -8.43%, rgba(96, 96, 96, 0.4) 100%)',
-          borderImageSlice: 1
+          background: "#0C1014",
+          borderRadius: "12px",
         }}
       >
         {/* Header */}
         <div
           className={`flex items-center ${
             isCollapsed ? "justify-center" : "justify-between"
-          } w-full mb-8 h-[37px] transition-all duration-300`}
+          } w-full mb-4 h-[37px] transition-all duration-300`}
         >
           {!isCollapsed && (
             <div className="flex items-center gap-3 overflow-hidden whitespace-nowrap opacity-100 transition-opacity duration-300">
@@ -260,26 +294,19 @@ const SideBar: React.FC = () => {
               className="flex-shrink-0"
             />
           )}
-
-          <button
-            onClick={toggleCollapse}
-            className={`absolute ${
-              isCollapsed
-                ? "-right-3 top-8 translate-x-0"
-                : "right-0 top-8 translate-x-1/2"
-            } z-50 rounded-[8px] flex items-center justify-center transition-all duration-300 group bg-[#161A23]`}
-          >
-            <Image
-              src={SlidingButton}
-              alt="Toggle"
-              width={24}
-              height={24}
-              className={`transition-transform duration-300 ${
-                isCollapsed ? "rotate-180" : "group-hover:scale-110"
-              }`}
-            />
-          </button>
         </div>
+
+        {/* Divider Top */}
+        <div
+          style={{
+            width: "54px",
+            height: "2px",
+            background: "linear-gradient(270deg, rgba(0, 0, 0, 0) -8.43%, rgba(63, 63, 63, 0.6) 46.38%, rgba(0, 0, 0, 0) 100%)",
+            borderRadius: "2px",
+            marginBottom: "20px",
+            alignSelf: "center"
+          }}
+        />
 
         {/* Main Navigation */}
         <nav
@@ -287,7 +314,7 @@ const SideBar: React.FC = () => {
             isCollapsed ? "items-center" : "overflow-y-auto scrollbar-hide"
           } flex-1`}
         >
-          {/* Main Nav Items */}
+{/* Main Nav Items */}
           {mainNavItems.map((item) => (
             <button
               key={item.id}
@@ -296,16 +323,17 @@ const SideBar: React.FC = () => {
               relative flex items-center rounded-xl transition-all duration-200 group
               ${
                 isCollapsed
-                  ? "w-10 h-10 justify-center"
-                  : "w-full h-11 px-3.5 gap-3.5"
+                  ? "justify-center"
+                  : "w-full justify-start px-3.5 gap-3.5"
               }
-              ${isActive(item.path) ? "bg-[#2D2F39]" : "hover:bg-white/5"}
+              hover:bg-white/5
             `}
             >
+
               <div
-                className={`relative flex items-center justify-center ${
-                  isCollapsed ? "w-5 h-5" : "w-5 h-5"
-                } flex-shrink-0`}
+                className={`flex items-center justify-center w-[44px] h-[44px] rounded-full flex-shrink-0 transition-all duration-200 ${
+                   isActive(item.path) ? "bg-white" : ""
+                }`}
               >
                 <Image
                   src={item.icon}
@@ -314,9 +342,10 @@ const SideBar: React.FC = () => {
                   height={20}
                   className={`transition-all duration-200 ${
                     isActive(item.path)
-                      ? "opacity-100"
+                      ? "opacity-100 brightness-0"
                       : "opacity-70 group-hover:opacity-100"
                   }`}
+                  style={isActive(item.path) ? { filter: 'brightness(0)' } : {}}
                 />
               </div>
 
@@ -378,8 +407,18 @@ const SideBar: React.FC = () => {
           ))}
         </nav>
 
-        {/* Divider */}
-        <div className="w-full h-px bg-gradient-to-r from-transparent via-[#2D2F39]/30 to-transparent my-2" />
+        {/* Divider Bottom */}
+        <div
+          style={{
+            width: "54px",
+            height: "2px",
+            background: "linear-gradient(270deg, rgba(0, 0, 0, 0) -8.43%, rgba(63, 63, 63, 0.6) 46.38%, rgba(0, 0, 0, 0) 100%)",
+            borderRadius: "2px",
+            marginTop: "10px",
+            marginBottom: "10px",
+            alignSelf: "center"
+          }}
+        />
 
         {/* Secondary Navigation */}
         <div
@@ -394,23 +433,30 @@ const SideBar: React.FC = () => {
             relative flex items-center rounded-xl transition-all duration-200 group
              ${
                isCollapsed
-                 ? "w-10 h-10 justify-center"
-                 : "w-full h-11 px-3.5 gap-3.5"
+                 ? "justify-center"
+                 : "w-full justify-start px-3.5 gap-3.5"
              }
-             ${isActive("/settings") ? "bg-[#2D2F39]" : "hover:bg-white/5"}
+             hover:bg-white/5
           `}
           >
-            <Image
-              src={SettingsIcon}
-              alt="Settings"
-              width={20}
-              height={20}
-              className={`flex-shrink-0 transition-opacity duration-200 ${
-                isActive("/settings")
-                  ? "opacity-100"
-                  : "opacity-70 group-hover:opacity-100"
+            <div
+              className={`flex items-center justify-center w-[44px] h-[44px] rounded-full flex-shrink-0 transition-all duration-200 ${
+                 isActive("/settings") ? "bg-white" : ""
               }`}
-            />
+            >
+              <Image
+                src={SettingsIcon}
+                alt="Settings"
+                width={20}
+                height={20}
+                className={`flex-shrink-0 transition-opacity duration-200 ${
+                  isActive("/settings")
+                    ? "opacity-100 brightness-0"
+                    : "opacity-70 group-hover:opacity-100"
+                }`}
+                style={isActive("/settings") ? { filter: 'brightness(0)' } : {}}
+              />
+            </div>
             {!isCollapsed && (
               <span
                 className={`font-medium text-[15px] tracking-tight transition-colors duration-200 ${
@@ -437,25 +483,27 @@ const SideBar: React.FC = () => {
             relative flex items-center rounded-xl transition-all duration-200 group
              ${
                isCollapsed
-                 ? "w-10 h-10 justify-center"
-                 : "w-full h-11 px-3.5 gap-3.5"
+                 ? "justify-center"
+                 : "w-full justify-start px-3.5 gap-3.5"
              }
-             ${isActive("/profile") ? "bg-[#2D2F39]" : "hover:bg-white/5"}
+             hover:bg-white/5
           `}
           >
-            <div className="relative">
+            <div className={`relative flex items-center justify-center w-[44px] h-[44px] rounded-full flex-shrink-0 transition-all duration-200 ${
+                   isActive("/profile") ? "bg-white" : ""
+                }`}>
               {userAvatar ? (
                 <Image
                   src={userAvatar}
                   alt="Profile"
                   width={24}
                   height={24}
-                  className="flex-shrink-0 rounded-full object-cover border border-[#2D2F39]"
+                  className={`flex-shrink-0 rounded-full object-cover border border-[#2D2F39]`}
                 />
               ) : (
                 <div className="w-6 h-6 rounded-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] flex items-center justify-center border border-[#2D2F39]">
                   <span className="text-xs font-bold text-white">
-                    {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                    {user?.name?.charAt(0)?.toUpperCase() || "U"}
                   </span>
                 </div>
               )}
@@ -480,6 +528,10 @@ const SideBar: React.FC = () => {
           </button>
         </div>
       </aside>
+      <NotificationPopup
+        isOpen={isNotificationOpen}
+        onClose={() => setIsNotificationOpen(false)}
+      />
     </>
   );
 };

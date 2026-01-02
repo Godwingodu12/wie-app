@@ -4,9 +4,7 @@ import cors from 'cors';
 import db from './config/db';
 import followRoutes from './routes/follow.routes';
 import { startGrpcServer } from './grpc/server';
-
 dotenv.config();
-
 const app: Application = express();
 const PORT = Number(process.env.PORT) || 5009;
 const GRPC_PORT = Number(process.env.GRPC_PORT) || 50058;

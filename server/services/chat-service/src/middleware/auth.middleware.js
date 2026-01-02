@@ -4,9 +4,7 @@ export const authenticateToken = (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-    
-    console.log('🔐 Auth middleware - Token received:', token ? 'Yes' : 'No');
-    
+        
     if (!token) {
       console.log('❌ No token provided');
       return res.status(401).json({
@@ -32,10 +30,7 @@ export const authenticateToken = (req, res, next) => {
           message: 'Invalid token',
           error: err.message
         });
-      }
-
-      console.log('✅ Token verified successfully for user:', decoded.userId || decoded.id);
-      
+      }      
       // Normalize user data - support both userId and id fields
       req.user = {
         userId: decoded.userId || decoded.id,

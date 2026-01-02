@@ -2,12 +2,9 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const PROTO_PATH = path.join(__dirname, '../../../../protos/wieuser.proto');
-
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
   longs: String,
@@ -15,23 +12,18 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   defaults: true,
   oneofs: true,
 });
-
 const wieUserProto = grpc.loadPackageDefinition(packageDefinition) as any;
-
 // ✅ Initialize client with error handling
 let client: any = null;
-
 try {
   // FIX: Use correct package name 'wieuser.WieUserService'
   client = new wieUserProto.wieuser.WieUserService(
     process.env.USER_GRPC_URL || 'localhost:50053',
     grpc.credentials.createInsecure()
   );
-  console.log('✅ gRPC User Client initialized successfully');
 } catch (error) {
   console.error('❌ Failed to initialize gRPC User Client:', error);
 }
-
 // Helper function to check if client is available
 const ensureClient = () => {
   if (!client) {
@@ -39,7 +31,6 @@ const ensureClient = () => {
   }
   return client;
 };
-
 export const incrementFollowing = async (userId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -58,7 +49,6 @@ export const incrementFollowing = async (userId: string): Promise<void> => {
     }
   });
 };
-
 export const incrementFollowers = async (userId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -77,7 +67,6 @@ export const incrementFollowers = async (userId: string): Promise<void> => {
     }
   });
 };
-
 export const decrementFollowing = async (userId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -96,7 +85,6 @@ export const decrementFollowing = async (userId: string): Promise<void> => {
     }
   });
 };
-
 export const decrementFollowers = async (userId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -115,7 +103,6 @@ export const decrementFollowers = async (userId: string): Promise<void> => {
     }
   });
 };
-
 // ✅ Get single user details
 export const getUserById = async (userId: string): Promise<any> => {
   return new Promise((resolve, reject) => {
@@ -123,22 +110,17 @@ export const getUserById = async (userId: string): Promise<any> => {
       resolve(null);
       return;
     }
-
     try {
       const grpcClient = ensureClient();
-      
       grpcClient.GetWieUser({ userId }, (error: any, response: any) => {
         if (error) {
           console.error('gRPC GetWieUser error:', error);
           resolve(null);
           return;
         }
-        
         if (response?.user) {
-          console.log(`✅ Fetched user ${userId} via gRPC`);
           resolve(response.user);
         } else {
-          console.log(`⚠️  User ${userId} not found`);
           resolve(null);
         }
       });
@@ -148,19 +130,14 @@ export const getUserById = async (userId: string): Promise<any> => {
     }
   });
 };
-
 // ✅ Get multiple users details (batch fetch)
 export const getUsersByIds = async (userIds: string[]): Promise<any[]> => {
   if (!userIds || userIds.length === 0) {
     return [];
   }
-
   try {
-    // Fetch all users in parallel
     const userPromises = userIds.map(id => getUserById(id));
     const users = await Promise.all(userPromises);
-    
-    // Filter out null values
     const validUsers = users.filter(user => user !== null);    
     return validUsers;
   } catch (error) {
@@ -168,5 +145,4 @@ export const getUsersByIds = async (userIds: string[]): Promise<any[]> => {
     return [];
   }
 };
-
 export default client;
