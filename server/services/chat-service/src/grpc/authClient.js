@@ -15,13 +15,9 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   defaults: true,
   oneofs: true
 });
-
 const authProto = grpc.loadPackageDefinition(packageDefinition).auth;
-
 const AUTH_SERVICE_URL = process.env.AUTH_GRPC_URL || 'localhost:50051';
-
 let client = null;
-
 const getClient = () => {
   if (!client) {
     client = new authProto.AuthService(
@@ -86,7 +82,6 @@ export const getUserFromAuthServiceGrpc = async (payload, retries = 2) => {
 
   throw lastError;
 };
-
 export const getFollowersFromAuthServiceGrpc = async (userId, retries = 2) => {
   const cacheKey = `followers:${userId}`;
   const cached = userCache.get(cacheKey);
@@ -100,7 +95,6 @@ export const getFollowersFromAuthServiceGrpc = async (userId, retries = 2) => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const client = getClient();
-      
       const followers = await new Promise((resolve, reject) => {
         client.GetFollowersData({ userId }, (error, response) => {
           if (error) {
@@ -112,7 +106,6 @@ export const getFollowersFromAuthServiceGrpc = async (userId, retries = 2) => {
           }
         });
       });
-
       if (followers) {
         userCache.set(cacheKey, {
           data: followers,
