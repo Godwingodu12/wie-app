@@ -21,11 +21,14 @@ export interface WieUser {
   latitude?: number | null;     
   longitude?: number | null;
   isOnline: boolean; 
+  lastSeenAt: Date | null;
   is_blocked: boolean;
   is_verified: boolean;
   google_id?: string | null;  
   token_version: number;
   auth_provider: string;  
+  allowMessagesFrom?: string | null;
+  allowMessageRequests?: boolean | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -44,6 +47,7 @@ export interface CreateUserInput {
   latitude?: number;
   longitude?: number;
   isOnline?: boolean;
+  lastSeenAt?: Date | null;
   is_blocked?: boolean;
   is_verified?: boolean;
   token_version?: number;
@@ -72,11 +76,14 @@ const toDatabaseFormat = (user: any): WieUser => {
     latitude: user.latitude,          
     longitude: user.longitude, 
     isOnline: user.isOnline, 
+    lastSeenAt: user.lastSeenAt,
     is_blocked: user.isBlocked,
     is_verified: user.isVerified,
     google_id: user.googleId,  
     token_version: user.tokenVersion,
     auth_provider: user.authProvider, 
+    allowMessagesFrom: user.allowMessagesFrom,  
+    allowMessageRequests: user.allowMessageRequests,  
     created_at: user.createdAt,
     updated_at: user.updatedAt,
   };
@@ -93,13 +100,127 @@ class WieUserModel {
         username: userData.username || null,
         profilePicture: userData.profile_picture || null,
         countryId: userData.country_id || null,
-        googleId: userData.google_id || null,  // NEW
-        authProvider: userData.auth_provider || 'local',  // NEW
-        status: userData.auth_provider === 'google' ? 'active' : 'pending',  // Auto-activate Google users
-        isVerified: userData.auth_provider === 'google' ? true : false,  // Auto-verify Google users
+        googleId: userData.google_id || null,  
+        lastSeenAt: userData.lastSeenAt || null,
+        authProvider: userData.auth_provider || 'local',  
+        status: userData.auth_provider === 'google' ? 'active' : 'pending', 
+        isVerified: userData.auth_provider === 'google' ? true : false,  
       },
     });
     return toDatabaseFormat(user);
+  }
+
+  async findByIds(userIds: string[]): Promise<any[]> {
+    try {
+      const users = await prisma.wieUser.findMany({
+        where: {
+          id: {
+            in: userIds
+          },
+          status: 'active'
+        },
+        select: {
+          id: true,
+          email: true,
+          contactNo: true,
+          name: true,
+          username: true,
+          profilePicture: true,
+          countryId: true,
+          role: true,
+          status: true,
+          bio: true,
+          location: true,
+          latitude: true,
+          longitude: true,
+          isOnline: true,
+          lastSeenAt: true,
+          isBlocked: true,
+          isVerified: true,
+          googleId: true,
+          authProvider: true,
+          createdAt: true,
+          updatedAt: true,
+          allowMessagesFrom: true,
+          allowMessageRequests: true
+        }
+      });
+      return users.map(toDatabaseFormat);
+    } catch (error) {
+      console.error('Error in findByIds:', error);
+      return [];
+    }
+  }
+
+  async search(filter: any, limit: number): Promise<any[]> {
+    try {
+      const whereClause: any = {
+        status: 'active'
+      };
+
+      if (filter.$or && Array.isArray(filter.$or)) {
+        whereClause.OR = filter.$or.map((condition: any) => {
+          const key = Object.keys(condition)[0];
+          const value = condition[key];
+          
+          let searchTerm = '';
+          if (value && typeof value === 'object' && value.$regex) {
+            searchTerm = value.$regex;
+          } else if (typeof value === 'string') {
+            searchTerm = value;
+          }
+
+          return {
+            [key]: {
+              contains: searchTerm,
+              mode: 'insensitive' as const
+            }
+          };
+        });
+      }
+
+      if (filter.id && filter.id.$ne) {
+        whereClause.id = {
+          not: filter.id.$ne
+        };
+      }
+
+      const users = await prisma.wieUser.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          email: true,
+          contactNo: true,
+          name: true,
+          username: true,
+          profilePicture: true,
+          countryId: true,
+          role: true,
+          status: true,
+          bio: true,
+          location: true,
+          latitude: true,
+          longitude: true,
+          isOnline: true,
+          lastSeenAt: true,
+          isBlocked: true,
+          isVerified: true,
+          googleId: true,
+          authProvider: true,
+          createdAt: true,
+          updatedAt: true
+        },
+        take: limit,
+        orderBy: [
+          { followersCount: 'desc' },
+          { name: 'asc' }
+        ]
+      });
+
+      return users.map(toDatabaseFormat);
+    } catch (error) {
+      return [];
+    }
   }
 
   async findByEmail(email: string): Promise<WieUser | null> {
@@ -108,7 +229,8 @@ class WieUserModel {
     });
     return user ? toDatabaseFormat(user) : null;
   }
-async incrementTokenVersion(id: string): Promise<WieUser> {
+
+  async incrementTokenVersion(id: string): Promise<WieUser> {
     const user = await prisma.wieUser.update({
       where: { id },
       data: {
@@ -117,13 +239,15 @@ async incrementTokenVersion(id: string): Promise<WieUser> {
       },
     });
     return toDatabaseFormat(user);
-}
+  }
+
   async findByContactNo(contact_no: string): Promise<WieUser | null> {
     const user = await prisma.wieUser.findUnique({
       where: { contactNo: contact_no },
     });
     return user ? toDatabaseFormat(user) : null;
   }
+
   async count(search?: string): Promise<number> {
     return prisma.wieUser.count({
       where: search
@@ -138,51 +262,58 @@ async incrementTokenVersion(id: string): Promise<WieUser> {
         : {},
     });
   }
+
   async findByUsername(username: string): Promise<WieUser | null> {
     const user = await prisma.wieUser.findUnique({
       where: { username },
     });
     return user ? toDatabaseFormat(user) : null;
   }
+
   async findById(id: string): Promise<WieUser | null> {
     const user = await prisma.wieUser.findUnique({
       where: { id },
     });
-    return user ? toDatabaseFormat(user) : null;
+    if (user) {
+      const formatted = toDatabaseFormat(user);
+      return formatted;
+    }
+    return null;
   }
-  async findByGoogleId(google_id: string): Promise<WieUser | null> {  // NEW
+  async findByGoogleId(google_id: string): Promise<WieUser | null> {
     const user = await prisma.wieUser.findUnique({
       where: { googleId: google_id },
     });
     return user ? toDatabaseFormat(user) : null;
   }
-async findMany(
-  page: number,
-  limit: number,
-  search?: string
-): Promise<WieUser[]> {
-  const skip = (page - 1) * limit;
 
-  const users = await prisma.wieUser.findMany({
-    where: search
-      ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { username: { contains: search, mode: 'insensitive' } },
-            { email: { contains: search, mode: 'insensitive' } },
-            { contactNo: { contains: search, mode: 'insensitive' } },
-          ],
-        }
-      : {},
-    skip,
-    take: limit,
-    orderBy: {
-      followersCount: 'desc',
-    },
-  });
+  async findMany(
+    page: number,
+    limit: number,
+    search?: string
+  ): Promise<WieUser[]> {
+    const skip = (page - 1) * limit;
 
-  return users.map(toDatabaseFormat);
-}
+    const users = await prisma.wieUser.findMany({
+      where: search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { username: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+              { contactNo: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {},
+      skip,
+      take: limit,
+      orderBy: {
+        followersCount: 'desc',
+      },
+    });
+
+    return users.map(toDatabaseFormat);
+  }
 
   async findByEmailOrContactNo(identifier: string): Promise<WieUser | null> {
     const user = await prisma.wieUser.findFirst({
@@ -230,6 +361,7 @@ async findMany(
     });
     return toDatabaseFormat(user);
   }
+
   async linkGoogleAccount(
     id: string,
     googleData: {
@@ -241,12 +373,11 @@ async findMany(
     const updateData: any = {
       googleId: googleData.google_id,
       authProvider: googleData.auth_provider,
-      isVerified: true, // Auto-verify when linking Google
-      status: 'active', // Auto-activate when linking Google
+      isVerified: true,
+      status: 'active',
       updatedAt: new Date(),
     };
 
-    // Only update profile picture if it's defined
     if (googleData.profile_picture) {
       updateData.profilePicture = googleData.profile_picture;
     }
@@ -257,6 +388,7 @@ async findMany(
     });
     return toDatabaseFormat(user);
   }
+
   async getLocation(id: string): Promise<{ location?: string | null; latitude?: number | null; longitude?: number | null } | null> {
     const user = await prisma.wieUser.findUnique({
       where: { id },
@@ -274,6 +406,7 @@ async findMany(
       longitude: user.longitude ?? null,
     };
   }
+
   async updateLocation(id: string, updates: {
     location?: string | null;
     latitude?: number | null;
@@ -299,18 +432,20 @@ async findMany(
       longitude: user.longitude ?? null,
     };
   }
+
   async deleteUser(id: string): Promise<void> {
     await prisma.wieUser.delete({
       where: { id },
     });
   }
+
   async updatePassword(id: string, newPassword: string): Promise<WieUser> {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     const user = await prisma.wieUser.update({
       where: { id },
       data: { 
         password: hashedPassword,
-        updatedAt: new Date(), // Explicitly update the timestamp
+        updatedAt: new Date(),
       },
     });
     if (!user) {
@@ -318,18 +453,19 @@ async findMany(
     }
     return toDatabaseFormat(user);
   }
+
   async setPasswordForOAuthUser(id: string, hashedPassword: string): Promise<WieUser> {
     const user = await prisma.wieUser.update({
       where: { id },
       data: {
         password: hashedPassword,
-        authProvider: 'hybrid', // Now supports both OAuth and password login
+        authProvider: 'hybrid',
         updatedAt: new Date(),
       },
     });
     return toDatabaseFormat(user);
   }
-  // Delete unverified users older than specified minutes
+
   async deleteUnverifiedUsers(olderThanMinutes: number): Promise<number> {
     const cutoffDate = new Date(Date.now() - olderThanMinutes * 60000);
     
@@ -345,6 +481,7 @@ async findMany(
     
     return result.count;
   }
+
   async incrementFollowers(userId: string) {
     await prisma.wieUser.update({
       where: { id: userId },
@@ -353,14 +490,16 @@ async findMany(
       },
     });
   }
+
   async incrementFollowing(userId: string) {
-  await prisma.wieUser.update({
-    where: { id: userId },
-    data: {
-      followingCount: { increment: 1 },
-    },
-  });
-}
+    await prisma.wieUser.update({
+      where: { id: userId },
+      data: {
+        followingCount: { increment: 1 },
+      },
+    });
+  }
+
   async decrementFollowing(userId: string) {
     await prisma.wieUser.update({
       where: { id: userId },  
@@ -369,6 +508,7 @@ async findMany(
       },
     });
   }
+
   async decrementFollowers(userId: string) {
     await prisma.wieUser.update({
       where: { id: userId },
@@ -377,6 +517,7 @@ async findMany(
       },
     });
   }
+
   async incrementPosts(userId: string) {
     await prisma.wieUser.update({
       where: { id: userId },
@@ -385,8 +526,86 @@ async findMany(
       },
     });
   }
+
+  async updateOnlineStatus(id: string, isOnline: boolean): Promise<WieUser> {
+    const updateData: any = {
+      isOnline,
+      updatedAt: new Date(),
+    };
+    
+    if (!isOnline) {
+      updateData.lastSeenAt = new Date();
+    }
+    
+    const user = await prisma.wieUser.update({
+      where: { id },
+      data: updateData,
+    });
+    return toDatabaseFormat(user);
+  }
+  async getOnlineStatus(id: string): Promise<{ isOnline: boolean; lastSeenAt: Date | null } | null> {
+    const user = await prisma.wieUser.findUnique({
+      where: { id },
+      select: {
+        isOnline: true,
+        lastSeenAt: true,
+      },
+    });
+    if (!user) return null;
+    return {
+      isOnline: user.isOnline,
+      lastSeenAt: user.lastSeenAt,
+    };
+  }
+  async findStaleOnlineUsers(lastUpdateThreshold: Date): Promise<WieUser[]> {
+    try {
+      const users = await prisma.wieUser.findMany({
+        where: {
+          isOnline: true,
+          updatedAt: {
+            lt: lastUpdateThreshold
+          }
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          username: true,
+          isOnline: true,
+          lastSeenAt: true,
+          updatedAt: true,
+          contactNo: true,
+          profilePicture: true,
+          countryId: true,
+          role: true,
+          status: true,
+          bio: true,
+          location: true,
+          latitude: true,
+          longitude: true,
+          isBlocked: true,
+          isVerified: true,
+          googleId: true,
+          authProvider: true,
+          createdAt: true,
+          followingCount: true,
+          followersCount: true,
+          postsCount: true,
+          tokenVersion: true,
+          allowMessagesFrom: true,
+          allowMessageRequests: true
+        }
+      });
+      
+      return users.map(toDatabaseFormat);
+    } catch (error) {
+      console.error('Error finding stale online users:', error);
+      return [];
+    }
+  }
   async disconnect(): Promise<void> {
     await prisma.$disconnect();
   }
 }
+
 export default new WieUserModel();
