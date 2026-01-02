@@ -291,3 +291,12 @@ export const getSuggestedUsers = async (limit: number = 10): Promise<User[]> => 
     throw err;
   }
 };
+export const updateHeartbeat = async (): Promise<ApiResponse> => {
+  try {
+    const res = await api.post<ApiResponse>('/user/heartbeat');
+    return res.data;
+  } catch (err) {
+    console.error('updateHeartbeat error:', err);
+    throw err;
+  }
+};
