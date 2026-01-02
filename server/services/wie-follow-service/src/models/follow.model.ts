@@ -31,12 +31,8 @@ const FollowSchema = new Schema<IFollow>(
     collection: 'follows'
   }
 );
-
 // Compound unique index to prevent duplicate follows
 FollowSchema.index({ followerId: 1, followingId: 1 }, { unique: true });
-
-// Index for queries
 FollowSchema.index({ followerId: 1, status: 1 });
 FollowSchema.index({ followingId: 1, status: 1 });
-
 export default mongoose.model<IFollow>('Follow', FollowSchema);
