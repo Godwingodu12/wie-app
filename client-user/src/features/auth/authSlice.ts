@@ -5,7 +5,7 @@ const initialState: AuthState = {
   user: null,
   token: null,
   isAuthenticated: false,
-  loading: true, // Start with loading: true
+  loading: true,
 };
 
 // Helper to set cookie
@@ -40,7 +40,6 @@ const authSlice = createSlice({
       if (typeof window !== 'undefined') {
         localStorage.setItem('token', action.payload.token);
         localStorage.setItem('user', JSON.stringify(action.payload.user));
-        // Also set cookie for middleware
         setCookie('token', action.payload.token, 7);
       }
     },
@@ -56,7 +55,8 @@ const authSlice = createSlice({
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        // Also delete cookie
+        localStorage.removeItem('wie_chats');
+        localStorage.removeItem('wie_current_chat');
         deleteCookie('token');
       }
     },
@@ -66,9 +66,7 @@ const authSlice = createSlice({
         localStorage.setItem('user', JSON.stringify(action.payload));
         const token = state.token || localStorage.getItem('token');
         if (token) {
-          const expires = new Date();
-          expires.setTime(expires.getTime() + 7 * 24 * 60 * 60 * 1000);
-          document.cookie = `token=${token};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+          setCookie('token', token, 7);
         }
       }
     },
@@ -82,20 +80,22 @@ const authSlice = createSlice({
             state.token = token;
             state.user = JSON.parse(userStr);
             state.isAuthenticated = true;
-            // Ensure cookie is also set
             setCookie('token', token, 7);
           } catch (e) {
-            console.error('Failed to parse user from localStorage:', e);
             state.isAuthenticated = false;
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            deleteCookie('token');
           }
         } else {
           state.isAuthenticated = false;
         }
       }
-      state.loading = false; // Important: set loading to false after restore
+      state.loading = false;
     },
   },
 });
+
 export const {
   loginStart,
   loginSuccess,
