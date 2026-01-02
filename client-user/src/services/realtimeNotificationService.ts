@@ -12,6 +12,8 @@ class RealtimeNotificationService {
   private socket: Socket | null = null;
   private listeners: Map<NotificationEvent, Listener[]> = new Map();
   private isConnecting = false;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
 
   connect(token: string | null | undefined) {
     if (!token) {
@@ -55,7 +57,7 @@ class RealtimeNotificationService {
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
-        reconnectionAttempts: 5,
+        reconnectionAttempts: this.maxReconnectAttempts,
         timeout: 20000,
         autoConnect: true,
         forceNew: true,
@@ -64,8 +66,6 @@ class RealtimeNotificationService {
 
       this.setupEventListeners();
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('❌ Error creating socket connection:', error);
       this.isConnecting = false;
     }
   }
@@ -75,6 +75,7 @@ class RealtimeNotificationService {
 
     this.socket.on('connect', () => {
       this.isConnecting = false;
+      this.reconnectAttempts = 0;
     });
 
     this.socket.on('disconnect', (reason: string) => {
@@ -90,27 +91,35 @@ class RealtimeNotificationService {
     });
 
     this.socket.on('connect_error', (error: Error & { message: string }) => {
-      // eslint-disable-next-line no-console
-      console.error('❌ Notification socket connection error:', error.message);
       this.isConnecting = false;
+      this.reconnectAttempts++;
 
-      if (error.message.includes('websocket')) {
-        // eslint-disable-next-line no-console
-        console.log('⚠️ WebSocket connection failed, will try polling...');
+      // If authentication error or expired token, stop trying
+      if (error.message.includes('Authentication') || 
+          error.message.includes('jwt expired') ||
+          error.message.includes('invalid token')) {
+        this.disconnect();
+        return;
+      }
+
+      // If max attempts reached, stop trying
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        this.disconnect();
       }
     });
 
     this.socket.on('reconnect_attempt', (attemptNumber: number) => {
-      // eslint-disable-next-line no-console
-      console.log(`🔄 Notification reconnection attempt #${attemptNumber}`);
+      // Silent - no console log
     });
 
     this.socket.on('reconnect_failed', () => {
       this.isConnecting = false;
+      this.disconnect();
     });
 
     this.socket.on('reconnect', () => {
       this.isConnecting = false;
+      this.reconnectAttempts = 0;
     });
 
     this.socket.on('new-notification', (data: any) => {
@@ -126,8 +135,6 @@ class RealtimeNotificationService {
     });
 
     this.socket.on('notification-deleted', (data: any) => {
-      // eslint-disable-next-line no-console
-      console.log('🗑️ Notification deleted:', data);
       this.trigger('notification-deleted', data);
     });
   }
@@ -156,8 +163,7 @@ class RealtimeNotificationService {
       try {
         callback(data);
       } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('Error in notification event listener:', error);
+        // Silent error handling
       }
     });
   }
@@ -173,6 +179,7 @@ class RealtimeNotificationService {
       this.socket = null;
       this.listeners.clear();
       this.isConnecting = false;
+      this.reconnectAttempts = 0;
     }
   }
 
@@ -187,5 +194,3 @@ class RealtimeNotificationService {
 const realtimeNotificationService = new RealtimeNotificationService();
 
 export default realtimeNotificationService;
-
-
