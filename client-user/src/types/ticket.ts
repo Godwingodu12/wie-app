@@ -533,7 +533,6 @@ export const EVENT_CATEGORIES = [
   'Environment, Sustainability, & Agriculture',
   'Religious & Spiritual Events',
   'Education & Learning',
-
 ] as const;
 export interface RefundTransaction {
   id: string;
