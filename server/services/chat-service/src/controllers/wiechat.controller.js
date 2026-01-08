@@ -317,8 +317,8 @@ export const getWieUserChats = async (req, res) => {
         { deletedFor: { $ne: userIdStr } },
         { 
           $or: [
-            { 'messages.0': { $exists: true } }, // Has at least one message
-            { lastMessage: { $exists: true, $ne: null } } // Or has lastMessage
+            { 'messages.0': { $exists: true } },
+            { lastMessage: { $exists: true, $ne: null } }
           ]
         }
       ],
@@ -338,7 +338,6 @@ export const getWieUserChats = async (req, res) => {
     );
 
     const participants = await getWieUsersByIds(participantIds);
-    
     const participantMap = new Map(participants.map(p => [p.id, p]));
 
     const chatsWithDetails = chats.map(chat => {
@@ -363,14 +362,44 @@ export const getWieUserChats = async (req, res) => {
         }
       }
 
+      // ✅ CRITICAL: Calculate unread count properly
       const unreadCount = filteredMessages.filter(
         msg => 
           msg.sender !== userId.toString() &&
           !msg.readBy?.some(id => id === userId.toString())
       ).length || 0;
       
-      const formattedParticipant = formatUserForChat(participant);
+      // ✅ CRITICAL: Check socket status for real-time online status
+      const socketStatus = getUserOnlineStat(otherParticipantId);
+      const isSocketOnline = socketStatus.isOnline;
       
+      let finalIsOnline = false;
+      let lastSeenAt = null;
+      
+      if (isSocketOnline) {
+        // User is connected via socket - definitely online
+        finalIsOnline = true;
+        lastSeenAt = new Date().toISOString();
+      } else if (participant) {
+        // User not in socket, use database status
+        finalIsOnline = false;
+        lastSeenAt = participant.last_seen_at || participant.lastSeenAt;
+      }
+      
+      const formattedParticipant = participant ? {
+        _id: participant.id,
+        name: participant.name || '',
+        username: participant.username || '',
+        email: participant.email || '',
+        contact_no: participant.contact_no || '',
+        profile_picture: participant.profile_picture || null,
+        bio: participant.bio || '',
+        is_verified: participant.is_verified || false,
+        // ✅ Use real-time socket status
+        isOnline: finalIsOnline,
+        last_seen_at: lastSeenAt,
+        lastSeen: lastSeenAt
+      } : null;
       return {
         _id: chat._id,
         participant: formattedParticipant,
@@ -382,7 +411,6 @@ export const getWieUserChats = async (req, res) => {
       };
     });
 
-    // Filter out chats without messages after applying clear filter
     const chatsWithMessages = chatsWithDetails.filter(chat => chat.lastMessage !== null);
 
     const totalChats = await WieChat.countDocuments({
@@ -394,7 +422,6 @@ export const getWieUserChats = async (req, res) => {
         { lastMessage: { $exists: true, $ne: null } }
       ]
     });
-
     res.status(200).json({
       success: true,
       chats: chatsWithMessages,
@@ -437,8 +464,51 @@ export const sendWieMessage = async (req, res) => {
         message: 'You are not a participant in this chat'
       });
     }
-
-    // Check if this is a pending request and sender is not the requester
+    
+    const otherUserId = chat.participants.find(id => id !== userIdStr);
+    const blocked = await isBlocked(userIdStr, otherUserId);
+    
+    if (blocked) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot send message. User has been blocked.'
+      });
+    }
+    let messageType = 'text';
+    let voiceData = null;
+    let messageContent = content.trim();
+    if (messageContent.startsWith('{') && messageContent.includes('"type":"voice"')) {
+      try {
+        const parsed = JSON.parse(messageContent);
+        const durationValue = Number(parsed.duration);
+        const hasValidDuration = !isNaN(durationValue) && 
+                                isFinite(durationValue) && 
+                                durationValue > 0;
+        
+        if (parsed.type === 'voice' && parsed.audio && hasValidDuration) {
+          messageType = 'voice';
+          
+          // ✅ CRITICAL: Ensure audio is a complete data URI
+          let audioData = parsed.audio;
+          
+          // Verify it starts with data:
+          if (!audioData.startsWith('data:')) {
+            console.error('❌ Backend - Audio missing data URI prefix!');
+            const mimeType = parsed.mimeType || 'audio/webm;codecs=opus';
+            audioData = `data:${mimeType};base64,${audioData}`;
+          }
+          voiceData = {
+            audioBase64: audioData,
+            duration: durationValue,
+            mimeType: parsed.mimeType || 'audio/webm;codecs=opus'
+          };
+          
+          messageContent = '🎤 Voice message';
+        }
+      } catch (e) {
+        console.error('❌ Backend - Failed to parse voice message:', e);
+      }
+    }
     if (chat.type === 'request' && chat.status === 'pending') {
       const isRequester = chat.participants[0] === userIdStr;
       if (!isRequester) {
@@ -463,7 +533,7 @@ export const sendWieMessage = async (req, res) => {
 
     const receiverId = chat.participants.find(id => id !== userIdStr);
 
-    // Get receiver info for sender's chat list update
+    // Get receiver info
     let receiverInfo = null;
     try {
       receiverInfo = await getWieUserById(receiverId);
@@ -476,36 +546,40 @@ export const sendWieMessage = async (req, res) => {
     }
 
     const { isUserOnline } = await import('../socket/wieSocket.js');
+    const senderIsOnline = isUserOnline(userIdStr);
     const receiverOnline = isUserOnline(receiverId);
-    const receiverViewingChat = receiverOnline && 
-      (await new Promise((resolve) => {
-        try {
-          const io = getIO();
-          const sockets = io.sockets.sockets;
-          for (const [socketId, socket] of sockets) {
-            if (socket.userId === receiverId) {
-              resolve(socket.rooms.has(chatId.toString()));
-              return;
-            }
+    
+    let receiverViewingChat = false;
+    
+    if (receiverOnline) {
+      const io = getIO();
+      const sockets = io.sockets.sockets;
+      
+      for (const [socketId, socket] of sockets) {
+        if (socket.userId === receiverId) {
+          const isInChatRoom = socket.rooms.has(chatId.toString());          
+          if (isInChatRoom) {
+            receiverViewingChat = true;
+            break;
           }
-          resolve(false);
-        } catch {
-          resolve(false);
         }
-      }));
-
-    const message = {
+      }
+    }
+    const messageObj = {
       sender: userIdStr,
-      content: content.trim(),
+      content: messageContent,
+      messageType: messageType,  // ✅ Explicitly set this
       readBy: receiverViewingChat ? [userIdStr, receiverId] : [userIdStr], 
       isRead: receiverViewingChat,
       deliveredTo: receiverOnline ? [receiverId] : [],
       timestamp: new Date()
     };
-
-    chat.messages.push(message);
+    if (messageType === 'voice' && voiceData && voiceData.duration > 0) {
+      messageObj.voiceData = voiceData;
+    } 
+    chat.messages.push(messageObj);
     chat.lastMessage = {
-      content: content.trim(),
+      content: messageContent,
       sender: userIdStr,
       timestamp: new Date()
     };
@@ -516,13 +590,35 @@ export const sendWieMessage = async (req, res) => {
 
     chat.updatedAt = new Date();
     await chat.save();
-
     const savedMessage = chat.messages[chat.messages.length - 1];
     const isFirstMessage = chat.messages.length === 1;
 
+    let receiverUnreadCount = 0;
+    
+    if (!receiverViewingChat) {
+      let filteredMessages = chat.messages;
+      
+      if (chat.clearedBy && chat.clearedBy.length > 0) {
+        const receiverClearRecord = chat.clearedBy.find(item => item.user === receiverId);
+        
+        if (receiverClearRecord) {
+          const clearTime = new Date(receiverClearRecord.clearedAt);
+          filteredMessages = chat.messages.filter(msg => 
+            new Date(msg.createdAt || msg.timestamp) > clearTime
+          );
+        }
+      }
+      
+      receiverUnreadCount = filteredMessages.filter(
+        msg => 
+          msg.sender !== receiverId && 
+          !msg.readBy?.some(id => id === receiverId)
+      ).length;
+    }
     const messageDataForSender = {
       _id: savedMessage._id.toString(),
       content: savedMessage.content,
+      messageType: savedMessage.messageType,
       sender: userIdStr,
       timestamp: savedMessage.timestamp,
       createdAt: savedMessage.timestamp,
@@ -533,17 +629,13 @@ export const sendWieMessage = async (req, res) => {
       receiverOnline
     };
 
-    const messageDataForReceiver = {
-      _id: savedMessage._id.toString(),
-      content: savedMessage.content,
-      sender: userIdStr,
-      timestamp: savedMessage.timestamp,
-      createdAt: savedMessage.timestamp,
-      readBy: savedMessage.readBy,
-      deliveredTo: savedMessage.deliveredTo || [],
-      isRead: savedMessage.isRead,
-      isSender: false
-    };
+    if (savedMessage.voiceData && savedMessage.messageType === 'voice') {
+      messageDataForSender.voiceData = {
+        audioBase64: savedMessage.voiceData.audioBase64,
+        duration: savedMessage.voiceData.duration,
+        mimeType: savedMessage.voiceData.mimeType
+      };
+    }
 
     // Send HTTP response first
     res.status(201).json({
@@ -557,31 +649,42 @@ export const sendWieMessage = async (req, res) => {
       try {
         const io = getIO();
         
+        // ✅ Build message data for socket with all fields
+        const messageData = {
+          _id: savedMessage._id.toString(),
+          sender: userIdStr,
+          content: savedMessage.content,
+          messageType: savedMessage.messageType,
+          timestamp: savedMessage.timestamp,
+          createdAt: savedMessage.timestamp,
+          readBy: savedMessage.readBy || [],
+          deliveredTo: savedMessage.deliveredTo || [],
+          isRead: savedMessage.isRead || false
+        };
+
+        // ✅ Add voiceData if exists
+        if (savedMessage.voiceData) {
+          messageData.voiceData = {
+            audioBase64: savedMessage.voiceData.audioBase64,
+            duration: savedMessage.voiceData.duration,
+            mimeType: savedMessage.voiceData.mimeType
+          };
+        }
         // Emit to chat room
         io.to(chatId.toString()).emit('new-message', {
           chatId: chatId.toString(),
-          message: messageDataForReceiver,
+          message: messageData,
           sender: userIdStr,
           timestamp: new Date(),
           autoRead: receiverViewingChat
         });
 
-        // IMPORTANT: Only send notifications to receiver if this is a message
-        // This includes first message which triggers request notification
+        // Notification to receiver
         const notificationData = {
           chatId: chatId.toString(),
-          message: {
-            _id: savedMessage._id.toString(),
-            content: content.trim(),
-            sender: userIdStr,
-            senderName: senderInfo?.name || 'Someone',
-            senderImage: senderInfo?.profile_picture || null,
-            timestamp: new Date(),
-            deliveredTo: savedMessage.deliveredTo || [],
-            isRead: savedMessage.isRead
-          },
+          message: messageData,
           lastMessage: {
-            content: content.trim(),
+            content: messageContent,
             sender: userIdStr,
             timestamp: new Date(),
             readBy: savedMessage.readBy,
@@ -590,27 +693,35 @@ export const sendWieMessage = async (req, res) => {
           participant: {
             _id: senderInfo?.id || userIdStr,
             name: senderInfo?.name || 'Someone',
-            profile_picture: senderInfo?.profile_picture || null,
+            username: senderInfo?.username || '',
+            contact_no: senderInfo?.contact_no || '',
             email: senderInfo?.email || '',
+            profile_picture: senderInfo?.profile_picture || null,
             bio: senderInfo?.bio || null,
-            is_verified: senderInfo?.is_verified || false
+            is_verified: senderInfo?.is_verified || false,
+            isOnline: senderIsOnline,
+            last_seen_at: senderIsOnline ? new Date().toISOString() : (senderInfo?.last_seen_at || null),
+            lastSeen: senderIsOnline ? new Date().toISOString() : (senderInfo?.last_seen_at || null)
           },
           type: chat.type || 'direct',
           status: chat.status || 'accepted',
-          unreadCount: receiverViewingChat ? 0 : 1,
+          unreadCount: receiverUnreadCount,
           timestamp: new Date(),
           isFirstMessage: isFirstMessage,
           autoRead: receiverViewingChat
         };
-
-        // Send notification to receiver
+        
         io.to(receiverId).emit('new-message-notification', notificationData);
+        io.to(receiverId).emit('chat-unread-update', {
+          chatId: chatId.toString(),
+          unreadCount: receiverUnreadCount 
+        });
 
         // Update receiver's chat list
         io.to(receiverId).emit('chat-list-update', {
           chatId: chatId.toString(),
           lastMessage: {
-            content: content.trim(),
+            content: messageContent,
             sender: userIdStr,
             timestamp: new Date(),
             readBy: savedMessage.readBy,
@@ -619,14 +730,18 @@ export const sendWieMessage = async (req, res) => {
           participant: {
             _id: senderInfo?.id || userIdStr,
             name: senderInfo?.name || 'Someone',
-            profile_picture: senderInfo?.profile_picture || null,
+            username: senderInfo?.username || '',
+            contact_no: senderInfo?.contact_no || '',
             email: senderInfo?.email || '',
+            profile_picture: senderInfo?.profile_picture || null,
             bio: senderInfo?.bio || null,
-            is_verified: senderInfo?.is_verified || false
+            is_verified: senderInfo?.is_verified || false,
+            isOnline: senderIsOnline,
+            last_seen_at: senderIsOnline ? new Date().toISOString() : (senderInfo?.last_seen_at || null)
           },
           type: chat.type || 'direct',
           status: chat.status || 'accepted',
-          unreadCount: receiverViewingChat ? 0 : 1,
+          unreadCount: receiverUnreadCount,
           isFirstMessage: isFirstMessage
         });
 
@@ -634,7 +749,7 @@ export const sendWieMessage = async (req, res) => {
         io.to(userIdStr).emit('chat-list-update', {
           chatId: chatId.toString(),
           lastMessage: {
-            content: content.trim(),
+            content: messageContent,
             sender: userIdStr,
             timestamp: new Date(),
             readBy: savedMessage.readBy,
@@ -643,10 +758,14 @@ export const sendWieMessage = async (req, res) => {
           participant: {
             _id: receiverInfo?.id || receiverId,
             name: receiverInfo?.name || 'Someone',
-            profile_picture: receiverInfo?.profile_picture || null,
+            username: receiverInfo?.username || '',
+            contact_no: receiverInfo?.contact_no || '',
             email: receiverInfo?.email || '',
+            profile_picture: receiverInfo?.profile_picture || null,
             bio: receiverInfo?.bio || null,
-            is_verified: receiverInfo?.is_verified || false
+            is_verified: receiverInfo?.is_verified || false,
+            isOnline: receiverInfo?.isOnline ?? false,
+            last_seen_at: receiverInfo?.last_seen_at || null
           },
           type: chat.type || 'direct',
           status: chat.status || 'accepted',
@@ -751,19 +870,31 @@ export const getWieChatMessages = async (req, res) => {
     const startIndex = Math.max(0, totalMessages - (parseInt(page) * parseInt(limit)));
     const endIndex = totalMessages - ((parseInt(page) - 1) * parseInt(limit));
     const paginatedMessages = filteredMessages.slice(startIndex, endIndex);
+    const messagesWithAllFields = paginatedMessages.map(msg => {
+      const messageData = {
+        _id: msg._id,
+        sender: msg.sender,
+        content: msg.content,
+        messageType: msg.messageType || 'text',
+        timestamp: msg.timestamp || msg.createdAt,
+        createdAt: msg.createdAt || msg.timestamp,
+        readBy: msg.readBy || [],
+        isRead: msg.isRead || false,
+        deliveredTo: msg.deliveredTo || [],
+        deletedForEveryone: msg.deletedForEveryone || false
+      };
 
-    const messagesWithAllFields = paginatedMessages.map(msg => ({
-      _id: msg._id,
-      sender: msg.sender,
-      content: msg.content,
-      timestamp: msg.timestamp || msg.createdAt,
-      createdAt: msg.createdAt || msg.timestamp,
-      readBy: msg.readBy || [],
-      isRead: msg.isRead || false,
-      deliveredTo: msg.deliveredTo || [],
-      deletedForEveryone: msg.deletedForEveryone || false
-    }));
+      // ✅ CRITICAL: Add voiceData if message is a voice message
+      if (msg.messageType === 'voice' && msg.voiceData) {
+        messageData.voiceData = {
+          audioBase64: msg.voiceData.audioBase64,
+          duration: msg.voiceData.duration,
+          mimeType: msg.voiceData.mimeType || 'audio/webm;codecs=opus'
+        };
+      }
 
+      return messageData;
+    });
     const response = {
       success: true,
       chat: {
@@ -790,13 +921,53 @@ export const getWieChatMessages = async (req, res) => {
       pages: Math.ceil(totalMessages / parseInt(limit)),
       hasMore: startIndex > 0
     };
-    
     res.status(200).json(response);
   } catch (error) {
     console.error('Error in getWieChatMessages:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to get messages'
+    });
+  }
+};
+export const getChatDetails = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const { chatId } = req.params;
+
+    const chat = await WieChat.findOne({
+      _id: chatId,
+      participants: userId.toString(),
+      isActive: true
+    }).lean();
+
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        message: 'Chat not found'
+      });
+    }
+
+    // Get the other participant
+    const otherParticipantId = chat.participants.find(id => id !== userId.toString());
+    
+    // Check block status
+    const iBlockedThem = await isBlocked(userId.toString(), otherParticipantId);
+    const theyBlockedMe = await isBlocked(otherParticipantId, userId.toString());
+
+    res.status(200).json({
+      success: true,
+      chat: {
+        ...chat,
+        isBlocked: iBlockedThem || theyBlockedMe,
+        isBlockedBy: iBlockedThem ? 'you' : theyBlockedMe ? 'them' : undefined
+      }
+    });
+  } catch (error) {
+    console.error('Get chat details error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get chat details'
     });
   }
 };
@@ -1132,7 +1303,6 @@ export const getUnreadMessageCount = async (req, res) => {
     });
   }
 };
-// Mark messages as read
 export const markWieMessagesAsRead = async (req, res) => {
   try {
     const { chatId } = req.params;
@@ -1155,12 +1325,16 @@ export const markWieMessagesAsRead = async (req, res) => {
       });
     }
 
-    // Find all unread messages from other participant
+    // ✅ Find all unread messages from other participant
     const unreadMessageIds = [];
     let updated = false;
 
     chat.messages.forEach(msg => {
       if (msg.sender !== userIdStr && !msg.readBy.includes(userIdStr)) {
+        // ✅ Add user to readBy array
+        if (!msg.readBy) {
+          msg.readBy = [];
+        }
         msg.readBy.push(userIdStr);
         msg.isRead = true;
         unreadMessageIds.push(msg._id.toString());
@@ -1169,21 +1343,41 @@ export const markWieMessagesAsRead = async (req, res) => {
     });
 
     if (updated) {
+      // ✅ CRITICAL: Mark the document as modified
+      chat.markModified('messages');
       await chat.save();
-
-      // Emit socket event to sender
+      // Emit socket events
       try {
         const io = getIO();
         const otherParticipant = chat.participants.find(p => p !== userIdStr);
         
-        io.to(otherParticipant).emit('messages-read', {
+        // Emit to other participant
+        if (otherParticipant) {
+          io.to(otherParticipant).emit('messages-read', {
+            chatId: chatId.toString(),
+            userId: userIdStr,
+            messageIds: unreadMessageIds,
+            readBy: userIdStr
+          });
+        }
+        // ✅ CRITICAL: Emit unread count update to current user
+        io.to(userIdStr).emit('chat-unread-update', {
           chatId: chatId.toString(),
-          userId: userIdStr,
-          messageIds: unreadMessageIds,
-          readBy: userIdStr
+          unreadCount: 0
         });
       } catch (socketError) {
-        // Silent fail
+        console.error('Socket emit failed:', socketError);
+      }
+    } else {
+      // ✅ Even if no messages updated, still emit to ensure UI is synced
+      try {
+        const io = getIO();
+        io.to(userIdStr).emit('chat-unread-update', {
+          chatId: chatId.toString(),
+          unreadCount: 0
+        });
+      } catch (socketError) {
+        console.error('Socket emit failed:', socketError);
       }
     }
 
@@ -1193,6 +1387,7 @@ export const markWieMessagesAsRead = async (req, res) => {
       markedCount: unreadMessageIds.length
     });
   } catch (error) {
+    console.error('❌ Mark as read error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to mark messages as read'
@@ -1609,6 +1804,56 @@ export const deleteChatForMe = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to delete chat'
+    });
+  }
+};
+export const getUnreadUsersCount = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const userIdStr = userId.toString();
+    // Find all active chats for this user
+    const chats = await WieChat.find({
+      participants: userIdStr,
+      isActive: true,
+      deletedFor: { $ne: userIdStr }
+    }).lean();
+
+    // ✅ Count unique USERS with unread messages (not total messages)
+    let uniqueUsersWithUnreadMessages = 0;
+
+    for (const chat of chats) {
+      let filteredMessages = chat.messages || [];
+      
+      // Apply cleared filter if exists
+      if (chat.clearedBy && chat.clearedBy.length > 0) {
+        const userClearRecord = chat.clearedBy.find(item => item.user === userIdStr);
+        
+        if (userClearRecord) {
+          const clearTime = new Date(userClearRecord.clearedAt);
+          filteredMessages = chat.messages.filter(msg => 
+            new Date(msg.createdAt || msg.timestamp) > clearTime
+          );
+        }
+      }
+      // Check if this chat has ANY unread message from the other user
+      const hasUnreadMessages = filteredMessages.some(
+        msg => 
+          msg.sender !== userIdStr && // Message is not from me
+          !msg.readBy?.some(id => id === userIdStr) // I haven't read it
+      );
+      if (hasUnreadMessages) {
+        uniqueUsersWithUnreadMessages++;
+      }
+    }
+    res.status(200).json({
+      success: true,
+      unreadUsersCount: uniqueUsersWithUnreadMessages // Number of unique users, not messages
+    });
+  } catch (error) {
+    console.error('❌ Error in getUnreadUsersCount:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get unread users count'
     });
   }
 };
