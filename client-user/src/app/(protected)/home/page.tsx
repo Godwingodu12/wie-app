@@ -75,7 +75,13 @@ interface Post {
 // --- Dummy Data ---
 
 const dummyStories: Story[] = [
-  { id: "1", username: "Your story", avatar: ProfileImage.src, hasStory: false, isOwn: true },
+  {
+    id: "1",
+    username: "Your story",
+    avatar: ProfileImage.src,
+    hasStory: false,
+    isOwn: true,
+  },
   { id: "2", username: "Gokul", avatar: ProfileImage.src, hasStory: true },
   {
     id: "3",
@@ -264,7 +270,7 @@ export default function HomePage() {
     }
   };
 
-  const marginLeft = isMobile ? "0" : isCollapsed ? "80px" : "281px";
+  const marginLeft = isMobile ? "0" : "281px";
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -453,7 +459,7 @@ export default function HomePage() {
                     key={post.id}
                     className="w-full flex flex-col gap-3 mb-4"
                   >
-                      {/* Header */}
+                    {/* Header */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-[38px] h-[38px] rounded-full overflow-hidden bg-[#222]">
@@ -575,7 +581,7 @@ export default function HomePage() {
                       )}
                     </div>
 
-                      {/* Liked By */}
+                    {/* Liked By */}
                     <div className="px-1 flex items-center gap-2">
                       <div className="flex -space-x-1.5">
                         <div className="w-4 h-4 rounded-full border border-black relative bg-gray-700">
