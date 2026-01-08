@@ -8,10 +8,8 @@ import ChatWindow from '@/components/chat/ChatWindow';
 import NewChatModal from '@/components/chat/NewChatModal';
 import { MessageSquarePlus, MessageCircle } from 'lucide-react';
 import { Chat } from '@/types/chat';
-import { getWieUserChats, getMessageRequests, checkBlockStatus } from '@/services/chatService';
-import MessagesIcon from '@/components/layout/MessagesIcon';
+import { getWieUserChats, getMessageRequests, checkBlockStatus,getWieChatMessages} from '@/services/chatService';
 import UnreadBadge from '@/components/chat/UnreadBadge';
-
 export default function MessagesPage() {
   const { 
     setCurrentChat, 
@@ -29,8 +27,6 @@ export default function MessagesPage() {
   const hasFetchedRef = useRef(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const router = useRouter();
-
-  // ✅ Refresh chat details when returning to page
   useEffect(() => {
     const refreshCurrentChatDetails = async () => {
       if (currentChat?._id && currentChat?.participant?._id) {
@@ -50,7 +46,6 @@ export default function MessagesPage() {
           
           setCurrentChat(updatedChat);
           
-          // Save to localStorage
           if (typeof window !== 'undefined') {
             localStorage.setItem('wie_current_chat', JSON.stringify(updatedChat));
           }
@@ -62,7 +57,6 @@ export default function MessagesPage() {
 
     refreshCurrentChatDetails();
   }, [currentChat?._id]);
-
   useEffect(() => {
     const loadChats = async () => {
       if (hasFetchedRef.current) return;
