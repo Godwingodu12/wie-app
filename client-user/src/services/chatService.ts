@@ -191,7 +191,6 @@ export const getMessageRequests = async (): Promise<any> => {
   const res = await chatApi.get('/requests');
   return res.data;
 };
-
 export const deleteMessagesForMe = async (chatId: string, messageIds: string[]): Promise<any> => {
   const res = await chatApi.post(`/${chatId}/messages/delete-for-me`, { messageIds });
   return res.data;

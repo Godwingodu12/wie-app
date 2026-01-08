@@ -11,13 +11,17 @@ import {
   deleteChatForMe,
   acceptMessageRequest,
   declineMessageRequest,
-  markMessagesAsRead,blockUser,unblockUser, reportUser,checkBlockStatus
+  markMessagesAsRead,
+  blockUser,
+  unblockUser, 
+  reportUser,
+  checkBlockStatus
 } from '@/services/chatService';
 import socketService from '@/services/socketService';
 import EmojiPicker from '@/components/chat/EmojiPicker';
 import VoiceRecorder from '@/components/chat/VoiceRecorder';
 import VoiceMessageDisplay from '@/components/chat/VoiceMessageDisplay';
-import { MessageCircle, Send, Loader2, ArrowLeft, MoreVertical, X, Check, CheckCheck,Mic } from 'lucide-react';
+import { MessageCircle, Send, Loader2, ArrowLeft, MoreVertical, X, Check, CheckCheck, Mic } from 'lucide-react';
 import Image from 'next/image';
 import { ChatMessage } from '@/types/chat';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -29,7 +33,9 @@ interface ChatWindowProps {
 export default function ChatWindow({ onBack }: ChatWindowProps) {
   const authState = useSelector((state: RootState) => state?.auth);
   const user = authState?.user;
-  const { currentChat, messages, setMessages, addMessage, removeChat, setCurrentChat, acceptRequest, declineRequest,typingUsers,updateUnreadCount  } = useChat();
+  const { currentChat, messages, setMessages, addMessage, removeChat, setCurrentChat, acceptRequest, declineRequest, typingUsers, updateUnreadCount, loadChatById } = useChat();
+  
+  // ✅ ALL useState and useRef hooks MUST be declared at the TOP, before ANY conditional returns
   const [messageInput, setMessageInput] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -39,35 +45,28 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
   const markedAsReadRef = useRef<Set<string>>(new Set());
   const hasMarkedAsRead = useRef(false);
   const [isTyping, setIsTyping] = useState(false);
-  const isOtherUserTyping = currentChat ? typingUsers[currentChat._id] || false : false;
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Selection mode states
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [showDeleteMenu, setShowDeleteMenu] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [sendingVoice, setSendingVoice] = useState(false);
-  // Accept/Decline states
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
-
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center h-full bg-[#0C1014]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#8860D9]"></div>
-      </div>
-    );
-  }
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportType, setReportType] = useState<'harassment' | 'spam' | 'inappropriate' | 'threat' | 'other'>('harassment');
   const [reportReason, setReportReason] = useState('');
   const [isReporting, setIsReporting] = useState(false);
   const [isBlocking, setIsBlocking] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [blockStatus, setBlockStatus] = useState<{
     iBlockedThem: boolean;
     theyBlockedMe: boolean;
   } | null>(null);
+
+  const isOtherUserTyping = currentChat ? typingUsers[currentChat._id] || false : false;
+
   const STORAGE_KEYS = {
     CHATS: 'wie_chats',
     CURRENT_CHAT: 'wie_current_chat'
@@ -81,13 +80,14 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
       // Silent fail
     }
   };
+
   const handleEmojiSelect = (emoji: string) => {
     setMessageInput((prev) => prev + emoji);
-    // Keep focus on input after emoji selection
     if (inputRef.current) {
       inputRef.current.focus();
     }
   };
+
   const handleReportUser = async () => {
     if (!currentChat?.participant?._id || !reportReason.trim()) {
       alert('Please provide a reason for reporting');
@@ -101,7 +101,7 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
         reportType,
         reason: reportReason.trim(),
         chatId: currentChat._id,
-        messageIds: messages.slice(-5).map(m => m._id) // Last 5 messages
+        messageIds: messages.slice(-5).map(m => m._id)
       });
       
       setShowReportModal(false);
@@ -113,129 +113,113 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
       setIsReporting(false);
     }
   };
-const handleSendVoice = async (audioBlob: Blob, duration: number) => {
-  if (!currentChat || sendingVoice) return;
 
-  // ✅ Check file size (max 50MB for base64)
-  const maxSize = 50 * 1024 * 1024;
-  if (audioBlob.size > maxSize) {
-    alert('Voice message is too large. Please record a shorter message (max 12 minutes).');
-    return;
-  }
+  const handleSendVoice = async (audioBlob: Blob, duration: number) => {
+    if (!currentChat || sendingVoice) return;
 
-  // ✅ CRITICAL: Validate duration strictly
-  if (!duration || duration <= 0 || !isFinite(duration) || isNaN(duration)) {
-    console.error('❌ Invalid duration:', duration);
-    alert('Invalid voice recording duration. Please try again.');
-    return;
-  }
-  // ✅ Ensure duration is a valid positive integer
-  const validDuration = Math.max(1, Math.floor(duration));
-  setSendingVoice(true);
-  setShowVoiceRecorder(false);
-
-  try {
-    // Convert blob to base64
-    const base64Audio = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        resolve(result);
-      };
-      
-      reader.onerror = () => {
-        console.error('❌ FileReader error:', reader.error);
-        reject(reader.error);
-      };
-      
-      reader.readAsDataURL(audioBlob);
-    });
-
-    // ✅ Verify the base64 is complete
-    if (!base64Audio.startsWith('data:audio/')) {
-      console.error('❌ Invalid audio format:', base64Audio.substring(0, 100));
-      throw new Error('Invalid base64 format');
+    const maxSize = 50 * 1024 * 1024;
+    if (audioBlob.size > maxSize) {
+      alert('Voice message is too large. Please record a shorter message (max 12 minutes).');
+      return;
     }
 
-    // ✅ Test if the audio can be played locally before sending
-    const testAudio = new Audio(base64Audio);
-    
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Audio test timeout'));
-      }, 5000);
+    if (!duration || duration <= 0 || !isFinite(duration) || isNaN(duration)) {
+      console.error('❌ Invalid duration:', duration);
+      alert('Invalid voice recording duration. Please try again.');
+      return;
+    }
 
-      testAudio.oncanplaythrough = () => {
-        clearTimeout(timeout);
-        resolve();
-      };
+    const validDuration = Math.max(1, Math.floor(duration));
+    setSendingVoice(true);
+    setShowVoiceRecorder(false);
 
-      testAudio.onerror = (e) => {
-        console.error('❌ Audio test failed:', e);
-        clearTimeout(timeout);
-        reject(new Error('Audio test failed'));
-      };
-
-      testAudio.load();
-    });   
-    // ✅ CRITICAL: Create voice message object with complete data URI
-    const voiceMessage = {
-      type: 'voice',
-      audio: base64Audio,
-      duration: validDuration,
-      mimeType: audioBlob.type || 'audio/webm;codecs=opus'
-    };
-
-    // ✅ Send as JSON string (backend will parse it)
-    const content = JSON.stringify(voiceMessage);
     try {
-      const response = await sendWieMessage(currentChat._id, content);
-      if (response.success) {
-        addMessage(response.message);
+      const base64Audio = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result);
+        };
+        
+        reader.onerror = () => {
+          console.error('❌ FileReader error:', reader.error);
+          reject(reader.error);
+        };
+        
+        reader.readAsDataURL(audioBlob);
+      });
+
+      if (!base64Audio.startsWith('data:audio/')) {
+        console.error('❌ Invalid audio format:', base64Audio.substring(0, 100));
+        throw new Error('Invalid base64 format');
+      }
+
+      const testAudio = new Audio(base64Audio);
+      
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Audio test timeout'));
+        }, 5000);
+
+        testAudio.oncanplaythrough = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+
+        testAudio.onerror = (e) => {
+          console.error('❌ Audio test failed:', e);
+          clearTimeout(timeout);
+          reject(new Error('Audio test failed'));
+        };
+
+        testAudio.load();
+      });
+
+      const voiceMessage = {
+        type: 'voice',
+        audio: base64Audio,
+        duration: validDuration,
+        mimeType: audioBlob.type || 'audio/webm;codecs=opus'
+      };
+
+      const content = JSON.stringify(voiceMessage);
+      try {
+        const response = await sendWieMessage(currentChat._id, content);
+        if (response.success) {
+          addMessage(response.message);
+        }
+      } catch (error: any) {
+        console.error('❌ Failed to send voice message:', error);
+        
+        if (error.response?.status === 413) {
+          alert('Voice message is too large. Please record a shorter message.');
+        } else if (error.response?.status === 403) {
+          alert(error.response?.data?.message || 'Cannot send message to this user');
+        } else {
+          alert('Failed to send voice message. Please try again.');
+        }
+      } finally {
+        setSendingVoice(false);
       }
     } catch (error: any) {
-      console.error('❌ Failed to send voice message:', error);
-      
-      if (error.response?.status === 413) {
-        alert('Voice message is too large. Please record a shorter message.');
-      } else if (error.response?.status === 403) {
-        alert(error.response?.data?.message || 'Cannot send message to this user');
+      console.error('❌ Voice message processing error:', error);
+      if (error.message === 'Audio test failed') {
+        alert('Failed to verify audio recording. Please ensure your microphone is working and try again.');
       } else {
-        alert('Failed to send voice message. Please try again.');
+        alert('Failed to process voice message. Please try again.');
       }
-    } finally {
       setSendingVoice(false);
     }
-  } catch (error: any) {
-    console.error('❌ Voice message processing error:', error);
-    if (error.message === 'Audio test failed') {
-      alert('Failed to verify audio recording. Please ensure your microphone is working and try again.');
-    } else {
-      alert('Failed to process voice message. Please try again.');
-    }
-    setSendingVoice(false);
-  }
-};
-  const isVoiceMessage = (message: ChatMessage): boolean => {
-    return message.messageType === 'voice' && !!message.voiceData;
   };
-  const getVoiceMessageData = (message: ChatMessage) => {
-    if (!message.voiceData) return null;
-    return {
-      audioURL: message.voiceData.audioBase64,
-      duration: message.voiceData.duration,
-      mimeType: message.voiceData.mimeType
-    };
-  };
+
   const parseVoiceMessage = (content: string) => {
     try {
       const parsed = JSON.parse(content);
-      // ✅ Ensure duration is a valid number
       if (parsed.type === 'voice' && parsed.audio) {
         return {
           ...parsed,
-          duration: parsed.duration > 0 ? parsed.duration : 1 // Fallback to 1 second
+          duration: parsed.duration > 0 ? parsed.duration : 1
         };
       }
       return null;
@@ -243,196 +227,7 @@ const handleSendVoice = async (audioBlob: Blob, duration: number) => {
       return null;
     }
   };
-  useEffect(() => {
-    if (currentChat) {
-      hasMarkedAsRead.current = false;
-      markedAsReadRef.current.clear();
-      // ✅ CRITICAL: Join the chat room IMMEDIATELY
-      socketService.joinChat(currentChat._id);
-      
-      // Small delay before loading messages to ensure room is joined
-      setTimeout(() => {
-        loadMessages();
-      }, 100);
 
-      return () => {
-        socketService.leaveChat(currentChat._id);
-      };
-    }
-  }, [currentChat?._id]);
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages.length]);
-  useEffect(() => {
-    if (!currentChat?._id || !user?.id || loading || hasMarkedAsRead.current) return;
-    if (messages.length === 0) return;
-    const unreadMessages = messages.filter(
-      (msg) => msg.sender !== user.id && !msg.readBy.includes(user.id)
-    );
-    if (unreadMessages.length === 0) {
-      return;
-    }
-    // Mark that we've attempted to mark as read
-    hasMarkedAsRead.current = true;    
-    // ✅ IMMEDIATELY clear unread count in UI (optimistic update)
-    updateUnreadCount(currentChat._id, 0);
-    
-    // Call API to mark as read on server
-      markMessagesAsRead(currentChat._id)
-        .catch((error) => {
-          hasMarkedAsRead.current = false;
-        });
-  }, [currentChat?._id, user?.id, loading, messages.length, updateUnreadCount]);
-  const handleBlockUser = async () => {
-    if (!currentChat?.participant?._id) return;
-    
-    // ✅ CRITICAL: Check blockStatus state first
-    const iBlockedThem = blockStatus?.iBlockedThem === true;  
-    if (iBlockedThem) {
-      // Unblock
-      if (!confirm(`Unblock ${currentChat.participant.name}? They will be able to message you again.`)) {
-        return;
-      }
-      
-      setIsBlocking(true);
-      try {
-        await unblockUser(currentChat.participant._id);      
-        // ✅ Update block status FIRST
-        setBlockStatus({ iBlockedThem: false, theyBlockedMe: false });
-        
-        const updatedChat = {
-          ...currentChat,
-          isBlocked: false,
-          isBlockedBy: undefined
-        };
-        setCurrentChat(updatedChat);
-        saveToStorage(STORAGE_KEYS.CURRENT_CHAT, updatedChat);
-        setShowDeleteMenu(false);
-        
-        alert('User unblocked successfully.');
-      } catch (error: any) {
-        console.error('Unblock error:', error);
-        alert(error.response?.data?.message || 'Failed to unblock user');
-      } finally {
-        setIsBlocking(false);
-      }
-    } else {
-      // Block
-      if (!confirm(`Block ${currentChat.participant.name}? This will:\n• Remove them from your followers/following\n• Prevent them from messaging you\n• They won't be notified`)) {
-        return;
-      }
-
-      setIsBlocking(true);
-      try {
-        await blockUser(currentChat.participant._id);      
-        // ✅ Update block status FIRST before updating chat
-        setBlockStatus({ iBlockedThem: true, theyBlockedMe: false });
-        
-        const updatedChat = {
-          ...currentChat,
-          isBlocked: true,
-          isBlockedBy: 'you' as const
-        };
-        setCurrentChat(updatedChat);
-        saveToStorage(STORAGE_KEYS.CURRENT_CHAT, updatedChat);
-        setShowDeleteMenu(false);
-        
-        alert('User blocked successfully. You can still view chat history but they cannot message you.');
-      } catch (error: any) {
-        console.error('Block error:', error);
-        
-        // ✅ Revert on error
-        setBlockStatus({ iBlockedThem: false, theyBlockedMe: false });
-        const revertedChat = {
-          ...currentChat,
-          isBlocked: false,
-          isBlockedBy: undefined
-        };
-        setCurrentChat(revertedChat);
-        saveToStorage(STORAGE_KEYS.CURRENT_CHAT, revertedChat);
-        
-        alert(error.response?.data?.message || 'Failed to block user');
-      } finally {
-        setIsBlocking(false);
-      }
-    }
-  };
-  useEffect(() => {
-    const fetchChatDetails = async () => {
-      if (!currentChat?._id || !currentChat?.participant?._id || !user?.id) return;
-      
-      try {
-        // ✅ ALWAYS fetch fresh block status from API
-        const status = await checkBlockStatus(currentChat.participant._id);      
-        // ✅ CRITICAL: Set blockStatus immediately
-        setBlockStatus({
-          iBlockedThem: status.iBlockedThem || false,
-          theyBlockedMe: status.theyBlockedMe || false
-        });
-        
-        // ✅ Determine the correct isBlockedBy value
-        let isBlockedBy: 'you' | 'them' | undefined = undefined;
-        
-        if (status.iBlockedThem) {
-          isBlockedBy = 'you';
-        } else if (status.theyBlockedMe) {
-          isBlockedBy = 'them';
-        }
-        
-        const updatedChat = {
-          ...currentChat,
-          isBlocked: status.iBlockedThem || status.theyBlockedMe,
-          isBlockedBy: isBlockedBy
-        };      
-        setCurrentChat(updatedChat);
-        saveToStorage(STORAGE_KEYS.CURRENT_CHAT, updatedChat);
-        
-      } catch (error) {
-        console.error('Failed to fetch block status:', error);
-        // ✅ Set default blockStatus on error
-        setBlockStatus({
-          iBlockedThem: false,
-          theyBlockedMe: false
-        });
-      }
-    };
-
-    fetchChatDetails();
-    
-  }, [currentChat?._id, currentChat?.participant?._id, user?.id]);
-  // Re-fetch block status when component becomes visible or user returns to page
-  useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (!document.hidden && currentChat?._id && currentChat?.participant?._id && user?.id) {
-        try {
-          const status = await checkBlockStatus(currentChat.participant._id);  
-          setBlockStatus(status);
-          let isBlockedBy: 'you' | 'them' | undefined = undefined;
-          if (status.iBlockedThem) {
-            isBlockedBy = 'you';
-          } else if (status.theyBlockedMe) {
-            isBlockedBy = 'them';
-          }
-          const updatedChat = {
-            ...currentChat,
-            isBlocked: status.iBlockedThem || status.theyBlockedMe,
-            isBlockedBy: isBlockedBy
-          };
-          setCurrentChat(updatedChat);
-          saveToStorage(STORAGE_KEYS.CURRENT_CHAT, updatedChat);
-        } catch (error) {
-          console.error('Failed to refresh block status:', error);
-        }
-      }
-    };
-    handleVisibilityChange();
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleVisibilityChange);
-    };
-  }, [currentChat?._id, currentChat?.participant?._id, user?.id]);
   const loadMessages = async () => {
     if (!currentChat) return;
     setLoading(true);
@@ -441,14 +236,11 @@ const handleSendVoice = async (audioBlob: Blob, duration: number) => {
     try {
       const response = await getWieChatMessages(currentChat._id);
       if (response.success) {
-        // ✅ CRITICAL: Parse messages to handle voice messages correctly
         const parsedMessages = (response.messages || []).map((msg: ChatMessage) => {
-          // ✅ Check if it's already a voice message with voiceData
           if (msg.messageType === 'voice' && msg.voiceData) {
             return msg;
           }
           
-          // ✅ Check if content is JSON string with voice data
           if (msg.content?.startsWith('{') && msg.content.includes('"type":"voice"')) {
             try {
               const parsed = JSON.parse(msg.content);
@@ -473,7 +265,7 @@ const handleSendVoice = async (audioBlob: Blob, duration: number) => {
         });
         
         setMessages(parsedMessages);
-        // Update current chat with fresh participant data
+        
         if (response.chat?.participant) {
           const updatedChat = {
             ...currentChat,
@@ -502,9 +294,11 @@ const handleSendVoice = async (audioBlob: Blob, duration: number) => {
       setLoading(false);
     }
   };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageInput.trim() || !currentChat || sending) return;
@@ -516,7 +310,6 @@ const handleSendVoice = async (audioBlob: Blob, duration: number) => {
     try {
       const response = await sendWieMessage(currentChat._id, content);
       if (response.success) {
-        // ✅ Add message to local state immediately
         addMessage(response.message);
       }
     } catch (error: any) {
@@ -535,32 +328,23 @@ const handleSendVoice = async (audioBlob: Blob, duration: number) => {
       setSending(false);
     }
   };
+
   const handleTyping = (value: string) => {
-      setMessageInput(value);
+    setMessageInput(value);
 
-      if (!currentChat) return;
+    if (!currentChat) return;
 
-      // Clear existing timeout
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
 
-      // Send typing indicator
-      socketService.sendTyping(currentChat._id, true);
+    socketService.sendTyping(currentChat._id, true);
 
-      // Stop typing after 2 seconds of no input
-      typingTimeoutRef.current = setTimeout(() => {
-        socketService.sendTyping(currentChat._id, false);
-      }, 2000);
+    typingTimeoutRef.current = setTimeout(() => {
+      socketService.sendTyping(currentChat._id, false);
+    }, 2000);
   };
-  useEffect(() => {
-    return () => {
-      if (currentChat && typingTimeoutRef.current) {
-        socketService.sendTyping(currentChat._id, false);
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, [currentChat?._id]);
+
   const formatMessageTime = (timestamp: string) => {
     const date = new Date(timestamp);
     if (isToday(date)) {
@@ -571,6 +355,7 @@ const handleSendVoice = async (audioBlob: Blob, duration: number) => {
       return format(date, 'MMM d, HH:mm');
     }
   };
+
   const formatLastSeenTime = (lastSeen?: string, isOnline?: boolean) => {
     if (isOnline) return 'Online';
     if (!lastSeen) return 'Offline';
@@ -737,56 +522,247 @@ const handleSendVoice = async (audioBlob: Blob, duration: number) => {
     }
     if (onBack) onBack();
   };
-// Add this helper function at the top of the ChatWindow component
-const parseMessage = (message: ChatMessage): ChatMessage => {
-  // If it's a voice message stored as JSON in content
-  if (message.content?.startsWith('{') && message.content.includes('"type":"voice"')) {
-    try {
-      const parsed = JSON.parse(message.content);
-      if (parsed.type === 'voice' && parsed.audio && parsed.duration) {
-        return {
-          ...message,
-          messageType: 'voice',
-          voiceData: {
-            audioBase64: parsed.audio,
-            duration: parsed.duration,
-            mimeType: parsed.mimeType || 'audio/webm;codecs=opus'
-          },
-          content: '🎤 Voice message'
-        };
+
+  const handleBlockUser = async () => {
+    if (!currentChat?.participant?._id) return;
+    
+    const iBlockedThem = blockStatus?.iBlockedThem === true;
+    
+    if (iBlockedThem) {
+      if (!confirm(`Unblock ${currentChat.participant.name}? They will be able to message you again.`)) {
+        return;
       }
-    } catch (e) {
-      console.error('Failed to parse voice message:', e);
+      
+      setIsBlocking(true);
+      try {
+        await unblockUser(currentChat.participant._id);
+        setBlockStatus({ iBlockedThem: false, theyBlockedMe: false });
+        
+        const updatedChat = {
+          ...currentChat,
+          isBlocked: false,
+          isBlockedBy: undefined
+        };
+        setCurrentChat(updatedChat);
+        saveToStorage(STORAGE_KEYS.CURRENT_CHAT, updatedChat);
+        setShowDeleteMenu(false);
+        
+        alert('User unblocked successfully.');
+      } catch (error: any) {
+        console.error('Unblock error:', error);
+        alert(error.response?.data?.message || 'Failed to unblock user');
+      } finally {
+        setIsBlocking(false);
+      }
+    } else {
+      if (!confirm(`Block ${currentChat.participant.name}? This will:\n• Remove them from your followers/following\n• Prevent them from messaging you\n• They won't be notified`)) {
+        return;
+      }
+
+      setIsBlocking(true);
+      try {
+        await blockUser(currentChat.participant._id);
+        setBlockStatus({ iBlockedThem: true, theyBlockedMe: false });
+        
+        const updatedChat = {
+          ...currentChat,
+          isBlocked: true,
+          isBlockedBy: 'you' as const
+        };
+        setCurrentChat(updatedChat);
+        saveToStorage(STORAGE_KEYS.CURRENT_CHAT, updatedChat);
+        setShowDeleteMenu(false);
+        
+        alert('User blocked successfully. You can still view chat history but they cannot message you.');
+      } catch (error: any) {
+        console.error('Block error:', error);
+        
+        setBlockStatus({ iBlockedThem: false, theyBlockedMe: false });
+        const revertedChat = {
+          ...currentChat,
+          isBlocked: false,
+          isBlockedBy: undefined
+        };
+        setCurrentChat(revertedChat);
+        saveToStorage(STORAGE_KEYS.CURRENT_CHAT, revertedChat);
+        
+        alert(error.response?.data?.message || 'Failed to block user');
+      } finally {
+        setIsBlocking(false);
+      }
     }
-  }
-  return message;
-};
-  const isRequestRecipient = currentChat?.type === 'request' && 
-                            currentChat?.status === 'pending' && 
-                            messages.length > 0 && 
-                            messages[0]?.sender !== user?.id;
+  };
 
-const getMessageStatus = (message: ChatMessage) => {
-  if (message.sender !== user?.id) return null;
+  const getMessageStatus = (message: ChatMessage) => {
+    if (message.sender !== user?.id) return null;
 
-  // ✅ Check if message was read by the other person
-  const isRead = message.readBy && message.readBy.length > 1 && 
-                 message.readBy.some(id => id !== user?.id);
-  const isDelivered = message.deliveredTo && message.deliveredTo.length > 0;
+    const isRead = message.readBy && message.readBy.length > 1 && 
+                   message.readBy.some(id => id !== user?.id);
+    const isDelivered = message.deliveredTo && message.deliveredTo.length > 0;
 
-  if (isRead) {
+    if (isRead) {
+      return (
+        <div className="flex items-center gap-1">
+          <CheckCheck size={16} className="text-blue-500" />
+          <span className="text-xs text-blue-500">Seen</span>
+        </div>
+      );
+    } else if (isDelivered) {
+      return <CheckCheck size={16} className="text-gray-400" />;
+    } else {
+      return <Check size={16} className="text-gray-400" />;
+    }
+  };
+
+  // ✅ Effects
+  useEffect(() => {
+    if (currentChat) {
+      setIsTransitioning(true);
+      hasMarkedAsRead.current = false;
+      markedAsReadRef.current.clear();
+      
+      socketService.joinChat(currentChat._id);
+      
+      setTimeout(() => {
+        loadMessages();
+        setIsTransitioning(false);
+      }, 100);
+
+      return () => {
+        socketService.leaveChat(currentChat._id);
+      };
+    }
+  }, [currentChat?._id]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages.length]);
+
+  useEffect(() => {
+    if (!currentChat?._id || !user?.id || loading || hasMarkedAsRead.current) return;
+    if (messages.length === 0) return;
+    
+    const unreadMessages = messages.filter(
+      (msg) => msg.sender !== user.id && !msg.readBy.includes(user.id)
+    );
+    
+    if (unreadMessages.length === 0) {
+      return;
+    }
+
+    hasMarkedAsRead.current = true;
+    updateUnreadCount(currentChat._id, 0);
+    
+    markMessagesAsRead(currentChat._id)
+      .catch((error) => {
+        hasMarkedAsRead.current = false;
+      });
+  }, [currentChat?._id, user?.id, loading, messages.length, updateUnreadCount]);
+
+  useEffect(() => {
+    const fetchChatDetails = async () => {
+      if (!currentChat?._id || !currentChat?.participant?._id || !user?.id) return;
+      
+      try {
+        const status = await checkBlockStatus(currentChat.participant._id);
+        
+        setBlockStatus({
+          iBlockedThem: status.iBlockedThem || false,
+          theyBlockedMe: status.theyBlockedMe || false
+        });
+        
+        let isBlockedBy: 'you' | 'them' | undefined = undefined;
+        
+        if (status.iBlockedThem) {
+          isBlockedBy = 'you';
+        } else if (status.theyBlockedMe) {
+          isBlockedBy = 'them';
+        }
+        
+        const updatedChat = {
+          ...currentChat,
+          isBlocked: status.iBlockedThem || status.theyBlockedMe,
+          isBlockedBy: isBlockedBy
+        };
+        
+        setCurrentChat(updatedChat);
+        saveToStorage(STORAGE_KEYS.CURRENT_CHAT, updatedChat);
+        
+      } catch (error) {
+        console.error('Failed to fetch block status:', error);
+        setBlockStatus({
+          iBlockedThem: false,
+          theyBlockedMe: false
+        });
+      }
+    };
+
+    fetchChatDetails();
+  }, [currentChat?._id, currentChat?.participant?._id, user?.id]);
+
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (!document.hidden && currentChat?._id && currentChat?.participant?._id && user?.id) {
+        try {
+          const status = await checkBlockStatus(currentChat.participant._id);
+          setBlockStatus(status);
+          
+          let isBlockedBy: 'you' | 'them' | undefined = undefined;
+          if (status.iBlockedThem) {
+            isBlockedBy = 'you';
+          } else if (status.theyBlockedMe) {
+            isBlockedBy = 'them';
+          }
+          
+          const updatedChat = {
+            ...currentChat,
+            isBlocked: status.iBlockedThem || status.theyBlockedMe,
+            isBlockedBy: isBlockedBy
+          };
+          setCurrentChat(updatedChat);
+          saveToStorage(STORAGE_KEYS.CURRENT_CHAT, updatedChat);
+        } catch (error) {
+          console.error('Failed to refresh block status:', error);
+        }
+      }
+    };
+    
+    handleVisibilityChange();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
+  }, [currentChat?._id, currentChat?.participant?._id, user?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (currentChat && typingTimeoutRef.current) {
+        socketService.sendTyping(currentChat._id, false);
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [currentChat?._id]);
+
+  // ✅ NOW conditional returns are AFTER all hooks
+  if (!user) {
     return (
-      <div className="flex items-center gap-1">
-        <CheckCheck size={16} className="text-blue-500" />
-        <span className="text-xs text-blue-500">Seen</span>
+      <div className="flex items-center justify-center h-full bg-[#0C1014]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#8860D9]"></div>
       </div>
     );
-  } else if (isDelivered) {
-    return <CheckCheck size={16} className="text-gray-400" />;
-  } else {
-    return <Check size={16} className="text-gray-400" />;
   }
-};
+
+  if (isTransitioning) {
+    return (
+      <div className="flex items-center justify-center h-full bg-[#0C1014]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#8860D9]"></div>
+      </div>
+    );
+  }
+
   if (!currentChat) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#0C1014] px-4">
@@ -796,9 +772,14 @@ const getMessageStatus = (message: ChatMessage) => {
       </div>
     );
   }
+
   const profilePictureUrl = currentChat.participant?.profile_picture;
   const isOnline = currentChat.participant?.isOnline ?? false;
   const lastSeenTime = currentChat.participant?.lastSeen || currentChat.participant?.last_seen_at;
+  const isRequestRecipient = currentChat?.type === 'request' && 
+                            currentChat?.status === 'pending' && 
+                            messages.length > 0 && 
+                            messages[0]?.sender !== user?.id;
   return (
     <div className="flex flex-col h-full">
       <div className="p-4 border-b border-[#2D2F39] flex items-center justify-between bg-[#1a1a1a]">
