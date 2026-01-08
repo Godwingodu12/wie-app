@@ -192,21 +192,17 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
       n.type.includes("event") ||
       n.type.includes("ticket") ||
       n.type.includes("group") ||
-      n.type.includes("booking")
+      n.type.includes("booking"),
   ).length;
 
   const followerCount = notifications.filter((n) =>
-    n.type.includes("follow")
+    n.type.includes("follow"),
   ).length;
 
   const connectionCount = notifications.filter((n) =>
-    [
-      "like",
-      "comment",
-      "mention",
-      "message_received",
-      "connection",
-    ].some((t) => n.type.includes(t))
+    ["like", "comment", "mention", "message_received", "connection"].some((t) =>
+      n.type.includes(t),
+    ),
   ).length;
 
   /* Categorization Logic Based on Backend Types */
@@ -379,7 +375,7 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
               <>
                 {filteredNotifications.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 text-zinc-500 gap-2">
-                    <Bell size={32} className="opacity-20" />
+                    <Ticket size={32} className="opacity-20" />
                     <span>No notifications found</span>
                   </div>
                 ) : (
@@ -430,36 +426,66 @@ const NotificationItem = ({
   onAccept: (e: React.MouseEvent, n: Notification) => void;
 }) => {
   const [eventBanner, setEventBanner] = useState<string | null>(null);
+  const [bannerLoading, setBannerLoading] = useState(false);
+
+  // Notification types that should show event banners
+  const eventBannerTypes = [
+    "event",
+    "ticket",
+    "booking",
+    "payment_success",
+    "payment_failed",
+    "refund_initiated",
+    "refund_processing",
+    "refund_completed",
+    "refund_failed",
+    "booking_confirmed",
+    "booking_cancelled",
+    "booking_pending",
+    "event_reminder",
+    "ticket_verified",
+    "qr_code_generated",
+  ];
 
   const isEvent =
-    notification.type.includes("event") ||
-    notification.type.includes("ticket") ||
-    notification.type.includes("booking") ||
-    !!notification.eventId;
+    eventBannerTypes.some((t) => notification.type.includes(t)) ||
+    !!notification.eventId ||
+    !!notification.ticketId;
 
+  // Priority: ticketId > eventId > meta fields
+  // ticketId can be either main event ID or sub-event ID
   const targetEventId =
     notification.ticketId ||
     notification.eventId ||
+    notification.meta?.ticketId ||
     notification.meta?.eventId ||
-    notification.meta?.event_id ||
-    notification.meta?.ticketId;
+    notification.meta?.event_id;
 
   // Fetch Event Banner if needed
   useEffect(() => {
-    if (isEvent && targetEventId && !eventBanner) {
+    if (isEvent && targetEventId && !eventBanner && !bannerLoading) {
+      setBannerLoading(true);
       getEventById(targetEventId)
         .then((res) => {
-           // Structure check based on earlier file view: res.data.event.event_banner
-           // Adjust if response structure is different
-           const banner = res.data?.event?.event_banner;
-           if (banner) setEventBanner(banner);
+          // API response structure: { data: { event: { event_banner: "..." }, isSubEvent: bool, parentEvent: {...} } }
+          // For both main events and sub-events, the banner is at res.data.event.event_banner
+          const banner = res.data?.event?.event_banner;
+          if (banner) {
+            setEventBanner(banner);
+          }
         })
         .catch((err) => {
-            // silent fail or fallback
-            // console.error("Failed to load event banner for notif", notification.id, err);
+          // Silent fail - fallback to icon
+          console.debug(
+            "Failed to load event banner for notification:",
+            notification.id,
+          );
+        })
+        .finally(() => {
+          setBannerLoading(false);
         });
     }
-  }, [isEvent, targetEventId, eventBanner]);
+  }, [isEvent, targetEventId, eventBanner, bannerLoading, notification.id]);
 
   const isRequest =
     notification.type.includes("request") ||
@@ -494,87 +520,97 @@ const NotificationItem = ({
           `}
         >
           {isEvent ? (
-            eventBanner ? (
+            bannerLoading ? (
+              <div className="w-full h-full bg-zinc-700 animate-pulse" />
+            ) : eventBanner ? (
               <img
                 src={eventBanner}
                 alt="Event"
                 className="w-full h-full object-cover"
               />
             ) : (
-               getIcon(notification.type)
+              getIcon(notification.type)
             )
+          ) : notification.meta?.userAvatar ? (
+            <img
+              src={notification.meta.userAvatar}
+              alt="User"
+              className="w-full h-full object-cover"
+            />
           ) : (
-            notification.meta?.userAvatar ? (
-               <img src={notification.meta.userAvatar} alt="User" className="w-full h-full object-cover" />
-            ) : (
-               getIcon(notification.type)
-            )
+            getIcon(notification.type)
           )}
         </div>
       </div>
 
       {/* Content Container */}
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-          {/* Top Row: Title & Unread Indicator */}
-          <div className="flex justify-between items-start gap-2">
-            <span className="text-sm font-bold text-white leading-tight">
-              {notification.title}
-            </span>
-             {notification.isRead === false && (
-                <div
-                  className="shrink-0 rounded-full"
-                  style={{
-                    width: "12px",
-                    height: "12px",
-                    backgroundColor: "#5E5CE6",
-                    opacity: 1
-                  }}
-                />
-             )}
-          </div>
-
-          {/* Message */}
-          <span className="text-zinc-400 font-normal text-xs leading-snug line-clamp-2">
-            {notification.message}
+        {/* Top Row: Title & Unread Indicator */}
+        <div className="flex justify-between items-start gap-2">
+          <span className="text-sm font-bold text-white leading-tight">
+            {notification.title}
           </span>
-
-          {/* Bottom Row: Day/Time (Left) & Relative Time (Right) */}
-          <div className="flex items-center justify-between mt-0.5 pt-0.5">
-             <span className="text-[11px] text-white capitalize">
-               {formattedDayTime}
-             </span>
-             <span className="text-[10px] text-white whitespace-nowrap">
-               {timeAgo(notification.createdAt)}
-             </span>
-          </div>
-
-          {/* Action Buttons (if any) */}
-          {isRequest && (
-            <div className="flex items-center gap-2 mt-2">
-              <button
-                onClick={(e) => onDecline(e, notification)}
-                className="px-3 py-1 rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
-              >
-                Decline
-              </button>
-              <button
-                onClick={(e) => onAccept(e, notification)}
-                className="px-3 py-1 rounded-full text-xs font-medium bg-violet-600 text-white hover:bg-violet-500 transition-colors"
-              >
-                Accept
-              </button>
-            </div>
+          {notification.isRead === false && (
+            <div
+              className="shrink-0 rounded-full"
+              style={{
+                width: "12px",
+                height: "12px",
+                backgroundColor: "#5E5CE6",
+                opacity: 1,
+              }}
+            />
           )}
+        </div>
+
+        {/* Message */}
+        <span className="text-zinc-400 font-normal text-xs leading-snug line-clamp-2">
+          {notification.message}
+        </span>
+
+        {/* Bottom Row: Day/Time (Left) & Relative Time (Right) */}
+        <div className="flex items-center justify-between mt-0.5 pt-0.5">
+          <span className="text-[11px] text-white capitalize">
+            {formattedDayTime}
+          </span>
+          <span className="text-[10px] text-white whitespace-nowrap">
+            {timeAgo(notification.createdAt)}
+          </span>
+        </div>
+
+        {/* Action Buttons (if any) */}
+        {isRequest && (
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              onClick={(e) => onDecline(e, notification)}
+              className="px-3 py-1 rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+            >
+              Decline
+            </button>
+            <button
+              onClick={(e) => onAccept(e, notification)}
+              className="px-3 py-1 rounded-full text-xs font-medium bg-violet-600 text-white hover:bg-violet-500 transition-colors"
+            >
+              Accept
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 const getIcon = (type: string) => {
-    if (type.includes('event')) return <Calendar size={18} />;
-    if (type.includes('ticket') || type.includes('booking')) return <Ticket size={18} />;
-    if (type.includes('group')) return <Users size={18} />;
-    if (type.includes('follow')) return <User size={18} />;
-    if (type.includes('like')) return <Heart size={18} />;
-    if (type.includes('comment') || type.includes('message') || type.includes('mention')) return <MessageCircle size={18} />;
-    return <Bell size={18} />;
+  if (type.includes("event")) return <Calendar size={18} />;
+  if (type.includes("ticket") || type.includes("booking"))
+    return <Ticket size={18} />;
+  if (type.includes("group")) return <Users size={18} />;
+  if (type.includes("follow")) return <User size={18} />;
+  if (type.includes("like")) return <Heart size={18} />;
+  if (
+    type.includes("comment") ||
+    type.includes("message") ||
+    type.includes("mention")
+  )
+    return <MessageCircle size={18} />;
+  return <Ticket size={18} />;
 };
