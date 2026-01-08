@@ -23,6 +23,8 @@ interface ChatContextType {
   acceptRequest: (chatId: string) => Promise<void>;
   declineRequest: (chatId: string) => Promise<void>;
   getTotalUnreadCount: () => number; 
+  loadChatById: (chatId: string) => Promise<Chat | null>;
+
 }
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
@@ -97,7 +99,54 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({});
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [typingUsers, setTypingUsers] = useState<{ [chatId: string]: boolean }>({}); 
+const loadChatById = useCallback(async (chatId: string) => {
+  if (internalCurrentChat?._id === chatId) {
+    return internalCurrentChat;
+  }
 
+  try {
+    const existingChat = internalChats.find(c => c._id === chatId);
+    
+    if (existingChat) {
+      setInternalCurrentChat(existingChat);
+      saveToStorage(STORAGE_KEYS.CURRENT_CHAT, existingChat);
+      return existingChat;
+    }
+
+    const response = await getWieChatMessages(chatId);
+    
+    if (response.success && response.chat) {
+      const chat: Chat = {
+        _id: response.chat._id,
+        participant: response.chat.participant,
+        type: response.chat.type || 'direct',
+        status: response.chat.status || 'accepted',
+        lastMessage: response.chat.lastMessage,
+        unreadCount: 0,
+        updatedAt: new Date().toISOString()
+      };
+      
+      setInternalCurrentChat(chat);
+      saveToStorage(STORAGE_KEYS.CURRENT_CHAT, chat);
+      
+      setInternalChats((prev) => {
+        const exists = prev.find(c => c._id === chatId);
+        if (!exists) {
+          const newChats = [chat, ...prev];
+          saveToStorage(STORAGE_KEYS.CHATS, newChats);
+          return newChats;
+        }
+        return prev;
+      });
+      
+      return chat;
+    }
+    return null;
+  } catch (error) {
+    console.error('Failed to load chat by ID:', error);
+    return null;
+  }
+}, [internalCurrentChat, internalChats]); 
   const setChats = useCallback((chats: Chat[]) => {
     setInternalChats(chats);
     saveToStorage(STORAGE_KEYS.CHATS, chats);
@@ -123,7 +172,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return [...prev, parsedMessage];
     });
   }, []);
-
   const setMessages = useCallback((messagesOrUpdater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
     setInternalMessages(messagesOrUpdater);
   }, []);
@@ -824,7 +872,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateUnreadCount,
         acceptRequest,
         declineRequest,
-        getTotalUnreadCount
+        getTotalUnreadCount,
+        loadChatById
       }}
     >
       {children}
@@ -852,6 +901,7 @@ export const useChat = () => {
       acceptRequest: async () => {},
       declineRequest: async () => {},
       getTotalUnreadCount: () => 0,
+      loadChatById: async () => null,
     };
   }
   return context;
