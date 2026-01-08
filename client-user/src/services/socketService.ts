@@ -104,21 +104,28 @@ class SocketService {
 
   joinChat(chatId: string) {
     if (!this.socket?.connected) {
+      console.warn('⚠️ Socket not connected, cannot join chat:', chatId);
       return;
     }
     this.socket.emit('join-chat', chatId);
+    // Wait for confirmation
+    this.socket.once('joined-chat', (data: { chatId: string }) => {
+    });
   }
 
   leaveChat(chatId: string) {
-    if (!this.socket?.connected) return;
+    if (!this.socket?.connected) {
+      console.warn('⚠️ Socket not connected, cannot leave chat:', chatId);
+      return;
+    }
     this.socket.emit('leave-chat', chatId);
   }
-
   markAsRead(chatId: string, messageIds: string[]) {
-    if (!this.socket?.connected) return;
+    if (!this.socket?.connected) {
+      return;
+    }
     this.socket.emit('mark-read', { chatId, messageIds });
   }
-
   sendTyping(chatId: string, isTyping: boolean) {
     if (!this.socket?.connected) return;
     this.socket.emit('typing', { chatId, isTyping });
@@ -155,11 +162,9 @@ class SocketService {
       this.socket?.off('user-typing');
     }
   }
-
   onUserStatusChange(callback: (data: { userId: string; isOnline: boolean; lastSeen?: string }) => void) {
     this.socket?.on('user-status-change', callback);
   }
-
   offUserStatusChange(callback?: (data: { userId: string; isOnline: boolean; lastSeen?: string }) => void) {
     if (callback) {
       this.socket?.off('user-status-change', callback);
