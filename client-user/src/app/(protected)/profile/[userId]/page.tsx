@@ -24,6 +24,7 @@ import {
   getSuggestedUsers,
   searchUsers,
 } from "@/services/wieUserService";
+import { useChat } from '@/context/ChatContext';
 import OtherFollowersModal from "@/components/profile/OtherFollowersModal";
 import OtherFollowingModal from "@/components/profile/OtherFollowingModal";
 import {
@@ -32,6 +33,7 @@ import {
   isFollowing,
   getFollowStats,
 } from "@/services/followService";
+import { createOrGetWieChat } from '@/services/chatService';
 import ProfileTabs from "@/components/profile/ProfileTabs";
 import { useAuth } from "@/hooks/useAuth";
 import { User } from "@/types";
@@ -153,7 +155,7 @@ export default function UserProfilePage() {
 
   const [posts, setPosts] = useState<any[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
-
+  const { loadChatById } = useChat();
   useEffect(() => {
     if (identifier) {
       if (isOwnProfile) {
@@ -218,7 +220,25 @@ export default function UserProfilePage() {
       setLoading(false);
     }
   };
-
+  const handleMessageClick = async () => {
+    if (!resolvedUserId) return;
+    
+    try {
+      // Create or get existing chat with this user
+      const response = await createOrGetWieChat(resolvedUserId);
+      
+      if (response.success && response.chat) {
+        // ✅ Load the chat directly in context
+        await loadChatById(response.chat._id);
+        
+        // ✅ Navigate without any parameters
+        router.push('/message');
+      }
+    } catch (error) {
+      console.error('Failed to create/get chat:', error);
+      router.push('/message');
+    }
+  };
   const fetchUserPosts = async (tab: string) => {
     if (!resolvedUserId) return;
     try {
@@ -588,7 +608,7 @@ export default function UserProfilePage() {
                 />
                 <ActionButton
                   label="Message"
-                  onClick={() => router.push("/message")}
+                  onClick={handleMessageClick}
                 />
                 <ActionButton label="Contact" />
               </div>
