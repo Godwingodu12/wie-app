@@ -11,6 +11,8 @@ service WieUserService {
   rpc GetUsersByIds(GetUsersByIdsRequest) returns (GetUsersByIdsResponse);
   rpc GetUserPrivacySettings(UserIdRequest) returns (PrivacySettingsResponse);
   rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
+  rpc CheckIfBlocked(CheckBlockRequest) returns (CheckBlockResponse);
+  rpc GetBlockedUserIds(UserIdRequest) returns (BlockedUsersResponse);
 }
 message GetUsersByIdsRequest {
   repeated string userIds = 1;
@@ -52,7 +54,20 @@ message WieUserResponse {
   WieUser user = 1;
   string error = 2;
 }
+// Add these NEW messages
+message CheckBlockRequest {
+  string userId1 = 1;
+  string userId2 = 2;
+}
 
+message CheckBlockResponse {
+  bool isBlocked = 1;
+  string blockedBy = 2; 
+}
+
+message BlockedUsersResponse {
+  repeated string blockedUserIds = 1;
+}
 message WieUser {
   string id = 1;
   string email = 2;
