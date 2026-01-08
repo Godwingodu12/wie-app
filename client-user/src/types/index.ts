@@ -128,12 +128,10 @@ export interface FollowingResponse {
   page: number;
   totalPages: number;
 }
-
 export interface FollowStatsResponse {
   followers: number;
   following: number;
 }
-
 export interface SearchUsersResponse {
   users: User[];
   total: number;
