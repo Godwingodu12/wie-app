@@ -278,14 +278,10 @@ const handleSendVoice = async (audioBlob: Blob, duration: number) => {
     updateUnreadCount(currentChat._id, 0);
     
     // Call API to mark as read on server
-    markMessagesAsRead(currentChat._id)
-      .then(() => {
-        console.log('✅ Successfully marked messages as read');
-      })
-      .catch((error) => {
-        console.error('❌ Failed to mark messages as read:', error);
-        hasMarkedAsRead.current = false;
-      });
+      markMessagesAsRead(currentChat._id)
+        .catch((error) => {
+          hasMarkedAsRead.current = false;
+        });
   }, [currentChat?._id, user?.id, loading, messages.length, updateUnreadCount]);
   const handleBlockUser = async () => {
     if (!currentChat?.participant?._id) return;
