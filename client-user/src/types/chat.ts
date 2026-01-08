@@ -11,7 +11,6 @@ export interface ChatUser {
   lastSeen?: string;
   last_seen_at?: string;
 }
-
 export interface ChatMessage {
   _id: string;
   sender: string;
@@ -20,12 +19,24 @@ export interface ChatMessage {
   createdAt: string;
   readBy: string[];
   deliveredTo: string[];
+  voiceData?: VoiceData;
   isRead: boolean;
   isSender?: boolean;
   deletedForEveryone?: boolean;
   deletedFor?: string[];
+  messageType?: 'text' | 'voice' | 'image' | 'video' | 'file';
 }
-
+export interface VoiceData {
+  audioBase64: string;
+  duration: number;
+  mimeType: string;
+}
+export interface VoiceMessageData {
+  type: 'voice';
+  audio: string; // base64 encoded audio
+  duration: number;
+  mimeType: string;
+}
 export interface Chat {
   _id: string;
   participant: ChatUser | null;
@@ -40,8 +51,11 @@ export interface Chat {
   type?: 'direct' | 'request';
   status?: 'pending' | 'accepted' | 'declined';
   updatedAt: string;
+  isBlocked?: boolean; 
+  isBlockedBy?: 'you' | 'them';
+  blockerId?: string; 
+  blockedId?: string; 
 }
-
 export interface MessageRequest {
   _id: string;
   participant: ChatUser | null;
