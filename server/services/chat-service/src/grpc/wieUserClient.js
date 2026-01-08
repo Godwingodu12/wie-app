@@ -304,6 +304,55 @@ export const updateUserOnlineStatus = async (userId, isOnline, retries = 2) => {
   }
   throw lastError;
 };
+export const checkIfUserBlockedViaGrpc = async (userId1, userId2, retries = 2) => {
+  let lastError;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const client = getClient();
+      
+      const response = await new Promise((resolve, reject) => {
+        // This would call the block service via gRPC if you move it to user-service
+        // For now, keep blocks in chat-service
+        resolve({ isBlocked: false, blockedBy: 'none' });
+      });
+      
+      return response;
+    } catch (error) {
+      lastError = error;
+      
+      if (attempt < retries) {
+        const delay = 500 * attempt;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
+};
+
+export const getBlockedUserIdsViaGrpc = async (userId, retries = 2) => {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const client = getClient();
+      
+      const response = await new Promise((resolve, reject) => {
+        // This would call the block service
+        resolve({ blockedUserIds: [] });
+      });
+      
+      return response.blockedUserIds;
+    } catch (error) {
+      lastError = error;
+      
+      if (attempt < retries) {
+        const delay = 500 * attempt;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
+};
 setInterval(() => {
   const now = Date.now();
   for (const [key, value] of userCache.entries()) {
