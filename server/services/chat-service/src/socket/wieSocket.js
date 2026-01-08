@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { updateUserOnlineStatus } from '../grpc/wieUserClient.js';
+import { isBlocked } from '../services/block.service.js';
 let wieIO;
 const userSockets = new Map();
 
@@ -44,23 +45,40 @@ export const initializeWieSocket = (server) => {
       return next(new Error(`Authentication error: ${error.message}`));
     }
   });
-  wieIO.on('connection', async (socket) => {
-    userSockets.set(socket.userId, socket.id);
-    socket.join(socket.userId);
-
-    // Update user online status in database
-    try {
-      await updateUserOnlineStatus(socket.userId, true);      
-      // Broadcast to all connected clients
-      socket.broadcast.emit('user-status-change', {
-        userId: socket.userId,
-        isOnline: true,
-        last_seen_at: new Date().toISOString()
+wieIO.on('connection', async (socket) => {
+  const userId = socket.userId;
+  userSockets.set(userId, socket.id);
+  socket.join(userId);
+  try {
+      await updateUserOnlineStatus(userId, true);
+      // ✅ CRITICAL: Find all chats this user participates in
+      const WieChat = mongoose.model('WieChat');
+      const userChats = await WieChat.find({
+        participants: userId,
+        isActive: true
+      }).select('participants').lean();
+      
+      // Get all unique users who have chats with this user
+      const notifyUserIds = new Set();
+      userChats.forEach(chat => {
+        chat.participants.forEach(participantId => {
+          if (participantId !== userId) {
+            notifyUserIds.add(participantId);
+          }
+        });
+      });    
+      // ✅ Broadcast to each specific user
+      notifyUserIds.forEach(targetUserId => {
+        wieIO.to(targetUserId).emit('user-status-change', {
+          userId: userId,
+          isOnline: true,
+          last_seen_at: new Date().toISOString()
+        });
       });
-    } catch (error) {
-      console.error('❌ Failed to update online status:', error);
-    }
-
+    
+  } catch (error) {
+    console.error('❌ Failed to update online status:', error);
+  }
     try {
       const WieChat = mongoose.model('WieChat');
       const userId = new mongoose.Types.ObjectId(socket.userId);      
@@ -155,35 +173,48 @@ export const initializeWieSocket = (server) => {
         // Silent fail
       }
     });
-
     socket.on('join-chat', (chatId) => {
       socket.join(chatId);
+      // ✅ CRITICAL: Confirm the join
       socket.emit('joined-chat', { chatId });
     });
-
     socket.on('leave-chat', (chatId) => {
       socket.leave(chatId);
     });
-
-    socket.on('typing', ({ chatId, isTyping }) => {
-      socket.to(chatId).emit('user-typing', {
-        userId: socket.userId,
-        chatId,
-        isTyping
-      });
-    });
-
-    socket.on('mark-read', async ({ chatId, messageIds }) => {
+    socket.on('typing', async ({ chatId, isTyping }) => {
       try {
+        const WieChat = mongoose.model('WieChat');
+        const chat = await WieChat.findById(chatId).lean();
+        
+        if (!chat) return;
+        
+        const otherUserId = chat.participants.find(id => id !== socket.userId);
+        if (!otherUserId) return;
+        
+        // Check if either user has blocked the other
+        const blocked = await isBlocked(socket.userId, otherUserId);
+        if (blocked) return; // Don't emit typing if blocked
+        
+        socket.to(chatId).emit('user-typing', {
+          userId: socket.userId,
+          chatId,
+          isTyping
+        });
+      } catch (error) {
+        // Silent fail
+      }
+    });
+    socket.on('mark-read', async ({ chatId, messageIds }) => {
+      try {    
         const WieChat = mongoose.model('WieChat');
         const userId = socket.userId;
         const chatObjectId = new mongoose.Types.ObjectId(chatId);
         const messageObjectIds = messageIds.map(id => new mongoose.Types.ObjectId(id));
-
+        
         let retries = 3;
         let success = false;
         let updatedChat = null;
-
+        
         while (retries > 0 && !success) {
           try {
             updatedChat = await WieChat.findOneAndUpdate(
@@ -214,45 +245,73 @@ export const initializeWieSocket = (server) => {
             }
           }
         }
-
+        
+        // Emit to other participants
         socket.to(chatId).emit('messages-read', {
           chatId,
           messageIds,
           readBy: socket.userId
+        });        
+        // Confirm to sender
+        socket.emit('mark-read-confirmation', {
+          chatId,
+          messageIds
         });
-
         if (updatedChat) {
           const unreadCount = updatedChat.messages.filter(
             msg => 
               msg.sender !== userId &&
               !msg.readBy.some(id => id === userId)
-          ).length;
-
+          ).length;          
+          // ✅ CRITICAL: Emit to sender immediately
           socket.emit('chat-unread-update', {
             chatId,
             unreadCount
+          });          
+          // Also emit to the user's room
+          wieIO.to(userId).emit('chat-unread-update', {
+            chatId,
+            unreadCount
           });
+          
         }
       } catch (error) {
-        // Silent fail
+        console.error('❌ Error in mark-read:', error);
       }
     });
-    socket.on('disconnect', async (reason) => {      
-      if (userSockets.get(socket.userId) === socket.id) {
-        userSockets.delete(socket.userId);
+    socket.on('disconnect', async (reason) => {
+      const userId = socket.userId;  
+      if (userSockets.get(userId) === socket.id) {
+        userSockets.delete(userId);
         
         try {
           // Update user status to offline via gRPC
-          await updateUserOnlineStatus(socket.userId, false);
+          await updateUserOnlineStatus(userId, false);
           
-          // Broadcast to all connected clients
-          socket.broadcast.emit('user-status-change', {
-            userId: socket.userId,
-            isOnline: false,
-            last_seen_at: new Date().toISOString()
+          // ✅ CRITICAL: Find all chats and broadcast offline status
+          const WieChat = mongoose.model('WieChat');
+          const userChats = await WieChat.find({
+            participants: userId,
+            isActive: true
+          }).select('participants').lean();
+          
+          const notifyUserIds = new Set();
+          userChats.forEach(chat => {
+            chat.participants.forEach(participantId => {
+              if (participantId !== userId) {
+                notifyUserIds.add(participantId);
+              }
+            });
           });
-          
-          console.log(`👋 User ${socket.userId} disconnected: ${reason}`);
+          // Broadcast offline status
+          const lastSeenTime = new Date().toISOString();
+          notifyUserIds.forEach(targetUserId => {
+            wieIO.to(targetUserId).emit('user-status-change', {
+              userId: userId,
+              isOnline: false,
+              last_seen_at: lastSeenTime
+            });
+          });
         } catch (error) {
           console.error('❌ Failed to update offline status:', error);
         }
