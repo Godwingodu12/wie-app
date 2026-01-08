@@ -10,6 +10,7 @@ router.get('/list', wieChatController.getWieUserChats);
 router.get('/requests', wieChatController.getMessageRequests); 
 router.get('/unread-count', wieChatController.getUnreadMessageCount);
 router.post('/send', wieChatController.sendWieMessage);
+router.get('/:chatId/get-chat-details', wieChatController.getChatDetails);
 router.post('/:chatId/mark-read', wieChatController.markWieMessagesAsRead);
 router.post('/:chatId/mark-unread', wieChatController.markWieMessagesAsUnread);
 router.get('/:chatId/messages', wieChatController.getWieChatMessages);
@@ -23,4 +24,5 @@ router.post('/:chatId/messages/delete-for-everyone', wieChatController.deleteMes
 router.delete('/:chatId', wieChatController.deleteWieChat);
 router.get('/:chatId/messages/selection', wieChatController.getMessagesForSelection);
 router.delete('/:chatId/delete-for-me', wieChatController.deleteChatForMe);
+router.get('/unread-users-count', wieChatController.getUnreadUsersCount);
 export default router;

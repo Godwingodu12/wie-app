@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-
 const wieMessageSchema = new mongoose.Schema({
   sender: {
     type: String,
@@ -8,8 +7,24 @@ const wieMessageSchema = new mongoose.Schema({
   },
   content: {
     type: String,
-    required: true,
-    maxlength: 5000
+    required: true
+  },
+  messageType: {
+    type: String,
+    enum: ['text', 'voice', 'image', 'video', 'file'],
+    default: 'text', // ✅ Provide default but explicit setting will override
+    required: true
+  },
+  voiceData: {
+    audioBase64: {
+      type: String
+    },
+    duration: {
+      type: Number
+    },
+    mimeType: {
+      type: String
+    }
   },
   readBy: [{
     type: String
@@ -21,10 +36,10 @@ const wieMessageSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  deletedFor: [{  // NEW: Track who deleted this message
+  deletedFor: [{
     type: String
   }],
-  deletedForEveryone: {  // NEW: If true, message is deleted for all users
+  deletedForEveryone: {
     type: Boolean,
     default: false
   },
@@ -33,8 +48,10 @@ const wieMessageSchema = new mongoose.Schema({
     default: Date.now,
     index: true
   }
-}, { _id: true });
-
+}, { 
+  _id: true, 
+  strict: false 
+});
 const wieChatSchema = new mongoose.Schema({
   participants: [{
     type: String,
@@ -74,14 +91,12 @@ const wieChatSchema = new mongoose.Schema({
     type: Date
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  strict: false
 });
-
 wieChatSchema.index({ participants: 1, isActive: 1 });
 wieChatSchema.index({ participants: 1, type: 1 });
 wieChatSchema.index({ updatedAt: -1 });
 wieChatSchema.index({ 'lastMessage.timestamp': -1 });
-
 const WieChat = mongoose.model('WieChat', wieChatSchema);
-
 export default WieChat;

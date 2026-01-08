@@ -35,7 +35,6 @@ chatApi.interceptors.request.use(
     return Promise.reject(error);
   }
 );
-
 chatApi.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -49,27 +48,75 @@ chatApi.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
-// Chat Suggestions (Followers)
+blockApi.interceptors.request.use(
+  (config) => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+blockApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+reportApi.interceptors.request.use(
+  (config) => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+reportApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 export const getWieChatSuggestions = async (): Promise<any> => {
   const res = await chatApi.get('/suggestions');
   return res.data;
 };
-
-// Search Users
 export const searchWieUsersForChat = async (query: string): Promise<any> => {
   const res = await chatApi.get('/search', {
     params: { query },
   });
   return res.data;
 };
-
 // Create or Get Chat
 export const createOrGetWieChat = async (participantId: string): Promise<any> => {
   const res = await chatApi.post('/create', { participantId });
   return res.data;
 };
-
 // Get User Chats List
 export const getWieUserChats = async (page: number = 1, limit: number = 40): Promise<any> => {
   const res = await chatApi.get('/list', {
@@ -82,7 +129,10 @@ export const getUnreadMessageCount = async (): Promise<any> => {
   const res = await chatApi.get('/unread-count');
   return res.data;
 };
-// Get Chat Messages
+export const getChatDetails = async (chatId: string): Promise<any> => {
+  const res = await chatApi.get(`/${chatId}/get-chat-details`);
+  return res.data;
+}
 // Get Chat Messages
 export const getWieChatMessages = async (
   chatId: string,
@@ -103,7 +153,6 @@ export const markMessagesAsRead = async (chatId: string) => {
   const response = await chatApi.post(`/${chatId}/mark-read`);
   return response.data;
 };
-
 export const markMessagesAsUnread = async (chatId: string) => {
   const response = await chatApi.post(`/${chatId}/mark-unread`);
   return response.data;
@@ -167,6 +216,10 @@ export const deleteChatForMe = async (chatId: string): Promise<any> => {
   const res = await chatApi.delete(`/${chatId}/delete-for-me`);
   return res.data;
 };
+export const getUnreadUsersCount = async (): Promise<any> => {
+  const res = await chatApi.get('/unread-users-count');
+  return res.data;
+};
 export const blockUser = async (userId: string) => {
   const response = await blockApi.post('/block', { userId });
   return response.data;
@@ -183,12 +236,10 @@ export const getBlockedUsers = async (page = 1, limit = 50) => {
   });
   return response.data;
 };
-
-export const checkBlockStatus = async (targetUserId: string) => {
-  const response = await blockApi.get(`/status/${targetUserId}`);
+export const checkBlockStatus = async (otherUserId: string) => {
+  const response = await blockApi.get(`/check-block-status/${otherUserId}`);
   return response.data;
 };
-
 export const reportUser = async (data: {
   userId: string;
   reportType: 'harassment' | 'spam' | 'inappropriate' | 'threat' | 'other';

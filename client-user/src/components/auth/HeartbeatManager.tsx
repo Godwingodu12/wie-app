@@ -20,25 +20,20 @@ const HeartbeatManager: React.FC = () => {
       }
       return;
     }
-
-    // Send initial heartbeat immediately on mount
-    updateHeartbeat().catch(console.error);
-
     // Clear any existing interval
     if (heartbeatIntervalRef.current) {
       clearInterval(heartbeatIntervalRef.current);
     }
-
-    // Send heartbeat every 30 seconds
+    updateHeartbeat()
+      .catch(console.error);
+    // Send heartbeat every 20 seconds
     heartbeatIntervalRef.current = setInterval(async () => {
       try {
         await updateHeartbeat();
-        console.log('💓 Heartbeat sent');
       } catch (error) {
         console.error('❌ Heartbeat failed:', error);
       }
-    }, 30000); // 30 seconds
-
+    }, 20000);
     // Send heartbeat when tab becomes visible again
     const handleVisibilityChange = () => {
       if (!document.hidden && isAuthenticated) {

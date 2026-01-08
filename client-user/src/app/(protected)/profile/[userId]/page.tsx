@@ -462,9 +462,7 @@ export default function UserProfilePage() {
                       <button className="w-full text-left px-4 sm:px-6 py-2 sm:py-3 text-white text-xs sm:text-sm hover:bg-white/5 transition-colors">
                         About this account
                       </button>
-                      <button className="w-full text-left px-4 sm:px-6 py-2 sm:py-3 text-white text-xs sm:text-sm hover:bg-white/5 transition-colors">
-                        Hide your story
-                      </button>
+
                       <button
                         onClick={handleCopyProfileUrl}
                         className="w-full text-left px-4 sm:px-6 py-2 sm:py-3 text-white text-xs sm:text-sm hover:bg-white/5 transition-colors"
@@ -588,7 +586,10 @@ export default function UserProfilePage() {
                         : UserPlus
                   }
                 />
-                <ActionButton label="Message" />
+                <ActionButton
+                  label="Message"
+                  onClick={() => router.push("/message")}
+                />
                 <ActionButton label="Contact" />
               </div>
             </div>

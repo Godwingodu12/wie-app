@@ -132,32 +132,28 @@ function ProfileContent() {
       fetchUserData();
     }
   }, [dispatch, user?.id]);
-const handleLogout = async () => {
-  try {
-    setLoggingOut(true);
-    setIsMenuOpen(false);
-    
-    // Call logout API directly
+
+  const handleLogout = async () => {
     try {
-      const { logout: logoutAPI } = await import('@/services/wieUserService');
-      await logoutAPI();
-    } catch (apiError) {
-      // If API fails, continue with local logout
-      console.error("Logout API error:", apiError);
+      setLoggingOut(true);
+      setIsMenuOpen(false);
+
+      // Call logout API to invalidate token
+      await logout();
+
+      // Clear Redux state
+      dispatch(logoutSuccess());
+      router.push("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Even if API fails, clear local state and redirect
+      dispatch(logoutSuccess());
+      router.push("/login");
+    } finally {
+      setLoggingOut(false);
     }
-    
-    // Clear local state
-    dispatch(logoutSuccess());
-    router.push("/login");
-  } catch (error) {
-    console.error("Logout error:", error);
-    // Even if everything fails, clear local state
-    dispatch(logoutSuccess());
-    router.push("/login");
-  } finally {
-    setLoggingOut(false);
-  }
-};
+  };
+
   const formatNumber = (num: number): string => {
     if (num >= 1000000) {
       return (num / 1000000).toFixed(1) + "M";

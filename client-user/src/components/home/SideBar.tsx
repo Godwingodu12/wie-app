@@ -12,11 +12,12 @@ import NotificationsIcon from "@/assets/Home/NotificationsIcon.svg";
 import EventsIcon from "@/assets/Home/EventsIcon.svg";
 import SettingsIcon from "@/assets/Home/SettingsIcon.svg";
 import { getUserNotifications } from "@/services/notificationService";
-import { getUnreadMessageCount } from "@/services/chatService";
+import { getUnreadUsersCount } from "@/services/chatService"; // ✅ Changed from getUnreadMessageCount
 import realtimeNotificationService from "@/services/realtimeNotificationService";
 import { getFollowStats } from "@/services/followService";
 import socketService from "@/services/socketService";
 import { NotificationPopup } from "@/components/notifications/NotificationPopup";
+
 interface NavItem {
   id: string;
   label: string;
@@ -39,7 +40,7 @@ const SideBar: React.FC = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState<number>(0);
   const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
-  const [totalUnreadMessages, setTotalUnreadMessages] = useState<number>(0);
+  const [unreadUsersCount, setUnreadUsersCount] = useState<number>(0); // ✅ Changed variable name
 
   // Load unread notification count
   useEffect(() => {
@@ -56,6 +57,7 @@ const SideBar: React.FC = () => {
       fetchNotificationCount();
     }
   }, [user]);
+
   // Load follow stats
   useEffect(() => {
     const fetchFollowStats = async () => {
@@ -72,20 +74,21 @@ const SideBar: React.FC = () => {
     fetchFollowStats();
   }, [user?.id]);
 
-  // Load unread message count
+  // ✅ Load unread USERS count (not message count)
   useEffect(() => {
-    const fetchUnreadMessageCount = async () => {
+    const fetchUnreadUsersCount = async () => {
       if (!user || !token) return;
-      
+
       try {
-        const res = await getUnreadMessageCount();
-        setTotalUnreadMessages(res.unreadCount || 0);
+        const res = await getUnreadUsersCount();
+        console.log('📊 Sidebar: Unread users count:', res.unreadUsersCount);
+        setUnreadUsersCount(res.unreadUsersCount || 0);
       } catch (error) {
-        console.error("Failed to load unread message count:", error);
+        console.error("Failed to load unread users count:", error);
       }
     };
 
-    fetchUnreadMessageCount();
+    fetchUnreadUsersCount();
   }, [user, token]);
 
   // Subscribe to real-time notification events
@@ -125,29 +128,83 @@ const SideBar: React.FC = () => {
     };
   }, [user, token]);
 
-  // Subscribe to real-time message events
+  // ✅ Subscribe to real-time message events - Track unique USERS, not messages
   useEffect(() => {
     if (!user || !token) return;
 
+    // ✅ Listen for custom event from ChatContext
+    const handleUnreadCountChange = (event: CustomEvent) => {
+      console.log('📊 Sidebar: Received unread-count-changed event');
+      
+      // ✅ CRITICAL: Refresh from API to get accurate USER count
+      getUnreadUsersCount()
+        .then((res) => {
+          console.log('📊 Sidebar: Updated user count from API:', res.unreadUsersCount);
+          setUnreadUsersCount(res.unreadUsersCount || 0);
+        })
+        .catch((error) => {
+          console.error('Failed to refresh unread users count:', error);
+        });
+    };
+
+    window.addEventListener('unread-count-changed' as any, handleUnreadCountChange as any);
+
+    // Also refresh on socket events
     const socket = socketService.getSocket();
-    if (!socket) return;
+    if (socket) {
+      const handleNewMessageNotification = (data: any) => {
+        console.log('📊 Sidebar: New message notification, refreshing user count from API');
+        // ✅ Always refresh from API to get accurate count
+        getUnreadUsersCount()
+          .then((res) => {
+            console.log('📊 Sidebar: Updated user count:', res.unreadUsersCount);
+            setUnreadUsersCount(res.unreadUsersCount || 0);
+          })
+          .catch((error) => {
+            console.error('Failed to refresh unread users count:', error);
+          });
+      };
 
-    const handleNewMessage = () => {
-      setTotalUnreadMessages((prev) => prev + 1);
-    };
+      const handleMessagesRead = (data: any) => {
+        console.log('📊 Sidebar: Messages read, refreshing user count from API');
+        // ✅ Always refresh from API to get accurate count
+        getUnreadUsersCount()
+          .then((res) => {
+            console.log('📊 Sidebar: Updated user count:', res.unreadUsersCount);
+            setUnreadUsersCount(res.unreadUsersCount || 0);
+          })
+          .catch((error) => {
+            console.error('Failed to refresh unread users count:', error);
+          });
+      };
 
-    const handleMessagesRead = () => {
-      getUnreadMessageCount()
-        .then((res) => setTotalUnreadMessages(res.unreadCount || 0))
-        .catch(() => {});
-    };
+      const handleChatUnreadUpdate = (data: any) => {
+        console.log('📊 Sidebar: Chat unread update, refreshing user count from API');
+        // ✅ Always refresh from API to get accurate count
+        getUnreadUsersCount()
+          .then((res) => {
+            console.log('📊 Sidebar: Updated user count:', res.unreadUsersCount);
+            setUnreadUsersCount(res.unreadUsersCount || 0);
+          })
+          .catch((error) => {
+            console.error('Failed to refresh unread users count:', error);
+          });
+      };
 
-    socket.on('new-message-notification', handleNewMessage);
-    socket.on('messages-read', handleMessagesRead);
+      socket.on('new-message-notification', handleNewMessageNotification);
+      socket.on('messages-read', handleMessagesRead);
+      socket.on('chat-unread-update', handleChatUnreadUpdate);
+
+      return () => {
+        socket.off('new-message-notification', handleNewMessageNotification);
+        socket.off('messages-read', handleMessagesRead);
+        socket.off('chat-unread-update', handleChatUnreadUpdate);
+        window.removeEventListener('unread-count-changed' as any, handleUnreadCountChange as any);
+      };
+    }
 
     return () => {
-      socket.off('new-message-notification', handleNewMessage);
-      socket.off('messages-read', handleMessagesRead);
+      window.removeEventListener('unread-count-changed' as any, handleUnreadCountChange as any);
     };
   }, [user, token]);
 
@@ -160,7 +217,7 @@ const SideBar: React.FC = () => {
       label: "Messages",
       icon: MessageIcon,
       path: "/message",
-      notificationCount: totalUnreadMessages,
+      notificationCount: unreadUsersCount, // ✅ Changed to show user count
     },
     {
       id: "connections",
@@ -188,12 +245,20 @@ const SideBar: React.FC = () => {
     }
     router.push(path);
   };
+
   const isActive = (path: string) => {
     if (isNotificationOpen) {
       return path === "/notification";
     }
     return pathname === path;
-  }; 
+  };
+
+  // ✅ Helper to format count (show "9+" for 10 or more)
+  const formatCount = (count: number | undefined): string => {
+    if (!count || count === 0) return "0";
+    if (count > 9) return "9+";
+    return count.toString();
+  };
 
   // Mobile Bottom Navigation
   if (isMobile) {
@@ -218,9 +283,7 @@ const SideBar: React.FC = () => {
                 />
                 {item.notificationCount && item.notificationCount > 0 && (
                   <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-[9px] font-bold text-white flex items-center justify-center border border-[#0a0a0a]">
-                    {item.notificationCount > 99
-                      ? "99+"
-                      : item.notificationCount}
+                    {formatCount(item.notificationCount)}
                   </span>
                 )}
               </div>
@@ -314,7 +377,7 @@ const SideBar: React.FC = () => {
             isCollapsed ? "items-center" : "overflow-y-auto scrollbar-hide"
           } flex-1`}
         >
-{/* Main Nav Items */}
+          {/* Main Nav Items */}
           {mainNavItems.map((item) => (
             <button
               key={item.id}
@@ -329,9 +392,8 @@ const SideBar: React.FC = () => {
               hover:bg-white/5
             `}
             >
-
               <div
-                className={`flex items-center justify-center w-[44px] h-[44px] rounded-full flex-shrink-0 transition-all duration-200 ${
+                className={`flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200 ${
                    isActive(item.path) ? "bg-white" : ""
                 }`}
               >
@@ -374,9 +436,7 @@ const SideBar: React.FC = () => {
                         opacity: 1,
                       }}
                     >
-                      {(item.notificationCount ?? 0) > 99
-                        ? "99+"
-                        : item.notificationCount}
+                      {formatCount(item.notificationCount)}
                     </span>
                   )}
                 </>
@@ -398,9 +458,7 @@ const SideBar: React.FC = () => {
                     left: "35px",
                   }}
                 >
-                  {(item.notificationCount ?? 0) > 99
-                    ? "99+"
-                    : item.notificationCount}
+                  {formatCount(item.notificationCount)}
                 </span>
               )}
             </button>
@@ -440,7 +498,7 @@ const SideBar: React.FC = () => {
           `}
           >
             <div
-              className={`flex items-center justify-center w-[44px] h-[44px] rounded-full flex-shrink-0 transition-all duration-200 ${
+              className={`flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200 ${
                  isActive("/settings") ? "bg-white" : ""
               }`}
             >
@@ -489,19 +547,19 @@ const SideBar: React.FC = () => {
              hover:bg-white/5
           `}
           >
-            <div className={`relative flex items-center justify-center w-[44px] h-[44px] rounded-full flex-shrink-0 transition-all duration-200 ${
+            <div className={`relative flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200 ${
                    isActive("/profile") ? "bg-white" : ""
                 }`}>
               {userAvatar ? (
                 <Image
                   src={userAvatar}
                   alt="Profile"
-                  width={24}
-                  height={24}
-                  className={`flex-shrink-0 rounded-full object-cover border border-[#2D2F39]`}
+                  width={34}
+                  height={34}
+                  className={`flex-shrink-0 w-[34px] h-[34px] rounded-full object-cover border-[2px] border-white`}
                 />
               ) : (
-                <div className="w-6 h-6 rounded-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] flex items-center justify-center border border-[#2D2F39]">
+                <div className="w-[34px] h-[34px] rounded-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] flex items-center justify-center border-[2px] border-white">
                   <span className="text-xs font-bold text-white">
                     {user?.name?.charAt(0)?.toUpperCase() || "U"}
                   </span>
@@ -535,4 +593,5 @@ const SideBar: React.FC = () => {
     </>
   );
 };
+
 export default SideBar;

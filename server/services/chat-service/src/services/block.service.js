@@ -23,17 +23,22 @@ export const blockUser = async (blockerId, blockedId) => {
   } catch (error) {
     console.error('Failed to unfollow during block:', error);
   }
-
   return { success: true, message: 'User blocked successfully' };
 };
-
+export const isBlockedByUser = async (blockerId, blockedId) => {
+  const block = await Block.findOne({
+    blockerId: blockerId,
+    blockedId: blockedId
+  });
+  
+  return !!block;
+};
 export const unblockUser = async (blockerId, blockedId) => {
   const result = await Block.findOneAndDelete({ blockerId, blockedId });
   
   if (!result) {
     throw new Error('User is not blocked');
   }
-
   return { success: true, message: 'User unblocked successfully' };
 };
 
@@ -60,7 +65,6 @@ export const getBlockedUsers = async (userId, page = 1, limit = 50) => {
     totalPages: Math.ceil(total / limit)
   };
 };
-
 export const isBlocked = async (userId1, userId2) => {
   const block = await Block.findOne({
     $or: [
@@ -70,22 +74,4 @@ export const isBlocked = async (userId1, userId2) => {
   });
   
   return !!block;
-};
-
-export const checkBlockStatus = async (userId1, userId2) => {
-  const blocks = await Block.find({
-    $or: [
-      { blockerId: userId1, blockedId: userId2 },
-      { blockerId: userId2, blockedId: userId1 }
-    ]
-  }).lean();
-
-  const youBlocked = blocks.some(b => b.blockerId === userId1 && b.blockedId === userId2);
-  const blockedYou = blocks.some(b => b.blockerId === userId2 && b.blockedId === userId1);
-
-  return {
-    youBlocked,
-    blockedYou,
-    isBlocked: youBlocked || blockedYou
-  };
 };
