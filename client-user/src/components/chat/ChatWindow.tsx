@@ -227,7 +227,6 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
       return null;
     }
   };
-
   const loadMessages = async () => {
     if (!currentChat) return;
     setLoading(true);
@@ -266,24 +265,27 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
         
         setMessages(parsedMessages);
         
-        if (response.chat?.participant) {
+        // ✅ Update current chat with fresh data from server
+        if (response.chat) {
           const updatedChat = {
             ...currentChat,
-            participant: {
-              ...currentChat.participant,
+            participant: response.chat.participant ? {
               _id: response.chat.participant._id,
               name: response.chat.participant.name,
               email: response.chat.participant.email,
-              username: currentChat.participant?.username || '',
-              contact_no: currentChat.participant?.contact_no || '',
+              username: response.chat.participant.username || currentChat.participant?.username || '',
+              contact_no: response.chat.participant.contact_no || currentChat.participant?.contact_no || '',
               profile_picture: response.chat.participant.profile_picture,
               bio: response.chat.participant.bio,
               is_verified: response.chat.participant.is_verified,
               isOnline: response.chat.participant.isOnline ?? false,
               lastSeen: response.chat.participant.last_seen_at || response.chat.participant.lastSeen,
-            },
-            isBlocked: currentChat.isBlocked,
-            isBlockedBy: currentChat.isBlockedBy
+              last_seen_at: response.chat.participant.last_seen_at
+            } : currentChat.participant,
+            type: response.chat.type || currentChat.type,
+            status: response.chat.status || currentChat.status,
+            isBlocked: response.chat.isBlocked ?? currentChat.isBlocked,
+            isBlockedBy: response.chat.isBlockedBy ?? currentChat.isBlockedBy
           };
           setCurrentChat(updatedChat);
         }
@@ -294,11 +296,9 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
       setLoading(false);
     }
   };
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageInput.trim() || !currentChat || sending) return;
@@ -804,6 +804,7 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
                     src={profilePictureUrl}
                     alt={currentChat.participant?.name || 'User'}
                     fill
+                    sizes="40px" 
                     className="object-cover"
                     onError={() => setImageError(true)}
                   />
@@ -1060,6 +1061,7 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
                     alt={currentChat.participant?.name || 'User'}
                     width={64}
                     height={64}
+                    sizes="64px" 
                     className="rounded-full object-cover"
                     onError={() => setImageError(true)}
                   />

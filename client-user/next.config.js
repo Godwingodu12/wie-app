@@ -34,5 +34,17 @@ const nextConfig = {
       },
     ],
   },
+  // Fix CSS className mismatch warning
+  experimental: {
+    optimizeCss: false, // Disable CSS optimization in development
+  },
+  // Optional: Enable compiler optimizations
+  compiler: {
+    // Remove console logs in production
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'],
+    } : false,
+  },
 }
+
 module.exports = nextConfig

@@ -99,22 +99,63 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({});
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [typingUsers, setTypingUsers] = useState<{ [chatId: string]: boolean }>({}); 
+  const updateUnreadCount = useCallback((chatId: string, count: number) => {        
+        setUnreadCounts((prev) => {
+          const updated = {
+            ...prev,
+            [chatId]: count,
+          };
+          
+          if (typeof window !== 'undefined') {
+            const totalUnread = (Object.values(updated) as number[]).reduce((sum: number, count: number) => sum + count, 0);
+            
+            // Use setTimeout to avoid setState during render
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('unread-count-changed', { 
+                detail: { 
+                  chatId, 
+                  unreadCount: count,
+                  totalUnread 
+                } 
+              }));
+            }, 0);
+          }
+          return updated;
+        });
+        
+        // Update chat list
+        setInternalChats((prev) => {
+          const updated = prev.map((chat) =>
+            chat._id === chatId
+              ? { ...chat, unreadCount: count }
+              : chat
+          );
+          saveToStorage(STORAGE_KEYS.CHATS, updated);
+          return updated;
+        });
+      }, []);
 const loadChatById = useCallback(async (chatId: string) => {
+  // ✅ Check if already current chat
   if (internalCurrentChat?._id === chatId) {
     return internalCurrentChat;
   }
 
   try {
+    // ✅ First check in existing chats
     const existingChat = internalChats.find(c => c._id === chatId);
     
     if (existingChat) {
       setInternalCurrentChat(existingChat);
       saveToStorage(STORAGE_KEYS.CURRENT_CHAT, existingChat);
+      
+      // ✅ Reset unread count for this chat
+      if (existingChat.unreadCount > 0) {
+        updateUnreadCount(chatId, 0);
+      }
+      
       return existingChat;
     }
-
     const response = await getWieChatMessages(chatId);
-    
     if (response.success && response.chat) {
       const chat: Chat = {
         _id: response.chat._id,
@@ -123,12 +164,15 @@ const loadChatById = useCallback(async (chatId: string) => {
         status: response.chat.status || 'accepted',
         lastMessage: response.chat.lastMessage,
         unreadCount: 0,
-        updatedAt: new Date().toISOString()
+        updatedAt: response.chat.updatedAt || new Date().toISOString(),
+        isBlocked: response.chat.isBlocked,
+        isBlockedBy: response.chat.isBlockedBy
       };
       
       setInternalCurrentChat(chat);
       saveToStorage(STORAGE_KEYS.CURRENT_CHAT, chat);
       
+      // ✅ Add to chats list if not already there
       setInternalChats((prev) => {
         const exists = prev.find(c => c._id === chatId);
         if (!exists) {
@@ -141,12 +185,14 @@ const loadChatById = useCallback(async (chatId: string) => {
       
       return chat;
     }
+    
+    console.warn('⚠️ No chat data returned from server');
     return null;
   } catch (error) {
-    console.error('Failed to load chat by ID:', error);
+    console.error('❌ Failed to load chat by ID:', error);
     return null;
   }
-}, [internalCurrentChat, internalChats]); 
+}, [internalCurrentChat, internalChats, updateUnreadCount]);
   const setChats = useCallback((chats: Chat[]) => {
     setInternalChats(chats);
     saveToStorage(STORAGE_KEYS.CHATS, chats);
@@ -268,41 +314,6 @@ const loadChatById = useCallback(async (chatId: string) => {
       const getTotalUnreadMessages = () => {
         return (Object.values(unreadCounts) as number[]).reduce((sum: number, count: number) => sum + count, 0);
       };
-      const updateUnreadCount = useCallback((chatId: string, count: number) => {        
-        setUnreadCounts((prev) => {
-          const updated = {
-            ...prev,
-            [chatId]: count,
-          };
-          
-          if (typeof window !== 'undefined') {
-            const totalUnread = (Object.values(updated) as number[]).reduce((sum: number, count: number) => sum + count, 0);
-            
-            // Use setTimeout to avoid setState during render
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('unread-count-changed', { 
-                detail: { 
-                  chatId, 
-                  unreadCount: count,
-                  totalUnread 
-                } 
-              }));
-            }, 0);
-          }
-          return updated;
-        });
-        
-        // Update chat list
-        setInternalChats((prev) => {
-          const updated = prev.map((chat) =>
-            chat._id === chatId
-              ? { ...chat, unreadCount: count }
-              : chat
-          );
-          saveToStorage(STORAGE_KEYS.CHATS, updated);
-          return updated;
-        });
-      }, []);
     useEffect(() => {
       if (!token || !user) return;
       const socket = socketService.connect(token);
@@ -544,7 +555,6 @@ const loadChatById = useCallback(async (chatId: string) => {
           }
         }
       };
-
       const handleChatCleared = (data: any) => {
         if (internalCurrentChat && data.chatId === internalCurrentChat._id) {
           setInternalMessages([]);
@@ -647,7 +657,6 @@ const loadChatById = useCallback(async (chatId: string) => {
           setInternalMessages((prev) => {
             const exists = prev.some((m) => m._id === newMessage._id);
             if (exists) {
-              console.log('⚠️ Message already exists, skipping:', newMessage._id);
               return prev;
             }
             return [...prev, newMessage];

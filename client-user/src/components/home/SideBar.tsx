@@ -17,21 +17,18 @@ import realtimeNotificationService from "@/services/realtimeNotificationService"
 import { getFollowStats } from "@/services/followService";
 import socketService from "@/services/socketService";
 import { NotificationPopup } from "@/components/notifications/NotificationPopup";
-
-interface NavItem {
-  id: string;
-  label: string;
-  icon: any;
-  path: string;
-  notificationCount?: number;
-}
+import MobileNavigation, { NavItem } from "./MobileNavigation";
+import TopMobBar from "./TopMobBar";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useSidebar } from "@/context/SidebarContext";
+import { useTheme } from "./ThemeContext";
+import { MdLightMode, MdOutlineDarkMode  } from "react-icons/md";
 
 const SideBar: React.FC = () => {
   const { isCollapsed, setIsCollapsed, isMobile } = useSidebar();
   const { user, token } = useAuth();
+  const { themeStyles, isDark, toggleTheme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -79,9 +76,9 @@ const SideBar: React.FC = () => {
     const fetchUnreadUsersCount = async () => {
       if (!user || !token) return;
 
+
       try {
         const res = await getUnreadUsersCount();
-        console.log('📊 Sidebar: Unread users count:', res.unreadUsersCount);
         setUnreadUsersCount(res.unreadUsersCount || 0);
       } catch (error) {
         console.error("Failed to load unread users count:", error);
@@ -134,12 +131,9 @@ const SideBar: React.FC = () => {
 
     // ✅ Listen for custom event from ChatContext
     const handleUnreadCountChange = (event: CustomEvent) => {
-      console.log('📊 Sidebar: Received unread-count-changed event');
-      
       // ✅ CRITICAL: Refresh from API to get accurate USER count
       getUnreadUsersCount()
         .then((res) => {
-          console.log('📊 Sidebar: Updated user count from API:', res.unreadUsersCount);
           setUnreadUsersCount(res.unreadUsersCount || 0);
         })
         .catch((error) => {
@@ -153,11 +147,9 @@ const SideBar: React.FC = () => {
     const socket = socketService.getSocket();
     if (socket) {
       const handleNewMessageNotification = (data: any) => {
-        console.log('📊 Sidebar: New message notification, refreshing user count from API');
         // ✅ Always refresh from API to get accurate count
         getUnreadUsersCount()
           .then((res) => {
-            console.log('📊 Sidebar: Updated user count:', res.unreadUsersCount);
             setUnreadUsersCount(res.unreadUsersCount || 0);
           })
           .catch((error) => {
@@ -166,11 +158,9 @@ const SideBar: React.FC = () => {
       };
 
       const handleMessagesRead = (data: any) => {
-        console.log('📊 Sidebar: Messages read, refreshing user count from API');
         // ✅ Always refresh from API to get accurate count
         getUnreadUsersCount()
           .then((res) => {
-            console.log('📊 Sidebar: Updated user count:', res.unreadUsersCount);
             setUnreadUsersCount(res.unreadUsersCount || 0);
           })
           .catch((error) => {
@@ -179,11 +169,9 @@ const SideBar: React.FC = () => {
       };
 
       const handleChatUnreadUpdate = (data: any) => {
-        console.log('📊 Sidebar: Chat unread update, refreshing user count from API');
         // ✅ Always refresh from API to get accurate count
         getUnreadUsersCount()
           .then((res) => {
-            console.log('📊 Sidebar: Updated user count:', res.unreadUsersCount);
             setUnreadUsersCount(res.unreadUsersCount || 0);
           })
           .catch((error) => {
@@ -247,11 +235,9 @@ const SideBar: React.FC = () => {
   };
 
   const isActive = (path: string) => {
-    if (isNotificationOpen) {
-      return path === "/notification";
-    }
     return pathname === path;
   };
+
 
   // ✅ Helper to format count (show "9+" for 10 or more)
   const formatCount = (count: number | undefined): string => {
@@ -260,67 +246,75 @@ const SideBar: React.FC = () => {
     return count.toString();
   };
 
-  // Mobile Bottom Navigation
+  // Mobile Bottom Navigation Items (Custom Order: Home, Explore, Connections, Events, Profile)
+  const mobileBottomItems: NavItem[] = [
+    { id: "home", label: "Home", icon: HomeIcon, path: "/home" },
+    { id: "explore", label: "Explore", icon: ExploreIcon, path: "/explore" },
+    {
+      id: "connections",
+      label: "Connections",
+      icon: ConnectionsIcon,
+      path: "/connections",
+      // Removed notification count from bottom bar as per request (moved logic to TopBar/Sidebar)
+    },
+    { id: "events", label: "Events", icon: EventsIcon, path: "/events/nearby" },
+    {
+      id: "profile",
+      label: "Profile",
+      icon: userAvatar || "", // Will handle image rendering in MobileNavigation
+      path: "/profile",
+      isProfile: true // Flag to identify profile item for special rendering
+    },
+  ];
+
+  // Mobile Render
   if (isMobile) {
     return (
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0a0a0a] border-t border-[#2D2F39] px-4 py-3 pb-safe">
-        <div className="flex justify-around items-center">
-          {mobileNavItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => handleNavClick(item.path)}
-              className="flex flex-col items-center gap-1 relative p-1"
-            >
-              <div className="relative">
-                <Image
-                  src={item.icon}
-                  alt={item.label}
-                  width={24}
-                  height={24}
-                  className={`transition-opacity duration-200 ${
-                    isActive(item.path) ? "opacity-100" : "opacity-60"
-                  }`}
-                />
-                {item.notificationCount && item.notificationCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-[9px] font-bold text-white flex items-center justify-center border border-[#0a0a0a]">
-                    {formatCount(item.notificationCount)}
-                  </span>
-                )}
-              </div>
-              <span
-                className={`text-[10px] font-medium transition-colors duration-200 ${
-                  isActive(item.path) ? "text-white" : "text-[#6F7680]"
-                }`}
-              >
-                {item.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </nav>
+      <>
+        <TopMobBar
+          notificationCount={notificationCount}
+          messageCount={unreadUsersCount}
+          onNotificationClick={() => setIsNotificationOpen(true)}
+          onMessageClick={() => router.push("/message")}
+          onPostClick={() => {
+            // Placeholder for Add Post functionality
+          }}
+        />
+        <MobileNavigation
+          items={mobileBottomItems}
+          isActive={isActive}
+          onNavClick={handleNavClick}
+        />
+        <NotificationPopup
+          isOpen={isNotificationOpen}
+          onClose={() => setIsNotificationOpen(false)}
+        />
+        <style jsx global>{`
+          @media (max-width: 768px) {
+            body {
+              padding-top: 70px;
+              padding-bottom: 80px
+              background-color: ${isDark ? "#0C1014" : "#F3F4F6"} !important;
+              background-image: none !important;
+            }
+          }
+        `}</style>
+      </>
     );
   }
 
   // Desktop/Tablet Sidebar
   return (
     <>
-      <style jsx global>{`
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-        }
-        .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
+
       <aside
         onMouseEnter={() => !isMobile && setIsCollapsed(false)}
         onMouseLeave={() => !isMobile && setIsCollapsed(true)}
         className={`fixed left-0 top-0 h-screen flex flex-col transition-all duration-300 ease-in-out z-50 ${
-          isCollapsed ? "w-[92px] p-4" : "w-[281px] p-6"
+          isCollapsed ? "w-[92px] p-4" : "w-[281px] p-4"
         }`}
         style={{
-          background: "#0C1014",
+          background: themeStyles.sidebarBg,
           borderRadius: "12px",
         }}
       >
@@ -338,10 +332,14 @@ const SideBar: React.FC = () => {
                 width={37}
                 height={37}
                 className="flex-shrink-0"
+                style={{ filter: themeStyles.iconFilter }}
               />
               <span
-                className="font-medium text-2xl text-white tracking-normal"
-                style={{ fontFamily: "SF Pro, -apple-system, sans-serif" }}
+                className="font-medium text-2xl tracking-normal transition-colors duration-300"
+                style={{
+                  fontFamily: "SF Pro, -apple-system, sans-serif",
+                  color: themeStyles.text
+                }}
               >
                 Wie
               </span>
@@ -355,21 +353,12 @@ const SideBar: React.FC = () => {
               width={32}
               height={32}
               className="flex-shrink-0"
+              style={{ filter: themeStyles.iconFilter }}
             />
           )}
         </div>
 
-        {/* Divider Top */}
-        <div
-          style={{
-            width: "54px",
-            height: "2px",
-            background: "linear-gradient(270deg, rgba(0, 0, 0, 0) -8.43%, rgba(63, 63, 63, 0.6) 46.38%, rgba(0, 0, 0, 0) 100%)",
-            borderRadius: "2px",
-            marginBottom: "20px",
-            alignSelf: "center"
-          }}
-        />
+
 
         {/* Main Navigation */}
         <nav
@@ -377,6 +366,8 @@ const SideBar: React.FC = () => {
             isCollapsed ? "items-center" : "overflow-y-auto scrollbar-hide"
           } flex-1`}
         >
+
+
           {/* Main Nav Items */}
           {mainNavItems.map((item) => (
             <button
@@ -387,39 +378,54 @@ const SideBar: React.FC = () => {
               ${
                 isCollapsed
                   ? "justify-center"
-                  : "w-full justify-start px-3.5 gap-3.5"
+                  : "w-full justify-start px-3 gap-3.5"
               }
-              hover:bg-white/5
             `}
+            style={{
+              backgroundColor: isActive(item.path) ? themeStyles.activeTabBg : "transparent",
+              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive(item.path)) e.currentTarget.style.backgroundColor = themeStyles.hoverBg;
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive(item.path)) e.currentTarget.style.backgroundColor = "transparent";
+            }}
             >
               <div
-                className={`flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200 ${
-                   isActive(item.path) ? "bg-white" : ""
-                }`}
+                className={`flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200`}
+                style={{
+                  backgroundColor: "transparent",
+                }}
               >
                 <Image
                   src={item.icon}
                   alt={item.label}
                   width={20}
                   height={20}
-                  className={`transition-all duration-200 ${
-                    isActive(item.path)
-                      ? "opacity-100 brightness-0"
-                      : "opacity-70 group-hover:opacity-100"
-                  }`}
-                  style={isActive(item.path) ? { filter: 'brightness(0)' } : {}}
+                  className="transition-all duration-200"
+                  style={{
+                    filter: themeStyles.iconFilter,
+                    opacity: isActive(item.path) ? 1 : 0.7
+                  }}
                 />
               </div>
 
               {!isCollapsed && (
                 <>
                   <span
-                    className={`flex-1 font-medium text-[15px] tracking-tight text-left transition-colors duration-200 ${
-                      isActive(item.path)
-                        ? "text-white"
-                        : "text-[#9CA3AF] group-hover:text-white"
-                    }`}
-                    style={{ fontFamily: "Inter, sans-serif" }}
+                    className={`flex-1 font-medium text-[15px] tracking-tight text-left transition-colors duration-200`}
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      color: isActive(item.path) ? themeStyles.text : themeStyles.textSecondary,
+                      fontWeight: isActive(item.path) ? 600 : 500
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive(item.path)) e.currentTarget.style.color = themeStyles.text;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive(item.path)) e.currentTarget.style.color = themeStyles.textSecondary;
+                    }}
                   >
                     {item.label}
                   </span>
@@ -465,18 +471,7 @@ const SideBar: React.FC = () => {
           ))}
         </nav>
 
-        {/* Divider Bottom */}
-        <div
-          style={{
-            width: "54px",
-            height: "2px",
-            background: "linear-gradient(270deg, rgba(0, 0, 0, 0) -8.43%, rgba(63, 63, 63, 0.6) 46.38%, rgba(0, 0, 0, 0) 100%)",
-            borderRadius: "2px",
-            marginTop: "10px",
-            marginBottom: "10px",
-            alignSelf: "center"
-          }}
-        />
+
 
         {/* Secondary Navigation */}
         <div
@@ -492,37 +487,53 @@ const SideBar: React.FC = () => {
              ${
                isCollapsed
                  ? "justify-center"
-                 : "w-full justify-start px-3.5 gap-3.5"
+                 : "w-full justify-start px-3 gap-3.5"
              }
-             hover:bg-white/5
+             hover:bg-transparent
           `}
+            style={{
+              backgroundColor: isActive("/settings") ? themeStyles.activeTabBg : "transparent",
+              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
+            }}
+            onMouseEnter={(e) => {
+                if (!isActive("/settings")) e.currentTarget.style.backgroundColor = themeStyles.hoverBg;
+            }}
+            onMouseLeave={(e) => {
+                if (!isActive("/settings")) e.currentTarget.style.backgroundColor = "transparent";
+            }}
           >
             <div
-              className={`flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200 ${
-                 isActive("/settings") ? "bg-white" : ""
-              }`}
+              className={`flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200`}
+              style={{
+                backgroundColor: "transparent"
+              }}
             >
               <Image
                 src={SettingsIcon}
                 alt="Settings"
                 width={20}
                 height={20}
-                className={`flex-shrink-0 transition-opacity duration-200 ${
-                  isActive("/settings")
-                    ? "opacity-100 brightness-0"
-                    : "opacity-70 group-hover:opacity-100"
-                }`}
-                style={isActive("/settings") ? { filter: 'brightness(0)' } : {}}
+                className={`flex-shrink-0 transition-opacity duration-200`}
+                style={{
+                  filter: themeStyles.iconFilter,
+                  opacity: isActive("/settings") ? 1 : 0.7
+                }}
               />
             </div>
             {!isCollapsed && (
               <span
-                className={`font-medium text-[15px] tracking-tight transition-colors duration-200 ${
-                  isActive("/settings")
-                    ? "text-white"
-                    : "text-[#9CA3AF] group-hover:text-white"
-                }`}
-                style={{ fontFamily: "Inter, sans-serif" }}
+                className={`font-medium text-[15px] tracking-tight transition-colors duration-200`}
+                style={{
+                  fontFamily: "Inter, sans-serif",
+                  color: isActive("/settings") ? themeStyles.text : themeStyles.textSecondary,
+                  fontWeight: isActive("/settings") ? 600 : 500
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive("/settings")) e.currentTarget.style.color = themeStyles.text;
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive("/settings")) e.currentTarget.style.color = themeStyles.textSecondary;
+                }}
               >
                 Settings
               </span>
@@ -530,6 +541,71 @@ const SideBar: React.FC = () => {
             {isCollapsed && (
               <div className="absolute left-full ml-4 px-2 py-1 bg-[#1a1a1a] text-white text-xs rounded border border-[#2D2F39] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50">
                 Settings
+              </div>
+            )}
+          </button>
+
+          {/* Theme Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            className={`
+            relative flex items-center rounded-xl transition-all duration-200 group
+             ${
+               isCollapsed
+                 ? "justify-center"
+                 : "w-full justify-start px-3 gap-3.5"
+             }
+             hover:bg-transparent
+          `}
+            style={{
+              transition: "background-color 0.2s"
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = themeStyles.hoverBg; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+          >
+            <div
+              className={`flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200`}
+            >
+              {isDark ? (
+                <MdLightMode
+                  size={22}
+                  className="transition-all duration-200"
+                  style={{
+                    filter: themeStyles.iconFilter, // White in Dark Mode
+                    opacity: 0.8
+                  }}
+                />
+              ) : (
+                <MdOutlineDarkMode
+                  size={22}
+                  className="transition-all duration-200"
+                  style={{
+                    filter: themeStyles.iconFilter, // Black in Light Mode
+                    opacity: 0.8
+                  }}
+                />
+              )}
+            </div>
+            {!isCollapsed && (
+              <span
+                className={`font-medium text-[15px] tracking-tight transition-colors duration-200`}
+                style={{
+                  fontFamily: "Inter, sans-serif",
+                  color: themeStyles.textSecondary
+                }}
+                 onMouseEnter={(e) => {
+                  e.currentTarget.style.color = themeStyles.text;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = themeStyles.textSecondary;
+                }}
+              >
+                {isDark ? "Light mode" : "Dark mode"}
+              </span>
+            )}
+            {isCollapsed && (
+              <div className="absolute left-full ml-4 px-2 py-1 bg-[#1a1a1a] text-white text-xs rounded border border-[#2D2F39] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50">
+                {isDark ? "Light mode" : "Dark mode"}
               </div>
             )}
           </button>
@@ -542,14 +618,21 @@ const SideBar: React.FC = () => {
              ${
                isCollapsed
                  ? "justify-center"
-                 : "w-full justify-start px-3.5 gap-3.5"
+                 : "w-full justify-start px-3 gap-3.5"
              }
-             hover:bg-white/5
           `}
+            style={{
+              backgroundColor: isActive("/profile") ? themeStyles.activeTabBg : "transparent",
+              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
+            }}
+            onMouseEnter={(e) => {
+                if (!isActive("/profile")) e.currentTarget.style.backgroundColor = themeStyles.hoverBg;
+            }}
+            onMouseLeave={(e) => {
+                if (!isActive("/profile")) e.currentTarget.style.backgroundColor = "transparent";
+            }}
           >
-            <div className={`relative flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200 ${
-                   isActive("/profile") ? "bg-white" : ""
-                }`}>
+            <div className={`relative flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200`}>
               {userAvatar ? (
                 <Image
                   src={userAvatar}
@@ -568,12 +651,18 @@ const SideBar: React.FC = () => {
             </div>
             {!isCollapsed && (
               <span
-                className={`font-medium text-[15px] tracking-tight truncate transition-colors duration-200 ${
-                  isActive("/profile")
-                    ? "text-white"
-                    : "text-[#9CA3AF] group-hover:text-white"
-                }`}
-                style={{ fontFamily: "Inter, sans-serif" }}
+                className={`font-medium text-[15px] tracking-tight truncate transition-colors duration-200`}
+                style={{
+                  fontFamily: "Inter, sans-serif",
+                  color: isActive("/profile") ? themeStyles.text : themeStyles.textSecondary,
+                  fontWeight: isActive("/profile") ? 600 : 500
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive("/profile")) e.currentTarget.style.color = themeStyles.text;
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive("/profile")) e.currentTarget.style.color = themeStyles.textSecondary;
+                }}
               >
                 {userName}
               </span>
@@ -585,11 +674,22 @@ const SideBar: React.FC = () => {
             )}
           </button>
         </div>
+
+
       </aside>
       <NotificationPopup
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
       />
+      <style jsx global>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </>
   );
 };

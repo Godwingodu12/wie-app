@@ -21,6 +21,7 @@ import {
 } from "@/services/notificationService";
 import realtimeNotificationService from "@/services/realtimeNotificationService";
 import NotificationInitializer from "./NotificationInitializer";
+import { useTheme } from "@/components/home/ThemeContext";
 
 interface NotificationPopupProps {
   isOpen: boolean;
@@ -49,6 +50,7 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
   onClose,
 }) => {
   const router = useRouter();
+  const { themeStyles, isDark } = useTheme();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<
@@ -233,8 +235,6 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
     return true;
   });
 
-  // if (!isOpen) return null; // Removed to allow exit animations
-
   const show = isOpen; // Local alias for clarity
 
   return (
@@ -249,43 +249,39 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
       <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4">
         {/* Popup Card */}
         <div
-          className={`pointer-events-auto flex flex-col overflow-hidden shadow-2xl transition-all duration-300 ease-in-out ${show ? "opacity-100 scale-100 visible" : "opacity-0 scale-95 invisible"}`}
+          className={`pointer-events-auto flex flex-col overflow-hidden shadow-2xl transition-all duration-300 ease-in-out rounded-[24px] w-full max-w-[95%] md:max-w-[684px] h-[80vh] md:h-[85vh] md:max-h-[842px] ${show ? "opacity-100 scale-100 visible" : "opacity-0 scale-95 invisible"}`}
           style={{
-            width: "100%",
-            maxWidth: "684px",
-            height: "85vh",
-            maxHeight: "842px",
-            borderRadius: "24px",
-            background: "#0B0D0F",
+            background: isDark ? "#0B0D0F" : "#FFFFFF",
+            border: `1px solid ${themeStyles.border}`,
           }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="p-6 pb-2 shrink-0">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-medium text-white">
+              <h2 className="text-xl font-medium" style={{ color: themeStyles.text }}>
                 Your Notifications
               </h2>
               <button
                 onClick={onClose}
-                className="flex items-center justify-center w-[42px] h-[42px] rounded-[50px] bg-[#1C2024] text-zinc-400 p-[6px] gap-[10px] transition-colors hover:bg-white/10"
+                className="flex items-center justify-center w-[42px] h-[42px] rounded-[50px] p-[6px] gap-[10px] transition-colors hover:opacity-80"
+                style={{ background: themeStyles.pillBg, color: themeStyles.textSecondary }}
                 aria-label="Close"
               >
-                <X size={24} color="white" />
+                <X size={24} style={{ color: themeStyles.text }} />
               </button>
             </div>
 
             {/* Controls Row: Tabs + Mark Read */}
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col md:flex-row items-center justify-between mb-4 gap-4 md:gap-0">
               {/* Tabs Container */}
               <div
-                className="flex items-center justify-between"
+                className="flex items-center justify-between w-full md:w-[447px] overflow-x-auto scrollbar-hide gap-1"
                 style={{
-                  width: "447px",
                   height: "43px",
                   borderRadius: "100px",
                   padding: "3px",
-                  background: "rgba(56, 56, 56, 0.2)", // #38383833
+                  background: themeStyles.pillBg,
                 }}
               >
                 {[
@@ -318,35 +314,36 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
                   <button
                     key={tab.id}
                     onClick={() => setFilter(tab.id as any)}
-                    className={`h-[37px] rounded-[100px] font-medium text-[13px] transition-colors flex items-center justify-center whitespace-nowrap flex-1 relative`}
-                    style={
-                      filter === tab.id
-                        ? {
-                            background:
-                              "linear-gradient(270deg, rgba(32, 32, 32, 0.2) -8.43%, rgba(96, 96, 96, 0.2) 100%)",
-                            border: "1px solid rgba(255, 255, 255, 0.1)", // Fallback/Cleaner border
-                            color: "#FFFFFF",
-                          }
-                        : {
-                            color: "#71717a", // text-zinc-500
-                            border: "1px solid transparent", // Maintain layout stability
-                          }
-                    }
-                  >
+                    className={`h-[37px] rounded-[100px] font-medium text-[13px] transition-colors flex items-center justify-center whitespace-nowrap flex-1 min-w-fit px-3 relative`}
+                      style={
+                        filter === tab.id
+                          ? {
+                              background: themeStyles.cardBg,
+                              border: `1px solid ${themeStyles.border}`,
+                              color: themeStyles.text,
+                              boxShadow: "0px 2px 4px rgba(0,0,0,0.1)"
+                            }
+                          : {
+                              color: themeStyles.textSecondary,
+                              border: "1px solid transparent",
+                            }
+                      }
+                    >
                     {/* Active Border Gradient Overlay (Pseudo-element approach for smoother rendering if needed, but simple border is safer for no-blink) */}
 
+                    {/* Removed gradient overlay for cleaner look with themeStyles */}
                     {filter === tab.id && (
                       <div
                         className="absolute inset-0 rounded-[100px] pointer-events-none"
                         style={{
                           padding: "1px",
-                          background:
-                            "linear-gradient(270deg, rgba(32, 32, 32, 0.5) -122.45%, rgba(96, 96, 96, 0.5) 100%)",
+                          background: themeStyles.border,
                           mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
                           WebkitMask:
                             "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
                           maskComposite: "exclude",
                           WebkitMaskComposite: "xor",
+                          opacity: 0.5
                         }}
                       />
                     )}
@@ -368,13 +365,13 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
           {/* Scrollable List */}
           <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-4">
             {loading && notifications.length === 0 ? (
-              <div className="flex items-center justify-center py-10 text-zinc-500">
+              <div className="flex items-center justify-center py-10" style={{ color: themeStyles.textSecondary }}>
                 Loading...
               </div>
             ) : (
               <>
                 {filteredNotifications.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 text-zinc-500 gap-2">
+                  <div className="flex flex-col items-center justify-center py-10 gap-2" style={{ color: themeStyles.textSecondary }}>
                     <Ticket size={32} className="opacity-20" />
                     <span>No notifications found</span>
                   </div>
@@ -402,7 +399,7 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background-color: #333;
+          background-color: ${themeStyles.pillBg};
           border-radius: 20px;
         }
       `}</style>
@@ -425,6 +422,7 @@ const NotificationItem = ({
   onDecline: (e: React.MouseEvent, n: Notification) => void;
   onAccept: (e: React.MouseEvent, n: Notification) => void;
 }) => {
+  const { themeStyles } = useTheme();
   const [eventBanner, setEventBanner] = useState<string | null>(null);
   const [bannerLoading, setBannerLoading] = useState(false);
 
@@ -507,17 +505,21 @@ const NotificationItem = ({
   return (
     <div
       onClick={() => onRead(notification)}
-      className={`group flex items-start gap-3 p-4 hover:bg-zinc-900/50 rounded-xl transition-colors mb-1 cursor-pointer ${
-        !notification.isRead ? "bg-zinc-900/20" : ""
-      }`}
+      className={`group flex items-start gap-3 p-4 rounded-xl transition-colors mb-1 cursor-pointer`}
+      style={{
+        background: !notification.isRead ? themeStyles.hoverBg : 'transparent'
+      }}
+      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = themeStyles.hoverBg}
+      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = !notification.isRead ? themeStyles.hoverBg : 'transparent'}
     >
       {/* Avatar / Icon / Banner (Left Side) */}
       <div className="relative shrink-0 pt-1">
         <div
           className={`
             ${isEvent ? "w-12 h-12 rounded-lg aspect-square" : "w-12 h-12 rounded-full"}
-            flex items-center justify-center text-white font-bold bg-zinc-800 overflow-hidden shrink-0
+            flex items-center justify-center font-bold overflow-hidden shrink-0
           `}
+          style={{ background: themeStyles.pillBg, color: themeStyles.text }}
         >
           {isEvent ? (
             bannerLoading ? (
@@ -547,7 +549,7 @@ const NotificationItem = ({
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
         {/* Top Row: Title & Unread Indicator */}
         <div className="flex justify-between items-start gap-2">
-          <span className="text-sm font-bold text-white leading-tight">
+          <span className="text-sm font-bold leading-tight" style={{ color: themeStyles.text }}>
             {notification.title}
           </span>
           {notification.isRead === false && (
@@ -564,16 +566,16 @@ const NotificationItem = ({
         </div>
 
         {/* Message */}
-        <span className="text-zinc-400 font-normal text-xs leading-snug line-clamp-2">
+        <span className="font-normal text-xs leading-snug line-clamp-2" style={{ color: themeStyles.textSecondary }}>
           {notification.message}
         </span>
 
         {/* Bottom Row: Day/Time (Left) & Relative Time (Right) */}
         <div className="flex items-center justify-between mt-0.5 pt-0.5">
-          <span className="text-[11px] text-white capitalize">
+          <span className="text-[11px] capitalize" style={{ color: themeStyles.text }}>
             {formattedDayTime}
           </span>
-          <span className="text-[10px] text-white whitespace-nowrap">
+          <span className="text-[10px] whitespace-nowrap" style={{ color: themeStyles.textSecondary }}>
             {timeAgo(notification.createdAt)}
           </span>
         </div>
@@ -583,7 +585,8 @@ const NotificationItem = ({
           <div className="flex items-center gap-2 mt-2">
             <button
               onClick={(e) => onDecline(e, notification)}
-              className="px-3 py-1 rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+              className="px-3 py-1 rounded-full text-xs font-medium transition-colors hover:opacity-80"
+              style={{ background: themeStyles.pillBg, color: themeStyles.textSecondary }}
             >
               Decline
             </button>

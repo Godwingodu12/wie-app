@@ -12,19 +12,21 @@ import {
   getCountries,
 } from "@/services/wieUserService";
 // Icons
-import { Camera, Loader2, ChevronLeft } from "lucide-react";
+import { ChevronLeft, Camera, Loader2, Save } from 'lucide-react';
 
 // Types
 import { Country } from "@/types";
 import ProfileImage from "@/assets/profile/ProfileImage.jpg";
 import SideBar from "@/components/home/SideBar";
 import { useSidebar } from "@/context/SidebarContext";
+import { useTheme } from '@/components/home/ThemeContext';
 
 function EditProfileContent() {
   const { isCollapsed, isMobile } = useSidebar();
   const { user, loading: authLoading } = useAuth(true);
   const dispatch = useDispatch();
   const router = useRouter();
+  const { themeStyles } = useTheme();
 
   // State
   const [formData, setFormData] = useState({
@@ -42,6 +44,7 @@ function EditProfileContent() {
   const [currentProfile, setCurrentProfile] = useState<any>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false); // Added for image upload state
 
   // Initialization
   useEffect(() => {
@@ -101,19 +104,25 @@ function EditProfileContent() {
     setSuccess("");
   };
 
-  const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       // Validate file type
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      const allowedTypes = [
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+      ];
       if (!allowedTypes.includes(file.type)) {
-        setError('Only JPG, JPEG, PNG, GIF, and WEBP images are allowed');
+        setError("Only JPG, JPEG, PNG, GIF, and WEBP images are allowed");
         return;
       }
 
       // Validate file size (5MB max)
       if (file.size > 5 * 1024 * 1024) {
-        setError('Image size must be less than 5MB');
+        setError("Image size must be less than 5MB");
         return;
       }
 
@@ -128,7 +137,8 @@ function EditProfileContent() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e?: React.FormEvent) => { // Added optional event parameter
+    e?.preventDefault(); // Prevent default form submission
     try {
       setLoading(true);
       setError("");
@@ -136,11 +146,15 @@ function EditProfileContent() {
 
       const formDataToSend = new FormData();
 
-      if (formData.name?.trim()) formDataToSend.append('name', formData.name.trim());
-      if (formData.username?.trim()) formDataToSend.append('username', formData.username.trim());
-      if (formData.bio?.trim()) formDataToSend.append('bio', formData.bio.trim());
-      if (formData.country_id) formDataToSend.append('country_id', formData.country_id);
-      if (selectedFile) formDataToSend.append('profile_picture', selectedFile);
+      if (formData.name?.trim())
+        formDataToSend.append("name", formData.name.trim());
+      if (formData.username?.trim())
+        formDataToSend.append("username", formData.username.trim());
+      if (formData.bio?.trim())
+        formDataToSend.append("bio", formData.bio.trim());
+      if (formData.country_id)
+        formDataToSend.append("country_id", formData.country_id);
+      if (selectedFile) formDataToSend.append("profile_picture", selectedFile);
 
       const updatedUser = await updateProfile(formDataToSend);
 
@@ -167,38 +181,35 @@ function EditProfileContent() {
 
   if (authLoading || pageLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-[#050505] text-white">
+      <div className="flex justify-center items-center min-h-screen" style={{ background: themeStyles.background }}>
         <Loader2 className="w-8 h-8 animate-spin text-[#8860D9]" />
       </div>
     );
   }
 
   return (
-    <div className="h-screen overflow-y-auto scrollbar-hide bg-[#000000] text-white font-sans selection:bg-[#5E5CE6] selection:text-white">
+    <div className="min-h-screen font-sans selection:bg-[#5E5CE6] selection:text-white pb-20 sm:pb-0" style={{ background: themeStyles.background }}>
       <SideBar />
-
       <main
         className={`transition-all duration-300 ease-in-out ${
-          isMobile ? "pb-24" : ""
+          isMobile ? 'ml-0' : isCollapsed ? 'ml-[80px]' : 'ml-[281px]'
         }`}
-        style={{ marginLeft }}
       >
-        <div className="max-w-[600px] mx-auto px-6 py-6 md:py-12">
+        <div className="max-w-2xl mx-auto pt-8 px-4 sm:px-6">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8 relative">
+          <div className="flex items-center gap-4 mb-8">
             <button
               onClick={() => router.back()}
-              className="text-white hover:bg-[#1C1C1E] p-2 rounded-full transition-colors -ml-2"
+              className="p-2 rounded-full transition-colors"
+              style={{ background: themeStyles.cardBg, color: themeStyles.text }}
             >
-              <ChevronLeft size={24} />
+              <ChevronLeft className="w-6 h-6" />
             </button>
-            <span className="text-[18px] font-semibold text-white absolute left-1/2 transform -translate-x-1/2">
-              Edit Profile
-            </span>
+            <h1 className="text-2xl font-bold" style={{ color: themeStyles.text }}>Edit Profile</h1>
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="text-[#0095F6] font-semibold text-[16px] disabled:opacity-50 hover:text-[#0085db] transition-colors"
+              className="ml-auto text-[#0095F6] font-semibold text-[16px] disabled:opacity-50 hover:text-[#0085db] transition-colors"
             >
               {loading ? "Saving..." : "Done"}
             </button>
@@ -206,152 +217,159 @@ function EditProfileContent() {
 
           {/* Success/Error Messages */}
           {success && (
-            <div className="mb-6 p-3 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-center text-sm font-medium">
+            <div className="mb-6 p-3 rounded-xl text-center text-sm font-medium"
+              style={{ background: themeStyles.cardBg, border: `1px solid #22c55e`, color: '#22c55e' }}>
               {success}
             </div>
           )}
           {error && (
-            <div className="mb-6 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-center text-sm font-medium">
+            <div className="mb-6 p-3 rounded-xl text-center text-sm font-medium"
+              style={{ background: themeStyles.cardBg, border: `1px solid #ef4444`, color: '#ef4444' }}>
               {error}
             </div>
           )}
 
-          {/* Avatar Section */}
-          <div className="flex flex-col items-center mb-10">
-            <label htmlFor="profile-picture-input" className="cursor-pointer">
-              <div className="relative mb-4 group">
-                {displayProfilePicture ? (
-                  <div className="relative w-[88px] h-[88px]">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Profile Picture */}
+            <div className="flex flex-col items-center gap-4 mb-8">
+              <div className="relative group">
+                <div className="w-32 h-32 rounded-full overflow-hidden border-4" style={{ borderColor: themeStyles.cardBg }}>
+                  {displayProfilePicture ? (
                     <Image
                       src={displayProfilePicture}
                       alt="Profile"
                       fill
-                      className="rounded-full object-cover border-[3px] border-[#1C1C1E]"
+                      className="rounded-full object-cover"
                     />
-                  </div>
-                ) : (
-                  <div className="relative w-[88px] h-[88px]">
+                  ) : (
                     <Image
                       src={ProfileImage}
                       alt="Profile"
                       fill
-                      className="rounded-full object-cover border-[3px] border-[#1C1C1E]"
+                      className="rounded-full object-cover"
                     />
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-black/30 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Camera size={20} className="text-white" />
+                  )}
+                </div>
+                <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                  <Camera className="w-8 h-8 text-white" />
                 </div>
               </div>
-            </label>
-            <input
-              id="profile-picture-input"
-              type="file"
-              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-            <label
-              htmlFor="profile-picture-input"
-              className="text-[#0095F6] text-[15px] font-medium hover:text-[#0085db] transition-colors cursor-pointer"
-            >
-              Change profile photo
-            </label>
-          </div>
+              <button
+                type="button"
+                onClick={() => document.getElementById('profile-picture-input')?.click()}
+                className="text-[#8860D9] font-medium hover:text-[#9575CD] transition-colors"
+                disabled={uploadingImage}
+              >
+                {uploadingImage ? 'Uploading...' : 'Change Profile Picture'}
+              </button>
+              <input
+                id="profile-picture-input"
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+            </div>
 
-          {/* Form Fields */}
-          <div className="space-y-6">
             {/* Name */}
-            <div className="mb-2">
-              <label className="block text-[#6E6E73] text-[15px] mb-2 px-1">
+            <div className="space-y-2">
+              <label className="text-sm font-medium ml-1" style={{ color: themeStyles.textSecondary }}>
                 Name
               </label>
-              <div className="bg-[#1C1C1E] rounded-[12px] overflow-hidden">
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="w-full bg-transparent p-4 text-white text-[17px] focus:outline-none placeholder-[#555]"
-                  placeholder="Name"
-                />
-              </div>
-              <p className="text-[#555] text-[12px] mt-2 px-1">
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8860D9] transition-all"
+                style={{
+                  background: themeStyles.cardBg,
+                  color: themeStyles.text,
+                  border: `1px solid ${themeStyles.border}`
+                }}
+                placeholder="Your name"
+              />
+              <p className="text-[12px] mt-2 px-1" style={{ color: themeStyles.textSecondary }}>
                 Help people discover your account by using the name you're known
                 by: either your full name, nickname, or business name.
               </p>
             </div>
 
             {/* Username */}
-            <div className="mb-2">
-              <label className="block text-[#6E6E73] text-[15px] mb-2 px-1">
+            <div className="space-y-2">
+              <label className="text-sm font-medium ml-1" style={{ color: themeStyles.textSecondary }}>
                 Username
               </label>
-              <div className="bg-[#1C1C1E] rounded-[12px] overflow-hidden">
-                <input
-                  type="text"
-                  name="username"
-                  value={formData.username}
-                  onChange={handleInputChange}
-                  className="w-full bg-transparent p-4 text-white text-[17px] focus:outline-none placeholder-[#555]"
-                  placeholder="Username"
-                />
-              </div>
+              <input
+                type="text"
+                name="username"
+                value={formData.username}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8860D9] transition-all"
+                style={{
+                  background: themeStyles.cardBg,
+                  color: themeStyles.text,
+                  border: `1px solid ${themeStyles.border}`
+                }}
+                placeholder="Username"
+              />
             </div>
 
             {/* Bio */}
-            <div className="mb-2">
-              <label className="block text-[#6E6E73] text-[15px] mb-2 px-1">
+            <div className="space-y-2">
+              <label className="text-sm font-medium ml-1" style={{ color: themeStyles.textSecondary }}>
                 Bio
               </label>
-              <div className="bg-[#1C1C1E] rounded-[12px] overflow-hidden">
-                <textarea
-                  name="bio"
-                  value={formData.bio}
-                  onChange={handleInputChange}
-                  rows={3}
-                  className="w-full bg-transparent p-4 text-white text-[17px] focus:outline-none resize-none placeholder-[#555]"
-                  placeholder="Bio"
-                />
-              </div>
+              <textarea
+                name="bio"
+                value={formData.bio}
+                onChange={handleInputChange}
+                rows={4}
+                className="w-full px-4 py-3 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#8860D9] transition-all"
+                style={{
+                  background: themeStyles.cardBg,
+                  color: themeStyles.text,
+                  border: `1px solid ${themeStyles.border}`
+                }}
+                placeholder="Write something about yourself..."
+              />
             </div>
 
-            {/* Country (Native Select) */}
-            <div className="mb-2">
-              <label className="block text-[#6E6E73] text-[15px] mb-2 px-1">
+            {/* Country */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium ml-1" style={{ color: themeStyles.textSecondary }}>
                 Country
               </label>
-              <div className="relative bg-[#1C1C1E] rounded-[12px] overflow-hidden">
+              <div className="relative">
                 <select
                   name="country_id"
                   value={formData.country_id}
                   onChange={handleInputChange}
-                  className="w-full bg-transparent p-4 text-white text-[17px] focus:outline-none appearance-none cursor-pointer"
+                  className="w-full px-4 py-3 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-[#8860D9] transition-all cursor-pointer"
+                  style={{
+                    background: themeStyles.cardBg,
+                    color: themeStyles.text,
+                    border: `1px solid ${themeStyles.border}`
+                  }}
                 >
+                  {countries.length === 0 && (
+                    <option value="" disabled style={{ background: themeStyles.cardBg }}>
+                      Loading...
+                    </option>
+                  )}
                   {countries.map((c) => (
                     <option
                       key={c.id}
                       value={c.id}
-                      className="bg-[#1C1C1E] text-white"
+                      style={{ background: themeStyles.cardBg, color: themeStyles.text }}
                     >
                       {c.country_name}
                     </option>
                   ))}
-                  {countries.length === 0 && (
-                    <option value="" disabled>
-                      Loading...
-                    </option>
-                  )}
                 </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
-                  <ChevronLeft
-                    size={20}
-                    className="text-gray-500 rotate-[-90deg]"
-                  />
-                </div>
               </div>
             </div>
-          </div>
+          </form>
         </div>
       </main>
       <style jsx global>{`
@@ -371,8 +389,8 @@ export default function EditProfilePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex justify-center items-center min-h-screen bg-black">
-          <Loader2 className="w-8 h-8 animate-spin text-white" />
+        <div className="flex justify-center items-center min-h-screen" style={{ background: "#050505" }}>
+          <Loader2 className="w-8 h-8 animate-spin text-[#8860D9]" />
         </div>
       }
     >

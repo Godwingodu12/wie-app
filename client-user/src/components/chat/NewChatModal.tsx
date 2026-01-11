@@ -101,7 +101,6 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
       setSearching(false);
     }
   };
-
   const handleCreateChat = async (userId: string) => {
     setCreating(userId);
     setError(null);
@@ -113,18 +112,35 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
         setSearchQuery('');
         setCreating(null);
         
+        // Pass the chat object to parent
         onChatCreated(response.chat._id, response.chat);
       } else {
-        setError(response.message || 'Failed to create chat');
+        // This shouldn't happen, but handle it gracefully
+        setError('Failed to create chat');
         setCreating(null);
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to create chat';
+      console.error('❌ Failed to create chat:', error);
+      
+      // Handle specific error cases
+      let errorMessage = 'Failed to create chat';
+      
+      if (error.response?.status === 403) {
+        errorMessage = error.response?.data?.message || 'Cannot create chat with this user';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'User not found';
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response?.data?.message || 'Invalid request';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       setError(errorMessage);
       setCreating(null);
     }
   };
-
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
     setSearchQuery('');

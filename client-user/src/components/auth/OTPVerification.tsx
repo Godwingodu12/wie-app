@@ -5,177 +5,181 @@ import { useDispatch } from 'react-redux';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loginSuccess } from '@/features/auth/authSlice';
 import { signupVerifyOtp, resendOtp } from '@/services/wieUserService';
-import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { OtpInput } from '../ui/OtpInput';
+import { TopAlert } from '../ui/TopAlert';
 import Link from 'next/link';
+
 export const OTPVerification: React.FC = () => {
   const [otp, setOtp] = useState('');
-  const [name, setName] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resendLoading, setResendLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(60);
-  const [canResend, setCanResend] = useState(false);
-  
+  const [resending, setResending] = useState(false);
+  const [cooldown, setCooldown] = useState(60);
+
+  // Alert state
+  const [alertMessage, setAlertMessage] = useState('');
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertType, setAlertType] = useState<'error' | 'success'>('error');
+
   const searchParams = useSearchParams();
-  const tempUserId = searchParams.get('tempUserId');
+  const tempUserId = searchParams.get('tempUserId') || '';
   const method = searchParams.get('method');
   const identifier = searchParams.get('identifier');
-  
+
   const dispatch = useDispatch();
   const router = useRouter();
 
+  // Guard + cooldown timer
   useEffect(() => {
     if (!tempUserId) {
-      router.push('/signup');
+      router.replace('/signup');
       return;
     }
 
-    const timer = setInterval(() => {
-      setResendTimer((prev) => {
-        if (prev <= 1) {
-          setCanResend(true);
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [tempUserId, router]);
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldown, tempUserId, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    
-    if (!otp || otp.length !== 6) {
-      setError('Please enter a valid 6-digit OTP');
-      return;
-    }
 
-    if (!tempUserId) {
-      setError('Invalid verification session');
+    if (!/^\d{6}$/.test(otp)) {
+      setAlertType('error');
+      setAlertMessage('OTP must be 6 digits');
+      setShowAlert(true);
       return;
     }
 
     try {
       setLoading(true);
-      
-      const verifyData: any = {
-        tempUserId: tempUserId,
-        otp: otp,
-      };
 
-      // Add name if provided
-      if (name.trim()) {
-        verifyData.name = name.trim();
-      }
+      const response = await signupVerifyOtp({
+        tempUserId,
+        otp,
+      });
 
-      const response = await signupVerifyOtp(verifyData);
-      
-      if (response.token && response.user) {
+      if (response?.token && response?.user) {
         dispatch(loginSuccess({ token: response.token, user: response.user }));
+
+        setAlertType('success');
+        setAlertMessage('OTP verified successfully');
+        setShowAlert(true);
+
         router.push('/home');
       } else {
         throw new Error('Invalid response from server');
       }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'OTP verification failed';
-      setError(errorMessage);
+      setAlertType('error');
+      setAlertMessage(
+        err.response?.data?.message || 'OTP verification failed'
+      );
+      setShowAlert(true);
     } finally {
       setLoading(false);
     }
   };
 
   const handleResendOtp = async () => {
-    if (!canResend || !tempUserId) return;
+    if (cooldown > 0 || !tempUserId) return;
 
     try {
-      setResendLoading(true);
+      setResending(true);
+
       await resendOtp({ userId: tempUserId });
-      
-      // Reset timer
-      setResendTimer(60);
-      setCanResend(false);
-      
-      const timer = setInterval(() => {
-        setResendTimer((prev) => {
-          if (prev <= 1) {
-            setCanResend(true);
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+
+      setCooldown(60);
+      setAlertType('success');
+      setAlertMessage('Verification code sent successfully');
+      setShowAlert(true);
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Failed to resend OTP';
-      setError(errorMessage);
+      setAlertType('error');
+      setAlertMessage(
+        err.response?.data?.message || 'Failed to resend verification code'
+      );
+      setShowAlert(true);
     } finally {
-      setResendLoading(false);
+      setResending(false);
     }
   };
 
   return (
-    <div className="w-full max-w-md">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Verify OTP</h2>
-        <p className="mt-2 text-sm text-gray-600">
-          Enter the 6-digit code sent to your {method === 'email' ? 'email' : 'phone'}
-        </p>
-        {identifier && (
-          <p className="mt-1 text-sm font-medium text-gray-800">
-            {identifier}
-          </p>
-        )}
-      </div>
+    <>
+      {/* Top notification */}
+      <TopAlert
+        visible={showAlert}
+        message={alertMessage}
+        type={alertType}
+        onClose={() => setShowAlert(false)}
+      />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          label="OTP Code"
-          type="text"
-          value={otp}
-          onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          placeholder="Enter 6-digit OTP"
-          maxLength={6}
-          required
-        />
+      <div className="w-full max-w-md mx-auto">
+       
 
-        {error && (
-          <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
-            {error}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* OTP Boxes */}
+          <OtpInput value={otp} onChange={setOtp} />
+
+          {/* Resend */}
+          <div className="text-center text-sm">
+            <button
+              type="button"
+              onClick={handleResendOtp}
+              disabled={cooldown > 0 || resending}
+              className={
+                cooldown > 0
+                  ? 'text-gray-500 cursor-not-allowed'
+                  : 'text-[#8860D9] hover:text-purple-400'
+              }
+            >
+              {resending
+                ? 'Resending...'
+                : cooldown > 0
+                ? `Resend code (${cooldown}s)`
+                : 'Resend code'}
+            </button>
           </div>
-        )}
-
-        <Button type="submit" loading={loading} className="w-full">
-          Verify OTP
-        </Button>
-      </form>
-
-      <div className="mt-4 text-center">
-        {canResend ? (
+          
+          {/* Change contact details */}
+        <div className="text-center text-sm text-gray-400">
+          Click here to{' '}
           <button
             type="button"
-            onClick={handleResendOtp}
-            disabled={resendLoading}
-            className="text-blue-600 hover:underline text-sm disabled:opacity-50"
+            className="text-[#8860D9] hover:text-purple-400"
           >
-            {resendLoading ? 'Sending...' : 'Resend OTP'}
+            change contact details
           </button>
-        ) : (
-          <p className="text-sm text-gray-600">
-            Resend OTP in {resendTimer} seconds
-          </p>
-        )}
-      </div>
+        </div>
 
-      <div className="mt-4 text-center">
-        <Link href="/signup" className="text-sm text-gray-600 hover:text-blue-600">
-          ← Back to signup
-        </Link>
+          {/* Verify Button */}
+          <Button
+            type="submit"
+            loading={loading}
+            className="w-full h-[56px] rounded-full text-white
+                       bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD]"
+          >
+            Verify
+          </Button>
+
+          {/* Login */}
+          <div className="text-center text-sm text-gray-400">
+            Already have an account?{' '}
+            <button
+              type="button"
+              onClick={() => router.push('/login')}
+              className="text-[#8860D9] hover:text-purple-400"
+            >
+              Login
+            </button>
+          </div>
+
+          
+        </form>
       </div>
-    </div>
+    </>
   );
 };
+
 export default OTPVerification;

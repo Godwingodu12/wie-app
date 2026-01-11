@@ -10,7 +10,7 @@ import WIEImage from '@/assets/Auth/WieLogo.svg';
 import { GoogleAuthButton } from '@/components/auth/GoogleAuthButton';
 import {AppleAuthButton} from '@/components/auth/AppleAuthButton';
 import {MicrosoftAuthButton} from '@/components/auth/MicrosoftAuthButton';
-import {NavBar} from '@/components/auth/NavBar';
+import LoginSignupNavbar from '@/components/auth/LoginSignupNavbar';
 import TopImage from '@/assets/Auth/TopImage.svg';
 
 function SignupContent() {
@@ -33,7 +33,7 @@ function SignupContent() {
 
   return (
 <div className="min-h-screen bg-[#0B0E14] flex flex-col items-center px-4 sm:px-6">
-  <NavBar/>
+  <LoginSignupNavbar/>
 {/* Wie pill — centered to full page */}
 <div className="w-full flex flex-col items-center mt-6 sm:mt-8">
   
