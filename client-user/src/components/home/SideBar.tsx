@@ -18,6 +18,7 @@ import { getFollowStats } from "@/services/followService";
 import socketService from "@/services/socketService";
 import { NotificationPopup } from "@/components/notifications/NotificationPopup";
 import MobileNavigation, { NavItem } from "./MobileNavigation";
+import TopMobBar from "./TopMobBar";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useSidebar } from "@/context/SidebarContext";
@@ -78,7 +79,6 @@ const SideBar: React.FC = () => {
 
       try {
         const res = await getUnreadUsersCount();
-        console.log('📊 Sidebar: Unread users count:', res.unreadUsersCount);
         setUnreadUsersCount(res.unreadUsersCount || 0);
       } catch (error) {
         console.error("Failed to load unread users count:", error);
@@ -131,12 +131,9 @@ const SideBar: React.FC = () => {
 
     // ✅ Listen for custom event from ChatContext
     const handleUnreadCountChange = (event: CustomEvent) => {
-      console.log('📊 Sidebar: Received unread-count-changed event');
-
       // ✅ CRITICAL: Refresh from API to get accurate USER count
       getUnreadUsersCount()
         .then((res) => {
-          console.log('📊 Sidebar: Updated user count from API:', res.unreadUsersCount);
           setUnreadUsersCount(res.unreadUsersCount || 0);
         })
         .catch((error) => {
@@ -150,11 +147,9 @@ const SideBar: React.FC = () => {
     const socket = socketService.getSocket();
     if (socket) {
       const handleNewMessageNotification = (data: any) => {
-        console.log('📊 Sidebar: New message notification, refreshing user count from API');
         // ✅ Always refresh from API to get accurate count
         getUnreadUsersCount()
           .then((res) => {
-            console.log('📊 Sidebar: Updated user count:', res.unreadUsersCount);
             setUnreadUsersCount(res.unreadUsersCount || 0);
           })
           .catch((error) => {
@@ -163,11 +158,9 @@ const SideBar: React.FC = () => {
       };
 
       const handleMessagesRead = (data: any) => {
-        console.log('📊 Sidebar: Messages read, refreshing user count from API');
         // ✅ Always refresh from API to get accurate count
         getUnreadUsersCount()
           .then((res) => {
-            console.log('📊 Sidebar: Updated user count:', res.unreadUsersCount);
             setUnreadUsersCount(res.unreadUsersCount || 0);
           })
           .catch((error) => {
@@ -176,11 +169,9 @@ const SideBar: React.FC = () => {
       };
 
       const handleChatUnreadUpdate = (data: any) => {
-        console.log('📊 Sidebar: Chat unread update, refreshing user count from API');
         // ✅ Always refresh from API to get accurate count
         getUnreadUsersCount()
           .then((res) => {
-            console.log('📊 Sidebar: Updated user count:', res.unreadUsersCount);
             setUnreadUsersCount(res.unreadUsersCount || 0);
           })
           .catch((error) => {
@@ -244,9 +235,6 @@ const SideBar: React.FC = () => {
   };
 
   const isActive = (path: string) => {
-    if (isNotificationOpen) {
-      return path === "/notification";
-    }
     return pathname === path;
   };
 
@@ -258,39 +246,76 @@ const SideBar: React.FC = () => {
     return count.toString();
   };
 
-  // Mobile Bottom Navigation
+  // Mobile Bottom Navigation Items (Custom Order: Home, Explore, Connections, Events, Profile)
+  const mobileBottomItems: NavItem[] = [
+    { id: "home", label: "Home", icon: HomeIcon, path: "/home" },
+    { id: "explore", label: "Explore", icon: ExploreIcon, path: "/explore" },
+    {
+      id: "connections",
+      label: "Connections",
+      icon: ConnectionsIcon,
+      path: "/connections",
+      // Removed notification count from bottom bar as per request (moved logic to TopBar/Sidebar)
+    },
+    { id: "events", label: "Events", icon: EventsIcon, path: "/events/nearby" },
+    {
+      id: "profile",
+      label: "Profile",
+      icon: userAvatar || "", // Will handle image rendering in MobileNavigation
+      path: "/profile",
+      isProfile: true // Flag to identify profile item for special rendering
+    },
+  ];
+
+  // Mobile Render
   if (isMobile) {
     return (
-      <MobileNavigation
-        items={mobileNavItems}
-        isActive={isActive}
-        onNavClick={handleNavClick}
-      />
+      <>
+        <TopMobBar
+          notificationCount={notificationCount}
+          messageCount={unreadUsersCount}
+          onNotificationClick={() => setIsNotificationOpen(true)}
+          onMessageClick={() => router.push("/message")}
+          onPostClick={() => {
+            // Placeholder for Add Post functionality
+          }}
+        />
+        <MobileNavigation
+          items={mobileBottomItems}
+          isActive={isActive}
+          onNavClick={handleNavClick}
+        />
+        <NotificationPopup
+          isOpen={isNotificationOpen}
+          onClose={() => setIsNotificationOpen(false)}
+        />
+        <style jsx global>{`
+          @media (max-width: 768px) {
+            body {
+              padding-top: 70px;
+              padding-bottom: 80px
+              background-color: ${isDark ? "#0C1014" : "#F3F4F6"} !important;
+              background-image: none !important;
+            }
+          }
+        `}</style>
+      </>
     );
   }
 
   // Desktop/Tablet Sidebar
   return (
     <>
-      <style jsx global>{`
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-        }
-        .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
+
       <aside
         onMouseEnter={() => !isMobile && setIsCollapsed(false)}
         onMouseLeave={() => !isMobile && setIsCollapsed(true)}
         className={`fixed left-0 top-0 h-screen flex flex-col transition-all duration-300 ease-in-out z-50 ${
-          isCollapsed ? "w-[92px] p-4" : "w-[281px] p-6"
+          isCollapsed ? "w-[92px] p-4" : "w-[281px] p-4"
         }`}
         style={{
           background: themeStyles.sidebarBg,
           borderRadius: "12px",
-          borderRight: `1px solid ${themeStyles.border}`,
         }}
       >
         {/* Header */}
@@ -333,17 +358,7 @@ const SideBar: React.FC = () => {
           )}
         </div>
 
-        {/* Divider Top */}
-        <div
-          style={{
-            width: "54px",
-            height: "2px",
-            background: "linear-gradient(270deg, rgba(0, 0, 0, 0) -8.43%, rgba(63, 63, 63, 0.6) 46.38%, rgba(0, 0, 0, 0) 100%)",
-            borderRadius: "2px",
-            marginBottom: "20px",
-            alignSelf: "center"
-          }}
-        />
+
 
         {/* Main Navigation */}
         <nav
@@ -363,7 +378,7 @@ const SideBar: React.FC = () => {
               ${
                 isCollapsed
                   ? "justify-center"
-                  : "w-full justify-start px-3.5 gap-3.5"
+                  : "w-full justify-start px-3 gap-3.5"
               }
             `}
             style={{
@@ -456,18 +471,7 @@ const SideBar: React.FC = () => {
           ))}
         </nav>
 
-        {/* Divider Bottom */}
-        <div
-          style={{
-            width: "54px",
-            height: "2px",
-            background: "linear-gradient(270deg, rgba(0, 0, 0, 0) -8.43%, rgba(63, 63, 63, 0.6) 46.38%, rgba(0, 0, 0, 0) 100%)",
-            borderRadius: "2px",
-            marginTop: "10px",
-            marginBottom: "10px",
-            alignSelf: "center"
-          }}
-        />
+
 
         {/* Secondary Navigation */}
         <div
@@ -483,7 +487,7 @@ const SideBar: React.FC = () => {
              ${
                isCollapsed
                  ? "justify-center"
-                 : "w-full justify-start px-3.5 gap-3.5"
+                 : "w-full justify-start px-3 gap-3.5"
              }
              hover:bg-transparent
           `}
@@ -549,7 +553,7 @@ const SideBar: React.FC = () => {
              ${
                isCollapsed
                  ? "justify-center"
-                 : "w-full justify-start px-3.5 gap-3.5"
+                 : "w-full justify-start px-3 gap-3.5"
              }
              hover:bg-transparent
           `}
@@ -614,7 +618,7 @@ const SideBar: React.FC = () => {
              ${
                isCollapsed
                  ? "justify-center"
-                 : "w-full justify-start px-3.5 gap-3.5"
+                 : "w-full justify-start px-3 gap-3.5"
              }
           `}
             style={{
@@ -628,11 +632,7 @@ const SideBar: React.FC = () => {
                 if (!isActive("/profile")) e.currentTarget.style.backgroundColor = "transparent";
             }}
           >
-            <div className={`relative flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200`}
-              style={{
-                backgroundColor: "transparent"
-              }}
-            >
+            <div className={`relative flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200`}>
               {userAvatar ? (
                 <Image
                   src={userAvatar}
@@ -674,12 +674,24 @@ const SideBar: React.FC = () => {
             )}
           </button>
         </div>
+
+
       </aside>
       <NotificationPopup
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
       />
+      <style jsx global>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </>
   );
 };
+
 export default SideBar;

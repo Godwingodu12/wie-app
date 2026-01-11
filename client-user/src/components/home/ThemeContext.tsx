@@ -32,7 +32,7 @@ interface ThemeContextType {
 
 const themeStyles: Record<Theme, ThemeStyles> = {
   dark: {
-    background: "#050505",
+    background: "#0C1014",
     sidebarBg: "#0C1014",
     text: "#FFFFFF",
     textSecondary: "#E5E7EB",
@@ -45,13 +45,13 @@ const themeStyles: Record<Theme, ThemeStyles> = {
 
     iconFilter: "brightness(0) invert(1)", // Force White
     pillBg: "#1E1E1E",
-    cardBg: "#131313",
+    cardBg: "linear-gradient(180deg, rgba(55, 55, 55, 0.2) 0%, rgba(38, 38, 38, 0.2) 50%, rgba(28, 28, 28, 0.2) 100%)",
     activeTabBg: "rgba(255, 255, 255, 0.08)",
     indicatorColor: "transparent",
   },
   light: {
     background: "#F3F4F6",
-    sidebarBg: "#FFFFFF",
+    sidebarBg: "#F3F4F6",
     text: "#1F2937",
     textSecondary: "#6B7280",
     border: "rgba(0, 0, 0, 0.05)",
