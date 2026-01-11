@@ -45,6 +45,7 @@ import {
 
 import SideBar from "@/components/home/SideBar";
 import { useSidebar } from "@/context/SidebarContext";
+import { useTheme } from "@/components/home/ThemeContext";
 
 // --- Types ---
 interface Story {
@@ -253,12 +254,14 @@ const CATEGORIES_DATA = [
 
 export default function HomePage() {
   const { isCollapsed, isMobile } = useSidebar();
+  const { themeStyles, isDark } = useTheme();
   const [userProfile, setUserProfile] = useState<any>(null);
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(new Set());
   const router = useRouter();
 
   // --- Refs & Scroll Logic (From your code) ---
   const categoriesRef = useRef<HTMLDivElement>(null);
+  const storiesRef = useRef<HTMLDivElement>(null); // Added stories ref
 
   const scrollCategories = (direction: "left" | "right") => {
     if (categoriesRef.current) {
@@ -270,6 +273,15 @@ export default function HomePage() {
     }
   };
 
+  const scrollStories = (direction: "left" | "right") => {
+    if (storiesRef.current) {
+      const scrollAmount = 300;
+      storiesRef.current.scrollBy({
+        left: direction === "left" ? -scrollAmount : scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  };
   const marginLeft = isMobile ? "0" : "281px";
 
   useEffect(() => {
@@ -308,7 +320,10 @@ export default function HomePage() {
       : n.toString();
 
   return (
-    <div className="h-screen overflow-y-auto scrollbar-hide bg-[#0C1014] text-white font-sans selection:bg-[#8860D9] selection:text-white">
+    <div
+      className="h-screen overflow-y-auto scrollbar-hide font-sans selection:bg-[#8860D9] selection:text-white"
+      style={{ backgroundColor: themeStyles.background, color: themeStyles.text }}
+    >
       <style jsx global>{`
         .scrollbar-hide::-webkit-scrollbar {
           display: none;
@@ -324,52 +339,110 @@ export default function HomePage() {
         className="transition-all duration-300 ease-in-out"
         style={{ marginLeft }}
       >
-        <div className="w-full max-w-[1600px] mx-auto flex justify-between gap-10 pt-4 px-4 md:px-12 xl:px-20">
+        <div className="w-full max-w-[1600px] mx-auto flex justify-center xl:justify-between gap-10 pt-4 px-4 md:px-12 xl:px-20">
           {/* ================= LEFT / CENTER FEED ================= */}
           <div className="flex-1 max-w-[700px] min-w-0 flex flex-col gap-8">
-            <div className="relative w-[calc(100%+48px)] -ml-12 overflow-hidden">
-              <div className="flex gap-4 overflow-x-auto scrollbar-hide py-2 px-1">
-                {dummyStories.map((story) => (
-                  <div
-                    key={story.id}
-                    className="flex flex-col items-center gap-1.5 cursor-pointer flex-shrink-0 w-[72px]"
-                  >
-                    <div
-                      className={`relative w-[70px] h-[70px] rounded-full flex items-center justify-center p-[3px]`}
-                      style={{
-                        background: story.isOwn
-                          ? "transparent"
-                          : "linear-gradient(147.67deg, #2979FF 13.16%, #6B9CF0 54.09%, #9DC1FF 100.03%)",
-                      }}
-                    >
-                      {/* Removed the intermediate gap div */}
-                      <div className="w-full h-full rounded-full bg-[#1a1a1a] overflow-hidden relative">
-                        {/* Used UserJpg for all stories as requested */}
-                        <Image
-                          src={ProfileImage}
-                          alt={story.username}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                      {story.isOwn && (
-                        <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-[#2979FF] border-[3px] border-[#0a0a0a] flex items-center justify-center text-white font-bold text-sm">
-                          +
+            {/* Stories Section */}
+            <div className="relative -mx-4 md:-mx-12 xl:-mx-20 flex items-center lg:ml-12">
+              {/* Static My Story */}
+              {(() => {
+                const myStory = dummyStories.find((s) => s.isOwn) || dummyStories[0];
+                const otherStories = dummyStories.filter((s) => s.id !== myStory.id);
+
+                return (
+                  <>
+                    <div className="pl-4 md:pl-12 xl:pl-20 flex-shrink-0">
+                      <div className="flex flex-col items-center gap-1.5 cursor-pointer w-[72px]">
+                        <div
+                          className="relative w-[70px] h-[70px] rounded-full flex items-center justify-center p-[3px]"
+                          style={{ background: "transparent" }}
+                        >
+                          <div className="w-full h-full rounded-full bg-[#1a1a1a] overflow-hidden relative">
+                            <Image
+                              src={ProfileImage}
+                              alt={myStory.username}
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-[#2979FF] border-[3px] border-[#0a0a0a] flex items-center justify-center text-white font-bold text-sm">
+                            +
+                          </div>
                         </div>
-                      )}
+                        <span
+                          className="text-[11px] text-center truncate w-full"
+                          style={{ color: themeStyles.textSecondary }}
+                        >
+                          {myStory.username}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-[11px] text-[#dbdbdb] text-center truncate w-full">
-                      {story.username}
-                    </span>
-                  </div>
-                ))}
-              </div>
+
+                    {/* Scrollable Other Stories */}
+                    <div className="flex-1 min-w-0 relative group">
+                      {/* Scroll Buttons */}
+                      <button
+                        onClick={() => scrollStories("left")}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-[28px] h-[28px] rounded-[8px] border border-white/10 backdrop-blur-md hidden lg:flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 p-[6px]"
+                        style={{ backgroundColor: themeStyles.pillBg }}
+                      >
+                        <ChevronLeft className="w-[16px] h-[16px]" style={{ color: themeStyles.text }} />
+                      </button>
+                      <button
+                        onClick={() => scrollStories("right")}
+                        className="absolute right-4 md:right-12 xl:right-20 top-1/2 -translate-y-1/2 z-20 w-[28px] h-[28px] rounded-[8px] border border-white/10 backdrop-blur-md hidden lg:flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 p-[6px]"
+                        style={{ backgroundColor: themeStyles.pillBg }}
+                      >
+                        <ChevronRight className="w-[16px] h-[16px]" style={{ color: themeStyles.text }} />
+                      </button>
+
+                      <div
+                        ref={storiesRef}
+                        className="flex gap-4 overflow-x-auto scrollbar-hide py-2 pl-4 pr-4 md:pr-12 xl:pr-20 scroll-smooth"
+                      >
+                        {otherStories.map((story) => (
+                          <div
+                            key={story.id}
+                            className="flex flex-col items-center gap-1.5 cursor-pointer flex-shrink-0 w-[72px]"
+                          >
+                            <div
+                              className="relative w-[70px] h-[70px] rounded-full flex items-center justify-center p-[3px]"
+                              style={{
+                                background:
+                                  "linear-gradient(147.67deg, #2979FF 13.16%, #6B9CF0 54.09%, #9DC1FF 100.03%)",
+                              }}
+                            >
+                              <div className="w-full h-full rounded-full bg-[#1a1a1a] overflow-hidden relative">
+                                <Image
+                                  src={ProfileImage}
+                                  alt={story.username}
+                                  fill
+                                  className="object-cover"
+                                />
+                              </div>
+                            </div>
+                            <span
+                              className="text-[11px] text-center truncate w-full"
+                              style={{ color: themeStyles.textSecondary }}
+                            >
+                              {story.username}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             {/* --- Event Categories (Integrated from your code) --- */}
             <div className="relative mx-[30px]">
               <div className="flex justify-between items-end mb-3 px-1">
-                <h2 className="text-[17px] font-semibold text-white tracking-tight">
+                <h2
+                  className="text-[17px] font-semibold tracking-tight"
+                  style={{ color: themeStyles.text }}
+                >
                   Event categories
                 </h2>
                 <button
@@ -384,15 +457,17 @@ export default function HomePage() {
                 {/* Scroll Buttons */}
                 <button
                   onClick={() => scrollCategories("left")}
-                  className="absolute -left-3 top-1/2 -translate-y-1/2 z-20 w-[28px] h-[28px] rounded-[8px] bg-black/50 border border-white/10 backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 hover:bg-black/80 p-[6px]"
+                  className="absolute -left-3 top-1/2 -translate-y-1/2 z-20 w-[28px] h-[28px] rounded-[8px] border border-white/10 backdrop-blur-md hidden lg:flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 p-[6px]"
+                  style={{ backgroundColor: themeStyles.pillBg }}
                 >
-                  <ChevronLeft className="w-[16px] h-[16px]" />
+                  <ChevronLeft className="w-[16px] h-[16px]" style={{ color: themeStyles.text }} />
                 </button>
                 <button
                   onClick={() => scrollCategories("right")}
-                  className="absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-[28px] h-[28px] rounded-[8px] bg-black/50 border border-white/10 backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 hover:bg-black/80 p-[6px]"
+                  className="absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-[28px] h-[28px] rounded-[8px] border border-white/10 backdrop-blur-md hidden lg:flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 p-[6px]"
+                  style={{ backgroundColor: themeStyles.pillBg }}
                 >
-                  <ChevronRight className="w-[16px] h-[16px]" />
+                  <ChevronRight className="w-[16px] h-[16px]" style={{ color: themeStyles.text }} />
                 </button>
 
                 <div
@@ -473,7 +548,10 @@ export default function HomePage() {
                         </div>
                         <div className="flex flex-col">
                           <div className="flex items-center gap-1">
-                            <span className="text-[14px] font-semibold text-white leading-none">
+                            <span
+                              className="text-[14px] font-semibold leading-none"
+                              style={{ color: themeStyles.text }}
+                            >
                               {post.user.name}
                             </span>
                             {post.user.isVerified && (
@@ -492,7 +570,10 @@ export default function HomePage() {
                               </div>
                             )}
                           </div>
-                          <span className="text-[11px] text-[#888] mt-0.5">
+                          <span
+                            className="text-[11px] mt-0.5"
+                            style={{ color: themeStyles.textSecondary }}
+                          >
                             {post.user.location} <span className="mx-1">•</span>{" "}
                             {post.createdAt}
                           </span>
@@ -502,7 +583,7 @@ export default function HomePage() {
                         <button className="w-[62px] h-[26px] rounded-[25px] flex items-center justify-center text-[11px] font-semibold text-white bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)]">
                           Follow
                         </button>
-                        <MoreHorizontal className="text-white w-5 h-5 cursor-pointer" />
+                        <MoreHorizontal className="w-5 h-5 cursor-pointer" style={{ color: themeStyles.text }} />
                       </div>
                     </div>
 
@@ -519,7 +600,10 @@ export default function HomePage() {
                     {/* Actions Pill & Save */}
                     <div className="flex items-center justify-between px-1 mt-1">
                       {/* Dark Pill Container */}
-                      <div className="flex items-center bg-[#1e1e1e] rounded-full px-4 py-2.5 gap-6">
+                      <div
+                        className="flex items-center rounded-full px-4 py-2.5 gap-6"
+                        style={{ backgroundColor: themeStyles.pillBg }}
+                      >
                         <button className="flex items-center gap-2 group">
                           <Image
                             src={LikeIcon}
@@ -527,8 +611,12 @@ export default function HomePage() {
                             width={20}
                             height={20}
                             className="group-active:scale-90 transition-transform"
+                            style={{ filter: themeStyles.iconFilter }}
                           />
-                          <span className="text-[13px] font-medium text-white">
+                          <span
+                            className="text-[13px] font-medium"
+                            style={{ color: themeStyles.text }}
+                          >
                             1,200
                           </span>
                         </button>
@@ -539,8 +627,12 @@ export default function HomePage() {
                             alt="Comment"
                             width={18}
                             height={18}
+                            style={{ filter: themeStyles.iconFilter }}
                           />
-                          <span className="text-[13px] font-medium text-white">
+                          <span
+                            className="text-[13px] font-medium"
+                            style={{ color: themeStyles.text }}
+                          >
                             1,111
                           </span>
                         </button>
@@ -551,30 +643,42 @@ export default function HomePage() {
                             alt="Share"
                             width={18}
                             height={18}
+                            style={{ filter: themeStyles.iconFilter }}
                           />
-                          <span className="text-[13px] font-medium text-white">
+                          <span
+                            className="text-[13px] font-medium"
+                            style={{ color: themeStyles.text }}
+                          >
                             666
                           </span>
                         </button>
                       </div>
 
-                      <button className="w-10 h-10 rounded-full bg-[#1e1e1e] flex items-center justify-center hover:bg-[#2a2a2a] transition-colors">
+                      <button
+                        className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                        style={{ backgroundColor: themeStyles.pillBg }}
+                      >
                         <Image
                           src={SaveIcon}
                           alt="Save"
                           width={18}
                           height={18}
+                          style={{ filter: themeStyles.iconFilter }}
                         />
                       </button>
                     </div>
 
                     {/* Description */}
-                    <div className="px-1 text-[13px] text-[#dbdbdb] leading-relaxed">
+                    <div
+                      className="px-1 text-[13px] leading-relaxed"
+                      style={{ color: themeStyles.textSecondary }}
+                    >
                       {isExpanded ? post.description : desc}
                       {truncated && !isExpanded && (
                         <button
                           onClick={() => toggleDescription(post.id)}
-                          className="text-[#888] ml-1"
+                          className="ml-1 font-medium"
+                          style={{ color: themeStyles.textSecondary }}
                         >
                           more
                         </button>
@@ -611,7 +715,7 @@ export default function HomePage() {
                       </div>
                       <span className="text-[12px] text-[#888]">
                         Liked by{" "}
-                        <span className="text-white font-medium">
+                        <span className="font-medium" style={{ color: themeStyles.text }}>
                           {post.likedBy[0]?.name}
                         </span>{" "}
                         and others
@@ -624,11 +728,14 @@ export default function HomePage() {
           </div>
 
           {/* ================= RIGHT SIDEBAR ================= */}
-          <div className="hidden xl:flex w-[380px] 2xl:w-[480px] flex-col gap-10 pt-2 h-fit sticky top-6">
-            {/* Suggested Profiles */}
+          <div className="hidden xl:flex w-[320px] 2xl:w-[380px] flex-col gap-10 pt-2 h-fit sticky top-6">
+              {/* Suggested Profiles */}
             <div className="flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-[16px] font-bold text-white">
+                <h3
+                  className="text-[16px] font-bold"
+                  style={{ color: themeStyles.text }}
+                >
                   Suggested Profiles
                 </h3>
                 <button className="text-xs text-[#8860D9] font-medium hover:underline">
@@ -637,9 +744,9 @@ export default function HomePage() {
               </div>
               <div className="flex flex-col gap-4">
                 {suggestedProfiles.map((profile, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-full bg-[#222] overflow-hidden relative border border-white/5">
+                  <div key={i} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-11 h-11 rounded-full bg-[#222] overflow-hidden relative border border-white/5 flex-shrink-0">
                         <Image
                           src={UserDemoIcon}
                           alt={profile.name}
@@ -647,16 +754,22 @@ export default function HomePage() {
                           className="object-cover"
                         />
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-[13px] font-semibold text-white">
+                      <div className="flex flex-col min-w-0">
+                        <span
+                          className="text-[13px] font-semibold truncate"
+                          style={{ color: themeStyles.text }}
+                        >
                           {profile.name}
                         </span>
-                        <span className="text-[11px] text-[#888]">
+                        <span
+                          className="text-[11px] truncate"
+                          style={{ color: themeStyles.textSecondary }}
+                        >
                           {profile.handle}
                         </span>
                       </div>
                     </div>
-                    <button className="w-[62px] h-[26px] rounded-[25px] flex items-center justify-center text-[11px] font-semibold text-white bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)]">
+                    <button className="w-[62px] h-[26px] rounded-[25px] flex items-center justify-center text-[11px] font-semibold text-white bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] flex-shrink-0">
                       Follow
                     </button>
                   </div>
@@ -667,18 +780,22 @@ export default function HomePage() {
             {/* Popular Events */}
             <div className="flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-[16px] font-bold text-white">
+                <h3
+                  className="text-[16px] font-bold"
+                  style={{ color: themeStyles.text }}
+                >
                   Popular events
                 </h3>
                 <button className="text-xs text-transparent bg-clip-text bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] font-medium hover:opacity-80 transition-opacity">
                   see all
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 {popularEvents.map((evt, i) => (
                   <div
                     key={i}
-                    className="w-[213px] h-[260px] flex flex-col p-3 rounded-[12px] bg-[#131313] border border-white/5 hover:bg-[#1a1a1a] transition-colors cursor-pointer group relative overflow-hidden"
+                    className="w-full h-[260px] flex flex-col p-3 rounded-[12px] border transition-colors cursor-pointer group relative overflow-hidden"
+                    style={{ background: themeStyles.cardBg, borderColor: themeStyles.border }}
                   >
                     {/* Event Image */}
                     <div className="w-full h-[140px] rounded-[8px] overflow-hidden relative mb-3">
@@ -688,23 +805,33 @@ export default function HomePage() {
                         fill
                         className="object-cover group-hover:scale-110 transition-transform duration-500"
                       />
-                      <div className="absolute top-2 right-2 w-7 h-7 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 group-hover:bg-white/20 transition-colors z-10">
+                      <div className="absolute top-2 right-2 w-7 h-7 backdrop-blur-md rounded-full flex items-center justify-center border transition-colors z-10"
+                           style={{ backgroundColor: themeStyles.pillBg, borderColor: themeStyles.border }}>
                         <HeartOutline className="w-3.5 h-3.5 text-[#8860D9] fill-[#8860D9]" />
                       </div>
                     </div>
 
                     {/* Event Details */}
                     <div className="flex flex-col gap-1.5">
-                      <h4 className="text-[14px] font-semibold text-white leading-tight truncate">
+                      <h4
+                        className="text-[14px] font-semibold leading-tight truncate"
+                        style={{ color: themeStyles.text }}
+                      >
                         {evt.title}
                       </h4>
 
-                      <div className="flex items-center gap-2 text-[11px] text-[#dbdbdb]">
+                      <div
+                        className="flex items-center gap-2 text-[11px]"
+                        style={{ color: themeStyles.textSecondary }}
+                      >
                         <Calendar className="w-3.5 h-3.5 text-[#8860D9]" />
                         <span>{evt.date}</span>
                       </div>
 
-                      <div className="flex items-center gap-2 text-[11px] text-[#dbdbdb]">
+                      <div
+                        className="flex items-center gap-2 text-[11px]"
+                        style={{ color: themeStyles.textSecondary }}
+                      >
                         <MapPin className="w-3.5 h-3.5 text-[#8860D9]" />
                         <span className="truncate">{evt.location}</span>
                       </div>
@@ -714,7 +841,8 @@ export default function HomePage() {
                         {[1, 2, 3, 4].map((x) => (
                           <div
                             key={x}
-                            className="w-6 h-6 rounded-full border border-[#131313] bg-gray-600 relative overflow-hidden"
+                            className="w-6 h-6 rounded-full border relative overflow-hidden"
+                            style={{ borderColor: isDark ? themeStyles.background : '#FFFFFF' }}
                           >
                             <Image src={UserDemoIcon} alt="" fill />
                           </div>
@@ -729,7 +857,10 @@ export default function HomePage() {
             {/* Suggested Reels */}
             <div className="flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-[16px] font-bold text-white">
+                <h3
+                  className="text-[16px] font-bold"
+                  style={{ color: themeStyles.text }}
+                >
                   Suggested reels
                 </h3>
                 <button className="text-xs text-transparent bg-clip-text bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] font-medium hover:opacity-80 transition-opacity">
@@ -758,10 +889,13 @@ export default function HomePage() {
             </div>
 
             {/* Footer Section */}
-            <div className="flex flex-col gap-4 mt-4 border-t border-white/5 pt-6 text-[11px] text-[#dbdbdb]">
+            <div
+              className="flex flex-col gap-4 mt-4 pt-6 text-[11px]"
+              style={{ borderTop: `1px solid ${themeStyles.border}`, color: themeStyles.textSecondary }}
+            >
               <div className="flex flex-col gap-3">
-                <span className="font-medium">Download mobile app</span>
-                <div className="w-24 h-24 relative">
+                <span className="font-medium" style={{ color: themeStyles.text }}>Download mobile app</span>
+                <div className="w-24 h-24 relative p-1 bg-white rounded-lg">
                   <Image
                     src={QrCode}
                     alt="QR Code"
