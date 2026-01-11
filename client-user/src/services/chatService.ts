@@ -113,9 +113,35 @@ export const searchWieUsersForChat = async (query: string): Promise<any> => {
   return res.data;
 };
 // Create or Get Chat
-export const createOrGetWieChat = async (participantId: string): Promise<any> => {
-  const res = await chatApi.post('/create', { participantId });
-  return res.data;
+export const createOrGetWieChat = async (participantId: string): Promise<{
+  success: boolean;
+  chat: any;
+  isNew: boolean;
+  isEmpty: boolean;
+}> => {
+  try {
+    const res = await chatApi.post('/create', { participantId });
+    return {
+      success: res.data.success,
+      chat: {
+        _id: res.data.chat._id,
+        participants: res.data.chat.participants,
+        participant: res.data.chat.participant,
+        type: res.data.chat.type, 
+        status: res.data.chat.status, 
+        lastMessage: res.data.chat.lastMessage,
+        unreadCount: res.data.chat.unreadCount || 0,
+        updatedAt: res.data.chat.updatedAt,
+        isActive: res.data.chat.isActive,
+        isEmpty: res.data.chat.isEmpty
+      },
+      isNew: res.data.isNew,
+      isEmpty: res.data.isEmpty
+    };
+  } catch (error: any) {
+    console.error('Create/Get chat error:', error);
+    throw error;
+  }
 };
 // Get User Chats List
 export const getWieUserChats = async (page: number = 1, limit: number = 40): Promise<any> => {
