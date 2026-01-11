@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useRef } from "react";
 import { useDispatch } from "react-redux";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -20,15 +20,19 @@ import {
   Settings,
   Pencil,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import ProfileImage from "@/assets/profile/ProfileImage.jpg";
 import SideBar from "@/components/home/SideBar";
 import { useSidebar } from "@/context/SidebarContext";
+import { useTheme } from "@/components/home/ThemeContext";
 import ProfileTabs from "@/components/profile/ProfileTabs";
 
 function ProfileContent() {
   const { isCollapsed, isMobile } = useSidebar();
+  const { themeStyles } = useTheme();
   const { user, loading: authLoading } = useAuth(true);
   const dispatch = useDispatch();
   const router = useRouter();
@@ -99,6 +103,17 @@ function ProfileContent() {
   const [showFollowersModal, setShowFollowersModal] = useState(false);
   const [showFollowingModal, setShowFollowingModal] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
+  const highlightsRef = useRef<HTMLDivElement>(null);
+
+  const scrollHighlights = (direction: "left" | "right") => {
+    if (highlightsRef.current) {
+      const scrollAmount = 250; // Scroll by ~3 items
+      highlightsRef.current.scrollBy({
+        left: direction === "left" ? -scrollAmount : scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  };
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -220,95 +235,102 @@ function ProfileContent() {
   };
 
   const displayUser = user;
-  const marginLeft = isMobile ? "0px" : isCollapsed ? "120px" : "281px";
   if (authLoading || !displayUser) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-[#050505] text-white">
+      <div className="flex justify-center items-center min-h-screen" style={{ background: themeStyles.background, color: themeStyles.text }}>
         <Loader2 className="w-8 h-8 animate-spin text-[#8860D9]" />
       </div>
     );
   }
   return (
     <div
-      className="h-screen overflow-y-auto scrollbar-hide text-white font-sans selection:bg-[#5E5CE6] selection:text-white flex overflow-x-hidden"
+      className="h-screen overflow-y-auto scrollbar-hide font-sans selection:bg-[#5E5CE6] selection:text-white flex overflow-x-hidden"
       style={{
-        backgroundColor: "#0C1014",
+        backgroundColor: themeStyles.background,
+        color: themeStyles.text
       }}
     >
       <SideBar />
       <main
-        className={`transition-all duration-300 ease-in-out flex-grow ${
-          isMobile ? "pb-24 px-0 pt-0" : "p-8"
-        }`}
-        style={{ marginLeft: isMobile ? "0px" : marginLeft }}
+          className={`transition-all duration-300 ease-in-out flex-1 w-full
+            pb-24 px-0 pt-0
+            sm:p-4 sm:pb-24
+            md:p-6 md:pb-6
+            lg:p-8 lg:pb-8
+            lg:ml-[250px] xl:ml-[281px]`}
       >
         {/* Main Card Container */}
         <div
-          className={`w-full relative overflow-hidden flex flex-col mx-auto ${
-            isMobile
-              ? "rounded-none min-h-screen"
-              : "md:rounded-[32px] rounded-[24px] my-4 md:my-8"
-          }`}
+          className={`w-full relative overflow-hidden flex flex-col mx-auto
+            rounded-none sm:rounded-[20px] md:rounded-[28px] lg:rounded-[32px]
+            my-0 sm:my-2 md:my-4 lg:my-8
+            min-h-screen sm:min-h-[calc(100vh-48px)] md:min-h-[calc(100vh-56px)] lg:min-h-[calc(100vh-64px)]
+            border-none sm:border md:border
+            shadow-none sm:shadow-lg md:shadow-xl lg:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]
+            max-w-full sm:max-w-[95%] md:max-w-[90%] lg:max-w-[700px] xl:max-w-[1200px]
+          `}
           style={{
-            maxWidth: "1400px",
-            minHeight: isMobile ? "100vh" : "calc(100vh - 64px)",
-            background:
-              "linear-gradient(180deg, rgba(55, 55, 55, 0.2) 0%, rgba(38, 38, 38, 0.2) 50%, rgba(28, 28, 28, 0.2) 100%)",
-            border: isMobile ? "none" : "1px solid rgba(255, 255, 255, 0.05)",
-            boxShadow: isMobile
-              ? "none"
-              : "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+            background: themeStyles.cardBg,
+            borderColor: themeStyles.border,
           }}
         >
           {/* Card Content Wrapper for Padding */}
           <div
-            className={`${isMobile ? "p-4 pt-8" : "p-5 md:p-10"} relative z-10`}
+            className={`p-4 pt-6 sm:p-5 md:p-8 lg:p-10 relative z-10 w-full flex flex-col`}
           >
             {/* Header Area inside Card */}
-            <div className="flex justify-between items-start mb-6 md:mb-8">
-              <div className="flex flex-col">
-                <h2 className="text-xl font-medium text-white/90 tracking-tight">
+            <div className="flex justify-between items-center mb-4 sm:mb-6 md:mb-8 w-full">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <h2 className="text-base sm:text-lg md:text-xl font-medium tracking-tight truncate max-w-[150px] sm:max-w-[200px] md:max-w-none" style={{ color: themeStyles.text }}>
                   @
                   {displayUser.username ||
                     displayUser.name?.toLowerCase().replace(/\s+/g, "")}
                 </h2>
               </div>
 
-              {/* Menu Toggle (3 bars) */}
+              {/* Menu Toggle (3 dots) */}
               <div className="relative z-20">
                 <button
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   disabled={loggingOut}
-                  className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-gray-300 transition-colors disabled:opacity-50"
+                  className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full transition-colors disabled:opacity-50"
+                  style={{ background: themeStyles.pillBg, color: themeStyles.text }}
                 >
                   {loggingOut ? (
-                    <Loader2 size={20} className="animate-spin" />
+                    <Loader2 size={18} className="animate-spin sm:w-5 sm:h-5" />
                   ) : (
-                    <Menu size={20} />
+                    <Menu size={18} className="sm:w-5 sm:h-5" />
                   )}
                 </button>
                 {isMenuOpen && (
                   <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setIsMenuOpen(false)}
-                    />
-                    <div className="absolute right-0 top-full mt-2 w-48 bg-[#1C1C1E] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden py-1">
-                      <button
-                        onClick={() => {
-                          setIsMenuOpen(false);
-                          router.push("/settings");
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setIsMenuOpen(false)}
+                      />
+                      <div
+                        className="absolute right-0 top-full mt-2 w-[200px] sm:w-[286px] rounded-[20px] sm:rounded-[30px] shadow-2xl z-50 overflow-hidden py-2 sm:py-4 flex flex-col backdrop-blur-xl"
+                        style={{
+                          background: themeStyles.cardBg,
+                          border: `1px solid ${themeStyles.border}`
                         }}
-                        className="w-full flex items-center gap-2 px-4 py-3 text-white text-sm font-medium hover:bg-white/5 transition-colors text-left"
                       >
+                        <button
+                          onClick={() => {
+                            setIsMenuOpen(false);
+                            router.push("/settings");
+                          }}
+                          className="w-full flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium hover:opacity-80 transition-opacity text-left"
+                          style={{ color: themeStyles.text }}
+                        >
                         <Settings size={16} />
                         <span>Settings</span>
                       </button>
-                      <div className="h-px bg-white/10 my-1" />
+                      <div className="h-px my-1" style={{ background: themeStyles.divider }} />
                       <button
                         onClick={handleLogout}
                         disabled={loggingOut}
-                        className="w-full flex items-center gap-2 px-4 py-3 text-[#FF453A] text-sm font-medium hover:bg-white/5 transition-colors text-left disabled:opacity-50"
+                        className="w-full flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-[#FF453A] text-xs sm:text-sm font-medium hover:opacity-80 transition-opacity text-left disabled:opacity-50"
                       >
                         {loggingOut ? (
                           <Loader2 size={16} className="animate-spin" />
@@ -324,8 +346,8 @@ function ProfileContent() {
             </div>
 
             {/* Profile Info Section - Centered Layout */}
-            <div className="flex flex-col items-center w-full px-4 md:px-10 mb-8">
-              <div className="flex flex-col items-center gap-2 mb-8 w-full max-w-lg">
+            <div className="flex flex-col items-center w-full px-0 sm:px-4 md:px-8 lg:px-10 mb-6 sm:mb-8">
+              <div className="flex flex-col items-center gap-1.5 sm:gap-2 mb-6 sm:mb-8 w-full max-w-lg">
                 {/* Avatar */}
                 <div className="relative">
                   <input
@@ -375,9 +397,7 @@ function ProfileContent() {
 
                   {/* Gradient Ring Wrapper */}
                   <div
-                    className={`${
-                      isMobile ? "w-24 h-24" : "w-[124px] h-[124px]"
-                    } rounded-full overflow-hidden border-[3px] border-[#1C1C1E] relative transition-all duration-300 shadow-xl -mt-6`}
+                    className={`w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-[124px] lg:h-[124px] rounded-full overflow-hidden border-[3px] border-[#1C1C1E] relative transition-all duration-300 shadow-xl -mt-4 sm:-mt-6`}
                   >
                     {uploadingImage && (
                       <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
@@ -432,9 +452,9 @@ function ProfileContent() {
                           left: "50%",
                           transform: "translateX(-50%)",
                           borderRadius: "30px",
-                          background: "#1C202480",
+                          background: themeStyles.cardBg,
                           backdropFilter: "blur(80px)",
-                          border: "1px solid rgba(255, 255, 255, 0.05)",
+                          border: `1px solid ${themeStyles.border}`,
                           boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
                         }}
                       >
@@ -448,25 +468,24 @@ function ProfileContent() {
 
                         {/* Menu Items */}
                         <div className="flex flex-col gap-4 p-8 pt-10">
-                          <button className="text-left text-[15px] font-medium text-white hover:text-gray-300 transition-colors">
+                          <button className="text-left text-[15px] font-medium transition-colors hover:opacity-80" style={{ color: themeStyles.text }}>
                             Add story
                           </button>
-                          <button className="text-left text-[15px] font-medium text-white hover:text-gray-300 transition-colors">
+                          <button className="text-left text-[15px] font-medium transition-colors hover:opacity-80" style={{ color: themeStyles.text }}>
                             Add post
                           </button>
-
                           <button
                             onClick={() => {
                               document.getElementById("avatar-upload")?.click();
                               setShowActionModal(false);
                             }}
-                            className="text-left text-[15px] font-medium text-white hover:text-gray-300 transition-colors"
+                            className="text-left text-[15px] font-medium transition-colors hover:opacity-80" style={{ color: themeStyles.text }}
                           >
                             Change profile picture
                           </button>
                           <button
                             onClick={handleRemoveProfilePicture}
-                            className="text-left text-[15px] font-medium text-white hover:text-gray-300 transition-colors"
+                            className="text-left text-[15px] font-medium transition-colors hover:opacity-80" style={{ color: themeStyles.text }}
                           >
                             Remove profile picture
                           </button>
@@ -476,17 +495,16 @@ function ProfileContent() {
                   )}
                 </div>
                 {/* Name & Handle - Strictly Centered */}
-                <div className="flex flex-col items-center text-center gap-1">
+                <div className="flex flex-col items-center text-center gap-0.5 sm:gap-1">
                   <div className="flex items-center justify-center gap-1">
                     <h1
-                      className={`${
-                        isMobile ? "text-xl" : "text-2xl"
-                      } font-bold text-white tracking-tight`}
+                      className={`text-lg sm:text-xl md:text-2xl lg:text-[26px] font-bold tracking-tight`}
+                      style={{ color: themeStyles.text }}
                     >
                       {displayUser.name || displayUser.username || "User"}
                     </h1>
                   </div>
-                  <p className="text-[#B5B5B5] text-sm font-medium">
+                  <p className="text-[#B5B5B5] text-xs sm:text-sm md:text-base font-medium">
                     @
                     {displayUser.username ||
                       displayUser.name?.toLowerCase().replace(/\s+/g, "")}
@@ -494,24 +512,25 @@ function ProfileContent() {
                 </div>
 
                 {/* Bio - Strictly Centered */}
-                <div className="text-sm text-gray-400 text-center leading-relaxed px-4 max-w-md">
+                <div className="text-sm text-center leading-relaxed px-4 max-w-md" style={{ color: themeStyles.textSecondary }}>
                   <p>{displayUser.bio || "No bio yet"}</p>
                 </div>
               </div>
               {/* Stats Row - WITH MODAL TRIGGERS */}
-              <div className="flex items-center justify-center gap-4 sm:gap-6 md:gap-10 mb-8 w-full flex-wrap">
+              <div className="flex items-center justify-center gap-3 sm:gap-4 md:gap-8 lg:gap-10 mb-6 sm:mb-8 w-full flex-wrap">
                 <button
                   className="text-center hover:opacity-80 transition-opacity"
                   onClick={() => setActiveTab("posts")}
                 >
                   <div
-                    className={`text-[18px] md:text-[20px] font-bold text-white leading-none`}
+                    className={`text-base sm:text-lg md:text-xl lg:text-[22px] font-bold leading-none`}
+                    style={{ color: themeStyles.text }}
                   >
                     {displayUser.posts_count || 0}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">Posts</div>
+                  <div className="text-xs mt-1" style={{ color: themeStyles.textSecondary }}>Posts</div>
                 </button>
-                <div className="h-10 w-[0.5px] border-l-[0.5px] border-[#B5B5B5]"></div>
+                <div className="h-10 w-[0.5px] border-l-[0.5px]" style={{ borderColor: themeStyles.divider }}></div>
                 <button
                   className="text-center hover:opacity-80 transition-opacity"
                   onClick={() => setShowFollowersModal(true)}
@@ -519,16 +538,17 @@ function ProfileContent() {
                   {statsLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin text-[#8860D9] mx-auto" />
                   ) : (
-                    <div
-                      className={`text-[18px] md:text-[20px] font-bold text-white leading-none`}
-                    >
-                      {formatNumber(followStats.followers)}
-                    </div>
+                  <div
+                    className={`text-base sm:text-lg md:text-xl lg:text-[22px] font-bold leading-none`}
+                    style={{ color: themeStyles.text }}
+                  >
+                    {formatNumber(followStats.followers)}
+                  </div>
                   )}
-                  <div className="text-xs text-gray-500 mt-1">Followers</div>
+                  <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1" style={{ color: themeStyles.textSecondary }}>Followers</div>
                 </button>
 
-                <div className="h-10 w-[0.5px] border-l-[0.5px] border-[#B5B5B5]"></div>
+                <div className="h-10 w-[0.5px] border-l-[0.5px]" style={{ borderColor: themeStyles.divider }}></div>
 
                 <button
                   className="text-center hover:opacity-80 transition-opacity"
@@ -538,22 +558,23 @@ function ProfileContent() {
                     <Loader2 className="w-5 h-5 animate-spin text-[#8860D9] mx-auto" />
                   ) : (
                     <div
-                      className={`text-[18px] md:text-[20px] font-bold text-white leading-none`}
+                      className={`text-base sm:text-lg md:text-xl lg:text-[22px] font-bold leading-none`}
+                      style={{ color: themeStyles.text }}
                     >
                       {formatNumber(followStats.following)}
                     </div>
                   )}
-                  <div className="text-xs text-gray-500 mt-1">Following</div>
+                  <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1" style={{ color: themeStyles.textSecondary }}>Following</div>
                 </button>
               </div>
               {/* Action Buttons - Centered - Flex Wrap for better mobile flow */}
               <div
-                className={`flex flex-wrap justify-center gap-2 md:gap-3 w-full max-w-2xl px-0 md:px-2 mb-8`}
+                className={`flex flex-wrap justify-center gap-2 sm:gap-2.5 md:gap-3 w-full max-w-xs sm:max-w-md md:max-w-lg lg:max-w-2xl px-0 md:px-2 mb-6 sm:mb-8`}
               >
                 {/* Edit Profile */}
                 <button
                   onClick={() => router.push("/profile/edit-profile")}
-                  className="group relative flex items-center justify-center gap-2 transition-all text-white overflow-hidden flex-1 min-w-[130px] max-w-[200px] hover:scale-105"
+                  className="group relative flex items-center justify-center gap-2 transition-all text-white overflow-hidden flex-1 min-w-[110px] sm:min-w-[130px] max-w-[200px] hover:scale-105"
                   style={{
                     height: "46px",
                     borderRadius: "100px",
@@ -563,21 +584,19 @@ function ProfileContent() {
                   <div
                     className="absolute inset-0 rounded-[100px] p-[0.5px]"
                     style={{
-                      background:
-                        "linear-gradient(270deg, rgba(32, 32, 32, 0.2) -8.43%, rgba(96, 96, 96, 0.2) 100%)",
+                      background: themeStyles.pillBg
                     }}
                   >
                     <div
                       className="w-full h-full rounded-[100px]"
                       style={{
-                        background:
-                          "linear-gradient(270deg, rgba(32, 32, 32, 0.2) -8.43%, rgba(96, 96, 96, 0.2) 100%)",
+                        background: themeStyles.pillBg
                       }}
                     />
                   </div>
                   <div className="relative z-10 flex items-center gap-2">
-                    <Pencil size={isMobile ? 14 : 16} />
-                    <span className="text-[12px] md:text-sm font-medium whitespace-nowrap">
+                    <Pencil size={16} className="sm:w-[18px] sm:h-[18px]" style={{ color: themeStyles.text }} />
+                    <span className="text-[12px] sm:text-[13px] md:text-sm font-medium whitespace-nowrap" style={{ color: themeStyles.text }}>
                       Edit Profile
                     </span>
                   </div>
@@ -586,7 +605,7 @@ function ProfileContent() {
                 {/* Share */}
                 <button
                   onClick={handleShareProfile}
-                  className="group relative flex items-center justify-center gap-2 transition-all text-white overflow-hidden flex-1 min-w-[130px] max-w-[200px] hover:scale-105"
+                  className="group relative flex items-center justify-center gap-2 transition-all text-white overflow-hidden flex-1 min-w-[110px] sm:min-w-[130px] max-w-[200px] hover:scale-105"
                   style={{
                     height: "46px",
                     borderRadius: "100px",
@@ -596,21 +615,19 @@ function ProfileContent() {
                   <div
                     className="absolute inset-0 rounded-[100px] p-[0.5px]"
                     style={{
-                      background:
-                        "linear-gradient(270deg, rgba(32, 32, 32, 0.2) -8.43%, rgba(96, 96, 96, 0.2) 100%)",
+                      background: themeStyles.pillBg
                     }}
                   >
                     <div
                       className="w-full h-full rounded-[100px]"
                       style={{
-                        background:
-                          "linear-gradient(270deg, rgba(32, 32, 32, 0.2) -8.43%, rgba(96, 96, 96, 0.2) 100%)",
+                        background: themeStyles.pillBg
                       }}
                     />
                   </div>
                   <div className="relative z-10 flex items-center gap-2">
-                    <Share2 size={isMobile ? 16 : 18} />
-                    <span className="text-[12px] md:text-sm font-medium whitespace-nowrap">
+                    <Share2 size={16} className="sm:w-[18px] sm:h-[18px]" style={{ color: themeStyles.text }} />
+                    <span className="text-[12px] sm:text-[13px] md:text-sm font-medium whitespace-nowrap" style={{ color: themeStyles.text }}>
                       Share
                     </span>
                   </div>
@@ -618,21 +635,25 @@ function ProfileContent() {
               </div>
             </div>
 
-            {/* Highlights Section */}
-            <div className="w-full flex justify-center mb-8 md:mb-10 px-0">
-              <div className="flex justify-start md:justify-center gap-4 overflow-x-auto pb-4 w-full max-w-4xl scrollbar-hide px-4 md:px-0">
+            {/* Highlights Section with Arrows */}
+            <div className="w-full flex justify-center items-center mb-8 md:mb-10 relative">
+              {/* Left Arrow */}
+              <button
+                onClick={() => scrollHighlights("left")}
+                className="absolute left-0 z-10 w-8 h-8 sm:w-9 sm:h-9 hidden lg:flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+
+              {/* Scrollable Container */}
+              <div
+                ref={highlightsRef}
+                className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 w-full max-w-[280px] sm:max-w-lg md:max-w-4xl scrollbar-hide px-8 sm:px-4 md:px-0"
+              >
                 {/* Add Highlight */}
                 <div className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group flex-shrink-0">
                   <div
-                    className="flex items-center justify-center transition-all group-hover:scale-105"
-                    style={{
-                      width: "70px",
-                      height: "100px",
-                      borderRadius: "12px",
-                      border: "1px solid rgba(255, 255, 255, 0.5)",
-                      background: "#3838380D",
-                      backdropFilter: "blur(4px)",
-                    }}
+                    className="flex items-center justify-center transition-all group-hover:scale-105 w-[70px] h-[100px] rounded-xl border border-white/50 bg-[#3838380D] backdrop-blur-[4px]"
                   >
                     <Plus size={24} className="text-gray-400" />
                   </div>
@@ -646,14 +667,7 @@ function ProfileContent() {
                     className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group flex-shrink-0"
                   >
                     <div
-                      className="relative overflow-hidden backdrop-blur-[4px] transition-all group-hover:scale-105"
-                      style={{
-                        width: "70px",
-                        height: "100px",
-                        borderRadius: "12px",
-                        border: "1px solid rgba(255, 255, 255, 0.5)",
-                        background: "#3838380D",
-                      }}
+                      className="relative overflow-hidden backdrop-blur-[4px] transition-all group-hover:scale-105 w-[70px] h-[100px] rounded-xl border border-white/50 bg-[#3838380D]"
                     >
                       <img
                         src={item.img}
@@ -665,6 +679,14 @@ function ProfileContent() {
                   </div>
                 ))}
               </div>
+
+              {/* Right Arrow */}
+              <button
+                onClick={() => scrollHighlights("right")}
+                className="absolute right-0 z-10 w-8 h-8 sm:w-9 sm:h-9 hidden lg:flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+              >
+                <ChevronRight size={18} />
+              </button>
             </div>
             {/* Profile Tabs - Posts, Reels, Feed, Tags */}
             {displayUser.id && (
@@ -776,8 +798,8 @@ export default function ProfilePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex justify-center items-center min-h-screen bg-black">
-          <Loader2 className="w-8 h-8 animate-spin text-white" />
+        <div className="flex justify-center items-center min-h-screen" style={{ background: "#050505" }}>
+          <Loader2 className="w-8 h-8 animate-spin text-[#8860D9]" />
         </div>
       }
     >
