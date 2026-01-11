@@ -23,16 +23,22 @@ export const SignupForm: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
   const router = useRouter();
+
+  /* -------------------- LOAD COUNTRIES -------------------- */
   useEffect(() => {
     const loadCountries = async () => {
       try {
         const res = await getCountries();
+        console.log('📍 Countries received:', res); // DEBUG
+        console.log('📍 First country:', res[0]); // DEBUG
         setCountries(res);
 
         // Default country (India or first available)
         if (res.length) {
           const defaultCountry = res.find(c => c.country_code === 'IN') || res[0];
+          console.log('📍 Default country selected:', defaultCountry); // DEBUG
           setFormData(prev => ({
             ...prev,
             country_code: defaultCountry.country_code,
@@ -126,24 +132,50 @@ export const SignupForm: React.FC = () => {
       setLoading(false);
     }
   };
+
+  /* -------------------- UI -------------------- */
   return (
     <div className="w-full flex flex-col">
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* EMAIL / PHONE + COUNTRY */}
-        <div className="relative w-full">
-          <Input
-            type="text"
-            name="identifier"
-            value={formData.identifier}
-            onChange={handleChange}
-            placeholder="Email or phone number"
-            required
-            className="pr-36"
-          />
-          {/* Country dropdown inside input */}
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 z-10">
-            <span className="text-[#363739]">|</span>
-            <CountrySelect
+
+        {/* EMAIL / PHONE + COUNTRY (pill + round button) */}
+<div className="flex items-center gap-3 w-full">
+
+  {/* Pill Input */}
+  <div className="flex-1">
+    <Input
+      type="text"
+      name="identifier"
+      value={formData.identifier}
+      onChange={handleChange}
+      placeholder="Email or phone number"
+      required
+      className="
+        h-[56px]
+        rounded-full
+        px-6
+        bg-[#0B0E14]
+        border border-[#1f2430]
+        text-white
+        placeholder:text-gray-400
+      "
+    />
+  </div>
+
+  {/* Country Circle */}
+  <button
+    type="button"
+    className="
+      w-[56px] h-[56px]
+      rounded-full
+      bg-[#1C2024]
+      border border-[#1f2430]
+      flex items-center justify-center
+      hover:bg-[#2A2F35]
+      transition
+    "
+  >
+    <CountrySelect
               countries={countries}
               value={formData.country_code}
               onChange={(code) =>
@@ -151,8 +183,10 @@ export const SignupForm: React.FC = () => {
               }
               required
             />
-          </div>
-        </div>
+  </button>
+
+</div>
+
         {/* PASSWORD */}
         <div className="relative">
           <Input

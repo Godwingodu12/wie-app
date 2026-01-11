@@ -55,5 +55,4 @@ const HeartbeatManager: React.FC = () => {
 
   return null;
 };
-
 export default HeartbeatManager;
