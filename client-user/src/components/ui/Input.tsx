@@ -21,48 +21,41 @@ export const Input: React.FC<InputProps> = ({
         </label>
       )}
 
-<div
-  className={`relative flex items-center rounded-xl overflow-hidden ${
-    error ? "ring-1 ring-red-500" : ""
-  }`}
-  style={{
-    height: "56px",
-    background: "#14171a",
-  }}
->
-  {/* Border layer */}
-  {!error && (
-    <div
-  className="absolute inset-0 rounded-xl pointer-events-none"
-  style={{
-    background: "#363739",
-  }}
->
-  <div
-    className="absolute inset-[1px] rounded-[10px] bg-[#14171a]"
-  />
-</div>
+      <div
+        className={`
+          relative flex items-center
+          h-[56px]
+          rounded-full
+          overflow-hidden
+          backdrop-blur-md
+          ${error ? "ring-1 ring-red-500/70" : ""}
+        `}
+        style={{
+          background:
+            "linear-gradient(270deg, rgba(32, 32, 32, 0.5) 0%, rgba(66, 66, 66, 0.5) 100%)",
+        }}
+      >
+        {icon && (
+          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-gray-400">
+            {icon}
+          </div>
+        )}
 
-  )}
+        <input
+          {...props}
+          className={`
+            w-full h-full
+            bg-transparent
+            outline-none
+            text-white
+            placeholder:text-[#6F7680]
+            px-5
+            ${icon ? "pl-12" : ""}
+            ${className}
+          `}
+        />
+      </div>
 
-  {icon && (
-    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-gray-400 z-10">
-      {icon}
-    </div>
-  )}
-
-  <input
-    {...props}
-    className={`
-      w-full h-full bg-transparent outline-none
-      px-5
-      ${icon ? "pl-12" : ""}
-      text-white placeholder:text-[#6F7680]
-      relative z-10
-      ${className}
-    `}
-  />
-</div>
       {error && (
         <p className="mt-1 text-sm text-red-500">
           {error}
@@ -71,4 +64,5 @@ export const Input: React.FC<InputProps> = ({
     </div>
   );
 };
+
 export default Input;
