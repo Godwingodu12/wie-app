@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Search, Loader2, UserPlus, UserCheck } from 'lucide-react';
 import SideBar from '@/components/home/SideBar';
 import { useSidebar } from '@/context/SidebarContext';
+import { useTheme } from '@/components/home/ThemeContext';
 import { searchUsers } from '@/services/wieUserService';
 import { followUser, unfollowUser, isFollowing } from '@/services/followService';
 import { User } from '@/types';
@@ -13,8 +14,9 @@ import DefaultAvatar from '@/assets/Home/Ellipse 14.png';
 
 export default function ExplorePage() {
   const { isCollapsed, isMobile } = useSidebar();
+  const { themeStyles } = useTheme();
   const router = useRouter();
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,7 +89,7 @@ export default function ExplorePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
+    <div className="min-h-screen" style={{ background: themeStyles.background }}>
       <SideBar />
 
       <main
@@ -97,8 +99,8 @@ export default function ExplorePage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Explore</h1>
-            <p className="text-gray-400">Discover and connect with people</p>
+            <h1 className="text-3xl font-bold mb-2" style={{ color: themeStyles.text }}>Explore</h1>
+            <p className="" style={{ color: themeStyles.textSecondary }}>Discover and connect with people</p>
           </div>
 
           {/* Search Bar */}
@@ -110,7 +112,12 @@ export default function ExplorePage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search users by name, username, or email..."
-                className="w-full pl-12 pr-4 py-3 bg-[#1a1a1a] border border-[#2D2F39] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#8860D9] focus:border-transparent"
+                className="w-full pl-12 pr-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8860D9] focus:border-transparent placeholder-gray-500"
+                style={{
+                  background: themeStyles.cardBg,
+                  border: `1px solid ${themeStyles.border}`,
+                  color: themeStyles.text
+                }}
               />
             </div>
           </div>
@@ -128,7 +135,13 @@ export default function ExplorePage() {
               {users.map((user) => (
                 <div
                   key={user.id}
-                  className="bg-[#1a1a1a] border border-[#2D2F39] rounded-xl p-4 hover:bg-[#1f1f1f] transition-colors"
+                  className="rounded-xl p-4 transition-colors"
+                  style={{
+                    background: themeStyles.cardBg,
+                    border: `1px solid ${themeStyles.border}`
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = themeStyles.hoverBg}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = themeStyles.cardBg}
                 >
                   <div className="flex items-center justify-between">
                     <div
@@ -157,7 +170,7 @@ export default function ExplorePage() {
                       {/* User Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-white font-semibold truncate">
+                          <h3 className="font-semibold truncate" style={{ color: themeStyles.text }}>
                             {user.name || user.username || 'User'}
                           </h3>
                           {user.is_verified && (
@@ -177,14 +190,14 @@ export default function ExplorePage() {
                           )}
                         </div>
                         {user.username && (
-                          <p className="text-sm text-gray-400">@{user.username}</p>
+                          <p className="text-sm" style={{ color: themeStyles.textSecondary }}>@{user.username}</p>
                         )}
                         {user.bio && (
-                          <p className="text-sm text-gray-500 mt-1 truncate">
+                          <p className="text-sm mt-1 truncate" style={{ color: themeStyles.textSecondary }}>
                             {user.bio}
                           </p>
                         )}
-                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                        <div className="flex items-center gap-4 mt-2 text-xs" style={{ color: themeStyles.textSecondary }}>
                           <span>{user.followers_count || 0} followers</span>
                           <span>{user.following_count || 0} following</span>
                         </div>
@@ -199,11 +212,16 @@ export default function ExplorePage() {
                         px-6 py-2 rounded-full font-semibold text-sm transition-all flex items-center gap-2 flex-shrink-0
                         ${
                           followingStatus[user.id]
-                            ? 'bg-[#2D2F39] text-white hover:bg-[#3a3f4d]'
+                            ? 'hover:opacity-80'
                             : 'bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-white hover:opacity-90'
                         }
                         ${followLoading[user.id] ? 'opacity-50 cursor-not-allowed' : ''}
                       `}
+                      style={followingStatus[user.id] ? {
+                        background: themeStyles.pillBg,
+                        color: themeStyles.text,
+                        border: `1px solid ${themeStyles.border}`
+                      } : {}}
                     >
                       {followLoading[user.id] ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -229,7 +247,12 @@ export default function ExplorePage() {
                   <button
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="px-4 py-2 bg-[#1a1a1a] border border-[#2D2F39] rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2a2a2a] transition-colors"
+                    className="px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-80 transition-colors"
+                    style={{
+                      background: themeStyles.cardBg,
+                      color: themeStyles.text,
+                      border: `1px solid ${themeStyles.border}`
+                    }}
                   >
                     Previous
                   </button>
@@ -239,7 +262,12 @@ export default function ExplorePage() {
                   <button
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
-                    className="px-4 py-2 bg-[#1a1a1a] border border-[#2D2F39] rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#2a2a2a] transition-colors"
+                    className="px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-80 transition-colors"
+                    style={{
+                      background: themeStyles.cardBg,
+                      color: themeStyles.text,
+                      border: `1px solid ${themeStyles.border}`
+                    }}
                   >
                     Next
                   </button>
@@ -251,15 +279,14 @@ export default function ExplorePage() {
           {/* No Results */}
           {!loading && searchQuery && users.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-gray-400">No users found matching "{searchQuery}"</p>
+              <p className="" style={{ color: themeStyles.textSecondary }}>No users found matching "{searchQuery}"</p>
             </div>
           )}
-
           {/* Empty State */}
           {!loading && !searchQuery && (
             <div className="text-center py-12">
-              <Search className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400">Start typing to search for users</p>
+              <Search className="w-16 h-16 mx-auto mb-4" style={{ color: themeStyles.textSecondary }} />
+              <p className="" style={{ color: themeStyles.textSecondary }}>Start typing to search for users</p>
             </div>
           )}
         </div>
