@@ -94,6 +94,7 @@ const isFollowing = async (call: any, callback: any) => {
     callback(null, { isFollowing: false, error: error.message });
   }
 };
+
 const getFollowerIds = async (call: any, callback: any) => {
   try {
     const { userId } = call.request;
@@ -106,6 +107,7 @@ const getFollowerIds = async (call: any, callback: any) => {
     callback(null, { followerIds: [] });
   }
 };
+
 const getRelationship = async (call: any, callback: any) => {
   try {
     const { userId, targetUserId } = call.request;
@@ -139,8 +141,20 @@ const checkMutualFollow = async (call: any, callback: any) => {
     callback(null, { isMutual: false });
   }
 };
+
+const getFollowStats = async (call: any, callback: any) => {
+  try {
+    const { userId } = call.request;
+    const result = await followService.getFollowStats(userId);
+    callback(null, result);
+  } catch (error: any) {
+    callback(null, { userId: call.request.userId, followers: 0, following: 0 });
+  }
+};
+
 export const startGrpcServer = (port: number = 50058) => {
   const server = new grpc.Server();
+  
   server.addService(followProto.FollowService.service, {
     FollowUser: followUser,
     UnfollowUser: unfollowUser,
@@ -149,8 +163,10 @@ export const startGrpcServer = (port: number = 50058) => {
     IsFollowing: isFollowing,
     GetFollowerIds: getFollowerIds,           
     GetRelationship: getRelationship,         
-    CheckMutualFollow: checkMutualFollow,   
+    CheckMutualFollow: checkMutualFollow,
+    GetFollowStats: getFollowStats,
   });
+
   server.bindAsync(
     `0.0.0.0:${port}`,
     grpc.ServerCredentials.createInsecure(),
@@ -159,7 +175,9 @@ export const startGrpcServer = (port: number = 50058) => {
         console.error('❌ Failed to bind gRPC server:', error);
         return;
       }
+      console.log(`✅ Follow gRPC server running on port ${boundPort}`);
     }
   );
+
   return server;
 };
