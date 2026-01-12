@@ -9,9 +9,7 @@ import {
 export const listenForNotificationRequests = async () => {
   await listenQueue('notification-create', async (payload) => {
     try {
-      console.log('📦 Received notification-create request:', payload);
       const notification = await createNotificationHandler(payload);
-      console.log('✅ Notification created successfully');
       return { success: true, notification };
     } catch (error) {
       console.error('❌ Error in notification-create handler:', error);
@@ -20,7 +18,6 @@ export const listenForNotificationRequests = async () => {
   });
   await listenQueue('notification-get', async (payload) => {
     try {
-      console.log('📦 Received notification-get request:', payload);
       const result = await getNotificationsHandler(payload);
       return { success: true, ...result };
     } catch (error) {
@@ -31,7 +28,6 @@ export const listenForNotificationRequests = async () => {
   // MARK AS READ
   await listenQueue('notification-mark-read', async (payload) => {
     try {
-      console.log('📦 Received notification-mark-read request:', payload);
       const notification = await markAsReadHandler(payload);
       return { success: true, notification };
     } catch (error) {
@@ -42,7 +38,6 @@ export const listenForNotificationRequests = async () => {
   // MARK ALL AS READ
   await listenQueue('notification-mark-all-read', async (payload) => {
     try {
-      console.log('📦 Received notification-mark-all-read request:', payload);
       await markAllAsReadHandler(payload);
       return { success: true, message: 'All notifications marked as read' };
     } catch (error) {
@@ -53,7 +48,6 @@ export const listenForNotificationRequests = async () => {
   // DELETE NOTIFICATION
   await listenQueue('notification-delete', async (payload) => {
     try {
-      console.log('📦 Received notification-delete request:', payload);
       await deleteNotificationHandler(payload);
       return { success: true, message: 'Notification deleted successfully' };
     } catch (error) {
