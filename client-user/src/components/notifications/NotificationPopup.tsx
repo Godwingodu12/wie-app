@@ -19,6 +19,7 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
 } from "@/services/notificationService";
+import { followUser, unfollowUser, isFollowing } from "@/services/followService";
 import realtimeNotificationService from "@/services/realtimeNotificationService";
 import NotificationInitializer from "./NotificationInitializer";
 import { useTheme } from "@/components/home/ThemeContext";
@@ -27,7 +28,31 @@ interface NotificationPopupProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
+const formatFollowNotificationMessage = (notification: Notification): string => {
+  const primaryActors = notification.meta?.primaryActors || [];
+  const othersCount = notification.meta?.othersCount || 0;
+  if (primaryActors.length === 0) {
+    return notification.message;
+  }
+  if (primaryActors.length === 1 && othersCount === 0) {
+    const firstName = primaryActors[0].username || primaryActors[0].name || 'Someone';
+    return `${firstName} started following you`;
+  } else if (primaryActors.length === 2 && othersCount === 0) {
+    // Two followers
+    const firstName = primaryActors[0].username || primaryActors[0].name || 'Someone';
+    const secondName = primaryActors[1].username || primaryActors[1].name || 'someone';
+    return `${firstName} and ${secondName} started following you`;
+  } else if (othersCount === 1) {
+    // firstName + 1 other
+    const firstName = primaryActors[0].username || primaryActors[0].name || 'Someone';
+    return `${firstName} and 1 other started following you`;
+  } else if (othersCount > 1) {
+    // firstName + N others
+    const firstName = primaryActors[0].username || primaryActors[0].name || 'Someone';
+    return `${firstName} and ${othersCount} others started following you`;
+  }
+  return notification.message;
+};
 const timeAgo = (date: string | Date) => {
   const seconds = Math.floor(
     (new Date().getTime() - new Date(date).getTime()) / 1000,
@@ -94,11 +119,32 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
         fromUserId: data.fromUserId,
         eventName: data.eventName,
         targetUrl: data.link,
-        meta: data.metadata,
+        meta: {
+          ...data.metadata,
+          isGrouped: data.isGrouped,
+          primaryActors: data.primaryActors,
+          actorIds: data.actorIds,
+          othersCount: data.othersCount,
+          groupKey: data.groupKey,
+        },
       };
-      setNotifications((prev) => [mapped, ...prev]);
+      if (mapped.type === 'following' && data.isGrouped && data.groupKey) {
+        setNotifications((prev) => {
+          const existingIndex = prev.findIndex(
+            (n) => n.type === 'following' && n.meta?.groupKey === data.groupKey
+          );
+          if (existingIndex !== -1) {
+            const updated = [...prev];
+            updated[existingIndex] = mapped;
+            return updated;
+          } else {
+            return [mapped, ...prev];
+          }
+        });
+      } else {
+        setNotifications((prev) => [mapped, ...prev]);
+      }
     };
-
     const handleRead = (data: any) => {
       const id = data.id || data._id;
       if (!id) return;
@@ -106,15 +152,12 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
       );
     };
-
     const handleAllRead = () => {
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     };
-
     realtimeNotificationService.on("new-notification", handleNewNotification);
     realtimeNotificationService.on("notification-read", handleRead);
     realtimeNotificationService.on("all-notifications-read", handleAllRead);
-
     return () => {
       realtimeNotificationService.off(
         "new-notification",
@@ -133,7 +176,6 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
       console.error("Failed to mark all read:", error);
     }
   };
-
   const handleNotificationClick = async (notification: Notification) => {
     try {
       if (!notification.isRead) {
@@ -145,6 +187,25 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
         );
       }
 
+      // Handle follow notifications
+      if (notification.type === 'following') {
+        if (notification.meta?.primaryActors && notification.meta.primaryActors.length === 1) {
+          // Single follower - go to their profile
+          const follower = notification.meta.primaryActors[0];
+          const username = follower.username || follower.actorId;
+          router.push(`/profile/${username}`);
+        } else if (notification.meta?.primaryActors && notification.meta.primaryActors.length > 1) {
+          // Multiple followers - go to followers list
+          router.push('/connections?tab=followers');
+        } else if (notification.fromUserId) {
+          // Fallback - use fromUserId
+          router.push(`/profile/${notification.fromUserId}`);
+        }
+        onClose();
+        return;
+      }
+
+      // ... rest of your existing code for other notification types
       const bookingId = notification.bookingId || notification.meta?.bookingId;
       const targetUrl =
         notification.targetUrl ||
@@ -152,7 +213,7 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
         notification.meta?.link;
 
       if (bookingId) {
-        router.push(`/bookings/${bookingId}`); // Adjust path as needed
+        router.push(`/bookings/${bookingId}`);
       } else if (targetUrl) {
         router.push(targetUrl);
       } else if (
@@ -162,12 +223,11 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
         router.push(`/events/${notification.eventId}`);
       }
 
-      onClose(); // Close on navigation
+      onClose();
     } catch (error) {
       console.error("Error handling notification click", error);
     }
   };
-
   const handleAcceptRequest = (
     e: React.MouseEvent,
     notification: Notification,
@@ -406,11 +466,6 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
     </NotificationInitializer>
   );
 };
-
-/* -------------------------------------------------------------------------- */
-/*                            Sub-Component Item                              */
-/* -------------------------------------------------------------------------- */
-
 const NotificationItem = ({
   notification,
   onRead,
@@ -422,9 +477,17 @@ const NotificationItem = ({
   onDecline: (e: React.MouseEvent, n: Notification) => void;
   onAccept: (e: React.MouseEvent, n: Notification) => void;
 }) => {
-  const { themeStyles } = useTheme();
+  const { themeStyles, isDark } = useTheme();
   const [eventBanner, setEventBanner] = useState<string | null>(null);
   const [bannerLoading, setBannerLoading] = useState(false);
+  
+  // Follow state management
+  const [followingState, setFollowingState] = useState<{
+    [key: string]: boolean;
+  }>({});
+  const [followLoading, setFollowLoading] = useState<{
+    [key: string]: boolean;
+  }>({});
 
   // Notification types that should show event banners
   const eventBannerTypes = [
@@ -450,8 +513,6 @@ const NotificationItem = ({
     !!notification.eventId ||
     !!notification.ticketId;
 
-  // Priority: ticketId > eventId > meta fields
-  // ticketId can be either main event ID or sub-event ID
   const targetEventId =
     notification.ticketId ||
     notification.eventId ||
@@ -465,15 +526,12 @@ const NotificationItem = ({
       setBannerLoading(true);
       getEventById(targetEventId)
         .then((res) => {
-          // API response structure: { data: { event: { event_banner: "..." }, isSubEvent: bool, parentEvent: {...} } }
-          // For both main events and sub-events, the banner is at res.data.event.event_banner
           const banner = res.data?.event?.event_banner;
           if (banner) {
             setEventBanner(banner);
           }
         })
         .catch((err) => {
-          // Silent fail - fallback to icon
           console.debug(
             "Failed to load event banner for notification:",
             notification.id,
@@ -485,11 +543,55 @@ const NotificationItem = ({
     }
   }, [isEvent, targetEventId, eventBanner, bannerLoading, notification.id]);
 
+  // Check follow status for follow notifications
+  useEffect(() => {
+    if (notification.type === 'following' && notification.meta?.primaryActors) {
+      const checkFollowStatus = async () => {
+        const statuses: { [key: string]: boolean } = {};
+        
+        for (const actor of notification.meta!.primaryActors!) {
+          try {
+            const following = await isFollowing(actor.actorId);
+            statuses[actor.actorId] = following;
+          } catch (error) {
+            console.error('Failed to check follow status:', error);
+            statuses[actor.actorId] = false;
+          }
+        }
+        
+        setFollowingState(statuses);
+      };
+
+      checkFollowStatus();
+    }
+  }, [notification.type, notification.meta?.primaryActors]);
+
+  const handleFollowClick = async (e: React.MouseEvent, actorId: string) => {
+    e.stopPropagation();
+    
+    setFollowLoading((prev) => ({ ...prev, [actorId]: true }));
+    
+    try {
+      if (followingState[actorId]) {
+        // Unfollow
+        await unfollowUser(actorId);
+        setFollowingState((prev) => ({ ...prev, [actorId]: false }));
+      } else {
+        // Follow
+        await followUser(actorId);
+        setFollowingState((prev) => ({ ...prev, [actorId]: true }));
+      }
+    } catch (error) {
+      console.error('Follow action failed:', error);
+    } finally {
+      setFollowLoading((prev) => ({ ...prev, [actorId]: false }));
+    }
+  };
+
   const isRequest =
     notification.type.includes("request") ||
     notification.type.includes("invite");
 
-  // Format "Day Time" e.g., "Monday 4:20pm"
   const formattedDayTime = new Date(notification.createdAt)
     .toLocaleString("en-US", {
       weekday: "long",
@@ -512,63 +614,183 @@ const NotificationItem = ({
       onMouseEnter={(e) => e.currentTarget.style.backgroundColor = themeStyles.hoverBg}
       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = !notification.isRead ? themeStyles.hoverBg : 'transparent'}
     >
-      {/* Avatar / Icon / Banner (Left Side) */}
+      {/* Avatar / Icon / Banner / Follower Group (Left Side) */}
       <div className="relative shrink-0 pt-1">
-        <div
-          className={`
-            ${isEvent ? "w-12 h-12 rounded-lg aspect-square" : "w-12 h-12 rounded-full"}
-            flex items-center justify-center font-bold overflow-hidden shrink-0
-          `}
-          style={{ background: themeStyles.pillBg, color: themeStyles.text }}
-        >
-          {isEvent ? (
-            bannerLoading ? (
-              <div className="w-full h-full bg-zinc-700 animate-pulse" />
-            ) : eventBanner ? (
+        {notification.type === 'following' && notification.meta?.primaryActors && notification.meta.primaryActors.length > 0 ? (
+          // Grouped follow notification - show stacked avatars
+          <div className="relative w-12 h-12 flex items-center justify-center">
+            {notification.meta.primaryActors.slice(0, 2).map((actor: any, index: number) => (
+              <div
+                key={actor.actorId}
+                className="absolute w-8 h-8 rounded-full overflow-hidden border-2"
+                style={{
+                  left: index === 0 ? '0px' : '16px',
+                  zIndex: index === 0 ? 2 : 1,
+                  backgroundColor: themeStyles.pillBg,
+                  borderColor: isDark ? '#0B0D0F' : '#FFFFFF'
+                }}
+              >
+                {actor.profilePicture ? (
+                  <img
+                    src={actor.profilePicture}
+                    alt={actor.username || actor.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div 
+                    className="w-full h-full flex items-center justify-center text-xs font-bold"
+                    style={{ color: themeStyles.text, backgroundColor: themeStyles.pillBg }}
+                  >
+                    {(actor.username || actor.name || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+            ))}
+            {/* Badge for additional followers */}
+            {(notification.meta?.othersCount ?? 0) > 0 && (
+              <div
+                className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white border-2"
+                style={{
+                  background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
+                  borderColor: isDark ? '#0B0D0F' : '#FFFFFF',
+                  zIndex: 3,
+                }}
+              >
+                +{notification.meta?.othersCount}
+              </div>
+            )}
+          </div>
+        ) : (
+          // Standard notification rendering
+          <div
+            className={`
+              ${isEvent ? "w-12 h-12 rounded-lg aspect-square" : "w-12 h-12 rounded-full"}
+              flex items-center justify-center font-bold overflow-hidden shrink-0
+            `}
+            style={{ background: themeStyles.pillBg, color: themeStyles.text }}
+          >
+            {isEvent ? (
+              bannerLoading ? (
+                <div className="w-full h-full bg-zinc-700 animate-pulse" />
+              ) : eventBanner ? (
+                <img
+                  src={eventBanner}
+                  alt="Event"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                getIcon(notification.type)
+              )
+            ) : notification.meta?.userAvatar ? (
               <img
-                src={eventBanner}
-                alt="Event"
+                src={notification.meta.userAvatar}
+                alt="User"
                 className="w-full h-full object-cover"
               />
             ) : (
               getIcon(notification.type)
-            )
-          ) : notification.meta?.userAvatar ? (
-            <img
-              src={notification.meta.userAvatar}
-              alt="User"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            getIcon(notification.type)
-          )}
-        </div>
+            )}
+          </div>
+        )}
+        
+        {/* Unread indicator on avatar */}
+        {notification.isRead === false && (
+          <div
+            className="absolute top-0 right-0 rounded-full"
+            style={{
+              width: "10px",
+              height: "10px",
+              backgroundColor: "#5E5CE6",
+              opacity: 1,
+            }}
+          />
+        )}
       </div>
 
       {/* Content Container */}
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-        {/* Top Row: Title & Unread Indicator */}
-        <div className="flex justify-between items-start gap-2">
-          <span className="text-sm font-bold leading-tight" style={{ color: themeStyles.text }}>
-            {notification.title}
-          </span>
-          {notification.isRead === false && (
-            <div
-              className="shrink-0 rounded-full"
-              style={{
-                width: "12px",
-                height: "12px",
-                backgroundColor: "#5E5CE6",
-                opacity: 1,
-              }}
-            />
-          )}
-        </div>
+        {/* Top Row: Message & Follow Button (for follow notifications) or Title & Unread Indicator */}
+        {notification.type === 'following' ? (
+          // Follow notification - show message and button
+          <div className="flex justify-between items-start gap-2">
+            <span className="text-sm font-medium leading-tight flex-1" style={{ color: themeStyles.text }}>
+              {notification.type === 'following' 
+                ? formatFollowNotificationMessage(notification)
+                : notification.message
+              }
+            </span>
+            
+            {/* Follow/Following button for single follower */}
+            {notification.meta?.primaryActors && notification.meta.primaryActors.length === 1 && (
+              <button
+                onClick={(e) => handleFollowClick(e, notification.meta!.primaryActors![0].actorId)}
+                disabled={followLoading[notification.meta.primaryActors[0].actorId]}
+                className="px-4 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap"
+                style={{
+                  backgroundColor: followingState[notification.meta.primaryActors[0].actorId] 
+                    ? themeStyles.pillBg 
+                    : '#5E5CE6',
+                  color: followingState[notification.meta.primaryActors[0].actorId] 
+                    ? themeStyles.text 
+                    : '#FFFFFF',
+                  border: followingState[notification.meta.primaryActors[0].actorId]
+                    ? `1px solid ${themeStyles.border}`
+                    : 'none',
+                  opacity: followLoading[notification.meta.primaryActors[0].actorId] ? 0.6 : 1,
+                }}
+              >
+                {followLoading[notification.meta.primaryActors[0].actorId] 
+                  ? '...' 
+                  : followingState[notification.meta.primaryActors[0].actorId] 
+                    ? 'Following' 
+                    : 'Follow'
+                }
+              </button>
+            )}
+          </div>
+        ) : (
+          // Standard notification - show title and unread indicator
+          <div className="flex justify-between items-start gap-2">
+            <span className="text-sm font-bold leading-tight" style={{ color: themeStyles.text }}>
+              {notification.title}
+            </span>
+            {notification.isRead === false && (
+              <div
+                className="shrink-0 rounded-full"
+                style={{
+                  width: "12px",
+                  height: "12px",
+                  backgroundColor: "#5E5CE6",
+                  opacity: 1,
+                }}
+              />
+            )}
+          </div>
+        )}
 
-        {/* Message */}
-        <span className="font-normal text-xs leading-snug line-clamp-2" style={{ color: themeStyles.textSecondary }}>
-          {notification.message}
-        </span>
+        {/* Message (only for non-follow notifications) */}
+        {notification.type !== 'following' && (
+          <span className="font-normal text-xs leading-snug line-clamp-2" style={{ color: themeStyles.textSecondary }}>
+            {notification.message}
+          </span>
+        )}
+
+        {/* Mutual Follower Badge */}
+        {notification.type === 'following' && 
+         notification.meta?.primaryActors && 
+         notification.meta.primaryActors.some((actor: any) => actor.isMutual) && (
+          <div className="flex items-center gap-1 mt-1">
+            <span 
+              className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+              style={{ 
+                backgroundColor: themeStyles.pillBg,
+                color: '#5E5CE6'
+              }}
+            >
+              Followed by someone you follow
+            </span>
+          </div>
+        )}
 
         {/* Bottom Row: Day/Time (Left) & Relative Time (Right) */}
         <div className="flex items-center justify-between mt-0.5 pt-0.5">
@@ -580,7 +802,7 @@ const NotificationItem = ({
           </span>
         </div>
 
-        {/* Action Buttons (if any) */}
+        {/* Action Buttons (for request/invite notifications) */}
         {isRequest && (
           <div className="flex items-center gap-2 mt-2">
             <button
