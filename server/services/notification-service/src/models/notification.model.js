@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-
 const notificationSchema = new mongoose.Schema({
   userId: {
     type: String,
@@ -38,7 +37,8 @@ const notificationSchema = new mongoose.Schema({
       'refund_failed',
       'event_reminder',
       'ticket_verified',
-      'qr_code_generated'
+      'qr_code_generated',
+      'following'
     ]
   },
   title: {
@@ -72,7 +72,7 @@ const notificationSchema = new mongoose.Schema({
     ref: 'Chat'
   },
   fromUserId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: String,
     ref: 'User'
   },
   // Additional metadata
@@ -85,13 +85,45 @@ const notificationSchema = new mongoose.Schema({
   bookingId: {
     type: String,
     ref: 'Booking'
+  },
+  isGrouped: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  groupKey: {
+    type: String,
+    index: true,
+    sparse: true
+  },
+  actorIds: [{
+    type: String
+  }],
+  primaryActors: [{
+    actorId: String,
+    name: String,
+    username: String,
+    profilePicture: String,
+    isVerified: Boolean,
+    isMutual: Boolean,
+    followerCount: Number,
+    priority: Number
+  }],
+  othersCount: {
+    type: Number,
+    default: 0
+  },
+  lastUpdatedAt: {
+    type: Date,
+    default: Date.now
   }
 }, {
   timestamps: true
 });
-// Compound indexes for efficient queries
 notificationSchema.index({ userId: 1, createdAt: -1 });
 notificationSchema.index({ userId: 1, isRead: 1 });
 notificationSchema.index({ userId: 1, type: 1 });
+notificationSchema.index({ userId: 1, groupKey: 1 });
+notificationSchema.index({ userId: 1, type: 1, isGrouped: 1 });
 const Notification = mongoose.model('Notification', notificationSchema);
 export default Notification;
