@@ -4,6 +4,7 @@ import cors from 'cors';
 import db from './config/db';
 import followRoutes from './routes/follow.routes';
 import { startGrpcServer } from './grpc/server';
+import { initRabbit } from './rabbit/index';
 dotenv.config();
 const app: Application = express();
 const PORT = Number(process.env.PORT) || 5009;
@@ -49,22 +50,21 @@ app.get('/health', async (req, res) => {
 
 async function startServer() {
   try {
-    console.log('🚀 Starting Follow Service...');
-
     // Connect to MongoDB
     await db.connect();
-
     // Start gRPC server
     startGrpcServer(GRPC_PORT);
-
+    try {
+      await initRabbit();
+      console.log('✅ RabbitMQ initialized successfully');
+    } catch (rabbitError) {
+      console.error('⚠️ RabbitMQ initialization failed:', rabbitError);
+      console.warn('⚠️ Notifications will not work, but service will continue');
+    }
     // Start HTTP server
     app.listen(PORT, () => {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log(`✅ Follow Service running on port ${PORT}`);
       console.log(`📍 HTTP: http://localhost:${PORT}`);
       console.log(`📍 gRPC: localhost:${GRPC_PORT}`);
-      console.log(`📍 Health: http://localhost:${PORT}/health`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     });
 
     // Graceful shutdown
