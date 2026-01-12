@@ -2,9 +2,12 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 const PROTO_PATH = path.join(__dirname, '../../../../protos/wieuser.proto');
+
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
   longs: String,
@@ -12,9 +15,12 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   defaults: true,
   oneofs: true,
 });
+
 const wieUserProto = grpc.loadPackageDefinition(packageDefinition) as any;
+
 // ✅ Initialize client with error handling
 let client: any = null;
+
 try {
   // FIX: Use correct package name 'wieuser.WieUserService'
   client = new wieUserProto.wieuser.WieUserService(
@@ -24,6 +30,7 @@ try {
 } catch (error) {
   console.error('❌ Failed to initialize gRPC User Client:', error);
 }
+
 // Helper function to check if client is available
 const ensureClient = () => {
   if (!client) {
@@ -31,6 +38,7 @@ const ensureClient = () => {
   }
   return client;
 };
+
 export const incrementFollowing = async (userId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -49,6 +57,7 @@ export const incrementFollowing = async (userId: string): Promise<void> => {
     }
   });
 };
+
 export const incrementFollowers = async (userId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -67,6 +76,7 @@ export const incrementFollowers = async (userId: string): Promise<void> => {
     }
   });
 };
+
 export const decrementFollowing = async (userId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -85,6 +95,7 @@ export const decrementFollowing = async (userId: string): Promise<void> => {
     }
   });
 };
+
 export const decrementFollowers = async (userId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -103,6 +114,7 @@ export const decrementFollowers = async (userId: string): Promise<void> => {
     }
   });
 };
+
 // ✅ Get single user details
 export const getUserById = async (userId: string): Promise<any> => {
   return new Promise((resolve, reject) => {
@@ -110,6 +122,7 @@ export const getUserById = async (userId: string): Promise<any> => {
       resolve(null);
       return;
     }
+
     try {
       const grpcClient = ensureClient();
       grpcClient.GetWieUser({ userId }, (error: any, response: any) => {
@@ -130,11 +143,13 @@ export const getUserById = async (userId: string): Promise<any> => {
     }
   });
 };
+
 // ✅ Get multiple users details (batch fetch)
 export const getUsersByIds = async (userIds: string[]): Promise<any[]> => {
   if (!userIds || userIds.length === 0) {
     return [];
   }
+
   try {
     const userPromises = userIds.map(id => getUserById(id));
     const users = await Promise.all(userPromises);
@@ -145,4 +160,29 @@ export const getUsersByIds = async (userIds: string[]): Promise<any[]> => {
     return [];
   }
 };
+
+/**
+ * Get follower count and following count for a user
+ * This uses the follow service internally, not user service
+ */
+export const getFollowerCount = async (userId: string): Promise<{ followers: number; following: number } | null> => {
+  try {
+    // Import Follow model to get counts
+    const Follow = (await import('../models/follow.model')).default;
+    
+    const [followersCount, followingCount] = await Promise.all([
+      Follow.countDocuments({ followingId: userId, status: 'active' }),
+      Follow.countDocuments({ followerId: userId, status: 'active' })
+    ]);
+
+    return {
+      followers: followersCount,
+      following: followingCount
+    };
+  } catch (error) {
+    console.error('Failed to get follower count:', error);
+    return null;
+  }
+};
+
 export default client;

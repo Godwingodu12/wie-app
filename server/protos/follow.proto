@@ -11,25 +11,42 @@ service FollowService {
   rpc GetFollowerIds(GetFollowerIdsRequest) returns (GetFollowerIdsResponse);
   rpc GetRelationship(GetRelationshipRequest) returns (GetRelationshipResponse);
   rpc CheckMutualFollow(GetRelationshipRequest) returns (MutualFollowResponse);
+  rpc GetFollowStats(GetFollowStatsRequest) returns (GetFollowStatsResponse);
 }
+
 message GetFollowerIdsRequest {
   string userId = 1;
 }
+
 message GetFollowerIdsResponse {
   repeated string followerIds = 1;
 }
+
 message GetRelationshipRequest {
   string userId = 1;
   string targetUserId = 2;
 }
+
 message GetRelationshipResponse {
   bool follows = 1;        // userId follows targetUserId
   bool followedBy = 2;     // targetUserId follows userId
   bool isMutual = 3;
 }
+
 message MutualFollowResponse {
   bool isMutual = 1;
 }
+
+message GetFollowStatsRequest {
+  string userId = 1;
+}
+
+message GetFollowStatsResponse {
+  string userId = 1;
+  int32 followers = 2;
+  int32 following = 3;
+}
+
 message FollowRequest {
   string targetUserId = 1;
 }

@@ -75,6 +75,7 @@ export type NotificationType =
   | 'event_reminder'
   | 'ticket_verified'
   | 'qr_code_generated'
+  | 'following'
   | string;
 
 export interface Notification {
@@ -95,6 +96,23 @@ export interface Notification {
   targetUrl?: string; // mapped from `link`
   meta?: {
     bookingId?: string;
+    userAvatar?: string;
+    // Follow notification grouping fields
+    isGrouped?: boolean;
+    groupKey?: string;
+    primaryActors?: Array<{
+      actorId: string;
+      name?: string;
+      username?: string;
+      profilePicture?: string;
+      isVerified?: boolean;
+      isMutual?: boolean;
+      followerCount?: number;
+      priority?: number;
+    }>;
+    actorIds?: string[];
+    othersCount?: number;
+    // Generic metadata
     [key: string]: any;
   };
 }
@@ -128,7 +146,15 @@ const mapNotification = (raw: any): Notification => {
     fromUserId: raw.fromUserId,
     eventName: raw.eventName,
     targetUrl: raw.link,
-    meta: raw.metadata,
+    meta: {
+      ...raw.metadata,
+      // Map follow notification grouping fields
+      isGrouped: raw.isGrouped,
+      groupKey: raw.groupKey,
+      primaryActors: raw.primaryActors,
+      actorIds: raw.actorIds,
+      othersCount: raw.othersCount,
+    },
   };
 };
 
