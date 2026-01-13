@@ -44,6 +44,8 @@ export interface Chat {
     content: string;
     sender: string;
     timestamp: string;
+          deliveredTo: string[];
+
     readBy?: string[];
     isRead?: boolean;
   } | null;
@@ -63,6 +65,8 @@ export interface MessageRequest {
     content: string;
     sender: string;
     timestamp: string;
+      deliveredTo: string[];
+
   } | null;
   type: 'request';
   status: 'pending';
@@ -81,3 +85,4 @@ export interface MessageSelection {
   timestamp: string;
   isSender: boolean;
 }
+
