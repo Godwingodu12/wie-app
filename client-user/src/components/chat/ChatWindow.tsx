@@ -1,5 +1,5 @@
-'use client';
-import { useEffect, useState, useRef } from 'react';
+  'use client';
+import { useEffect, useState, useRef, Fragment } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/features/store';
 import { useChat } from '@/context/ChatContext';
@@ -21,7 +21,7 @@ import socketService from '@/services/socketService';
 import EmojiPicker from '@/components/chat/EmojiPicker';
 import VoiceRecorder from '@/components/chat/VoiceRecorder';
 import VoiceMessageDisplay from '@/components/chat/VoiceMessageDisplay';
-import { MessageCircle, Send, Loader2, ArrowLeft, MoreVertical, X, Check, CheckCheck, Mic } from 'lucide-react';
+import { MessageCircle, Send, Loader2, ArrowLeft, MoreVertical, X, Check, CheckCheck, Mic, Smile, Paperclip, Camera } from 'lucide-react';
 import Image from 'next/image';
 import { ChatMessage } from '@/types/chat';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -81,12 +81,17 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
     }
   };
 
-  const handleEmojiSelect = (emoji: string) => {
-    setMessageInput((prev) => prev + emoji);
+const handleEmojiSelect = (emoji: string) => {
+  // Use functional update to append emoji to existing text
+  setMessageInput((prev) => prev + emoji);
+  
+  // Keep focus on the input so the user can keep typing or adding emojis
+  setTimeout(() => {
     if (inputRef.current) {
       inputRef.current.focus();
     }
-  };
+  }, 0);
+};
 
   const handleReportUser = async () => {
     if (!currentChat?.participant?._id || !reportReason.trim()) {
@@ -227,6 +232,7 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
       return null;
     }
   };
+
   const loadMessages = async () => {
     if (!currentChat) return;
     setLoading(true);
@@ -265,27 +271,24 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
         
         setMessages(parsedMessages);
         
-        // ✅ Update current chat with fresh data from server
-        if (response.chat) {
+        if (response.chat?.participant) {
           const updatedChat = {
             ...currentChat,
-            participant: response.chat.participant ? {
+            participant: {
+              ...currentChat.participant,
               _id: response.chat.participant._id,
               name: response.chat.participant.name,
               email: response.chat.participant.email,
-              username: response.chat.participant.username || currentChat.participant?.username || '',
-              contact_no: response.chat.participant.contact_no || currentChat.participant?.contact_no || '',
+              username: currentChat.participant?.username || '',
+              contact_no: currentChat.participant?.contact_no || '',
               profile_picture: response.chat.participant.profile_picture,
               bio: response.chat.participant.bio,
               is_verified: response.chat.participant.is_verified,
               isOnline: response.chat.participant.isOnline ?? false,
               lastSeen: response.chat.participant.last_seen_at || response.chat.participant.lastSeen,
-              last_seen_at: response.chat.participant.last_seen_at
-            } : currentChat.participant,
-            type: response.chat.type || currentChat.type,
-            status: response.chat.status || currentChat.status,
-            isBlocked: response.chat.isBlocked ?? currentChat.isBlocked,
-            isBlockedBy: response.chat.isBlockedBy ?? currentChat.isBlockedBy
+            },
+            isBlocked: currentChat.isBlocked,
+            isBlockedBy: currentChat.isBlockedBy
           };
           setCurrentChat(updatedChat);
         }
@@ -296,9 +299,11 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
       setLoading(false);
     }
   };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageInput.trim() || !currentChat || sending) return;
@@ -393,17 +398,23 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
     }
   };
 
-  const toggleMessageSelection = (messageId: string) => {
-    setSelectedMessages((prev: Set<string>) => {
-      const newSet = new Set<string>(prev);
-      if (newSet.has(messageId)) {
-        newSet.delete(messageId);
-      } else {
-        newSet.add(messageId);
-      }
-      return newSet;
-    });
-  };
+const toggleMessageSelection = (messageId: string) => {
+  // Find the message to check its status
+  const message = messages.find(m => m._id === messageId);
+  
+  // If the message is deleted, don't allow selection
+  if (message?.deletedForEveryone) return;
+
+  setSelectedMessages((prev: Set<string>) => {
+    const newSet = new Set<string>(prev);
+    if (newSet.has(messageId)) {
+      newSet.delete(messageId);
+    } else {
+      newSet.add(messageId);
+    }
+    return newSet;
+  });
+};
 
   const exitSelectionMode = () => {
     setSelectionMode(false);
@@ -593,26 +604,29 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
     }
   };
 
-  const getMessageStatus = (message: ChatMessage) => {
-    if (message.sender !== user?.id) return null;
+const getMessageStatus = (message: ChatMessage) => {
+  if (message.sender !== user?.id) return null;
 
-    const isRead = message.readBy && message.readBy.length > 1 && 
-                   message.readBy.some(id => id !== user?.id);
-    const isDelivered = message.deliveredTo && message.deliveredTo.length > 0;
+  const isRead = message.readBy && message.readBy.length > 1 && 
+                 message.readBy.some(id => id !== user?.id);
+  const isDelivered = message.deliveredTo && message.deliveredTo.length > 0;
 
-    if (isRead) {
-      return (
-        <div className="flex items-center gap-1">
-          <CheckCheck size={16} className="text-blue-500" />
-          <span className="text-xs text-blue-500">Seen</span>
-        </div>
-      );
-    } else if (isDelivered) {
-      return <CheckCheck size={16} className="text-gray-400" />;
-    } else {
-      return <Check size={16} className="text-gray-400" />;
-    }
-  };
+  if (isRead) {
+    return (
+      <div className="flex items-center gap-1">
+        {/* Double check in purple when seen */}
+        <CheckCheck size={15} style={{ color: '#8860D9' }} />
+        <span className="text-[10px] font-medium" style={{ color: '#8860D9' }}>Seen</span>
+      </div>
+    );
+  } else if (isDelivered) {
+    // Double check in white when delivered but not seen
+    return <CheckCheck size={15} className="text-white" />;
+  } else {
+    // Single check in white when sent
+    return <Check size={15} className="text-white" />;
+  }
+};
 
   // ✅ Effects
   useEffect(() => {
@@ -782,7 +796,12 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
                             messages[0]?.sender !== user?.id;
   return (
     <div className="flex flex-col h-full">
-      <div className="p-4 border-b border-[#2D2F39] flex items-center justify-between bg-[#1a1a1a]">
+      <div className="p-4  flex items-center justify-between bg-[#0C1014]"
+      style={{
+    borderBottom: '0.2px solid',
+    borderImageSource: 'linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #444444ff 32.69%, #5d5d5dff 61.06%, rgba(153, 153, 153, 0) 100%)',
+    borderImageSlice: 1
+  }}>
         <div className="flex items-center gap-3">
           {onBack && (
             <button onClick={handleBackClick} className="lg:hidden p-2 hover:bg-[#2D2F39] rounded-full text-white">
@@ -804,7 +823,6 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
                     src={profilePictureUrl}
                     alt={currentChat.participant?.name || 'User'}
                     fill
-                    sizes="40px" 
                     className="object-cover"
                     onError={() => setImageError(true)}
                   />
@@ -1015,32 +1033,48 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
       )}
 
       {/* Selection Mode Header */}
-      {selectionMode && (
-        <div className="p-3 bg-[#2D2F39] flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={exitSelectionMode} className="text-white">
-              <X size={20} />
-            </button>
-            <span className="text-white font-semibold">{selectedMessages.size} selected</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleDeleteForMe}
-              disabled={selectedMessages.size === 0}
-              className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
-            >
-              Delete for Me
-            </button>
-            <button
-              onClick={handleDeleteForEveryone}
-              disabled={selectedMessages.size === 0}
-              className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-            >
-              Delete for Everyone
-            </button>
-          </div>
-        </div>
-      )}
+{selectionMode && (
+  <div 
+    className=" p-4 flex items-center justify-between backdrop-blur-md transition-all duration-300"
+    style={{ 
+      background: 'rgba(32, 32, 32, 0.85)',
+
+    }}
+  >
+    <div className="flex items-center gap-4">
+      <button 
+        onClick={exitSelectionMode} 
+        className="p-1 hover:bg-white/10 rounded-full text-white transition-colors"
+      >
+        <X size={22} />
+      </button>
+      <div className="flex flex-col">
+        <span className="text-white font-medium">Selection Mode</span>
+        <span className="text-[11px] text-[#5494FF] font-semibold">
+          {selectedMessages.size} message{selectedMessages.size !== 1 ? 's' : ''} selected
+        </span>
+      </div>
+    </div>
+
+    <div className="flex items-center gap-2">
+      <button
+        onClick={handleDeleteForMe}
+        disabled={selectedMessages.size === 0}
+        className="px-4 py-1.5 text-xs font-medium bg-white/5 text-white rounded-full hover:bg-white/10 transition-all border border-white/10 disabled:opacity-50"
+      >
+        Delete for Me
+      </button>
+      <button
+        onClick={handleDeleteForEveryone}
+        disabled={selectedMessages.size === 0}
+        className="px-4 py-1.5 text-xs font-medium text-white rounded-full transition-all disabled:opacity-50 shadow-lg"
+        style={{ background: 'linear-gradient(147.67deg, #FF4B4B 13.16%, #FF6B6B 100.03%)' }}
+      >
+        Delete for Everyone
+      </button>
+    </div>
+  </div>
+)}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0C1014]">
@@ -1061,7 +1095,6 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
                     alt={currentChat.participant?.name || 'User'}
                     width={64}
                     height={64}
-                    sizes="64px" 
                     className="rounded-full object-cover"
                     onError={() => setImageError(true)}
                   />
@@ -1078,71 +1111,125 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
             </div>
           ) : (
           <>
-{messages.map((message) => {
+{messages.map((message, index) => {
   const isSender = message.sender === user?.id;
   const isSelected = selectedMessages.has(message._id);
+  const isDeleted = message.deletedForEveryone;
+  const isVoice = message.messageType === 'voice' && message.voiceData?.audioBase64;
   
-  // ✅ FIXED: Check messageType first, then voiceData
-  const isVoice = message.messageType === 'voice' && 
-                  message.voiceData && 
-                  message.voiceData.audioBase64 &&
-                  message.voiceData.audioBase64.length > 0 &&
-                  message.voiceData.duration > 0;
+  // Date logic
+  const messageDate = new Date(message.timestamp);
+  const prevMessage = index > 0 ? messages[index - 1] : null;
+  const prevMessageDate = prevMessage ? new Date(prevMessage.timestamp) : null;
+  
+  // Only show separator if the date has changed
+  const showDateSeparator = !prevMessageDate || 
+    messageDate.toDateString() !== prevMessageDate.toDateString();
+
+  const getDateLabel = (date: Date) => {
+    if (isToday(date)) return 'Today';
+    if (isYesterday(date)) return 'Yesterday';
+    return format(date, 'MMMM d, yyyy');
+  };
+
+  const isLastInGroup = index === messages.length - 1 || messages[index + 1].sender !== message.sender;
+
   return (
-    <div
-      key={message._id}
-      onClick={() => selectionMode && toggleMessageSelection(message._id)}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        handleMessageLongPress(message._id);
-      }}
-      className={`flex ${isSender ? 'justify-end' : 'justify-start'} ${
-        selectionMode ? 'cursor-pointer' : ''
-      }`}
-    >
+    <Fragment key={message._id}>
+      {/* Date Separator: Fixed within a container to prevent overlapping stacking */}
+      {showDateSeparator && (
+        <div className="relative w-full flex justify-center h-10 my-4 pointer-events-none z-20">
+          <div 
+            className={`sticky top-2 transition-opacity duration-500 ease-in-out `}
+          >
+            <span className="text-[9px] px-3 py-1.5 bg-[#1A1A1A] text-gray-200 rounded-lg backdrop-blur-md border border-white/10 uppercase tracking-widest  shadow-2xl">
+              {getDateLabel(messageDate)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Message Row */}
       <div
-        className={`max-w-[70%] rounded-lg ${
-          isSelected ? 'ring-2 ring-[#8860D9]' : ''
-        } ${
-          isSender
-            ? 'bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-white'
-            : 'bg-[#1a1a1a] text-white border border-[#2D2F39]'
-        } ${isVoice ? 'px-3 py-3' : 'px-4 py-2'}`}
+        onClick={() => !isDeleted && selectionMode && toggleMessageSelection(message._id)}
+        onContextMenu={(e) => {
+          if (isDeleted) return;
+          e.preventDefault();
+          handleMessageLongPress(message._id);
+        }}
+        className={`flex items-end gap-2 mb-2 ${isSender ? 'justify-end' : 'justify-start'} ${
+          selectionMode && !isDeleted ? 'cursor-pointer' : ''
+        }`}
       >
-        {/* ✅ FIXED: Render voice message or text */}
-        {isVoice ? (
-          <VoiceMessageDisplay
-            audioURL={message.voiceData!.audioBase64}
-            duration={message.voiceData!.duration}
-            isSender={isSender}
-            timestamp={message.timestamp}
-          />
-        ) : (
-          <>
-            {/* Text Message Display */}
-            <p className="break-words">
-              {message.deletedForEveryone ? (
-                <span className="italic text-gray-300">This message was deleted</span>
+        {/* Received Message Avatar */}
+        {!isSender && (
+          <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 mb-1">
+            {isLastInGroup ? (
+              profilePictureUrl && !imageError ? (
+                <Image src={profilePictureUrl} alt="Avatar" width={32} height={32} className="object-cover" />
               ) : (
-                message.content
-              )}
-            </p>
-            
-            {/* Timestamp and Status for text messages */}
-            <div className="flex items-center gap-1 mt-1">
-              <p className={`text-xs ${isSender ? 'text-blue-100' : 'text-gray-400'}`}>
-                {formatMessageTime(message.timestamp)}
-              </p>
-              {isSender && !message.deletedForEveryone && (
-                <span className="ml-1 flex items-center">
-                  {getMessageStatus(message)}
-                </span>
-              )}
-            </div>
-          </>
+                <div className="w-full h-full flex items-center justify-center text-[10px] text-white bg-gray-600">
+                  {currentChat.participant?.name?.charAt(0).toUpperCase()}
+                </div>
+              )
+            ) : (
+              <div className="w-8" /> 
+            )}
+          </div>
         )}
+
+        {/* Message Bubble */}
+        <div
+          className={`max-w-[75%] rounded-[18px] transition-all duration-200 ${
+            isSelected ? 'ring-2 ring-[#8860D9] scale-[0.98]' : ''
+          } ${isSender ? '' : ''} ${
+            isVoice && !isDeleted ? 'px-3 py-3' : 'px-4 py-2'
+          }`}
+          style={
+            isSender 
+              ? { background: isDeleted ? 'rgba(50, 50, 50, 0.4)' : 'rgb(84, 148, 255)' }
+              : { 
+                  background: 'linear-gradient(270deg, rgba(32, 32, 32, 0.6) -8.43%, rgba(96, 96, 96, 0.6) 100%)',
+           
+                }
+          }
+        >
+          {isDeleted ? (
+            <div className="flex items-center gap-2 py-1 italic text-gray-400 text-[13px] select-none">
+               <X size={14} />
+               <span>This message was deleted</span>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {isVoice ? (
+                <VoiceMessageDisplay
+                  audioURL={message.voiceData!.audioBase64}
+                  duration={message.voiceData!.duration}
+                  isSender={isSender}
+                  timestamp={message.timestamp}
+                />
+              ) : (
+                <div className="break-words text-[15px] leading-relaxed text-white">
+                  {message.content}
+                </div>
+              )}
+
+              {/* Status area for both Voice and Text */}
+              <div className="flex justify-end mt-1 items-center gap-1.5 opacity-80">
+                <span className="text-[10px] text-white">
+                  {format(messageDate, 'HH:mm')}
+                </span>
+                {isSender && (
+                  <div className="flex items-center">
+                    {getMessageStatus(message)}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </Fragment>
   );
 })}
             {isOtherUserTyping && (
@@ -1180,85 +1267,76 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
               </div>
             </div>
           ) : (
-          <form onSubmit={handleSendMessage} className="p-4 border-t border-[#2D2F39] bg-[#1a1a1a] relative">
-            {/* Voice Recorder - Shows above input */}
-            {showVoiceRecorder && (
-              <VoiceRecorder
-                onSendVoice={handleSendVoice}
-                onCancel={() => setShowVoiceRecorder(false)}
-                disabled={sendingVoice}
-              />
-            )}
-            {/* Emoji Picker */}
-            <EmojiPicker
-              isOpen={showEmojiPicker}
-              onClose={() => setShowEmojiPicker(false)}
-              onEmojiSelect={handleEmojiSelect}
-              position="top"
-            />
-            
-            <div className="flex items-center gap-2">
-              {/* Emoji Button */}
-              <button
-                type="button"
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="p-2 hover:bg-[#2D2F39] rounded-full transition text-gray-400 hover:text-white"
-                title="Add emoji"
-                disabled={showVoiceRecorder}
-              >
-                <svg 
-                  width="24" 
-                  height="24" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10"/>
-                  <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
-                  <line x1="9" y1="9" x2="9.01" y2="9"/>
-                  <line x1="15" y1="9" x2="15.01" y2="9"/>
-                </svg>
-              </button>
+ 
+          <form onSubmit={handleSendMessage} className="p-4 flex items-center gap-2 relative"
+          >
+  {/* Voice Recorder - Logic preserved, styled to overlay nicely */}
+  {showVoiceRecorder && (
+    <div className="absolute inset-x-0 bottom-full mb-2 px-4">
+      <VoiceRecorder
+        onSendVoice={handleSendVoice}
+        onCancel={() => setShowVoiceRecorder(false)}
+        disabled={sendingVoice}
+      />
+    </div>
+  )}
 
-              {/* Voice Button */}
-              <button
-                type="button"
-                onClick={() => setShowVoiceRecorder(true)}
-                className="p-2 hover:bg-[#2D2F39] rounded-full transition text-gray-400 hover:text-white"
-                title="Send voice message"
-                disabled={sendingVoice || showVoiceRecorder}
-              >
-                <Mic size={24} />
-              </button>
+  {/* Main Input Capsule */}
+  <div 
+    className="flex-1 flex items-center gap-3 px-4 py-1.5 rounded-full transition-all"
+style={{ background: 'linear-gradient(90.06deg, #2979FF -327.97%, #5F5F5F 147.32%)' }}
+  >
+    {/* Emoji Picker Button */}
+    <button
+      type="button"
+      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+      className="text-gray-300 hover:text-white transition"
+    >
+      <Smile size={22} />
+    </button>
 
-              {/* Message Input */}
-              <input
-                ref={inputRef}
-                type="text"
-                value={messageInput}
-                onChange={(e) => handleTyping(e.target.value)}
-                placeholder="Type a message..."
-                className="flex-1 px-4 py-2 bg-[#0C1014] border border-[#2D2F39] rounded-full focus:outline-none focus:ring-2 focus:ring-[#8860D9] text-white placeholder-gray-500"
-                disabled={sending || sendingVoice || showVoiceRecorder}
-              />
+    <input
+      ref={inputRef}
+      type="text"
+      value={messageInput}
+      onChange={(e) => handleTyping(e.target.value)}
+      placeholder="Message"
+      className="flex-1 bg-transparent border-none outline-none text-white text-[15px] placeholder-gray-300 py-1.5"
+      disabled={sending || sendingVoice || showVoiceRecorder}
+    />
 
-              {/* Send Button */}
-              <button
-                type="submit"
-                disabled={!messageInput.trim() || sending || sendingVoice || showVoiceRecorder}
-                className="p-3 bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-white rounded-full hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                {sending || sendingVoice ? (
-                  <Loader2 className="animate-spin" size={20} />
-                ) : (
-                  <Send size={20} />
-                )}
-              </button>
-            </div>
-          </form>
+    {/* Right-side Action Icons inside Capsule */}
+    <div className="flex items-center gap-3 text-gray-300">
+      <Paperclip size={20} className="cursor-pointer hover:text-white transition" />
+      <Camera size={20} className="cursor-pointer hover:text-white transition" />
+    </div>
+  </div>
+
+  {/* Circular Action Button (Send or Mic) */}
+  <button
+    type={messageInput.trim() ? "submit" : "button"}
+    onClick={!messageInput.trim() ? () => setShowVoiceRecorder(true) : undefined}
+    disabled={sending || sendingVoice}
+    style={{ background: 'linear-gradient(147.67deg, #2979FF 13.16%, #6B9CF0 54.09%, #9DC1FF 100.03%)' }}
+    className="p-3 rounded-full text-white shadow-lg hover:opacity-90 transition-all active:scale-95 flex-shrink-0"
+  >
+    {sending || sendingVoice ? (
+      <Loader2 className="animate-spin" size={20} />
+    ) : messageInput.trim() ? (
+      <Send size={20} />
+    ) : (
+      <Mic size={20} />
+    )}
+  </button>
+
+  {/* Emoji Picker - Positioned above */}
+  <EmojiPicker
+    isOpen={showEmojiPicker}
+    onClose={() => setShowEmojiPicker(false)}
+    onEmojiSelect={handleEmojiSelect}
+    position="top"
+  />
+</form>
           )}
         </>
       ) : (
@@ -1269,3 +1347,4 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
     </div>
   );
 }
+

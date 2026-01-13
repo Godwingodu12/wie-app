@@ -179,9 +179,7 @@ export default function VoiceMessageDisplay({ audioURL, duration, isSender, time
         </div>
       </div>
 
-      <div className={`text-xs ${isSender ? 'text-blue-100' : 'text-gray-400'} text-right`}>
-        {formatMessageTime(timestamp)}
-      </div>
+
 
       {error && (
         <div className="text-xs text-red-400 text-center">

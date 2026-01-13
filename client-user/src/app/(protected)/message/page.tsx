@@ -211,36 +211,7 @@ export default function MessagesPage() {
 
   return (
     <div className="h-screen flex flex-col bg-[#0C1014]">
-      <div className="bg-[#1a1a1a] border-b border-[#2D2F39] p-4 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <MessageCircle size={28} className="text-[#8860D9]" />
-            <UnreadBadge />
-          </div>
-          <h1 className="text-2xl font-bold text-white">Messages</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.push('/message/requests')}
-            className="relative flex items-center gap-2 bg-[#2D2F39] text-white px-4 py-2 rounded-lg hover:bg-[#3D3F49] transition"
-          >
-            <span className="hidden sm:inline">Requests</span>
-            <span className="sm:hidden">Req</span>
-            {pendingRequestsCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setShowNewChatModal(true)}
-            className="flex items-center gap-2 bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-white px-4 py-2 rounded-lg hover:opacity-90 transition"
-          >
-            <MessageSquarePlus size={20} />
-            <span className="hidden sm:inline">New Chat</span>
-          </button>
-        </div>
-      </div>
+
       <div className="flex-1 flex overflow-hidden">
         <div
           className={`w-full lg:w-96 border-r border-[#2D2F39] bg-[#0C1014] ${
@@ -280,3 +251,4 @@ export default function MessagesPage() {
     </div>
   );
 }
+
