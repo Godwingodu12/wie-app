@@ -128,6 +128,51 @@ const EMOJI_CATEGORIES: EmojiCategory[] = [
       '💒', '🗼', '🗽', '⛪', '🕌', '🛕', '🕍', '⛩️'
     ]
   }
+  {
+    name: '🌿 Nature & Plants',
+    emojis: [
+      '🌵', '🎄', '🌲', '🌳', '🌴', '🌱', '🌿', '☘️', 
+      '🍀', '🎍', '🪴', '🍃', '🍂', '🍁', '🍄', '🐚', 
+      '🪨', '🌾', '💐', '🌷', '🌹', '🥀', '🌺', '🌸', 
+      '🌼', '🌻', '🌞', '🌝', '🌛', '🌜', '🌚', '🌕'
+    ]
+  },
+  {
+    name: '☁️ Weather',
+    emojis: [
+      '☀️', '🌤️', '⛅', '🌥️', '☁️', '🌦️', '🌧️', '⛈️', 
+      '🌩️', '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '🌪️', 
+      '🌫️', '🌈', '☔', '💧', '💦', '🌊', '🔥', '✨'
+    ]
+  },
+  {
+    name: '👕 Clothing & Fashion',
+    emojis: [
+      '👓', '🕶️', '🥽', '🥼', '🦺', '👔', '👕', '👖', 
+      '🧣', '🧤', '🧥', '🧦', '👗', '👘', '🥻', '🩱', 
+      '🩲', '🩳', '👙', '👒', '👑', '⛑️', '💄', '💍', 
+      '💼', '👜', '👛', '🎒', '👞', '👟', '🥾', '👠'
+    ]
+  },
+{
+    name: '🔯 Symbols & Zodiac',
+    emojis: [
+      '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', 
+      '⛎', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', 
+      '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', 
+      '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', 
+      '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗️', '❕', '❓', 
+      '❔', '‼️', '⁉️'
+    ]
+  },
+  {
+    name: '🏁 Flags',
+    emojis: [
+      '🏁', '🚩', '🎌', '🏴', '🏳️', '🏳️‍🌈', '🏳️‍⚧️', '🏴‍☠️',
+      '🇺🇸', '🇬🇧', '🇨🇦', '🇦🇺', '🇯🇵', '🇰🇷', '🇩🇪', '🇫🇷',
+      '🇮🇹', '🇪🇸', '🇧🇷', '🇮🇳', '🇨🇳', '🇷🇺', '🇲🇽', '🇸🇦'
+    ]
+  }
 ];
 
 export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position = 'bottom' }: EmojiPickerProps) {
@@ -188,7 +233,7 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position =
     : EMOJI_CATEGORIES;
 
   const positionClasses = position === 'top' 
-    ? 'bottom-full mb-2' 
+    ? 'bottom-full mb-0' 
     : 'top-full mt-2';
 
   return (
@@ -209,37 +254,35 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position =
       </div>
 
       {/* Search */}
-      <div className="p-3 border-b border-[#2D2F39]">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+<div className="p-3">
+        <div className="relative flex items-center">
+          <Search size={14} className="absolute left-3 text-gray-500 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search emoji..."
-            className="w-full pl-9 pr-3 py-2 bg-[#0C1014] border border-[#2D2F39] rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#8860D9]"
+            className="w-full pl-9 pr-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#5494FF] placeholder:text-gray-600"
           />
         </div>
       </div>
 
       {/* Category Tabs */}
-      {!searchQuery && (
-        <div className="flex gap-1 px-3 py-2 border-b border-[#2D2F39] overflow-x-auto scrollbar-hide">
+{!searchQuery && (
+        <div className="flex gap-1 px-3 pb-1 overflow-x-auto scrollbar-hide">
           {EMOJI_CATEGORIES.map((category, index) => (
             <button
               key={index}
+              type="button"
               onClick={() => {
                 setSelectedCategory(index);
-                // Scroll to category
                 const categoryElement = document.getElementById(`category-${index}`);
                 if (categoryElement && emojiContainerRef.current) {
-                  emojiContainerRef.current.scrollTop = categoryElement.offsetTop - 100;
+                  emojiContainerRef.current.scrollTop = categoryElement.offsetTop - 120;
                 }
               }}
-              className={`px-3 py-1.5 rounded-lg text-xl transition flex-shrink-0 ${
-                selectedCategory === index
-                  ? 'bg-[#8860D9]'
-                  : 'hover:bg-[#2D2F39]'
+              className={`p-2 rounded-xl text-lg transition flex-shrink-0 ${
+                selectedCategory === index ? 'bg-[#5494FF]' : 'hover:bg-white/5'
               }`}
             >
               {category.name.split(' ')[0]}
@@ -248,45 +291,36 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position =
         </div>
       )}
 
-      {/* Emoji Grid */}
+      {/* Emoji Grid - CLEANED UP BUTTONS AND SPACING */}
       <div 
         ref={emojiContainerRef}
-        className="overflow-y-auto p-3 space-y-4"
-        style={{ maxHeight: '280px' }}
+        className="overflow-y-auto p-3 pt-0 scrollbar-hide"
+        style={{ height: '240px' }}
       >
-        {filteredCategories.length > 0 ? (
-          filteredCategories.map((category, categoryIndex) => (
-            <div key={categoryIndex} id={`category-${categoryIndex}`}>
-              <h4 className="text-xs font-semibold text-gray-400 mb-2 sticky top-0 bg-[#1a1a1a] py-1">
-                {category.name}
-              </h4>
-              <div className="grid grid-cols-8 gap-1">
-                {category.emojis.map((emoji, emojiIndex) => (
-                  <button
-                    key={emojiIndex}
-                    onClick={() => handleEmojiClick(emoji)}
-                    className="w-10 h-10 flex items-center justify-center text-2xl hover:bg-[#2D2F39] rounded-lg transition"
-                    title={emoji}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
+        {filteredCategories.map((category, catIdx) => (
+          <div key={catIdx} id={`category-${catIdx}`} className="mb-4">
+            <h4 className="text-[10px] font-bold text-gray-500 mb-2 uppercase tracking-widest sticky top-0 bg-[#1a1a1aff] py-1">
+              {category.name}
+            </h4>
+            <div className="grid grid-cols-7 gap-1">
+              {category.emojis.map((emoji, emoIdx) => (
+                <button
+                  key={emoIdx}
+                  type="button"
+                  onClick={(e) => handleEmojiClick(emoji)}
+                  className="w-10 h-10 flex items-center justify-center text-2xl hover:bg-white/10 rounded-lg transition-transform active:scale-90"
+                >
+                  {emoji}
+                </button>
+              ))}
             </div>
-          ))
-        ) : (
-          <div className="flex flex-col items-center justify-center py-8 text-gray-400">
-            <span className="text-4xl mb-2">😕</span>
-            <p className="text-sm">No emoji found</p>
           </div>
-        )}
+        ))}
       </div>
 
       {/* Footer - Recently Used (Optional) */}
-      <div className="p-3 border-t border-[#2D2F39] bg-[#0C1014] rounded-b-lg">
-        <p className="text-xs text-gray-500 text-center">
-          Click an emoji to insert
-        </p>
+<div className="bg-black/20 border-t border-white/5 text-center">
+        <p className="text-[10px] text-gray-500 font-medium">Click an emoji to insert</p>
       </div>
 
       <style jsx>{`
@@ -301,3 +335,4 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position =
     </div>
   );
 }
+
