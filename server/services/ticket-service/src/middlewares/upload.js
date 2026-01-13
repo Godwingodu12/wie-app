@@ -9,7 +9,7 @@ const storage = multer.memoryStorage();
 
 // File type validation
 const generalFileFilter = (req, file, cb) => {
-  const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+  const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp','.jfif'];
   const videoTypes = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv'];
   const docTypes = ['.pdf', '.doc', '.docx'];
   const allowed = [...imageTypes, ...videoTypes, ...docTypes];
@@ -39,7 +39,7 @@ const generalFileFilter = (req, file, cb) => {
 };
 const ticketMediaFileFilter = (req, file, cb) => {
   try {
-    const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp','.jfif'];
     const videoTypes = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
     const docTypes = ['.pdf', '.doc', '.docx'];
     
