@@ -1347,4 +1347,3 @@ style={{ background: 'linear-gradient(90.06deg, #2979FF -327.97%, #5F5F5F 147.32
     </div>
   );
 }
-

@@ -50,7 +50,7 @@ export interface Chat {
     isRead?: boolean;
   } | null;
   unreadCount: number;
-  type?: 'direct' | 'request';
+  type?: 'direct' | 'request' | 'group';
   status?: 'pending' | 'accepted' | 'declined';
   updatedAt: string;
   isBlocked?: boolean; 
@@ -85,4 +85,3 @@ export interface MessageSelection {
   timestamp: string;
   isSender: boolean;
 }
-

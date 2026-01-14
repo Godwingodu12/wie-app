@@ -178,9 +178,6 @@ export default function VoiceMessageDisplay({ audioURL, duration, isSender, time
           </div>
         </div>
       </div>
-
-
-
       {error && (
         <div className="text-xs text-red-400 text-center">
           Failed to load audio

@@ -9,8 +9,7 @@ import { Chat } from '@/types/chat';
 import { format, isYesterday } from 'date-fns';
 import NewChatModal from './NewChatModal';
 import { checkBlockStatus, getMessageRequests, getWieUserChats } from '@/services/chatService';
-import New_Chat from '@/assets/message/new_chat.png';
-
+import New_Chat from '@/assets/message/new_chat.jpg';
 interface ChatListProps {
   onChatSelect: (chat: Chat) => void;
   isRefreshing?: boolean;
