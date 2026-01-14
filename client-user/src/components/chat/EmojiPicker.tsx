@@ -127,7 +127,7 @@ const EMOJI_CATEGORIES: EmojiCategory[] = [
       '🏨', '🏩', '🏪', '🏫', '🏬', '🏭', '🏯', '🏰',
       '💒', '🗼', '🗽', '⛪', '🕌', '🛕', '🕍', '⛩️'
     ]
-  }
+  },
   {
     name: '🌿 Nature & Plants',
     emojis: [
@@ -335,4 +335,3 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position =
     </div>
   );
 }
-
