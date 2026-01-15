@@ -3,14 +3,25 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Search, Loader2, UserPlus, UserCheck } from 'lucide-react';
+import { Search, Loader2, UserPlus, UserCheck, Clock, X } from 'lucide-react';
 import SideBar from '@/components/home/SideBar';
 import { useSidebar } from '@/context/SidebarContext';
 import { useTheme } from '@/components/home/ThemeContext';
 import { searchUsers } from '@/services/wieUserService';
-import { followUser, unfollowUser, isFollowing } from '@/services/followService';
+import { 
+  followUser, 
+  unfollowUser, 
+  getDetailedFollowStatus,
+  cancelFollowRequest 
+} from '@/services/followService';
 import { User } from '@/types';
 import DefaultAvatar from '@/assets/Home/Ellipse 14.png';
+
+interface FollowStatus {
+  isFollowing: boolean;
+  isPending: boolean;
+  status: 'active' | 'pending' | 'none';
+}
 
 export default function ExplorePage() {
   const { isCollapsed, isMobile } = useSidebar();
@@ -22,7 +33,7 @@ export default function ExplorePage() {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [followingStatus, setFollowingStatus] = useState<Record<string, boolean>>({});
+  const [followStatus, setFollowStatus] = useState<Record<string, FollowStatus>>({});
   const [followLoading, setFollowLoading] = useState<Record<string, boolean>>({});
 
   const marginLeft = isMobile ? '0' : (isCollapsed ? '80px' : '281px');
@@ -36,6 +47,7 @@ export default function ExplorePage() {
       return () => clearTimeout(debounceTimer);
     } else {
       setUsers([]);
+      setFollowStatus({});
     }
   }, [searchQuery, page]);
 
@@ -46,19 +58,38 @@ export default function ExplorePage() {
       setUsers(result.users);
       setTotalPages(result.totalPages);
 
-      // Check following status for all users
+      // Check detailed follow status for all users
       const statusChecks = await Promise.all(
         result.users.map(async (user: User) => {
-          const status = await isFollowing(user.id);
-          return { userId: user.id, isFollowing: status };
+          try {
+            const status = await getDetailedFollowStatus(user.id);
+            return { 
+              userId: user.id, 
+              status: {
+                isFollowing: status.isFollowing,
+                isPending: status.isPending,
+                status: status.status
+              }
+            };
+          } catch (error) {
+            console.error(`Error fetching status for user ${user.id}:`, error);
+            return { 
+              userId: user.id, 
+              status: {
+                isFollowing: false,
+                isPending: false,
+                status: 'none' as const
+              }
+            };
+          }
         })
       );
 
-      const statusMap: Record<string, boolean> = {};
-      statusChecks.forEach(({ userId, isFollowing }) => {
-        statusMap[userId] = isFollowing;
+      const statusMap: Record<string, FollowStatus> = {};
+      statusChecks.forEach(({ userId, status }) => {
+        statusMap[userId] = status;
       });
-      setFollowingStatus(statusMap);
+      setFollowStatus(statusMap);
     } catch (error) {
       console.error('Search error:', error);
     } finally {
@@ -66,16 +97,43 @@ export default function ExplorePage() {
     }
   };
 
-  const handleFollowToggle = async (userId: string) => {
+  const handleFollowToggle = async (userId: string, isPrivate: boolean) => {
     try {
       setFollowLoading({ ...followLoading, [userId]: true });
 
-      if (followingStatus[userId]) {
+      const currentStatus = followStatus[userId];
+
+      if (currentStatus?.isFollowing) {
+        // Unfollow user
         await unfollowUser(userId);
-        setFollowingStatus({ ...followingStatus, [userId]: false });
+        setFollowStatus({
+          ...followStatus,
+          [userId]: { isFollowing: false, isPending: false, status: 'none' }
+        });
+      } else if (currentStatus?.isPending) {
+        // Cancel pending request
+        await cancelFollowRequest(userId);
+        setFollowStatus({
+          ...followStatus,
+          [userId]: { isFollowing: false, isPending: false, status: 'none' }
+        });
       } else {
-        await followUser(userId);
-        setFollowingStatus({ ...followingStatus, [userId]: true });
+        // Follow user (will be pending if private)
+        const response = await followUser(userId);
+        
+        if (response.status === 'pending') {
+          // Private account - request sent
+          setFollowStatus({
+            ...followStatus,
+            [userId]: { isFollowing: false, isPending: true, status: 'pending' }
+          });
+        } else {
+          // Public account - following immediately
+          setFollowStatus({
+            ...followStatus,
+            [userId]: { isFollowing: true, isPending: false, status: 'active' }
+          });
+        }
       }
     } catch (error) {
       console.error('Follow toggle error:', error);
@@ -86,6 +144,66 @@ export default function ExplorePage() {
 
   const handleUserClick = (userId: string) => {
     router.push(`/profile/${userId}`);
+  };
+
+  const getFollowButtonContent = (userId: string) => {
+    const status = followStatus[userId];
+    const isLoading = followLoading[userId];
+
+    if (isLoading) {
+      return (
+        <>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Loading...</span>
+        </>
+      );
+    }
+
+    if (status?.isFollowing) {
+      return (
+        <>
+          <UserCheck className="w-4 h-4" />
+          <span>Following</span>
+        </>
+      );
+    }
+
+    if (status?.isPending) {
+      return (
+        <>
+          <Clock className="w-4 h-4" />
+          <span>Requested</span>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <UserPlus className="w-4 h-4" />
+        <span>Follow</span>
+      </>
+    );
+  };
+
+  const getFollowButtonStyle = (userId: string) => {
+    const status = followStatus[userId];
+    const isLoading = followLoading[userId];
+
+    if (status?.isFollowing || status?.isPending) {
+      return {
+        background: themeStyles.pillBg,
+        color: themeStyles.text,
+        border: `1px solid ${themeStyles.border}`
+      };
+    }
+
+    return {};
+  };
+
+  const shouldShowFollowCounts = (user: User, userId: string) => {
+    const status = followStatus[userId];
+    // Show counts if: public account OR private but following
+    return user.accountPrivacy === 'public' || status?.isFollowing;
   };
 
   return (
@@ -99,8 +217,12 @@ export default function ExplorePage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2" style={{ color: themeStyles.text }}>Explore</h1>
-            <p className="" style={{ color: themeStyles.textSecondary }}>Discover and connect with people</p>
+            <h1 className="text-3xl font-bold mb-2" style={{ color: themeStyles.text }}>
+              Explore
+            </h1>
+            <p style={{ color: themeStyles.textSecondary }}>
+              Discover and connect with people
+            </p>
           </div>
 
           {/* Search Bar */}
@@ -188,54 +310,53 @@ export default function ExplorePage() {
                               </svg>
                             </div>
                           )}
+                          {user.accountPrivacy === 'private' && (
+                            <div 
+                              className="text-xs px-2 py-0.5 rounded-full"
+                              style={{
+                                background: themeStyles.pillBg,
+                                color: themeStyles.textSecondary
+                              }}
+                            >
+                              Private
+                            </div>
+                          )}
                         </div>
                         {user.username && (
-                          <p className="text-sm" style={{ color: themeStyles.textSecondary }}>@{user.username}</p>
+                          <p className="text-sm" style={{ color: themeStyles.textSecondary }}>
+                            @{user.username}
+                          </p>
                         )}
                         {user.bio && (
                           <p className="text-sm mt-1 truncate" style={{ color: themeStyles.textSecondary }}>
                             {user.bio}
                           </p>
                         )}
-                        <div className="flex items-center gap-4 mt-2 text-xs" style={{ color: themeStyles.textSecondary }}>
-                          <span>{user.followers_count || 0} followers</span>
-                          <span>{user.following_count || 0} following</span>
-                        </div>
+                        {shouldShowFollowCounts(user, user.id) && (
+                          <div className="flex items-center gap-4 mt-2 text-xs" style={{ color: themeStyles.textSecondary }}>
+                            <span>{user.followers_count || 0} followers</span>
+                            <span>{user.following_count || 0} following</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Follow Button */}
                     <button
-                      onClick={() => handleFollowToggle(user.id)}
+                      onClick={() => handleFollowToggle(user.id, user.accountPrivacy === 'private')}
                       disabled={followLoading[user.id]}
                       className={`
                         px-6 py-2 rounded-full font-semibold text-sm transition-all flex items-center gap-2 flex-shrink-0
                         ${
-                          followingStatus[user.id]
+                          followStatus[user.id]?.isFollowing || followStatus[user.id]?.isPending
                             ? 'hover:opacity-80'
                             : 'bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-white hover:opacity-90'
                         }
                         ${followLoading[user.id] ? 'opacity-50 cursor-not-allowed' : ''}
                       `}
-                      style={followingStatus[user.id] ? {
-                        background: themeStyles.pillBg,
-                        color: themeStyles.text,
-                        border: `1px solid ${themeStyles.border}`
-                      } : {}}
+                      style={getFollowButtonStyle(user.id)}
                     >
-                      {followLoading[user.id] ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : followingStatus[user.id] ? (
-                        <>
-                          <UserCheck className="w-4 h-4" />
-                          Following
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="w-4 h-4" />
-                          Follow
-                        </>
-                      )}
+                      {getFollowButtonContent(user.id)}
                     </button>
                   </div>
                 </div>
@@ -279,14 +400,19 @@ export default function ExplorePage() {
           {/* No Results */}
           {!loading && searchQuery && users.length === 0 && (
             <div className="text-center py-12">
-              <p className="" style={{ color: themeStyles.textSecondary }}>No users found matching "{searchQuery}"</p>
+              <p style={{ color: themeStyles.textSecondary }}>
+                No users found matching "{searchQuery}"
+              </p>
             </div>
           )}
+
           {/* Empty State */}
           {!loading && !searchQuery && (
             <div className="text-center py-12">
               <Search className="w-16 h-16 mx-auto mb-4" style={{ color: themeStyles.textSecondary }} />
-              <p className="" style={{ color: themeStyles.textSecondary }}>Start typing to search for users</p>
+              <p style={{ color: themeStyles.textSecondary }}>
+                Start typing to search for users
+              </p>
             </div>
           )}
         </div>
