@@ -19,7 +19,7 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
 } from "@/services/notificationService";
-import { followUser, unfollowUser, isFollowing } from "@/services/followService";
+import { followUser, unfollowUser, isFollowing, acceptFollowRequest, rejectFollowRequest } from "@/services/followService";
 import realtimeNotificationService from "@/services/realtimeNotificationService";
 import NotificationInitializer from "./NotificationInitializer";
 import { useTheme } from "@/components/home/ThemeContext";
@@ -186,7 +186,11 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
           ),
         );
       }
-
+      if (notification.type === 'follow_request') {
+              router.push('/follow-requests');
+              onClose();
+              return;
+      }
       // Handle follow notifications
       if (notification.type === 'following') {
         if (notification.meta?.primaryActors && notification.meta.primaryActors.length === 1) {
@@ -228,26 +232,6 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
       console.error("Error handling notification click", error);
     }
   };
-  const handleAcceptRequest = (
-    e: React.MouseEvent,
-    notification: Notification,
-  ) => {
-    e.stopPropagation();
-    // Logic to accept friend request/follow request
-    // TODO: Implement actual accept logic
-    console.log("Accepting request:", notification);
-  };
-
-  const handleDeclineRequest = (
-    e: React.MouseEvent,
-    notification: Notification,
-  ) => {
-    e.stopPropagation();
-    // Logic to decline friend request/follow request
-    // TODO: Implement actual decline logic
-    console.log("Declining request:", notification);
-  };
-
   /* Counts Calculation */
   const eventCount = notifications.filter(
     (n) =>
@@ -441,8 +425,6 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
                       key={notif.id}
                       notification={notif}
                       onRead={handleNotificationClick}
-                      onDecline={handleDeclineRequest}
-                      onAccept={handleAcceptRequest}
                     />
                   ))
                 )}
@@ -469,13 +451,9 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
 const NotificationItem = ({
   notification,
   onRead,
-  onDecline,
-  onAccept,
 }: {
   notification: Notification;
   onRead: (n: Notification) => void;
-  onDecline: (e: React.MouseEvent, n: Notification) => void;
-  onAccept: (e: React.MouseEvent, n: Notification) => void;
 }) => {
   const { themeStyles, isDark } = useTheme();
   const [eventBanner, setEventBanner] = useState<string | null>(null);
@@ -565,7 +543,6 @@ const NotificationItem = ({
       checkFollowStatus();
     }
   }, [notification.type, notification.meta?.primaryActors]);
-
   const handleFollowClick = async (e: React.MouseEvent, actorId: string) => {
     e.stopPropagation();
     
@@ -587,11 +564,24 @@ const NotificationItem = ({
       setFollowLoading((prev) => ({ ...prev, [actorId]: false }));
     }
   };
-
-  const isRequest =
-    notification.type.includes("request") ||
-    notification.type.includes("invite");
-
+  const handleAcceptRequest = async (e: React.MouseEvent, fromUserId: string) => {
+      e.stopPropagation();
+      try {
+        await acceptFollowRequest(fromUserId);
+        // Optionally remove notification or update UI
+      } catch (error) {
+        console.error('Failed to accept request:', error);
+      }
+  };
+  const handleRejectRequest = async (e: React.MouseEvent, fromUserId: string) => {
+    e.stopPropagation();
+    try {
+      await rejectFollowRequest(fromUserId);
+      // Optionally remove notification or update UI
+    } catch (error) {
+      console.error('Failed to reject request:', error);
+    }
+  };
   const formattedDayTime = new Date(notification.createdAt)
     .toLocaleString("en-US", {
       weekday: "long",
@@ -801,19 +791,18 @@ const NotificationItem = ({
             {timeAgo(notification.createdAt)}
           </span>
         </div>
-
-        {/* Action Buttons (for request/invite notifications) */}
-        {isRequest && (
+        {/* Follow Request Actions */}
+        {notification.type === 'follow_request' && notification.fromUserId && (
           <div className="flex items-center gap-2 mt-2">
             <button
-              onClick={(e) => onDecline(e, notification)}
+              onClick={(e) => handleRejectRequest(e, notification.fromUserId!)}
               className="px-3 py-1 rounded-full text-xs font-medium transition-colors hover:opacity-80"
               style={{ background: themeStyles.pillBg, color: themeStyles.textSecondary }}
             >
               Decline
             </button>
             <button
-              onClick={(e) => onAccept(e, notification)}
+              onClick={(e) => handleAcceptRequest(e, notification.fromUserId!)}
               className="px-3 py-1 rounded-full text-xs font-medium bg-violet-600 text-white hover:bg-violet-500 transition-colors"
             >
               Accept
