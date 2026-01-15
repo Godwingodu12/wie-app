@@ -29,6 +29,7 @@ export interface WieUser {
   auth_provider: string;  
   allowMessagesFrom?: string | null;
   allowMessageRequests?: boolean | null;
+  accountPrivacy?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -48,6 +49,7 @@ export interface CreateUserInput {
   longitude?: number;
   isOnline?: boolean;
   lastSeenAt?: Date | null;
+  accountPrivacy?: string;
   is_blocked?: boolean;
   is_verified?: boolean;
   token_version?: number;
@@ -84,6 +86,7 @@ const toDatabaseFormat = (user: any): WieUser => {
     auth_provider: user.authProvider, 
     allowMessagesFrom: user.allowMessagesFrom,  
     allowMessageRequests: user.allowMessageRequests,  
+    accountPrivacy: user.accountPrivacy,
     created_at: user.createdAt,
     updated_at: user.updatedAt,
   };
@@ -102,6 +105,7 @@ class WieUserModel {
         countryId: userData.country_id || null,
         googleId: userData.google_id || null,  
         lastSeenAt: userData.lastSeenAt || null,
+        accountPrivacy: userData.accountPrivacy || 'public',
         authProvider: userData.auth_provider || 'local',  
         status: userData.auth_provider === 'google' ? 'active' : 'pending', 
         isVerified: userData.auth_provider === 'google' ? true : false,  
@@ -142,7 +146,8 @@ class WieUserModel {
           createdAt: true,
           updatedAt: true,
           allowMessagesFrom: true,
-          allowMessageRequests: true
+          allowMessageRequests: true,
+          accountPrivacy: true
         }
       });
       return users.map(toDatabaseFormat);
@@ -203,6 +208,7 @@ class WieUserModel {
           longitude: true,
           isOnline: true,
           lastSeenAt: true,
+          accountPrivacy: true,
           isBlocked: true,
           isVerified: true,
           googleId: true,
@@ -346,6 +352,7 @@ class WieUserModel {
     username?: string;
     country_id?: string;
     bio?: string;
+    accountPrivacy?: string;
   }): Promise<WieUser> {
     const user = await prisma.wieUser.update({
       where: { id },
@@ -357,11 +364,30 @@ class WieUserModel {
         username: updates.username,
         countryId: updates.country_id,
         bio: updates.bio,
+        accountPrivacy: updates.accountPrivacy
       },
     });
     return toDatabaseFormat(user);
   }
-
+  async updateAccountPrivacy(id: string, accountPrivacy: string): Promise<WieUser> {
+      const user = await prisma.wieUser.update({
+        where: { id },
+        data: {
+          accountPrivacy: accountPrivacy,
+          updatedAt: new Date(),
+        },
+      });
+      return toDatabaseFormat(user);
+  }
+  async getAccountPrivacy(id: string): Promise<string | null> {
+    const user = await prisma.wieUser.findUnique({
+      where: { id },
+      select: {
+        accountPrivacy: true,
+      },
+    });
+    return user?.accountPrivacy || 'public';
+  }
   async linkGoogleAccount(
     id: string,
     googleData: {
