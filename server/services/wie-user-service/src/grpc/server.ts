@@ -59,6 +59,7 @@ const formatUser = (user: any) => {
     latitude: user.latitude || 0,
     longitude: user.longitude || 0,
     isOnline: user.isOnline ?? false,
+    account_privacy: user.accountPrivacy || user.account_privacy || 'public',
     is_blocked: user.isBlocked ?? user.is_blocked ?? false,
     is_verified: user.isVerified ?? user.is_verified ?? false,
     google_id: user.googleId || user.google_id || '',
@@ -256,6 +257,21 @@ const getOnlineStatus = async (call: any, callback: any) => {
     callback(null, { isOnline: false, lastSeenAt: '' });
   }
 };
+const getAccountPrivacy = async (call: any, callback: any) => {
+  try {
+    const { userId } = call.request;
+    if (!userId) {
+      return callback(null, { accountPrivacy: 'public' });
+    }
+    const accountPrivacy = await WieUserModel.getAccountPrivacy(userId);
+    callback(null, {
+      accountPrivacy: accountPrivacy || 'public',
+    });
+  } catch (error: any) {
+    console.error('❌ Error getting account privacy:', error);
+    callback(null, { accountPrivacy: 'public' });
+  }
+};
 export const startGrpcServer = (port: number = 50053) => {
   const server = new grpc.Server();
 
@@ -270,6 +286,7 @@ export const startGrpcServer = (port: number = 50053) => {
     SearchUsers: searchUsers,
     UpdateOnlineStatus: updateOnlineStatus,
     GetOnlineStatus: getOnlineStatus,
+    GetAccountPrivacy: getAccountPrivacy,
   });
 
   server.bindAsync(
