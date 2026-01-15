@@ -12,6 +12,11 @@ service FollowService {
   rpc GetRelationship(GetRelationshipRequest) returns (GetRelationshipResponse);
   rpc CheckMutualFollow(GetRelationshipRequest) returns (MutualFollowResponse);
   rpc GetFollowStats(GetFollowStatsRequest) returns (GetFollowStatsResponse);
+  rpc AcceptFollowRequest(AcceptFollowRequestRequest) returns (FollowResponse);
+  rpc RejectFollowRequest(RejectFollowRequestRequest) returns (FollowResponse);
+  rpc GetFollowRequests(GetFollowRequestsRequest) returns (GetFollowRequestsResponse);
+  rpc CancelFollowRequest(FollowRequest) returns (FollowResponse);
+  rpc GetFollowStatus(GetFollowStatusRequest) returns (GetFollowStatusResponse);
 }
 
 message GetFollowerIdsRequest {
@@ -103,4 +108,39 @@ message IsFollowingRequest {
 message IsFollowingResponse {
   bool isFollowing = 1;
   string error = 2;
+}
+message AcceptFollowRequestRequest {
+  string followerId = 1;
+}
+
+message RejectFollowRequestRequest {
+  string followerId = 1;
+}
+
+message GetFollowRequestsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+}
+
+message GetFollowRequestsResponse {
+  repeated FollowRequestInfo requests = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 totalPages = 4;
+}
+
+message FollowRequestInfo {
+  string userId = 1;
+  string requestedAt = 2;
+}
+
+message GetFollowStatusRequest {
+  string followerId = 1;
+  string followingId = 2;
+}
+
+message GetFollowStatusResponse {
+  bool isFollowing = 1;
+  bool isPending = 2;
+  string status = 3;
 }
