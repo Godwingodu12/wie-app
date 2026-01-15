@@ -23,7 +23,6 @@ class OtpService {
   constructor() {
     this.cleanupTimers = new Map();
     this.OTP_LIMIT = parseInt(process.env.OTP_LIMIT || '3', 10);
-    console.log(`🔒 OTP limit set to: ${this.OTP_LIMIT} attempts per ${this.OTP_LIMIT_WINDOW_MINUTES} minutes`);
   }
 
   async initialize(): Promise<void> {
