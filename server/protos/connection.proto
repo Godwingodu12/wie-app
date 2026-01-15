@@ -1,0 +1,92 @@
+syntax = "proto3";
+package connection;
+service ConnectionService {
+  rpc GetConnectionProfile(GetProfileRequest) returns (ProfileResponse);
+  rpc GetMatchSuggestions(MatchSuggestionsRequest) returns (MatchSuggestionsResponse);
+  rpc CheckConnectionStatus(CheckConnectionRequest) returns (ConnectionStatusResponse);
+  rpc GetUserConnections(GetConnectionsRequest) returns (ConnectionsResponse);
+  rpc UpdateConnectionStatus(UpdateConnectionStatusRequest) returns (EmptyResponse);
+}
+message GetProfileRequest {
+  string userId = 1;
+}
+message ProfileResponse {
+  string profileId = 1;
+  string displayName = 2;
+  int32 age = 3;
+  string gender = 4;
+  Location location = 5;
+  repeated string photos = 6;
+  string status = 7;
+  int32 profileCompleteness = 8;
+  bool error = 9;
+  string errorMessage = 10;
+}
+
+message Location {
+  string city = 1;
+  string state = 2;
+  string country = 3;
+  double latitude = 4;
+  double longitude = 5;
+}
+
+message MatchSuggestionsRequest {
+  string userId = 1;
+  string purposeCode = 2;
+  int32 limit = 3;
+}
+
+message MatchSuggestionsResponse {
+  repeated MatchSuggestion suggestions = 1;
+}
+
+message MatchSuggestion {
+  string userId = 1;
+  string profileId = 2;
+  string displayName = 3;
+  int32 matchScore = 4;
+  repeated string matchReasons = 5;
+  double distance = 6;
+}
+
+message CheckConnectionRequest {
+  string userId1 = 1;
+  string userId2 = 2;
+}
+
+message ConnectionStatusResponse {
+  bool isConnected = 1;
+  string connectionId = 2;
+  string status = 3;
+}
+
+message GetConnectionsRequest {
+  string userId = 1;
+  string status = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+message ConnectionsResponse {
+  repeated Connection connections = 1;
+  int32 total = 2;
+}
+
+message Connection {
+  string connectionId = 1;
+  string userId = 2;
+  string displayName = 3;
+  string status = 4;
+  string establishedAt = 5;
+  int32 messageCount = 6;
+}
+
+message UpdateConnectionStatusRequest {
+  string connectionId = 1;
+  string status = 2;
+}
+
+message EmptyResponse {
+  bool success = 1;
+}
