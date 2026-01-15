@@ -641,7 +641,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       return;
     }
     const userId = req.user.id;
-    const { name, username, country_id, bio } = req.body;
+    const { name, username, country_id, bio,accountPrivacy  } = req.body;
     
     // Get current user data to check for existing profile picture
     const currentUser = await WIEUSER.findById(userId);
@@ -721,6 +721,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         latitude: updatedUser.latitude,
         longitude: updatedUser.longitude,
         role: updatedUser.role,
+        accountPrivacy: updatedUser.accountPrivacy,
         status: updatedUser.status,
         is_blocked: updatedUser.is_blocked,
         is_verified: updatedUser.is_verified,
@@ -732,6 +733,61 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
   } catch (error: any) {
     console.error('Update profile error:', error);
     res.status(500).json({ message: 'Failed to update profile', error: error.message });
+  }
+};
+export const updateAccountPrivacy = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    const userId = req.user.id;
+    const { accountPrivacy } = req.body;
+
+    // Validate accountPrivacy value
+    if (!accountPrivacy || !['public', 'private'].includes(accountPrivacy)) {
+      res.status(400).json({ 
+        message: 'Invalid account privacy value. Must be "public" or "private"' 
+      });
+      return;
+    }
+
+    const updatedUser = await WIEUSER.updateAccountPrivacy(userId, accountPrivacy);
+
+    res.status(200).json({
+      success: true,
+      message: `Account privacy updated to ${accountPrivacy}`,
+      accountPrivacy: updatedUser.accountPrivacy,
+    });
+  } catch (error: any) {
+    console.error('Update account privacy error:', error);
+    res.status(500).json({ 
+      message: 'Failed to update account privacy', 
+      error: error.message 
+    });
+  }
+};
+export const getAccountPrivacy = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    const userId = req.user.id;
+    const accountPrivacy = await WIEUSER.getAccountPrivacy(userId);
+
+    res.status(200).json({
+      success: true,
+      accountPrivacy: accountPrivacy || 'public',
+    });
+  } catch (error: any) {
+    console.error('Get account privacy error:', error);
+    res.status(500).json({ 
+      message: 'Failed to get account privacy', 
+      error: error.message 
+    });
   }
 };
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
@@ -772,6 +828,7 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
         latitude: user.latitude,
         longitude: user.longitude,
         role: user.role,
+        accountPrivacy: user.accountPrivacy,
         status: user.status,
         isOnline: user.isOnline,
         last_seen_at: user.lastSeenAt, 
@@ -820,6 +877,7 @@ export const getUserProfile = async (userId: string) => {
       location: user.location,
       isOnline: user.isOnline,
       role: user.role,
+      accountPrivacy: user.accountPrivacy,
       status: user.status,
       is_blocked: user.is_blocked,
       is_verified: user.is_verified,
@@ -1301,6 +1359,11 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
         location: user.location,
         is_verified: user.is_verified,
         is_blocked: user.is_blocked,
+        status: user.status,
+        latitude: user.latitude,
+        longitude: user.longitude,
+        role: user.role,
+        accountPrivacy: user.accountPrivacy,
         isOnline: user.isOnline,
         last_seen_at: user.lastSeenAt,
         followers_count: user.followers_count,
@@ -1387,7 +1450,6 @@ export const updateHeartbeat = async (req: Request, res: Response): Promise<void
     });
   }
 };
-// Cleanup stale online users (users who haven't sent heartbeat in 2 minutes)
 export const cleanupStaleOnlineUsers = async (): Promise<void> => {
   try {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);

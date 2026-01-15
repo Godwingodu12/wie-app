@@ -3,23 +3,62 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Lock, Shield, Eye, ChevronRight, CheckCircle, X } from 'lucide-react';
+import { Lock, Shield, Eye, ChevronRight, CheckCircle, X, Globe, Loader2 } from 'lucide-react';
+import { getAccountPrivacy, updateAccountPrivacy } from '@/services/wieUserService';
 
 export default function PrivacyPage() {
   const searchParams = useSearchParams();
   const [successMessage, setSuccessMessage] = useState('');
+  const [accountPrivacy, setAccountPrivacy] = useState<'public' | 'private'>('public');
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     const success = searchParams.get('success');
     if (success) {
       setSuccessMessage(success);
-      // Auto-dismiss after 5 seconds
       const timer = setTimeout(() => {
         setSuccessMessage('');
       }, 5000);
       return () => clearTimeout(timer);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    fetchAccountPrivacy();
+  }, []);
+
+  const fetchAccountPrivacy = async () => {
+    try {
+      setLoading(true);
+      const res = await getAccountPrivacy();
+      setAccountPrivacy(res.accountPrivacy as 'public' | 'private');
+    } catch (error) {
+      console.error('Failed to fetch account privacy:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTogglePrivacy = async () => {
+    const newPrivacy = accountPrivacy === 'public' ? 'private' : 'public';
+    
+    try {
+      setUpdating(true);
+      await updateAccountPrivacy({ accountPrivacy: newPrivacy });
+      setAccountPrivacy(newPrivacy);
+      setSuccessMessage(
+        newPrivacy === 'private'
+          ? 'Your account is now private. New followers will need your approval.'
+          : 'Your account is now public. Anyone can follow you without approval.'
+      );
+    } catch (error: any) {
+      console.error('Failed to update account privacy:', error);
+      alert(error.response?.data?.message || 'Failed to update account privacy');
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   const privacyOptions = [
     {
@@ -75,6 +114,61 @@ export default function PrivacyPage() {
           </button>
         </div>
       )}
+
+      {/* Account Privacy Toggle */}
+      <div className="mb-6 bg-white rounded-lg shadow border border-gray-200 p-6">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-4 flex-1">
+            <div className="bg-indigo-50 p-3 rounded-lg">
+              {accountPrivacy === 'private' ? (
+                <Lock className="w-6 h-6 text-indigo-600" />
+              ) : (
+                <Globe className="w-6 h-6 text-indigo-600" />
+              )}
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                Account Privacy
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                {accountPrivacy === 'private' 
+                  ? 'Your account is private. Only approved followers can see your posts.'
+                  : 'Your account is public. Anyone can see your posts and follow you.'}
+              </p>
+              
+              {loading ? (
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Loading...</span>
+                </div>
+              ) : (
+                <button
+                  onClick={handleTogglePrivacy}
+                  disabled={updating}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    updating
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : accountPrivacy === 'private'
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                  }`}
+                >
+                  {updating ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Updating...
+                    </span>
+                  ) : accountPrivacy === 'private' ? (
+                    'Switch to Public'
+                  ) : (
+                    'Switch to Private'
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="space-y-4">
         {privacyOptions.map((option) => {

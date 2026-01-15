@@ -1,7 +1,7 @@
 import express from 'express';
 import * as followController from '../controllers/follow.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
-const router = express.Router();
+const router: express.Router = express.Router();
 router.use(authenticateToken);
 router.post('/follow/:targetUserId', followController.followUser);
 router.delete('/unfollow/:targetUserId', followController.unfollowUser);
@@ -12,4 +12,9 @@ router.get('/other-following/:userId', followController.getOtherFollowing);
 router.get('/follow/status/:targetUserId', followController.checkFollowStatus);
 router.get('/follow/stats/:userId', followController.getFollowStats);
 router.get('/is-following/:targetUserId', followController.checkIsFollowing);
+router.get('/follow-requests', followController.getFollowRequests);
+router.post('/accept-request/:followerId', followController.acceptFollowRequest);
+router.post('/reject-request/:followerId', followController.rejectFollowRequest);
+router.delete('/cancel-request/:targetUserId', followController.cancelFollowRequest);
+router.get('/detailed-status/:targetUserId', followController.getDetailedFollowStatus);
 export default router;

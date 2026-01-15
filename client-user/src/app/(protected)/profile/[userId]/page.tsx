@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
@@ -14,7 +13,7 @@ import {
   Copy,
   ChevronRight,
   MapPin,
-
+  Lock,
   Calendar,
   Loader2,
   Mail,
@@ -35,6 +34,8 @@ import {
   unfollowUser,
   isFollowing,
   getFollowStats,
+  getDetailedFollowStatus,
+  cancelFollowRequest
 } from "@/services/followService";
 import ProfileTabs from "@/components/profile/ProfileTabs";
 import { useAuth } from "@/hooks/useAuth";
@@ -42,7 +43,6 @@ import { useTheme } from "@/components/home/ThemeContext";
 import { useChat } from '@/context/ChatContext';
 import { createOrGetWieChat } from '@/services/chatService';
 import { User } from "@/types";
-
 const HIGHLIGHTS = [
   {
     id: 1,
@@ -144,6 +144,11 @@ export default function UserProfilePage() {
   const [isFollowingUser, setIsFollowingUser] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [stats, setStats] = useState({ followers: 0, following: 0 });
+  const [followStatus, setFollowStatus] = useState<{
+    isFollowing: boolean;
+    isPending: boolean;
+    status: string;
+  }>({ isFollowing: false, isPending: false, status: 'none' });
   const [suggestedFollowStatus, setSuggestedFollowStatus] = useState<
     Record<string, boolean>
   >({});
@@ -192,13 +197,11 @@ export default function UserProfilePage() {
       fetchUserPosts(activeTab);
     }
   }, [resolvedUserId, activeTab]);
-
-  const fetchUserData = async () => {
+const fetchUserData = async () => {
     try {
       setLoading(true);
       let targetId = identifier;
 
-      // If not a UUID, resolve username to ID
       if (!isUUID(identifier)) {
         try {
           const searchRes = await searchUsers(identifier, 1, 1);
@@ -221,17 +224,15 @@ export default function UserProfilePage() {
           return;
         }
       }
-
       setResolvedUserId(targetId);
-
-      const [userData, followStatus, userStats] = await Promise.all([
+      const [userData, detailedStatus, userStats] = await Promise.all([
         getUserById(targetId),
-        isFollowing(targetId),
+        getDetailedFollowStatus(targetId),
         getFollowStats(targetId),
       ]);
-
       setUser(userData);
-      setIsFollowingUser(followStatus);
+      setFollowStatus(detailedStatus);
+      setIsFollowingUser(detailedStatus.isFollowing);
       setStats(userStats);
     } catch (error) {
       console.error("Failed to fetch user:", error);
@@ -242,7 +243,6 @@ export default function UserProfilePage() {
   };
 const handleMessageClick = async () => {
   if (!resolvedUserId) return;
-
   try {
     // ✅ First, check if a chat already exists in context
     const existingChat = chats.find(
@@ -324,30 +324,50 @@ const handleMessageClick = async () => {
       console.error("Failed to fetch suggested users:", error);
     }
   };
-
-  const handleFollowToggle = async () => {
+const handleFollowToggle = async () => {
     if (!user || !resolvedUserId) return;
     try {
       setFollowLoading(true);
-      if (isFollowingUser) {
+      
+      if (followStatus.isPending) {
+        // Cancel follow request
+        await cancelFollowRequest(resolvedUserId);
+        setFollowStatus({ isFollowing: false, isPending: false, status: 'none' });
+        setIsFollowingUser(false);
+      } else if (followStatus.isFollowing) {
+        // Unfollow
         await unfollowUser(resolvedUserId);
+        setFollowStatus({ isFollowing: false, isPending: false, status: 'none' });
         setIsFollowingUser(false);
         setStats((prev) => ({
           ...prev,
           followers: Math.max(0, prev.followers - 1),
         }));
       } else {
-        await followUser(resolvedUserId);
-        setIsFollowingUser(true);
-        setStats((prev) => ({ ...prev, followers: prev.followers + 1 }));
+        // Follow or send request
+        const result = await followUser(resolvedUserId);
+        
+        if (result.status === 'pending') {
+          // Private account - request sent (DON'T increment count)
+          setFollowStatus({ isFollowing: false, isPending: true, status: 'pending' });
+          setIsFollowingUser(false);
+        } else if (result.status === 'active') {
+          // Public account - followed (increment count)
+          setFollowStatus({ isFollowing: true, isPending: false, status: 'active' });
+          setIsFollowingUser(true);
+          setStats((prev) => ({ ...prev, followers: prev.followers + 1 }));
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Follow toggle error:", error);
+      // Show user-friendly error message
+      if (error.response?.data?.message) {
+        alert(error.response.data.message);
+      }
     } finally {
       setFollowLoading(false);
     }
   };
-
   const handleSuggestedFollowToggle = async (suggestedUserId: string) => {
     try {
       if (suggestedFollowStatus[suggestedUserId]) {
@@ -642,16 +662,26 @@ const handleMessageClick = async () => {
               {/* Action Buttons */}
               <div className="flex items-center justify-center gap-2 sm:gap-2.5 md:gap-3 w-full px-1 sm:px-0 max-w-full sm:max-w-sm md:max-w-md lg:max-w-lg">
                 <ActionButton
-                  label={isFollowingUser ? "Following" : "Follow"}
-                  active={!isFollowingUser}
+                  label={
+                    followLoading 
+                      ? "..." 
+                      : followStatus.isPending 
+                        ? "Requested" 
+                        : followStatus.isFollowing 
+                          ? "Following" 
+                          : "Follow"
+                  }
+                  active={!followStatus.isFollowing && !followStatus.isPending}
                   onClick={handleFollowToggle}
                   disabled={followLoading}
                   icon={
                     followLoading
                       ? Loader2
-                      : isFollowingUser
+                      : followStatus.isPending
                         ? UserCheck
-                        : UserPlus
+                        : followStatus.isFollowing
+                          ? UserCheck
+                          : UserPlus
                   }
                   themeStyles={themeStyles}
                 />
@@ -669,7 +699,9 @@ const handleMessageClick = async () => {
                 )}
               </div>
             </div>
-
+            {/* Only show content if user is public OR user is following */}
+            {(user.accountPrivacy === 'public' || followStatus.isFollowing) ? (
+              <>
             {/* Highlights Section with Arrows */}
             <div className="w-full flex justify-center items-center mb-8 md:mb-10 relative">
               {/* Left Arrow */}
@@ -712,7 +744,6 @@ const handleMessageClick = async () => {
                 <ChevronRight size={18} />
               </button>
             </div>
-
             {/* Profile Tabs & Content */}
             <div className="w-full">
               <ProfileTabs
@@ -723,10 +754,26 @@ const handleMessageClick = async () => {
                 setActiveTab={setActiveTab}
               />
             </div>
+              </>
+              ) : (
+              /* Private Account Message */
+              <div className="w-full flex flex-col items-center justify-center py-16 px-4">
+                <div className="w-20 h-20 rounded-full flex items-center justify-center mb-4" style={{ background: themeStyles.pillBg }}>
+                  <Lock size={32} style={{ color: themeStyles.textSecondary }} />
+                </div>
+                <h3 className="text-xl font-semibold mb-2" style={{ color: themeStyles.text }}>
+                  This Account is Private
+                </h3>
+                <p className="text-center text-sm max-w-sm" style={{ color: themeStyles.textSecondary }}>
+                  {followStatus.isPending 
+                    ? "Follow request sent. You'll see their posts once they approve your request."
+                    : "Follow this account to see their posts and stories."}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </main>
-
       <OtherFollowersModal
         isOpen={showFollowersModal}
         onClose={() => setShowFollowersModal(false)}

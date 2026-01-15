@@ -13,6 +13,7 @@ service WieUserService {
   rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
   rpc CheckIfBlocked(CheckBlockRequest) returns (CheckBlockResponse);
   rpc GetBlockedUserIds(UserIdRequest) returns (BlockedUsersResponse);
+  rpc GetAccountPrivacy(UserIdRequest) returns (AccountPrivacyResponse);
 }
 message GetUsersByIdsRequest {
   repeated string userIds = 1;
@@ -68,6 +69,9 @@ message CheckBlockResponse {
 message BlockedUsersResponse {
   repeated string blockedUserIds = 1;
 }
+message AccountPrivacyResponse {
+  string accountPrivacy = 1;
+}
 message WieUser {
   string id = 1;
   string email = 2;
@@ -90,4 +94,7 @@ message WieUser {
   string auth_provider = 18;
   string created_at = 19;
   string updated_at = 20;
+  string account_privacy = 22;
+  string allow_messages_from = 23;
+  bool allow_message_requests = 24;
 }

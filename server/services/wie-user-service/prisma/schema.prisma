@@ -20,7 +20,6 @@ model Country {
   
   @@map("countries")
 }
-
 model WieUser {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email           String?   @unique @db.VarChar(255)
@@ -48,6 +47,7 @@ model WieUser {
   tokenVersion    Int      @default(0) @map("token_version") 
   allowMessagesFrom String    @default("everyone") @map("allow_messages_from") @db.VarChar(20)
   allowMessageRequests Boolean   @default(false) @map("allow_message_requests")
+  accountPrivacy  String    @default("public") @map("account_privacy") @db.VarChar(20) // 'public' or 'private'
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   // Relations
@@ -55,7 +55,6 @@ model WieUser {
   otps            Otp[]
   @@map("wie_users")
 }
-
 model Otp {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String?  @map("user_id") @db.Uuid

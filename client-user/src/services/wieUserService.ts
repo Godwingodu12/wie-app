@@ -25,6 +25,13 @@ export const getIndex = async (): Promise<ApiResponse> => {
     throw err;
   }
 };
+export interface AccountPrivacyResponse{
+  success: boolean;
+  accountPrivacy: string;
+}
+export interface UpdateAccountPrivacyRequest{
+  accountPrivacy: 'public' | 'private';
+}
 export const getCountries = async (): Promise<Country[]> => {
   try {
     const res = await api.get<ApiResponse<Country[]>>('/user/countries');
@@ -297,6 +304,27 @@ export const updateHeartbeat = async (): Promise<ApiResponse> => {
     return res.data;
   } catch (err) {
     console.error('updateHeartbeat error:', err);
+    throw err;
+  }
+};
+export const getAccountPrivacy = async (): Promise<AccountPrivacyResponse> => {
+  try {
+    const res = await api.get<AccountPrivacyResponse>('/user/account-privacy');
+    return res.data;
+  } catch (err) {
+    console.error('getAccountPrivacy error:', err);
+    throw err;
+  }
+};
+
+export const updateAccountPrivacy = async (
+  data: UpdateAccountPrivacyRequest
+): Promise<AccountPrivacyResponse> => {
+  try {
+    const res = await api.put<AccountPrivacyResponse>('/user/account-privacy', data);
+    return res.data;
+  } catch (err) {
+    console.error('updateAccountPrivacy error:', err);
     throw err;
   }
 };

@@ -1,9 +1,7 @@
 'use client';
-
 import React from 'react';
 import Link from 'next/link';
 import { User, Bell, Shield, Lock, ChevronRight } from 'lucide-react';
-
 export default function SettingsPage() {
   const settingsOptions = [
     {

@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IFollow extends Document {
   followerId: string;
   followingId: string;
-  status: 'active' | 'blocked';
+  status: 'active' | 'blocked'| 'pending';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -22,7 +22,7 @@ const FollowSchema = new Schema<IFollow>(
     },
     status: { 
       type: String, 
-      enum: ['active', 'blocked'],
+      enum: ['active', 'blocked', 'pending'], 
       default: 'active' 
     },
   },

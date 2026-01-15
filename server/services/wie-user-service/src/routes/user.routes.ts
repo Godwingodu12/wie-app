@@ -1,5 +1,7 @@
 import express from 'express';
-import { index,getCountries,signupSendOtp,signupVerifyOtp,login,logout,resendOtp,getProfile,updateProfile,googleAuth,googleCallback,getMicrosoftAuthUrl,getAppleAuthUrl,forgotPassword,verifyResetOTP,resetPassword,getUserLocation,updateUserLocation, checkCanSetPassword,setPasswordForGoogleUser,changePassword,searchUsers,getUserById,getSuggestedUsers,updateHeartbeat  } from '../services/wie-user.service';
+import { index,getCountries,signupSendOtp,signupVerifyOtp,login,logout,resendOtp,getProfile,updateProfile,googleAuth,googleCallback,getMicrosoftAuthUrl,getAppleAuthUrl,forgotPassword,verifyResetOTP,resetPassword,getUserLocation,updateUserLocation, checkCanSetPassword,setPasswordForGoogleUser,changePassword,searchUsers,getUserById,getSuggestedUsers,updateHeartbeat,
+    getAccountPrivacy,updateAccountPrivacy
+  } from '../services/wie-user.service';
 import { authenticateToken } from '../middlewares/auth.middleware';
 import upload from '../middlewares/upload';
 const router: express.Router = express.Router();
@@ -28,4 +30,6 @@ router.get('/search', authenticateToken, searchUsers);
 router.get('/suggested', authenticateToken, getSuggestedUsers);
 router.get('/:userId', authenticateToken, getUserById);
 router.post('/heartbeat', authenticateToken, updateHeartbeat);
+router.get('/account-privacy', authenticateToken, getAccountPrivacy);
+router.put('/account-privacy', authenticateToken, updateAccountPrivacy);
 export default router;
