@@ -151,7 +151,95 @@ const getFollowStats = async (call: any, callback: any) => {
     callback(null, { userId: call.request.userId, followers: 0, following: 0 });
   }
 };
+const acceptFollowRequest = async (call: any, callback: any) => {
+  try {
+    const followingId = call.metadata.get('user-id')[0];
+    const { followerId } = call.request;
 
+    if (!followingId) {
+      return callback({
+        code: grpc.status.UNAUTHENTICATED,
+        message: 'User not authenticated'
+      });
+    }
+
+    await followService.acceptFollowRequest(followingId as string, followerId);
+    callback(null, { success: true, message: 'Follow request accepted' });
+  } catch (error: any) {
+    callback(null, { success: false, error: error.message });
+  }
+};
+
+const rejectFollowRequest = async (call: any, callback: any) => {
+  try {
+    const followingId = call.metadata.get('user-id')[0];
+    const { followerId } = call.request;
+
+    if (!followingId) {
+      return callback({
+        code: grpc.status.UNAUTHENTICATED,
+        message: 'User not authenticated'
+      });
+    }
+
+    await followService.rejectFollowRequest(followingId as string, followerId);
+    callback(null, { success: true, message: 'Follow request rejected' });
+  } catch (error: any) {
+    callback(null, { success: false, error: error.message });
+  }
+};
+
+const getFollowRequests = async (call: any, callback: any) => {
+  try {
+    const userId = call.metadata.get('user-id')[0];
+    const { page, limit } = call.request;
+
+    if (!userId) {
+      return callback({
+        code: grpc.status.UNAUTHENTICATED,
+        message: 'User not authenticated'
+      });
+    }
+
+    const result = await followService.getFollowRequests(
+      userId as string,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 20
+    );
+    callback(null, result);
+  } catch (error: any) {
+    callback(null, { requests: [], total: 0, error: error.message });
+  }
+};
+
+const cancelFollowRequest = async (call: any, callback: any) => {
+  try {
+    const followerId = call.metadata.get('user-id')[0];
+    const { targetUserId } = call.request;
+
+    if (!followerId) {
+      return callback({
+        code: grpc.status.UNAUTHENTICATED,
+        message: 'User not authenticated'
+      });
+    }
+
+    await followService.cancelFollowRequest(followerId as string, targetUserId);
+    callback(null, { success: true, message: 'Follow request cancelled' });
+  } catch (error: any) {
+    callback(null, { success: false, error: error.message });
+  }
+};
+
+const getFollowStatus = async (call: any, callback: any) => {
+  try {
+    const { followerId, followingId } = call.request;
+    const result = await followService.getFollowStatus(followerId, followingId);
+    callback(null, result);
+  } catch (error: any) {
+    callback(null, { isFollowing: false, isPending: false, status: 'none' });
+  }
+};
 export const startGrpcServer = (port: number = 50058) => {
   const server = new grpc.Server();
   
@@ -165,6 +253,11 @@ export const startGrpcServer = (port: number = 50058) => {
     GetRelationship: getRelationship,         
     CheckMutualFollow: checkMutualFollow,
     GetFollowStats: getFollowStats,
+    AcceptFollowRequest: acceptFollowRequest,
+    RejectFollowRequest: rejectFollowRequest,
+    GetFollowRequests: getFollowRequests,
+    CancelFollowRequest: cancelFollowRequest,
+    GetFollowStatus: getFollowStatus,
   });
 
   server.bindAsync(
