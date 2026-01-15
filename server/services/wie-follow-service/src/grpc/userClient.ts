@@ -114,8 +114,6 @@ export const decrementFollowers = async (userId: string): Promise<void> => {
     }
   });
 };
-
-// ✅ Get single user details
 export const getUserById = async (userId: string): Promise<any> => {
   return new Promise((resolve, reject) => {
     if (!userId) {
@@ -143,8 +141,6 @@ export const getUserById = async (userId: string): Promise<any> => {
     }
   });
 };
-
-// ✅ Get multiple users details (batch fetch)
 export const getUsersByIds = async (userIds: string[]): Promise<any[]> => {
   if (!userIds || userIds.length === 0) {
     return [];
@@ -160,11 +156,6 @@ export const getUsersByIds = async (userIds: string[]): Promise<any[]> => {
     return [];
   }
 };
-
-/**
- * Get follower count and following count for a user
- * This uses the follow service internally, not user service
- */
 export const getFollowerCount = async (userId: string): Promise<{ followers: number; following: number } | null> => {
   try {
     // Import Follow model to get counts
@@ -184,5 +175,27 @@ export const getFollowerCount = async (userId: string): Promise<{ followers: num
     return null;
   }
 };
+export const getAccountPrivacy = async (userId: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    if (!userId) {
+      resolve('public');
+      return;
+    }
 
+    try {
+      const grpcClient = ensureClient();
+      grpcClient.GetAccountPrivacy({ userId }, (error: any, response: any) => {
+        if (error) {
+          console.error('gRPC GetAccountPrivacy error:', error);
+          resolve('public'); // Default to public on error
+          return;
+        }
+        resolve(response?.accountPrivacy || 'public');
+      });
+    } catch (error) {
+      console.error('gRPC client error:', error);
+      resolve('public');
+    }
+  });
+};
 export default client;
