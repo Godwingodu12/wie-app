@@ -11,6 +11,7 @@ export interface User {
   role?: string;
   status?: string;
   bio?: string | null;
+  accountPrivacy?: string | null;
   followers_count?: number;
   following_count?: number;
   posts_count?: number;
@@ -137,4 +138,40 @@ export interface SearchUsersResponse {
   total: number;
   page: number;
   totalPages: number;
+}
+export interface FollowResponse {
+  success: boolean;
+  message: string;
+  followerId?: string;
+  followingId?: string;
+  status?: 'active' | 'pending';
+  isPrivateAccount?: boolean;
+}
+export interface FollowStatusResponse {
+  success: boolean;
+  isFollowing: boolean;
+  isPending: boolean;
+  status: 'active' | 'pending' | 'none';
+}
+export interface FollowRequestUser {
+  id: string;
+  requestedAt: string;
+  name?: string;
+  username?: string;
+  profile_picture?: string;
+  bio?: string;
+  is_verified?: boolean;
+}
+export interface FollowRequestsResponse {
+  requests: FollowRequestUser[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+export interface AccountPrivacyResponse {
+  success: boolean;
+  accountPrivacy: string;
+}
+export interface UpdateAccountPrivacyRequest {
+  accountPrivacy: 'public' | 'private';
 }
