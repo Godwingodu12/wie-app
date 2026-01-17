@@ -315,47 +315,45 @@ const flattenEventsWithSubEvents = (tickets) => {
   const flattenedEvents = [];
   
   tickets.forEach(ticket => {
-    // Convert to plain object if it's a Mongoose document
     const ticketObj = ticket.toObject ? ticket.toObject() : ticket;
     
     // Add main event
-    flattenedEvents.push(ticketObj);
+    flattenedEvents.push({
+      ...ticketObj,
+      isSubEvent: false,
+      parentEventId: null,
+      parentEventName: null
+    });
     
-    // Add all sub-events as separate entries with parent reference
-    if (ticketObj.sub_events && Array.isArray(ticketObj.sub_events) && ticketObj.sub_events.length > 0) {      
+    // Add all sub-events if they exist
+    if (ticketObj.sub_events && Array.isArray(ticketObj.sub_events) && ticketObj.sub_events.length > 0) {
       ticketObj.sub_events.forEach(subEvent => {
-        // Convert sub-event to plain object
         const subEventObj = subEvent.toObject ? subEvent.toObject() : subEvent;
         
-        const subEventData = {
+        flattenedEvents.push({
           ...subEventObj,
-          // Inherit necessary fields from parent
           groupId: ticketObj.groupId,
           userId: ticketObj.userId,
-          payment_type: ticketObj.payment_type,
-          // Mark as sub-event with parent info
+          payment_type: subEventObj.payment_type || ticketObj.payment_type,
           isSubEvent: true,
           parentEventId: ticketObj._id.toString(),
           parentEventName: ticketObj.event_name,
           parentEventCategory: ticketObj.event_category,
           parentEventBanner: ticketObj.event_banner,
           parentEventLogo: ticketObj.event_logo,
-          // Ensure _id is properly set
           _id: subEventObj._id,
           id: subEventObj._id.toString()
-        };
-        flattenedEvents.push(subEventData);
+        });
       });
     }
   });
-  const mainCount = tickets.length;
-  const subCount = flattenedEvents.length - mainCount;
   return flattenedEvents;
 };
 const getAllLiveEvents = async (call, callback) => {
   try {
     const tickets = await Ticket.find({ event_status: 'live' }).sort({ createdAt: -1 });
     const flattenedEvents = flattenEventsWithSubEvents(tickets);
+    
     callback(null, {
       count: flattenedEvents.length,
       tickets: flattenedEvents.map(mapTicketToProto),
@@ -378,38 +376,57 @@ const getAllGroups = async (call, callback) => {
     callback(null, { count: 0, groups: [], error: error.message });
   }
 };
-
 const getTicketById = async (call, callback) => {
   try {
     const { ticketId } = call.request;
-    if (!ticketId) {
+    
+    if (!ticketId || ticketId === 'undefined' || ticketId === 'null') {
       return callback(null, { ticket: null, error: 'Ticket ID is required' });
     }
+
+    const objectIdRegex = /^[a-f\d]{24}$/i;
+    if (!objectIdRegex.test(ticketId)) {
+      return callback(null, { ticket: null, error: 'Invalid ticket ID format' });
+    }
+
+    // Try to find as main ticket
     let ticket = await Ticket.findById(ticketId);
-    if (!ticket) {
-      ticket = await Ticket.findOne({ 'sub_events._id': ticketId });
-      if (ticket) {
-        const subEvent = ticket.sub_events.find(se => se._id.toString() === ticketId);
-        if (subEvent) {
-          const subEventData = {
-            ...subEvent.toObject(),
-            groupId: ticket.groupId,
-            userId: ticket.userId,
-            payment_type: ticket.payment_type,
-            _id: subEvent._id
-          };
-          return callback(null, { ticket: mapTicketToProto(subEventData), error: '' });
-        }
+    
+    if (ticket) {
+      return callback(null, { ticket: mapTicketToProto(ticket), error: '' });
+    }
+
+    // Try to find as sub-event (silently, no logs)
+    const parentTicket = await Ticket.findOne({ 'sub_events._id': ticketId });
+    
+    if (parentTicket) {
+      const subEvent = parentTicket.sub_events.find(
+        se => se._id.toString() === ticketId
+      );
+      
+      if (subEvent) {
+        const subEventData = {
+          ...subEvent.toObject(),
+          groupId: parentTicket.groupId,
+          userId: parentTicket.userId,
+          payment_type: subEvent.payment_type || parentTicket.payment_type,
+          _id: subEvent._id,
+          isSubEvent: true,
+          parentEventId: parentTicket._id.toString(),
+          parentEventName: parentTicket.event_name,
+          parentEventCategory: parentTicket.event_category,
+          parentEventBanner: parentTicket.event_banner,
+          parentEventLogo: parentTicket.event_logo
+        };
+        return callback(null, { ticket: mapTicketToProto(subEventData), error: '' });
       }
     }
-
-    if (!ticket) {
-      return callback(null, { ticket: null, error: 'Ticket not found' });
-    }
-
-    callback(null, { ticket: mapTicketToProto(ticket), error: '' });
+    // Not found - return silently without warning
+    return callback(null, { ticket: null, error: 'Ticket not found' });
+    
   } catch (error) {
-    callback(null, { ticket: null, error: error.message });
+    console.error('❌ [gRPC Server] Error in getTicketById:', error);
+    return callback(null, { ticket: null, error: error.message });
   }
 };
 

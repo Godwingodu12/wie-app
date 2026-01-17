@@ -5,6 +5,9 @@ const PROTO_PATH = path.join(
   __dirname,
   '../../../../protos/ticket.proto'
 );
+const isValidObjectId = (id: string): boolean => {
+  return /^[a-f\d]{24}$/i.test(id);
+};
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
   longs: String,
@@ -195,28 +198,49 @@ export const getAllGroups = async (): Promise<GetAllGroupsResponse> => {
     });
   });
 };
-
-export const getTicketById = async (ticketId: string): Promise<Ticket> => {
+export const getTicketById = async (ticketId: string): Promise<Ticket | null> => {
   return new Promise((resolve, reject) => {
+    // Validate input - return null immediately for invalid IDs
     if (!ticketId || ticketId === 'undefined' || ticketId === 'null') {
-      console.error('❌ [User Service gRPC] Invalid ticketId provided:', ticketId);
-      reject(new Error('Invalid ticket ID'));
+      resolve(null);
       return;
     }
 
-    const client = getClient();    
+    // Validate ObjectId format - return null immediately for invalid format
+    if (!isValidObjectId(ticketId)) {
+      resolve(null);
+      return;
+    }
+
+    const client = getClient();
+    
     client.GetTicketById({ ticketId }, (error: any, response: any) => {
       if (error) {
-        console.error(`❌ [User Service gRPC] Failed to fetch ticket: ${error.message}`);
+        console.error(`❌ [User Service gRPC] gRPC call failed:`, error.message);
         reject(new Error(`Failed to fetch ticket: ${error.message}`));
-      } else if (response.error) {
+        return;
+      }
+
+      // If ticket not found, return null silently (no warnings for not found)
+      if (response.error && response.error.includes('not found')) {
+        resolve(null);
+        return;
+      }
+
+      if (response.error) {
         console.error(`❌ [User Service gRPC] Ticket error: ${response.error}`);
         reject(new Error(response.error));
-      } else if (!response.ticket) {
-        console.error(`❌ [User Service gRPC] No ticket data received for: ${ticketId}`);
-        reject(new Error('Ticket not found'));
-      } else {        
+        return;
+      }
+
+      if (!response.ticket) {
+        resolve(null);
+        return;
+      }
+
+      try {
         const ticket = response.ticket;
+        
         const normalizedTicket: Ticket = {
           id: ticket.id || ticket._id,
           _id: ticket._id || ticket.id,
@@ -254,11 +278,13 @@ export const getTicketById = async (ticketId: string): Promise<Ticket> => {
         };
         
         resolve(normalizedTicket);
+      } catch (normalizationError: any) {
+        console.error(`❌ [User Service gRPC] Normalization error:`, normalizationError);
+        reject(new Error(`Failed to normalize ticket: ${normalizationError.message}`));
       }
     });
   });
 };
-
 export const getGroupById = async (groupId: string): Promise<Group> => {
   return new Promise((resolve, reject) => {
     if (!groupId || groupId === 'undefined' || groupId === 'null') {
