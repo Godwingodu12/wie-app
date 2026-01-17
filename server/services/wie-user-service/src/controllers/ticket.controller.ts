@@ -132,7 +132,6 @@ const geocodeLocation = async (location: string): Promise<{ lat: number; lng: nu
       const { lat, lng } = response.data.results[0].geometry.location;
       return { lat, lng };
     }
-
     return null;
   } catch (error) {
     console.error('Error geocoding location:', error);
@@ -366,7 +365,8 @@ export const getTicket = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { ticketId } = req.params;    
+    const { ticketId } = req.params;
+    
     if (!ticketId) {
       res.status(400).json({
         success: false,
@@ -377,15 +377,28 @@ export const getTicket = async (
 
     // Fetch all live events (now includes sub-events as separate entries)
     const allTickets = await getAllLiveEvents();
-    const events = Array.isArray(allTickets) ? allTickets : (allTickets?.tickets || []);    
+    const events = Array.isArray(allTickets) ? allTickets : (allTickets?.tickets || []);
+    
     // Find the event (can be main or sub-event)
     const eventData = events.find((event: any) => {
       const match = event._id?.toString() === ticketId || event.id?.toString() === ticketId;
       return match;
     });
+    
     if (!eventData) {
+      // Try to fetch directly from ticket service
       try {
         const ticket = await getTicketById(ticketId);
+        
+        // Check if ticket is null
+        if (!ticket) {
+          res.status(404).json({
+            success: false,
+            message: 'Event not found',
+          });
+          return;
+        }
+
         res.status(200).json({
           success: true,
           message: 'Ticket fetched successfully',
@@ -400,7 +413,7 @@ export const getTicket = async (
         });
         return;
       } catch (ticketError) {
-        console.error('❌ [Controller] Ticket not found anywhere:', ticketError);
+        console.error('❌ [Controller] Error fetching ticket:', ticketError);
         res.status(404).json({
           success: false,
           message: 'Event not found',
@@ -408,6 +421,7 @@ export const getTicket = async (
         return;
       }
     }
+
     res.status(200).json({
       success: true,
       message: 'Ticket fetched successfully',
