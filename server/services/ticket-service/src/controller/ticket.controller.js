@@ -134,35 +134,10 @@ export const updateSubEvent = async (req, res) => {
       } else {
         updateData = req.body;
       }
-      
-      // ✅ ADD THIS LOGGING
-      console.log('📥 Received updateData:', {
-        hasSeatingLayout: !!updateData.seating_layout,
-        locationType: updateData.location_type,
-        totalCapacity: updateData.total_capacity
-      });
-      
       if (updateData.seating_layout) {
-        console.log('📥 Received seating_layout structure:', {
-          hasRows: !!updateData.seating_layout.rows,
-          hasColumns: !!updateData.seating_layout.columns,
-          hasSeats: !!updateData.seating_layout.seats,
-          seatCount: updateData.seating_layout.seats?.length || 0,
-          hasAssignments: !!updateData.seating_layout.ticketTypeAssignments,
-          assignmentCount: updateData.seating_layout.ticketTypeAssignments?.length || 0,
-          sampleSeat: updateData.seating_layout.seats?.[0]
-        });
-        
         // Check for assigned seats with prices
         const assignedSeats = updateData.seating_layout.seats?.filter(s => s.ticketTypeId) || [];
         const seatsWithPrice = assignedSeats.filter(s => s.price && s.price > 0);
-        
-        console.log('📥 Seating layout seat pricing:', {
-          totalSeats: updateData.seating_layout.seats?.length || 0,
-          assignedSeats: assignedSeats.length,
-          seatsWithPrice: seatsWithPrice.length,
-          sampleAssignedSeat: assignedSeats[0]
-        });
       }
     } catch (parseError) {
       console.error('❌ Parse error:', parseError);
@@ -187,16 +162,9 @@ export const updateSubEvent = async (req, res) => {
     }
 
     const existingSubEvent = ticket.sub_events[subEventIndex];
-
-    // Process file uploads
-const uploadedFiles = await processFileUploads(req.files || {});    const guestProfileFiles = {};
-processedFiles = uploadedFiles;
-    console.log("📦 BACKEND RECEIVED FILES:", Object.keys(req.files || {}));
-console.log("☁️ CLOUDINARY UPLOADED RESULTS:", {
-  portrait: uploadedFiles.event_portrait ? "UPLOADED" : "MISSING",
-  images_count: uploadedFiles.event_images?.length || 0,
-  videos_count: uploadedFiles.event_videos?.length || 0
-});
+        // Process file uploads
+    const uploadedFiles = await processFileUploads(req.files || {});    const guestProfileFiles = {};
+    processedFiles = uploadedFiles;
     
     // Process guest profiles and ticket photos
     Object.keys(uploadedFiles).forEach(fieldName => {
@@ -2453,7 +2421,7 @@ export const getPreviousEventView = async (req, res) => {
     const { ticketId } = req.params;
 
     const ticket = await Ticket.findById(ticketId)
-      .select('event_name event_banner event_logo event_images like share total_cancellation hashtag banking_details sub_events total_capacity ticket_types totalBookings totalTicketsSold revenue event_dates groupId')
+      .select('event_name event_banner event_logo event_images event_category event_subcategory event_type location_type venue location like share total_cancellation hashtag banking_details sub_events total_capacity ticket_types totalBookings totalTicketsSold revenue event_dates groupId')
       .lean();
 
     if (!ticket) {
@@ -2472,6 +2440,18 @@ export const getPreviousEventView = async (req, res) => {
       ? Math.round((ticket.totalTicketsSold / totalCapacity) * 100) 
       : 0;
 
+    // Format sub-events with essential info only
+    const formattedSubEvents = (ticket.sub_events || []).map(subEvent => ({
+      _id: subEvent._id,
+      event_name: subEvent.event_name,
+      event_banner: subEvent.event_banner,
+      event_logo: subEvent.event_logo,
+      totalBookings: subEvent.totalBookings || 0,
+      totalRevenue: subEvent.revenue || 0,
+      totalCapacity: subEvent.total_capacity || 0,
+      totalTicketsSold: subEvent.totalTicketsSold || 0
+    }));
+
     res.status(200).json({
       success: true,
       data: {
@@ -2479,6 +2459,14 @@ export const getPreviousEventView = async (req, res) => {
         eventBanner: ticket.event_banner,
         eventLogo: ticket.event_logo,
         eventImages: ticket.event_images,
+        event_dates: ticket.event_dates,
+        event_type: ticket.event_type,
+        location_type: ticket.location_type,
+        eventCategory: ticket.event_category,
+        eventSubcategory: ticket.event_subcategory,
+        eventType: ticket.event_type,
+        venue: ticket.venue,
+        location: ticket.location,
         totalLikes: ticket.like || 0,
         totalShares: ticket.share || 0,
         totalBookings: ticket.totalBookings || 0,
@@ -2486,10 +2474,13 @@ export const getPreviousEventView = async (req, res) => {
         totalCancellations: ticket.total_cancellation || 0,
         tagCount,
         bankDetails: ticket.banking_details || [],
-        subEvents: ticket.sub_events || [],
+        subEvents: formattedSubEvents,
+        totalCapacity,
+        totalTicketsSold: ticket.totalTicketsSold || 0,
         totalCapacityPercentage,
         eventDates: ticket.event_dates || [],
-        groupId: ticket.groupId
+        groupId: ticket.groupId,
+        ticketTypes: ticket.ticket_types || []
       }
     });
   } catch (error) {
@@ -2497,6 +2488,80 @@ export const getPreviousEventView = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch event details',
+      error: error.message
+    });
+  }
+};
+export const getPreviousSubEventView = async (req, res) => {
+  try {
+    const { subEventId } = req.params;
+
+    // Find the main ticket that contains this sub-event
+    const ticket = await Ticket.findOne({ 'sub_events._id': subEventId })
+      .select('sub_events')
+      .lean();
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sub-event not found'
+      });
+    }
+
+    // Find the specific sub-event
+    const subEvent = ticket.sub_events.find(
+      se => se._id.toString() === subEventId
+    );
+
+    if (!subEvent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sub-event not found in ticket'
+      });
+    }
+
+    // Calculate tag count
+    const tagCount = subEvent.hashtag ? subEvent.hashtag.length : 0;
+
+    // Calculate total capacity percentage
+    const totalCapacity = parseInt(subEvent.total_capacity) || 0;
+    const totalTicketsSold = subEvent.totalTicketsSold || 0;
+    const totalCapacityPercentage = totalCapacity > 0 
+      ? Math.round((totalTicketsSold / totalCapacity) * 100) 
+      : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        eventName: subEvent.event_name,
+        eventBanner: subEvent.event_banner,
+        eventLogo: subEvent.event_logo,
+        eventImages: subEvent.event_images || [],
+        eventCategory: subEvent.event_category,
+        eventSubcategory: subEvent.event_subcategory,
+        eventType: subEvent.event_type,
+        venue: subEvent.venue,
+        location: subEvent.location,
+        venue: subEvent.venue,
+        totalLikes: subEvent.like || 0,
+        totalShares: subEvent.share || 0,
+        totalBookings: subEvent.totalBookings || 0,
+        totalRevenue: subEvent.revenue || 0,
+        totalCancellations: subEvent.total_cancellation || 0,
+        tagCount,
+        bankDetails: subEvent.banking_details || [],
+        totalCapacity,
+        totalTicketsSold,
+        totalCapacityPercentage,
+        eventDates: subEvent.event_dates || [],
+        ticketTypes: subEvent.ticket_types || []
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching sub-event view:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch sub-event details',
       error: error.message
     });
   }
@@ -2599,6 +2664,70 @@ export const getPreviousEventMonthlyStats = async (req, res) => {
     });
   }
 };
+export const getPreviousSubEventMonthlyStats = async (req, res) => {
+  try {
+    const { subEventId } = req.params;
+
+    // Find the main ticket that contains this sub-event
+    const ticket = await Ticket.findOne({ 'sub_events._id': subEventId })
+      .select('sub_events')
+      .lean();
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sub-event not found'
+      });
+    }
+
+    // Find the specific sub-event
+    const subEvent = ticket.sub_events.find(
+      se => se._id.toString() === subEventId
+    );
+
+    if (!subEvent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sub-event not found in ticket'
+      });
+    }
+
+    // Get date range from sub-event
+    const startDate = subEvent.event_dates?.[0]?.start_date;
+    const endDate = subEvent.event_dates?.[subEvent.event_dates.length - 1]?.end_date || startDate;
+
+    if (!startDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Sub-event dates not found'
+      });
+    }
+
+    // Fetch monthly stats from transaction service for sub-event
+    const monthlyStats = await fetchBookingStats(
+      subEventId, 
+      `monthly?startDate=${startDate}&endDate=${endDate}`
+    );
+
+    // Calculate quarterly stats based on sub-event dates
+    const quarters = generateQuarterlyStats(monthlyStats || [], startDate, endDate);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        monthlyStats: monthlyStats || [],
+        quarterStats: quarters
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching sub-event monthly stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch sub-event statistics',
+      error: error.message
+    });
+  }
+};
 export const getPreviousEventCapacityStats = async (req, res) => {
   try {
     const { ticketId } = req.params;
@@ -2692,6 +2821,86 @@ export const getPreviousEventCapacityStats = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch capacity statistics',
+      error: error.message
+    });
+  }
+};
+export const getPreviousSubEventCapacityStats = async (req, res) => {
+  try {
+    const { subEventId } = req.params;
+
+    // Find the main ticket that contains this sub-event
+    const ticket = await Ticket.findOne({ 'sub_events._id': subEventId })
+      .select('sub_events')
+      .lean();
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sub-event not found'
+      });
+    }
+
+    // Find the specific sub-event
+    const subEvent = ticket.sub_events.find(
+      se => se._id.toString() === subEventId
+    );
+
+    if (!subEvent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sub-event not found in ticket'
+      });
+    }
+
+    // Fetch ticket type stats from transaction service for this sub-event
+    const typeStats = await fetchBookingStats(subEventId, 'ticket-types');
+
+    // Calculate ticket type statistics with capacity for sub-event
+    const ticketTypeStats = (subEvent.ticket_types || []).map(type => {
+      const soldData = typeStats?.find(s => s.ticketType === type.ticket_type) || { 
+        soldCount: 0, 
+        revenue: 0 
+      };
+      const maxCapacity = type.max_capacity || 0;
+      const percentage = maxCapacity > 0 
+        ? Math.round((soldData.soldCount / maxCapacity) * 100) 
+        : 0;
+
+      return {
+        ticketType: type.ticket_type,
+        soldCount: soldData.soldCount,
+        maxCapacity,
+        percentage,
+        revenue: soldData.revenue
+      };
+    });
+
+    // Calculate overall capacity for sub-event
+    const totalCapacity = parseInt(subEvent.total_capacity) || 0;
+    const totalSold = subEvent.totalTicketsSold || 0;
+    const totalCapacityPercentage = totalCapacity > 0 
+      ? Math.round((totalSold / totalCapacity) * 100) 
+      : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        subEvent: {
+          eventId: subEvent._id,
+          eventName: subEvent.event_name,
+          totalCapacity,
+          totalSold,
+          percentage: totalCapacityPercentage,
+          ticketTypes: ticketTypeStats
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching sub-event capacity stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch sub-event capacity statistics',
       error: error.message
     });
   }
