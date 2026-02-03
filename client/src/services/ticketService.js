@@ -486,6 +486,14 @@ export const getPreviousEventView = async (ticketId) => {
     throw error;
   }
 };
+export const getPreviousSubEventView = async (subEventId) => {
+  try {
+    const response = await api.get(`ticket/previous-sub-event-view/${subEventId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
 export const getPreviousEventMonthlyStats = async (ticketId) => {
   try {
     const response = await api.get(`ticket/previous-event-monthly-stats/${ticketId}`);
@@ -494,9 +502,25 @@ export const getPreviousEventMonthlyStats = async (ticketId) => {
     throw error;
   }
 };
+export const getPreviousSubEventMonthlyStats = async (subEventId) => {
+  try {
+    const response = await api.get(`ticket/previous-sub-event-monthly-stats/${subEventId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
 export const getPreviousEventCapacityStats = async (ticketId) => {
   try {
     const response = await api.get(`ticket/previous-event-capacity-stats/${ticketId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+export const getPreviousSubEventCapacityStats = async (subEventId) => {
+  try {
+    const response = await api.get(`ticket/previous-sub-event-capacity-stats/${subEventId}`);
     return response.data;
   } catch (error) {
     throw error;
