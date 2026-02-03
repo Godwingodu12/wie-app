@@ -37,6 +37,7 @@ import BankDetails from './pages/ticket/BankDetails';
 import ViewSingleEvent from './pages/ticket/ViewSingleEvent';
 import OtherEventViewDetails from './pages/ticket/OtherEventViewDetails';
 import PreviousEventView from './pages/ticket/PreviousEventView';
+import PreviousAddonEventView from './pages/ticket/PreviousAddonEventView';
 import LiveEventView from './pages/ticket/LiveEventView';
 import ConfirmEventView from './pages/ticket/ConfirmEventView';
 import PersonalDetails from './pages/settings/PersonalDetails';
@@ -339,6 +340,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <PreviousEventView/>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/previous-sub-event-view/:subEventId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <PreviousAddonEventView/>
           </ProtectedRoute>
         }
       />
