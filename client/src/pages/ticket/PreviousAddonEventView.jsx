@@ -4,7 +4,7 @@ import WieLogo from "../../assets/HomePage/WieLogo.svg";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import BottomNavigation from "../../components/HomePage/BottomNavigation.jsx";
-import { getMyPreviousEventView, getGroupView, getPreviousEventMonthlyStats, getPreviousEventCapacityStats,getPreviousEventView } from "../../services/ticketService";
+import { getPreviousSubEventView, getPreviousSubEventMonthlyStats, getPreviousSubEventCapacityStats } from "../../services/ticketService";
 import { getImageUrl } from "../../utils/imageUtils";
 import { useSelector } from "react-redux";
 import { toast } from "react-hot-toast";
@@ -103,11 +103,10 @@ const CustomScrollbarStyles = () => (
   `}</style>
 );
 
-const PreviousEventView = () => {
-  const { ticketId } = useParams(); // Note: Change from ticketId to ticketId if needed
+const PreviousAddonEventView = () => {
+  const { subEventId } = useParams();
   const { user } = useSelector((state) => state.auth);
-  const [eventData, setEventData] = useState(null);
-  const [groupData, setGroupData] = useState(null);
+  const [subEventData, setSubEventData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -116,6 +115,7 @@ const PreviousEventView = () => {
   const [monthlyStats, setMonthlyStats] = useState([]);
   const [quarterStats, setQuarterStats] = useState([]);
   const [capacityStats, setCapacityStats] = useState(null);
+
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -130,10 +130,11 @@ const PreviousEventView = () => {
     document.documentElement.classList.toggle("dark", newTheme);
     localStorage.setItem("theme", newTheme ? "dark" : "light");
   };
+
   useEffect(() => {
     const fetchAndSetData = async () => {
-      if (!ticketId) {
-        setError("Event ID not found in URL parameters.");
+      if (!subEventId) {
+        setError("Sub-event ID not found in URL parameters.");
         setLoading(false);
         return;
       }
@@ -142,14 +143,14 @@ const PreviousEventView = () => {
         setLoading(true);
         setError(null);
         
-        // ✅ Fetch main event data
-        const eventResponse = await getPreviousEventView(ticketId);
+        // Fetch sub-event data
+        const subEventResponse = await getPreviousSubEventView(subEventId);
         
-        if (!eventResponse.success) {
-          throw new Error(eventResponse.message || "Failed to load event data");
+        if (!subEventResponse.success) {
+          throw new Error(subEventResponse.message || "Failed to load sub-event data");
         }
-  
-        const data = eventResponse.data;
+
+        const data = subEventResponse.data;
         
         // Transform data to match component structure
         const transformedData = {
@@ -157,26 +158,27 @@ const PreviousEventView = () => {
           event_banner: data.eventBanner,
           event_logo: data.eventLogo,
           event_images: data.eventImages || [],
+          event_category: data.eventCategory,
+          event_subcategory: data.eventSubcategory,
+          event_type: data.eventType,
+          venue: data.venue,
+          location: data.location,
           like: data.totalLikes,
           share_count: data.totalShares,
-          location_type: data.location_type,
-          location: data.location,
-          venue: data.venue,
           total_bookings: data.totalBookings,
           total_earnings: data.totalRevenue,
           total_cancellations: data.totalCancellations,
           hashtag: Array(data.tagCount).fill('#'),
           banking_details: data.bankDetails,
-          sub_events: data.subEvents,
           event_dates: data.eventDates,
           total_capacity: data.totalCapacity,
         };
         
-        setEventData(transformedData);
+        setSubEventData(transformedData);
   
-        // ✅ Fetch monthly and quarterly stats
+        // Fetch monthly and quarterly stats
         try {
-          const statsResponse = await getPreviousEventMonthlyStats(ticketId);
+          const statsResponse = await getPreviousSubEventMonthlyStats(subEventId);
           if (statsResponse.success) {
             setMonthlyStats(statsResponse.data.monthlyStats || []);
             setQuarterStats(statsResponse.data.quarterStats || []);
@@ -187,9 +189,9 @@ const PreviousEventView = () => {
           setQuarterStats([]);
         }
   
-        // ✅ Fetch capacity stats
+        // Fetch capacity stats
         try {
-          const capacityResponse = await getPreviousEventCapacityStats(ticketId);
+          const capacityResponse = await getPreviousSubEventCapacityStats(subEventId);
           if (capacityResponse.success) {
             setCapacityStats(capacityResponse.data);
           }
@@ -197,24 +199,10 @@ const PreviousEventView = () => {
           console.warn("Capacity stats not available:", capacityErr);
           setCapacityStats(null);
         }
-  
-        // Fetch group data if exists
-        if (data.groupId) {
-          try {
-            const groupResponse = await getGroupView(ticketId);
-            const fetchedGroupData = groupResponse?.group || null;
-            if (fetchedGroupData) {
-              setGroupData(fetchedGroupData);
-            }
-          } catch (groupErr) {
-            console.error("❌ Failed to fetch group data:", groupErr);
-            toast.error("Could not load organization details");
-          }
-        }
         
       } catch (err) {
-        console.error("Failed to fetch event data:", err);
-        const errorMessage = err?.response?.data?.message || err.message || "Failed to load event details.";
+        console.error("Failed to fetch sub-event data:", err);
+        const errorMessage = err?.response?.data?.message || err.message || "Failed to load sub-event details.";
         toast.error(errorMessage);
         setError(errorMessage);
       } finally {
@@ -223,7 +211,7 @@ const PreviousEventView = () => {
     };
   
     fetchAndSetData();
-  }, [ticketId]);
+  }, [subEventId]);
 
   const theme = isDark
     ? {
@@ -251,14 +239,6 @@ const PreviousEventView = () => {
       buttonShadow: "inset 2px 2px 4px rgba(0,0,0,0.15), inset -2px -2px 4px rgba(255,255,255,0.8)"
     };
 
-  // Neumorphism shadow style from LiveEventView
-  const neumorphShadow = {
-    boxShadow: isDark
-      ? "-2px -2px 4px rgba(60,60,60,0.3), 2px 2px 4px rgba(0,0,0,0.6)"
-      : "-2px -2px 4px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.15)",
-  };
-
-  // A darker/flatter shadow for the inner cards, derived from LiveEventView
   const cardStyle = {
     border: "3px solid transparent",
     backgroundImage: isDark
@@ -270,6 +250,7 @@ const PreviousEventView = () => {
       ? "8px 8px 12px 0px #00000029, -8px -8px 12px 0px #FFFFFF0A"
       : "8px 8px 12px 0px #0000001A, -8px -8px 12px 0px #FFFFFF80",
   };
+
   const chartData = useMemo(() => {
     if (!monthlyStats || monthlyStats.length === 0) {
       return [
@@ -292,6 +273,7 @@ const PreviousEventView = () => {
       percentage: Math.round((stat.revenue / maxRevenue) * 100)
     }));
   }, [monthlyStats]);
+
   const quarters = useMemo(() => {
     if (!quarterStats || quarterStats.length === 0) {
       return [
@@ -300,60 +282,40 @@ const PreviousEventView = () => {
     }
     return quarterStats;
   }, [quarterStats]);
-  const addOnEvents = useMemo(() => {
-    if (eventData?.sub_events?.length > 0) {
-      return eventData.sub_events.map((subEvent) => ({
-        id: subEvent._id,
-        name: subEvent.event_name,
-        banner: subEvent.event_banner,
-      }));
-    }
-    return [
-        { name: "No Add-on Events", icon: "📅", ticketId: null }
-      ];
-  }, [eventData]);
-  const handleSubEventClick = (subEventId) => {
-    if (!subEventId) return;
-    navigate(`/ticket/previous-sub-event-view/${subEventId}`);
-  };
-  const [activeIndex, setActiveIndex] = useState(Math.floor(addOnEvents.length / 2 || 1));
-  const prevAddOn = () => setActiveIndex((i) => (i - 1 + addOnEvents.length) % addOnEvents.length);
-  const nextAddOn = () => setActiveIndex((i) => (i + 1) % addOnEvents.length);
+
   // Image Modal Logic
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const allImages = useMemo(() => {
-  const images = [];
-    // Add banner if exists
-    if (eventData?.event_banner) {
-      const bannerUrl = getImageUrl(eventData.event_banner, "ticket");
+    const images = [];
+    
+    if (subEventData?.event_banner) {
+      const bannerUrl = getImageUrl(subEventData.event_banner, "ticket");
       images.push({
         path: bannerUrl,
         type: "banner",
-        name: "Event Banner",
-        originalName: "Event Banner",
+        name: "Sub-Event Banner",
+        originalName: "Sub-Event Banner",
       });
     }
 
-    // Add logo if exists
-    if (eventData?.event_logo) {
+    if (subEventData?.event_logo) {
       const logoUrl =
-        eventData.event_logo.startsWith("http://") ||
-          eventData.event_logo.startsWith("https://")
-          ? eventData.event_logo
-          : getImageUrl(eventData.event_logo, "ticket");
+        subEventData.event_logo.startsWith("http://") ||
+          subEventData.event_logo.startsWith("https://")
+          ? subEventData.event_logo
+          : getImageUrl(subEventData.event_logo, "ticket");
 
       images.push({
         path: logoUrl,
         type: "logo",
-        name: "Event Logo",
-        originalName: "Event Logo",
+        name: "Sub-Event Logo",
+        originalName: "Sub-Event Logo",
       });
     }
 
-    // Add event_images if exist
-    if (eventData?.event_images?.length > 0) {
-      eventData.event_images.forEach((img, index) => {
+    if (subEventData?.event_images?.length > 0) {
+      subEventData.event_images.forEach((img, index) => {
         const imgPath = img.path || img;
         const imgUrl =
           imgPath.startsWith("http://") || imgPath.startsWith("https://")
@@ -363,13 +325,13 @@ const PreviousEventView = () => {
         images.push({
           path: imgUrl,
           type: "event_image",
-          name: img.originalName || `Event Image ${index + 1}`,
-          originalName: img.originalName || `Event Image ${index + 1}`,
+          name: img.originalName || `Sub-Event Image ${index + 1}`,
+          originalName: img.originalName || `Sub-Event Image ${index + 1}`,
         });
       });
     }
     return images;
-  }, [eventData]);
+  }, [subEventData]);
 
   const handleEventLogoClick = () => {
     if (allImages.length > 0) {
@@ -390,29 +352,28 @@ const PreviousEventView = () => {
     setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
   };
 
-
   if (loading) {
     return (
       <div
         className={`min-h-screen flex items-center justify-center text-xl ${theme.text}`}
         style={{ backgroundColor: theme.bg.replace('bg-', '') }}
       >
-        Loading Previous Event Data...
+        Loading Sub-Event Data...
       </div>
     );
   }
 
-  if (error || !eventData) {
+  if (error || !subEventData) {
     return (
       <div
         className={`min-h-screen flex flex-col items-center justify-center text-xl text-red-400 p-8`}
         style={{ backgroundColor: theme.bg.replace('bg-', '') }}
       >
         <div className="text-center space-y-4">
-          <p className="text-2xl font-bold">Error Loading Event</p>
-          <p className="text-lg">{error || `Event with ID "${ticketId}" not found.`}</p>
+          <p className="text-2xl font-bold">Error Loading Sub-Event</p>
+          <p className="text-lg">{error || `Sub-event with ID "${subEventId}" not found.`}</p>
           <div className="text-sm text-gray-400 mt-4">
-            <p>Event ID: {ticketId}</p>
+            <p>Sub-Event ID: {subEventId}</p>
           </div>
           <button
             onClick={() => navigate(-1)}
@@ -423,9 +384,8 @@ const PreviousEventView = () => {
         </div>
       </div>
     );
-  };
+  }
 
-  // Continue with your existing JSX...
   return (
     <>
       <CustomScrollbarStyles />
@@ -435,12 +395,10 @@ const PreviousEventView = () => {
           <div className="flex items-center gap-2 md:gap-4 w-full">
             <div className="flex items-center gap-2 md:gap-4 flex-1">
               <img src={WieLogo} alt="Wie Logo" className="w-8 h-8 md:w-10 md:h-10" />
-              {/* Desktop search stays in header (hidden on mobile) */}
               <div className="hidden md:flex flex-1 min-w-0">
                 <SearchBar theme={theme} value={searchValue} onChange={(e) => setSearchValue(e.target.value)} />
               </div>
             </div>
-            {/* Desktop: Theme toggle */}
             <div className="hidden md:flex">
               <ThemeToggle isDark={isDark} onToggle={handleThemeToggle} />
             </div>
@@ -481,8 +439,6 @@ const PreviousEventView = () => {
                 />
               </button>
             </div>
-
-
           </div>
         </header>
 
@@ -498,8 +454,7 @@ const PreviousEventView = () => {
                 <ChevronLeft className="w-5 h-5 md:w-6 md:h-6 text-white" />
               </button>
 
-              {/* Desktop title (unchanged) */}
-              <h1 className={`text-xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>Previous Event</h1>
+              <h1 className={`text-xl md:text-2xl lg:text-3xl font-bold ${theme.text}`}>Previous Add-on Event</h1>
             </div>
 
             {/* MOBILE: Search bar under the top row */}
@@ -508,14 +463,14 @@ const PreviousEventView = () => {
             </div>
 
             <div className={`rounded-2xl md:rounded-3xl p-4 md:p-6 lg:p-10`} style={cardStyle}>
-              {/* Event category row (desktop: above, mobile: we'll show mobile-specific below) */}
+              {/* Event category row (desktop) */}
               <div className="hidden md:flex items-center justify-start gap-2 md:gap-4 mb-3">
                 <span className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}>
-                  {eventData.event_category?.toUpperCase()}
+                  {subEventData.event_category?.toUpperCase()}
                 </span>
-                <span className={theme.subText}></span>
+                <span className={theme.subText}>•</span>
                 <span className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}>
-                  {eventData.event_subcategory?.toUpperCase()}
+                  {subEventData.event_subcategory?.toUpperCase()}
                 </span>
               </div>
 
@@ -524,23 +479,24 @@ const PreviousEventView = () => {
                 {/* MOBILE: Title, subheading + public, center image, then pill-like location/date stacked */}
                 <div className="md:hidden flex flex-col items-center gap-3">
                   <h2 className={`text-xl font-extrabold tracking-wider text-center ${theme.text}`}>
-                    {eventData.event_name?.toUpperCase() || "EVENT NAME"}
+                    {subEventData.event_name?.toUpperCase() || "SUB-EVENT NAME"}
                   </h2>
-                  {/* subheading + public in one line */}
+                  
                   <div className="flex items-center gap-2">
                     <span className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}>
-                      {eventData.event_category?.toUpperCase()}
+                      {subEventData.event_category?.toUpperCase()}
                     </span>
                     <span className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}>
-                      {eventData.event_subcategory?.toUpperCase()}
+                      {subEventData.event_subcategory?.toUpperCase()}
                     </span>
                     <div className="flex items-center gap-2 ml-2">
                       <img src={PublicIcon} alt="Public" className="w-4 h-4" />
                       <span className={`font-semibold text-sm md:text-lg ${theme.text}`}>
-                        {eventData.event_type === "private" ? "Private" : "Public"}
+                        {subEventData.event_type === "private" ? "Private" : "Public"}
                       </span>
                     </div>
                   </div>
+
                   <div
                     onClick={handleEventLogoClick}
                     className="rounded-full border-4 bg-black flex items-center justify-center cursor-pointer hover:scale-105 transition-transform overflow-hidden"
@@ -551,10 +507,9 @@ const PreviousEventView = () => {
                     }}
                   >
                     <img
-                      src={getImageUrl(eventData.event_banner)}
-                      alt="event_banner"
+                      src={getImageUrl(subEventData.event_banner)}
+                      alt="sub_event_banner"
                       className="w-full h-full object-cover rounded-full"
-                      style={{ width: "100%", height: "100%" }}
                     />
                   </div>
 
@@ -570,7 +525,6 @@ const PreviousEventView = () => {
                       }}
                     >
                       <div className="relative flex items-center gap-2 w-full">
-                        {/* Floating circle logo (left) */}
                         <div
                           className="absolute -top-4 -left-3 w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
                           style={{
@@ -580,16 +534,18 @@ const PreviousEventView = () => {
                           <img src={MapIcon} alt="map" className="w-6 h-6" />
                         </div>
 
-                        {/* Text content */}
                         <div className="pl-12 flex items-center gap-1 overflow-hidden">
                           <h3 className={`font-semibold text-sm ${theme.text}`}>
-                            {eventData.venue || eventData.location_type}
+                            {subEventData.venue || "Online/Recorded"}
                           </h3>
-
+                          <span className={`text-xs ${theme.subText} truncate`}>
+                            {subEventData.location }
+                          </span>
                         </div>
                       </div>
                     </div>
-                    {/* Date pill (inline text + floating icon) */}
+
+                    {/* Date pill */}
                     <div
                       className="relative rounded-full p-3 flex items-center justify-between w-[90%] max-w-[320px]"
                       style={{
@@ -598,12 +554,11 @@ const PreviousEventView = () => {
                           : "linear-gradient(180deg, rgba(0,0,0,0.03), rgba(0,0,0,0.01))",
                       }}
                     >
-                      {/* Inline date text */}
                       <div className="flex items-center gap-1 pl-2">
                         <span className={`text-xs ${theme.subText}`}>Event on :</span>
                         <span className={`font-bold text-sm ${theme.text}`}>
-                          {eventData.event_dates?.[0]?.start_date
-                            ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
+                          {subEventData.event_dates?.[0]?.start_date
+                            ? new Date(subEventData.event_dates[0].start_date).toLocaleDateString("en-US", {
                               day: "2-digit",
                               month: "long",
                               year: "numeric",
@@ -612,9 +567,8 @@ const PreviousEventView = () => {
                             : "Date TBA"}
                         </span>
                       </div>
-                      {/* Floating calendar icon (right) */}
                       <div
-                        className="absolute  -right-3 w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
+                        className="absolute -right-3 w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
                         style={{
                           background: "linear-gradient(180.23deg, #8b5cf6 0%, #6366f1 100%)",
                         }}
@@ -623,52 +577,52 @@ const PreviousEventView = () => {
                       </div>
                     </div>
                   </div>
-
-
                 </div>
 
-                {/* Desktop: Public badge (keeps original desktop look) */}
+                {/* Desktop: Public badge */}
                 <div className="absolute -top-4 md:-top-6 right-0 hidden md:flex items-center gap-2">
                   <img src={PublicIcon} className={`w-5 h-5 md:w-6 md:h-6 ${!isDark ? 'filter brightness-0' : ''}`} alt="Public" />
                   <span className={`font-semibold text-sm md:text-lg ${theme.text}`}>
-                    {eventData.event_type === "private" ? "Private" : "Public"}
+                    {subEventData.event_type === "private" ? "Private" : "Public"}
                   </span>
                 </div>
-                {/* Desktop Title (keep for desktop only) */}
+
+                {/* Desktop Title */}
                 <h2 className={`hidden md:block text-xl md:text-2xl lg:text-3xl font-extrabold tracking-wider mb-3 text-center pb-4 ${theme.text}`}>
-                  {eventData.event_name?.toUpperCase() || "EVENT NAME"}
+                  {subEventData.event_name?.toUpperCase() || "SUB-EVENT NAME"}
                 </h2>
-                {/* Event details bar - Desktop only (hidden on mobile because mobile has stacked pills) */}
+
+                {/* Event details bar - Desktop only */}
                 <div className="relative w-full">
                   <div className="mx-auto w-full md:w-[85%] lg:w-[80%]">
                     <div
                       className={`rounded-xl md:rounded-2xl px-4 md:px-8 py-3 md:py-4 flex flex-col md:flex-row items-center justify-between gap-3 md:gap-0 hidden md:flex`}
                       style={{ backgroundColor: theme.innerCardBg.replace('bg-', ''), boxShadow: theme.insetShadow, minHeight: '60px' }}
                     >
-                      {/* Location */}
-                      <div className="flex items-center md:pl-[50px] lg:pl-[95px]">
-                        <div className="relative group max-w-[160px] md:max-w-[220px]">
-                          <span
-                            className={`text-xs md:text-sm ${theme.subText} truncate cursor-default block`}
-                          >
-                            {eventData.location || eventData.location_type}
-                          </span>
+                    {/* Location */}
+                    <div className="flex items-center gap-2 md:gap-3 relative group max-w-[180px] md:max-w-[260px]">
+                    <span
+                        className={`text-xs md:text-sm ${theme.subText} truncate cursor-default`}
+                    >
+                        {subEventData.location}
+                    </span>
 
-                          {(eventData.location || eventData.location_type)?.length > 25 && (
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-50">
-                              <div className="bg-black text-white text-[10px] md:text-xs px-2 py-1 rounded shadow-lg max-w-xs whitespace-normal text-center">
-                                {eventData.location || eventData.location_type}
-                              </div>
-                            </div>
-                          )}
+                    {/* Tooltip */}
+                    {subEventData.location?.length > 25 && (
+                        <div className="absolute bottom-full mb-1 hidden group-hover:block z-50">
+                        <div className="bg-black text-white text-[10px] md:text-xs px-2 py-1 rounded shadow-lg max-w-xs whitespace-normal">
+                            {subEventData.location}
                         </div>
-                      </div>
+                        </div>
+                    )}
+                    </div>
+
                       {/* Date */}
                       <div className="flex items-center gap-2 md:gap-3 md:pr-[50px] lg:pr-[95px]">Event Start Date:
                         <img src={CalenderIcon} className={`w-4 h-4 md:w-5 md:h-5 ${!isDark ? 'filter brightness-0' : ''}`} alt="Calendar" />
                         <span className={`font-bold text-sm ${theme.text}`}>
-                          {eventData.event_dates?.[0]?.start_date
-                            ? new Date(eventData.event_dates[0].start_date).toLocaleDateString("en-US", {
+                          {subEventData.event_dates?.[0]?.start_date
+                            ? new Date(subEventData.event_dates[0].start_date).toLocaleDateString("en-US", {
                               day: "2-digit",
                               month: "long",
                               year: "numeric",
@@ -686,7 +640,7 @@ const PreviousEventView = () => {
                     <div
                       className="absolute top-1/2 transform -translate-y-1/2 flex items-center justify-center rounded-full"
                       style={{
-                        left: "2%", // Adjusted for tablet/desktop visibility
+                        left: "2%",
                         width: "clamp(50px, 7vw, 90px)",
                         height: "clamp(50px, 7vw, 90px)",
                         boxShadow: "0 8px 20px rgba(0,0,0,0.6)",
@@ -712,8 +666,8 @@ const PreviousEventView = () => {
                         }}
                       >
                         <img
-                          src={getImageUrl(eventData.event_banner)}
-                          alt="Event Banner"
+                          src={getImageUrl(subEventData.event_banner)}
+                          alt="Sub-Event Banner"
                           className="w-full h-full object-cover rounded-full"
                         />
                       </div>
@@ -723,7 +677,7 @@ const PreviousEventView = () => {
                     <div
                       className="absolute top-1/2 transform -translate-y-1/2 flex items-center justify-center rounded-full"
                       style={{
-                        right: "2%", // Adjusted for tablet/desktop visibility
+                        right: "2%",
                         width: "clamp(50px, 7vw, 90px)",
                         height: "clamp(50px, 7vw, 90px)",
                         boxShadow: "0 8px 20px rgba(0,0,0,0.6)",
@@ -748,55 +702,53 @@ const PreviousEventView = () => {
               {/* Stats and chart grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 lg:gap-8 mb-6 md:mb-8">
                 {/* Stats card */}
-                {/* Stats card */}
                 <div className={`rounded-2xl md:rounded-3xl px-4 md:px-6 lg:px-8 py-4 md:py-6`} style={{ ...cardStyle }}>
                   <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
-                    {/* BoxIcon: show only on large desktop to preserve original desktop UI and hide on mobile/ipad */}
-                    <img src={BoxIcon} alt="Stats" className={`hidden sm:block  lg:block w-5 h-5 md:w-6 md:h-6 transition duration-300 ${isDark ? 'invert' : 'brightness-0'}`} />
-                    <h3 className={`hidden sm:block text-lg md:text-xl lg:text-2xl font-bold tracking-wide ${theme.text}`}>{eventData.event_name}</h3>
+                    <img src={BoxIcon} alt="Stats" className={`hidden sm:block lg:block w-5 h-5 md:w-6 md:h-6 transition duration-300 ${isDark ? 'invert' : 'brightness-0'}`} />
+                    <h3 className={`hidden sm:block text-lg md:text-xl lg:text-2xl font-bold tracking-wide ${theme.text}`}>{subEventData.event_name}</h3>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 lg:gap-6 w-full">
-                  {[
-                    { 
-                      title: "Total event earnings", 
-                      value: eventData.total_earnings || "0", 
-                      accent: "text-emerald-400", 
-                      icon: EarningIcon 
-                    },
-                    { 
-                      title: "Total bookings", 
-                      value: eventData.total_bookings || "0", 
-                      accent: "text-blue-400", 
-                      icon: TicketIcon, 
-                      isBlue: true 
-                    },
-                    { 
-                      title: "Total cancellation", 
-                      value: eventData.total_cancellations || "0", 
-                      accent: "text-red-400", 
-                      icon: CancelIcon 
-                    },
-                    { 
-                      title: "People liked", 
-                      value: eventData.like || "0", 
-                      accent: "text-red-400", 
-                      icon: LikeIcon 
-                    },
-                    { 
-                      title: "People Shared", 
-                      value: eventData.share_count || "0", 
-                      accent: "text-blue-400", 
-                      icon: ShareIcon, 
-                      needsInvert: true 
-                    },
-                    { 
-                      title: "Tag Count", 
-                      value: eventData.hashtag?.length || "0", 
-                      accent: isDark ? "text-white" : "text-gray-900", 
-                      icon: TagIcon, 
-                      needsInvert: true 
-                    }
-                  ].map((st, i) => (
+                    {[
+                      { 
+                        title: "Total event earnings", 
+                        value: subEventData.total_earnings || "0", 
+                        accent: "text-emerald-400", 
+                        icon: EarningIcon 
+                      },
+                      { 
+                        title: "Total bookings", 
+                        value: subEventData.total_bookings || "0", 
+                        accent: "text-blue-400", 
+                        icon: TicketIcon, 
+                        isBlue: true 
+                      },
+                      { 
+                        title: "Total cancellation", 
+                        value: subEventData.total_cancellations || "0", 
+                        accent: "text-red-400", 
+                        icon: CancelIcon 
+                      },
+                      { 
+                        title: "People liked", 
+                        value: subEventData.like || "0", 
+                        accent: "text-red-400", 
+                        icon: LikeIcon 
+                      },
+                      { 
+                        title: "People Shared", 
+                        value: subEventData.share_count || "0", 
+                        accent: "text-blue-400", 
+                        icon: ShareIcon, 
+                        needsInvert: true 
+                      },
+                      { 
+                        title: "Tag Count", 
+                        value: subEventData.hashtag?.length || "0", 
+                        accent: isDark ? "text-white" : "text-gray-900", 
+                        icon: TagIcon, 
+                        needsInvert: true 
+                      }
+                    ].map((st, i) => (
                       <div
                         key={i}
                         className={`relative rounded-2xl md:rounded-3xl p-3 md:p-4 lg:p-6 flex flex-col justify-between w-full h-full`}
@@ -805,8 +757,7 @@ const PreviousEventView = () => {
                         <img
                           src={st.icon}
                           alt=""
-                          className={`w-4 h-4 md:w-5 md:h-5 absolute top-3 md:top-6 right-2 md:right-3 ${st.isBlue ? "" : st.needsInvert && !isDark ? "filter brightness-0" : "opacity-80"
-                            }`}
+                          className={`w-4 h-4 md:w-5 md:h-5 absolute top-3 md:top-6 right-2 md:right-3 ${st.isBlue ? "" : st.needsInvert && !isDark ? "filter brightness-0" : "opacity-80"}`}
                           style={
                             st.isBlue
                               ? {
@@ -825,19 +776,7 @@ const PreviousEventView = () => {
 
                         <div className="flex items-end justify-between pt-1 md:pt-2 pb-1 md:pb-2">
                           <div className={`text-xl md:text-2xl lg:text-[2.3rem] font-extrabold ${st.accent}`}>
-                            {st.title === "Total event earnings"
-                              ? eventData.total_earnings || "0"
-                              : st.title === "Total bookings"
-                                ? eventData.total_bookings || "0"
-                                : st.title === "Total cancellation"
-                                  ? eventData.total_cancellations || "0"
-                                  : st.title === "People liked"
-                                    ? eventData.like || "0"
-                                    : st.title === "People Shared"
-                                      ? eventData.share_count || "0"
-                                      : st.title === "Tag Count"
-                                        ? eventData.hashtag?.length || "0"
-                                        : st.value}
+                            {st.value}
                           </div>
                         </div>
                       </div>
@@ -850,7 +789,7 @@ const PreviousEventView = () => {
                   <div className="flex items-center justify-between mb-4 md:mb-6">
                     <div className="flex items-center gap-2 md:gap-3">
                       <img src={LiveEventIcon} alt="Live Events" className="w-4 h-4 md:w-6 md:h-6" />
-                      <h3 className={`text-xs md:text-lg font-bold tracking-wide ${theme.text}`}>PREVIOUS EVENT EARNING STATISTICS</h3>
+                      <h3 className={`text-xs md:text-lg font-bold tracking-wide ${theme.text}`}>SUB-EVENT EARNING STATISTICS</h3>
                     </div>
 
                     <div className="flex items-center gap-1 text-emerald-400 text-xs md:text-sm font-semibold">
@@ -860,9 +799,9 @@ const PreviousEventView = () => {
                   </div>
 
                   <div className="mb-3 md:mb-4">
-                    <span className={`text-xs md:text-sm ${theme.subText}`}>Bellie Ellish Concert</span>
+                    <span className={`text-xs md:text-sm ${theme.subText}`}>{subEventData.event_name}</span>
                     <div className="flex items-end gap-2 md:gap-4 mt-2">
-                      <span className={`text-2xl md:text-3xl font-bold leading-none ${theme.text}`}>66,672.61</span>
+                      <span className={`text-2xl md:text-3xl font-bold leading-none ${theme.text}`}>{subEventData.total_earnings || "0"}</span>
                       <span className={`text-xs self-end ${theme.subText}`}>Total amount</span>
                     </div>
                   </div>
@@ -895,164 +834,34 @@ const PreviousEventView = () => {
                   </div>
                 </div>
               </div>
-              {/* Add-on section */}
-              {/* Mobile / iPad specific layout: md:hidden -> show compact company + add-on in one line, then actions row below */}
-              <div className="md:hidden mb-6 px-2">
-                <div className="flex items-center gap-2 w-full overflow-hidden">
-                  {/* compact company */}
-                  <div className="flex-shrink-0 flex flex-col items-center">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center overflow-hidden">
-                      <img src={getImageUrl(eventData.event_banner)} alt="company" className="w-full h-full object-cover" />
-                    </div>
-                    <span className={`text-[10px] sm:text-xs mt-1 ${theme.text}`}>Company</span>
-                  </div>
-                  {/* add-on icons inline with horizontal scroll if needed - Only show if sub-events exist */}
-                  {addOnEvents && addOnEvents.length > 0 && addOnEvents[0]?.id && (
-                    <div className="flex-1 min-w-0">
-                      <div className={`rounded-xl sm:rounded-2xl p-2 sm:p-3 flex items-center gap-1.5 sm:gap-2 ${theme.cardBg ?? ''}`} style={cardStyle}>
-                        <span className={`text-xs sm:text-sm font-bold whitespace-nowrap flex-shrink-0 ${theme.text}`}>Add on events</span>
 
-                        <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar flex-1 min-w-0 py-1">
-                          {addOnEvents.map((subEvent) => (
-                            <button
-                              key={subEvent.id}
-                              onClick={() => handleSubEventClick(subEvent.id)}
-                              className="flex-shrink-0 flex flex-col items-center gap-1 cursor-pointer"
-                            >
-                              <div className="w-14 h-14 rounded-full overflow-hidden border border-gray-600 hover:scale-105 transition">
-                                <img
-                                  src={getImageUrl(subEvent.banner, "ticket")}
-                                  alt={subEvent.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                              <span className="text-[10px] text-center text-white truncate max-w-[56px]">
-                                {subEvent.name}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+              {/* Company + Action buttons section - Desktop & Mobile */}
+              <div className="mb-6 md:mb-10">
+                <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-8">
+                  {/* Company Logo */}
+                  <div className="flex flex-col items-center">
+                    <div className="w-16 h-16 md:w-20 md:h-20 bg-white rounded-full flex items-center justify-center overflow-hidden shadow-lg">
+                      <img src={getImageUrl(subEventData.event_banner)} alt="company" className="w-full h-full object-cover" />
                     </div>
-                  )}
-                </div>
-                {/* actions in next line: try to keep all three visible on mobile and iPad; allow horizontal scroll on very narrow */}
-                <div className="mt-3 sm:mt-4">
-                  <div className="flex items-center justify-center gap-4 sm:gap-6 overflow-x-auto no-scrollbar px-2">
+                    <span className={`text-sm md:text-base font-semibold mt-2 ${theme.text}`}>Company</span>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-center gap-4 md:gap-8">
                     {[
                       { icon: ViewIcon, label: "View" },
                       { icon: SeatIcon, label: "Seat layout" },
                       { icon: TicketIcon, label: "Ticket info" }
                     ].map((action, idx) => (
-                      <div key={idx} className="flex flex-col items-center flex-shrink-0 w-16 sm:w-20">
+                      <div key={idx} className="flex flex-col items-center">
                         <button
-                          className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
+                          className="w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
                           style={{ background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)" }}
                           aria-label={action.label}
                         >
-                          <img src={action.icon} alt={action.label} className="w-5 h-5 sm:w-6 sm:h-6" />
+                          <img src={action.icon} alt={action.label} className="w-6 h-6 md:w-8 md:h-8" />
                         </button>
-                        <span className={`text-[10px] sm:text-xs mt-1.5 sm:mt-2 text-center ${theme.text}`}>{action.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Desktop / md+ responsive grid layout */}
-              <div className="hidden md:grid grid-cols-12 gap-4 lg:gap-6 items-center mb-6 md:mb-10">
-                {/* Company */}
-                <div className={`col-span-3 lg:col-span-2 rounded-xl md:rounded-2xl p-4 md:p-6 flex flex-col items-center h-full justify-center`}>
-                  <div className="w-16 h-16 lg:w-20 lg:h-20 bg-white rounded-full flex items-center justify-center mb-2 overflow-hidden">
-                    <img src={getImageUrl(eventData.event_banner)} alt="company" className="w-full h-full object-cover" />
-                  </div>
-                  <span className={`text-sm lg:text-base font-semibold ${theme.text} text-center`}>Company</span>
-                </div>
-
-                {/* Add on Events - Only show if sub-events exist */}
-                {addOnEvents && addOnEvents.length > 0 && addOnEvents[0]?.id && (
-                  <div
-                    className={`col-span-12 md:col-span-9 lg:col-span-6 rounded-2xl md:rounded-3xl p-3 md:p-4 flex flex-col items-center h-full justify-center w-full ${theme.cardBg ?? ''}`}
-                    style={cardStyle}
-                  >
-                    <div className="flex items-center w-full justify-between relative px-2">
-                      <span className={`text-sm md:text-base lg:text-lg font-bold ${theme.text} whitespace-nowrap`}>Add on events</span>
-
-                      <div className="flex items-center gap-2 flex-1 justify-center min-w-0 mx-2">
-                        <button
-                          onClick={prevAddOn}
-                          className="w-8 h-8 md:w-10 md:h-10 bg-white shadow-lg rounded-full flex items-center justify-center z-30 flex-shrink-0 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer text-gray-800"
-                          aria-label="previous"
-                        >
-                          <svg className="w-3 h-3 md:w-4 md:h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M15 19l-7-7 7-7" />
-                          </svg>
-                        </button>
-
-                        <div className="relative flex-1 flex items-center justify-center overflow-hidden h-20 md:h-28">
-                          <div className="flex items-center gap-2 md:gap-4 justify-center w-full">
-                            {addOnEvents?.map((subEvent) => {
-                              return (
-                                <div
-                                  key={subEvent.id}
-                                  onClick={() => handleSubEventClick(subEvent.id)}
-                                  className="flex flex-col items-center justify-center transition-all duration-300 cursor-pointer flex-shrink"
-                                  style={{
-                                    transform: "scale(0.95)",
-                                    opacity: 0.9,
-                                  }}
-                                >
-                                  <div
-                                    className="flex items-center justify-center rounded-full overflow-hidden shadow-md
-                                      w-10 h-10 md:w-16 md:h-16 lg:w-20 lg:h-20
-                                      transition-all duration-200"
-                                  >
-                                    <img
-                                      src={getImageUrl(subEvent.banner, "ticket")}
-                                      alt={subEvent.name}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </div>
-
-                                  <span className="mt-1 text-[10px] md:text-xs text-center text-white truncate max-w-[80px]">
-                                    {subEvent.name}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <button
-                          onClick={nextAddOn}
-                          className="w-8 h-8 md:w-10 md:h-10 bg-white shadow-lg rounded-full flex items-center justify-center z-30 flex-shrink-0 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer text-gray-800"
-                          aria-label="next"
-                        >
-                          <svg className="w-3 h-3 md:w-4 md:h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Action buttons - Adjust column span based on whether add-on events exist */}
-                <div className={`col-span-12 ${addOnEvents && addOnEvents.length > 0 && addOnEvents[0]?.id ? 'lg:col-span-4' : 'lg:col-span-10'} w-full flex justify-center lg:justify-end`}>
-                  <div className="flex items-center gap-4 lg:gap-8 justify-between w-full lg:w-auto">
-                    {[
-                      { icon: ViewIcon, label: "View" },
-                      { icon: SeatIcon, label: "Seat layout" },
-                      { icon: TicketIcon, label: "Ticket info" }
-                    ].map((action, idx) => (
-                      <div key={idx} className="flex flex-col items-center flex-1 lg:flex-none w-auto">
-                        <button
-                          className="w-14 h-14 lg:w-16 lg:h-16 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
-                          style={{ background: "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)" }}
-                          aria-label={action.label}
-                        >
-                          <img src={action.icon} alt={action.label} className="w-7 h-7 lg:w-8 lg:h-8" />
-                        </button>
-                        <span className={`text-xs lg:text-sm mt-2 font-medium text-center ${theme.text} whitespace-nowrap`}>{action.label}</span>
+                        <span className={`text-xs md:text-sm mt-2 font-medium ${theme.text}`}>{action.label}</span>
                       </div>
                     ))}
                   </div>
@@ -1069,8 +878,8 @@ const PreviousEventView = () => {
                       <h3 className={`text-lg md:text-xl font-extrabold tracking-wide ${theme.text}`}>Bank Details</h3>
                     </div>
                     <div className="space-y-2 md:space-y-3 mb-6 md:mb-8 text-xs md:text-sm">
-                      {eventData.banking_details && eventData.banking_details.length > 0 ? (
-                        eventData.banking_details.map((bank, idx) => (
+                      {subEventData.banking_details && subEventData.banking_details.length > 0 ? (
+                        subEventData.banking_details.map((bank, idx) => (
                           <div key={idx} className="space-y-2">
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                               <div className="flex items-center gap-2">
@@ -1082,7 +891,7 @@ const PreviousEventView = () => {
                               <div className="flex items-center gap-2">
                                 <p className={`text-xs ${theme.subText}`}>Amount before event :</p>
                                 <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>
-                                  {eventData.total_earnings ? (eventData.total_earnings * 0.1).toFixed(2) : "0"}
+                                  {subEventData.total_earnings ? (subEventData.total_earnings * 0.1).toFixed(2) : "0"}
                                 </p>
                               </div>
                             </div>
@@ -1096,7 +905,7 @@ const PreviousEventView = () => {
                               <div className="flex items-center gap-2">
                                 <p className={`text-xs ${theme.subText}`}>Amount after event :</p>
                                 <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>
-                                  {eventData.total_earnings || "0"}
+                                  {subEventData.total_earnings || "0"}
                                 </p>
                               </div>
                             </div>
@@ -1110,7 +919,7 @@ const PreviousEventView = () => {
                               <div className="flex items-center gap-2">
                                 <p className={`text-xs ${theme.subText}`}>Total Profit :</p>
                                 <p className={`text-xs md:text-sm font-semibold ${theme.text}`}>
-                                  {eventData.total_earnings ? (eventData.total_earnings * 0.9).toFixed(2) : "0"}
+                                  {subEventData.total_earnings ? (subEventData.total_earnings * 0.9).toFixed(2) : "0"}
                                 </p>
                               </div>
                             </div>
@@ -1120,6 +929,7 @@ const PreviousEventView = () => {
                         <p className={`text-sm ${theme.subText}`}>No banking details available</p>
                       )}
                     </div>
+                    
                     {/* Download button */}
                     <div className="w-full flex justify-center mt-4">
                       <div className="relative flex items-center w-full md:w-[250px]">
@@ -1165,7 +975,6 @@ const PreviousEventView = () => {
 
                   {/* Quarters */}
                   <div className="relative flex-1 w-full">
-                    {/* Scrollbar on left */}
                     <div className="absolute top-0 left-0 h-full w-2 bg-transparent z-10"></div>
 
                     <div className="md:pl-4 md:pr-2 max-h-full md:max-h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#6a47fa] scrollbar-track-transparent [direction:rtl]">
@@ -1230,17 +1039,18 @@ const PreviousEventView = () => {
                       </div>
                     </div>
                   </div>
+
                   {/* Divider - Hidden on mobile */}
                   <div className={`hidden md:block w-px bg-[#6a47fa]`} />
-                  {/* Donut chart (bigger + responsive inner text) */}
+
+                  {/* Donut chart */}
                   <div className="w-full md:w-[25%] flex flex-col items-center justify-center mt-6 md:mt-0 border-t md:border-t-0 md:border-l border-gray-200/50 pt-6 md:pt-0 md:pr-12">
-                    {/* control visual size with Tailwind widths; SVG scales inside */}
                     <div className="relative w-40 sm:w-48 md:w-32 lg:w-48 xl:w-56 max-w-full overflow-visible">
                       {(() => {
                         const R = 80;
                         const stroke = 16;
-                        const progress = capacityStats?.mainEvent?.percentage 
-                          ? capacityStats.mainEvent.percentage / 100 
+                        const progress = capacityStats?.subEvent?.percentage 
+                          ? capacityStats.subEvent.percentage / 100 
                           : 0.85;
                         const C = 2 * Math.PI * R;
                         return (
@@ -1287,7 +1097,7 @@ const PreviousEventView = () => {
                             fontSize: "clamp(18px, 3.5vw, 32px)",
                           }}
                         >
-                          {capacityStats?.mainEvent?.percentage || 0}%
+                          {capacityStats?.subEvent?.percentage || 0}%
                         </span>
                         <span
                           className={`${theme.subText} font-medium`}
@@ -1307,7 +1117,7 @@ const PreviousEventView = () => {
                       </div>
                     </div>
                     <p className={`text-center text-xs md:text-sm font-semibold mt-3 w-full ${theme.subText}`}>
-                      Total earnings: ₹{eventData.total_earnings || 0}
+                      Total earnings: ₹{subEventData.total_earnings || 0}
                     </p>
                   </div>
                 </div>
@@ -1324,6 +1134,7 @@ const PreviousEventView = () => {
           />
         </div>
       </div>
+
       {/* Add Image Modal */}
       {showImageModal && (
         <ImageModal
@@ -1340,4 +1151,4 @@ const PreviousEventView = () => {
     </>
   );
 };
-export default PreviousEventView;
+export default PreviousAddonEventView;
