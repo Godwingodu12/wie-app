@@ -159,6 +159,9 @@ const PreviousEventView = () => {
           event_images: data.eventImages || [],
           like: data.totalLikes,
           share_count: data.totalShares,
+          location_type: data.location_type,
+          location: data.location,
+          venue: data.venue,
           total_bookings: data.totalBookings,
           total_earnings: data.totalRevenue,
           total_cancellations: data.totalCancellations,
@@ -298,22 +301,20 @@ const PreviousEventView = () => {
     return quarterStats;
   }, [quarterStats]);
   const addOnEvents = useMemo(() => {
-    if (eventData?.sub_events && eventData.sub_events.length > 0) {
-      return eventData.sub_events.map(subEvent => ({
+    if (eventData?.sub_events?.length > 0) {
+      return eventData.sub_events.map((subEvent) => ({
         id: subEvent._id,
         name: subEvent.event_name,
-        icon: "🎭", // You can map categories to icons
-        ticketId: subEvent._id
+        banner: subEvent.event_banner,
       }));
     }
     return [
-      { name: "No Add-on Events", icon: "📅", ticketId: null }
-    ];
+        { name: "No Add-on Events", icon: "📅", ticketId: null }
+      ];
   }, [eventData]);
-  const handleSubEventClick = (subEventTicketId) => {
-    if (subEventTicketId) {
-      navigate(`/previous-event/${subEventTicketId}`);
-    }
+  const handleSubEventClick = (subEventId) => {
+    if (!subEventId) return;
+    navigate(`/ticket/previous-sub-event-view/${subEventId}`);
   };
   const [activeIndex, setActiveIndex] = useState(Math.floor(addOnEvents.length / 2 || 1));
   const prevAddOn = () => setActiveIndex((i) => (i - 1 + addOnEvents.length) % addOnEvents.length);
@@ -512,7 +513,7 @@ const PreviousEventView = () => {
                 <span className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}>
                   {eventData.event_category?.toUpperCase()}
                 </span>
-                <span className={theme.subText}>|</span>
+                <span className={theme.subText}></span>
                 <span className={`uppercase text-xs font-semibold tracking-widest ${theme.subText}`}>
                   {eventData.event_subcategory?.toUpperCase()}
                 </span>
@@ -582,15 +583,12 @@ const PreviousEventView = () => {
                         {/* Text content */}
                         <div className="pl-12 flex items-center gap-1 overflow-hidden">
                           <h3 className={`font-semibold text-sm ${theme.text}`}>
-                            {eventData.venue || "Online/Recorded"}
+                            {eventData.venue || eventData.location_type}
                           </h3>
-                          <span className={`text-xs ${theme.subText} truncate`}>
-                            {eventData.location || "Address TBA"}
-                          </span>
+
                         </div>
                       </div>
                     </div>
-
                     {/* Date pill (inline text + floating icon) */}
                     <div
                       className="relative rounded-full p-3 flex items-center justify-between w-[90%] max-w-[320px]"
@@ -648,13 +646,25 @@ const PreviousEventView = () => {
                       style={{ backgroundColor: theme.innerCardBg.replace('bg-', ''), boxShadow: theme.insetShadow, minHeight: '60px' }}
                     >
                       {/* Location */}
-                      <div className="flex items-center gap-2 md:gap-3 md:pl-[50px] lg:pl-[95px]">
-                        <h3 className={`font-semibold text-sm md:text-base ${theme.text}`}>{eventData.venue || "Online/Recorded"}</h3>
-                        <span className={`text-xs md:text-sm md:pr-[20px] ${theme.subText}`}>{eventData.location || "Online/Recorded"}</span>
-                      </div>
+                      <div className="flex items-center md:pl-[50px] lg:pl-[95px]">
+                        <div className="relative group max-w-[160px] md:max-w-[220px]">
+                          <span
+                            className={`text-xs md:text-sm ${theme.subText} truncate cursor-default block`}
+                          >
+                            {eventData.location || eventData.location_type}
+                          </span>
 
+                          {(eventData.location || eventData.location_type)?.length > 25 && (
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-50">
+                              <div className="bg-black text-white text-[10px] md:text-xs px-2 py-1 rounded shadow-lg max-w-xs whitespace-normal text-center">
+                                {eventData.location || eventData.location_type}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                       {/* Date */}
-                      <div className="flex items-center gap-2 md:gap-3 md:pr-[50px] lg:pr-[95px]">
+                      <div className="flex items-center gap-2 md:gap-3 md:pr-[50px] lg:pr-[95px]">Event Start Date:
                         <img src={CalenderIcon} className={`w-4 h-4 md:w-5 md:h-5 ${!isDark ? 'filter brightness-0' : ''}`} alt="Calendar" />
                         <span className={`font-bold text-sm ${theme.text}`}>
                           {eventData.event_dates?.[0]?.start_date
@@ -885,7 +895,6 @@ const PreviousEventView = () => {
                   </div>
                 </div>
               </div>
-
               {/* Add-on section */}
               {/* Mobile / iPad specific layout: md:hidden -> show compact company + add-on in one line, then actions row below */}
               <div className="md:hidden mb-6 px-2">
@@ -897,29 +906,36 @@ const PreviousEventView = () => {
                     </div>
                     <span className={`text-[10px] sm:text-xs mt-1 ${theme.text}`}>Company</span>
                   </div>
+                  {/* add-on icons inline with horizontal scroll if needed - Only show if sub-events exist */}
+                  {addOnEvents && addOnEvents.length > 0 && addOnEvents[0]?.id && (
+                    <div className="flex-1 min-w-0">
+                      <div className={`rounded-xl sm:rounded-2xl p-2 sm:p-3 flex items-center gap-1.5 sm:gap-2 ${theme.cardBg ?? ''}`} style={cardStyle}>
+                        <span className={`text-xs sm:text-sm font-bold whitespace-nowrap flex-shrink-0 ${theme.text}`}>Add on events</span>
 
-                  {/* add-on icons inline with horizontal scroll if needed */}
-                  <div className="flex-1 min-w-0">
-                    <div className={`rounded-xl sm:rounded-2xl p-2 sm:p-3 flex items-center gap-1.5 sm:gap-2 ${theme.cardBg ?? ''}`} style={cardStyle}>
-                      <span className={`text-xs sm:text-sm font-bold whitespace-nowrap flex-shrink-0 ${theme.text}`}>Add on events</span>
-
-                      <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar flex-1 min-w-0 py-1">
-                        {addOnEvents.map((event, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => setActiveIndex(idx)}
-                            className={`inline-flex items-center justify-center rounded-full w-8 h-8 sm:w-10 sm:h-10 text-base sm:text-lg ${activeIndex === idx ? "ring-2 ring-pink-300/60" : ""} flex-shrink-0`}
-                            style={{ background: "#fa62b7", color: "#fff" }}
-                            aria-label={eventData.name}
-                          >
-                            {event.icon}
-                          </button>
-                        ))}
+                        <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar flex-1 min-w-0 py-1">
+                          {addOnEvents.map((subEvent) => (
+                            <button
+                              key={subEvent.id}
+                              onClick={() => handleSubEventClick(subEvent.id)}
+                              className="flex-shrink-0 flex flex-col items-center gap-1 cursor-pointer"
+                            >
+                              <div className="w-14 h-14 rounded-full overflow-hidden border border-gray-600 hover:scale-105 transition">
+                                <img
+                                  src={getImageUrl(subEvent.banner, "ticket")}
+                                  alt={subEvent.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <span className="text-[10px] text-center text-white truncate max-w-[56px]">
+                                {subEvent.name}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
-
                 {/* actions in next line: try to keep all three visible on mobile and iPad; allow horizontal scroll on very narrow */}
                 <div className="mt-3 sm:mt-4">
                   <div className="flex items-center justify-center gap-4 sm:gap-6 overflow-x-auto no-scrollbar px-2">
@@ -953,91 +969,75 @@ const PreviousEventView = () => {
                   <span className={`text-sm lg:text-base font-semibold ${theme.text} text-center`}>Company</span>
                 </div>
 
-                {/* Add on Events - Stretched to fill available space */}
-                <div
-                  className={`col-span-12 md:col-span-9 lg:col-span-6 rounded-2xl md:rounded-3xl p-3 md:p-4 flex flex-col items-center h-full justify-center w-full ${theme.cardBg ?? ''}`}
-                  style={cardStyle}
-                >
-                  <div className="flex items-center w-full justify-between relative px-2">
-                    <span className={`text-sm md:text-base lg:text-lg font-bold ${theme.text} whitespace-nowrap`}>Add on events</span>
+                {/* Add on Events - Only show if sub-events exist */}
+                {addOnEvents && addOnEvents.length > 0 && addOnEvents[0]?.id && (
+                  <div
+                    className={`col-span-12 md:col-span-9 lg:col-span-6 rounded-2xl md:rounded-3xl p-3 md:p-4 flex flex-col items-center h-full justify-center w-full ${theme.cardBg ?? ''}`}
+                    style={cardStyle}
+                  >
+                    <div className="flex items-center w-full justify-between relative px-2">
+                      <span className={`text-sm md:text-base lg:text-lg font-bold ${theme.text} whitespace-nowrap`}>Add on events</span>
 
-                    <div className="flex items-center gap-2 flex-1 justify-center min-w-0 mx-2">
-                      <button
-                        onClick={prevAddOn}
-                        className="w-8 h-8 md:w-10 md:h-10 bg-white shadow-lg rounded-full flex items-center justify-center z-30 flex-shrink-0 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer text-gray-800"
-                        aria-label="previous"
-                      >
-                        <svg className="w-3 h-3 md:w-4 md:h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M15 19l-7-7 7-7" />
-                        </svg>
-                      </button>
-
-                      <div className="relative flex-1 flex items-center justify-center overflow-hidden h-20 md:h-28">
-                        <div className="flex items-center gap-2 md:gap-4 justify-center w-full">
-                          {addOnEvents?.map((event, idx) => {
-                            const isActive = idx === activeIndex;
-                            // Only show active on small screens if needed, or all if they fit
-                            // For simplicity, we keep map but scale down items
-                            return (
-                              <div
-                                key={idx}
-                                onClick={() => setActiveIndex(idx)}
-                                className={`flex flex-col items-center justify-center transition-all duration-300 cursor-pointer ${isActive ? 'flex-shrink-0' : 'flex-shrink'}`}
-                                style={{
-                                  transform: isActive ? "scale(1.05) translateY(-2px)" : "scale(0.9)",
-                                  opacity: isActive ? 1 : 0.7,
-                                }}
-                              >
-                                <div
-                                  className={`flex items-center justify-center rounded-full bg-[#fa62b7] text-white shadow-md
-                                    w-10 h-10 md:w-16 md:h-16 lg:w-20 lg:h-20
-                                    text-lg md:text-xl lg:text-2xl transition-all duration-200
-                                    ${isActive ? "ring-2 ring-pink-300/60" : ""}`}
-                                >
-                                  {event.icon}
-                                </div>
-                              </div>
-                            );
-                          }) ?? null}
-                        </div>
-
-                        <div
-                          className="absolute left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5"
-                          style={{ bottom: 0 }}
+                      <div className="flex items-center gap-2 flex-1 justify-center min-w-0 mx-2">
+                        <button
+                          onClick={prevAddOn}
+                          className="w-8 h-8 md:w-10 md:h-10 bg-white shadow-lg rounded-full flex items-center justify-center z-30 flex-shrink-0 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer text-gray-800"
+                          aria-label="previous"
                         >
-                          {addOnEvents?.map((_, idx) => {
-                            const isActive = idx === activeIndex;
-                            return (
-                              <button
-                                key={idx}
-                                onClick={() => setActiveIndex(idx)}
-                                className={`rounded-full transition-all duration-200 ${isActive ? "w-2.5 h-2.5" : "w-1.5 h-1.5"}`}
-                                style={{
-                                  backgroundColor: isActive ? "#94a3b8" : "#475569",
-                                  border: "none",
-                                }}
-                                aria-label={`go-to-${idx}`}
-                              />
-                            );
-                          }) ?? null}
-                        </div>
-                      </div>
+                          <svg className="w-3 h-3 md:w-4 md:h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
 
-                      <button
-                        onClick={nextAddOn}
-                        className="w-8 h-8 md:w-10 md:h-10 bg-white shadow-lg rounded-full flex items-center justify-center z-30 flex-shrink-0 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer text-gray-800"
-                        aria-label="next"
-                      >
-                        <svg className="w-3 h-3 md:w-4 md:h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </button>
+                        <div className="relative flex-1 flex items-center justify-center overflow-hidden h-20 md:h-28">
+                          <div className="flex items-center gap-2 md:gap-4 justify-center w-full">
+                            {addOnEvents?.map((subEvent) => {
+                              return (
+                                <div
+                                  key={subEvent.id}
+                                  onClick={() => handleSubEventClick(subEvent.id)}
+                                  className="flex flex-col items-center justify-center transition-all duration-300 cursor-pointer flex-shrink"
+                                  style={{
+                                    transform: "scale(0.95)",
+                                    opacity: 0.9,
+                                  }}
+                                >
+                                  <div
+                                    className="flex items-center justify-center rounded-full overflow-hidden shadow-md
+                                      w-10 h-10 md:w-16 md:h-16 lg:w-20 lg:h-20
+                                      transition-all duration-200"
+                                  >
+                                    <img
+                                      src={getImageUrl(subEvent.banner, "ticket")}
+                                      alt={subEvent.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+
+                                  <span className="mt-1 text-[10px] md:text-xs text-center text-white truncate max-w-[80px]">
+                                    {subEvent.name}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <button
+                          onClick={nextAddOn}
+                          className="w-8 h-8 md:w-10 md:h-10 bg-white shadow-lg rounded-full flex items-center justify-center z-30 flex-shrink-0 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer text-gray-800"
+                          aria-label="next"
+                        >
+                          <svg className="w-3 h-3 md:w-4 md:h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
-                {/* Action buttons */}
-                <div className="col-span-12 lg:col-span-4 w-full flex justify-center lg:justify-end">
+                {/* Action buttons - Adjust column span based on whether add-on events exist */}
+                <div className={`col-span-12 ${addOnEvents && addOnEvents.length > 0 && addOnEvents[0]?.id ? 'lg:col-span-4' : 'lg:col-span-10'} w-full flex justify-center lg:justify-end`}>
                   <div className="flex items-center gap-4 lg:gap-8 justify-between w-full lg:w-auto">
                     {[
                       { icon: ViewIcon, label: "View" },
