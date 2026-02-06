@@ -53,7 +53,28 @@ model WieUser {
   // Relations
   country         Country?  @relation(fields: [countryId], references: [id], onDelete: SetNull)
   otps            Otp[]
+  mutedByMe       UserMute[] @relation("MuterRelation")
+  mutedMe         UserMute[] @relation("MutedRelation")
   @@map("wie_users")
+}
+model UserMute {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  muterId     String   @map("muter_id") @db.Uuid
+  mutedId     String   @map("muted_id") @db.Uuid
+  mutePosts   Boolean  @default(true) @map("mute_posts")
+  muteStories Boolean  @default(true) @map("mute_stories")
+  muteReels   Boolean  @default(false) @map("mute_reels")
+  muteNotes   Boolean  @default(false) @map("mute_notes")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  
+  // Relations
+  muter       WieUser  @relation("MuterRelation", fields: [muterId], references: [id], onDelete: Cascade)
+  muted       WieUser  @relation("MutedRelation", fields: [mutedId], references: [id], onDelete: Cascade)
+  
+  @@unique([muterId, mutedId], name: "unique_mute")
+  @@index([muterId])
+  @@index([mutedId])
+  @@map("user_mutes")
 }
 model Otp {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
