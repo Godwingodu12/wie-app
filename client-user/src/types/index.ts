@@ -11,6 +11,7 @@ export interface User {
   role?: string;
   status?: string;
   bio?: string | null;
+  followRequestStatus?: 'pending' | 'active' | 'none'; 
   accountPrivacy?: string | null;
   followers_count?: number;
   following_count?: number;
@@ -144,7 +145,7 @@ export interface FollowResponse {
   message: string;
   followerId?: string;
   followingId?: string;
-  status?: 'active' | 'pending';
+  status?: 'active' | 'pending' | 'none';
   isPrivateAccount?: boolean;
 }
 export interface FollowStatusResponse {
