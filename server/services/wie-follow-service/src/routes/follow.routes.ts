@@ -1,5 +1,6 @@
 import express from 'express';
 import * as followController from '../controllers/follow.controller';
+import * as followService from '../services/follow.service';
 import { authenticateToken } from '../middleware/auth.middleware';
 const router: express.Router = express.Router();
 router.use(authenticateToken);
@@ -17,4 +18,6 @@ router.post('/accept-request/:followerId', followController.acceptFollowRequest)
 router.post('/reject-request/:followerId', followController.rejectFollowRequest);
 router.delete('/cancel-request/:targetUserId', followController.cancelFollowRequest);
 router.get('/detailed-status/:targetUserId', followController.getDetailedFollowStatus);
+router.get('/follow-request/status/:fromUserId', followController.checkFollowRequestStatus);
+router.get('/get-send-follow-request/:userId', followController.getSentFollowRequests);
 export default router;

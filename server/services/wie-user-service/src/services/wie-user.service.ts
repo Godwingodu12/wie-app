@@ -9,6 +9,7 @@ import { generateOtp } from '../utils/otp';
 import { sendEmail } from '../utils/sendMail';
 import { sendSMSOTP } from '../utils/sendSMS';
 import { isLocalAuthUser } from '../utils/password';
+import UserMuteModel, { MuteOptions } from '../models/userMute.model';
 import { getGoogleAuthUrl, getGoogleUserInfo } from '../utils/google-oauth';
 import { uploadProfileImage, replaceProfileImage } from '../utils/cloudinaryHelper';
 import {
@@ -1463,5 +1464,209 @@ export const cleanupStaleOnlineUsers = async (): Promise<void> => {
     }
   } catch (error: any) {
     console.error('❌ Error cleaning up stale users:', error);
+  }
+};
+
+export const muteUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    const muterId = req.user.id;
+    const { muted_user_id, mute_posts, mute_stories, mute_reels, mute_notes } = req.body;
+
+    if (!muted_user_id) {
+      res.status(400).json({ message: 'Muted user ID is required' });
+      return;
+    }
+
+    const options: MuteOptions = {
+      mutePosts: mute_posts ?? true,
+      muteStories: mute_stories ?? true,
+      muteReels: mute_reels ?? false,
+      muteNotes: mute_notes ?? false
+    };
+
+    const muteRecord = await UserMuteModel.muteUser(muterId, muted_user_id, options);
+
+    res.status(200).json({
+      success: true,
+      message: 'User muted successfully',
+      data: muteRecord
+    });
+  } catch (error: any) {
+    console.error('Mute user error:', error);
+    
+    if (error.message === 'Cannot mute yourself') {
+      res.status(400).json({ message: error.message });
+      return;
+    }
+    
+    if (error.message === 'User to mute not found') {
+      res.status(404).json({ message: error.message });
+      return;
+    }
+    
+    res.status(500).json({ 
+      message: 'Failed to mute user', 
+      error: error.message 
+    });
+  }
+};
+
+export const unmuteUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    const muterId = req.user.id;
+    const { muted_user_id } = req.body;
+
+    if (!muted_user_id) {
+      res.status(400).json({ message: 'Muted user ID is required' });
+      return;
+    }
+
+    const success = await UserMuteModel.unmuteUser(muterId, muted_user_id);
+
+    if (!success) {
+      res.status(404).json({ message: 'Mute record not found' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'User unmuted successfully'
+    });
+  } catch (error: any) {
+    console.error('Unmute user error:', error);
+    res.status(500).json({ 
+      message: 'Failed to unmute user', 
+      error: error.message 
+    });
+  }
+};
+
+export const updateMuteOptions = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    const muterId = req.user.id;
+    const { muted_user_id, mute_posts, mute_stories, mute_reels, mute_notes } = req.body;
+
+    if (!muted_user_id) {
+      res.status(400).json({ message: 'Muted user ID is required' });
+      return;
+    }
+
+    const options: MuteOptions = {};
+    if (mute_posts !== undefined) options.mutePosts = mute_posts;
+    if (mute_stories !== undefined) options.muteStories = mute_stories;
+    if (mute_reels !== undefined) options.muteReels = mute_reels;
+    if (mute_notes !== undefined) options.muteNotes = mute_notes;
+
+    const updated = await UserMuteModel.updateMuteOptions(muterId, muted_user_id, options);
+
+    res.status(200).json({
+      success: true,
+      message: 'Mute options updated successfully',
+      data: updated
+    });
+  } catch (error: any) {
+    console.error('Update mute options error:', error);
+    
+    if (error.message === 'Mute record not found') {
+      res.status(404).json({ message: error.message });
+      return;
+    }
+    
+    res.status(500).json({ 
+      message: 'Failed to update mute options', 
+      error: error.message 
+    });
+  }
+};
+
+export const checkMuteStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    const muterId = req.user.id;
+    const { user_id } = req.params;
+
+    if (!user_id) {
+      res.status(400).json({ message: 'User ID is required' });
+      return;
+    }
+
+    const status = await UserMuteModel.checkMuteStatus(muterId, user_id);
+
+    res.status(200).json({
+      success: true,
+      data: status
+    });
+  } catch (error: any) {
+    console.error('Check mute status error:', error);
+    res.status(500).json({ 
+      message: 'Failed to check mute status', 
+      error: error.message 
+    });
+  }
+};
+
+export const getMutedUsers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    const muterId = req.user.id;
+    const mutedUsers = await UserMuteModel.getMutedUsers(muterId);
+
+    res.status(200).json({
+      success: true,
+      count: mutedUsers.length,
+      data: mutedUsers
+    });
+  } catch (error: any) {
+    console.error('Get muted users error:', error);
+    res.status(500).json({ 
+      message: 'Failed to get muted users', 
+      error: error.message 
+    });
+  }
+};
+
+export const getMutedCount = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    const muterId = req.user.id;
+    const count = await UserMuteModel.getMutedCount(muterId);
+
+    res.status(200).json({
+      success: true,
+      count
+    });
+  } catch (error: any) {
+    console.error('Get muted count error:', error);
+    res.status(500).json({ 
+      message: 'Failed to get muted count', 
+      error: error.message 
+    });
   }
 };

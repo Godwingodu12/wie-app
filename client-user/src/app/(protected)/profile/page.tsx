@@ -8,9 +8,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { logoutSuccess, updateUser } from "@/features/auth/authSlice";
 import { getProfile, logout, updateProfile } from "@/services/wieUserService";
 import { getFollowStats } from "@/services/followService";
-import FollowersModal from "@/components/profile/FollowersModal";
-import FollowingModal from "@/components/profile/FollowingModal";
 import ImageCropModal from "@/components/profile/ImageCropModal";
+import FollowModal from "@/components/profile/FollowModal";
+
 import {
   Plus,
   Menu,
@@ -46,6 +46,8 @@ function ProfileContent() {
   const [showCropModal, setShowCropModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [showFollowModal, setShowFollowModal] = useState(false);
+  const [followModalTab, setFollowModalTab] = useState<"followers" | "following" | "requests" | "requested">("followers");
   const [tempProfilePicture, setTempProfilePicture] = useState<string | null>(
     null,
   );
@@ -530,20 +532,25 @@ function ProfileContent() {
                   </div>
                   <div className="text-xs mt-1" style={{ color: themeStyles.textSecondary }}>Posts</div>
                 </button>
+                
                 <div className="h-10 w-[0.5px] border-l-[0.5px]" style={{ borderColor: themeStyles.divider }}></div>
+                
                 <button
                   className="text-center hover:opacity-80 transition-opacity"
-                  onClick={() => setShowFollowersModal(true)}
+                  onClick={() => {
+                    setFollowModalTab("followers");
+                    setShowFollowModal(true);
+                  }}
                 >
                   {statsLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin text-[#8860D9] mx-auto" />
                   ) : (
-                  <div
-                    className={`text-base sm:text-lg md:text-xl lg:text-[22px] font-bold leading-none`}
-                    style={{ color: themeStyles.text }}
-                  >
-                    {formatNumber(followStats.followers)}
-                  </div>
+                    <div
+                      className={`text-base sm:text-lg md:text-xl lg:text-[22px] font-bold leading-none`}
+                      style={{ color: themeStyles.text }}
+                    >
+                      {formatNumber(followStats.followers)}
+                    </div>
                   )}
                   <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1" style={{ color: themeStyles.textSecondary }}>Followers</div>
                 </button>
@@ -552,7 +559,10 @@ function ProfileContent() {
 
                 <button
                   className="text-center hover:opacity-80 transition-opacity"
-                  onClick={() => setShowFollowingModal(true)} // ✅ OPEN MODAL
+                  onClick={() => {
+                    setFollowModalTab("following");
+                    setShowFollowModal(true);
+                  }}
                 >
                   {statsLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin text-[#8860D9] mx-auto" />
@@ -703,31 +713,18 @@ function ProfileContent() {
           </div>
         </div>
       </main>
-      <FollowersModal
-        isOpen={showFollowersModal}
-        onClose={() => setShowFollowersModal(false)}
+      <FollowModal
+        isOpen={showFollowModal}
+        onClose={() => setShowFollowModal(false)}
         userId={displayUser.id}
         userName={displayUser.name ?? undefined}
         isOwnProfile={true}
+        initialTab={followModalTab}
+        isPrivateAccount={displayUser.accountPrivacy === 'private'}
         onCountChange={(type, change) => {
-          if (type === "following") {
-            setFollowStats((prev) => ({
-              ...prev,
-              following: Math.max(0, prev.following + change),
-            }));
-          }
-        }}
-      />
-      <FollowingModal
-        isOpen={showFollowingModal}
-        onClose={() => setShowFollowingModal(false)}
-        userId={displayUser.id}
-        userName={displayUser.name ?? undefined}
-        isOwnProfile={true}
-        onCountChange={(change) => {
           setFollowStats((prev) => ({
             ...prev,
-            following: Math.max(0, prev.following + change),
+            [type]: Math.max(0, prev[type] + change),
           }));
         }}
       />
