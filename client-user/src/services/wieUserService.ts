@@ -328,3 +328,21 @@ export const updateAccountPrivacy = async (
     throw err;
   }
 };
+export const muteUser = async (userId: string): Promise<ApiResponse> => {
+  try {
+    const res = await api.post<ApiResponse>('/user/mute', { userId });
+    return res.data;
+  } catch (err) {
+    console.error('muteUser error:', err);
+    throw err;
+  }
+};
+export const unmuteUser = async(userId: string): Promise<ApiResponse> => {
+  try {
+    const res = await api.post<ApiResponse>('/user/unmute',{userId});
+    return res.data;
+  }catch (err){
+    console.error("unmute error:",err);
+    throw err;
+  }
+};
