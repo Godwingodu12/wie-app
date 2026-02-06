@@ -1,31 +1,69 @@
 import { Response } from 'express';
 import * as followService from '../services/follow.service';
 import { AuthRequest } from '../middleware/auth.middleware';
-
 export const followUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const followerId = req.userId!;
     const followingId = req.params.targetUserId;
 
-    const result = await followService.followUser(followerId, followingId);
-    res.status(200).json(result);
-  } catch (error: any) {
-    if (error.message === 'Already following this user') {
-      res.status(400).json({ success: false, message: error.message });
+    if (!followingId) {
+      res.status(400).json({ 
+        success: false, 
+        message: 'Target user ID is required' 
+      });
       return;
     }
+
+    const result = await followService.followUser(followerId, followingId);
+    
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      status: result.status,
+      requestStatus: result.requestStatus,
+      isPrivateAccount: result.isPrivateAccount,
+      data: {
+        followerId: result.followerId,
+        followingId: result.followingId
+      }
+    });
+  } catch (error: any) {
+    console.error('Follow user error:', error);
+
+    if (error.message === 'Already following this user') {
+      res.status(400).json({ 
+        success: false, 
+        message: error.message,
+        code: 'ALREADY_FOLLOWING'
+      });
+      return;
+    }
+    
+    if (error.message === 'Follow request already sent') {
+      res.status(400).json({ 
+        success: false, 
+        message: error.message,
+        code: 'REQUEST_ALREADY_SENT'
+      });
+      return;
+    }
+    
     if (error.message === 'Cannot follow yourself') {
-      res.status(400).json({ success: false, message: error.message });
+      res.status(400).json({ 
+        success: false, 
+        message: error.message,
+        code: 'CANNOT_FOLLOW_SELF'
+      });
       return;
     }
     
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to follow user',
+      code: 'INTERNAL_ERROR'
     });
   }
 };
-
 export const unfollowUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const followerId = req.userId!;
@@ -52,10 +90,9 @@ export const unfollowUser = async (req: AuthRequest, res: Response): Promise<voi
 };
 export const acceptFollowRequest = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const followingId = req.userId!; // Current user (who receives the request)
-    const followerId = req.params.followerId; // User who sent the request
-
-    const result = await followService.acceptFollowRequest(followingId, followerId);
+    const currentUserId = req.userId!; 
+    const requesterId = req.params.followerId;
+    const result = await followService.acceptFollowRequest(currentUserId, requesterId);
     res.status(200).json(result);
   } catch (error: any) {
     if (error.message === 'No pending follow request found') {
@@ -239,7 +276,10 @@ export const checkFollowStatus = async (req: AuthRequest, res: Response): Promis
     const targetUserId = req.params.targetUserId;
 
     if (!targetUserId) {
-      res.status(400).json({ success: false, message: 'Target user ID is required' });
+      res.status(400).json({ 
+        success: false, 
+        message: 'Target user ID is required' 
+      });
       return;
     }
 
@@ -247,20 +287,25 @@ export const checkFollowStatus = async (req: AuthRequest, res: Response): Promis
       res.status(200).json({
         success: true,
         isFollowing: false,
+        isPending: false,
+        requestStatus: 'none',
         isSelf: true,
         message: 'Cannot follow yourself'
       });
       return;
     }
 
-    const isFollowing = await followService.isFollowing(currentUserId, targetUserId);
+    const status = await followService.getFollowStatus(currentUserId, targetUserId);
 
     res.status(200).json({
       success: true,
-      isFollowing,
+      isFollowing: status.isFollowing,
+      isPending: status.isPending,
+      requestStatus: status.requestStatus,
       isSelf: false
     });
   } catch (error: any) {
+    console.error('Check follow status error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to check follow status',
@@ -268,7 +313,30 @@ export const checkFollowStatus = async (req: AuthRequest, res: Response): Promis
     });
   }
 };
+export const checkFollowRequestStatus = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const currentUserId = req.userId!; // User checking the status
+    const fromUserId = req.params.fromUserId; // User who sent the request
 
+    if (!fromUserId) {
+      res.status(400).json({ success: false, message: 'From user ID is required' });
+      return;
+    }
+
+    const result = await followService.checkFollowRequestStatus(currentUserId, fromUserId);
+
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check follow request status',
+      error: error.message
+    });
+  }
+};
 export const getFollowStats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.params.userId;
@@ -305,6 +373,27 @@ export const checkIsFollowing = async (req: AuthRequest, res: Response): Promise
     res.status(500).json({
       success: false,
       message: 'Failed to check following status',
+      error: error.message
+    });
+  }
+
+};
+
+export const getSentFollowRequests = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.params.userId;
+
+    if (!userId) {
+      res.status(400).json({ success: false, message: 'User ID is required' });
+      return;
+    }
+
+    const result = await followService.getSentFollowRequests(userId);
+    res.status(200).json({ success: true, sentRequests: result });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch sent follow requests',
       error: error.message
     });
   }
