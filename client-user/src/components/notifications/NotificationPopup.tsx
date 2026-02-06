@@ -19,10 +19,11 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
 } from "@/services/notificationService";
-import { followUser, unfollowUser, isFollowing, acceptFollowRequest, rejectFollowRequest } from "@/services/followService";
+import { followUser, unfollowUser, isFollowing, acceptFollowRequest, rejectFollowRequest,checkFollowRequestStatus } from "@/services/followService";
 import realtimeNotificationService from "@/services/realtimeNotificationService";
 import NotificationInitializer from "./NotificationInitializer";
 import { useTheme } from "@/components/home/ThemeContext";
+import {getUserById} from "@/services/wieUserService";
 
 interface NotificationPopupProps {
   isOpen: boolean;
@@ -458,7 +459,9 @@ const NotificationItem = ({
   const { themeStyles, isDark } = useTheme();
   const [eventBanner, setEventBanner] = useState<string | null>(null);
   const [bannerLoading, setBannerLoading] = useState(false);
-  
+  const router = useRouter();
+  const [userProfilePicture, setUserProfilePicture] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   // Follow state management
   const [followingState, setFollowingState] = useState<{
     [key: string]: boolean;
@@ -466,6 +469,13 @@ const NotificationItem = ({
   const [followLoading, setFollowLoading] = useState<{
     [key: string]: boolean;
   }>({});
+  
+  // Track follow request status
+  const [requestStatus, setRequestStatus] = useState<{
+    hasRequest: boolean;
+    requestStatus: 'pending' | 'active' | 'none';
+    isFollowingBack: boolean;
+  } | null>(null);
 
   // Notification types that should show event banners
   const eventBannerTypes = [
@@ -520,7 +530,36 @@ const NotificationItem = ({
         });
     }
   }, [isEvent, targetEventId, eventBanner, bannerLoading, notification.id]);
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      // Only fetch for follow-related notifications
+      if (!['follow_request', 'follow_accepted', 'following'].includes(notification.type)) {
+        return;
+      }
 
+      const userId = notification.fromUserId || 
+                     notification.meta?.followerId || 
+                     notification.meta?.userId;
+
+      if (!userId || profileLoading) {
+        return;
+      }
+
+      setProfileLoading(true);
+      try {
+        const user = await getUserById(userId);
+        if (user?.profile_picture) {
+          setUserProfilePicture(user.profile_picture);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user profile:', error);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [notification.type, notification.fromUserId, notification.meta?.followerId, notification.meta?.userId]);
   // Check follow status for follow notifications
   useEffect(() => {
     if (notification.type === 'following' && notification.meta?.primaryActors) {
@@ -542,7 +581,29 @@ const NotificationItem = ({
 
       checkFollowStatus();
     }
-  }, [notification.type, notification.meta?.primaryActors]);
+    
+    // Check follow request status for follow_request notifications
+    if (notification.type === 'follow_request' && notification.fromUserId) {
+      const checkRequestStatus = async () => {
+        try {
+          // Import the new function
+          const { checkFollowRequestStatus } = await import('@/services/followService');
+          const status = await checkFollowRequestStatus(notification.fromUserId!);
+          setRequestStatus(status);
+          
+          // Set following state based on the response
+          if (status.isFollowingBack) {
+            setFollowingState((prev) => ({ ...prev, [notification.fromUserId!]: true }));
+          }
+        } catch (error) {
+          console.error('Failed to check follow request status:', error);
+        }
+      };
+
+      checkRequestStatus();
+    }
+  }, [notification.type, notification.meta?.primaryActors, notification.fromUserId]);
+
   const handleFollowClick = async (e: React.MouseEvent, actorId: string) => {
     e.stopPropagation();
     
@@ -564,24 +625,110 @@ const NotificationItem = ({
       setFollowLoading((prev) => ({ ...prev, [actorId]: false }));
     }
   };
+
   const handleAcceptRequest = async (e: React.MouseEvent, fromUserId: string) => {
-      e.stopPropagation();
-      try {
-        await acceptFollowRequest(fromUserId);
-        // Optionally remove notification or update UI
-      } catch (error) {
-        console.error('Failed to accept request:', error);
-      }
-  };
-  const handleRejectRequest = async (e: React.MouseEvent, fromUserId: string) => {
     e.stopPropagation();
+    setFollowLoading((prev) => ({ ...prev, [fromUserId]: true }));
+    
     try {
-      await rejectFollowRequest(fromUserId);
-      // Optionally remove notification or update UI
-    } catch (error) {
-      console.error('Failed to reject request:', error);
+      const result = await acceptFollowRequest(fromUserId);
+      
+      if (result.success) {
+        // Update request status
+        setRequestStatus({
+          hasRequest: true,
+          requestStatus: 'active',
+          isFollowingBack: false
+        });
+        
+        // Update following state - they are now following you, but you're not following back yet
+        setFollowingState((prev) => ({ ...prev, [fromUserId]: false }));
+      }
+    } catch (error: any) {
+      console.error('Failed to accept request:', error);
+      // If error is "No pending follow request found", it means already accepted
+      if (error?.response?.data?.message === 'No pending follow request found') {
+        // Refresh the status
+        try {
+          const { checkFollowRequestStatus } = await import('@/services/followService');
+          const status = await checkFollowRequestStatus(fromUserId);
+          setRequestStatus(status);
+          if (status.isFollowingBack) {
+            setFollowingState((prev) => ({ ...prev, [fromUserId]: true }));
+          }
+        } catch (refreshError) {
+          console.error('Failed to refresh status:', refreshError);
+        }
+      }
+    } finally {
+      setFollowLoading((prev) => ({ ...prev, [fromUserId]: false }));
     }
   };
+
+  const handleRejectRequest = async (e: React.MouseEvent, fromUserId: string) => {
+    e.stopPropagation();
+    setFollowLoading((prev) => ({ ...prev, [fromUserId]: true }));
+    
+    try {
+      await rejectFollowRequest(fromUserId);
+      // Update request status to indicate it's been handled
+      setRequestStatus({
+        hasRequest: false,
+        requestStatus: 'none',
+        isFollowingBack: false
+      });
+    } catch (error) {
+      console.error('Failed to reject request:', error);
+    } finally {
+      setFollowLoading((prev) => ({ ...prev, [fromUserId]: false }));
+    }
+  };
+
+  const handleFollowBackClick = async (e: React.MouseEvent, userId: string) => {
+    e.stopPropagation();
+    setFollowLoading((prev) => ({ ...prev, [userId]: true }));
+    
+    try {
+      if (followingState[userId]) {
+        // Unfollow
+        await unfollowUser(userId);
+        setFollowingState((prev) => ({ ...prev, [userId]: false }));
+        if (requestStatus) {
+          setRequestStatus({
+            ...requestStatus,
+            isFollowingBack: false
+          });
+        }
+      } else {
+        // Follow back
+        await followUser(userId);
+        setFollowingState((prev) => ({ ...prev, [userId]: true }));
+        if (requestStatus) {
+          setRequestStatus({
+            ...requestStatus,
+            isFollowingBack: true
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Follow back action failed:', error);
+    } finally {
+      setFollowLoading((prev) => ({ ...prev, [userId]: false }));
+    }
+  };
+
+  const handleNotificationItemClick = () => {
+    // For follow_request - go to their profile
+    if (notification.type === 'follow_request' && notification.fromUserId) {
+      const username = notification.meta?.username || notification.fromUserId;
+      router.push(`/profile/${username}`);
+      return;
+    }
+    
+    // For other notifications, use the parent handler
+    onRead(notification);
+  };
+
   const formattedDayTime = new Date(notification.createdAt)
     .toLocaleString("en-US", {
       weekday: "long",
@@ -594,9 +741,21 @@ const NotificationItem = ({
     .replace(/ pm/g, "pm")
     .replace(/ am/g, "am");
 
+  // Determine what to show for follow request notifications
+  const shouldShowAcceptDecline = notification.type === 'follow_request' && 
+    requestStatus?.requestStatus === 'pending';
+  
+  const shouldShowFollowBack = notification.type === 'follow_request' && 
+    requestStatus?.requestStatus === 'active' && 
+    !requestStatus?.isFollowingBack;
+  
+  const shouldShowFollowing = notification.type === 'follow_request' && 
+    requestStatus?.requestStatus === 'active' && 
+    requestStatus?.isFollowingBack;
+
   return (
     <div
-      onClick={() => onRead(notification)}
+      onClick={handleNotificationItemClick}
       className={`group flex items-start gap-3 p-4 rounded-xl transition-colors mb-1 cursor-pointer`}
       style={{
         background: !notification.isRead ? themeStyles.hoverBg : 'transparent'
@@ -605,98 +764,167 @@ const NotificationItem = ({
       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = !notification.isRead ? themeStyles.hoverBg : 'transparent'}
     >
       {/* Avatar / Icon / Banner / Follower Group (Left Side) */}
-      <div className="relative shrink-0 pt-1">
-        {notification.type === 'following' && notification.meta?.primaryActors && notification.meta.primaryActors.length > 0 ? (
-          // Grouped follow notification - show stacked avatars
-          <div className="relative w-12 h-12 flex items-center justify-center">
-            {notification.meta.primaryActors.slice(0, 2).map((actor: any, index: number) => (
-              <div
-                key={actor.actorId}
-                className="absolute w-8 h-8 rounded-full overflow-hidden border-2"
-                style={{
-                  left: index === 0 ? '0px' : '16px',
-                  zIndex: index === 0 ? 2 : 1,
-                  backgroundColor: themeStyles.pillBg,
-                  borderColor: isDark ? '#0B0D0F' : '#FFFFFF'
-                }}
-              >
-                {actor.profilePicture ? (
-                  <img
-                    src={actor.profilePicture}
-                    alt={actor.username || actor.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div 
-                    className="w-full h-full flex items-center justify-center text-xs font-bold"
-                    style={{ color: themeStyles.text, backgroundColor: themeStyles.pillBg }}
-                  >
-                    {(actor.username || actor.name || 'U').charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
-            ))}
-            {/* Badge for additional followers */}
-            {(notification.meta?.othersCount ?? 0) > 0 && (
-              <div
-                className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white border-2"
-                style={{
-                  background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
-                  borderColor: isDark ? '#0B0D0F' : '#FFFFFF',
-                  zIndex: 3,
-                }}
-              >
-                +{notification.meta?.othersCount}
-              </div>
-            )}
-          </div>
-        ) : (
-          // Standard notification rendering
-          <div
-            className={`
-              ${isEvent ? "w-12 h-12 rounded-lg aspect-square" : "w-12 h-12 rounded-full"}
-              flex items-center justify-center font-bold overflow-hidden shrink-0
-            `}
-            style={{ background: themeStyles.pillBg, color: themeStyles.text }}
-          >
-            {isEvent ? (
-              bannerLoading ? (
-                <div className="w-full h-full bg-zinc-700 animate-pulse" />
-              ) : eventBanner ? (
+    <div className="relative shrink-0 pt-1">
+      {notification.type === 'following' && notification.meta?.primaryActors && notification.meta.primaryActors.length > 0 ? (
+        // Grouped follow notification - show stacked avatars
+        <div className="relative w-12 h-12 flex items-center justify-center">
+          {notification.meta.primaryActors.slice(0, 2).map((actor: any, index: number) => (
+            <div
+              key={actor.actorId}
+              className="absolute w-8 h-8 rounded-full overflow-hidden border-2"
+              style={{
+                left: index === 0 ? '0px' : '16px',
+                zIndex: index === 0 ? 2 : 1,
+                backgroundColor: themeStyles.pillBg,
+                borderColor: isDark ? '#0B0D0F' : '#FFFFFF'
+              }}
+            >
+              {actor.profilePicture ? (
                 <img
-                  src={eventBanner}
-                  alt="Event"
+                  src={actor.profilePicture}
+                  alt={actor.username || actor.name}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    target.style.display = 'none';
+                    if (target.parentElement) {
+                      const initials = (actor.username || actor.name || 'U').charAt(0).toUpperCase();
+                      target.parentElement.innerHTML = `
+                        <div class="w-full h-full flex items-center justify-center text-xs font-bold" 
+                            style="color: ${themeStyles.text}; background-color: ${themeStyles.pillBg}">
+                          ${initials}
+                        </div>
+                      `;
+                    }
+                  }}
                 />
               ) : (
-                getIcon(notification.type)
-              )
-            ) : notification.meta?.userAvatar ? (
+                <div 
+                  className="w-full h-full flex items-center justify-center text-xs font-bold"
+                  style={{ color: themeStyles.text, backgroundColor: themeStyles.pillBg }}
+                >
+                  {(actor.username || actor.name || 'U').charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
+          ))}
+          {/* Badge for additional followers */}
+          {(notification.meta?.othersCount ?? 0) > 0 && (
+            <div
+              className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white border-2"
+              style={{
+                background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
+                borderColor: isDark ? '#0B0D0F' : '#FFFFFF',
+                zIndex: 3,
+              }}
+            >
+              +{notification.meta?.othersCount}
+            </div>
+          )}
+        </div>
+      ) : (
+        // Standard notification rendering (including follow_request and follow_accepted)
+        <div
+          className={`
+            ${isEvent ? "w-12 h-12 rounded-lg aspect-square" : "w-12 h-12 rounded-full"}
+            flex items-center justify-center font-bold overflow-hidden shrink-0
+          `}
+          style={{ background: themeStyles.pillBg, color: themeStyles.text }}
+        >
+          {isEvent ? (
+            bannerLoading ? (
+              <div className="w-full h-full bg-zinc-700 animate-pulse" />
+            ) : eventBanner ? (
               <img
-                src={notification.meta.userAvatar}
-                alt="User"
+                src={eventBanner}
+                alt="Event"
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  const target = e.currentTarget as HTMLImageElement;
+                  target.style.display = 'none';
+                  if (target.parentElement) {
+                    target.parentElement.innerHTML = `
+                      <div class="w-full h-full flex items-center justify-center">
+                        ${getIconHTML(notification.type)}
+                      </div>
+                    `;
+                  }
+                }}
               />
             ) : (
               getIcon(notification.type)
-            )}
-          </div>
-        )}
-        
-        {/* Unread indicator on avatar */}
-        {notification.isRead === false && (
-          <div
-            className="absolute top-0 right-0 rounded-full"
-            style={{
-              width: "10px",
-              height: "10px",
-              backgroundColor: "#5E5CE6",
-              opacity: 1,
-            }}
-          />
-        )}
-      </div>
+            )
+          ) : profileLoading ? (
+            // Show loading state while fetching profile
+            <div className="w-full h-full bg-zinc-700 animate-pulse rounded-full" />
+            ) : (() => {
+              // Get profile picture - prioritize real-time data
+              const profilePic = 
+                userProfilePicture ||  // Real-time fetched profile picture (PRIORITY)
+                notification.meta?.userAvatar || 
+                notification.meta?.profilePicture || 
+                notification.meta?.avatar ||
+                notification.meta?.followerProfilePicture ||
+                notification.meta?.userProfilePicture;
+              
+              const displayName = 
+                notification.meta?.username || 
+                notification.meta?.followerUsername ||
+                notification.meta?.userUsername ||
+                notification.meta?.name || 
+                notification.meta?.followerName ||
+                notification.meta?.userName ||
+                'U';
 
+              return profilePic ? (
+                <img
+                  src={profilePic}
+                  alt={displayName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    target.style.display = 'none';
+                    if (target.parentElement) {
+                      const initials = displayName.charAt(0).toUpperCase();
+                      target.parentElement.innerHTML = `
+                        <div class="w-full h-full flex items-center justify-center text-lg font-bold" 
+                            style="color: ${themeStyles.text}; background-color: ${themeStyles.pillBg}">
+                          ${initials}
+                        </div>
+                      `;
+                    }
+                  }}
+                />
+              ) : (
+                // Fallback to initials or icon
+                (notification.type === 'follow_request' || 
+                notification.type === 'follow_accepted' || 
+                notification.type === 'following') ? (
+                  <div className="w-full h-full flex items-center justify-center text-lg font-bold">
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
+                ) : (
+                  getIcon(notification.type)
+                )
+              );
+            })()
+          }
+        </div>
+      )}
+      
+      {/* Unread indicator on avatar */}
+      {notification.isRead === false && (
+        <div
+          className="absolute top-0 right-0 rounded-full"
+          style={{
+            width: "10px",
+            height: "10px",
+            backgroundColor: "#5E5CE6",
+            opacity: 1,
+          }}
+        />
+      )}
+    </div>
       {/* Content Container */}
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
         {/* Top Row: Message & Follow Button (for follow notifications) or Title & Unread Indicator */}
@@ -704,10 +932,7 @@ const NotificationItem = ({
           // Follow notification - show message and button
           <div className="flex justify-between items-start gap-2">
             <span className="text-sm font-medium leading-tight flex-1" style={{ color: themeStyles.text }}>
-              {notification.type === 'following' 
-                ? formatFollowNotificationMessage(notification)
-                : notification.message
-              }
+              {formatFollowNotificationMessage(notification)}
             </span>
             
             {/* Follow/Following button for single follower */}
@@ -791,28 +1016,88 @@ const NotificationItem = ({
             {timeAgo(notification.createdAt)}
           </span>
         </div>
+
         {/* Follow Request Actions */}
         {notification.type === 'follow_request' && notification.fromUserId && (
           <div className="flex items-center gap-2 mt-2">
-            <button
-              onClick={(e) => handleRejectRequest(e, notification.fromUserId!)}
-              className="px-3 py-1 rounded-full text-xs font-medium transition-colors hover:opacity-80"
-              style={{ background: themeStyles.pillBg, color: themeStyles.textSecondary }}
-            >
-              Decline
-            </button>
-            <button
-              onClick={(e) => handleAcceptRequest(e, notification.fromUserId!)}
-              className="px-3 py-1 rounded-full text-xs font-medium bg-violet-600 text-white hover:bg-violet-500 transition-colors"
-            >
-              Accept
-            </button>
+            {shouldShowAcceptDecline && (
+              // Show Accept/Decline buttons for pending requests
+              <>
+                <button
+                  onClick={(e) => handleRejectRequest(e, notification.fromUserId!)}
+                  disabled={followLoading[notification.fromUserId!]}
+                  className="px-3 py-1 rounded-full text-xs font-medium transition-colors hover:opacity-80"
+                  style={{ 
+                    background: themeStyles.pillBg, 
+                    color: themeStyles.textSecondary,
+                    opacity: followLoading[notification.fromUserId!] ? 0.6 : 1,
+                  }}
+                >
+                  Decline
+                </button>
+                <button
+                  onClick={(e) => handleAcceptRequest(e, notification.fromUserId!)}
+                  disabled={followLoading[notification.fromUserId!]}
+                  className="px-3 py-1 rounded-full text-xs font-medium bg-violet-600 text-white hover:bg-violet-500 transition-colors"
+                  style={{
+                    opacity: followLoading[notification.fromUserId!] ? 0.6 : 1,
+                  }}
+                >
+                  {followLoading[notification.fromUserId!] ? 'Accepting...' : 'Accept'}
+                </button>
+              </>
+            )}
+            
+            {shouldShowFollowBack && (
+              // Show "Follow Back" button after accepting
+              <button
+                onClick={(e) => handleFollowBackClick(e, notification.fromUserId!)}
+                disabled={followLoading[notification.fromUserId!]}
+                className="px-4 py-1.5 rounded-full text-xs font-medium transition-all bg-violet-600 text-white hover:bg-violet-500"
+                style={{
+                  opacity: followLoading[notification.fromUserId!] ? 0.6 : 1,
+                }}
+              >
+                {followLoading[notification.fromUserId!] ? '...' : 'Follow Back'}
+              </button>
+            )}
+            
+            {shouldShowFollowing && (
+              // Show "Following" button after following back
+              <button
+                onClick={(e) => handleFollowBackClick(e, notification.fromUserId!)}
+                disabled={followLoading[notification.fromUserId!]}
+                className="px-4 py-1.5 rounded-full text-xs font-medium transition-all"
+                style={{
+                  backgroundColor: themeStyles.pillBg,
+                  color: themeStyles.text,
+                  border: `1px solid ${themeStyles.border}`,
+                  opacity: followLoading[notification.fromUserId!] ? 0.6 : 1,
+                }}
+              >
+                {followLoading[notification.fromUserId!] ? '...' : 'Following'}
+              </button>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 };
+
+const getIconHTML = (type: string): string => {
+  const iconMap: { [key: string]: string } = {
+    event: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
+    ticket: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path><path d="M13 5v2"></path><path d="M13 17v2"></path><path d="M13 11v2"></path></svg>',
+    follow: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
+  };
+  
+  if (type.includes('event')) return iconMap.event;
+  if (type.includes('ticket') || type.includes('booking')) return iconMap.ticket;
+  if (type.includes('follow')) return iconMap.follow;
+  return iconMap.ticket;
+};
+
 const getIcon = (type: string) => {
   if (type.includes("event")) return <Calendar size={18} />;
   if (type.includes("ticket") || type.includes("booking"))
