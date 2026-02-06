@@ -3,7 +3,18 @@ import * as userClient from '../grpc/userClient';
 import { createNotification, emitFollowEvent } from '../utils/notificationHelper';
 import { canSendNotification, setNotificationCooldown } from '../utils/notificationCooldown';
 
-export const followUser = async (followerId: string, followingId: string): Promise<any> => {
+export const followUser = async (
+  followerId: string, 
+  followingId: string
+): Promise<{
+  success: boolean;
+  message: string;
+  followerId: string;
+  followingId: string;
+  status: 'pending' | 'active';
+  requestStatus: 'pending' | 'active';
+  isPrivateAccount: boolean;
+}> => {
   if (!followerId || !followingId) {
     throw new Error('Follower ID and Following ID are required');
   }
@@ -12,10 +23,7 @@ export const followUser = async (followerId: string, followingId: string): Promi
     throw new Error('Cannot follow yourself');
   }
 
-  // Check if target user has private account
-  const targetAccountPrivacy = await userClient.getAccountPrivacy(followingId);
-  const isPrivateAccount = targetAccountPrivacy === 'private';
-
+  // Check if already following or has pending request
   const existing = await Follow.findOne({ followerId, followingId });
   
   if (existing) {
@@ -25,16 +33,31 @@ export const followUser = async (followerId: string, followingId: string): Promi
     if (existing.status === 'pending') {
       throw new Error('Follow request already sent');
     }
-    
-    // Reactivate blocked or update to pending
-    existing.status = isPrivateAccount ? 'pending' : 'active';
+  }
+
+  // Check if target user has private account
+  let isPrivateAccount = false;
+  try {
+    const targetAccountPrivacy = await userClient.getAccountPrivacy(followingId);
+    isPrivateAccount = targetAccountPrivacy === 'private';
+  } catch (error) {
+    console.error('Failed to get account privacy, defaulting to public:', error);
+    isPrivateAccount = false;
+  }
+
+  const followStatus: 'pending' | 'active' = isPrivateAccount ? 'pending' : 'active';
+
+  // Create or update follow record
+  if (existing) {
+    // Reactivate or update existing record
+    existing.status = followStatus;
     await existing.save();
   } else {
     // Create new follow/request
     await Follow.create({ 
       followerId, 
       followingId, 
-      status: isPrivateAccount ? 'pending' : 'active' 
+      status: followStatus
     });
   }
 
@@ -61,7 +84,6 @@ export const followUser = async (followerId: string, followingId: string): Promi
       console.error('Failed to create follow notification:', err);
     });
   } else {
-    // Create follow request notification for private accounts (with cooldown check)
     createFollowRequestNotification(followerId, followingId).catch(err => {
       console.error('Failed to create follow request notification:', err);
     });
@@ -72,7 +94,8 @@ export const followUser = async (followerId: string, followingId: string): Promi
     message: isPrivateAccount ? 'Follow request sent' : 'User followed successfully',
     followerId,
     followingId,
-    status: isPrivateAccount ? 'pending' : 'active',
+    status: followStatus,
+    requestStatus: followStatus,
     isPrivateAccount
   };
 };
@@ -134,7 +157,6 @@ const createFollowNotification = async (followerId: string, followingId: string)
     console.error('Error creating follow notification:', error);
   }
 };
-
 const createFollowRequestNotification = async (followerId: string, followingId: string) => {
   try {
     // Check cooldown using Redis
@@ -176,35 +198,29 @@ const createFollowRequestNotification = async (followerId: string, followingId: 
     console.error('Error creating follow request notification:', error);
   }
 };
-
 export const acceptFollowRequest = async (followingId: string, followerId: string): Promise<any> => {
   if (!followerId || !followingId) {
     throw new Error('Follower ID and Following ID are required');
   }
-
+  // followerId = the user who SENT the request (wants to follow)
+  // followingId = the user who RECEIVES the request (being followed)
   const followRequest = await Follow.findOne({ 
-    followerId, 
-    followingId,
+    followerId,  
+    followingId, 
     status: 'pending'
   });
   
   if (!followRequest) {
     throw new Error('No pending follow request found');
   }
-
-  // Update status to active
   followRequest.status = 'active';
   await followRequest.save();
-
-  // Update counts
   Promise.all([
-    userClient.incrementFollowing(followerId),
-    userClient.incrementFollowers(followingId)
+    userClient.incrementFollowing(followerId),  
+    userClient.incrementFollowers(followingId)  
   ]).catch(err => {
     console.error('Failed to update user counts:', err);
   });
-
-  // Emit follow event
   emitFollowEvent({
     followerId,
     followingId,
@@ -212,8 +228,6 @@ export const acceptFollowRequest = async (followingId: string, followerId: strin
   }).catch(err => {
     console.error('Failed to emit follow event:', err);
   });
-  
-  // Create notification for the requester (with cooldown check)
   createFollowAcceptedNotification(followerId, followingId).catch(err => {
     console.error('Failed to create follow accepted notification:', err);
   });
@@ -226,7 +240,7 @@ export const acceptFollowRequest = async (followingId: string, followerId: strin
   };
 };
 
-const createFollowAcceptedNotification = async (followerId: string, followingId: string) => {
+export const createFollowAcceptedNotification = async (followerId: string, followingId: string) => {
   try {
     // Check cooldown using Redis
     const canSend = await canSendNotification(followingId, followerId, 'follow_accepted');
@@ -330,6 +344,38 @@ export const getFollowRequests = async (userId: string, page: number = 1, limit:
     totalPages: Math.ceil(total / limit)
   };
 };
+export const getSentFollowRequests = async (userId: string): Promise<any[]> => {
+  if (!userId) {
+    throw new Error('User ID is required');
+  }
+
+  const sentRequests = await Follow.find({
+    followerId: userId,
+    status: 'pending'
+  }).sort({ createdAt: -1 });
+
+  if (sentRequests.length === 0) {
+    return [];
+  }
+
+  const followingIds = sentRequests.map(req => req.followingId);
+  const users = await userClient.getUsersByIds(followingIds);
+
+  return sentRequests.map(req => {
+    const user = users.find((u: any) => u.id === req.followingId);
+    return {
+      id: req.followingId,
+      userId: req.followingId,
+      name: user?.name || '',
+      username: user?.username || '',
+      profile_picture: user?.profile_picture || null,
+      bio: user?.bio || '',
+      is_verified: user?.is_verified || false,
+      followedAt: req.createdAt.toISOString(),
+      requestStatus: req.status
+    };
+  });
+};
 export const cancelFollowRequest = async (followerId: string, followingId: string): Promise<any> => {
   if (!followerId || !followingId) {
     throw new Error('Follower ID and Following ID are required');
@@ -351,14 +397,38 @@ export const cancelFollowRequest = async (followerId: string, followingId: strin
     followingId
   };
 };
-export const getFollowStatus = async (followerId: string, followingId: string): Promise<any> => {
+export const getFollowStatus = async (
+  followerId: string, 
+  followingId: string
+): Promise<{
+  isFollowing: boolean;
+  isPending: boolean;
+  requestStatus: 'pending' | 'active' | 'blocked' | 'none';
+  status: string;
+}> => {
+  if (!followerId || !followingId) {
+    throw new Error('Follower ID and Following ID are required');
+  }
+
   const follow = await Follow.findOne({ followerId, followingId });
+  
+  if (!follow) {
+    return {
+      isFollowing: false,
+      isPending: false,
+      requestStatus: 'none',
+      status: 'none'
+    };
+  }
+
   return {
-    isFollowing: follow?.status === 'active',
-    isPending: follow?.status === 'pending',
-    status: follow?.status || 'none'
+    isFollowing: follow.status === 'active',
+    isPending: follow.status === 'pending',
+    requestStatus: follow.status as 'pending' | 'active' | 'blocked' | 'none',
+    status: follow.status
   };
 };
+
 export const unfollowUser = async (followerId: string, followingId: string): Promise<any> => {
   if (!followerId || !followingId) {
     throw new Error('Follower ID and Following ID are required');
@@ -604,15 +674,21 @@ export const getOtherFollowing = async (
   };
 };
 
-export const isFollowing = async (followerId: string, followingId: string): Promise<boolean> => {
+export const isFollowing = async (
+  followerId: string, 
+  followingId: string
+): Promise<boolean> => {
+  if (!followerId || !followingId) {
+    throw new Error('Follower ID and Following ID are required');
+  }
   const follow = await Follow.findOne({ 
     followerId, 
     followingId, 
     status: 'active' 
   });
+  
   return !!follow;
 };
-
 export const getFollowStats = async (userId: string): Promise<any> => {
   const [followersCount, followingCount] = await Promise.all([
     Follow.countDocuments({ followingId: userId, status: 'active' }),
@@ -623,5 +699,42 @@ export const getFollowStats = async (userId: string): Promise<any> => {
     userId,
     followers: followersCount,
     following: followingCount
+  };
+};
+export const checkFollowRequestStatus = async (
+  currentUserId: string, 
+  fromUserId: string
+): Promise<{
+  hasRequest: boolean;
+  requestStatus: 'pending' | 'active' | 'blocked' | 'none';
+  isFollowingBack: boolean;
+}> => {
+  if (!fromUserId || !currentUserId) {
+    throw new Error('User IDs are required');
+  }
+  const followRequest = await Follow.findOne({ 
+    followerId: fromUserId,      // User who sent the request
+    followingId: currentUserId   // Current user (received the request)
+  });
+
+  if (!followRequest) {
+    return {
+      hasRequest: false,
+      requestStatus: 'none',
+      isFollowingBack: false
+    };
+  }
+
+  // Check if current user is following back
+  const followBack = await Follow.findOne({
+    followerId: currentUserId,  // Current user
+    followingId: fromUserId,    // User who sent the request
+    status: 'active'
+  });
+
+  return {
+    hasRequest: true,
+    requestStatus: followRequest.status,
+    isFollowingBack: !!followBack
   };
 };
