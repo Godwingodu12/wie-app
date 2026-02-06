@@ -1,6 +1,6 @@
 import express from 'express';
 import { index,getCountries,signupSendOtp,signupVerifyOtp,login,logout,resendOtp,getProfile,updateProfile,googleAuth,googleCallback,getMicrosoftAuthUrl,getAppleAuthUrl,forgotPassword,verifyResetOTP,resetPassword,getUserLocation,updateUserLocation, checkCanSetPassword,setPasswordForGoogleUser,changePassword,searchUsers,getUserById,getSuggestedUsers,updateHeartbeat,
-    getAccountPrivacy,updateAccountPrivacy
+    getAccountPrivacy,updateAccountPrivacy,muteUser,unmuteUser,getMutedUsers,getMutedCount,checkMuteStatus
   } from '../services/wie-user.service';
 import { authenticateToken } from '../middlewares/auth.middleware';
 import upload from '../middlewares/upload';
@@ -32,4 +32,8 @@ router.get('/:userId', authenticateToken, getUserById);
 router.post('/heartbeat', authenticateToken, updateHeartbeat);
 router.get('/account-privacy', authenticateToken, getAccountPrivacy);
 router.put('/account-privacy', authenticateToken, updateAccountPrivacy);
+router.post('/mute', authenticateToken, muteUser);
+router.post('/unmute', authenticateToken, unmuteUser);
+router.get('/mutes', authenticateToken, getMutedUsers);
+router.get('/muted-count', authenticateToken, getMutedCount);
 export default router;
