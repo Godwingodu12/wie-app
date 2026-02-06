@@ -32,6 +32,7 @@ export const followUser = async (targetUserId: string): Promise<{
   success: boolean;
   message: string;
   status?: 'active' | 'pending';
+  requestStatus?: 'active' | 'pending';
   isPrivateAccount?: boolean;
 }> => {
   const res = await followApi.post(`/follow/${targetUserId}`);
@@ -88,6 +89,7 @@ export const checkFollowStatus = async (targetUserId: string): Promise<{
   isFollowing: boolean;
   isSelf: boolean;
   message?: string;
+  requestStatus?: string;
 }> => {
   const res = await followApi.get(`/follow/status/${targetUserId}`);
   return res.data;
@@ -117,6 +119,19 @@ export const cancelFollowRequest = async (targetUserId: string): Promise<{ succe
   const res = await followApi.delete(`/cancel-request/${targetUserId}`);
   return res.data;
 };
+export const checkFollowRequestStatus = async (fromUserId: string): Promise<{ 
+  success: boolean;
+  hasRequest: boolean;
+  requestStatus: 'pending' | 'active' | 'none';
+  isFollowingBack: boolean;
+}> => {
+  const res = await followApi.get(`/follow-request/status/${fromUserId}`);
+  return res.data;
+};
+export const getSentFollowRequests = async (userId: string): Promise<{ sentRequests: any[] }> => {
+  const res = await followApi.get(`/get-send-follow-request/${userId}`);
+  return res.data;
+};  
 export default {
   followUser,
   unfollowUser,
@@ -132,4 +147,6 @@ export default {
   acceptFollowRequest,
   rejectFollowRequest,
   cancelFollowRequest,
+  checkFollowRequestStatus,
+  getSentFollowRequests
 };
