@@ -106,7 +106,6 @@ export const acceptFollowRequest = async (req: AuthRequest, res: Response): Prom
     });
   }
 };
-
 export const rejectFollowRequest = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const followingId = req.userId!;
@@ -395,6 +394,24 @@ export const getSentFollowRequests = async (req: AuthRequest, res: Response): Pr
       success: false,
       message: 'Failed to fetch sent follow requests',
       error: error.message
+    });
+  }
+};
+export const autoAcceptPendingRequests = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.userId!;
+    const result = await followService.autoAcceptPendingRequests(userId);
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      acceptedCount: result.acceptedCount
+    });
+  } catch (error: any) {
+    console.error('Auto-accept pending requests error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to auto-accept pending requests',
+      code: 'INTERNAL_ERROR'
     });
   }
 };
