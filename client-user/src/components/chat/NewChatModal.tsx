@@ -6,6 +6,7 @@ import { searchUsers } from '@/services/wieUserService';
 import { getWieChatSuggestions, createOrGetWieChat } from '@/services/chatService';
 import { ChatUser } from '@/types/chat';
 import Image from 'next/image';
+import { useTheme } from "@/components/home/ThemeContext";
 
 interface NewChatModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface NewChatModalProps {
 type TabType = 'followers' | 'all';
 
 export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChatModalProps) {
+  const { themeStyles, isDark } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>('followers');
   const [searchQuery, setSearchQuery] = useState('');
   const [followers, setFollowers] = useState<ChatUser[]>([]);
@@ -77,7 +79,7 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
     setError(null);
     try {
       const response = await searchUsers(query, 1, 50);
-      
+
       if (response.success && response.users) {
         // Transform users to ChatUser format
         const transformedUsers: ChatUser[] = response.users.map((user: any) => ({
@@ -90,7 +92,7 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
           bio: user.bio || undefined,
           is_verified: user.is_verified || false
         }));
-        
+
         setSearchResults(transformedUsers);
       } else {
         setError('Search failed');
@@ -106,12 +108,12 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
     setError(null);
     try {
       const response = await createOrGetWieChat(userId);
-      
+
       if (response.success && response.chat) {
         onClose();
         setSearchQuery('');
         setCreating(null);
-        
+
         // Pass the chat object to parent
         onChatCreated(response.chat._id, response.chat);
       } else {
@@ -121,10 +123,10 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
       }
     } catch (error: any) {
       console.error('❌ Failed to create chat:', error);
-      
+
       // Handle specific error cases
       let errorMessage = 'Failed to create chat';
-      
+
       if (error.response?.status === 403) {
         errorMessage = error.response?.data?.message || 'Cannot create chat with this user';
       } else if (error.response?.status === 404) {
@@ -136,7 +138,7 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       setError(errorMessage);
       setCreating(null);
     }
@@ -158,25 +160,38 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 backdrop-blur-sm">
-      <div className="bg-[#1a1a1a] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col border border-[#2D2F39]">
-        <div className="flex items-center justify-between p-5 border-b border-[#2D2F39]">
-          <h2 className="text-xl font-semibold text-white">New Message</h2>
+      <div
+        className="rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col border mx-4"
+        style={{
+          background: themeStyles.cardBg,
+          borderColor: themeStyles.border
+        }}
+      >
+        <div
+          className="flex items-center justify-between p-5 border-b"
+          style={{ borderColor: themeStyles.border }}
+        >
+          <h2 className="text-xl font-semibold" style={{ color: themeStyles.text }}>New Message</h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-[#2D2F39] rounded-full transition text-gray-400 hover:text-white"
+            className="p-2 rounded-full transition"
+            style={{ color: themeStyles.textSecondary, backgroundColor: 'transparent' }}
           >
             <X size={20} />
           </button>
         </div>
 
-        <div className="flex border-b border-[#2D2F39] bg-[#0C1014]">
+        <div className="flex border-b" style={{ borderColor: themeStyles.border, backgroundColor: themeStyles.background }}>
           <button
             onClick={() => handleTabChange('followers')}
             className={`flex-1 py-3 px-4 text-sm font-medium transition flex items-center justify-center gap-2 ${
               activeTab === 'followers'
-                ? 'text-white border-b-2 border-[#8860D9]'
-                : 'text-gray-400 hover:text-white'
+                ? 'border-b-2 border-[#8860D9]'
+                : ''
             }`}
+            style={{
+              color: activeTab === 'followers' ? themeStyles.text : themeStyles.textSecondary
+            }}
           >
             <Users size={18} />
             Followers
@@ -185,16 +200,19 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
             onClick={() => handleTabChange('all')}
             className={`flex-1 py-3 px-4 text-sm font-medium transition flex items-center justify-center gap-2 ${
               activeTab === 'all'
-                ? 'text-white border-b-2 border-[#8860D9]'
-                : 'text-gray-400 hover:text-white'
+                ? 'border-b-2 border-[#8860D9]'
+                : ''
             }`}
+             style={{
+              color: activeTab === 'all' ? themeStyles.text : themeStyles.textSecondary
+            }}
           >
             <Globe size={18} />
             All Users
           </button>
         </div>
 
-        <div className="p-4 border-b border-[#2D2F39]">
+        <div className="p-4 border-b" style={{ borderColor: themeStyles.border }}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={20} />
             <input
@@ -202,7 +220,12 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
               placeholder={activeTab === 'followers' ? 'Search followers...' : 'Search all users...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-[#0C1014] border border-[#2D2F39] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8860D9] text-white placeholder-gray-500"
+              className="w-full pl-10 pr-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8860D9] placeholder-gray-500 text-[16px]"
+              style={{
+                backgroundColor: themeStyles.background,
+                borderColor: themeStyles.border,
+                color: themeStyles.text
+              }}
             />
             {(searching && activeTab === 'all') && (
               <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 animate-spin text-[#8860D9]" size={20} />
@@ -247,16 +270,17 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
           ) : (
             <div className="divide-y divide-[#2D2F39]">
               {displayUsers.map((user) => {
-                const hasProfilePicture = user.profile_picture && 
-                                         !imageErrors.has(user._id) && 
+                const hasProfilePicture = user.profile_picture &&
+                                         !imageErrors.has(user._id) &&
                                          typeof user.profile_picture === 'string';
-                
+
                 return (
                   <div
                     key={user._id}
-                    className="p-4 hover:bg-[#2D2F39] transition flex items-center gap-3"
+                    className="p-4 transition flex items-center gap-3 hover:brightness-95"
+                    style={{ backgroundColor: themeStyles.background }}
                   >
-                    <div className="relative w-12 h-12 rounded-full overflow-hidden bg-[#2D2F39] flex-shrink-0">
+                    <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0" style={{ backgroundColor: themeStyles.hoverBg }}>
                       {hasProfilePicture ? (
                         <Image
                           src={user.profile_picture!}
@@ -275,7 +299,7 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-white truncate">{user.name}</p>
+                        <p className="font-semibold truncate" style={{ color: themeStyles.text }}>{user.name}</p>
                         {user.is_verified && (
                           <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
@@ -283,7 +307,7 @@ export default function NewChatModal({ isOpen, onClose, onChatCreated }: NewChat
                         )}
                       </div>
                       {user.username && (
-                        <p className="text-sm text-gray-400 truncate">@{user.username}</p>
+                        <p className="text-sm truncate" style={{ color: themeStyles.textSecondary }}>@{user.username}</p>
                       )}
                     </div>
                     <button
