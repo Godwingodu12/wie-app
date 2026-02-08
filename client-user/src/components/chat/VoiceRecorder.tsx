@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, X, Send, Trash2, Pause, Play, Square } from 'lucide-react';
+import { useTheme } from '@/components/home/ThemeContext';
 
 interface VoiceRecorderProps {
   onSendVoice: (audioBlob: Blob, duration: number) => void;
@@ -10,6 +11,7 @@ interface VoiceRecorderProps {
 }
 
 export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false }: VoiceRecorderProps) {
+  const { themeStyles } = useTheme();
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -59,21 +61,21 @@ export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false 
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: true
       });
-      
+
       streamRef.current = stream;
-      
+
       let mimeType = 'audio/webm';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
         mimeType = 'audio/ogg';
       }
-      
+
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: mimeType || undefined
       });
-      
+
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -89,27 +91,27 @@ export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false 
           onCancel();
           return;
         }
-        
-        const blob = new Blob(audioChunksRef.current, { 
+
+        const blob = new Blob(audioChunksRef.current, {
           type: mediaRecorder.mimeType
         });
-        
+
         setAudioBlob(blob);
         const url = URL.createObjectURL(blob);
         setAudioURL(url);
-        
+
         const tempAudio = new Audio(url);
-        
+
         await new Promise<void>((resolve) => {
           let resolved = false;
-          
+
           const finalize = (duration: number) => {
             if (resolved) return;
             resolved = true;
             setAudioDuration(duration);
             resolve();
           };
-          
+
           tempAudio.onloadedmetadata = () => {
             const actualDuration = tempAudio.duration;
             if (actualDuration && isFinite(actualDuration) && actualDuration > 0) {
@@ -118,16 +120,16 @@ export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false 
               finalize(recordingTime);
             }
           };
-          
+
           tempAudio.onerror = () => {
             finalize(recordingTime);
           };
-          
+
           setTimeout(() => {
             finalize(recordingTime);
           }, 2000);
         });
-        
+
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(track => track.stop());
         }
@@ -151,7 +153,7 @@ export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false 
           return newTime;
         });
       }, 1000);
-      
+
     } catch (error: any) {
       if (error.name === 'NotAllowedError') {
         alert('Microphone permission denied. Please allow microphone access in your browser settings and try again.');
@@ -162,7 +164,7 @@ export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false 
       } else {
         alert(`Unable to access microphone: ${error.message}`);
       }
-      
+
       onCancel();
     }
   };
@@ -172,7 +174,7 @@ export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false 
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setIsPaused(false);
-      
+
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
@@ -230,7 +232,7 @@ export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false 
       audio.play().catch(() => {
         alert('Failed to play audio preview');
       });
-      
+
       setIsPlaying(true);
 
       const updateTime = () => {
@@ -276,20 +278,20 @@ export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false 
     setRecordingTime(0);
     setAudioDuration(0);
     audioChunksRef.current = [];
-    
+
     startRecording();
   };
 
   const sendVoice = () => {
     if (audioBlob) {
       let finalDuration = recordingTime;
-      
+
       if (audioDuration && isFinite(audioDuration) && audioDuration > 0) {
         finalDuration = Math.floor(audioDuration);
       }
-      
+
       finalDuration = Math.max(1, finalDuration);
-      
+
       onSendVoice(audioBlob, finalDuration);
       cleanup();
     }
@@ -306,17 +308,23 @@ export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false 
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const displayDuration = audioDuration && isFinite(audioDuration) && audioDuration > 0 
-    ? audioDuration 
+  const displayDuration = audioDuration && isFinite(audioDuration) && audioDuration > 0
+    ? audioDuration
     : recordingTime;
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#1a1a1a] border border-[#2D2F39] rounded-lg p-4 shadow-lg animate-slide-up">
+    <div
+      className="absolute bottom-full left-0 right-0 mb-2 border rounded-lg p-4 shadow-lg animate-slide-up"
+      style={{
+        background: themeStyles.cardBg,
+        borderColor: themeStyles.border
+      }}
+    >
       <div className="flex items-center gap-3">
         {isRecording && (
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-            <span className="text-sm text-white font-medium">
+            <span className="text-sm font-medium" style={{ color: themeStyles.text }}>
               {formatTime(recordingTime)}
             </span>
           </div>
@@ -326,20 +334,21 @@ export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false 
           <div className="flex items-center gap-2">
             <button
               onClick={playAudio}
-              className="p-2 bg-[#2D2F39] hover:bg-[#3D3F49] rounded-full transition"
+              className="p-2 rounded-full transition"
+              style={{ backgroundColor: themeStyles.hoverBg }}
             >
               {isPlaying ? (
-                <Pause size={18} className="text-white" />
+                <Pause size={18} style={{ color: themeStyles.text }} />
               ) : (
-                <Play size={18} className="text-white ml-0.5" />
+                <Play size={18} className="ml-0.5" style={{ color: themeStyles.text }} />
               )}
             </button>
             <div className="flex-1">
-              <div className="text-sm text-white">
+              <div className="text-sm" style={{ color: themeStyles.text }}>
                 {formatTime(isPlaying ? playbackTime : displayDuration)}
               </div>
               {displayDuration > 0 && (
-                <div className="w-32 h-1 bg-[#2D2F39] rounded-full overflow-hidden mt-1">
+                <div className="w-32 h-1 rounded-full overflow-hidden mt-1" style={{ backgroundColor: themeStyles.hoverBg }}>
                   <div
                     className="h-full bg-gradient-to-r from-[#8860D9] to-[#B3B8E2] transition-all duration-100"
                     style={{ width: `${(playbackTime / displayDuration) * 100}%` }}
@@ -356,21 +365,23 @@ export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false 
           <>
             <button
               onClick={isPaused ? resumeRecording : pauseRecording}
-              className="p-2 bg-[#2D2F39] hover:bg-[#3D3F49] rounded-full transition"
+              className="p-2 rounded-full transition"
+              style={{ backgroundColor: themeStyles.hoverBg }}
               title={isPaused ? "Resume" : "Pause"}
             >
               {isPaused ? (
-                <Play size={18} className="text-white" />
+                <Play size={18} style={{ color: themeStyles.text }} />
               ) : (
-                <Pause size={18} className="text-white" />
+                <Pause size={18} style={{ color: themeStyles.text }} />
               )}
             </button>
             <button
               onClick={stopRecording}
-              className="p-2 bg-[#2D2F39] hover:bg-[#3D3F49] rounded-full transition"
+              className="p-2 rounded-full transition"
+              style={{ backgroundColor: themeStyles.hoverBg }}
               title="Stop"
             >
-              <Square size={18} className="text-white fill-white" />
+              <Square size={18} className="fill-current" style={{ color: themeStyles.text }} />
             </button>
             <button
               onClick={() => {
@@ -405,10 +416,14 @@ export default function VoiceRecorder({ onSendVoice, onCancel, disabled = false 
 
         <button
           onClick={handleCancel}
-          className="p-2 hover:bg-[#2D2F39] rounded-full transition"
+          className="p-2 rounded-full transition"
+          style={{
+             color: themeStyles.textSecondary,
+             backgroundColor: 'transparent'
+          }}
           title="Cancel"
         >
-          <X size={18} className="text-gray-400" />
+          <X size={18} />
         </button>
       </div>
       <style jsx>{`

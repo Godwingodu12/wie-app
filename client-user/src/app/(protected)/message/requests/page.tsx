@@ -2,17 +2,24 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getMessageRequests, acceptMessageRequest, declineMessageRequest } from '@/services/chatService';
-import { MessageRequest } from '@/types/chat';
-import { ArrowLeft, Loader2, Check, X } from 'lucide-react';
+import { getMessageRequests } from '@/services/chatService';
+import { MessageRequest, Chat } from '@/types/chat';
+import { ArrowLeft, Loader2, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
+import { useTheme } from "@/components/home/ThemeContext";
+import SideBar from "@/components/home/SideBar";
+import { useSidebar } from "@/context/SidebarContext";
+import { useChat } from '@/context/ChatContext';
 
 export default function MessageRequestsPage() {
   const router = useRouter();
+  const { themeStyles, isDark } = useTheme();
+  const { isMobile, isCollapsed } = useSidebar();
+  const { setCurrentChat } = useChat();
+  const marginLeft = isMobile ? "0" : isCollapsed ? "92px" : "281px";
   const [requests, setRequests] = useState<MessageRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState<string | null>(null);
 
   useEffect(() => {
     loadRequests();
@@ -32,141 +39,148 @@ export default function MessageRequestsPage() {
     }
   };
 
-  const handleAccept = async (chatId: string) => {
-    setProcessing(chatId);
-    try {
-      const response = await acceptMessageRequest(chatId);
-      if (response.success) {
-        setRequests(prev => prev.filter(req => req._id !== chatId));
-        // Navigate to the accepted chat
-        router.push('/message');
-      }
-    } catch (error) {
-      // Silent fail
-    } finally {
-      setProcessing(null);
-    }
-  };
+  const handleRequestClick = (request: MessageRequest) => {
+    // Map MessageRequest to Chat object structure expected by ChatContext
+    const chatData: Chat = {
+      _id: request._id,
+      participant: request.participant,
+      lastMessage: request.lastMessage,
+      unreadCount: 0, // Requests usually treated as read once opened or have special handling
+      type: 'request',
+      status: 'pending',
+      updatedAt: request.lastMessage?.timestamp || new Date().toISOString()
+    };
 
-  const handleDecline = async (chatId: string) => {
-    setProcessing(chatId);
-    try {
-      const response = await declineMessageRequest(chatId);
-      if (response.success) {
-        setRequests(prev => prev.filter(req => req._id !== chatId));
-      }
-    } catch (error) {
-      // Silent fail
-    } finally {
-      setProcessing(null);
-    }
+    setCurrentChat(chatData);
+    router.push('/message');
   };
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#0C1014]">
-        <Loader2 className="animate-spin text-[#8860D9]" size={32} />
+      <div className="h-screen flex" style={{ backgroundColor: themeStyles.sidebarBg }}>
+        {!isMobile && <SideBar />}
+        <div
+          className="flex-1 flex items-center justify-center transition-all duration-300"
+          style={{ marginLeft }}
+        >
+          <Loader2 className="animate-spin text-[#8860D9]" size={32} />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[#0C1014]">
-      {/* Header */}
-      <div className="bg-[#1a1a1a] border-b border-[#2D2F39] p-4 flex items-center gap-4">
-        <button
-          onClick={() => router.back()}
-          className="p-2 hover:bg-[#2D2F39] rounded-full text-white"
+    <div className="h-screen flex" style={{ backgroundColor: themeStyles.background }}>
+      {!isMobile && <SideBar />}
+      <div
+        className="flex-1 flex flex-col overflow-hidden transition-all duration-300"
+        style={{ marginLeft }}
+      >
+        {/* Header */}
+        <div
+          className="p-4 flex items-center gap-4 flex-shrink-0"
+          style={{
+            background: themeStyles.sidebarBg,
+            borderBottom: `1px solid ${themeStyles.border}`
+          }}
         >
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-xl font-bold text-white">Message Requests</h1>
-      </div>
+          <button
+            onClick={() => router.back()}
+            className="p-2 -ml-2 rounded-full transition hover:opacity-80"
+            style={{ color: themeStyles.text }}
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <h1 className="text-xl font-bold" style={{ color: themeStyles.text }}>Message requests</h1>
+        </div>
 
-      {/* Requests List */}
-      <div className="flex-1 overflow-y-auto">
-        {requests.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400 px-4">
-            <p className="text-lg text-white mb-2">No message requests</p>
-            <p className="text-sm text-center">You'll see message requests from people you don't follow here</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-[#2D2F39]">
-            {requests.map((request) => (
-              <div key={request._id} className="p-4 bg-[#0C1014]">
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="relative w-12 h-12 rounded-full overflow-hidden bg-[#2D2F39] flex-shrink-0">
+        {/* Info Banner */}
+        <div className="px-5 py-4">
+            <p className="text-sm leading-relaxed" style={{ color: themeStyles.textSecondary }}>
+                Open a chat to get more info on who they are. They won't know you've seen the message until you accept.
+            </p>
+        </div>
+
+        {/* Requests List */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[#2D2F39] scrollbar-track-transparent">
+          {requests.length === 0 ? (
+            <div className="flex flex-col items-center justify-center pt-20 px-4">
+              <div className="w-20 h-20 rounded-full border-2 border-[#2D2F39] flex items-center justify-center mb-4">
+                 <svg className="w-10 h-10 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                 </svg>
+              </div>
+              <h3 className="text-lg font-semibold mb-1" style={{ color: themeStyles.text }}>No pending requests</h3>
+              <p className="text-sm text-center" style={{ color: themeStyles.textSecondary }}>
+                  You don't have any message requests.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {requests.map((request) => (
+                <div
+                  key={request._id}
+                  onClick={() => handleRequestClick(request)}
+                  className="w-full px-5 py-3 flex items-center gap-3 cursor-pointer transition-colors active:bg-white/5"
+                  style={{
+                      // Hover effect can be added via CSS class or inline style if needed
+                  }}
+                >
+                  {/* Avatar */}
+                  <div className="relative w-14 h-14 rounded-full overflow-hidden flex-shrink-0" style={{ backgroundColor: themeStyles.hoverBg }}>
                     {request.participant?.profile_picture ? (
                       <Image
                         src={request.participant.profile_picture}
                         alt={request.participant.name}
                         fill
                         className="object-cover"
-                        sizes="48px"
+                        sizes="56px"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-white font-semibold text-lg bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD]">
+                      <div className="w-full h-full flex items-center justify-center font-bold text-xl bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-white">
                         {request.participant?.name?.charAt(0).toUpperCase() || '?'}
                       </div>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-white truncate">
-                        {request.participant?.name || 'Unknown'}
-                      </p>
-                      {request.participant?.is_verified && (
-                        <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
-                        </svg>
-                      )}
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <div className="flex items-center justify-between mb-0.5">
+                        <span className="font-semibold text-[15px] truncate" style={{ color: themeStyles.text }}>
+                            {request.participant?.name || 'Instagram User'}
+                        </span>
+                        <span className="text-[12px]" style={{ color: themeStyles.textSecondary }}>
+                             {request.lastMessage?.timestamp
+                                ? formatDistanceToNow(new Date(request.lastMessage.timestamp), { addSuffix: false })
+                                    .replace('about ', '')
+                                    .replace(' hours', 'h')
+                                    .replace(' hour', 'h')
+                                    .replace(' minutes', 'm')
+                                    .replace(' minute', 'm')
+                                    .replace(' days', 'd')
+                                    .replace(' day', 'd')
+                                : ''}
+                        </span>
                     </div>
-                    <p className="text-sm text-gray-400 truncate">
-                      {request.lastMessage?.content || 'Wants to send you a message'}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {request.lastMessage?.timestamp
-                        ? formatDistanceToNow(new Date(request.lastMessage.timestamp), { addSuffix: true })
-                        : ''}
+
+                    <div className="flex items-center gap-1">
+                        <p className="text-[14px] truncate leading-tight" style={{ color: themeStyles.textSecondary }}>
+                            {request.lastMessage?.content || 'Sent you a message'}
+                        </p>
+                    </div>
+                     <p className="text-[12px] mt-1 opacity-70 truncate" style={{ color: themeStyles.textSecondary }}>
+                        {request.participant?.username ? `@${request.participant.username}` : ''} • Instagram
                     </p>
                   </div>
-                </div>
 
-                {/* Action Buttons */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleAccept(request._id)}
-                    disabled={processing === request._id}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition"
-                  >
-                    {processing === request._id ? (
-                      <Loader2 className="animate-spin" size={16} />
-                    ) : (
-                      <>
-                        <Check size={16} />
-                        <span>Accept</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleDecline(request._id)}
-                    disabled={processing === request._id}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#2D2F39] text-white rounded-lg hover:bg-[#3D3F49] disabled:opacity-50 transition"
-                  >
-                    {processing === request._id ? (
-                      <Loader2 className="animate-spin" size={16} />
-                    ) : (
-                      <>
-                        <X size={16} />
-                        <span>Decline</span>
-                      </>
-                    )}
-                  </button>
+                   {/* Optional: Right chevron or new indicator */}
+                   {/* <ChevronRight size={18} style={{ color: themeStyles.textSecondary }} className="opacity-50" /> */}
+
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

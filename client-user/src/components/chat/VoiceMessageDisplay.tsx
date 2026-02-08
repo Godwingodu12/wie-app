@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
+import { useTheme } from "@/components/home/ThemeContext";
 
 interface VoiceMessageDisplayProps {
   audioURL: string;
@@ -12,6 +13,7 @@ interface VoiceMessageDisplayProps {
 }
 
 export default function VoiceMessageDisplay({ audioURL, duration, isSender, timestamp }: VoiceMessageDisplayProps) {
+  const { themeStyles, isDark } = useTheme();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [error, setError] = useState(false);
@@ -52,9 +54,9 @@ export default function VoiceMessageDisplay({ audioURL, duration, isSender, time
       if (audioRef.current) {
         audioRef.current.pause();
       }
-      
+
       setIsPlaying(false);
-      
+
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
@@ -133,20 +135,21 @@ export default function VoiceMessageDisplay({ audioURL, duration, isSender, time
         <button
           onClick={togglePlayback}
           disabled={isLoading || error}
-          className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition ${
-            isSender
-              ? 'bg-white/20 hover:bg-white/30'
-              : 'bg-[#2D2F39] hover:bg-[#3D3F49]'
-          } ${isLoading || error ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition ${isLoading || error ? 'opacity-50 cursor-not-allowed' : ''}`}
+          style={{
+            backgroundColor: isSender
+              ? 'rgba(255, 255, 255, 0.2)'
+              : isDark ? '#2D2F39' : themeStyles.hoverBg
+          }}
         >
           {isLoading ? (
             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : error ? (
             <span className="text-red-400 text-xs">✕</span>
           ) : isPlaying ? (
-            <Pause size={18} className="text-white" />
+            <Pause size={18} style={{ color: isSender ? '#fff' : themeStyles.text }} />
           ) : (
-            <Play size={18} className="text-white ml-0.5" />
+            <Play size={18} className="ml-0.5" style={{ color: isSender ? '#fff' : themeStyles.text }} />
           )}
         </button>
 
@@ -158,22 +161,19 @@ export default function VoiceMessageDisplay({ audioURL, duration, isSender, time
               return (
                 <div
                   key={i}
-                  className={`w-1 rounded-full transition-all duration-100 ${
-                    isSender
-                      ? isPassed
-                        ? 'bg-white'
-                        : 'bg-white/30'
-                      : isPassed
-                      ? 'bg-[#8860D9]'
-                      : 'bg-[#2D2F39]'
-                  }`}
-                  style={{ height: `${height}px` }}
+                  className="w-1 rounded-full transition-all duration-100"
+                  style={{
+                    height: `${height}px`,
+                    backgroundColor: isSender
+                      ? isPassed ? '#fff' : 'rgba(255, 255, 255, 0.3)'
+                      : isPassed ? '#8860D9' : (isDark ? '#2D2F39' : 'rgba(0,0,0,0.1)')
+                  }}
                 />
               );
             })}
           </div>
 
-          <div className={`text-xs ${isSender ? 'text-blue-100' : 'text-gray-400'}`}>
+          <div className="text-xs" style={{ color: isSender ? 'rgba(255, 255, 255, 0.8)' : themeStyles.textSecondary }}>
             {formatTime(isPlaying ? currentTime : validDuration)}
           </div>
         </div>

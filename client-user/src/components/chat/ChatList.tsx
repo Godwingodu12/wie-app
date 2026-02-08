@@ -3,13 +3,18 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useChat } from '@/context/ChatContext';
-import { MessageCircle, Loader2, Camera, CheckCheck, MessageSquarePlus, X, Check } from 'lucide-react';
+import { Search, PenSquare, MessageCircle, Loader2, Check, CheckCheck, Camera } from 'lucide-react';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/features/store';
 import Image from 'next/image';
-import { Chat } from '@/types/chat';
+import { Chat, MessageRequest } from '@/types/chat';
 import { format, isYesterday } from 'date-fns';
 import NewChatModal from './NewChatModal';
 import { checkBlockStatus, getMessageRequests, getWieUserChats } from '@/services/chatService';
-import New_Chat from '@/assets/message/new_chat.jpg';
+
+import messageIcon from '@/assets/chat/messageIcon.png';
+import { useTheme } from '@/components/home/ThemeContext';
+
 interface ChatListProps {
   onChatSelect: (chat: Chat) => void;
   isRefreshing?: boolean;
@@ -18,17 +23,19 @@ interface ChatListProps {
 
 export default function ChatList({ onChatSelect }: ChatListProps) {
   const router = useRouter();
- 
-    const { 
-    setCurrentChat, 
-    currentChat, 
-    chats, 
-    setChats, 
-    updateChatList, 
+  const { user } = useSelector((state: RootState) => state.auth);
+  const { themeStyles, isDark } = useTheme();
+
+    const {
+    setCurrentChat,
+    currentChat,
+    chats,
+    setChats,
+    updateChatList,
     updateUnreadCount,
-    unreadCounts,  // ✅ Added this
+    unreadCounts,
     typingUsers,
-    getTotalUnreadCount  // ✅ Added this
+    getTotalUnreadCount
   } = useChat();
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState('All');
@@ -37,9 +44,12 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
     const hasFetchedRef = useRef(false);
-      const [searchQuery, setSearchQuery] = useState('');  
+      const [searchQuery, setSearchQuery] = useState('');
     const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+    const [requests, setRequests] = useState<Chat[]>([]);
+    const [isLoadingRequests, setIsLoadingRequests] = useState(false);
 
+  const TABS = ["All", "Personal", "Groups", "Requests"];
 
   useEffect(() => {
     const refreshCurrentChatDetails = async () => {
@@ -57,9 +67,9 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
             isBlocked: status.iBlockedThem || status.theyBlockedMe,
             isBlockedBy: isBlockedBy
           };
-          
+
           setCurrentChat(updatedChat);
-          
+
           if (typeof window !== 'undefined') {
             localStorage.setItem('wie_current_chat', JSON.stringify(updatedChat));
           }
@@ -78,7 +88,7 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
       setIsRefreshing(true);
       try {
         const response = await getWieUserChats();
-        if (response.success && response.chats && Array.isArray(response.chats)) {          
+        if (response.success && response.chats && Array.isArray(response.chats)) {
           const mappedChats = response.chats.map((chat: any) => {
             const mappedChat = {
               ...chat,
@@ -92,13 +102,14 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
               isBlockedBy: chat.isBlockedBy,
               unreadCount: chat.unreadCount || 0
             };
-            
+
             return mappedChat;
           });
-          
+
+          // ✅ Always update chats to keep in sync with backend, even if empty
+          setChats(mappedChats);
+
           if (mappedChats.length > 0) {
-            setChats(mappedChats);
-            
             // ✅ Initialize unread counts
             setTimeout(() => {
               mappedChats.forEach((chat: Chat) => {
@@ -107,16 +118,26 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
                 }
               });
             }, 0);
-            
+
             // Update current chat if exists
             if (currentChat?._id) {
               const updatedCurrentChat = mappedChats.find((c: Chat) => c._id === currentChat._id);
               if (updatedCurrentChat) {
                 setCurrentChat(updatedCurrentChat);
+              } else {
+                 // ✅ CRITICAL: If current chat is not in the new list, clear it!
+                 // BUT: If the current chat is a "request", don't clear it just because it's not in "chats" list
+                 if (currentChat.type !== 'request') {
+                    setCurrentChat(null);
+                 }
               }
             }
-          } else if (chats.length === 0) {
-            setChats([]);
+          } else {
+             // ✅ CRITICAL: If no chats, clear current chat!
+             // BUT: If the current chat is a "request", don't clear it just because it's not in "chats" list
+              if (currentChat?.type !== 'request') {
+                  setCurrentChat(null);
+              }
           }
         }
       } catch (error) {
@@ -140,9 +161,40 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
       loadChats();
       loadRequestsCount();
     }, 150);
-    
+
     return () => clearTimeout(timer);
   }, [setChats]);
+
+  // Fetch Requests when tab is selected
+  useEffect(() => {
+      if (activeFilter === 'Requests') {
+          const fetchRequests = async () => {
+              setIsLoadingRequests(true);
+              try {
+                  const response = await getMessageRequests();
+                  if (response.success && response.requests) {
+                      setPendingRequestsCount(response.requests.length);
+                      // Map requests to Chat objects
+                      const mappedRequests: Chat[] = response.requests.map((req: MessageRequest) => ({
+                          _id: req._id,
+                          participant: req.participant,
+                          lastMessage: req.lastMessage,
+                          unreadCount: 0,
+                          type: 'request',
+                          status: 'pending',
+                          updatedAt: req.lastMessage?.timestamp || new Date().toISOString()
+                      }));
+                      setRequests(mappedRequests);
+                  }
+              } catch (error) {
+                  console.error('Failed to fetch requests', error);
+              } finally {
+                  setIsLoadingRequests(false);
+              }
+          };
+          fetchRequests();
+      }
+  }, [activeFilter]);
 
   useEffect(() => {
     if (currentChat && window.innerWidth < 1024) {
@@ -151,28 +203,30 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
   }, [currentChat]);
 
   // ✅ FIXED: handleChatSelect with proper unreadCounts access
-  const handleChatSelect = async (chat: Chat) => {    
+  const handleChatSelect = async (chat: Chat) => {
     // Set current chat first
     setCurrentChat(chat);
     setShowMobileChat(true);
-    
-    // ✅ Reset unread count immediately in local state
+
+    // Requests are implicitly read/don't have unread count logic usually, but handled safely
     const currentUnreadCount = unreadCounts[chat._id] || chat.unreadCount || 0;
-    
+
     if (currentUnreadCount > 0) {
       updateUnreadCount(chat._id, 0);
       // ✅ Dispatch event immediately for UI update
       if (typeof window !== 'undefined') {
         const newTotal = getTotalUnreadCount() - currentUnreadCount;
-        window.dispatchEvent(new CustomEvent('unread-count-changed', { 
-          detail: { 
-            chatId: chat._id, 
+        window.dispatchEvent(new CustomEvent('unread-count-changed', {
+          detail: {
+            chatId: chat._id,
             unreadCount: 0,
             totalUnread: newTotal >= 0 ? newTotal : 0
-          } 
+          }
         }));
       }
     }
+
+    onChatSelect(chat);
   };
 
   const handleChatCreated = (chatId: string, chat: any) => {
@@ -218,13 +272,10 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
       console.error('Error creating chat:', error);
     }
   };
-  
+
   const handleBack = () => {
     setShowMobileChat(false);
   };
-
-  
-  const filters = ['All', 'Personal', 'Groups', 'Requests'];
 
   // ✅ Keep your unreadCount listeners for real-time updates
   useEffect(() => {
@@ -236,23 +287,7 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
     window.addEventListener('unread-count-changed' as any, handleUnreadChange);
     return () => window.removeEventListener('unread-count-changed' as any, handleUnreadChange);
   }, []);
-const formatChatTime = (timestamp: string) => {
-  if (!timestamp) return '';
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (diffInSeconds < 60) return `${diffInSeconds} sec ago`;
-  
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) return `${diffInMinutes} min ago`;
-  
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) return `${diffInHours} hr ago`;
-  
-  if (isYesterday(date)) return 'Yesterday';
-  return format(date, 'dd/MM/yy');
-};
   // ✅ RESTORED: Compute chats with unread counts AND blocking logic
   const chatsWithMessages = useMemo(() => {
     return chats
@@ -265,271 +300,295 @@ const formatChatTime = (timestamp: string) => {
 
 // Combined Filter and Search Logic
 const filteredChats = useMemo(() => {
+  if (activeFilter === 'Requests') {
+      return requests.filter(chat => {
+          const searchLower = searchQuery.toLowerCase().trim();
+          return searchLower === '' ||
+              chat.participant?.name?.toLowerCase().includes(searchLower) ||
+              chat.participant?.username?.toLowerCase().includes(searchLower);
+      });
+  }
+
   return chatsWithMessages.filter(chat => {
     // 1. Category Filtering
     let matchesCategory = true;
-    if (activeFilter === 'Requests') matchesCategory = chat.status === 'pending';
-    else if (activeFilter === 'Groups') matchesCategory = chat.type === 'group';
+
+    // ✅ Exclude pending requests from other tabs
+    if (chat.status === 'pending') return false;
+
+    if (activeFilter === 'Groups') matchesCategory = chat.type === 'group';
     else if (activeFilter === 'Personal') matchesCategory = chat.type === 'direct';
 
     // 2. Search Query Filtering (by name or username)
     const searchLower = searchQuery.toLowerCase().trim();
-    const matchesSearch = searchLower === '' || 
+    const matchesSearch = searchLower === '' ||
       chat.participant?.name?.toLowerCase().includes(searchLower) ||
       chat.participant?.username?.toLowerCase().includes(searchLower);
 
     return matchesCategory && matchesSearch;
   });
-}, [chatsWithMessages, activeFilter, searchQuery]);
+}, [chatsWithMessages, requests, activeFilter, searchQuery]);
 
-  if (!chats || (isRefreshing && chatsWithMessages.length === 0)) {
-    return (
-      <div className="flex items-center justify-center h-full bg-[#0C1014]">
+
+  // Time formatter like existing one
+  const formatChatTime = (timestamp: string) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) return `${diffInSeconds} sec ago`;
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes} min ago`;
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours} hr ago`;
+
+    if (isYesterday(date)) return 'Yesterday';
+    return format(date, 'dd/MM/yy');
+  };
+
+  const renderLoader = () => (
+      <div className="flex items-center justify-center h-full" style={{ backgroundColor: themeStyles.sidebarBg }}>
         <Loader2 className="animate-spin text-[#5494FF]" size={32} />
       </div>
-    );
+  );
+
+  const isListLoading = (activeFilter === 'Requests' && isLoadingRequests) ||
+                        (activeFilter !== 'Requests' && isRefreshing && chatsWithMessages.length === 0);
+
+  if (!chats && !requests && isListLoading) {
+      return renderLoader();
   }
 
   return (
-    <div className="h-full bg-[#0C1014] flex flex-col">
-      {/* 1. Header Section: Messages + New Chat Button */}
-  <div className="p-4 pt-6 flex items-center justify-between flex-shrink-0">
-    <h1 className="text-2xl font-bold text-white tracking-tight">Messages</h1>
-    <button
-      onClick={() => setShowNewChatModal(true)}
-      style={{ 
-      background: 'linear-gradient(270deg, rgba(32, 32, 32, 0.6) -8.43%, rgba(96, 96, 96, 0.6) 100%)',
-      backdropFilter: 'blur(10px)' 
-    }}
-      className="flex items-center gap-2  backdrop-blur-md text-white px-5 py-2 rounded-full hover:bg-[#3D3F49] transition-all  shadow-lg"
-    >
-      <Image 
-              src={New_Chat} 
-              alt="New Chat" 
-              className=" "
-            />
-      <span className="text-sm font-medium">New chat</span>
-    </button>
-  </div>
-
-  {/* 2. Search Bar Section */}<div className="px-4 mb-2">
-  <div className="relative group">
-    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-      </svg>
-    </div>
-    <input 
-      type="text" 
-      value={searchQuery}
-      onChange={(e) => setSearchQuery(e.target.value)} // Update state on typing
-      placeholder="Search peoples here.." 
-      className="w-full bg-[#1A1A1A] border-none rounded-xl py-3 pl-12 pr-10 text-white text-sm placeholder-gray-500 focus:ring-1 focus:ring-white/10 transition-all shadow-inner"
-    />
-    {searchQuery && (
-      <button 
-        onClick={() => setSearchQuery('')}
-        className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-white"
-      >
-        <X size={16} />
-      </button>
-    )}
-  </div>
-</div>
-{/* 1. Category Filter Capsule */}
-<div className="px-4 py-3 sticky top-0 z-20 bg-[#0C1014]">
-  <div className="flex bg-[#1A1A1A] p-1.5 rounded-full gap-1 border border-white/5">
-    {filters.map((filter) => (
-      <button
-        key={filter}
-        onClick={() => {
-          if (filter === 'Requests') {
-            router.push('/message/requests');
-          } else {
-            setActiveFilter(filter);
-          }
-        }}
-        className={`flex-1 py-1.5 rounded-full text-[11px] font-bold transition-all duration-300 ${
-          activeFilter === filter 
-          ? 'bg-[#5494FF] text-white shadow-lg' 
-          : 'text-gray-400 hover:text-white'
-        }`}
-      >
-        <div className="flex items-center justify-center gap-1">
-          {filter}
-          {/* Optional: Show request count badge on the filter button */}
-          {filter === 'Requests' && pendingRequestsCount > 0 && (
-            <span className="bg-red-500 text-white text-[9px] rounded-full px-1 min-w-[14px]">
-              {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
-            </span>
-          )}
-        </div>
-      </button>
-    ))}
-  </div>
-</div>
-
-      {/* 2. Chat List Container */}
-<div className="flex-1 overflow-y-auto scrollbar-hide">
-  {filteredChats.length === 0 ? (
-<div className="flex flex-col items-center justify-center h-full text-gray-500 px-4">
-      <MessageCircle size={48} className="mb-4 text-[#5494FF] opacity-20" />
-      <p className="text-white font-medium">
-        {searchQuery ? `No results for "${searchQuery}"` : 'No messages yet'}
-      </p>
-      {searchQuery && (
-        <button 
-          onClick={() => setSearchQuery('')}
-          className="text-[#5494FF] text-sm mt-2 hover:underline"
-        >
-          Clear search
-        </button>
-      )}
-    </div>
-  ) : (
-    filteredChats.map((chat) => {
-      // 1. Core Logic & Variables
-      const unreadCount = chat.currentUnreadCount;
-      const isActive = currentChat?._id === chat._id;
-      const isOnline = chat.participant?.isOnline ?? false;
-      const isTyping = typingUsers[chat._id] || false;
-      const lastMsg = chat.lastMessage;
-      
-      const isBlockedByThem = chat.isBlockedBy === 'them';
-      const isBlockedByYou = chat.isBlockedBy === 'you';
-      const hasProfilePicture = chat.participant?.profile_picture && !imageErrors.has(chat._id);
-
-      // 2. Custom Time Ago Logic (1 sec ago, 29 min ago, etc.)
-      const formatChatTime = (timestamp: string) => {
-        if (!timestamp) return '';
-        const date = new Date(timestamp);
-        const now = new Date();
-        const diffInSecs = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-        if (diffInSecs < 1) return 'Just now';
-        if (diffInSecs < 60) return `${diffInSecs} sec ago`;
-        
-        const diffInMins = Math.floor(diffInSecs / 60);
-        if (diffInMins < 60) return `${diffInMins} min ago`;
-        
-        const diffInHrs = Math.floor(diffInMins / 60);
-        if (diffInHrs < 24) return `${diffInHrs} hr ago`;
-        
-        return isYesterday(date) ? 'Yesterday' : format(date, 'dd/MM/yy');
-      };
-
-      // 3. Status Ticket Logic (Blue/Purple when read)
-      const isLastMsgFromMe = lastMsg && lastMsg.sender !== chat.participant?._id;
-      const isLastMsgRead = isLastMsgFromMe && lastMsg?.readBy && lastMsg.readBy.length > 1;
-      const isLastMsgDelivered = isLastMsgFromMe && lastMsg?.deliveredTo && lastMsg.deliveredTo.length > 0;
-
-      // 4. Return JSX (Ensures ReactNode compatibility)
-      return (
+    <div className="flex flex-col h-full w-full" style={{ backgroundColor: themeStyles.sidebarBg, color: themeStyles.text }}>
+      {/* Header */}
+      <div className="flex justify-between items-center px-4 py-4 flex-shrink-0">
+        <h1 className="text-[22px] font-bold">Messages</h1>
         <button
-          key={`${chat._id}-${renderKey}`}
-          onClick={() => onChatSelect(chat)}
-          className={`w-full px-4 py-4 flex items-center gap-4 transition-all hover:bg-white/[0.03] relative border-b border-white/[0.03] ${
-            isActive ? 'bg-white/[0.05]' : ''
-          }`}
+          onClick={() => setShowNewChatModal(true)}
+          className="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm transition-colors ml-auto"
+          style={{
+             background: isDark
+               ? 'linear-gradient(270deg, rgba(32, 32, 32, 0.6) -8.43%, rgba(96, 96, 96, 0.6) 100%)'
+               : themeStyles.hoverBg,
+             color: themeStyles.textSecondary
+          }}
         >
-          {/* Avatar Section */}
-          <div className="relative flex-shrink-0">
-            <div className={`w-14 h-14 rounded-full p-[2px] ${
-              isOnline && !isBlockedByThem ? 'bg-gradient-to-tr from-green-500 to-emerald-400' : 'bg-gray-700'
-            }`}>
-              <div className="w-full h-full rounded-full overflow-hidden bg-[#0C1014] relative border-[2px] border-[#0C1014] flex items-center justify-center">
-                {isBlockedByThem ? (
-                  <div className="text-gray-500">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                    </svg>
-                  </div>
-                ) : hasProfilePicture ? (
-                  <Image
-                    src={chat.participant!.profile_picture!}
-                    alt={chat.participant!.name}
-                    fill
-                    className="object-cover"
-                    sizes="56px"
-                    onError={() => setImageErrors(prev => new Set(prev).add(chat._id))}
-                  />
-                ) : (
-                  <span className="text-white font-bold text-lg uppercase">
-                    {chat.participant?.name?.charAt(0)}
-                  </span>
-                )}
-              </div>
+          <PenSquare size={14} />
+          <span className="text-sm">New chat</span>
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative px-4 mb-4 flex-shrink-0">
+        <Search
+          className="absolute left-7 top-1/2 -translate-y-1/2"
+          style={{ color: themeStyles.textSecondary }}
+          size={18}
+        />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search peoples here.."
+          className="w-full pl-10 pr-4 py-3 rounded-xl border-none outline-none focus:ring-1 text-[16px]"
+          style={{
+            background: isDark ? '#38383866' : themeStyles.hoverBg,
+            color: themeStyles.text,
+          }}
+        />
+      </div>
+
+      {/* Tabs */}
+      <div className="flex flex-col items-center mb-4 flex-shrink-0">
+        <div
+          className="flex items-center justify-center rounded-full p-[3px] overflow-hidden"
+          style={{
+            width: '100%',
+            maxWidth: '369px',
+            height: '36px',
+            background: isDark ? 'rgba(34, 40, 49, 0.6)' : themeStyles.pillBg
+          }}
+        >
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveFilter(tab)}
+              className={`flex-1 h-full rounded-full text-[14px] font-medium transition-all whitespace-nowrap flex items-center justify-center ${
+                activeFilter === tab
+                ? "shadow-md scale-[1.02]"
+                : "hover:opacity-80"
+              }`}
+              style={{
+                background: activeFilter === tab
+                  ? 'linear-gradient(147.67deg, #2979FF 13.16%, #6B9CF0 54.09%, #9DC1FF 100.03%)'
+                  : 'transparent',
+                color: activeFilter === tab ? '#fff' : themeStyles.text
+              }}
+            >
+              {tab}
+              {tab === 'Requests' && pendingRequestsCount > 0 && (
+                <span className="ml-1 bg-red-500 text-white text-[10px] rounded-full px-1">
+                  {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        {/* Gradient Divider */}
+        <div
+          className="mt-4 w-full max-w-[378px]"
+          style={{
+            height: '1px',
+            background: isDark
+              ? 'linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.3) 32.69%, rgba(255, 255, 255, 0.3) 61.06%, rgba(153, 153, 153, 0) 100%)'
+              : 'linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.15) 32.69%, rgba(0, 0, 0, 0.15) 61.06%, rgba(0, 0, 0, 0) 100%)',
+          }}
+        />
+      </div>
+
+      {/* List */}
+      <div className="flex-1 overflow-y-auto px-2 space-y-0.5 relative min-h-0 scrollbar-thin scrollbar-thumb-[#2D2F39] scrollbar-track-transparent">
+        {isListLoading ? (
+            <div className="flex flex-col items-center justify-center h-full">
+                <Loader2 className="animate-spin text-[#5494FF]" size={32} />
             </div>
+        ) : filteredChats.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full" style={{ color: themeStyles.textSecondary }}>
+             <Image
+                src={messageIcon}
+                alt="No messages"
+                width={48}
+                height={48}
+                className="mb-4 opacity-50"
+             />
+             <p className="text-sm">
+                 {activeFilter === 'Requests' ? 'No pending requests' : 'No messages found'}
+             </p>
           </div>
+        ) : (
+          filteredChats.map((chat) => {
+            const isActive = currentChat?._id === chat._id;
+            const unreadCount = chat.unreadCount || 0;
+            const isTyping = typingUsers[chat._id] || false;
+            const hasProfilePicture = chat.participant?.profile_picture && !imageErrors.has(chat._id);
+            const isBlockedByThem = chat.isBlockedBy === 'them';
 
-          {/* Info Section */}
-          <div className="flex-1 min-w-0 text-left">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <p className="font-bold text-white text-[15px] truncate">
-                  {isBlockedByThem ? 'User' : (chat.participant?.name || 'Unknown')}
-                </p>
-                {!isBlockedByThem && chat.participant?.is_verified && (
-                  <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
-                  </svg>
-                )}
-                {isBlockedByYou && (
-                  <span className="text-[10px] text-red-500 font-bold border border-red-500/30 px-1 rounded">BLOCKED</span>
-                )}
-              </div>
-              <span className="text-[10px] text-gray-500 font-medium whitespace-nowrap uppercase">
-                {lastMsg ? formatChatTime(lastMsg.timestamp) : ''}
-              </span>
-            </div>
+            // Differentiate logic slightly if needed for requests (e.g. no typing indicator usually)
+            const isRequest = chat.type === 'request' || chat.status === 'pending';
 
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                {isTyping ? (
-                  <div className="flex items-center gap-1">
-                    <div className="flex gap-0.5">
-                      <span className="w-1 h-1 bg-[#5494FF] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                      <span className="w-1 h-1 bg-[#5494FF] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                      <span className="w-1 h-1 bg-[#5494FF] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                    </div>
-                    <span className="text-xs text-[#5494FF] italic">typing...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                   {isLastMsgFromMe && (
-                  <div className="flex items-center">
-                    {isLastMsgRead ? (
-                      <CheckCheck size={14} className="text-[#5494FF]" /> // Blue/Purple for Seen
-                    ) : isLastMsgDelivered ? (
-                      <CheckCheck size={14} className="text-gray-600" /> // Gray Double for Delivered
+            return (
+              <div
+                key={chat._id}
+                onClick={() => handleChatSelect(chat)}
+                className="w-full p-3 flex items-center gap-3 transition-all cursor-pointer"
+                style={{
+                  borderBottom: `1px solid ${themeStyles.border}`,
+                  backgroundColor: isActive
+                    ? (isDark ? 'rgba(56, 56, 56, 0.4)' : themeStyles.hoverBg)
+                    : 'transparent'
+                }}
+              >
+                {/* Avatar */}
+                <div className="relative flex-shrink-0">
+                  <div
+                    className="w-12 h-12 rounded-full overflow-hidden"
+                    style={{ backgroundColor: isDark ? '#374151' : '#D1D5DB' }}
+                  >
+                    {hasProfilePicture && !isBlockedByThem ? (
+                      <Image
+                        src={chat.participant!.profile_picture!}
+                        alt={chat.participant!.name}
+                        fill
+                        className="object-cover rounded-full"
+                        onError={() => setImageErrors(prev => new Set(prev).add(chat._id))}
+                      />
                     ) : (
-                      <Check size={14} className="text-gray-600" /> // Gray Single for Sent
+                      <div
+                        className="w-full h-full flex items-center justify-center text-lg font-bold uppercase"
+                        style={{ color: isDark ? '#9CA3AF' : '#6B7280' }}
+                      >
+                        {isBlockedByThem ? '?' : chat.participant?.name?.charAt(0) || '?'}
+                      </div>
                     )}
                   </div>
-                )}
-                    <p className={`text-[13px] truncate ${unreadCount > 0 ? 'text-white font-bold' : 'text-gray-400'}`}>
-                      {lastMsg?.content || 'No messages yet'}
-                    </p>
-                  </div>
-                )}
-              </div>
+                  {/* Status Indicator */}
+                 {/* Only show green dot if NOT blocked and explicitly online */}
+                  {!isBlockedByThem && chat.participant?.isOnline && !isRequest && (
+                     <div
+                       className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-green-500 rounded-full border-2"
+                       style={{ borderColor: isDark ? '#0a0a0a' : themeStyles.background }}
+                     ></div>
+                  )}
+                </div>
 
-              {/* Action Icons */}
-              <div className="flex items-center gap-3 ml-2">
-                {unreadCount > 0 && (
-                  <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-white/10 text-white text-[10px] font-black border border-white/5">
-                    {unreadCount}
-                  </span>
-                )}
-                <Camera size={18} className="text-gray-600 hover:text-white transition-colors" />
+                {/* Content */}
+                <div className="flex-1 min-w-0 mr-2">
+                  <div className="flex justify-between items-start mb-1">
+                    <h3
+                      className="font-medium text-[16px] truncate"
+                      style={{ color: unreadCount > 0 ? themeStyles.text : themeStyles.textSecondary }}
+                    >
+                       {isBlockedByThem ? 'User' : (chat.participant?.name || 'Unknown')}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center text-sm text-gray-500 truncate">
+                      {/* Message Status Ticks (Only for own messages) */}
+                       {!isRequest && (chat.lastMessage?.sender === user?.id || chat.lastMessage?.sender === (user as any)?._id) && (
+                           <div className="mr-1 flex-shrink-0">
+                             {/* Logic synced with ChatWindow + isRead fallback */}
+                             {(chat.lastMessage?.isRead || (chat.lastMessage?.readBy && chat.lastMessage.readBy.length > 1 && chat.lastMessage.readBy.some(id => id !== user?.id))) ? (
+                               <CheckCheck size={16} style={{ color: '#8860D9' }} />
+                             ) :
+                             (chat.lastMessage?.deliveredTo && chat.lastMessage.deliveredTo.length > 0) ? (
+                               <CheckCheck size={16} style={{ color: themeStyles.text }} />
+                             ) :
+                             (
+                               <Check size={16} style={{ color: themeStyles.text }} />
+                             )}
+                           </div>
+                       )}
+
+                       {/* Message Content */}
+                       <p
+                         className="truncate max-w-[180px]"
+                         style={{ color: unreadCount > 0 ? themeStyles.text : themeStyles.textSecondary, fontWeight: unreadCount > 0 ? 500 : 400 }}
+                       >
+                          {isTyping ? (
+                             <span className="text-blue-400 italic">typing...</span>
+                          ) : (
+                             chat.lastMessage?.content || ''
+                          )}
+                       </p>
+
+                       {/* Time beside message */}
+                       <span className={`text-[11px] whitespace-nowrap ml-2 ${unreadCount > 0 ? "text-blue-400 font-medium" : "text-[#606060]"}`}>
+                            {chat.lastMessage?.timestamp ? format(new Date(chat.lastMessage.timestamp), 'h:mm a') : ''}
+                       </span>
+                  </div>
+                </div>
+
+                {/* Right Side: Count and Camera */}
+                <div className="flex items-center gap-3 flex-shrink-0">
+                     {/* Unread Count */}
+                     {unreadCount > 0 && (
+                        <span className="min-w-[20px] h-[20px] px-1.5 bg-[#BDD5FF] text-black text-[11px] font-bold rounded-full flex items-center justify-center">
+                            {unreadCount}
+                        </span>
+                     )}
+
+
+                </div>
               </div>
-            </div>
-          </div>
-        </button>
-      );
-    })
-  )}
-</div>
+            );
+          })
+        )}
+      </div>
+
       <NewChatModal
         isOpen={showNewChatModal}
         onClose={() => setShowNewChatModal(false)}
