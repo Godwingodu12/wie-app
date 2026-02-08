@@ -240,6 +240,38 @@ const getFollowStatus = async (call: any, callback: any) => {
     callback(null, { isFollowing: false, isPending: false, status: 'none' });
   }
 };
+const autoAcceptPendingRequests = async (call: any, callback: any) => {
+  try {
+    const { userId } = call.request;
+    
+    if (!userId) {
+      callback(null, { 
+        success: false, 
+        message: 'User ID is required',
+        acceptedCount: 0,
+        error: 'User ID is required'
+      });
+      return;
+    }
+
+    const result = await followService.autoAcceptPendingRequests(userId);
+    
+    callback(null, {
+      success: result.success,
+      message: result.message,
+      acceptedCount: result.acceptedCount,
+      error: ''
+    });
+  } catch (error: any) {
+    console.error('❌ Error auto-accepting pending requests:', error);
+    callback(null, {
+      success: false,
+      message: 'Failed to auto-accept pending requests',
+      acceptedCount: 0,
+      error: error.message
+    });
+  }
+};
 export const startGrpcServer = (port: number = 50058) => {
   const server = new grpc.Server();
   
@@ -258,6 +290,7 @@ export const startGrpcServer = (port: number = 50058) => {
     GetFollowRequests: getFollowRequests,
     CancelFollowRequest: cancelFollowRequest,
     GetFollowStatus: getFollowStatus,
+    AutoAcceptPendingRequests: autoAcceptPendingRequests, 
   });
 
   server.bindAsync(
