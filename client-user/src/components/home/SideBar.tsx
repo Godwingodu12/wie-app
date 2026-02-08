@@ -235,7 +235,24 @@ const SideBar: React.FC = () => {
   };
 
   const isActive = (path: string) => {
-    return pathname === path;
+    if (!pathname) return false;
+
+    // Normalize pathname - remove trailing slash if present
+    const normalizedPathname = pathname.endsWith('/') && pathname !== '/'
+      ? pathname.slice(0, -1)
+      : pathname;
+
+    // For routes with potential nested paths, use startsWith
+    if (path === "/message" || path === "/profile" || path === "/settings") {
+      return normalizedPathname.startsWith(path);
+    }
+
+    // For events, check if pathname starts with /events
+    if (path === "/events/nearby") {
+      return normalizedPathname.startsWith("/events");
+    }
+
+    return normalizedPathname === path;
   };
 
 
@@ -377,7 +394,7 @@ const SideBar: React.FC = () => {
               relative flex items-center rounded-xl transition-all duration-200 group
               ${
                 isCollapsed
-                  ? "justify-center"
+                  ? "justify-center p-2"
                   : "w-full justify-start px-3 gap-3.5"
               }
             `}
@@ -395,7 +412,7 @@ const SideBar: React.FC = () => {
               <div
                 className={`flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200`}
                 style={{
-                  backgroundColor: "transparent",
+                  backgroundColor: isActive(item.path) ? "#FFFFFF" : "transparent",
                 }}
               >
                 <Image
@@ -405,8 +422,8 @@ const SideBar: React.FC = () => {
                   height={20}
                   className="transition-all duration-200"
                   style={{
-                    filter: themeStyles.iconFilter,
-                    opacity: isActive(item.path) ? 1 : 0.7
+                    filter: isActive(item.path) ? "brightness(0)" : themeStyles.iconFilter,
+                    opacity: 1
                   }}
                 />
               </div>
