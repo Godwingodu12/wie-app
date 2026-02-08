@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Search } from 'lucide-react';
+import { useTheme } from "@/components/home/ThemeContext";
 
 interface EmojiPickerProps {
   isOpen: boolean;
@@ -131,37 +132,37 @@ const EMOJI_CATEGORIES: EmojiCategory[] = [
   {
     name: '🌿 Nature & Plants',
     emojis: [
-      '🌵', '🎄', '🌲', '🌳', '🌴', '🌱', '🌿', '☘️', 
-      '🍀', '🎍', '🪴', '🍃', '🍂', '🍁', '🍄', '🐚', 
-      '🪨', '🌾', '💐', '🌷', '🌹', '🥀', '🌺', '🌸', 
+      '🌵', '🎄', '🌲', '🌳', '🌴', '🌱', '🌿', '☘️',
+      '🍀', '🎍', '🪴', '🍃', '🍂', '🍁', '🍄', '🐚',
+      '🪨', '🌾', '💐', '🌷', '🌹', '🥀', '🌺', '🌸',
       '🌼', '🌻', '🌞', '🌝', '🌛', '🌜', '🌚', '🌕'
     ]
   },
   {
     name: '☁️ Weather',
     emojis: [
-      '☀️', '🌤️', '⛅', '🌥️', '☁️', '🌦️', '🌧️', '⛈️', 
-      '🌩️', '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '🌪️', 
+      '☀️', '🌤️', '⛅', '🌥️', '☁️', '🌦️', '🌧️', '⛈️',
+      '🌩️', '🌨️', '❄️', '☃️', '⛄', '🌬️', '💨', '🌪️',
       '🌫️', '🌈', '☔', '💧', '💦', '🌊', '🔥', '✨'
     ]
   },
   {
     name: '👕 Clothing & Fashion',
     emojis: [
-      '👓', '🕶️', '🥽', '🥼', '🦺', '👔', '👕', '👖', 
-      '🧣', '🧤', '🧥', '🧦', '👗', '👘', '🥻', '🩱', 
-      '🩲', '🩳', '👙', '👒', '👑', '⛑️', '💄', '💍', 
+      '👓', '🕶️', '🥽', '🥼', '🦺', '👔', '👕', '👖',
+      '🧣', '🧤', '🧥', '🧦', '👗', '👘', '🥻', '🩱',
+      '🩲', '🩳', '👙', '👒', '👑', '⛑️', '💄', '💍',
       '💼', '👜', '👛', '🎒', '👞', '👟', '🥾', '👠'
     ]
   },
 {
     name: '🔯 Symbols & Zodiac',
     emojis: [
-      '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', 
-      '⛎', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', 
-      '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', 
-      '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', 
-      '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗️', '❕', '❓', 
+      '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓',
+      '⛎', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺',
+      '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️',
+      '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯',
+      '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗️', '❕', '❓',
       '❔', '‼️', '⁉️'
     ]
   },
@@ -176,6 +177,7 @@ const EMOJI_CATEGORIES: EmojiCategory[] = [
 ];
 
 export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position = 'bottom' }: EmojiPickerProps) {
+  const { themeStyles, isDark } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(0);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -226,35 +228,43 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position =
   const filteredCategories = searchQuery
     ? EMOJI_CATEGORIES.map(category => ({
         ...category,
-        emojis: category.emojis.filter(emoji => 
+        emojis: category.emojis.filter(emoji =>
           emoji.toLowerCase().includes(searchQuery.toLowerCase())
         )
       })).filter(category => category.emojis.length > 0)
     : EMOJI_CATEGORIES;
 
-  const positionClasses = position === 'top' 
-    ? 'bottom-full mb-0' 
+  const positionClasses = position === 'top'
+    ? 'bottom-full mb-0'
     : 'top-full mt-2';
 
   return (
-    <div 
+    <div
       ref={pickerRef}
-      className={`absolute left-0 ${positionClasses} z-50 bg-[#1a1a1a] border border-[#2D2F39] rounded-lg shadow-2xl`}
-      style={{ width: '352px', maxHeight: '420px' }}
+      className={`absolute left-4 right-4 sm:left-0 sm:right-auto sm:w-[352px] ${positionClasses} z-50 rounded-lg shadow-2xl border`}
+      style={{
+        maxHeight: '420px',
+        background: themeStyles.cardBg,
+        borderColor: themeStyles.border
+      }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-[#2D2F39]">
-        <h3 className="text-white font-semibold text-sm">Emoji</h3>
+      <div className="flex items-center justify-between p-3 border-b" style={{ borderColor: themeStyles.border }}>
+        <h3 className="font-semibold text-sm" style={{ color: themeStyles.text }}>Emoji</h3>
         <button
           onClick={onClose}
-          className="p-1 hover:bg-[#2D2F39] rounded-full transition"
+          className="p-1 rounded-full transition"
+          style={{
+            color: themeStyles.textSecondary,
+            backgroundColor: 'transparent'
+          }}
         >
-          <X size={18} className="text-gray-400" />
+          <X size={18} />
         </button>
       </div>
 
       {/* Search */}
-<div className="p-3">
+      <div className="p-3">
         <div className="relative flex items-center">
           <Search size={14} className="absolute left-3 text-gray-500 pointer-events-none" />
           <input
@@ -262,7 +272,12 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position =
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search emoji..."
-            className="w-full pl-9 pr-3 py-2 bg-black/40 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#5494FF] placeholder:text-gray-600"
+            className="w-full pl-9 pr-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-[#5494FF] placeholder:text-gray-600"
+            style={{
+              backgroundColor: isDark ? 'rgba(0,0,0,0.4)' : themeStyles.hoverBg,
+              borderColor: isDark ? 'rgba(255,255,255,0.1)' : themeStyles.border,
+              color: themeStyles.text
+            }}
           />
         </div>
       </div>
@@ -282,8 +297,11 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position =
                 }
               }}
               className={`p-2 rounded-xl text-lg transition flex-shrink-0 ${
-                selectedCategory === index ? 'bg-[#5494FF]' : 'hover:bg-white/5'
+                selectedCategory === index ? 'bg-[#5494FF]' : 'hover:brightness-95'
               }`}
+              style={{
+                backgroundColor: selectedCategory === index ? '#5494FF' : 'transparent',
+              }}
             >
               {category.name.split(' ')[0]}
             </button>
@@ -292,14 +310,23 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position =
       )}
 
       {/* Emoji Grid - CLEANED UP BUTTONS AND SPACING */}
-      <div 
+      <div
         ref={emojiContainerRef}
         className="overflow-y-auto p-3 pt-0 scrollbar-hide"
-        style={{ height: '240px' }}
+        style={{
+          height: '240px',
+          backgroundColor: isDark ? '#0C1014' : themeStyles.background
+        }}
       >
         {filteredCategories.map((category, catIdx) => (
           <div key={catIdx} id={`category-${catIdx}`} className="mb-4">
-            <h4 className="text-[10px] font-bold text-gray-500 mb-2 uppercase tracking-widest sticky top-0 bg-[#1a1a1aff] py-1">
+            <h4
+              className="text-[10px] font-bold mb-2 uppercase tracking-widest sticky top-0 py-1 z-10"
+              style={{
+                backgroundColor: isDark ? '#0C1014' : themeStyles.background,
+                color: themeStyles.textSecondary
+              }}
+            >
               {category.name}
             </h4>
             <div className="grid grid-cols-7 gap-1">
@@ -308,7 +335,7 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position =
                   key={emoIdx}
                   type="button"
                   onClick={(e) => handleEmojiClick(emoji)}
-                  className="w-10 h-10 flex items-center justify-center text-2xl hover:bg-white/10 rounded-lg transition-transform active:scale-90"
+                  className="w-10 h-10 flex items-center justify-center text-2xl rounded-lg transition-transform active:scale-90 hover:opacity-70"
                 >
                   {emoji}
                 </button>
@@ -319,8 +346,15 @@ export default function EmojiPicker({ isOpen, onClose, onEmojiSelect, position =
       </div>
 
       {/* Footer - Recently Used (Optional) */}
-<div className="bg-black/20 border-t border-white/5 text-center">
-        <p className="text-[10px] text-gray-500 font-medium">Click an emoji to insert</p>
+      {/* Footer - Recently Used (Optional) */}
+      <div
+        className="border-t text-center py-1"
+        style={{
+          backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : themeStyles.hoverBg,
+          borderColor: themeStyles.border
+        }}
+      >
+        <p className="text-[10px] font-medium" style={{ color: themeStyles.textSecondary }}>Click an emoji to insert</p>
       </div>
 
       <style jsx>{`
