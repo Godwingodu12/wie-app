@@ -379,14 +379,15 @@ class WieUserModel {
       });
       return toDatabaseFormat(user);
   }
-  async getAccountPrivacy(id: string): Promise<string | null> {
+  async getAccountPrivacy(id: string): Promise<string> {
     const user = await prisma.wieUser.findUnique({
       where: { id },
       select: {
         accountPrivacy: true,
       },
     });
-    return user?.accountPrivacy || 'public';
+    const privacy = user?.accountPrivacy;
+    return privacy === 'private' ? 'private' : 'public';
   }
   async linkGoogleAccount(
     id: string,

@@ -236,36 +236,35 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
   /* Counts Calculation */
   const eventCount = notifications.filter(
     (n) =>
-      n.type.includes("event") ||
-      n.type.includes("ticket") ||
-      n.type.includes("group") ||
-      n.type.includes("booking"),
+      n.type?.includes("event") ||
+      n.type?.includes("ticket") ||
+      n.type?.includes("group") ||
+      n.type?.includes("booking"),
   ).length;
 
   const followerCount = notifications.filter((n) =>
-    n.type.includes("follow"),
+    n.type?.includes("follow"),
   ).length;
 
   const connectionCount = notifications.filter((n) =>
     ["like", "comment", "mention", "message_received", "connection"].some((t) =>
-      n.type.includes(t),
+      n.type?.includes(t),
     ),
   ).length;
-
   /* Categorization Logic Based on Backend Types */
   const filteredNotifications = notifications.filter((n) => {
     if (filter === "events") {
       // Backend types: event_*, ticket_*, group_*, booking_*
       return (
-        n.type.includes("event") ||
-        n.type.includes("ticket") ||
-        n.type.includes("group") ||
-        n.type.includes("booking")
+        n.type?.includes("event") ||
+        n.type?.includes("ticket") ||
+        n.type?.includes("group") ||
+        n.type?.includes("booking")
       );
     }
     if (filter === "followers") {
       // Backend types: follow_*
-      return n.type.includes("follow");
+      return n.type?.includes("follow");
     }
     if (filter === "connections") {
       // Activity from connections: like, comment, mention, message
@@ -275,13 +274,11 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
         "mention",
         "message_received",
         "connection",
-      ].some((t) => n.type.includes(t));
+      ].some((t) => n.type?.includes(t));
     }
     return true;
   });
-
   const show = isOpen; // Local alias for clarity
-
   return (
     <NotificationInitializer>
       {/* Backdrop */}

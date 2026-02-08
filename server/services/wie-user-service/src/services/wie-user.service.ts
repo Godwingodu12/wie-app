@@ -3,6 +3,7 @@ import WIEUSER, { WieUser } from '../models/wieuser.model';
 import COUNTRY from '../models/country.model';
 import OTP from '../models/otp.model';
 import { hashPassword, comparePassword } from '../utils/hash';
+import * as followClient from '../grpc/followClient';
 import { generateToken } from '../utils/jwt';
 import otpService from '../reposetory/otp';
 import { generateOtp } from '../utils/otp';
@@ -198,8 +199,6 @@ export const signupVerifyOtp = async (req: Request, res: Response): Promise<void
 
     // Clean up temporary data
     tempUserStore.delete(tempUserId);
-    console.log(`✅ User registered and temp data cleaned: ${tempUserId}`);
-
     // Generate token
     const token = generateToken(newUser);
 
@@ -736,61 +735,6 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ message: 'Failed to update profile', error: error.message });
   }
 };
-export const updateAccountPrivacy = async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized' });
-      return;
-    }
-
-    const userId = req.user.id;
-    const { accountPrivacy } = req.body;
-
-    // Validate accountPrivacy value
-    if (!accountPrivacy || !['public', 'private'].includes(accountPrivacy)) {
-      res.status(400).json({ 
-        message: 'Invalid account privacy value. Must be "public" or "private"' 
-      });
-      return;
-    }
-
-    const updatedUser = await WIEUSER.updateAccountPrivacy(userId, accountPrivacy);
-
-    res.status(200).json({
-      success: true,
-      message: `Account privacy updated to ${accountPrivacy}`,
-      accountPrivacy: updatedUser.accountPrivacy,
-    });
-  } catch (error: any) {
-    console.error('Update account privacy error:', error);
-    res.status(500).json({ 
-      message: 'Failed to update account privacy', 
-      error: error.message 
-    });
-  }
-};
-export const getAccountPrivacy = async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized' });
-      return;
-    }
-
-    const userId = req.user.id;
-    const accountPrivacy = await WIEUSER.getAccountPrivacy(userId);
-
-    res.status(200).json({
-      success: true,
-      accountPrivacy: accountPrivacy || 'public',
-    });
-  } catch (error: any) {
-    console.error('Get account privacy error:', error);
-    res.status(500).json({ 
-      message: 'Failed to get account privacy', 
-      error: error.message 
-    });
-  }
-};
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.user) {
@@ -961,10 +905,8 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     // Send OTP via email or SMS
     if (email) {
       await sendEmail(email, otp);
-      console.log(`✅ Password reset OTP sent to email: ${email}`);
     } else if (contact_no) {
       await sendSMSOTP(contact_no, otp);
-      console.log(`✅ Password reset OTP sent to contact: ${contact_no}`);
     }
     res.status(200).json({
       success: true,
@@ -1316,73 +1258,6 @@ export const searchUsers = async (req: Request, res: Response): Promise<void> =>
     });
   }
 };
-export const getUserById = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { userId } = req.params;
-    // Validate UUID format
-    if (!userId || !isValidUUID(userId)) {
-      res.status(400).json({ 
-        success: false,
-        message: 'Invalid user ID format' 
-      });
-      return;
-    }
-    
-    const user = await WIEUSER.findById(userId);
-    
-    if (!user) {
-      res.status(404).json({ 
-        success: false,
-        message: 'User not found' 
-      });
-      return;
-    }
-
-    // Don't show blocked or inactive users
-    if (user.is_blocked || user.status !== 'active') {
-      res.status(404).json({ 
-        success: false,
-        message: 'User not found' 
-      });
-      return;
-    }
-
-    res.status(200).json({
-      success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        contact_no: user.contact_no,
-        profile_picture: user.profile_picture,
-        bio: user.bio,
-        location: user.location,
-        is_verified: user.is_verified,
-        is_blocked: user.is_blocked,
-        status: user.status,
-        latitude: user.latitude,
-        longitude: user.longitude,
-        role: user.role,
-        accountPrivacy: user.accountPrivacy,
-        isOnline: user.isOnline,
-        last_seen_at: user.lastSeenAt,
-        followers_count: user.followers_count,
-        following_count: user.following_count,
-        posts_count: user.posts_count,
-        created_at: user.created_at,
-        auth_provider: user.auth_provider,
-      },
-    });
-  } catch (error: any) {
-    console.error('Get user by ID error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get user',
-      error: error.message,
-    });
-  }
-};
 export const getSuggestedUsers = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id; 
@@ -1460,13 +1335,88 @@ export const cleanupStaleOnlineUsers = async (): Promise<void> => {
     
     for (const user of staleUsers) {
       await WIEUSER.updateOnlineStatus(user.id, false);
-      console.log(`🔄 Marked user ${user.id} as offline (stale heartbeat)`);
     }
   } catch (error: any) {
     console.error('❌ Error cleaning up stale users:', error);
   }
 };
+export const getAccountPrivacy = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      console.error('❌ No req.user found in getAccountPrivacy');
+      res.status(401).json({ 
+        success: false,
+        message: 'Unauthorized - Please login first' 
+      });
+      return;
+    }
 
+    const userId = req.user.id;
+    
+    const accountPrivacy = await WIEUSER.getAccountPrivacy(userId);
+
+    res.status(200).json({
+      success: true,
+      accountPrivacy: accountPrivacy || 'public',
+    });
+  } catch (error: any) {
+    console.error('❌ Get account privacy error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to get account privacy', 
+      error: error.message 
+    });
+  }
+};
+
+export const updateAccountPrivacy = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      console.error('❌ No req.user found in updateAccountPrivacy');
+      res.status(401).json({ 
+        success: false, 
+        message: 'Unauthorized - Please login first' 
+      });
+      return;
+    }
+
+    const userId = req.user.id;
+    const { accountPrivacy } = req.body;
+
+    if (!accountPrivacy || !['public', 'private'].includes(accountPrivacy)) {
+      console.error('❌ Invalid account privacy value:', accountPrivacy);
+      res.status(400).json({ 
+        success: false,
+        message: 'Invalid account privacy value. Must be "public" or "private"' 
+      });
+      return;
+    }
+
+    const currentPrivacy = await WIEUSER.getAccountPrivacy(userId);
+    const updatedUser = await WIEUSER.updateAccountPrivacy(userId, accountPrivacy);
+
+    if (currentPrivacy === 'private' && accountPrivacy === 'public') {
+      try {
+        const result = await followClient.autoAcceptPendingRequests(userId);
+      } catch (error: any) {
+        console.error('❌ Failed to auto-accept pending requests:', error.message);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Account privacy updated to ${accountPrivacy}`,
+      accountPrivacy: updatedUser.accountPrivacy,
+    });
+  } catch (error: any) {
+    console.error('❌ Update account privacy error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to update account privacy', 
+      error: error.message 
+    });
+  }
+};
 export const muteUser = async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.user) {
@@ -1515,7 +1465,73 @@ export const muteUser = async (req: Request, res: Response): Promise<void> => {
     });
   }
 };
+export const getUserById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    // Validate UUID format
+    if (!userId) {
+      res.status(400).json({ 
+        success: false,
+        message: 'Invalid user ID format' 
+      });
+      return;
+    }
+    
+    const user = await WIEUSER.findById(userId);
+    
+    if (!user) {
+      res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
+      return;
+    }
 
+    // Don't show blocked or inactive users
+    if (user.is_blocked || user.status !== 'active') {
+      res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        contact_no: user.contact_no,
+        profile_picture: user.profile_picture,
+        bio: user.bio,
+        location: user.location,
+        is_verified: user.is_verified,
+        is_blocked: user.is_blocked,
+        status: user.status,
+        latitude: user.latitude,
+        longitude: user.longitude,
+        role: user.role,
+        accountPrivacy: user.accountPrivacy,
+        isOnline: user.isOnline,
+        last_seen_at: user.lastSeenAt,
+        followers_count: user.followers_count,
+        following_count: user.following_count,
+        posts_count: user.posts_count,
+        created_at: user.created_at,
+        auth_provider: user.auth_provider,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get user by ID error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get user',
+      error: error.message,
+    });
+  }
+};
 export const unmuteUser = async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.user) {

@@ -8,6 +8,7 @@ import ticketRoutes from './routes/ticket.routes';
 import otpService from './reposetory/otp';
 import { startGrpcServer } from './grpc/server';
 import { cleanupStaleOnlineUsers } from './services/wie-user.service';
+
 dotenv.config();
 
 const app: Application = express();
@@ -19,14 +20,23 @@ const corsOptions = {
   origin: [
     process.env.CORS_ORIGIN || 'http://localhost:3000',
     'http://localhost:5173', // Admin app
+    'http://127.0.0.1:3000', // User app
   ],
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin'
+  ],
+  exposedHeaders: ['Set-Cookie', 'X-Instance-ID'],
 };
 
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -38,10 +48,26 @@ app.use((req, res, next) => {
 
 app.use('/api/user', userRoutes);
 app.use('/api/tickets', ticketRoutes);
-// Start cleanup interval (every 30 seconds)
-setInterval(async () => {
-  await cleanupStaleOnlineUsers();
-}, 30000);
+
+// ✅ FIXED: Make cleanup interval conditional on DB connection
+let cleanupInterval: NodeJS.Timeout | null = null;
+
+const startCleanupInterval = () => {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+  }
+  
+  cleanupInterval = setInterval(async () => {
+    if (db.isConnected) {
+      try {
+        await cleanupStaleOnlineUsers();
+      } catch (error) {
+        console.error('❌ Cleanup error:', error instanceof Error ? error.message : 'Unknown error');
+      }
+    }
+  }, 30000); // Every 30 seconds
+};
+
 app.get('/health', async (req, res) => {
   try {
     const dbStatus = db.isConnected ? 'connected' : 'disconnected';
@@ -95,15 +121,16 @@ app.get('/live', (req, res) => {
 
 async function startServer() {
   try {
-    console.log(`🚀 Starting ${INSTANCE_ID}...`);
-
-    // Connect to database
+    // ✅ FIXED: Don't throw error if database fails, just warn
     try {
       await db.connect();
       console.log('✅ Database connected');
+      startCleanupInterval(); // Start cleanup only if DB is connected
     } catch (error) {
       console.error('❌ Database connection failed:', error);
-      throw error;
+      console.warn('⚠️  Server will start without database connection');
+      console.warn('   Please start PostgreSQL and restart the service');
+      // Don't throw - let server start without DB
     }
 
     // Connect to Redis (optional - service will work without it)
@@ -115,13 +142,17 @@ async function startServer() {
       console.warn('   Load balancing will work but rate limiting will be per-instance');
     }
 
-    // Initialize OTP service
+    // ✅ FIXED: Initialize OTP service only if DB is connected
     try {
-      await otpService.initialize();
-      console.log('✅ OTP service initialized');
+      if (db.isConnected) {
+        await otpService.initialize();
+      } else {
+        console.warn('⚠️  OTP service not initialized - database not connected');
+      }
     } catch (error) {
       console.error('❌ OTP service initialization failed:', error);
-      throw error;
+      console.warn('⚠️  Continuing without OTP service');
+      // Don't throw - continue without OTP
     }
 
     // Start gRPC server
@@ -130,15 +161,19 @@ async function startServer() {
       console.log(`✅ gRPC server running on port ${GRPC_PORT}`);
     } catch (error) {
       console.error('❌ gRPC server failed to start:', error);
+      console.warn('⚠️  Continuing without gRPC server');
       // Continue without gRPC if it fails
     }
 
     // Start HTTP server
     const server = app.listen(PORT, () => {
-      console.log(`✅ ${INSTANCE_ID} running on port ${PORT}`);
-      console.log(`📍 HTTP: http://localhost:${PORT}`);
-      console.log(`📍 gRPC: localhost:${GRPC_PORT}`);
+      if (!db.isConnected) {
+        console.log('\n⚠️  WARNING: Database not connected!');
+        console.log('   Start PostgreSQL with: pg_ctl start -D "C:\\Program Files\\PostgreSQL\\16\\data"');
+        console.log('   Or check your DATABASE_URL in .env\n');
+      }
     });
+
     server.on('error', (error: any) => {
       if (error.code === 'EADDRINUSE') {
         console.error(`❌ Port ${PORT} is already in use`);
@@ -150,16 +185,31 @@ async function startServer() {
         process.exit(1);
       }
     });
+
     // Graceful shutdown
     const gracefulShutdown = async (signal: string) => {
+      
       // Stop accepting new connections
       server.close(async () => {
+        
+        // Stop cleanup interval
+        if (cleanupInterval) {
+          clearInterval(cleanupInterval);
+        }
+        
         // Cleanup services
         try {
-          otpService.cleanup();
-          console.log('🧹 Disconnecting Redis...');
+          if (otpService) {
+            otpService.cleanup();
+          }
+          
           await redisClient.disconnect();
-          await db.close();
+          
+          if (db.isConnected) {
+            await db.close();
+            console.log('✅ Database disconnected');
+          }
+          
           console.log('✅ All connections closed');
           process.exit(0);
         } catch (error) {
@@ -184,15 +234,25 @@ async function startServer() {
   }
 }
 
-// Handle uncaught exceptions
+// ✅ FIXED: Better error handling for uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
-  process.exit(1);
+  // Don't exit immediately, just log it
+  if (error.message?.includes('database') || error.message?.includes('Prisma')) {
+    console.warn('⚠️  Database-related error, continuing...');
+  } else {
+    process.exit(1);
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+  // Don't exit immediately, just log it
+  if (reason && typeof reason === 'object' && 'code' in reason && reason.code === 'P1001') {
+    console.warn('⚠️  Database connection error, continuing...');
+  } else {
+    process.exit(1);
+  }
 });
 
 startServer();

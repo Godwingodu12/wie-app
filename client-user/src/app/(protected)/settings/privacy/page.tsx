@@ -23,38 +23,61 @@ export default function PrivacyPage() {
       return () => clearTimeout(timer);
     }
   }, [searchParams]);
-
-  useEffect(() => {
-    fetchAccountPrivacy();
-  }, []);
-
   const fetchAccountPrivacy = async () => {
     try {
       setLoading(true);
       const res = await getAccountPrivacy();
-      setAccountPrivacy(res.accountPrivacy as 'public' | 'private');
+      
+      const privacy = res.accountPrivacy || 'public';      
+      if (privacy !== 'public' && privacy !== 'private') {
+        setAccountPrivacy('public');
+      } else {
+        setAccountPrivacy(privacy as 'public' | 'private');
+      }
     } catch (error) {
       console.error('Failed to fetch account privacy:', error);
+      setAccountPrivacy('public');
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchAccountPrivacy();
+  }, []);
   const handleTogglePrivacy = async () => {
     const newPrivacy = accountPrivacy === 'public' ? 'private' : 'public';
     
     try {
       setUpdating(true);
-      await updateAccountPrivacy({ accountPrivacy: newPrivacy });
-      setAccountPrivacy(newPrivacy);
-      setSuccessMessage(
-        newPrivacy === 'private'
-          ? 'Your account is now private. New followers will need your approval.'
-          : 'Your account is now public. Anyone can follow you without approval.'
-      );
+      const response = await updateAccountPrivacy({ accountPrivacy: newPrivacy });
+      
+      // ✅ FIXED: Properly extract the accountPrivacy from response
+      const updatedPrivacy = response.accountPrivacy || newPrivacy;
+      
+      // ✅ Validate the response before setting state
+      if (updatedPrivacy === 'public' || updatedPrivacy === 'private') {
+        setAccountPrivacy(updatedPrivacy as 'public' | 'private');
+      } else {
+        console.error('Invalid privacy value from API:', updatedPrivacy);
+        setAccountPrivacy(newPrivacy); // Fallback to expected value
+      }
+      
+      // ✅ Show different messages based on privacy change
+      if (updatedPrivacy === 'private') {
+        setSuccessMessage(
+          'Your account is now private. New followers will need your approval.'
+        );
+      } else {
+        setSuccessMessage(
+          'Your account is now public. All pending follow requests have been automatically accepted.'
+        );
+      }
     } catch (error: any) {
       console.error('Failed to update account privacy:', error);
       alert(error.response?.data?.message || 'Failed to update account privacy');
+      // ✅ Revert state on error
+      await fetchAccountPrivacy();
     } finally {
       setUpdating(false);
     }

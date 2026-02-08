@@ -2,7 +2,6 @@ import Follow from '../models/follow.model';
 import * as userClient from '../grpc/userClient';
 import { createNotification, emitFollowEvent } from '../utils/notificationHelper';
 import { canSendNotification, setNotificationCooldown } from '../utils/notificationCooldown';
-
 export const followUser = async (
   followerId: string, 
   followingId: string
@@ -79,16 +78,16 @@ export const followUser = async (
       console.error('Failed to emit follow event:', err);
     });
 
-    // Create notification for the followed user (with cooldown check)
+    // ✅ CHANGE: Only create notification if cooldown allows
     createFollowNotification(followerId, followingId).catch(err => {
       console.error('Failed to create follow notification:', err);
     });
   } else {
+    // ✅ CHANGE: Only create follow request notification if cooldown allows
     createFollowRequestNotification(followerId, followingId).catch(err => {
       console.error('Failed to create follow request notification:', err);
     });
   }
-  
   return {
     success: true,
     message: isPrivateAccount ? 'Follow request sent' : 'User followed successfully',
@@ -99,14 +98,12 @@ export const followUser = async (
     isPrivateAccount
   };
 };
-
 const createFollowNotification = async (followerId: string, followingId: string) => {
   try {
-    // Check cooldown using Redis
+    // ✅ NEW: Check 24-hour cooldown before sending notification
     const canSend = await canSendNotification(followerId, followingId, 'follow');
     
     if (!canSend) {
-      console.log(`Follow notification skipped due to cooldown: ${followerId} -> ${followingId}`);
       return;
     }
 
@@ -151,19 +148,19 @@ const createFollowNotification = async (followerId: string, followingId: string)
       link: `/profile/${follower.username || followerId}`
     });
 
-    // Set cooldown after successful notification
+    // ✅ NEW: Set 24-hour cooldown after successful notification
     await setNotificationCooldown(followerId, followingId, 'follow');
+    console.log(`✅ Follow notification sent and 24h cooldown set: ${followerId} -> ${followingId}`);
   } catch (error) {
     console.error('Error creating follow notification:', error);
   }
 };
 const createFollowRequestNotification = async (followerId: string, followingId: string) => {
   try {
-    // Check cooldown using Redis
+    // ✅ NEW: Check 24-hour cooldown before sending notification
     const canSend = await canSendNotification(followerId, followingId, 'follow_request');
     
     if (!canSend) {
-      console.log(`Follow request notification skipped due to cooldown: ${followerId} -> ${followingId}`);
       return;
     }
 
@@ -192,7 +189,7 @@ const createFollowRequestNotification = async (followerId: string, followingId: 
       link: `/profile/${follower.username || followerId}`,
     });
 
-    // Set cooldown after successful notification
+    // ✅ NEW: Set 24-hour cooldown after successful notification
     await setNotificationCooldown(followerId, followingId, 'follow_request');
   } catch (error) {
     console.error('Error creating follow request notification:', error);
@@ -202,8 +199,6 @@ export const acceptFollowRequest = async (followingId: string, followerId: strin
   if (!followerId || !followingId) {
     throw new Error('Follower ID and Following ID are required');
   }
-  // followerId = the user who SENT the request (wants to follow)
-  // followingId = the user who RECEIVES the request (being followed)
   const followRequest = await Follow.findOne({ 
     followerId,  
     followingId, 
@@ -228,9 +223,6 @@ export const acceptFollowRequest = async (followingId: string, followerId: strin
   }).catch(err => {
     console.error('Failed to emit follow event:', err);
   });
-  createFollowAcceptedNotification(followerId, followingId).catch(err => {
-    console.error('Failed to create follow accepted notification:', err);
-  });
 
   return {
     success: true,
@@ -238,47 +230,6 @@ export const acceptFollowRequest = async (followingId: string, followerId: strin
     followerId,
     followingId
   };
-};
-
-export const createFollowAcceptedNotification = async (followerId: string, followingId: string) => {
-  try {
-    // Check cooldown using Redis
-    const canSend = await canSendNotification(followingId, followerId, 'follow_accepted');
-    
-    if (!canSend) {
-      console.log(`Follow accepted notification skipped due to cooldown: ${followingId} -> ${followerId}`);
-      return;
-    }
-
-    const userDetails = await userClient.getUsersByIds([followingId]);
-    const user = userDetails[0];
-
-    if (!user) {
-      console.warn('User details not found');
-      return;
-    }
-
-    await createNotification({
-      userId: followerId,
-      type: 'follow_accepted',
-      title: 'Follow Request Accepted',
-      message: `${user.username || user.name} accepted your follow request`,
-      fromUserId: followingId,
-      metadata: {
-        userId: followingId,
-        userName: user.name,
-        userUsername: user.username,
-        userProfilePicture: user.profile_picture,
-        isVerified: user.is_verified || false,
-        timestamp: new Date().toISOString()
-      },
-      link: `/profile/${user.username || followingId}`
-    });
-    // Set cooldown after successful notification
-    await setNotificationCooldown(followingId, followerId, 'follow_accepted');
-  } catch (error) {
-    console.error('Error creating follow accepted notification:', error);
-  }
 };
 export const rejectFollowRequest = async (followingId: string, followerId: string): Promise<any> => {
   if (!followerId || !followingId) {
@@ -737,4 +688,71 @@ export const checkFollowRequestStatus = async (
     requestStatus: followRequest.status,
     isFollowingBack: !!followBack
   };
+};
+export const autoAcceptPendingRequests = async (userId: string): Promise<{
+  success: boolean;
+  message: string;
+  acceptedCount: number;
+}> => {
+  if (!userId) {
+    throw new Error('User ID is required');
+  }
+  try {
+    const pendingRequests = await Follow.find({
+      followingId: userId,
+      status: 'pending'
+    });
+    if (pendingRequests.length === 0) {
+      return {
+        success: true,
+        message: 'No pending requests to accept',
+        acceptedCount: 0
+      };
+    }
+    const result = await Follow.updateMany(
+      {
+        followingId: userId,
+        status: 'pending'
+      },
+      {
+        $set: { status: 'active' }
+      }
+    );
+    const followerIds = pendingRequests.map(req => req.followerId);
+    // Update follower/following counts for all affected users
+    Promise.all([
+      ...followerIds.map(followerId => 
+        userClient.incrementFollowing(followerId).catch(err => 
+          console.error(`Failed to increment following for ${followerId}:`, err)
+        )
+      ),
+      // Increment followers count for the user (userId) by the total count
+      ...Array(followerIds.length).fill(null).map(() =>
+        userClient.incrementFollowers(userId).catch(err => 
+          console.error(`Failed to increment followers for ${userId}:`, err)
+        )
+      )
+    ]).catch(err => {
+      console.error('Error updating counts during auto-accept:', err);
+    });
+
+    // Emit follow events for analytics (but NO notifications)
+    followerIds.forEach(followerId => {
+      emitFollowEvent({
+        followerId,
+        followingId: userId,
+        timestamp: new Date().toISOString()
+      }).catch(err => {
+        console.error('Failed to emit follow event:', err);
+      });
+    });
+    return {
+      success: true,
+      message: `Auto-accepted ${result.modifiedCount} follow requests`,
+      acceptedCount: result.modifiedCount || 0
+    };
+  } catch (error) {
+    console.error('Error auto-accepting pending requests:', error);
+    throw error;
+  }
 };

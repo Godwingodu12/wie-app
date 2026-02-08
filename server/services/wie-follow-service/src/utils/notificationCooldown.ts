@@ -36,11 +36,6 @@ export const canSendNotification = async (
       return true; // Key expired or doesn't exist
     }
     
-    console.log(
-      `Notification cooldown active for ${type}: ${fromUserId} -> ${toUserId}. ` +
-      `Remaining: ${Math.floor(ttl / 3600)}h ${Math.floor((ttl % 3600) / 60)}m`
-    );
-    
     return false; // Cooldown still active
   } catch (error) {
     console.error('Error checking notification cooldown:', error);

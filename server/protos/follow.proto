@@ -17,6 +17,18 @@ service FollowService {
   rpc GetFollowRequests(GetFollowRequestsRequest) returns (GetFollowRequestsResponse);
   rpc CancelFollowRequest(FollowRequest) returns (FollowResponse);
   rpc GetFollowStatus(GetFollowStatusRequest) returns (GetFollowStatusResponse);
+  rpc AutoAcceptPendingRequests(AutoAcceptPendingRequestsRequest) returns (AutoAcceptPendingRequestsResponse);  // ✅ NEW
+}
+
+message AutoAcceptPendingRequestsRequest {
+  string userId = 1;
+}
+
+message AutoAcceptPendingRequestsResponse {
+  bool success = 1;
+  string message = 2;
+  int32 acceptedCount = 3;
+  string error = 4;
 }
 
 message GetFollowerIdsRequest {
