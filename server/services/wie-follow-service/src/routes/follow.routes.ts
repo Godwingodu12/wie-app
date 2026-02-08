@@ -20,4 +20,5 @@ router.delete('/cancel-request/:targetUserId', followController.cancelFollowRequ
 router.get('/detailed-status/:targetUserId', followController.getDetailedFollowStatus);
 router.get('/follow-request/status/:fromUserId', followController.checkFollowRequestStatus);
 router.get('/get-send-follow-request/:userId', followController.getSentFollowRequests);
+router.post('/auto-accept-requests', followController.autoAcceptPendingRequests);
 export default router;
