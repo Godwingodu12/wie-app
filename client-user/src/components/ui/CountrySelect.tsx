@@ -48,24 +48,23 @@ const CountrySelect = ({
             const rect = triggerRef.current.getBoundingClientRect();
             setDropdownPos({
               top: rect.bottom + 8,
-              left: rect.right + 12, // slightly right
+              left: rect.right + 12,
             });
           }
           setIsOpen(v => !v);
         }}
-        className="w-7 h-5 flex items-center justify-center rounded-sm bg-black/20"
+        className="w-[56px] h-[56px] rounded-full bg-[#1C2024] border border-[#1f2430] flex items-center justify-center hover:bg-[#2A2F35] transition p-3"
       >
         {selectedCountry ? (
           <img
             src={getFlagUrl(selectedCountry.country_code)}
             alt="flag"
-            className="w-full h-full object-cover rounded-sm"
+            className="w-full h-full object-cover rounded-full"
           />
         ) : (
-          <div className="w-full h-full bg-white/10 rounded-sm" />
+          <div className="w-full h-full bg-white/10 rounded-full" />
         )}
       </button>
-
       {/* Dropdown */}
       {isOpen && (
 <div className="absolute top-full mt-3 z-[9999] bg-[#1a1d24] border border-white/10 rounded-lg shadow-xl right-0 translate-x-6">
