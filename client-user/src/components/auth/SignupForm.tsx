@@ -31,14 +31,10 @@ export const SignupForm: React.FC = () => {
     const loadCountries = async () => {
       try {
         const res = await getCountries();
-        console.log('📍 Countries received:', res); // DEBUG
-        console.log('📍 First country:', res[0]); // DEBUG
         setCountries(res);
-
         // Default country (India or first available)
         if (res.length) {
           const defaultCountry = res.find(c => c.country_code === 'IN') || res[0];
-          console.log('📍 Default country selected:', defaultCountry); // DEBUG
           setFormData(prev => ({
             ...prev,
             country_code: defaultCountry.country_code,
@@ -161,30 +157,15 @@ export const SignupForm: React.FC = () => {
       "
     />
   </div>
-
   {/* Country Circle */}
-  <button
-    type="button"
-    className="
-      w-[56px] h-[56px]
-      rounded-full
-      bg-[#1C2024]
-      border border-[#1f2430]
-      flex items-center justify-center
-      hover:bg-[#2A2F35]
-      transition
-    "
-  >
-    <CountrySelect
-              countries={countries}
-              value={formData.country_code}
-              onChange={(code) =>
-                setFormData(prev => ({ ...prev, country_code: code }))
-              }
-              required
-            />
-  </button>
-
+  <CountrySelect
+    countries={countries}
+    value={formData.country_code}
+    onChange={(code) =>
+      setFormData(prev => ({ ...prev, country_code: code }))
+    }
+    required
+  />
 </div>
 
         {/* PASSWORD */}
