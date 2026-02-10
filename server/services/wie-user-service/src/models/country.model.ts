@@ -1,6 +1,4 @@
-import { PrismaClient } from '../generated/prisma';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 
 export interface Country {
   id: string;
@@ -39,10 +37,6 @@ class CountryModel {
       where: { countryCode },
     });
     return country ? toDatabaseFormat(country) : null;
-  }
-
-  async disconnect(): Promise<void> {
-    await prisma.$disconnect();
   }
 }
 export default new CountryModel();
