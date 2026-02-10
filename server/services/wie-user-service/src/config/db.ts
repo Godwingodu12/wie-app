@@ -1,37 +1,24 @@
 import pkg from 'pg';
 const { Pool } = pkg;
 
-interface PoolConfig {
-  host: string;
-  port: number;
-  database: string;
-  user: string;
-  password: string;
-  max?: number;
-  idleTimeoutMillis?: number;
-  connectionTimeoutMillis?: number;
-}
-
 class Database {
   private pool: pkg.Pool | null = null;
-  public isConnected: boolean = false; // Add this property
+  public isConnected = false;
 
   async connect(): Promise<void> {
     try {
-      const config: PoolConfig = {
-        host: process.env.DB_HOST || 'localhost',
-        port: Number(process.env.DB_PORT) || 5432,
-        database: process.env.DB_NAME || 'wie-user-auth',
-        user: process.env.DB_USER || 'postgres',
-        password: process.env.DB_PASSWORD || 'WIE123',
+      if (!process.env.DATABASE_URL) {
+        throw new Error('DATABASE_URL is not defined');
+      }
+
+      this.pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: false,
         max: 20,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
-      };
+      });
 
-      this.pool = new Pool(config);
-
-      // Add error handler
       this.pool.on('error', (err) => {
         console.error('❌ Unexpected database error:', err);
         this.isConnected = false;
@@ -39,14 +26,16 @@ class Database {
 
       // Test connection
       const client = await this.pool.connect();
-      console.log('✅ PostgreSQL connected (WIE User Service)');
-      this.isConnected = true;
+      await client.query('SELECT 1');
       client.release();
 
+      console.log('✅ Supabase PostgreSQL connected (WIE User Service)');
+      this.isConnected = true;
+
     } catch (err) {
-      console.error('❌ PostgreSQL connection error:', err);
+      console.error('❌ Supabase DB connection error:', err);
       this.isConnected = false;
-      throw err; // Don't exit process, let the caller handle it
+      throw err;
     }
   }
 
@@ -76,7 +65,7 @@ class Database {
     try {
       if (!this.pool) return false;
       const result = await this.pool.query('SELECT 1');
-      return result.rows.length > 0;
+      return result.rowCount === 1;
     } catch {
       return false;
     }
