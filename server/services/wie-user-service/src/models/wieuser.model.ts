@@ -1,7 +1,5 @@
-import { PrismaClient } from '../generated/prisma';
+import prisma from '../lib/prisma';
 import bcrypt from 'bcrypt';
-const prisma = new PrismaClient();
-
 export interface WieUser {
   id: string;
   email?: string | null;
@@ -629,9 +627,6 @@ class WieUserModel {
       console.error('Error finding stale online users:', error);
       return [];
     }
-  }
-  async disconnect(): Promise<void> {
-    await prisma.$disconnect();
   }
 }
 

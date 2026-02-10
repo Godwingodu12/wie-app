@@ -1,6 +1,5 @@
-import { PrismaClient } from '../generated/prisma';
 import bcrypt from 'bcrypt';
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 export interface MuteOptions {
   mutePosts?: boolean;
   muteStories?: boolean;

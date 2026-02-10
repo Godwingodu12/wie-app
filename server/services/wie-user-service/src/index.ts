@@ -96,13 +96,59 @@ async function startServer() {
       console.log(`✅ HTTP server running on port ${PORT}`);
     });
 
-    // Graceful shutdown (unchanged)
-    const shutdown = async () => {
-      if (cleanupInterval) clearInterval(cleanupInterval);
-      await redisClient.disconnect();
-      await db.close();
-      server.close(() => process.exit(0));
+    // Graceful shutdown
+    const shutdown = async (signal: string) => {
+      console.log(`\n${signal} received. Starting graceful shutdown...`);
+      
+      try {
+        // Stop cleanup interval
+        if (cleanupInterval) {
+          clearInterval(cleanupInterval);
+          console.log('✅ Cleanup interval stopped');
+        }
+
+        // Disconnect Redis
+        try {
+          await redisClient.disconnect();
+          console.log('✅ Redis disconnected');
+        } catch (error) {
+          console.warn('⚠️ Redis disconnect warning:', error);
+        }
+
+        // Close database (now includes Prisma + pg Pool)
+        await db.close();
+        console.log('✅ Database connections closed');
+
+        // Close HTTP server
+        server.close(() => {
+          console.log('✅ HTTP server closed');
+          process.exit(0);
+        });
+
+        // Force exit after 10 seconds if graceful shutdown hangs
+        setTimeout(() => {
+          console.error('⚠️ Forceful shutdown after timeout');
+          process.exit(1);
+        }, 10000);
+
+      } catch (error) {
+        console.error('❌ Error during shutdown:', error);
+        process.exit(1);
+      }
     };
+
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+    // Handle unhandled errors
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    });
+
+    process.on('uncaughtException', (err) => {
+      console.error('Uncaught Exception:', err);
+      shutdown('UNCAUGHT_EXCEPTION');
+    });
 
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);

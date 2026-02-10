@@ -50,6 +50,7 @@ const startServer = async () => {
     await Database.connect();
     startGrpcServer();
     console.log('✅ gRPC server started');
+    
     // Optionally connect to RabbitMQ (if RABBITMQ_URL is provided)
     if (process.env.RABBITMQ_URL) {
       try {
@@ -78,18 +79,30 @@ const startServer = async () => {
 
 startServer();
 
-process.on('SIGTERM', async () => {
-  await Database.disconnect();
-  process.exit(0);
-});
+// Graceful shutdown handler
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\n${signal} received. Starting graceful shutdown...`);
+  try {
+    await Database.disconnect();
+    console.log('✅ Database disconnected');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error);
+    process.exit(1);
+  }
+};
+
+// Handle termination signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Error handlers
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit immediately, log and continue
 });
+
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
-  process.exit(1);
-});
-process.on('SIGINT', async () => {
-  await Database.disconnect();
-  process.exit(0);
+  gracefulShutdown('UNCAUGHT_EXCEPTION');
 });

@@ -1,7 +1,4 @@
-import { PrismaClient } from '../generated/prisma';
-
-const prisma = new PrismaClient();
-
+import prisma from '../lib/prisma';
 export interface OTP {
   id: string;
   user_id?: string | null;
@@ -240,9 +237,6 @@ class OtpModel {
     });
     
     return count;
-  }
-  async disconnect(): Promise<void> {
-    await prisma.$disconnect();
   }
 }
 
