@@ -1,4 +1,6 @@
 import pkg from 'pg';
+import prisma from '../lib/prisma';
+
 const { Pool } = pkg;
 
 class Database {
@@ -11,10 +13,11 @@ class Database {
         throw new Error('DATABASE_URL is not defined');
       }
 
+      // Connect pg Pool (for raw queries if needed)
       this.pool = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: false,
-        max: 20,
+        max: 5, // Reduced from 20 for Supabase
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
       });
@@ -24,12 +27,15 @@ class Database {
         this.isConnected = false;
       });
 
-      // Test connection
+      // Test pg connection
       const client = await this.pool.connect();
       await client.query('SELECT 1');
       client.release();
 
-      console.log('✅ Supabase PostgreSQL connected (WIE User Service)');
+      // Connect Prisma
+      await prisma.$connect();
+
+      console.log('✅ Supabase PostgreSQL connected (WIE User Service - Prisma + pg Pool)');
       this.isConnected = true;
 
     } catch (err) {
@@ -46,6 +52,10 @@ class Database {
     return this.pool;
   }
 
+  getPrisma() {
+    return prisma;
+  }
+
   async query(text: string, params?: any[]) {
     if (!this.pool) {
       throw new Error('Database not connected');
@@ -54,10 +64,20 @@ class Database {
   }
 
   async close(): Promise<void> {
-    if (this.pool) {
-      await this.pool.end();
+    try {
+      // Disconnect Prisma first
+      await prisma.$disconnect();
+      
+      // Then close pg Pool
+      if (this.pool) {
+        await this.pool.end();
+      }
+      
       this.isConnected = false;
-      console.log('✅ Database connection closed');
+      console.log('✅ Database connections closed (Prisma + pg Pool)');
+    } catch (error) {
+      console.error('❌ Error closing database connections:', error);
+      throw error;
     }
   }
 
@@ -65,6 +85,10 @@ class Database {
     try {
       if (!this.pool) return false;
       const result = await this.pool.query('SELECT 1');
+      
+      // Also check Prisma connection
+      await prisma.$queryRaw`SELECT 1`;
+      
       return result.rowCount === 1;
     } catch {
       return false;
@@ -73,3 +97,4 @@ class Database {
 }
 
 export default new Database();
+export { prisma };
