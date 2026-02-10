@@ -1,20 +1,12 @@
-import { PrismaClient } from '../generated/prisma';
+import prisma from '../lib/prisma';
 
 class Database {
-  private static instance: PrismaClient;
-
-  static getInstance(): PrismaClient {
-    if (!Database.instance) {
-      Database.instance = new PrismaClient({
-        log: ['error'],
-      });
-    }
-    return Database.instance;
+  static getInstance() {
+    return prisma;
   }
 
   static async connect(): Promise<void> {
     try {
-      const prisma = Database.getInstance();
       await prisma.$connect();
       console.log('✅ PostgreSQL connected (Transaction Service)');
     } catch (error) {
@@ -24,11 +16,10 @@ class Database {
   }
 
   static async disconnect(): Promise<void> {
-    const prisma = Database.getInstance();
     await prisma.$disconnect();
     console.log('✅ PostgreSQL disconnected');
   }
 }
 
 export default Database;
-export const prisma = Database.getInstance();
+export { prisma };
