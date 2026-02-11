@@ -245,7 +245,6 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
   const followerCount = notifications.filter((n) =>
     n.type?.includes("follow"),
   ).length;
-
   const connectionCount = notifications.filter((n) =>
     ["like", "comment", "mention", "message_received", "connection"].some((t) =>
       n.type?.includes(t),
@@ -254,7 +253,6 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
   /* Categorization Logic Based on Backend Types */
   const filteredNotifications = notifications.filter((n) => {
     if (filter === "events") {
-      // Backend types: event_*, ticket_*, group_*, booking_*
       return (
         n.type?.includes("event") ||
         n.type?.includes("ticket") ||
@@ -263,11 +261,9 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
       );
     }
     if (filter === "followers") {
-      // Backend types: follow_*
       return n.type?.includes("follow");
     }
     if (filter === "connections") {
-      // Activity from connections: like, comment, mention, message
       return [
         "like",
         "comment",
@@ -494,10 +490,9 @@ const NotificationItem = ({
   ];
 
   const isEvent =
-    eventBannerTypes.some((t) => notification.type.includes(t)) ||
+    eventBannerTypes.some((t) => notification.type?.includes(t)) ||
     !!notification.eventId ||
     !!notification.ticketId;
-
   const targetEventId =
     notification.ticketId ||
     notification.eventId ||
@@ -1081,8 +1076,11 @@ const NotificationItem = ({
     </div>
   );
 };
-
-const getIconHTML = (type: string): string => {
+const getIconHTML = (type: string | undefined): string => {
+  if (!type) {
+    return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>';
+  }
+  
   const iconMap: { [key: string]: string } = {
     event: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
     ticket: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path><path d="M13 5v2"></path><path d="M13 17v2"></path><path d="M13 11v2"></path></svg>',
@@ -1094,8 +1092,8 @@ const getIconHTML = (type: string): string => {
   if (type.includes('follow')) return iconMap.follow;
   return iconMap.ticket;
 };
-
-const getIcon = (type: string) => {
+const getIcon = (type: string | undefined) => {
+  if (!type) return <Bell size={18} />; 
   if (type.includes("event")) return <Calendar size={18} />;
   if (type.includes("ticket") || type.includes("booking"))
     return <Ticket size={18} />;
