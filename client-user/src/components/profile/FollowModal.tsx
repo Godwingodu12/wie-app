@@ -1,26 +1,37 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Loader2, Search, Filter, MessageCircle, MoreVertical, X, UserCheck, UserPlus } from "lucide-react";
-import { 
-  getFollowers, 
-  getFollowing, 
+import {
+  Search,
+  X,
+  Loader2,
+  SlidersHorizontal,
+  MoreHorizontal
+} from 'lucide-react';
+import {
+  getFollowers,
+  getFollowing,
   getFollowRequests,
   getSentFollowRequests,
-  followUser, 
+  followUser,
   unfollowUser,
   checkFollowStatus,
-  cancelFollowRequest
+  cancelFollowRequest,
+  acceptFollowRequest,
+  getFollowStats
 } from "@/services/followService";
-import {blockUser,unblockUser} from "@/services/chatService";
-import { muteUser}  from "@/services/wieUserService";
+import { blockUser } from "@/services/chatService";
+import { muteUser } from "@/services/wieUserService";
 import { useTheme } from "@/components/home/ThemeContext";
-import CancelIcon from "@/assets/profile/cancelIcon.png";
 import { useChat } from '@/context/ChatContext';
 import { createOrGetWieChat } from '@/services/chatService';
-type TabType = "followers" | "following" | "requests" | "requested";
+import { rejectFollowRequest } from "@/services/followService";
+
+// --- Types ---
+
+type TabType = 'followers' | 'following' | 'requested' | 'received';
 type FilterType = "default" | "latest" | "earliest";
 
 interface User {
@@ -42,10 +53,302 @@ interface FollowModalProps {
   userId: string;
   userName?: string;
   isOwnProfile?: boolean;
-  initialTab?: TabType;
+  initialTab?: 'followers' | 'following' | 'requests' | 'requested';
   isPrivateAccount?: boolean;
   onCountChange?: (type: 'following' | 'followers', change: number) => void;
 }
+
+const Button = ({
+  children,
+  variant = 'primary',
+  className = '',
+  onClick,
+  disabled = false,
+  themeStyles,
+  style
+}: {
+  children: React.ReactNode;
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+  className?: string;
+  onClick?: (e: React.MouseEvent) => void;
+  disabled?: boolean;
+  themeStyles: any;
+  style?: React.CSSProperties;
+}) => {
+  const baseStyles = "px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed";
+
+  // Dynamic styles based on variant
+  let variantStyles = {};
+  switch (variant) {
+    case 'primary':
+      variantStyles = {
+        background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
+        color: '#FFFFFF',
+        boxShadow: '0 4px 12px rgba(139, 92, 246, 0.2)'
+      };
+      break;
+    case 'secondary':
+      variantStyles = {
+        background: themeStyles.pillBg,
+        color: themeStyles.text,
+        border: `1px solid ${themeStyles.border}`
+      };
+      break;
+    case 'outline':
+      variantStyles = {
+        border: `1px solid ${themeStyles.border}`,
+        color: themeStyles.textSecondary,
+        background: 'transparent'
+      };
+      break;
+    case 'ghost':
+      variantStyles = {
+        color: themeStyles.textSecondary,
+        background: 'transparent'
+      };
+      break;
+    case 'danger':
+      variantStyles = {
+        background: 'rgba(239, 68, 68, 0.1)',
+        color: '#ef4444'
+      };
+      break;
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`${baseStyles} ${className} hover:opacity-90`}
+      style={{ ...variantStyles, ...style }}
+    >
+      {children}
+    </button>
+  );
+};
+
+// --- Sub-Components for the Modal ---
+
+const FilterDropdown = ({ isOpen, onClose, onSelect, currentFilter, themeStyles, isDark }: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelect: (filter: FilterType) => void;
+  currentFilter: FilterType;
+  themeStyles: any;
+  isDark: boolean;
+}) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      ref={menuRef}
+      className="absolute top-12 right-4 w-64 rounded-xl shadow-2xl z-50 p-2 animate-in fade-in zoom-in-95 duration-100"
+      style={{
+        background: isDark ? '#111418' : themeStyles.cardBg,
+        border: `1px solid ${themeStyles.border}`
+      }}
+    >
+      <div className="flex flex-col gap-1">
+        {[
+          { label: "Default", value: "default" },
+          { label: "Date followed: Latest", value: "latest" },
+          { label: "Date followed: Earliest", value: "earliest" }
+        ].map((option) => (
+          <button
+            key={option.value}
+            onClick={() => {
+              onSelect(option.value as FilterType);
+              onClose();
+            }}
+            className="flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+            style={{
+              color: currentFilter === option.value ? themeStyles.text : themeStyles.textSecondary,
+              background: currentFilter === option.value ? themeStyles.pillBg : 'transparent'
+            }}
+          >
+            <span>{option.label}</span>
+            <div
+              className="w-3 h-3 rounded-full border flex items-center justify-center"
+              style={{
+                borderColor: currentFilter === option.value ? themeStyles.text : themeStyles.textSecondary,
+                background: currentFilter === option.value ? themeStyles.text : 'transparent'
+              }}
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const ActionMenu = ({
+  isOpen,
+  onClose,
+  onAction,
+  themeStyles,
+  isDark
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onAction: (action: 'mute' | 'block' | 'unfollow') => void;
+  themeStyles: any;
+  isDark: boolean;
+}) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      ref={menuRef}
+      className={`absolute right-0 w-32 rounded-xl shadow-xl z-50 p-1.5 animate-in fade-in zoom-in-95 duration-100 ${isDark ? 'top-8' : 'top-8'}`}
+      style={{
+        background: isDark ? '#1C202433' : themeStyles.cardBg,
+        border: isDark ? '0.5px solid' : `1px solid ${themeStyles.border}`,
+        borderImageSource: isDark ? 'linear-gradient(270deg, rgba(32, 32, 32, 0.2) -8.43%, rgba(96, 96, 96, 0.2) 100%)' : 'none',
+        borderImageSlice: isDark ? 1 : undefined,
+        backdropFilter: isDark ? 'blur(80px)' : 'none'
+      }}
+    >
+      <div className="flex flex-col gap-0.5">
+        {[
+          { label: 'Mute', action: 'mute' },
+          { label: 'Block', action: 'block' },
+          {
+             label: 'Unfollow',
+             action: 'unfollow',
+             color: '#ef4444',
+             style: {
+                 background: isDark ? '#222831' : themeStyles.pillBg, // Custom background for Unfollow
+                 marginTop: '4px' // Separation
+             }
+          }
+        ].map((item: any) => (
+          <button
+            key={item.label}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAction(item.action);
+              onClose();
+            }}
+            className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+            style={{
+              color: item.color || themeStyles.text,
+              ...(item.style || {})
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+
+const ConfirmationModal = ({
+  user,
+  type,
+  onConfirm,
+  onCancel,
+  loading = false,
+  themeStyles
+}: {
+  user: User;
+  type: 'mute' | 'block' | 'unfollow' | 'cancel';
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading?: boolean;
+  themeStyles: any;
+}) => {
+  return (
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-8 animate-in fade-in duration-200" onClick={onCancel}>
+      <div
+        className="rounded-2xl p-6 w-full max-w-xs text-center shadow-2xl scale-100"
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: themeStyles.cardBg,
+          border: `1px solid ${themeStyles.border}`
+        }}
+      >
+        <div
+          className="w-16 h-16 mx-auto rounded-full overflow-hidden mb-4 border-2"
+          style={{ borderColor: themeStyles.border }}
+        >
+          {user.profile_picture ? (
+            <Image
+              src={user.profile_picture}
+              alt={user.name || 'User'}
+              width={64}
+              height={64}
+              className="object-cover w-full h-full"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] flex items-center justify-center">
+              <span className="text-xl font-bold text-white">
+                {user.name?.charAt(0)?.toUpperCase() || 'U'}
+              </span>
+            </div>
+          )}
+        </div>
+        <h3 className="font-bold text-lg mb-1" style={{ color: themeStyles.text }}>{user.name}</h3>
+        <p className="text-xs mb-6" style={{ color: themeStyles.textSecondary }}>@{user.username}</p>
+        <p className="text-sm mb-6" style={{ color: themeStyles.textSecondary }}>
+          Are you sure you want to {type} <span style={{ color: themeStyles.text }}>@{user.username}</span>?
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-full text-xs font-semibold hover:opacity-80 disabled:opacity-50"
+            style={{
+              border: `1px solid ${themeStyles.border}`,
+              color: themeStyles.text
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-full text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+            style={{
+              background: type === 'unfollow' || type === 'block' ? '#ef4444' : themeStyles.pillBg,
+              color: type === 'unfollow' || type === 'block' ? '#FFFFFF' : themeStyles.text
+            }}
+          >
+            {loading && <Loader2 className="w-3 h-3 animate-spin"/>}
+            {type.charAt(0).toUpperCase() + type.slice(1)}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Main App Component ---
 
 export default function FollowModal({
   isOpen,
@@ -59,148 +362,174 @@ export default function FollowModal({
 }: FollowModalProps) {
   const router = useRouter();
   const { themeStyles, isDark } = useTheme();
-  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+
+  // Convert initialTab to our new TabType
+  const mapInitialTab = (tab: string): TabType => {
+    if (tab === 'requests') return 'received';
+    return tab as TabType;
+  };
+
+  const [activeTab, setActiveTab] = useState<TabType>(mapInitialTab(initialTab));
+
+  // Update active tab when prop changes
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(mapInitialTab(initialTab));
+    }
+  }, [initialTab, isOpen]);
+
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const { loadChatById, chats } = useChat();
-  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
+
+  // Modal Interactions State
+  const [showFilter, setShowFilter] = useState(false);
   const [filterType, setFilterType] = useState<FilterType>("default");
+
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
-  const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
-  const [showConfirmModal, setShowConfirmModal] = useState<{
-    type: 'mute' | 'block' | 'unfollow' | 'cancel' | null;
+
+  const [counts, setCounts] = useState({ followers: 0, following: 0, requests: 0, requested: 0 });
+
+  const [confirmationState, setConfirmationState] = useState<{
+    isOpen: boolean;
+    type: 'mute' | 'block' | 'unfollow' | 'cancel';
     user: User | null;
-  }>({ type: null, user: null });
-  const filterMenuRef = useRef<HTMLDivElement>(null);
-  const actionMenuRef = useRef<HTMLDivElement>(null);
-  const [tabCounts, setTabCounts] = useState({
-    followers: 0,
-    following: 0,
-    requests: 0,
-    requested: 0
-  });
+  }>({ isOpen: false, type: 'mute', user: null });
 
-useEffect(() => {
-  if (isOpen && userId) {
-    fetchAllTabCounts();
-    fetchUsers();
-  }
-}, [isOpen, userId, activeTab]);
-  const fetchAllTabCounts = async () => {
-    try {
-        const counts = {
-        followers: 0,
-        following: 0,
-        requests: 0,
-        requested: 0
-        };
-
-        // Fetch all counts in parallel
-        const [followersData, followingData, requestsData, requestedData] = await Promise.all([
-        getFollowers(userId).catch(() => ({ followers: [] })),
-        getFollowing(userId).catch(() => ({ following: [] })),
-        isPrivateAccount && isOwnProfile ? getFollowRequests().catch(() => ({ requests: [] })) : Promise.resolve({ requests: [] }),
-        isPrivateAccount && isOwnProfile ? getSentFollowRequests(userId).catch(() => ({ sentRequests: [] })) : Promise.resolve({ sentRequests: [] })
-        ]);
-
-        counts.followers = followersData?.followers?.length || 0;
-        counts.following = followingData?.following?.length || 0;
-        counts.requests = requestsData?.requests?.length || 0;
-        counts.requested = requestedData?.sentRequests?.length || 0;
-
-        setTabCounts(counts);
-    } catch (error) {
-        console.error('Failed to fetch tab counts:', error);
+  // Load data when modal opens or tab changes
+  useEffect(() => {
+    if (isOpen && userId) {
+      fetchUsers();
+      fetchCounts();
     }
-  };
+  }, [isOpen, userId, activeTab]);
+
+  // Filter users when search query or users list changes
   useEffect(() => {
     filterUsers();
   }, [users, searchQuery, filterType]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
-        setShowFilterMenu(false);
-      }
-      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
-        setShowActionMenu(null);
-      }
+    const fetchCounts = async () => {
+        try {
+            const stats = await getFollowStats(userId);
+            let requestCount = 0;
+            let requestedCount = 0;
+
+            if (isOwnProfile) {
+                // Fetch request counts if own profile
+                try {
+                     const incoming = await getFollowRequests();
+                     requestCount = incoming.requests?.length || 0;
+                     const outgoing = await getSentFollowRequests(userId);
+                     requestedCount = outgoing.sentRequests?.length || 0;
+                } catch (e) {
+                    console.error("Failed to fetch request counts", e);
+                }
+            }
+
+            setCounts({
+                followers: stats.followers,
+                following: stats.following,
+                requests: requestCount,
+                requested: requestedCount
+            });
+        } catch (error) {
+            console.error("Failed to fetch counts", error);
+        }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-const fetchUsers = async () => {
-  try {
-    setLoading(true);
-    let data: any;
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      let data: any;
 
-    switch (activeTab) {
-      case "followers":
-        data = await getFollowers(userId);
-        const followersWithStatus = await Promise.all(
-          (data.followers || []).map(async (user: any) => {
-            try {
-              const status = await checkFollowStatus(user.userId || user.id);
-              return {
-                ...user,
-                userId: user.userId || user.id,
-                isFollowing: status.isFollowing,
-                followRequestStatus: status.requestStatus || 'none', 
-                isPrivate: user.accountPrivacy || false 
-              };
-            } catch {
-              return {
-                ...user,
-                userId: user.userId || user.id,
-                isFollowing: false,
-                followRequestStatus: 'none',
-                isPrivate: user.accountPrivacy || false
-              };
-            }
-          })
-        );
-        setUsers(followersWithStatus);
-        // Only update the current tab count
-        setTabCounts(prev => ({ ...prev, followers: followersWithStatus.length }));
-        break;
+      switch (activeTab) {
+        case "followers":
+          data = await getFollowers(userId);
+          const followersWithStatus = await Promise.all(
+            (data.followers || []).map(async (user: any) => {
+              try {
+                if (isOwnProfile) {
+                    const status = await checkFollowStatus(user.userId || user.id);
+                    return {
+                        ...user,
+                        userId: user.userId || user.id,
+                        isFollowing: status.isFollowing,
+                        followRequestStatus: status.requestStatus || 'none',
+                        isPrivate: user.accountPrivacy || false
+                    };
+                }
+                const status = await checkFollowStatus(user.userId || user.id);
+                return {
+                    ...user,
+                    userId: user.userId || user.id,
+                    isFollowing: status.isFollowing,
+                    followRequestStatus: status.requestStatus || 'none',
+                    isPrivate: user.accountPrivacy || false
+                };
+              } catch {
+                return {
+                  ...user,
+                  userId: user.userId || user.id,
+                  isFollowing: false,
+                  followRequestStatus: 'none',
+                  isPrivate: user.accountPrivacy || false
+                };
+              }
+            })
+          );
+          setUsers(followersWithStatus);
+          break;
 
-      case "following":
-        data = await getFollowing(userId);
-        const followingWithStatus = (data.following || []).map((user: User) => ({
-          ...user,
-          isFollowing: true
-        }));
-        setUsers(followingWithStatus);
-        setTabCounts(prev => ({ ...prev, following: followingWithStatus.length }));
-        break;
+        case "following":
+          data = await getFollowing(userId);
+          const followingWithStatus = await Promise.all((data.following || []).map(async (user: any) => {
+             if (isOwnProfile) {
+                 return { ...user, isFollowing: true };
+             } else {
+                 try {
+                    const status = await checkFollowStatus(user.userId || user.id);
+                    return { ...user, isFollowing: status.isFollowing };
+                 } catch {
+                    return { ...user, isFollowing: false };
+                 }
+             }
+          }));
+          setUsers(followingWithStatus);
+          break;
 
-      case "requests":
-        data = await getFollowRequests();
-        setUsers(data.requests || []);
-        setTabCounts(prev => ({ ...prev, requests: (data.requests || []).length }));
-        break;
+        case "received":
+          if (isOwnProfile && isPrivateAccount) {
+            data = await getFollowRequests();
+            setUsers(data.requests || []);
+          } else {
+             setUsers([]);
+          }
+          break;
 
-      case "requested":
-        data = await getSentFollowRequests(userId);
-        setUsers(data.sentRequests || []);
-        setTabCounts(prev => ({ ...prev, requested: (data.sentRequests || []).length }));
-        break;  
+        case "requested":
+          if (isOwnProfile) {
+             data = await getSentFollowRequests(userId);
+             setUsers(data.sentRequests || []);
+          } else {
+             setUsers([]);
+          }
+          break;
+      }
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+      setUsers([]);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Failed to fetch users:', error);
-    setUsers([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
   const filterUsers = () => {
     let filtered = [...users];
 
-    // Apply search filter
     if (searchQuery.trim()) {
       filtered = filtered.filter(user =>
         user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -208,7 +537,6 @@ const fetchUsers = async () => {
       );
     }
 
-    // Apply sort filter
     switch (filterType) {
       case "latest":
         filtered.sort((a, b) => new Date(b.followedAt).getTime() - new Date(a.followedAt).getTime());
@@ -216,530 +544,522 @@ const fetchUsers = async () => {
       case "earliest":
         filtered.sort((a, b) => new Date(a.followedAt).getTime() - new Date(b.followedAt).getTime());
         break;
-      default:
-        break;
     }
 
     setFilteredUsers(filtered);
   };
 
-  const handleAction = async (action: 'mute' | 'block' | 'unfollow' | 'cancel', user: User) => {
-    setShowConfirmModal({ type: action, user });
-    setShowActionMenu(null);
-  };
+  // --- Actions ---
 
-  const executeAction = async () => {
-    if (!showConfirmModal.user || !showConfirmModal.type) return;
+  const performAction = async (action: 'mute' | 'block' | 'unfollow' | 'cancel', user: User) => {
+    if (!user) return;
+
+    setActioningId(user.id);
+    const targetId = user.id;
 
     try {
-      setActioningId(showConfirmModal.user.id);
-
-      switch (showConfirmModal.type) {
+      switch (action) {
         case 'mute':
-          await muteUser(showConfirmModal.user.id);
+          await muteUser(targetId);
           break;
         case 'block':
-          await blockUser(showConfirmModal.user.id);
-          setUsers(prev => prev.filter(u => u.id !== showConfirmModal.user!.id));
+          await blockUser(targetId);
+          setUsers(prev => prev.filter(u => u.id !== targetId));
           break;
         case 'unfollow':
-          await unfollowUser(showConfirmModal.user.id);
-          setUsers(prev => prev.filter(u => u.id !== showConfirmModal.user!.id));
+          await unfollowUser(targetId);
+          // Don't remove from list, update status
+          setUsers(prev => prev.map(u => u.id === targetId ? { ...u, isFollowing: false } : u));
           if (onCountChange) onCountChange('following', -1);
+          setCounts(prev => ({ ...prev, following: Math.max(0, prev.following - 1) }));
           break;
         case 'cancel':
-          await cancelFollowRequest(showConfirmModal.user.id);
-          setUsers(prev => prev.filter(u => u.id !== showConfirmModal.user!.id));
+          await cancelFollowRequest(targetId);
+          if (activeTab === 'requested') {
+              setUsers(prev => prev.filter(u => u.id !== targetId));
+              setCounts(prev => ({ ...prev, requested: Math.max(0, prev.requested - 1) }));
+          } else {
+             setUsers(prev => prev.map(u => u.id === targetId ? { ...u, followRequestStatus: 'none' } : u));
+             setCounts(prev => ({ ...prev, requested: Math.max(0, prev.requested - 1) }));
+          }
           break;
       }
-
-      setShowConfirmModal({ type: null, user: null });
+      setConfirmationState({ isOpen: false, type: 'mute', user: null });
     } catch (error) {
-      console.error(`Failed to ${showConfirmModal.type}:`, error);
+      console.error(`Failed to ${action}:`, error);
     } finally {
       setActioningId(null);
     }
   };
-const handleFollowToggle = async (followerId: string, isCurrentlyFollowing: boolean, currentStatus?: string) => {
-  if (!isOwnProfile) return;
 
-  try {
-    setActioningId(followerId);
-
-    if (isCurrentlyFollowing) {
-      // Unfollow
-      await unfollowUser(followerId);
-      if (onCountChange) {
-        onCountChange('following', -1);
-      }
-      
-      // Update user status
-      setUsers(prev =>
-        prev.map(u =>
-          u.id === followerId 
-            ? { ...u, isFollowing: false, followRequestStatus: 'none' } 
-            : u
-        )
-      );
-    } else if (currentStatus === 'pending') {
-      // Cancel pending request
-      await cancelFollowRequest(followerId);
-      
-      setUsers(prev =>
-        prev.map(u =>
-          u.id === followerId 
-            ? { ...u, isFollowing: false, followRequestStatus: 'none' } 
-            : u
-        )
-      );
+  const handleAction = (action: 'mute' | 'block' | 'unfollow' | 'cancel', user: User) => {
+    if (action === 'unfollow' || action === 'cancel') {
+      performAction(action, user);
     } else {
-      // Follow or send request
-      const response = await followUser(followerId);
-      
-      // Check if it's a pending request (private account) or active follow
-      const isPending = response?.status === 'pending' || response?.requestStatus === 'pending';
-      
-      if (!isPending && onCountChange) {
-        onCountChange('following', 1);
-      }
-      
-      setUsers(prev =>
-        prev.map(u =>
-          u.id === followerId 
-            ? { 
-                ...u, 
-                isFollowing: !isPending, 
-                followRequestStatus: isPending ? 'pending' : 'active' 
-              } 
-            : u
-        )
-      );
+      setConfirmationState({ isOpen: true, type: action, user });
     }
-  } catch (error) {
-    console.error('Failed to toggle follow:', error);
-  } finally {
-    setActioningId(null);
-  }
-};
-  const handleUserClick = (userId: string) => {
-    onClose();
-    router.push(`/profile/${userId}`);
   };
-const handleMessageClick = async (userId: string) => {
-  try {
-    // First, check if a chat already exists in context
-    const existingChat = chats.find(
-      chat => chat.participant?._id === userId
-    );
 
-    if (existingChat) {
-      // Load existing chat and navigate
-      await loadChatById(existingChat._id);
-      router.push('/message');
-      onClose();
-      return;
+  const confirmAction = () => {
+    if (confirmationState.user && confirmationState.type) {
+        performAction(confirmationState.type, confirmationState.user);
     }
+  };
 
-    // If no existing chat in context, create or get from server
-    const response = await createOrGetWieChat(userId);
+  const handleAcceptRequest = async (requestUserId: string) => {
+     try {
+        setActioningId(requestUserId);
+        await acceptFollowRequest(requestUserId);
+        setUsers(prev => prev.filter(u => u.id !== requestUserId));
+        setCounts(prev => ({ ...prev, requests: Math.max(0, prev.requests - 1), followers: prev.followers + 1 }));
+        if (onCountChange) onCountChange('followers', 1);
+     } catch (error) {
+        console.error("Accept request error:", error);
+     } finally {
+        setActioningId(null);
+     }
+  };
 
-    if (response.success && response.chat) {
-      // Load the chat (whether existing or new)
-      await loadChatById(response.chat._id);
-      router.push('/message');
-      onClose();
+  const handleRejectRequest = async (requestUserId: string) => {
+     try {
+        setActioningId(requestUserId);
+        await rejectFollowRequest(requestUserId);
+        setUsers(prev => prev.filter(u => u.id !== requestUserId));
+        setCounts(prev => ({ ...prev, requests: Math.max(0, prev.requests - 1) }));
+     } catch (error) {
+        console.error("Reject request error:", error);
+     } finally {
+        setActioningId(null);
+     }
+  };
+
+  const handleFollowToggle = async (followerId: string, isCurrentlyFollowing: boolean, currentStatus?: string) => {
+     try {
+        setActioningId(followerId);
+
+        if (isCurrentlyFollowing) {
+             const user = users.find(u => u.id === followerId);
+             if (user) {
+                 handleAction('unfollow', user);
+             }
+             return;
+        }
+
+        if (currentStatus === 'pending') {
+             const user = users.find(u => u.id === followerId);
+             if (user) {
+                 handleAction('cancel', user);
+             }
+             return;
+        }
+
+        const response = await followUser(followerId);
+        const isPending = response?.status === 'pending' || response?.requestStatus === 'pending';
+
+        if (!isPending && onCountChange) {
+            onCountChange('following', 1);
+        }
+        // Update counts based on whether it's pending or active
+        if (!isPending) {
+            setCounts(prev => ({ ...prev, following: prev.following + 1 }));
+        } else {
+            setCounts(prev => ({ ...prev, requested: prev.requested + 1 }));
+        }
+
+        setUsers(prev => prev.map(u =>
+            u.id === followerId
+            ? { ...u, isFollowing: !isPending, followRequestStatus: isPending ? 'pending' : 'active' }
+            : u
+        ));
+
+     } catch (error) {
+        console.error("Follow toggle error:", error);
+     } finally {
+        setActioningId(null);
+     }
+  };
+
+  const handleMessageClick = async (targetUserId: string) => {
+    try {
+        const existingChat = chats.find(chat => chat.participant?._id === targetUserId);
+        if (existingChat) {
+            await loadChatById(existingChat._id);
+            router.push('/message');
+            onClose();
+            return;
+        }
+        const response = await createOrGetWieChat(targetUserId);
+        if (response.success && response.chat) {
+            await loadChatById(response.chat._id);
+            router.push('/message');
+            onClose();
+        }
+    } catch (error: any) {
+        console.error('Failed to chat:', error);
+        alert('Failed to open chat.');
     }
-  } catch (error: any) {
-    console.error('❌ Failed to create/get chat:', error);
-    // Show user-friendly error message
-    if (error.response?.status === 403) {
-      alert(error.response?.data?.message || 'Cannot create chat with this user');
-    } else if (error.response?.status === 404) {
-      alert('User not found');
-    } else {
-      alert('Failed to open chat. Please try again.');
-    }
-  }
-};
-    const getTabCount = (tab: TabType) => {
-    return tabCounts[tab];
-    };
+  };
+
+  const handleUserClick = (targetUserId: string) => {
+    onClose();
+    router.push(`/profile/${targetUserId}`);
+  };
+
+
+  // --- Render ---
 
   if (!isOpen) return null;
 
-  const availableTabs: TabType[] = isPrivateAccount && isOwnProfile
-    ? ["followers", "following", "requests", "requested"]
-    : ["followers", "following"];
+  const visibleTabs: TabType[] = ['followers', 'following'];
+
+  if (isOwnProfile) {
+      if (counts.requested > 0) {
+          visibleTabs.push('requested');
+      }
+      if (isPrivateAccount || counts.requests > 0) {
+          visibleTabs.push('received');
+      }
+  }
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
-        onClick={onClose}
-      />
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
 
-      {/* Main Modal */}
-      <div className="fixed top-[75px] left-1/2 -translate-x-1/2 z-50 w-[718px] h-[981px] rounded-[24px] flex flex-col"
+      {/* Modal Container */}
+      <div
+        className="w-[95%] max-w-[718px] rounded-[24px] shadow-2xl flex flex-col h-[75vh] md:h-[981px] max-h-[85dvh] md:max-h-[90dvh] overflow-hidden relative animate-in zoom-in-95 duration-300 mx-auto"
+        onClick={e => e.stopPropagation()}
         style={{
-          background: isDark ? "#0B0D0F" : "#FFFFFF",
-          border: "0.3px solid",
-          borderImage: "linear-gradient(180deg, #666666 0%, #616060 50%, #393939 100%) 1"
+          background: isDark ? '#111418' : themeStyles.cardBg,
+          boxShadow: isDark ? 'none' : undefined // Optional: remove shadow in dark mode if no border? User only said remove border. I'll just remove border props.
         }}
-        onClick={(e) => e.stopPropagation()}
       >
-        {/* Header with Tabs and Cancel */}
-        <div className="p-8 pb-4">
-          <div className="flex items-center justify-between mb-6">
-            {/* Tabs */}
-            <div className="flex gap-6">
-            {availableTabs.map((tab) => (
-                <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className="relative"
-                >
-                <div className="flex items-center gap-1">
-                    <span
-                    className={`text-sm font-medium capitalize transition-colors ${
-                        activeTab === tab ? 'opacity-100' : 'opacity-50'
-                    }`}
-                    style={{ color: themeStyles.text }}
+
+        {confirmationState.isOpen && confirmationState.user && (
+          <ConfirmationModal
+            user={confirmationState.user}
+            type={confirmationState.type}
+            onCancel={() => setConfirmationState({ ...confirmationState, isOpen: false })}
+            onConfirm={confirmAction}
+            loading={!!actioningId}
+            themeStyles={themeStyles}
+          />
+        )}
+
+        {/* 1. Modal Header & Tabs */}
+        <div className="flex flex-col z-10" style={{ background: isDark ? '#111418' : themeStyles.cardBg }}>
+          <div className="flex items-center justify-between p-3 md:p-5 pb-0">
+            {/* Tabs Scroll Container */}
+            <div className="flex gap-6 md:gap-8 overflow-x-auto no-scrollbar mask-gradient pr-8 scrollbar-hide">
+              {visibleTabs.map((tab) => {
+                  let count = 0;
+                  if (tab === 'followers') count = counts.followers;
+                  if (tab === 'following') count = counts.following;
+                  if (tab === 'received') count = counts.requests;
+                  if (tab === 'requested') count = counts.requested;
+
+                  const label = tab.charAt(0).toUpperCase() + tab.slice(1);
+
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`pb-2.5 text-sm md:text-lg font-medium whitespace-nowrap transition-colors relative flex items-center gap-1.5`}
+                      style={{
+                        color: activeTab === tab ? themeStyles.text : themeStyles.textSecondary
+                      }}
                     >
-                    {tab}
-                    </span>
-                    <span
-                    className={`text-xs ${
-                        activeTab === tab ? 'opacity-100' : 'opacity-50'
-                    }`}
-                    style={{ color: themeStyles.textSecondary }}
-                    >
-                    {getTabCount(tab)}
-                    </span>
-                </div>
-                {activeTab === tab && (
-                    <div
-                    className="absolute -bottom-2 left-0 right-0 h-0.5 bg-[#8860D9]"
-                    />
-                )}
-                </button>
-            ))}
+                      {label}
+                      <span className="text-xs md:text-base opacity-70">{count}</span>
+                      {activeTab === tab && (
+                        <div
+                          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full h-[3px] rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)]"
+                          style={{ background: themeStyles.text }}
+                        />
+                      )}
+                    </button>
+                  );
+              })}
             </div>
-            {/* Cancel Button */}
+
+            {/* Close Button */}
             <button
               onClick={onClose}
-              className="w-[42px] h-[42px] flex items-center justify-center rounded-full hover:bg-white/5 transition-colors"
+              className="p-2 -mr-2 rounded-full transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+              style={{
+                color: themeStyles.textSecondary,
+                background: isDark ? '#1C2024B2' : 'transparent'
+              }}
             >
-              <Image src={CancelIcon} alt="Close" width={24} height={24} />
+              <X size={20} />
             </button>
           </div>
 
-          {/* Search and Filter */}
-          <div className="relative flex items-center gap-2">
-            <div
-              className="flex-1 flex items-center gap-2 rounded-[12px] px-[14px] py-[13px]"
-              style={{ background: themeStyles.pillBg }}
-            >
-              <Search className="w-4 h-4" style={{ color: themeStyles.textSecondary }} />
+          {/* 2. Search & Filter Bar */}
+          <div className="px-3 md:px-5 py-3 md:py-4 relative">
+            <div className="relative group">
+              <Search
+                className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors"
+                size={16}
+                style={{ color: themeStyles.textSecondary }}
+              />
               <input
                 type="text"
-                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent outline-none text-sm"
-                style={{ color: themeStyles.text }}
-              />
-            </div>
-
-            {/* Filter Button */}
-            <button
-              onClick={() => setShowFilterMenu(!showFilterMenu)}
-              className="w-[42px] h-[42px] flex items-center justify-center rounded-[12px] hover:bg-white/5 transition-colors"
-              style={{ background: themeStyles.pillBg }}
-            >
-              <Filter className="w-4 h-4" style={{ color: themeStyles.text }} />
-            </button>
-
-            {/* Filter Menu */}
-            {showFilterMenu && (
-              <div
-                ref={filterMenuRef}
-                className="absolute top-[50px] right-0 w-[255px] rounded-[8px] border-[0.5px] p-[18px_10px] z-10"
+                placeholder="Search here"
+                className="w-full text-sm pl-11 pr-10 py-3.5 rounded-2xl border border-transparent focus:outline-none transition-all placeholder:text-gray-500"
                 style={{
-                  background: isDark ? "#1C1C1E" : "#FFFFFF",
-                  borderColor: themeStyles.border
+                  background: isDark ? '#3838384D' : themeStyles.pillBg,
+                  color: themeStyles.text
                 }}
-              >
-                <div className="space-y-1">
-                  {[
-                    { label: "Default", value: "default" },
-                    { label: "Date followed: Latest", value: "latest" },
-                    { label: "Date followed: Earliest", value: "earliest" }
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        setFilterType(option.value as FilterType);
-                        setShowFilterMenu(false);
-                      }}
-                      className="w-full flex items-center justify-between py-3 px-2 rounded hover:bg-white/5 transition-colors"
-                    >
-                      <span className="text-sm" style={{ color: themeStyles.text }}>
-                        {option.label}
-                      </span>
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                        filterType === option.value ? 'border-[#8860D9]' : 'border-gray-400'
-                      }`}>
-                        {filterType === option.value && (
-                          <div className="w-2 h-2 rounded-full bg-[#8860D9]" />
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+              />
+
+              {(activeTab === 'followers' || activeTab === 'following') && (
+                <button
+                  onClick={() => setShowFilter(!showFilter)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                  style={{
+                    color: themeStyles.textSecondary,
+                    background: isDark ? '#1C202433' : 'transparent',
+                    border: isDark ? '0.5px solid' : 'none',
+                    borderImageSource: isDark ? 'linear-gradient(270deg, rgba(32, 32, 32, 0.2) -8.43%, rgba(96, 96, 96, 0.2) 100%)' : 'none',
+                    borderImageSlice: isDark ? 1 : undefined
+                  }}
+                >
+                  <SlidersHorizontal size={16} />
+                </button>
+              )}
+            </div>
+
+            <FilterDropdown
+                isOpen={showFilter}
+                onClose={() => setShowFilter(false)}
+                onSelect={setFilterType}
+                currentFilter={filterType}
+                themeStyles={themeStyles}
+                isDark={isDark}
+            />
           </div>
         </div>
 
-        {/* User List */}
-        <div className="flex-1 overflow-y-auto px-8">
-          {loading ? (
-            <div className="flex flex-col justify-center items-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-[#8860D9]" />
-              <p className="mt-4" style={{ color: themeStyles.text }}>Loading...</p>
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="w-20 h-20 rounded-full flex items-center justify-center mb-4" style={{ background: themeStyles.pillBg }}>
-                <svg className="w-10 h-10" style={{ color: themeStyles.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold mb-2" style={{ color: themeStyles.text }}>
-                {searchQuery ? 'No results found' : `No ${activeTab} yet`}
-              </h3>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {filteredUsers.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between h-[52px]"
-                >
-                  <div
-                    className="flex items-center gap-3 flex-1 cursor-pointer"
-                    onClick={() => handleUserClick(user.id)}
-                  >
-                    {/* Avatar */}
-                    <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
-                      {user.profile_picture ? (
-                        <Image
-                          src={user.profile_picture}
-                          alt={user.name || 'User'}
-                          width={40}
-                          height={40}
-                          className="object-cover w-full h-full"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] flex items-center justify-center">
-                          <span className="text-sm font-bold text-white">
-                            {user.name?.charAt(0)?.toUpperCase() || 'U'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* User Info */}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-sm truncate" style={{ color: themeStyles.text }}>
-                        {user.name || user.username || 'User'}
-                      </h3>
-                      <p className="text-xs truncate" style={{ color: themeStyles.textSecondary }}>
-                        @{user.username || 'username'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                {activeTab === "followers" && isOwnProfile && (
-                <button
-                    onClick={(e) => {
-                    e.stopPropagation();
-                    handleFollowToggle(user.id, user.isFollowing || false, user.followRequestStatus);
-                    }}
-                    disabled={actioningId === user.id}
-                    className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-all disabled:opacity-50 flex items-center gap-1.5 ${
-                    user.isFollowing
-                        ? 'bg-[#2C2C2E] hover:bg-[#3C3C3E] text-white'
-                        : user.followRequestStatus === 'pending'
-                        ? 'bg-[#3C3C3E] hover:bg-[#4C4C4E] text-white'
-                        : 'bg-gradient-to-r from-[#8E74E1] to-[#6E53D1] hover:opacity-90 text-white'
-                    }`}
-                >
-                    {actioningId === user.id ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : user.isFollowing ? (
-                    <>
-                        <UserCheck className="w-3 h-3" />
-                        Following
-                    </>
-                    ) : user.followRequestStatus === 'pending' ? (
-                    <>
-                        <X className="w-3 h-3" />
-                        Requested
-                    </>
-                    ) : (
-                    <>
-                        <UserPlus className="w-3 h-3" />
-                        Follow
-                    </>
-                    )}
-                </button>
-                )}
-                {activeTab === "following" && isOwnProfile && (
-                <div className="flex items-center gap-2">
-                    <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        handleMessageClick(user.id);
-                    }}
-                    className="p-2 rounded-full hover:bg-white/5 transition-colors"
-                    >
-                    <MessageCircle className="w-4 h-4" style={{ color: themeStyles.text }} />
-                    </button>
-                      <div className="relative">
-                        <button
-                          onClick={() => setShowActionMenu(showActionMenu === user.id ? null : user.id)}
-                          className="p-2 rounded-full hover:bg-white/5 transition-colors"
+        {/* 3. Scrollable List Content */}
+        <div className="flex-1 overflow-y-auto px-2 custom-scrollbar">
+            {loading ? (
+                <div className="flex flex-col justify-center items-center py-12">
+                   <Loader2 className="w-8 h-8 animate-spin text-[#8860D9]" />
+                   <p className="mt-4 text-sm" style={{ color: themeStyles.textSecondary }}>Loading...</p>
+                </div>
+            ) : filteredUsers.length === 0 ? (
+                <div className="py-10 text-center text-sm" style={{ color: themeStyles.textSecondary }}>
+                    {searchQuery ? 'No users found.' : `No ${activeTab === "received" ? "requests" : activeTab} yet.`}
+                </div>
+            ) : (
+                <div className="flex flex-col gap-1 pb-4">
+                    {filteredUsers.map((user) => (
+                        <div
+                          key={user.id}
+                          className="flex items-center justify-between p-3 rounded-xl group transition-colors hover:bg-black/5 dark:hover:bg-white/5"
                         >
-                          <MoreVertical className="w-4 h-4" style={{ color: themeStyles.text }} />
-                        </button>
 
-                        {showActionMenu === user.id && (
-                          <div
-                            ref={actionMenuRef}
-                            className="absolute right-0 top-full mt-1 w-[150px] rounded-lg border p-2 z-10 space-y-1"
-                            style={{
-                              background: isDark ? "#1C1C1E" : "#FFFFFF",
-                              borderColor: themeStyles.border
-                            }}
-                          >
-                            <button
-                              onClick={() => handleAction('mute', user)}
-                              className="w-full text-left px-3 py-2 rounded hover:bg-white/5 text-sm"
-                              style={{ color: themeStyles.text }}
+                            {/* User Info */}
+                            <div
+                                className="flex items-center gap-3 cursor-pointer flex-1 min-w-0"
+                                onClick={() => handleUserClick(user.id)}
                             >
-                              Mute
-                            </button>
-                            <button
-                              onClick={() => handleAction('block', user)}
-                              className="w-full text-left px-3 py-2 rounded hover:bg-white/5 text-sm"
-                              style={{ color: themeStyles.text }}
-                            >
-                              Block
-                            </button>
-                            <button
-                              onClick={() => handleAction('unfollow', user)}
-                              className="w-full text-left px-3 py-2 rounded hover:bg-white/5 text-sm text-red-500"
-                            >
-                              Unfollow
-                            </button>
-                          </div>
+                                <div
+                                  className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0"
+                                  style={{ background: themeStyles.pillBg }}
+                                >
+                                    {user.profile_picture ? (
+                                        <Image
+                                            src={user.profile_picture}
+                                            alt={user.name || 'User'}
+                                            width={40}
+                                            height={40}
+                                            className="object-cover w-full h-full"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] flex items-center justify-center">
+                                            <span className="text-sm font-bold text-white">
+                                                {user.name?.charAt(0)?.toUpperCase() || 'U'}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="text-sm font-medium truncate" style={{ color: themeStyles.text }}>{user.name || user.username}</span>
+                                    <span className="text-xs truncate" style={{ color: themeStyles.textSecondary }}>@{user.username}</span>
+                                </div>
+                            </div>
+
+                            {/* Contextual Buttons */}
+                            <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
+                                {/* RECEIVED (REQUESTS) TAB */}
+                                {activeTab === 'received' && isOwnProfile ? (
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="primary"
+                                            className="w-20 md:w-24 px-0"
+                                            onClick={() => handleAcceptRequest(user.id)}
+                                            disabled={!!actioningId}
+                                            themeStyles={themeStyles}
+                                        >
+                                            Accept
+                                        </Button>
+                                        <Button
+                                            variant="secondary"
+                                            className="w-20 md:w-24 px-0"
+                                            onClick={() => handleRejectRequest(user.id)}
+                                            disabled={!!actioningId}
+                                            themeStyles={themeStyles}
+                                        >
+                                            Deny
+                                        </Button>
+                                    </div>
+                                ) : activeTab === 'requested' && isOwnProfile ? (
+                                    <Button variant="secondary" className="w-24" onClick={() => handleAction('cancel', user)} themeStyles={themeStyles}>Requested</Button>
+                                ) : (
+                                    // GENERAL FOLLOW/UNFOLLOW ACTIONS
+                                    user.id !== userId && !(activeTab === 'following' && user.isFollowing) && (
+                                        user.isFollowing ? (
+                                            <Button
+                                                variant="outline"
+                                                className="w-20 md:w-24 border-0"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleFollowToggle(user.id, true);
+                                                }}
+                                                disabled={!!actioningId}
+                                                themeStyles={themeStyles}
+                                                style={{
+                                                  background: isDark ? 'linear-gradient(180deg, rgba(179, 184, 226, 0.2) 0%, rgba(136, 96, 217, 0.2) 50%, rgba(149, 117, 205, 0.2) 100%)' : undefined,
+                                                  border: isDark ? 'none' : undefined,
+                                                  color: isDark ? themeStyles.text : undefined
+                                                }}
+                                            >
+                                                Unfollow
+                                            </Button>
+                                        ) : user.followRequestStatus === 'pending' ? (
+                                            <Button
+                                                variant="secondary"
+                                                className="w-20 md:w-24 border-0"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleFollowToggle(user.id, false, 'pending');
+                                                }}
+                                                disabled={!!actioningId}
+                                                themeStyles={themeStyles}
+                                                style={{
+                                                  background: isDark ? 'linear-gradient(180deg, rgba(179, 184, 226, 0.2) 0%, rgba(136, 96, 217, 0.2) 50%, rgba(149, 117, 205, 0.2) 100%)' : undefined,
+                                                  border: isDark ? 'none' : undefined,
+                                                  color: isDark ? themeStyles.text : undefined
+                                                }}
+                                            >
+                                                Requested
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                variant="primary"
+                                                className="w-20 md:w-24"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleFollowToggle(user.id, false);
+                                                }}
+                                                disabled={!!actioningId}
+                                                themeStyles={themeStyles}
+                                            >
+                                        Follow
+                                    </Button>
+                                )
+                            )
                         )}
-                      </div>
-                    </div>
-                  )}
-
-                  {activeTab === "requested" && isOwnProfile && (
-                    <button
-                      onClick={() => handleAction('cancel', user)}
-                      disabled={actioningId === user.id}
-                      className="px-4 py-2 rounded-full text-xs font-medium bg-[#2C2C2E] hover:bg-[#3C3C3E] text-white transition-colors disabled:opacity-50"
-                    >
-                      {actioningId === user.id ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        'Cancel'
-                      )}
-                    </button>
-                  )}
+                        {/* FOLLOWING TAB ACTIONS (MESSAGE + 3-DOT MENU) */}
+                        {activeTab === 'following' && user.isFollowing && (
+                             <div className="flex items-center gap-2">
+                                <Button
+                                    variant="primary"
+                                    className="px-4 h-8 text-xs font-semibold rounded-full"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleMessageClick(user.id);
+                                    }}
+                                    themeStyles={themeStyles}
+                                >
+                                    Message
+                                </Button>
+                                <div className="relative">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveMenuId(activeMenuId === user.id ? null : user.id);
+                                        }}
+                                        className="p-1.5 rounded-full transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                                        style={{ color: themeStyles.textSecondary }}
+                                    >
+                                        <MoreHorizontal size={16} />
+                                    </button>
+                                    {/* 3-Dot Menu Dropdown */}
+                                    <ActionMenu
+                                        isOpen={activeMenuId === user.id}
+                                        onClose={() => setActiveMenuId(null)}
+                                        onAction={(action) => handleAction(action, user)}
+                                        themeStyles={themeStyles}
+                                        isDark={isDark}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                            </div>
+                        </div>
+                    ))}
                 </div>
-              ))}
-            </div>
-          )}
+            )}
+
+            <div className="h-6" />
         </div>
+
       </div>
-
-      {/* Confirmation Modal */}
-      {showConfirmModal.user && showConfirmModal.type && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/80 z-[60]"
-            onClick={() => setShowConfirmModal({ type: null, user: null })}
-          />
-          <div
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] w-[400px] rounded-2xl p-6"
-            style={{ background: isDark ? "#1C1C1E" : "#FFFFFF" }}
-          >
-            <div className="flex flex-col items-center text-center">
-              {/* User Avatar */}
-              <div className="w-16 h-16 rounded-full overflow-hidden mb-3">
-                {showConfirmModal.user.profile_picture ? (
-                  <Image
-                    src={showConfirmModal.user.profile_picture}
-                    alt={showConfirmModal.user.name || 'User'}
-                    width={64}
-                    height={64}
-                    className="object-cover w-full h-full"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] flex items-center justify-center">
-                    <span className="text-xl font-bold text-white">
-                      {showConfirmModal.user.name?.charAt(0)?.toUpperCase() || 'U'}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* User Info */}
-              <h3 className="font-bold mb-1" style={{ color: themeStyles.text }}>
-                {showConfirmModal.user.name}
-              </h3>
-              <p className="text-sm mb-4" style={{ color: themeStyles.textSecondary }}>
-                @{showConfirmModal.user.username}
-              </p>
-
-              {/* Confirmation Text */}
-              <p className="text-sm mb-6" style={{ color: themeStyles.text }}>
-                Are you sure you want to {showConfirmModal.type} @{showConfirmModal.user.username}?
-              </p>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 w-full">
-                <button
-                  onClick={() => setShowConfirmModal({ type: null, user: null })}
-                  className="flex-1 py-2 rounded-full font-medium text-sm transition-colors"
-                  style={{ background: themeStyles.pillBg, color: themeStyles.text }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={executeAction}
-                  disabled={!!actioningId}
-                  className="flex-1 py-2 rounded-full font-medium text-sm bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50"
-                >
-                  {actioningId ? (
-                    <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                  ) : (
-                    `${showConfirmModal.type.charAt(0).toUpperCase() + showConfirmModal.type.slice(1)}`
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-    </>
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #C5C5C5;
+          border-radius: 100px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #A0A0A0;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .mask-gradient {
+            mask-image: linear-gradient(to right, black 85%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+        }
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes zoom-in-95 {
+             from { transform: scale(0.95); }
+             to { transform: scale(1); }
+        }
+        .animate-in {
+            animation-duration: 200ms;
+            animation-fill-mode: forwards;
+            animation-timing-function: ease-out;
+        }
+        .fade-in {
+            animation-name: fade-in;
+        }
+        .zoom-in-95 {
+            animation-name: zoom-in-95;
+        }
+      `}</style>
+    </div>
   );
 }
