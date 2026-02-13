@@ -27,8 +27,7 @@ import {
   getSuggestedUsers,
   searchUsers,
 } from "@/services/wieUserService";
-import OtherFollowersModal from "@/components/profile/OtherFollowersModal";
-import OtherFollowingModal from "@/components/profile/OtherFollowingModal";
+import OtherFollowModal from "@/components/profile/OtherFollowModal";
 import {
   followUser,
   unfollowUser,
@@ -328,7 +327,7 @@ const handleFollowToggle = async () => {
     if (!user || !resolvedUserId) return;
     try {
       setFollowLoading(true);
-      
+
       if (followStatus.isPending) {
         // Cancel follow request
         await cancelFollowRequest(resolvedUserId);
@@ -346,7 +345,7 @@ const handleFollowToggle = async () => {
       } else {
         // Follow or send request
         const result = await followUser(resolvedUserId);
-        
+
         if (result.status === 'pending') {
           // Private account - request sent (DON'T increment count)
           setFollowStatus({ isFollowing: false, isPending: true, status: 'pending' });
@@ -663,12 +662,12 @@ const handleFollowToggle = async () => {
               <div className="flex items-center justify-center gap-2 sm:gap-2.5 md:gap-3 w-full px-1 sm:px-0 max-w-full sm:max-w-sm md:max-w-md lg:max-w-lg">
                 <ActionButton
                   label={
-                    followLoading 
-                      ? "..." 
-                      : followStatus.isPending 
-                        ? "Requested" 
-                        : followStatus.isFollowing 
-                          ? "Following" 
+                    followLoading
+                      ? "..."
+                      : followStatus.isPending
+                        ? "Requested"
+                        : followStatus.isFollowing
+                          ? "Following"
                           : "Follow"
                   }
                   active={!followStatus.isFollowing && !followStatus.isPending}
@@ -765,7 +764,7 @@ const handleFollowToggle = async () => {
                   This Account is Private
                 </h3>
                 <p className="text-center text-sm max-w-sm" style={{ color: themeStyles.textSecondary }}>
-                  {followStatus.isPending 
+                  {followStatus.isPending
                     ? "Follow request sent. You'll see their posts once they approve your request."
                     : "Follow this account to see their posts and stories."}
                 </p>
@@ -774,11 +773,26 @@ const handleFollowToggle = async () => {
           </div>
         </div>
       </main>
-      <OtherFollowersModal
+      <OtherFollowModal
         isOpen={showFollowersModal}
         onClose={() => setShowFollowersModal(false)}
         userId={resolvedUserId || identifier}
         userName={user?.name ?? undefined}
+        initialTab="followers"
+        onFollowingCountChange={(change) => {
+          setStats((prev) => ({
+            ...prev,
+            following: Math.max(0, prev.following + change),
+          }));
+        }}
+      />
+
+      <OtherFollowModal
+        isOpen={showFollowingModal}
+        onClose={() => setShowFollowingModal(false)}
+        userId={resolvedUserId || identifier}
+        userName={user?.name ?? undefined}
+        initialTab="following"
         onFollowingCountChange={(change) => {
           setStats((prev) => ({
             ...prev,
@@ -844,18 +858,7 @@ const handleFollowToggle = async () => {
         </div>
       )}
 
-      <OtherFollowingModal
-        isOpen={showFollowingModal}
-        onClose={() => setShowFollowingModal(false)}
-        userId={resolvedUserId || identifier}
-        userName={user?.name ?? undefined}
-        onFollowingCountChange={(change) => {
-          setStats((prev) => ({
-            ...prev,
-            following: Math.max(0, prev.following + change),
-          }));
-        }}
-      />
+
       <style jsx global>{`
         .scrollbar-hide::-webkit-scrollbar {
           display: none;
