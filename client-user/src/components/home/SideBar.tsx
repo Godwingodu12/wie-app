@@ -94,12 +94,20 @@ const SideBar: React.FC = () => {
 
     realtimeNotificationService.connect(token);
 
+    const refreshNotificationCount = () => {
+      getUserNotifications({ limit: 0 })
+        .then((res) => setNotificationCount(res.unreadCount || 0))
+        .catch((error) => console.error("Failed to refresh notification count:", error));
+    };
+
     const handleNewNotification = (data: any) => {
       setNotificationCount((prev) => prev + 1);
+      refreshNotificationCount();
     };
 
     const handleNotificationRead = (data: any) => {
       setNotificationCount((prev) => Math.max(0, prev - 1));
+      refreshNotificationCount();
     };
 
     const handleAllNotificationsRead = () => {
@@ -107,9 +115,7 @@ const SideBar: React.FC = () => {
     };
 
     const handleNotificationDeleted = (data: any) => {
-      getUserNotifications({ limit: 0 })
-        .then((res) => setNotificationCount(res.unreadCount || 0))
-        .catch(() => {});
+        refreshNotificationCount();
     };
 
     realtimeNotificationService.on("new-notification", handleNewNotification);
@@ -229,6 +235,10 @@ const SideBar: React.FC = () => {
   const handleNavClick = (path: string) => {
     if (path === "/notification") {
       setIsNotificationOpen(!isNotificationOpen);
+      // Clear notification count immediately when opening popup (Instagram-style)
+      if (!isNotificationOpen) {
+        setNotificationCount(0);
+      }
       return;
     }
     router.push(path);
@@ -291,7 +301,10 @@ const SideBar: React.FC = () => {
         <TopMobBar
           notificationCount={notificationCount}
           messageCount={unreadUsersCount}
-          onNotificationClick={() => setIsNotificationOpen(true)}
+          onNotificationClick={() => {
+            setIsNotificationOpen(true);
+            setNotificationCount(0); // Clear count immediately
+          }}
           onMessageClick={() => router.push("/message")}
           onPostClick={() => {
             // Placeholder for Add Post functionality

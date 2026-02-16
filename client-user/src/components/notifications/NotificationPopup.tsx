@@ -87,6 +87,10 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
   useEffect(() => {
     if (isOpen) {
       loadNotifications();
+      // Mark all notifications as read immediately when popup opens
+      markAllNotificationsAsRead().catch((error) => {
+          console.error("Failed to mark all notifications as read:", error);
+        });
     }
   }, [isOpen]);
 
@@ -105,34 +109,36 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
   // Real-time updates
   useEffect(() => {
     const handleNewNotification = (data: any) => {
+      const raw = data.notification || data;
       const mapped: Notification = {
-        id: data.id || data._id,
-        type: data.type,
-        title: data.title,
-        message: data.message,
-        createdAt: data.createdAt || new Date().toISOString(),
+        id: raw.id || raw._id,
+        type: raw.type,
+        title: raw.title,
+        message: raw.message,
+        createdAt: raw.createdAt || new Date().toISOString(),
         isRead: false,
-        bookingId: data.bookingId ?? data.metadata?.bookingId,
-        eventId: data.eventId,
-        ticketId: data.ticketId,
-        groupId: data.groupId,
-        chatId: data.chatId,
-        fromUserId: data.fromUserId,
-        eventName: data.eventName,
-        targetUrl: data.link,
+        bookingId: raw.bookingId ?? raw.metadata?.bookingId,
+        eventId: raw.eventId,
+        ticketId: raw.ticketId,
+        groupId: raw.groupId,
+        chatId: raw.chatId,
+        fromUserId: raw.fromUserId,
+        eventName: raw.eventName,
+        targetUrl: raw.link,
         meta: {
-          ...data.metadata,
-          isGrouped: data.isGrouped,
-          primaryActors: data.primaryActors,
-          actorIds: data.actorIds,
-          othersCount: data.othersCount,
-          groupKey: data.groupKey,
+          ...raw.metadata,
+          isGrouped: raw.isGrouped,
+          primaryActors: raw.primaryActors,
+          actorIds: raw.actorIds,
+          othersCount: raw.othersCount,
+          groupKey: raw.groupKey,
         },
       };
-      if (mapped.type === 'following' && data.isGrouped && data.groupKey) {
+
+      if (mapped.type === 'following' && raw.isGrouped && raw.groupKey) {
         setNotifications((prev) => {
           const existingIndex = prev.findIndex(
-            (n) => n.type === 'following' && n.meta?.groupKey === data.groupKey
+            (n) => n.type === 'following' && n.meta?.groupKey === raw.groupKey
           );
           if (existingIndex !== -1) {
             const updated = [...prev];
@@ -462,7 +468,7 @@ const NotificationItem = ({
   const [followLoading, setFollowLoading] = useState<{
     [key: string]: boolean;
   }>({});
-  
+
   // Track follow request status
   const [requestStatus, setRequestStatus] = useState<{
     hasRequest: boolean;
@@ -529,8 +535,8 @@ const NotificationItem = ({
         return;
       }
 
-      const userId = notification.fromUserId || 
-                     notification.meta?.followerId || 
+      const userId = notification.fromUserId ||
+                     notification.meta?.followerId ||
                      notification.meta?.userId;
 
       if (!userId || profileLoading) {
@@ -557,7 +563,7 @@ const NotificationItem = ({
     if (notification.type === 'following' && notification.meta?.primaryActors) {
       const checkFollowStatus = async () => {
         const statuses: { [key: string]: boolean } = {};
-        
+
         for (const actor of notification.meta!.primaryActors!) {
           try {
             const following = await isFollowing(actor.actorId);
@@ -567,13 +573,13 @@ const NotificationItem = ({
             statuses[actor.actorId] = false;
           }
         }
-        
+
         setFollowingState(statuses);
       };
 
       checkFollowStatus();
     }
-    
+
     // Check follow request status for follow_request notifications
     if (notification.type === 'follow_request' && notification.fromUserId) {
       const checkRequestStatus = async () => {
@@ -582,7 +588,7 @@ const NotificationItem = ({
           const { checkFollowRequestStatus } = await import('@/services/followService');
           const status = await checkFollowRequestStatus(notification.fromUserId!);
           setRequestStatus(status);
-          
+
           // Set following state based on the response
           if (status.isFollowingBack) {
             setFollowingState((prev) => ({ ...prev, [notification.fromUserId!]: true }));
@@ -598,9 +604,9 @@ const NotificationItem = ({
 
   const handleFollowClick = async (e: React.MouseEvent, actorId: string) => {
     e.stopPropagation();
-    
+
     setFollowLoading((prev) => ({ ...prev, [actorId]: true }));
-    
+
     try {
       if (followingState[actorId]) {
         // Unfollow
@@ -621,10 +627,10 @@ const NotificationItem = ({
   const handleAcceptRequest = async (e: React.MouseEvent, fromUserId: string) => {
     e.stopPropagation();
     setFollowLoading((prev) => ({ ...prev, [fromUserId]: true }));
-    
+
     try {
       const result = await acceptFollowRequest(fromUserId);
-      
+
       if (result.success) {
         // Update request status
         setRequestStatus({
@@ -632,7 +638,7 @@ const NotificationItem = ({
           requestStatus: 'active',
           isFollowingBack: false
         });
-        
+
         // Update following state - they are now following you, but you're not following back yet
         setFollowingState((prev) => ({ ...prev, [fromUserId]: false }));
       }
@@ -660,7 +666,7 @@ const NotificationItem = ({
   const handleRejectRequest = async (e: React.MouseEvent, fromUserId: string) => {
     e.stopPropagation();
     setFollowLoading((prev) => ({ ...prev, [fromUserId]: true }));
-    
+
     try {
       await rejectFollowRequest(fromUserId);
       // Update request status to indicate it's been handled
@@ -679,7 +685,7 @@ const NotificationItem = ({
   const handleFollowBackClick = async (e: React.MouseEvent, userId: string) => {
     e.stopPropagation();
     setFollowLoading((prev) => ({ ...prev, [userId]: true }));
-    
+
     try {
       if (followingState[userId]) {
         // Unfollow
@@ -716,7 +722,7 @@ const NotificationItem = ({
       router.push(`/profile/${username}`);
       return;
     }
-    
+
     // For other notifications, use the parent handler
     onRead(notification);
   };
@@ -734,15 +740,15 @@ const NotificationItem = ({
     .replace(/ am/g, "am");
 
   // Determine what to show for follow request notifications
-  const shouldShowAcceptDecline = notification.type === 'follow_request' && 
+  const shouldShowAcceptDecline = notification.type === 'follow_request' &&
     requestStatus?.requestStatus === 'pending';
-  
-  const shouldShowFollowBack = notification.type === 'follow_request' && 
-    requestStatus?.requestStatus === 'active' && 
+
+  const shouldShowFollowBack = notification.type === 'follow_request' &&
+    requestStatus?.requestStatus === 'active' &&
     !requestStatus?.isFollowingBack;
-  
-  const shouldShowFollowing = notification.type === 'follow_request' && 
-    requestStatus?.requestStatus === 'active' && 
+
+  const shouldShowFollowing = notification.type === 'follow_request' &&
+    requestStatus?.requestStatus === 'active' &&
     requestStatus?.isFollowingBack;
 
   return (
@@ -782,7 +788,7 @@ const NotificationItem = ({
                     if (target.parentElement) {
                       const initials = (actor.username || actor.name || 'U').charAt(0).toUpperCase();
                       target.parentElement.innerHTML = `
-                        <div class="w-full h-full flex items-center justify-center text-xs font-bold" 
+                        <div class="w-full h-full flex items-center justify-center text-xs font-bold"
                             style="color: ${themeStyles.text}; background-color: ${themeStyles.pillBg}">
                           ${initials}
                         </div>
@@ -791,7 +797,7 @@ const NotificationItem = ({
                   }}
                 />
               ) : (
-                <div 
+                <div
                   className="w-full h-full flex items-center justify-center text-xs font-bold"
                   style={{ color: themeStyles.text, backgroundColor: themeStyles.pillBg }}
                 >
@@ -851,19 +857,19 @@ const NotificationItem = ({
             <div className="w-full h-full bg-zinc-700 animate-pulse rounded-full" />
             ) : (() => {
               // Get profile picture - prioritize real-time data
-              const profilePic = 
+              const profilePic =
                 userProfilePicture ||  // Real-time fetched profile picture (PRIORITY)
-                notification.meta?.userAvatar || 
-                notification.meta?.profilePicture || 
+                notification.meta?.userAvatar ||
+                notification.meta?.profilePicture ||
                 notification.meta?.avatar ||
                 notification.meta?.followerProfilePicture ||
                 notification.meta?.userProfilePicture;
-              
-              const displayName = 
-                notification.meta?.username || 
+
+              const displayName =
+                notification.meta?.username ||
                 notification.meta?.followerUsername ||
                 notification.meta?.userUsername ||
-                notification.meta?.name || 
+                notification.meta?.name ||
                 notification.meta?.followerName ||
                 notification.meta?.userName ||
                 'U';
@@ -879,7 +885,7 @@ const NotificationItem = ({
                     if (target.parentElement) {
                       const initials = displayName.charAt(0).toUpperCase();
                       target.parentElement.innerHTML = `
-                        <div class="w-full h-full flex items-center justify-center text-lg font-bold" 
+                        <div class="w-full h-full flex items-center justify-center text-lg font-bold"
                             style="color: ${themeStyles.text}; background-color: ${themeStyles.pillBg}">
                           ${initials}
                         </div>
@@ -889,8 +895,8 @@ const NotificationItem = ({
                 />
               ) : (
                 // Fallback to initials or icon
-                (notification.type === 'follow_request' || 
-                notification.type === 'follow_accepted' || 
+                (notification.type === 'follow_request' ||
+                notification.type === 'follow_accepted' ||
                 notification.type === 'following') ? (
                   <div className="w-full h-full flex items-center justify-center text-lg font-bold">
                     {displayName.charAt(0).toUpperCase()}
@@ -903,7 +909,7 @@ const NotificationItem = ({
           }
         </div>
       )}
-      
+
       {/* Unread indicator on avatar */}
       {notification.isRead === false && (
         <div
@@ -926,7 +932,7 @@ const NotificationItem = ({
             <span className="text-sm font-medium leading-tight flex-1" style={{ color: themeStyles.text }}>
               {formatFollowNotificationMessage(notification)}
             </span>
-            
+
             {/* Follow/Following button for single follower */}
             {notification.meta?.primaryActors && notification.meta.primaryActors.length === 1 && (
               <button
@@ -934,11 +940,11 @@ const NotificationItem = ({
                 disabled={followLoading[notification.meta.primaryActors[0].actorId]}
                 className="px-4 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap"
                 style={{
-                  backgroundColor: followingState[notification.meta.primaryActors[0].actorId] 
-                    ? themeStyles.pillBg 
+                  backgroundColor: followingState[notification.meta.primaryActors[0].actorId]
+                    ? themeStyles.pillBg
                     : '#5E5CE6',
-                  color: followingState[notification.meta.primaryActors[0].actorId] 
-                    ? themeStyles.text 
+                  color: followingState[notification.meta.primaryActors[0].actorId]
+                    ? themeStyles.text
                     : '#FFFFFF',
                   border: followingState[notification.meta.primaryActors[0].actorId]
                     ? `1px solid ${themeStyles.border}`
@@ -946,10 +952,10 @@ const NotificationItem = ({
                   opacity: followLoading[notification.meta.primaryActors[0].actorId] ? 0.6 : 1,
                 }}
               >
-                {followLoading[notification.meta.primaryActors[0].actorId] 
-                  ? '...' 
-                  : followingState[notification.meta.primaryActors[0].actorId] 
-                    ? 'Following' 
+                {followLoading[notification.meta.primaryActors[0].actorId]
+                  ? '...'
+                  : followingState[notification.meta.primaryActors[0].actorId]
+                    ? 'Following'
                     : 'Follow'
                 }
               </button>
@@ -983,13 +989,13 @@ const NotificationItem = ({
         )}
 
         {/* Mutual Follower Badge */}
-        {notification.type === 'following' && 
-         notification.meta?.primaryActors && 
+        {notification.type === 'following' &&
+         notification.meta?.primaryActors &&
          notification.meta.primaryActors.some((actor: any) => actor.isMutual) && (
           <div className="flex items-center gap-1 mt-1">
-            <span 
+            <span
               className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-              style={{ 
+              style={{
                 backgroundColor: themeStyles.pillBg,
                 color: '#5E5CE6'
               }}
@@ -1019,8 +1025,8 @@ const NotificationItem = ({
                   onClick={(e) => handleRejectRequest(e, notification.fromUserId!)}
                   disabled={followLoading[notification.fromUserId!]}
                   className="px-3 py-1 rounded-full text-xs font-medium transition-colors hover:opacity-80"
-                  style={{ 
-                    background: themeStyles.pillBg, 
+                  style={{
+                    background: themeStyles.pillBg,
                     color: themeStyles.textSecondary,
                     opacity: followLoading[notification.fromUserId!] ? 0.6 : 1,
                   }}
@@ -1039,7 +1045,7 @@ const NotificationItem = ({
                 </button>
               </>
             )}
-            
+
             {shouldShowFollowBack && (
               // Show "Follow Back" button after accepting
               <button
@@ -1053,7 +1059,7 @@ const NotificationItem = ({
                 {followLoading[notification.fromUserId!] ? '...' : 'Follow Back'}
               </button>
             )}
-            
+
             {shouldShowFollowing && (
               // Show "Following" button after following back
               <button
@@ -1080,20 +1086,20 @@ const getIconHTML = (type: string | undefined): string => {
   if (!type) {
     return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>';
   }
-  
+
   const iconMap: { [key: string]: string } = {
     event: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
     ticket: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path><path d="M13 5v2"></path><path d="M13 17v2"></path><path d="M13 11v2"></path></svg>',
     follow: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
   };
-  
+
   if (type.includes('event')) return iconMap.event;
   if (type.includes('ticket') || type.includes('booking')) return iconMap.ticket;
   if (type.includes('follow')) return iconMap.follow;
   return iconMap.ticket;
 };
 const getIcon = (type: string | undefined) => {
-  if (!type) return <Bell size={18} />; 
+  if (!type) return <Bell size={18} />;
   if (type.includes("event")) return <Calendar size={18} />;
   if (type.includes("ticket") || type.includes("booking"))
     return <Ticket size={18} />;
