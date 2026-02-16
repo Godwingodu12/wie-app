@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, Fragment } from 'react';
 import axios from 'axios';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/features/store';
+import { useRouter } from 'next/navigation'; 
 import { useChat } from '@/context/ChatContext';
 import {
   getWieChatMessages,
@@ -24,11 +25,10 @@ import VoiceRecorder from '@/components/chat/VoiceRecorder';
 import VoiceMessageDisplay from '@/components/chat/VoiceMessageDisplay';
 import { MessageCircle, Send, Loader2, ArrowLeft, MoreVertical, X, Check, CheckCheck, Mic, Smile, Ban } from 'lucide-react';
 import Image from 'next/image';
-import { ChatMessage } from '@/types/chat';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useTheme } from "@/components/home/ThemeContext";
 import TopAlert from "@/components/ui/TopAlert";
-
+import { ChatMessage, Chat } from '@/types/chat';
 interface ChatWindowProps {
   onBack?: () => void;
 }
@@ -36,9 +36,9 @@ interface ChatWindowProps {
 export default function ChatWindow({ onBack }: ChatWindowProps) {
   const authState = useSelector((state: RootState) => state?.auth);
   const user = authState?.user;
+  const router = useRouter();
   const { themeStyles, isDark } = useTheme();
-  const { currentChat, messages, setMessages, addMessage, removeChat, setCurrentChat, acceptRequest, declineRequest, typingUsers, updateUnreadCount, loadChatById } = useChat();
-
+  const { currentChat, messages, setMessages, addMessage, removeChat, setCurrentChat, acceptRequest, declineRequest, typingUsers, updateUnreadCount, loadChatById, updateChatList,clearRequestCount } = useChat();
   // ✅ Immediate fallback if no chat selected, before any other logic runs
   if (!currentChat) {
     return (
@@ -49,7 +49,16 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
       </div>
     );
   }
-
+  const handleProfileClick = () => {
+    if (!currentChat?.participant?._id) return;
+    // ✅ Don't allow navigation if blocked by them
+    if (blockStatus?.theyBlockedMe === true) {
+      return;
+    }
+    
+    // Navigate to user profile
+    router.push(`/profile/${currentChat.participant._id}`);
+  };
   // ✅ ALL useState and useRef hooks MUST be declared at the TOP, before ANY conditional returns
   const [messageInput, setMessageInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -297,6 +306,7 @@ const handleEmojiSelect = (emoji: string) => {
 
         setMessages(parsedMessages);
 
+        // ✅ Update participant info if available
         if (response.chat?.participant) {
           const updatedChat = {
             ...currentChat,
@@ -325,40 +335,75 @@ const handleEmojiSelect = (emoji: string) => {
       setLoading(false);
     }
   };
-
+  
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!messageInput.trim() || !currentChat || sending) return;
+const handleSendMessage = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!messageInput.trim() || !currentChat || sending) return;
 
-    const content = messageInput.trim();
-    setMessageInput('');
-    setSending(true);
+  const content = messageInput.trim();
+  const isFirstMessage = messages.length === 0;
+  
+  setMessageInput('');
+  setSending(true);
 
-    try {
-      const response = await sendWieMessage(currentChat._id, content);
-      if (response.success) {
-        addMessage(response.message);
-      }
-    } catch (error: any) {
-      setMessageInput(content);
-      if (error.response?.status === 403) {
-        alert(error.response?.data?.message || 'Cannot send message to this user');
+  try {
+    const response = await sendWieMessage(currentChat._id, content);
+    if (response.success) {
+      addMessage(response.message);
+      const chatToUpdate: Chat = {
+        _id: response.chat?._id || currentChat._id,
+        participant: response.chat?.participant || currentChat.participant!,
+        lastMessage: {
+          content: response.message.content,
+          sender: response.message.sender,
+          timestamp: response.message.timestamp,
+          deliveredTo: response.message.deliveredTo || [],
+          readBy: response.message.readBy || [],
+          isRead: false
+        },
+        unreadCount: 0,
+        type: response.chat?.type || currentChat.type || 'direct', // ✅ Use response type
+        status: response.chat?.status || currentChat.status || 'accepted', // ✅ Use response status
+        updatedAt: response.message.timestamp || new Date().toISOString()
+      };
+      // Update chat list
+      updateChatList(chatToUpdate);
 
-        if (error.response?.data?.message?.includes('blocked')) {
-          const updatedChat = { ...currentChat, isBlocked: true };
-          setCurrentChat(updatedChat);
+      // If first message, also update current chat state
+      if (isFirstMessage) {
+        setCurrentChat(chatToUpdate);
+        
+        // Dispatch events
+        if (typeof window !== 'undefined') {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('force-reload-chats'));
+            window.dispatchEvent(new CustomEvent('new-chat-added', {
+              detail: { chatId: chatToUpdate._id, chat: chatToUpdate }
+            }));
+          }, 100);
         }
-      } else {
-        console.error('Send message error:', error);
       }
-    } finally {
-      setSending(false);
     }
-  };
+  } catch (error: any) {
+    setMessageInput(content);
+    if (error.response?.status === 403) {
+      alert(error.response?.data?.message || 'Cannot send message to this user');
+
+      if (error.response?.data?.message?.includes('blocked')) {
+        const updatedChat = { ...currentChat, isBlocked: true };
+        setCurrentChat(updatedChat);
+      }
+    } else {
+      console.error('Send message error:', error);
+    }
+  } finally {
+    setSending(false);
+  }
+};
 
   const handleTyping = (value: string) => {
     setMessageInput(value);
@@ -527,18 +572,63 @@ const toggleMessageSelection = (messageId: string) => {
       setSelectedMessages(new Set<string>([messageId]));
     }
   };
+  useEffect(() => {
+    const handleRequestAccepted = (event: CustomEvent) => {
+      const { chatId } = event.detail;
+      if (currentChat?._id === chatId) {
+        // Request was accepted, navigate back to trigger tab switch
+        if (onBack) {
+          onBack();
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('request-accepted' as any, handleRequestAccepted as any);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('request-accepted' as any, handleRequestAccepted as any);
+      }
+    };
+  }, [currentChat?._id, onBack]);
 
   const handleAcceptRequest = async () => {
     if (!currentChat) return;
 
     setIsAccepting(true);
     try {
+      // ✅ Clear request count BEFORE accepting
+      clearRequestCount(currentChat._id);
+      updateUnreadCount(currentChat._id, 0);
+
+      // Dispatch events immediately
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('request-count-changed', {
+          detail: { chatId: currentChat._id, count: 0 }
+        }));
+      }
+
       const response = await acceptMessageRequest(currentChat._id);
       if (response.success) {
         await acceptRequest(currentChat._id);
+        
+        // Update local chat state
+        const updatedChat = {
+          ...currentChat,
+          type: 'direct' as const,
+          status: 'accepted' as const,
+          unreadCount: 0
+        };
+        setCurrentChat(updatedChat);
+        
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('force-reload-chats'));
+        }
       }
     } catch (error) {
-      // Silent error
+      console.error('Failed to accept request:', error);
     } finally {
       setIsAccepting(false);
     }
@@ -554,15 +644,21 @@ const toggleMessageSelection = (messageId: string) => {
       const response = await declineMessageRequest(currentChat._id);
       if (response.success) {
         await declineRequest(currentChat._id);
-        if (onBack) onBack();
+        // ✅ Clear local messages
+        setMessages([]);
+        // ✅ Clear current chat
+        setCurrentChat(null);
+        // ✅ Navigate back
+        if (onBack) {
+          onBack();
+        }
       }
     } catch (error) {
-      // Silent error
+      console.error('Failed to decline request:', error);
     } finally {
       setIsDeclining(false);
     }
   };
-
   const handleBackClick = () => {
     if (messages.length === 0 && currentChat) {
       removeChat(currentChat._id);
@@ -658,31 +754,30 @@ const toggleMessageSelection = (messageId: string) => {
     }
   };
 
-const getMessageStatus = (message: ChatMessage) => {
-  if (message.sender !== user?.id) return null;
+  const getMessageStatus = (message: ChatMessage) => {
+    if (message.sender !== user?.id) return null;
 
-  const isRead = message.readBy && message.readBy.length > 1 &&
-                 message.readBy.some(id => id !== user?.id);
-  const isDelivered = message.deliveredTo && message.deliveredTo.length > 0;
+    const isRead = message.readBy && message.readBy.length > 1 &&
+                  message.readBy.some(id => id !== user?.id);
+    const isDelivered = message.deliveredTo && message.deliveredTo.length > 0;
 
-  if (isRead) {
-    return (
-      <div className="flex items-center gap-1">
-        {/* Double check in purple when seen */}
-        <CheckCheck size={15} style={{ color: '#8860D9' }} />
-        <span className="text-[10px] font-medium" style={{ color: '#8860D9' }}>Seen</span>
-      </div>
-    );
-  } else if (isDelivered) {
-    // Double check in white when delivered but not seen
-    return <CheckCheck size={15} className="text-white" />;
-  } else {
-    // Single check in white when sent
-    return <Check size={15} className="text-white" />;
-  }
-};
+    if (isRead) {
+      return (
+        <div className="flex items-center gap-1">
+          {/* Double check in purple when seen */}
+          <CheckCheck size={15} style={{ color: '#8860D9' }} />
+          <span className="text-[10px] font-medium" style={{ color: '#8860D9' }}>Seen</span>
+        </div>
+      );
+    } else if (isDelivered) {
+      // Double check in white when delivered but not seen
+      return <CheckCheck size={15} className="text-white" />;
+    } else {
+      // Single check in white when sent
+      return <Check size={15} className="text-white" />;
+    }
+  };
 
-  // ✅ Effects
   useEffect(() => {
     if (currentChat) {
       setIsTransitioning(true);
@@ -691,12 +786,16 @@ const getMessageStatus = (message: ChatMessage) => {
 
       socketService.joinChat(currentChat._id);
 
-      setTimeout(() => {
-        loadMessages();
+      // ✅ Load messages immediately, no delay
+      loadMessages();
+      
+      // ✅ Set transition state after load starts
+      const timer = setTimeout(() => {
         setIsTransitioning(false);
       }, 100);
 
       return () => {
+        clearTimeout(timer);
         socketService.leaveChat(currentChat._id);
       };
     }
@@ -706,27 +805,45 @@ const getMessageStatus = (message: ChatMessage) => {
     scrollToBottom();
   }, [messages.length]);
 
+
   useEffect(() => {
-    if (!currentChat?._id || !user?.id || loading || hasMarkedAsRead.current) return;
-    if (messages.length === 0) return;
+  if (!currentChat?._id || !user?.id || loading || hasMarkedAsRead.current) return;
+  if (messages.length === 0) return;
 
-    const unreadMessages = messages.filter(
-      (msg) => msg.sender !== user.id && !msg.readBy.includes(user.id)
-    );
+  const unreadMessages = messages.filter(
+    (msg) => msg.sender !== user.id && !msg.readBy.includes(user.id)
+  );
 
-    if (unreadMessages.length === 0) {
-      return;
+  if (unreadMessages.length === 0) {
+    return;
+  }
+
+  hasMarkedAsRead.current = true;
+
+  // ✅ CRITICAL: Clear counts immediately in UI
+  updateUnreadCount(currentChat._id, 0);
+  
+  // ✅ If this is a request chat, also clear request count
+  if (currentChat.type === 'request' && currentChat.status === 'pending') {
+    clearRequestCount(currentChat._id);
+    
+    // Dispatch event immediately
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('request-count-changed', {
+        detail: { chatId: currentChat._id, count: 0 }
+      }));
     }
+  }
 
-    hasMarkedAsRead.current = true;
-    updateUnreadCount(currentChat._id, 0);
-
-    markMessagesAsRead(currentChat._id)
-      .catch((error) => {
-        hasMarkedAsRead.current = false;
-      });
-  }, [currentChat?._id, user?.id, loading, messages.length, updateUnreadCount]);
-
+  // ✅ Call mark as read API (backend will emit socket events)
+  markMessagesAsRead(currentChat._id)
+    .then(() => {
+    })
+    .catch((error) => {
+      console.error('❌ Failed to mark as read:', error);
+      hasMarkedAsRead.current = false;
+    });
+}, [currentChat?._id, user?.id, loading, messages.length, updateUnreadCount, clearRequestCount]);
   useEffect(() => {
     const fetchChatDetails = async () => {
       if (!currentChat?._id || !currentChat?.participant?._id || !user?.id) return;
@@ -865,85 +982,90 @@ const getMessageStatus = (message: ChatMessage) => {
           borderImageSlice: 1
         }}
       >
-        <div className="flex items-center gap-3">
-          {onBack && (
-            <button
-              onClick={handleBackClick}
-              className="p-2 rounded-full transition-colors hover:opacity-80"
-              style={{
-                color: themeStyles.text,
-                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
-              }}
-            >
-              <ArrowLeft size={20} />
-            </button>
-          )}
-          {blockStatus?.theyBlockedMe === true ? (
-            <div
-              className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
-              style={{ backgroundColor: themeStyles.hoverBg }}
-            >
-              <svg className="w-6 h-6" style={{ color: themeStyles.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
-            </div>
-          ) : (
-            // Normal profile display
-            <div
-              className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0"
-              style={{ backgroundColor: themeStyles.hoverBg }}
-            >
-              {profilePictureUrl && !imageError ? (
-                <>
-                  <Image
-                    src={profilePictureUrl}
-                    alt={currentChat.participant?.name || 'User'}
-                    fill
-                    className="object-cover"
-                    onError={() => setImageError(true)}
+      <div className="flex items-center gap-3">
+        {onBack && (
+          <button
+            onClick={handleBackClick}
+            className="p-2 rounded-full transition-colors hover:opacity-80"
+            style={{
+              color: themeStyles.text,
+              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'
+            }}
+          >
+            <ArrowLeft size={20} />
+          </button>
+        )}
+        {blockStatus?.theyBlockedMe === true ? (
+          <div
+            className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
+            style={{ backgroundColor: themeStyles.hoverBg }}
+          >
+            <svg className="w-6 h-6" style={{ color: themeStyles.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 715.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+          </div>
+        ) : (
+          // ✅ Add onClick to profile picture
+          <div
+            onClick={handleProfileClick}
+            className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+            style={{ backgroundColor: themeStyles.hoverBg }}
+          >
+            {profilePictureUrl && !imageError ? (
+              <>
+                <Image
+                  src={profilePictureUrl}
+                  alt={currentChat.participant?.name || 'User'}
+                  fill
+                  className="object-cover"
+                  onError={() => setImageError(true)}
+                />
+                {isOnline && (
+                  <div
+                    className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2"
+                    style={{ borderColor: themeStyles.sidebarBg }}
                   />
-                  {isOnline && (
-                    <div
-                      className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2"
-                      style={{ borderColor: themeStyles.sidebarBg }}
-                    />
-                  )}
-                </>
-              ) : (
-                <>
-                  <div className="w-full h-full flex items-center justify-center text-white font-semibold bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD]">
-                    {currentChat.participant?.name?.charAt(0).toUpperCase() || '?'}
-                  </div>
-                  {isOnline && (
-                    <div
-                      className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2"
-                      style={{ borderColor: themeStyles.sidebarBg }}
-                    />
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              {/* ✅ FIXED: Check blockStatus.theyBlockedMe */}
-              <p className="font-semibold truncate" style={{ color: themeStyles.text }}>
-                {blockStatus?.theyBlockedMe === true ? 'Wie User' : currentChat.participant?.name}
-              </p>
-              {blockStatus?.theyBlockedMe !== true && currentChat.participant?.is_verified && (
-                <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
-                </svg>
-              )}
-            </div>
-            {blockStatus?.theyBlockedMe !== true && (
-              <p className="text-xs" style={{ color: themeStyles.textSecondary }}>
-                {formatLastSeenTime(lastSeenTime, isOnline)}
-              </p>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="w-full h-full flex items-center justify-center text-white font-semibold bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD]">
+                  {currentChat.participant?.name?.charAt(0).toUpperCase() || '?'}
+                </div>
+                {isOnline && (
+                  <div
+                    className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2"
+                    style={{ borderColor: themeStyles.sidebarBg }}
+                  />
+                )}
+              </>
             )}
           </div>
+        )}
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            {/* ✅ Add onClick to name */}
+            <p 
+              onClick={handleProfileClick}
+              className="font-semibold truncate cursor-pointer hover:opacity-80 transition-opacity" 
+              style={{ color: themeStyles.text }}
+            >
+              {blockStatus?.theyBlockedMe === true ? 'Wie User' : currentChat.participant?.name}
+            </p>
+            {blockStatus?.theyBlockedMe !== true && currentChat.participant?.is_verified && (
+              <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
+              </svg>
+            )}
+          </div>
+          {blockStatus?.theyBlockedMe !== true && (
+            <p className="text-xs" style={{ color: themeStyles.textSecondary }}>
+              {formatLastSeenTime(lastSeenTime, isOnline)}
+            </p>
+          )}
         </div>
+      </div>
           <div className="flex items-center gap-1" style={{ color: themeStyles.textSecondary }}>
             {/* Call/Video buttons removed as requested */}
 
@@ -1627,7 +1749,7 @@ const getMessageStatus = (message: ChatMessage) => {
           </div>
         )}
       </div>
-      {(currentChat.status === 'accepted' || currentChat.type === 'direct' || !isRequestRecipient) ? (
+      {(currentChat.status === 'accepted' || currentChat.type === 'direct' || currentChat.type === 'request') ? (
         <>
           {currentChat.isBlocked || blockStatus?.iBlockedThem || blockStatus?.theyBlockedMe ? (
             <div
