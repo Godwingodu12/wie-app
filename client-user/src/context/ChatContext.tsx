@@ -13,13 +13,17 @@ interface ChatContextType {
   unreadCounts: UnreadCounts;
   isSocketConnected: boolean;
   typingUsers: { [chatId: string]: boolean }; 
+  requestCounts: { [chatId: string]: number };
   setCurrentChat: (chat: Chat | null) => void;
   addMessage: (message: ChatMessage) => void;
   updateChatList: (chat: Chat) => void;
   removeChat: (chatId: string) => void;
   setMessages: (messagesOrUpdater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
-  setChats: (chats: Chat[]) => void;
+  setChats: (chats: Chat[] | ((prev: Chat[]) => Chat[])) => void;
   updateUnreadCount: (chatId: string, count: number) => void;
+  updateRequestCount: (chatId: string, count: number) => void; 
+  clearRequestCount: (chatId: string) => void; 
+  getTotalRequestCount: () => number; 
   acceptRequest: (chatId: string) => Promise<void>;
   declineRequest: (chatId: string) => Promise<void>;
   getTotalUnreadCount: () => number; 
@@ -27,7 +31,6 @@ interface ChatContextType {
 
 }
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
-
 const STORAGE_KEYS = {
   CHATS: 'wie_chats',
   CURRENT_CHAT: 'wie_current_chat'
@@ -98,104 +101,141 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [internalMessages, setInternalMessages] = useState<ChatMessage[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({});
   const [isSocketConnected, setIsSocketConnected] = useState(false);
+  const [requestCounts, setRequestCounts] = useState<{ [chatId: string]: number }>({});
+  const [requestChats, setRequestChats] = useState<Chat[]>([]);
   const [typingUsers, setTypingUsers] = useState<{ [chatId: string]: boolean }>({}); 
   const updateUnreadCount = useCallback((chatId: string, count: number) => {        
-        setUnreadCounts((prev) => {
-          const updated = {
-            ...prev,
-            [chatId]: count,
-          };
-          
-          if (typeof window !== 'undefined') {
-            const totalUnread = (Object.values(updated) as number[]).reduce((sum: number, count: number) => sum + count, 0);
-            
-            // Use setTimeout to avoid setState during render
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('unread-count-changed', { 
-                detail: { 
-                  chatId, 
-                  unreadCount: count,
-                  totalUnread 
-                } 
-              }));
-            }, 0);
+    setUnreadCounts((prev) => {
+      const updated = {
+        ...prev,
+        [chatId]: count,
+      };
+      return updated;
+    });
+    
+    // Update chat list
+    setInternalChats((prev) => {
+      const updated = prev.map((chat) =>
+        chat._id === chatId
+          ? { ...chat, unreadCount: count }
+          : chat
+      );
+      saveToStorage(STORAGE_KEYS.CHATS, updated);
+      return updated;
+    });
+  }, []);
+
+  const updateRequestCount = useCallback((chatId: string, count: number) => {
+    setRequestCounts(prev => {
+      if (count > 0) {
+        return { ...prev, [chatId]: count };
+      } else {
+        const updated = { ...prev };
+        delete updated[chatId];
+        return updated;
+      }
+    });
+  }, []);
+
+  const clearRequestCount = useCallback((chatId: string) => {
+    setRequestCounts(prev => {
+      const updated = { ...prev };
+      delete updated[chatId];
+      return updated;
+    });
+    
+    // ✅ Dispatch ONCE with a flag to prevent re-dispatch
+    if (typeof window !== 'undefined') {
+      const event = new CustomEvent('request-count-changed', {
+        detail: { chatId, count: 0, source: 'clearRequestCount' }
+      });
+      window.dispatchEvent(event);
+    }
+  }, []);
+
+  const getTotalRequestCount = useCallback(() => {
+    return Object.keys(requestCounts).length;
+  }, [requestCounts]);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const totalUnread = (Object.values(unreadCounts) as number[]).reduce((sum: number, count: number) => sum + count, 0);
+      
+      window.dispatchEvent(new CustomEvent('unread-count-changed', { 
+        detail: { 
+          totalUnread 
+        } 
+      }));
+    }
+  }, [unreadCounts]);
+
+  const loadChatById = useCallback(async (chatId: string) => {
+    // ✅ Check if already current chat
+    if (internalCurrentChat?._id === chatId) {
+      return internalCurrentChat;
+    }
+
+    try {
+      // ✅ First check in existing chats
+      const existingChat = internalChats.find(c => c._id === chatId);
+      
+      if (existingChat) {
+        setInternalCurrentChat(existingChat);
+        saveToStorage(STORAGE_KEYS.CURRENT_CHAT, existingChat);
+        
+        // ✅ Reset unread count for this chat
+        if (existingChat.unreadCount > 0) {
+          updateUnreadCount(chatId, 0);
+        }
+        
+        return existingChat;
+      }
+      const response = await getWieChatMessages(chatId);
+      if (response.success && response.chat) {
+        const chat: Chat = {
+          _id: response.chat._id,
+          participant: response.chat.participant,
+          type: response.chat.type || 'direct',
+          status: response.chat.status || 'accepted',
+          lastMessage: response.chat.lastMessage,
+          unreadCount: 0,
+          updatedAt: response.chat.updatedAt || new Date().toISOString(),
+          isBlocked: response.chat.isBlocked,
+          isBlockedBy: response.chat.isBlockedBy
+        };
+        
+        setInternalCurrentChat(chat);
+        saveToStorage(STORAGE_KEYS.CURRENT_CHAT, chat);
+        
+        // ✅ Add to chats list if not already there
+        setInternalChats((prev) => {
+          const exists = prev.find(c => c._id === chatId);
+          if (!exists) {
+            const newChats = [chat, ...prev];
+            saveToStorage(STORAGE_KEYS.CHATS, newChats);
+            return newChats;
           }
-          return updated;
+          return prev;
         });
         
-        // Update chat list
-        setInternalChats((prev) => {
-          const updated = prev.map((chat) =>
-            chat._id === chatId
-              ? { ...chat, unreadCount: count }
-              : chat
-          );
-          saveToStorage(STORAGE_KEYS.CHATS, updated);
-          return updated;
-        });
-      }, []);
-const loadChatById = useCallback(async (chatId: string) => {
-  // ✅ Check if already current chat
-  if (internalCurrentChat?._id === chatId) {
-    return internalCurrentChat;
-  }
-
-  try {
-    // ✅ First check in existing chats
-    const existingChat = internalChats.find(c => c._id === chatId);
-    
-    if (existingChat) {
-      setInternalCurrentChat(existingChat);
-      saveToStorage(STORAGE_KEYS.CURRENT_CHAT, existingChat);
-      
-      // ✅ Reset unread count for this chat
-      if (existingChat.unreadCount > 0) {
-        updateUnreadCount(chatId, 0);
+        return chat;
       }
-      
-      return existingChat;
+      return null;
+    } catch (error) {
+      return null;
     }
-    const response = await getWieChatMessages(chatId);
-    if (response.success && response.chat) {
-      const chat: Chat = {
-        _id: response.chat._id,
-        participant: response.chat.participant,
-        type: response.chat.type || 'direct',
-        status: response.chat.status || 'accepted',
-        lastMessage: response.chat.lastMessage,
-        unreadCount: 0,
-        updatedAt: response.chat.updatedAt || new Date().toISOString(),
-        isBlocked: response.chat.isBlocked,
-        isBlockedBy: response.chat.isBlockedBy
-      };
-      
-      setInternalCurrentChat(chat);
-      saveToStorage(STORAGE_KEYS.CURRENT_CHAT, chat);
-      
-      // ✅ Add to chats list if not already there
+  }, [internalCurrentChat, internalChats, updateUnreadCount]);
+
+  const setChats = useCallback((chatsOrUpdater: Chat[] | ((prev: Chat[]) => Chat[])) => {
+    if (typeof chatsOrUpdater === 'function') {
       setInternalChats((prev) => {
-        const exists = prev.find(c => c._id === chatId);
-        if (!exists) {
-          const newChats = [chat, ...prev];
-          saveToStorage(STORAGE_KEYS.CHATS, newChats);
-          return newChats;
-        }
-        return prev;
+        const updated = chatsOrUpdater(prev);
+        saveToStorage(STORAGE_KEYS.CHATS, updated);
+        return updated;
       });
-      
-      return chat;
+    } else {
+      setInternalChats(chatsOrUpdater);
+      saveToStorage(STORAGE_KEYS.CHATS, chatsOrUpdater);
     }
-    
-    console.warn('⚠️ No chat data returned from server');
-    return null;
-  } catch (error) {
-    console.error('❌ Failed to load chat by ID:', error);
-    return null;
-  }
-}, [internalCurrentChat, internalChats, updateUnreadCount]);
-  const setChats = useCallback((chats: Chat[]) => {
-    setInternalChats(chats);
-    saveToStorage(STORAGE_KEYS.CHATS, chats);
   }, []);
 
   const setCurrentChat = useCallback((chat: Chat | null) => {
@@ -221,7 +261,7 @@ const loadChatById = useCallback(async (chatId: string) => {
   const setMessages = useCallback((messagesOrUpdater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
     setInternalMessages(messagesOrUpdater);
   }, []);
-
+  
   const updateChatList = useCallback((updatedChat: Chat) => {    
     setInternalChats((prev) => {
       const exists = prev.find((c) => c._id === updatedChat._id);
@@ -235,17 +275,43 @@ const loadChatById = useCallback(async (chatId: string) => {
         }
       } else {
         if (exists) {
-          newChats = prev.map((c) =>
-            c._id === updatedChat._id
-              ? { ...c, ...updatedChat }
-              : c
-          ).sort((a, b) => 
+          newChats = prev.map((c) => {
+            if (c._id === updatedChat._id) {
+              return {
+                ...c,
+                ...updatedChat,
+                type: updatedChat.type || c.type || 'direct',
+                status: updatedChat.status || c.status || 'accepted'
+              };
+            }
+            return c;
+          }).sort((a, b) => 
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
           );
         } else {
-          newChats = [updatedChat, ...prev].sort((a, b) => 
+          const newChat: Chat = {
+            _id: updatedChat._id,
+            participant: updatedChat.participant,
+            lastMessage: updatedChat.lastMessage,
+            unreadCount: 0,
+            type: updatedChat.type || 'direct',
+            status: updatedChat.status || 'accepted',
+            updatedAt: updatedChat.updatedAt || new Date().toISOString(),
+            isBlocked: updatedChat.isBlocked,
+            isBlockedBy: updatedChat.isBlockedBy
+          };
+                    
+          newChats = [newChat, ...prev].sort((a, b) => 
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
           );
+
+          if (typeof window !== 'undefined') {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('new-chat-added', {
+                detail: { chatId: newChat._id, chat: newChat }
+              }));
+            }, 50);
+          }
         }
       }
       
@@ -255,7 +321,12 @@ const loadChatById = useCallback(async (chatId: string) => {
     
     setInternalCurrentChat((prev) => {
       if (prev && prev._id === updatedChat._id) {
-        const updated = { ...prev, ...updatedChat };
+        const updated = { 
+          ...prev, 
+          ...updatedChat,
+          type: updatedChat.type || prev.type || 'direct',
+          status: updatedChat.status || prev.status || 'accepted'
+        };
         saveToStorage(STORAGE_KEYS.CURRENT_CHAT, updated);
         return updated;
       }
@@ -271,49 +342,108 @@ const loadChatById = useCallback(async (chatId: string) => {
     });
   }, []);
 
-      const acceptRequest = useCallback(async (chatId: string) => {
-        try {
-          setInternalChats((prev) =>
-            prev.map((c) =>
-              c._id === chatId
-                ? { ...c, status: 'accepted' as const, type: 'direct' as const }
-                : c
-            )
-          );
-          setInternalCurrentChat((prev) => {
-            if (prev && prev._id === chatId) {
-              const updated: Chat = { 
-                ...prev, 
+  const acceptRequest = useCallback(async (chatId: string) => {
+    try {
+      // ✅ CRITICAL: Immediately clear request count
+      clearRequestCount(chatId);
+      
+      // Dispatch event immediately
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('request-count-changed', {
+          detail: { chatId, count: 0 }
+        }));
+      }
+
+      setInternalChats((prev) => {
+        const updated = prev.map((c) =>
+          c._id === chatId
+            ? { 
+                ...c, 
                 status: 'accepted' as const, 
-                type: 'direct' as const 
-              };
-              saveToStorage(STORAGE_KEYS.CURRENT_CHAT, updated);
-              return updated;
-            }
-            return prev;
-          });
-        } catch (error) {
-          console.error('Failed to update chat after accept:', error);
-        }
-      }, []);
-      const declineRequest = useCallback(async (chatId: string) => {
-        removeChat(chatId);
-        if (internalCurrentChat?._id === chatId) {
-          setCurrentChat(null);
-        }
-      }, [internalCurrentChat, removeChat, setCurrentChat]);
-      const getTotalUnreadCount = () => {
-        let uniqueUsersWithUnread = 0;
-        for (const chatId in unreadCounts) {
-          if (unreadCounts[chatId] > 0) {
-            uniqueUsersWithUnread++;
+                type: 'direct' as const,
+                unreadCount: 0
+              }
+            : c
+        );
+        saveToStorage(STORAGE_KEYS.CHATS, updated);
+        return updated;
+      });
+      
+      setInternalCurrentChat((prev) => {
+        if (prev && prev._id === chatId) {
+          const updated: Chat = { 
+            ...prev, 
+            status: 'accepted' as const, 
+            type: 'direct' as const,
+            unreadCount: 0
+          };
+          saveToStorage(STORAGE_KEYS.CURRENT_CHAT, updated);
+          
+          // ✅ Dispatch event to notify UI
+          if (typeof window !== 'undefined') {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('request-accepted', { 
+                detail: { chatId } 
+              }));
+            }, 100);
           }
-        }  
-        return uniqueUsersWithUnread;
-      };
-      const getTotalUnreadMessages = () => {
-        return (Object.values(unreadCounts) as number[]).reduce((sum: number, count: number) => sum + count, 0);
-      };
+          
+          return updated;
+        }
+        return prev;
+      });
+
+      // ✅ Clear unread count
+      updateUnreadCount(chatId, 0);
+
+    } catch (error) {
+      console.error('Failed to update chat after accept:', error);
+    }
+  }, [clearRequestCount, updateUnreadCount]);
+
+  const declineRequest = useCallback(async (chatId: string) => {
+    setInternalChats((prev) => {
+      const newChats = prev.filter(c => c._id !== chatId);
+      saveToStorage(STORAGE_KEYS.CHATS, newChats);
+      return newChats;
+    });
+    setInternalCurrentChat((prev) => {
+      if (prev?._id === chatId) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(STORAGE_KEYS.CURRENT_CHAT);
+        }
+        return null;
+      }
+      return prev;
+    });
+    // ✅ Clear unread count
+    setUnreadCounts((prev) => {
+      const updated = { ...prev };
+      delete updated[chatId];
+      return updated;
+    });
+    // ✅ Dispatch event to update request count
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('request-declined', {
+          detail: { chatId }
+        }));
+      }, 100);
+    }
+  }, []);
+
+  const getTotalUnreadCount = () => {
+    let uniqueUsersWithUnread = 0;
+    for (const chatId in unreadCounts) {
+      if (unreadCounts[chatId] > 0) {
+        uniqueUsersWithUnread++;
+      }
+    }  
+    return uniqueUsersWithUnread;
+  };
+  const getTotalUnreadMessages = () => {
+    return (Object.values(unreadCounts) as number[]).reduce((sum: number, count: number) => sum + count, 0);
+  };
     useEffect(() => {
       if (!token || !user) return;
       const socket = socketService.connect(token);
@@ -329,21 +459,27 @@ const loadChatById = useCallback(async (chatId: string) => {
       };
       const handleDisconnect = () => setIsSocketConnected(false);
       const handleUnreadCounts = (counts: UnreadCounts) => setUnreadCounts(counts);
+
       const handleNewMessageNotification = (data: any) => {
-          if (!data.participant?._id || !data.lastMessage?.content) return;
-        
+        if (!data.participant?._id || !data.lastMessage?.content) return;
+
+        // ✅ Check if this update is for the sender (comes from backend with isSender flag)
+        const isSenderUpdate = data.isSender === true;
         const chatType = (data.type === 'direct' || data.type === 'request') 
           ? data.type 
           : 'direct' as const;
-        
+
         const chatStatus = (data.status === 'pending' || data.status === 'accepted' || data.status === 'declined')
           ? data.status
           : 'accepted' as const;
+
         const isCurrentChatOpen = internalCurrentChat?._id === data.chatId;
         const messageSender = data.message?.sender || data.lastMessage?.sender;
         const isOwnMessage = messageSender === user?.id;
+
+        // ✅ Handle message in current chat window
         if (isCurrentChatOpen && !isOwnMessage && data.message) {
-          let newMessage: ChatMessage = {  // ✅ Changed from const to let
+          let newMessage: ChatMessage = {
             _id: data.message._id,
             sender: data.message.sender,
             content: data.message.content || data.lastMessage?.content,
@@ -356,15 +492,21 @@ const loadChatById = useCallback(async (chatId: string) => {
             isRead: data.message.isRead || false,
             isSender: false
           };
-          // ✅ Parse voice message if needed
+          
           newMessage = parseVoiceMessage(newMessage);
           addMessage(newMessage);
         }
+        // ✅ Update chats list
         setInternalChats((prev) => {
           const existingChat = prev.find(c => c._id === data.chatId);
-          // ✅ Use unread count from backend (it already calculated correctly)
           const newUnreadCount = data.unreadCount ?? 0;
           const existingParticipant = existingChat?.participant;
+
+          // ✅ CRITICAL: Use backend's type/status directly
+          // Backend already sends correct values based on sender/receiver
+          const finalType = chatType;
+          const finalStatus = chatStatus;
+
           const updatedChat: Chat = {
             _id: data.chatId,
             participant: {
@@ -382,60 +524,113 @@ const loadChatById = useCallback(async (chatId: string) => {
             },
             lastMessage: data.lastMessage,
             unreadCount: newUnreadCount,
-            type: chatType,
-            status: chatStatus,
+            type: finalType, // ✅ Use backend value (different for sender vs receiver)
+            status: finalStatus, // ✅ Use backend value (different for sender vs receiver)
             updatedAt: data.timestamp || new Date().toISOString(),
             isBlocked: existingChat?.isBlocked,
             isBlockedBy: existingChat?.isBlockedBy
           };
-          
-          let newChats: Chat[];
 
           if (!updatedChat.participant) {
-            console.warn('⚠️ No participant data, skipping chat update');
             return prev;
           }
 
+          let newChats: Chat[];
+
           if (existingChat) {
+            // Update existing chat
             newChats = prev.map((c) =>
               c._id === updatedChat._id ? updatedChat : c
             ).sort((a, b) => 
               new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
             );
           } else {
+            // ✅ Add new chat
             newChats = [updatedChat, ...prev].sort((a, b) => 
               new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
             );
+
+            // ✅ Dispatch appropriate event based on type
+            if (finalType === 'request' && finalStatus === 'pending' && typeof window !== 'undefined') {
+              // Receiver gets a new request
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('new-message-request', {
+                  detail: { chatId: data.chatId, chat: updatedChat }
+                }));
+              }, 100);
+            } else if (isSenderUpdate && typeof window !== 'undefined') {
+              // Sender gets their chat added to All/Personal
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('new-chat-added', {
+                  detail: { chatId: data.chatId, chat: updatedChat }
+                }));
+              }, 100);
+            }
           }
           
           saveToStorage(STORAGE_KEYS.CHATS, newChats);
           return newChats;
         });
-        
-        // ✅ Update unreadCounts state with backend's calculated count
+        // ... rest of the function stays the same
         setUnreadCounts((prev) => {
           const newCount = data.unreadCount ?? 0;
           const updated = {
             ...prev,
             [data.chatId]: newCount
           };
+          return updated;
+        });
+        // ✅ Handle request count updates
+        if (data.type === 'request' && data.status === 'pending') {
+          if (data.unreadCount > 0) {
+            updateRequestCount(data.chatId, data.unreadCount);
+          } else {
+            clearRequestCount(data.chatId);
+          }
           
+          // Always dispatch event
           if (typeof window !== 'undefined') {
-            const totalUnread = (Object.values(updated) as number[]).reduce((sum: number, c: number) => sum + c, 0);
-            // Dispatch event
-            window.dispatchEvent(new CustomEvent('unread-count-changed', { 
-              detail: { 
-                chatId: data.chatId, 
-                unreadCount: newCount,
-                totalUnread 
-              } 
+            window.dispatchEvent(new CustomEvent('request-count-changed', {
+              detail: {
+                chatId: data.chatId,
+                count: data.unreadCount
+              }
+            }));
+          }
+        }
+        // ✅ Handle request count updates
+        if (data.type === 'request' && data.status === 'pending') {
+          if (data.unreadCount > 0) {
+            updateRequestCount(data.chatId, data.unreadCount);
+          } else {
+            clearRequestCount(data.chatId);
+          }
+          
+          // Always dispatch event
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('request-count-changed', {
+              detail: {
+                chatId: data.chatId,
+                count: data.unreadCount
+              }
             }));
           }
           
-          return updated;
-        });
-        
-        // ✅ Update current chat if open
+          // ✅ NEW CODE: Also dispatch chat-list-update for RequestsTab to update last message
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('chat-list-update', {
+              detail: {
+                chatId: data.chatId,
+                type: data.type,
+                status: data.status,
+                participant: data.participant,
+                lastMessage: data.lastMessage,
+                unreadCount: data.unreadCount,
+                timestamp: data.timestamp
+              }
+            }));
+          }
+        }
         setInternalCurrentChat((prev) => {
           if (prev && prev._id === data.chatId && prev.participant) {
             const updated: Chat = { 
@@ -454,7 +649,7 @@ const loadChatById = useCallback(async (chatId: string) => {
                 lastSeen: data.participant.last_seen_at || data.participant.lastSeen || prev.participant.lastSeen,
                 last_seen_at: data.participant.last_seen_at
               },
-              unreadCount: 0, // Current chat always 0
+              unreadCount: 0,
               type: prev.type,
               status: prev.status,
               updatedAt: data.timestamp || new Date().toISOString(),
@@ -468,10 +663,34 @@ const loadChatById = useCallback(async (chatId: string) => {
           return prev;
         });
       };
+
       const handleChatListUpdate = (data: any) => {
         if (!data.participant?._id || !data.lastMessage?.content) return;
+        
+        // ✅ Dispatch window event for RequestsTab to listen
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('chat-list-update', {
+            detail: data
+          }));
+        }
+        
+        // ✅ If this is a request chat with 0 unread count, also clear request count
+        if (data.type === 'request' && data.status === 'pending' && data.unreadCount === 0) {
+          clearRequestCount(data.chatId);
+          
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('request-count-changed', {
+              detail: {
+                chatId: data.chatId,
+                count: 0
+              }
+            }));
+          }
+        }
+        
         handleNewMessageNotification(data);
       };
+
       const handleMessagesRead = (data: any) => {
         setUnreadCounts((prev) => {
           const updated = {
@@ -537,8 +756,60 @@ const loadChatById = useCallback(async (chatId: string) => {
         }
       };
       const handleMessageDeleted = (data: any) => {
-        if (internalCurrentChat && data.chatId === internalCurrentChat._id) {
-          setInternalMessages((prev) => prev.filter((msg) => msg._id !== data.messageId));
+        const { chatId, messageIds, lastMessage, totalMessages } = data;
+        
+        console.log('🗑️ Message deleted:', { chatId, messageIds, lastMessage, totalMessages });
+        
+        // Update messages state
+        if (internalCurrentChat && chatId === internalCurrentChat._id) {
+          setInternalMessages((prev) => {
+            if (messageIds && Array.isArray(messageIds)) {
+              return prev.filter((msg) => !messageIds.includes(msg._id));
+            }
+            return prev;
+          });
+        }
+        
+        // ✅ Update chat list
+        setInternalChats((prev) => {
+          const updated = prev.map((chat) => {
+            if (chat._id === chatId) {
+              if (totalMessages === 0) {
+                return { ...chat, lastMessage: null };
+              } else if (lastMessage) {
+                return {
+                  ...chat,
+                  lastMessage: {
+                    content: lastMessage.content,
+                    sender: lastMessage.sender,
+                    timestamp: lastMessage.timestamp,
+                    deliveredTo: lastMessage.deliveredTo || [],
+                    readBy: lastMessage.readBy,
+                    isRead: lastMessage.isRead
+                  },
+                  updatedAt: lastMessage.timestamp
+                };
+              }
+            }
+            return chat;
+          })
+          .filter(chat => chat.lastMessage !== null)
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()); // ✅ Sort by updatedAt
+          
+          saveToStorage(STORAGE_KEYS.CHATS, updated);
+          return updated;
+        });
+        
+        // ✅ Dispatch window event
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('message-deleted', {
+            detail: {
+              chatId,
+              messageIds,
+              lastMessage,
+              totalMessages
+            }
+          }));
         }
       };
       const handleChatDeleted = (data: any) => {
@@ -549,6 +820,123 @@ const loadChatById = useCallback(async (chatId: string) => {
         });
         
         if (internalCurrentChat && data.chatId === internalCurrentChat._id) {
+          setInternalCurrentChat(null);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem(STORAGE_KEYS.CURRENT_CHAT);
+          }
+        }
+      };
+      const handleMessagesDeletedForEveryone = (data: any) => {
+        const { chatId, messageIds, lastMessage, totalMessages } = data;
+        
+        console.log('🗑️ Messages deleted for everyone:', { chatId, messageIds, lastMessage, totalMessages });
+        
+        // Update messages state - mark as deleted
+        if (internalCurrentChat && chatId === internalCurrentChat._id) {
+          setInternalMessages((prev) => 
+            prev.map((msg) => 
+              messageIds.includes(msg._id)
+                ? { ...msg, content: 'This message was deleted', deletedForEveryone: true }
+                : msg
+            )
+          );
+        }
+        
+        // ✅ Update chat list with new last message
+        setInternalChats((prev) => {
+          const updated = prev.map((chat) => {
+            if (chat._id === chatId) {
+              if (totalMessages === 0) {
+                // No messages left - will be filtered out
+                return { ...chat, lastMessage: null };
+              } else if (lastMessage) {
+                // Update with new last message
+                return {
+                  ...chat,
+                  lastMessage: {
+                    content: lastMessage.content,
+                    sender: lastMessage.sender,
+                    timestamp: lastMessage.timestamp,
+                    deliveredTo: lastMessage.deliveredTo || [],
+                    readBy: lastMessage.readBy,
+                    isRead: lastMessage.isRead
+                  },
+                  updatedAt: lastMessage.timestamp
+                };
+              }
+            }
+            return chat;
+          })
+          .filter(chat => chat.lastMessage !== null) // Remove chats with no messages
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()); // ✅ Sort by updatedAt
+          
+          saveToStorage(STORAGE_KEYS.CHATS, updated);
+          return updated;
+        });
+        
+        // ✅ Dispatch window event for components to update
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('message-deleted', {
+            detail: {
+              chatId,
+              messageIds,
+              lastMessage,
+              totalMessages
+            }
+          }));
+        }
+        
+        // ✅ If current chat has no messages, clear it
+        if (internalCurrentChat && chatId === internalCurrentChat._id && totalMessages === 0) {
+          setInternalCurrentChat(null);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem(STORAGE_KEYS.CURRENT_CHAT);
+          }
+        }
+      };
+      const handleMessagesDeletedForMe = (data: any) => {
+        const { chatId, messageIds, lastMessage, totalMessages } = data;
+                
+        // Update messages state - remove deleted messages
+        if (internalCurrentChat && chatId === internalCurrentChat._id) {
+          setInternalMessages((prev) => 
+            prev.filter((msg) => !messageIds.includes(msg._id))
+          );
+        }
+        
+        setInternalChats((prev) => {
+          const updated = prev.map((chat) => {
+            if (chat._id === chatId) {
+              if (totalMessages === 0) {
+                // No visible messages left for this user
+                return { ...chat, lastMessage: null };
+              } else if (lastMessage) {
+                // Update with new last visible message for this user
+                return {
+                  ...chat,
+                  lastMessage: {
+                    content: lastMessage.content,
+                    sender: lastMessage.sender,
+                    timestamp: lastMessage.timestamp,
+                    deliveredTo: lastMessage.deliveredTo || [],
+                    readBy: lastMessage.readBy,
+                    isRead: lastMessage.isRead
+                  },
+                  updatedAt: lastMessage.timestamp
+                };
+              }
+            }
+            return chat;
+          })
+          .filter(chat => chat.lastMessage !== null) // Remove chats with no visible messages
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()); // ✅ Sort by updatedAt
+          
+          saveToStorage(STORAGE_KEYS.CHATS, updated);
+          return updated;
+        });
+        
+        // ✅ If current chat has no visible messages, clear it
+        if (internalCurrentChat && chatId === internalCurrentChat._id && totalMessages === 0) {
           setInternalCurrentChat(null);
           if (typeof window !== 'undefined') {
             localStorage.removeItem(STORAGE_KEYS.CURRENT_CHAT);
@@ -627,15 +1015,6 @@ const loadChatById = useCallback(async (chatId: string) => {
           );
         }
       };
-      const handleLocalChatRead = (event: CustomEvent) => {
-        const { chatId } = event.detail;
-        if (chatId) {
-          setUnreadCounts((prev) => ({
-            ...prev,
-            [chatId]: 0
-          }));
-        }
-      };
       const handleNewMessage = (data: any) => {
         if (internalCurrentChat && data.chatId === internalCurrentChat._id) {
           let newMessage: ChatMessage = {
@@ -661,13 +1040,8 @@ const loadChatById = useCallback(async (chatId: string) => {
             }
             return [...prev, newMessage];
           });
-        } else {
-          console.log('ℹ️ Message not for current chat, skipping add to messages');
         }
       };
-      if (typeof window !== 'undefined') {
-        window.addEventListener('chat-read' as any, handleLocalChatRead as any);
-      }
       const handleUserBlockedYou = (data: { blockerId: string; blockerName?: string; chatIds: string[]; timestamp: string }) => {  
         // Update chats to mark them as blocked
         setInternalChats((prev) => {
@@ -773,7 +1147,7 @@ const loadChatById = useCallback(async (chatId: string) => {
         });
       };
       const handleChatUnreadUpdate = (data: { chatId: string; unreadCount: number }) => {        
-        // ✅ CRITICAL: Update unreadCounts state first
+        // ✅ Update unreadCounts state
         setUnreadCounts((prev) => {
           const updated = {
             ...prev,
@@ -781,24 +1155,15 @@ const loadChatById = useCallback(async (chatId: string) => {
           };
           
           if (typeof window !== 'undefined') {
-            const totalUnread = (Object.values(updated) as number[]).reduce((sum: number, count: number) => sum + count, 0);            
-            // Dispatch multiple times to ensure UI catches it
-            const dispatchEvent = () => {
-              window.dispatchEvent(new CustomEvent('unread-count-changed', { 
-                detail: { 
-                  chatId: data.chatId, 
-                  unreadCount: data.unreadCount,
-                  totalUnread 
-                } 
-              }));
-            };
+            const totalUnread = (Object.values(updated) as number[]).reduce((sum: number, count: number) => sum + count, 0);
             
-            // Dispatch immediately
-            dispatchEvent();
-            
-            // Dispatch again after small delays
-            setTimeout(dispatchEvent, 50);
-            setTimeout(dispatchEvent, 150);
+            window.dispatchEvent(new CustomEvent('unread-count-changed', { 
+              detail: { 
+                chatId: data.chatId, 
+                unreadCount: data.unreadCount,
+                totalUnread 
+              } 
+            }));
           }
           
           return updated;
@@ -815,11 +1180,87 @@ const loadChatById = useCallback(async (chatId: string) => {
           return updated;
         });
         
-        // ✅ Force re-render of ChatList by updating render key
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('force-chatlist-rerender'));
+        // ✅ CRITICAL: If count is 0 and this is a request, also clear request count
+        const chat = internalChats.find(c => c._id === data.chatId);
+        if (data.unreadCount === 0 && chat?.type === 'request' && chat?.status === 'pending') {
+          clearRequestCount(data.chatId);
+          
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('request-count-changed', {
+              detail: {
+                chatId: data.chatId,
+                count: 0
+              }
+            }));
+          }
         }
       };
+      const handleRequestCountUpdate = (data: { chatId: string; unreadCount: number }) => {
+        updateRequestCount(data.chatId, data.unreadCount);
+        // Also dispatch window event
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('request-count-changed', {
+            detail: {
+              chatId: data.chatId,
+              count: data.unreadCount
+            }
+          }));
+        }
+      };
+      const handleRequestMessagesRead = (data: { chatId: string }) => {        
+        // Clear request count
+        clearRequestCount(data.chatId);
+        
+        // Update unread counts
+        setUnreadCounts((prev) => {
+          const updated = { ...prev };
+          delete updated[data.chatId];
+          return updated;
+        });
+        
+        // Update chats list
+        setInternalChats((prev) => {
+          const updated = prev.map((chat) =>
+            chat._id === data.chatId ? { ...chat, unreadCount: 0 } : chat
+          );
+          saveToStorage(STORAGE_KEYS.CHATS, updated);
+          return updated;
+        });
+        
+        // Update current chat
+        setInternalCurrentChat((prev) => {
+          if (prev && prev._id === data.chatId) {
+            const updated = { ...prev, unreadCount: 0 };
+            saveToStorage(STORAGE_KEYS.CURRENT_CHAT, updated);
+            return updated;
+          }
+          return prev;
+        });
+      };
+      const handleNewMessageRequest = (data: any) => {        
+        if (data.type === 'request' && data.status === 'pending') {
+          const chatId = data.chatId;
+          const currentCount = requestCounts[chatId] || 0;
+          const newCount = currentCount + 1;
+          
+          // Update request count
+          updateRequestCount(chatId, newCount);
+          
+          // Dispatch event immediately
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('request-count-changed', {
+              detail: {
+                chatId: chatId,
+                count: newCount
+              }
+            }));
+            
+            window.dispatchEvent(new CustomEvent('new-message-request', {
+              detail: { chatId, chat: data }
+            }));
+          }
+        }
+      };      
       socket.on('user-status-change', handleUserStatusChange);
       socket.on('user-typing', handleUserTyping); 
       socket.on('connect', handleConnect);
@@ -838,7 +1279,11 @@ const loadChatById = useCallback(async (chatId: string) => {
       socket.on('you-unblocked-user', handleYouUnblockedUser);
       socket.on('chat-unread-update', handleChatUnreadUpdate);
       socket.on('mark-read-confirmation', handleMarkReadConfirmation);
-
+      socket.on('request-count-update', handleRequestCountUpdate);
+      socket.on('request-messages-read', handleRequestMessagesRead);
+      socket.on('new-message-request', handleNewMessageRequest);
+      socket.on('messages-deleted-for-everyone', handleMessagesDeletedForEveryone);
+      socket.on('messages-deleted-for-me', handleMessagesDeletedForMe);
       return () => {
         socket.off('connect', handleConnect);
         socket.off('disconnect', handleDisconnect);
@@ -858,9 +1303,11 @@ const loadChatById = useCallback(async (chatId: string) => {
         socket.off('you-unblocked-user', handleYouUnblockedUser);
         socket.off('chat-unread-update', handleChatUnreadUpdate);
         socket.off('mark-read-confirmation', handleMarkReadConfirmation);
-        if (typeof window !== 'undefined') {
-          window.removeEventListener('chat-read' as any, handleLocalChatRead as any);
-        }
+        socket.off('request-count-update', handleRequestCountUpdate);
+        socket.off('request-messages-read', handleRequestMessagesRead);
+        socket.off('new-message-request', handleNewMessageRequest);
+        socket.off('messages-deleted-for-everyone', handleMessagesDeletedForEveryone);
+        socket.off('messages-deleted-for-me', handleMessagesDeletedForMe);
       };
     }, [token, user, internalCurrentChat?._id]); 
   return (
@@ -872,6 +1319,7 @@ const loadChatById = useCallback(async (chatId: string) => {
         unreadCounts,
         isSocketConnected,
         typingUsers, 
+        requestCounts,
         setCurrentChat,
         addMessage,
         updateChatList,
@@ -879,6 +1327,9 @@ const loadChatById = useCallback(async (chatId: string) => {
         setMessages,
         setChats,
         updateUnreadCount,
+        updateRequestCount,
+        clearRequestCount,
+        getTotalRequestCount, 
         acceptRequest,
         declineRequest,
         getTotalUnreadCount,
@@ -900,6 +1351,7 @@ export const useChat = () => {
       unreadCounts: {},
       isSocketConnected: false,
       typingUsers: {}, 
+      requestCounts: {},
       setCurrentChat: () => {},
       addMessage: () => {},
       updateChatList: () => {},
@@ -907,6 +1359,9 @@ export const useChat = () => {
       setMessages: () => {},
       setChats: () => {},
       updateUnreadCount: () => {},
+      updateRequestCount: () => {},
+      clearRequestCount: () => {}, 
+      getTotalRequestCount: () => 0,
       acceptRequest: async () => {},
       declineRequest: async () => {},
       getTotalUnreadCount: () => 0,
