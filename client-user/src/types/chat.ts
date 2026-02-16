@@ -72,6 +72,7 @@ export interface MessageRequest {
   status: 'pending';
   updatedAt: string;
   messageCount: number;
+  unreadCount: number; 
 }
 
 export interface UnreadCounts {
