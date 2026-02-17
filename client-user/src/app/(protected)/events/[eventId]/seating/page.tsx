@@ -88,7 +88,7 @@ export default function SeatedBookingPage() {
     const seatPrices: Array<{ seatId: string; ticketType: string; price: number }> = [];
 
     selectedSeats.forEach(seatId => {
-      const seat = seatingLayout.seats.find((s: SeatInfo) => s.seatId === seatId);
+      const seat = seatingLayout.seats?.find((s: SeatInfo) => s.seatId === seatId);
       if (seat && seat.price !== undefined) {
         subtotal += seat.price;
         seatPrices.push({
@@ -174,6 +174,7 @@ export default function SeatedBookingPage() {
     const seatingLayout = event.seating_layout;
     const { rows, seats } = seatingLayout;
 
+    if (!seats) return null;
     const seatsByRow = seats.reduce((acc: any, seat: SeatInfo) => {
       if (!acc[seat.row]) acc[seat.row] = [];
       acc[seat.row].push(seat);

@@ -105,6 +105,7 @@ export interface SubEvent {
   booking_start_date: string;
   booking_end_date: string;
   like: number;
+  created_by?: string;
   event_status: 'pending' | 'live' | 'completed' | 'cancelled';
   seating_layout?: SeatingLayout; 
   _id: string;
@@ -496,7 +497,7 @@ export interface SeatInfo {
 export interface SeatingLayout {
   rows: string[];
   columns: number;
-  seats: SeatInfo[];
+  seats?: SeatInfo[];
   ticketTypeAssignments: Array<{
     ticketTypeId: string;
     ticketTypeName: string;

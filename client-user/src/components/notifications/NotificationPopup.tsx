@@ -83,16 +83,11 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
     "all" | "events" | "followers" | "connections"
   >("all");
 
-  // Load initial notifications
-  useEffect(() => {
-    if (isOpen) {
-      loadNotifications();
-      // Mark all notifications as read immediately when popup opens
-      markAllNotificationsAsRead().catch((error) => {
-          console.error("Failed to mark all notifications as read:", error);
-        });
-    }
-  }, [isOpen]);
+    useEffect(() => {
+      if (isOpen) {
+        loadNotifications();
+      }
+    }, [isOpen]);
 
   const loadNotifications = async () => {
     try {
@@ -135,22 +130,33 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
         },
       };
 
-      if (mapped.type === 'following' && raw.isGrouped && raw.groupKey) {
-        setNotifications((prev) => {
-          const existingIndex = prev.findIndex(
+      setNotifications((prev) => {
+        // General deduplication by ID first
+        const existingById = prev.findIndex((n) => n.id === mapped.id);
+
+        // Grouped follow handling (Instagram-style)
+        if (mapped.type === 'following' && raw.isGrouped && raw.groupKey) {
+          const existingGroupIndex = prev.findIndex(
             (n) => n.type === 'following' && n.meta?.groupKey === raw.groupKey
           );
-          if (existingIndex !== -1) {
+
+          if (existingGroupIndex !== -1) {
             const updated = [...prev];
-            updated[existingIndex] = mapped;
+            updated[existingGroupIndex] = mapped;
             return updated;
-          } else {
-            return [mapped, ...prev];
           }
-        });
-      } else {
-        setNotifications((prev) => [mapped, ...prev]);
-      }
+        }
+
+        // If we found an exact ID match but it wasn't caught by group logic above
+        if (existingById !== -1) {
+          const updated = [...prev];
+          updated[existingById] = mapped;
+          return updated;
+        }
+
+        // New notification
+        return [mapped, ...prev];
+      });
     };
     const handleRead = (data: any) => {
       const id = data.id || data._id;
@@ -175,15 +181,7 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
     };
   }, []);
 
-  const handleMarkAllRead = async () => {
-    try {
-      await markAllNotificationsAsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    } catch (error) {
-      console.error("Failed to mark all read:", error);
-    }
-  };
-  const handleNotificationClick = async (notification: Notification) => {
+  const handleMarkRead = async (notification: Notification) => {
     try {
       if (!notification.isRead) {
         markNotificationAsRead(notification.id).catch(() => {});
@@ -193,10 +191,31 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
           ),
         );
       }
+    } catch (error) {
+      console.error("Error marking as read", error);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    } catch (error) {
+      console.error("Failed to mark all read:", error);
+    }
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    try {
+      await handleMarkRead(notification);
+
       if (notification.type === 'follow_request') {
-              router.push('/follow-requests');
-              onClose();
-              return;
+        const username = notification.meta?.username || notification.fromUserId;
+        if (username) {
+          router.push(`/profile/${username}`);
+          onClose();
+          return;
+        }
       }
       // Handle follow notifications
       if (notification.type === 'following') {
@@ -240,21 +259,27 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
     }
   };
   /* Counts Calculation */
+  const unreadTotal = notifications.filter(n => !n.isRead).length;
+
   const eventCount = notifications.filter(
     (n) =>
-      n.type?.includes("event") ||
-      n.type?.includes("ticket") ||
-      n.type?.includes("group") ||
-      n.type?.includes("booking"),
+      !n.isRead &&
+      (n.type?.includes("event") ||
+        n.type?.includes("ticket") ||
+        n.type?.includes("group") ||
+        n.type?.includes("booking")),
   ).length;
 
-  const followerCount = notifications.filter((n) =>
-    n.type?.includes("follow"),
+  const followerCount = notifications.filter(
+    (n) => !n.isRead && (n.type?.includes("follow") || n.type === "following"),
   ).length;
-  const connectionCount = notifications.filter((n) =>
-    ["like", "comment", "mention", "message_received", "connection"].some((t) =>
-      n.type?.includes(t),
-    ),
+
+  const connectionCount = notifications.filter(
+    (n) =>
+      !n.isRead &&
+      ["like", "comment", "mention", "message_received", "connection"].some(
+        (t) => n.type?.includes(t),
+      ),
   ).length;
   /* Categorization Logic Based on Backend Types */
   const filteredNotifications = notifications.filter((n) => {
@@ -267,7 +292,7 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
       );
     }
     if (filter === "followers") {
-      return n.type?.includes("follow");
+      return (n.type?.includes("follow") || n.type === "following");
     }
     if (filter === "connections") {
       return [
@@ -332,8 +357,8 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
                   {
                     id: "all",
                     label:
-                      notifications.length > 0
-                        ? `View all (${notifications.length})`
+                      unreadTotal > 0
+                        ? `View all (${unreadTotal})`
                         : "View all",
                   },
                   {
@@ -425,6 +450,7 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
                       key={notif.id}
                       notification={notif}
                       onRead={handleNotificationClick}
+                      onSeen={handleMarkRead}
                     />
                   ))
                 )}
@@ -451,9 +477,11 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
 const NotificationItem = ({
   notification,
   onRead,
+  onSeen,
 }: {
   notification: Notification;
   onRead: (n: Notification) => void;
+  onSeen: (n: Notification) => void;
 }) => {
   const { themeStyles, isDark } = useTheme();
   const [eventBanner, setEventBanner] = useState<string | null>(null);
@@ -468,6 +496,10 @@ const NotificationItem = ({
   const [followLoading, setFollowLoading] = useState<{
     [key: string]: boolean;
   }>({});
+
+  // Seen marks on scroll
+  const itemRef = React.useRef<HTMLDivElement>(null);
+
 
   // Track follow request status
   const [requestStatus, setRequestStatus] = useState<{
@@ -584,8 +616,6 @@ const NotificationItem = ({
     if (notification.type === 'follow_request' && notification.fromUserId) {
       const checkRequestStatus = async () => {
         try {
-          // Import the new function
-          const { checkFollowRequestStatus } = await import('@/services/followService');
           const status = await checkFollowRequestStatus(notification.fromUserId!);
           setRequestStatus(status);
 
@@ -648,7 +678,6 @@ const NotificationItem = ({
       if (error?.response?.data?.message === 'No pending follow request found') {
         // Refresh the status
         try {
-          const { checkFollowRequestStatus } = await import('@/services/followService');
           const status = await checkFollowRequestStatus(fromUserId);
           setRequestStatus(status);
           if (status.isFollowingBack) {
@@ -716,14 +745,7 @@ const NotificationItem = ({
   };
 
   const handleNotificationItemClick = () => {
-    // For follow_request - go to their profile
-    if (notification.type === 'follow_request' && notification.fromUserId) {
-      const username = notification.meta?.username || notification.fromUserId;
-      router.push(`/profile/${username}`);
-      return;
-    }
-
-    // For other notifications, use the parent handler
+    // Always call onRead to ensure status is updated and counts decrement
     onRead(notification);
   };
 
@@ -753,6 +775,7 @@ const NotificationItem = ({
 
   return (
     <div
+      ref={itemRef}
       onClick={handleNotificationItemClick}
       className={`group flex items-start gap-3 p-4 rounded-xl transition-colors mb-1 cursor-pointer`}
       style={{

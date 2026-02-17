@@ -130,14 +130,11 @@ export const updateTicketStats = async (
 export const getTicketBookingStats = async (ticketId: string): Promise<BookingStats> => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    
-    console.log(`🔵 [gRPC] Fetching booking stats for ticket: ${ticketId}`);
-    
+        
     client.GetTicketBookingStats({ ticketId }, (error: any, response: any) => {
       if (error) {
         console.error(`❌ [gRPC] Failed to fetch booking stats: ${error.message}`);
         // Don't reject - return zeros instead
-        console.warn('⚠️ [gRPC] Returning zero stats due to error');
         resolve({
           totalBookings: 0,
           totalRevenue: 0,
@@ -146,14 +143,12 @@ export const getTicketBookingStats = async (ticketId: string): Promise<BookingSt
       } else if (response.error) {
         console.error(`❌ [gRPC] Booking stats error: ${response.error}`);
         // Don't reject - return zeros instead
-        console.warn('⚠️ [gRPC] Returning zero stats due to error');
         resolve({
           totalBookings: 0,
           totalRevenue: 0,
           totalTicketsSold: 0,
         });
       } else {
-        console.log(`✅ [gRPC] Successfully fetched booking stats`);
         resolve({
           totalBookings: response.totalBookings || 0,
           totalRevenue: response.totalRevenue || 0,

@@ -12,10 +12,9 @@ import {
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { getEventById } from '@/services/ticketUserService';
-import { Event, SubEvent, ParentEventSummary } from '@/types/ticket';
+import { Event, SubEvent, ParentEventSummary,FilteredEventsResponse } from '@/types/ticket';
 import { Alert } from "@/components/events/Alert";
 import { 
   MapPin, Calendar, Users, Clock, DollarSign, 
@@ -27,10 +26,27 @@ declare global {
     Razorpay: any;
   }
 }
+import BackIcon from '@/assets/Event/BackIcon.svg';
+import BookTicketIcon from '@/assets/Event/BookTicketIcon.svg';
+import LikeIcon from '@/assets/Event/LikeIcon.svg';
+import PublicIcon from '@/assets/Event/PublicIcon.svg';
+import ShareIcon from '@/assets/Event/ShareIcon.svg';
+import TicketIcon from '@/assets/Event/TicketIcon.svg';
+import WishListIcon from '@/assets/Event/WishListIcon.svg';
+import LocationIcon from '@/assets/Event/LocationIcon.svg';
+import CalendarIcon from '@/assets/Event/CalenderIcon.svg';
+import FreeOrPaidIcon from '@/assets/Event/FreeOrPaidIcon.svg';
+import PetIcon from '@/assets/Event/PetIcon.svg';
+import KidIcon from '@/assets/Event/KidIcon.svg';
+import InstagramIcon from '@/assets/Event/InstagramIcon.svg';
+import YoutubeIcon from '@/assets/Event/YoutubeIcon.svg';
+import SideBar from "@/components/home/SideBar";
+import { useSidebar } from "@/context/SidebarContext";
 export default function EventDetailPage() {
   useAuth(true);
   const params = useParams();
   const router = useRouter();
+  const { isCollapsed, isMobile } = useSidebar();
   const eventId = params.eventId as string;
   const [event, setEvent] = useState<Event | SubEvent | null>(null);
   const [isSubEvent, setIsSubEvent] = useState(false);
@@ -41,8 +57,12 @@ export default function EventDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [isBooking, setIsBooking] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
+  const [showFullDescription, setShowFullDescription] = useState(false);
+  const [showFullGuidelines, setShowFullGuidelines] = useState(false);
+  const [activePhoto, setActivePhoto] = useState<string | null>(null);
   const [eventStats, setEventStats] = useState<any>(null);
   const [userLiked, setUserLiked] = useState(false);
+  const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [showShareOptions, setShowShareOptions] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -50,6 +70,17 @@ export default function EventDetailPage() {
   const [userBooking, setUserBooking] = useState<any>(null);
   const isMainEvent = (event: Event | SubEvent): event is Event =>
     'sub_events' in event;
+  const [activeSection, setActiveSection] = useState<
+  'about' | 'details' | 'guests' | 'photos' | 'additional'
+>('about');
+const SECTIONS = [
+  { key: 'about', label: 'About' },
+  { key: 'details', label: 'Dates & Location' },
+  { key: 'guests', label: `Guests${event?.guests?.length ? `(${event.guests.length})` : ''}`, },
+  { key: 'photos', label: `Photos${event?.event_images?.length ? `(${event.event_images.length})` : ''}` },
+  { key: 'additional', label: 'Additional Info' },
+] as const;
+
 
   const normalizeStats = (stats: any) => ({
     like: stats?.like ?? stats?.likes ?? 0,
@@ -97,6 +128,7 @@ export default function EventDetailPage() {
       fetchEventStats();
     }
   }, [eventId]);
+  
 
   // Record view and load stats
   useEffect(() => {
@@ -142,6 +174,27 @@ export default function EventDetailPage() {
       alert(error.response?.data?.message || 'Failed to like event');
     }
   };
+  const hasEventStarted = () => {
+  if (!event?.event_dates?.length) return false;
+
+  const now = new Date();
+  const start = new Date(event.event_dates[0].start_date);
+
+  return now >= start;
+};
+
+
+const isOnlineOrRecorded =
+  event?.location_type === 'online' ||
+  event?.location_type === 'recorded';
+
+
+const actionLabel = isOnlineOrRecorded
+  ? hasEventStarted()
+    ? 'Watch Now'
+    : 'Notify Me'
+  : 'Book Tickets';
+
 
   const handleShare = async (method: string) => {
     try {
@@ -286,6 +339,7 @@ export default function EventDetailPage() {
     loadEventDetails();
   }, [eventId]);
 
+
   const loadEventDetails = async () => {
     try {
       setLoading(true);
@@ -301,15 +355,43 @@ export default function EventDetailPage() {
       setLoading(false);
     }
   };
+
+useEffect(() => {
+  const fetchAllEvents = async () => {
+    try {
+      const res = await fetch('/api/events'); // 🔁 replace with your real endpoint
+      const data = await res.json();
+      setAllEvents(data.events || []);
+    } catch (err) {
+      console.error('Failed to fetch events', err);
+    }
+  };
+
+  fetchAllEvents();
+}, []);
+
 const handleBookEvent = () => {
-  // Check if event has seating layout
-  const hasSeatingLayout = event && 
-    event.seating_layout && 
-    event.seating_layout.seats && 
-    event.seating_layout.seats.length > 0;
+  const isOnlineOrRecorded =
+    event?.location_type === 'online' ||
+    event?.location_type === 'recorded';
+
+  if (isOnlineOrRecorded) {
+    if (hasEventStarted()) {
+      // WATCH FLOW
+      router.push(`/events/${eventId}/watch`);
+    } else {
+      // NOTIFY FLOW
+      alert('You will be notified when the event starts');
+      // TODO: call notify-me API
+    }
+    return;
+  }
+
+  // ⬇️ OFFLINE EVENTS (existing logic)
+  const hasSeatingLayout =
+    (event?.seating_layout?.seats?.length ?? 0) > 0;
 
   if (hasSeatingLayout) {
-    // Redirect to seating selection page
     router.push(`/events/${eventId}/seating`);
     return;
   }
@@ -317,13 +399,14 @@ const handleBookEvent = () => {
   if (event?.payment_type === 'free') {
     handleFreeRegistration();
   } else {
-    if (!event?.ticket_types || event.ticket_types.length === 0) {
+    if (!event?.ticket_types?.length) {
       alert('No tickets available for this event');
       return;
     }
     setShowBookingModal(true);
   }
 };
+
   const handleFreeRegistration = async () => {
     setIsBooking(true);
     try {
@@ -361,7 +444,7 @@ const handleBookEvent = () => {
             </div>
           </div>
           
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+<h2 className="text-2xl font-bold text-white mb-2">
             {isPaidEvent ? 'Booking Confirmed! 🎉' : 'Registration Successful! 🎉'}
           </h2>
           <p className="text-gray-600 mb-6">
@@ -495,17 +578,19 @@ const BookingModal = () => {
   const shareCount = eventStats?.share ?? eventStats?.shares ?? 0;
   const bookingCount = eventStats?.totalBookings ?? 0;
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+  return (
+    <div className="min-h-screen bg-[#0c1014] flex items-center justify-center">
+
+<Loader2 className="w-12 h-12 text-white animate-spin" />
       </div>
     );
   }
   if (error || !event) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+          <div className="min-h-screen bg-[#0c1014] py-8">
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Card className="p-8 text-center">
+<Card className="p-8 text-center bg-[#0f1320]  border-white/10">
             <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Event Not Found</h2>
             <p className="text-gray-600 mb-6">{error || 'The event you are looking for does not exist.'}</p>
@@ -520,9 +605,37 @@ const BookingModal = () => {
       </div>
     );
   }
+  const currentCategory =
+  event?.event_category ||
+  parentEvent?.event_category ||
+  null;
+const similarEvents = allEvents.filter((e) => {
+  if (!currentCategory || !e.event_category) return false;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    e.event_category.toLowerCase().trim() ===
+      currentCategory.toLowerCase().trim() &&
+    e._id !== event?._id
+  );
+});
+
+  return (
+  <div className="min-h-screen bg-[#0c1014] flex pl-6">
+    
+    {/* Sidebar */}
+    <SideBar />
+
+    {/* Main Content */}
+   <div
+  className={`
+    flex-1 transition-all duration-300
+    overflow-x-hidden   /* 👈 HARD STOP */
+    ${isCollapsed ? 'pl-20' : 'pl-64'}
+  `}
+>
+
+
+
       {alertMessage && (
       <Alert
         alert={{
@@ -534,32 +647,250 @@ const BookingModal = () => {
         darkMode={false}
       />
     )}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Back Button */}
+    
+<div className="w-full">
+{/* Event Banner */}
+{event.event_banner && (
+  <div className="relative w-full h-[480px]">
+
+    {/* Background image */}
+    <img
+      src={event.event_banner}
+      alt={event.event_name}
+      className="absolute inset-0 w-full h-full object-cover"
+    />
+
+    {/* Overlay */}
+    <div className="absolute inset-0 bg-black/45" />
+
+    {/* Content */}
+    <div className="relative z-10 h-full flex flex-col justify-between px-8 py-6">
+
+      {/* Top row */}
+      <div className="flex items-center justify-between mt-12">
         <button
-        onClick={() => router.push('/events/nearby')}
-        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+          onClick={() => router.push('/events/categories')}
+          className="w-10 h-10 rounded-full bg-[#293845] flex items-center justify-center"
         >
-        <ArrowLeft className="w-5 h-5" />
-        Back to Events
+          <img src={BackIcon.src} alt="Back" className="w-4 h-4" />
         </button>
-        {/* Event Banner */}
-        {event.event_banner && (
-          <div className="relative h-96 w-full rounded-xl overflow-hidden mb-8">
-            <img
-              src={event.event_banner}
-              alt={event.event_name}
-              className="w-full h-full object-cover"
-            />
-            {event.event_logo && (
+
+        <div className="flex gap-3">
+          <button
+            onClick={handleLike}
+            className="w-10 h-10 rounded-full bg-[#293845] flex items-center justify-center hover:opacity-80"
+          >
+            <img src={LikeIcon.src} alt="Like" className="w-6 h-6" />
+          </button>
+
+          <button
+            onClick={() => setShowShareOptions(true)}
+            className="w-10 h-10 rounded-full bg-[#293845] flex items-center justify-center hover:opacity-80"
+          >
+            <img src={ShareIcon.src} alt="Share" className="w-6 h-6" />
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom content */}
+      <div className="relative">
+
+        {/* LEFT CONTENT (text column) */}
+        <div className="max-w-4xl">
+          {/* Meta */}
+<div className="flex flex-wrap gap-3 mb-4">
+
+  {/* Category */}
+<div className="px-4 py-2 rounded-xl bg-[#1C2024B2] backdrop-blur-[20px]">
+    <span className="text-white text-sm font-medium">
+      {event.event_category}
+    </span>
+  </div>
+
+  {/* Subcategory (optional, if you have it) */}
+  {event.event_subcategory && (
+<div className="px-4 py-2 rounded-xl bg-[#1C2024B2] backdrop-blur-[20px]">
+      <span className="text-white text-sm font-medium">
+        {event.event_subcategory}
+      </span>
+    </div>
+  )}
+
+  {/* Age */}
+<div className="px-4 py-2 rounded-xl bg-[#1C2024B2] backdrop-blur-[20px]">
+    <span className="text-white/90 text-sm">
+      {event.min_age_allowed}
+      {event.max_age_allowed ? `-${event.max_age_allowed}` : '+'}
+    </span>
+  </div>
+
+  {/* Free / Paid */}
+{event.payment_type && (
+  <div className="px-4 py-2 rounded-xl bg-[#1C2024B2] backdrop-blur-[20px]">
+    <span
+      className="text-sm font-semibold"
+      style={{
+        color: event.payment_type === 'free' ? '#3EB489' : '#F8C91F',
+      }}
+    >
+      {event.payment_type === 'free' ? 'Free' : 'Paid'}
+    </span>
+  </div>
+)}
+
+
+  {/* Online */}
+  {event.location_type === 'online' && (
+    <div className="px-4 py-2 rounded-xl bg-[#1C2024B2] backdrop-blur-[20px]">
+      <span className="text-blue-400 text-sm font-medium">
+        Online
+      </span>
+    </div>
+  )}
+
+</div>
+
+
+          <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">
+            {event.event_name}
+          </h1>
+
+          {/* Host info */}
+          <div className="flex items-center gap-3 mt-3">
+            {event.created_by && (
               <img
-                src={event.event_logo}
-                alt="Event logo"
-                className="absolute bottom-4 right-4 w-24 h-24 rounded-full border-4 border-white shadow-lg"
+                src={event.created_by}
+                alt={event.created_by}
+                className="w-8 h-8 rounded-full object-cover border border-white/30"
               />
             )}
+            <span className="text-white/90 text-sm">
+             <span className="font-semibold">{event.created_by}</span>
+            </span>
           </div>
-        )}
+
+          {/* Stats */}
+          <div className="flex items-center gap-6 mt-3 text-white/80 text-sm">
+            <div className="flex items-center gap-2">
+              <img src={PublicIcon.src} className="w-6 h-6" />
+              <span>{eventStats?.views || 0}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <img src={TicketIcon.src} className="w-6 h-6" />
+              <span>{bookingCount}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <img src={ShareIcon.src} className="w-6 h-6" />
+              <span>{shareCount}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ✅ RIGHT-MOST BUTTONS (ABSOLUTE) */}
+<div className="absolute right-5 top-1/2 translate-y-[-5%] flex gap-4">
+          <button
+  onClick={handleLike}
+  className="
+    flex items-center justify-center
+    w-40 h-12
+    gap-2
+    px-3 py-2
+    rounded-3xl
+    border border-purple-300
+    bg-transparent
+    text-white
+    backdrop-blur
+    hover:bg-white/10
+  "
+>
+  <img src={WishListIcon.src} className="w-6 h-6 block" />
+  Wishlist
+</button>
+
+
+
+         <button
+  onClick={handleBookEvent}
+  className="
+    flex items-center justify-center
+    w-40 h-12
+    gap-2
+    px-3 py-2
+    rounded-3xl
+    text-white
+    bg-gradient-to-b from-indigo-300 via-violet-600 to-purple-400
+    hover:opacity-90
+  "
+>
+  {actionLabel !== 'Watch Now' && (
+    <img
+      src={BookTicketIcon.src}
+      className="w-6 h-6 block"
+      alt="Book Ticket"
+    />
+  )}
+  {actionLabel}
+</button>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+)}
+{/* Section Navigation */}
+<div className="relative z-20 -mt-8 w-full">
+<div className="grid grid-cols-2 md:grid-cols-6 gap-3 px-8 py-4 w-full">
+    {SECTIONS.map((item) => {
+      const isActive = activeSection === item.key;
+
+      return (
+        <button
+          key={item.key}
+          onClick={() => setActiveSection(item.key)}
+          className="w-full px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-white cursor-pointer"
+          style={
+            isActive
+              ? {
+                  background: `
+                    linear-gradient(180deg, #373737 0%, #262626 50%, #1C1C1C 100%) padding-box,
+                    linear-gradient(180deg, #666666 0%, #616060 50%, #393939 100%) border-box
+                  `,
+                  border: '0.6px solid transparent',
+                  backgroundClip: 'padding-box, border-box',
+                }
+              : {
+  background: `
+  linear-gradient(
+    rgba(56, 56, 56, 0.7),
+    rgba(56, 56, 56, 0.7)
+  ) padding-box,
+  linear-gradient(
+    270deg,
+    rgba(32, 32, 32, 0.35),
+    rgba(96, 96, 96, 0.35)
+  ) border-box
+`,
+
+  border: '0.5px solid transparent',
+  backgroundClip: 'padding-box, border-box',
+}
+
+          }
+        >
+          {item.label}
+        </button>
+      );
+    })}
+  </div>
+</div>
+
+
+
+
+
+
+
         {/* Sub-Event Badge */}
         {(() => {
           const hasParentFromEvent = 'isSubEvent' in event && event.isSubEvent && event.parentEventName;
@@ -576,703 +907,505 @@ const BookingModal = () => {
             </div>
           );
         })()}
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Event Header */}
-            <Card>
-              <div className="p-6">
-                <h1 className="text-4xl font-bold text-gray-900 mb-4">
-                  {event.event_name}
-                </h1>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span key="category-badge" className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
-                    {event.event_category}
-                  </span>
-                  {event.event_subcategory && (
-                    <span key="subcategory-badge" className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
-                      {event.event_subcategory}
-                    </span>
-                  )}
-                  {event.location_type === 'online' && (
-                    <span key="online-badge" className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
-                      🌐 Online Event
-                    </span>
-                  )}
-                  {event.location_type === 'recorded' && (
-                    <span key="recorded-badge" className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-semibold">
-                      📹 Recorded Event
-                    </span>
-                  )}
-                  {event.kids_friendly && (
-                    <span key="kids-badge" className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm">
-                      👶 Kids Friendly
-                    </span>
-                  )}
-                  {event.pet_friendly && (
-                    <span key="pet-badge" className="bg-pink-100 text-pink-800 px-3 py-1 rounded-full text-sm">
-                      🐾 Pet Friendly
-                    </span>
-                  )}
-                  {event.payment_type === 'free' && (
-                    <span key="free-badge" className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-sm font-semibold">
-                      🎉 FREE
-                    </span>
-                  )}
-                </div>
-                <p className="text-gray-700 text-lg leading-relaxed">
-                  {event.event_description}
-                </p>
-              </div>
-            </Card>
+<div className="w-full bg-[#0c1014] text-white pb-24">
+  {/* ================= MAIN CONTENT ================= */}
+  <div className="space-y-6">
 
-            {/* Event Details */}
-            <Card>
-              <div className="p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Event Details</h2>
-                
-                <div className="space-y-4">
-                  {/* Date & Time */}
-                  {event.event_dates && event.event_dates.length > 0 && (
-                    <div className="flex items-start gap-3">
-                      <Calendar className="w-5 h-5 text-gray-400 mt-1" />
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900">Date & Time</p>
-                        {event.event_dates.map((date, index) => (
-                          <div key={`date-${index}`} className="text-gray-600 mt-1"> {/* ✅ Added key */}
-                            <p className="font-medium">
-                              {new Date(date.start_date).toLocaleDateString('en-US', {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                              })}
-                            </p>
-                            {date.start_time && (
-                              <p className="text-sm">
-                                {date.start_time}
-                                {date.end_time && ` - ${date.end_time}`}
-                              </p>
-                            )}
-                            {date.end_date && date.end_date !== date.start_date && (
-                              <p className="text-sm text-gray-500">
-                                Until: {new Date(date.end_date).toLocaleDateString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric',
-                                })}
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                        {event.gate_open_time && (
-                          <p className="text-sm text-gray-500 mt-2">
-                            Gates open: {event.gate_open_time}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {/* Location */}
-                  {event.location && (
-                    <div className="flex items-start gap-3">
-                      <MapPin className="w-5 h-5 text-gray-400 mt-1" />
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900">Location</p>
-                        <p className="text-gray-600">{event.location}</p>
-                        {event.venue && (
-                          <p className="text-gray-500 text-sm">Venue: {event.venue}</p>
-                        )}
-                        {event.exact_map_location?.address && (
-                          <p className="text-gray-500 text-sm mt-1">
-                            {event.exact_map_location.address}
-                          </p>
-                        )}
-                        {event.seating_arrangement && (
-                          <p className="text-gray-500 text-sm mt-1">
-                            Seating: {event.seating_arrangement}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
+    {/* ================= ABOUT ================= */}
+   {activeSection === 'about' && (
+<Card className=" text-white">
+<div className="p-6 pb-10 space-y-10">
 
-                  {/* Age Restriction */}
-                  <div className="flex items-start gap-3">
-                    <Users className="w-5 h-5 text-gray-400 mt-1" />
-                    <div>
-                      <p className="font-semibold text-gray-900">Age Restriction</p>
-                      <p className="text-gray-600">
-                        {event.min_age_allowed}
-                        {event.max_age_allowed ? ` - ${event.max_age_allowed}` : '+'} years
-                      </p>
-                    </div>
-                  </div>
+      {/* META ROW */}
+<div className="flex flex-wrap gap-6 text-sm text-white">
 
-                  {/* Language */}
-                  {event.event_language && event.event_language.length > 0 && (
-                    <div className="flex items-start gap-3">
-                      <Info className="w-5 h-5 text-gray-400 mt-1" />
-                      <div>
-                        <p className="font-semibold text-gray-900">Languages</p>
-                        <p className="text-gray-600">{event.event_language.join(', ')}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Total Capacity */}
-                  {event.total_capacity && (
-                    <div className="flex items-start gap-3">
-                      <Users className="w-5 h-5 text-gray-400 mt-1" />
-                      <div>
-                        <p className="font-semibold text-gray-900">Total Capacity</p>
-                        <p className="text-gray-600">{event.total_capacity} attendees</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Booking Dates */}
-                  {event.booking_start_date && event.booking_end_date && (
-                    <div className="flex items-start gap-3">
-                      <Clock className="w-5 h-5 text-gray-400 mt-1" />
-                      <div>
-                        <p className="font-semibold text-gray-900">Booking Period</p>
-                        <p className="text-gray-600 text-sm">
-                          {new Date(event.booking_start_date).toLocaleDateString()} - {new Date(event.booking_end_date).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Card>
-
-            {/* Prohibited Items */}
-            {event.prohibited_items && event.prohibited_items.length > 0 && (
-              <Card>
-                <div className="p-6">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4">⚠️ Prohibited Items</h2>
-                  <ul className="list-disc list-inside space-y-2 text-gray-600">
-                    {event.prohibited_items.map((item, index) => (
-                      <li key={`prohibited-${index}`}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              </Card>
-            )}
-
-            {/* Guests */}
-            {event.guests && event.guests.length > 0 && (
-              <Card>
-                <div className="p-6">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Featured Guests</h2>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {event.guests.map((guest) => (
-                      <div key={guest._id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                        {guest.guest_profile && (
-                          <img
-                            src={guest.guest_profile}
-                            alt={guest.guest_name}
-                            className="w-16 h-16 rounded-full object-cover"
-                          />
-                        )}
-                        <div>
-                          <p className="font-semibold text-gray-900">{guest.guest_name}</p>
-                          {guest.guest_link && (
-                            <a
-                                href={guest.guest_link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 text-sm flex items-center gap-1 hover:underline"
-                            >
-                                View Profile <ExternalLink className="w-3 h-3" />
-                            </a>
-                            )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            )}
-            {!isSubEvent && 'sub_events' in event && event.sub_events && event.sub_events.length > 0 && (
-              <Card>
-                <div className="p-6">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                    Related Sub Events ({event.sub_events.length})
-                  </h2>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {event.sub_events.map((subEvent) => {
-                      // ✅ Safely extract the ID
-                     const subEventId = (subEvent as any)._id?.toString() || (subEvent as any).id?.toString();
-                      if (!subEventId) {
-                        console.error('❌ Sub-event missing ID:', subEvent);
-                        return null;
-                      }
-
-                      return (
-                        <div
-                          key={subEventId}
-                          onClick={() => {
-                            router.push(`/events/${subEventId}`);
-                          }}
-                          className="group relative bg-white border-2 border-gray-200 rounded-xl overflow-hidden hover:border-blue-500 hover:shadow-xl transition-all cursor-pointer"
-                        >
-                          {/* Rest of your sub-event card JSX... */}
-                          {subEvent.event_banner ? (
-                            <div className="relative h-40 w-full overflow-hidden">
-                              <img
-                                src={subEvent.event_banner}
-                                alt={subEvent.event_name}
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                              />
-                              {subEvent.event_logo && (
-                                <img
-                                  src={subEvent.event_logo}
-                                  alt="logo"
-                                  className="absolute bottom-2 right-2 w-12 h-12 rounded-full border-2 border-white shadow-md"
-                                />
-                              )}
-                            </div>
-                          ) : (
-                            <div className="h-40 w-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
-                              <Calendar className="w-16 h-16 text-gray-400" />
-                            </div>
-                          )}
-
-                          <div className="p-4">
-                            <div className="mb-2">
-                              <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-1 rounded-full">
-                                Sub Event
-                              </span>
-                            </div>
-
-                            <h3 className="font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
-                              {subEvent.event_name}
-                            </h3>
-
-                            <p className="text-xs text-gray-600 mb-2 font-medium">
-                              📂 {subEvent.event_category}
-                            </p>
-
-                            {subEvent.location && (
-                              <div className="flex items-start gap-1 mb-2">
-                                <MapPin className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                                <p className="text-xs text-gray-500 line-clamp-1">
-                                  {subEvent.location}
-                                </p>
-                              </div>
-                            )}
-
-                            {subEvent.event_dates?.[0] && (
-                              <div className="flex items-center gap-1 mb-3">
-                                <Calendar className="w-3 h-3 text-gray-400" />
-                                <p className="text-xs text-gray-500">
-                                  {new Date(subEvent.event_dates[0].start_date).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric',
-                                  })}
-                                </p>
-                              </div>
-                            )}
-
-                            {subEvent.payment_type === 'free' && (
-                              <span className="inline-block bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">
-                                FREE
-                              </span>
-                            )}
-                            {subEvent.payment_type === 'paid' && subEvent.ticket_types?.[0] && (
-                              <span className="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">
-                                ₹{subEvent.ticket_types[0].ticket_price}
-                              </span>
-                            )}
-
-                            <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="bg-blue-600 text-white rounded-full p-2">
-                                <ArrowLeft className="w-4 h-4 rotate-180" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </Card>
-            )}
-            {/* Parent Event Display - handles both API response types */}
-           {(() => {
-              const hasParentFromEvent = 'isSubEvent' in event && event.isSubEvent && event.parentEventId;
-              const hasParentFromResponse = isSubEvent && parentEvent;
-              if (!hasParentFromEvent && !hasParentFromResponse) {
-                return null;
-              }
-              const parentData = hasParentFromEvent ? {
-                _id: event.parentEventId!,
-                event_name: event.parentEventName!,
-                event_category: event.parentEventCategory,
-                event_banner: event.parentEventBanner,
-                event_logo: event.parentEventLogo,
-              } : parentEvent;
-              if (!parentData) {
-                return null;
-              }
-              return (
-                <Card>
-                  <div className="p-6">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                      🎯 Main Event
-                    </h2>
-                    <div
-                      onClick={() => router.push(`/events/${parentData._id}`)}
-                      className="group relative bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl overflow-hidden hover:border-blue-500 hover:shadow-xl transition-all cursor-pointer"
-                    >
-                      {/* Main Event Image */}
-                      {parentData.event_banner ? (
-                        <div className="relative h-56 w-full overflow-hidden">
-                          <img
-                            src={parentData.event_banner}
-                            alt={parentData.event_name}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          />
-                          {parentData.event_logo && (
-                            <img
-                              src={parentData.event_logo}
-                              alt="logo"
-                              className="absolute bottom-3 right-3 w-16 h-16 rounded-full border-4 border-white shadow-lg"
-                            />
-                          )}
-                        </div>
-                      ) : (
-                        <div className="h-56 w-full bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center">
-                          <Calendar className="w-20 h-20 text-white" />
-                        </div>
-                      )}
-
-                      {/* Main Event Content */}
-                      <div className="p-5">
-                        {/* Badge */}
-                        <div className="mb-3">
-                          <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full">
-                            MAIN EVENT
-                          </span>
-                        </div>
-
-                        {/* Title */}
-                        <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
-                          {parentData.event_name}
-                        </h3>
-
-                        {/* Category */}
-                        {parentData.event_category && (
-                          <p className="text-sm text-gray-700 mb-3 font-medium flex items-center gap-2">
-                            <span className="bg-white px-2 py-1 rounded">📂 {parentData.event_category}</span>
-                          </p>
-                        )}
-
-                        {/* Location - only available in traditional parentEvent */}
-                        {'location' in parentData && parentData.location && (
-                          <div className="flex items-start gap-2 mb-3">
-                            <MapPin className="w-4 h-4 text-gray-600 mt-0.5 flex-shrink-0" />
-                            <p className="text-sm text-gray-600">
-                              {parentData.location}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Date - only available in traditional parentEvent */}
-                        {'event_dates' in parentData && parentData.event_dates?.[0] && (
-                          <div className="flex items-center gap-2 mb-4">
-                            <Calendar className="w-4 h-4 text-gray-600" />
-                            <p className="text-sm text-gray-600">
-                              {new Date(parentData.event_dates[0].start_date).toLocaleDateString('en-US', {
-                                weekday: 'long',
-                                month: 'long',
-                                day: 'numeric',
-                                year: 'numeric',
-                              })}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* CTA */}
-                        <div className="flex items-center justify-between mt-4">
-                          <span className="text-blue-600 font-semibold group-hover:text-blue-700">
-                            View Main Event Details
-                          </span>
-                          <div className="bg-blue-600 text-white rounded-full p-2 group-hover:bg-blue-700 transition-colors">
-                            <ArrowLeft className="w-4 h-4 rotate-180" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })()}
-            {/* Event Images Gallery */}
-            {event.event_images && event.event_images.length > 0 && (
-              <Card>
-                <div className="p-6">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Event Gallery</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {event.event_images.map((image) => (
-                      <img
-                        key={image._id}
-                        src={image.path}
-                        alt={image.originalName}
-                        className="w-full h-40 object-cover rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
-                      />
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            )}
+        {/* Date */}
+        {event.event_dates?.[0] && (
+          <div className="flex items-center gap-2">
+            <img src={CalendarIcon.src} className="w-7 h-7" />
+            <span>
+              {new Date(event.event_dates[0].start_date).toLocaleDateString(
+                'en-US',
+                { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' }
+              )}
+              {event.event_dates[0].start_time && ` · ${event.event_dates[0].start_time}`}
+            </span>
           </div>
+        )}
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Ticket Info */}
-            {event.ticket_types && event.ticket_types.length > 0 && (
-              <Card>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Tickets</h3>
-                  <div className="space-y-3">
-                    {event.ticket_types.map((ticket) => (
-                      <div key={ticket._id} className="p-4 bg-gray-50 rounded-lg">
-                        <div className="flex justify-between items-start mb-2">
-                          <p className="font-semibold text-gray-900">{ticket.ticket_type}</p>
-                          <p className="text-lg font-bold text-blue-600">
-                            {event.payment_type === 'free' ? 'FREE' : `₹${ticket.ticket_price}`}
-                          </p>
-                        </div>
-                        {ticket.max_capacity && (
-                          <p className="text-sm text-gray-600">
-                            Available: {ticket.max_capacity} seats
-                          </p>
-                        )}
-                        {ticket.ticket_photo && (
-                          <img
-                            src={ticket.ticket_photo}
-                            alt={ticket.ticket_type}
-                            className="w-full h-24 object-cover rounded mt-2"
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <button 
-                    onClick={handleBookEvent}
-                    className="w-full mt-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg hover:from-purple-700 hover:to-blue-700 font-semibold flex items-center justify-center gap-2 transition-all"
-                  >
-                    <ShoppingCart className="w-5 h-5" />
-                    Book Event Now
-                  </button>
+        {/* Location */}
+        {event.location && (
+          <div className="flex items-center gap-2">
+            <img src={LocationIcon.src} className="w-6- h-6" />
+            <span>{event.location}</span>
+          </div>
+        )}
 
-                  <div className="flex flex-col gap-2 mt-3">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleLike}
-                        className={`flex-1 py-2 rounded-lg border-2 transition-all ${
-                          userLiked
-                            ? 'bg-red-50 border-red-500 text-red-600'
-                            : 'border-gray-300 text-gray-600 hover:border-red-500 hover:text-red-600'
-                        }`}
-                      >
-                        ❤️ {userLiked ? 'Liked' : 'Like'} {likeCount > 0 && `(${likeCount})`}
-                      </button>
-                      <button
-                        onClick={() => setShowShareOptions((prev) => !prev)}
-                        className="flex-1 py-2 rounded-lg border-2 border-gray-300 text-gray-600 hover:border-blue-500 hover:text-blue-600"
-                      >
-                        🔗 Share {shareCount > 0 && `(${shareCount})`}
-                      </button>
-                      <button
-                        onClick={loadEventStats}
-                        className="flex-1 py-2 rounded-lg border-2 border-gray-300 text-gray-600 hover:border-green-500 hover:text-green-600"
-                      >
-                        🎟️ Booked {bookingCount > 0 && `(${bookingCount})`}
-                      </button>
-                    </div>
-                    {showShareOptions && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => handleShare('native')}
-                          className="py-2 rounded-lg border border-gray-200 text-gray-700 hover:border-blue-500"
-                        >
-                          📱 Device share
-                        </button>
-                        <button
-                          onClick={() => handleShare('whatsapp')}
-                          className="py-2 rounded-lg border border-gray-200 text-gray-700 hover:border-green-500"
-                        >
-                          🟢 WhatsApp
-                        </button>
-                        <button
-                          onClick={() => handleShare('facebook')}
-                          className="py-2 rounded-lg border border-gray-200 text-gray-700 hover:border-blue-700"
-                        >
-                          📘 Facebook
-                        </button>
-                        <button
-                          onClick={() => handleShare('twitter')}
-                          className="py-2 rounded-lg border border-gray-200 text-gray-700 hover:border-slate-500"
-                        >
-                          ✖️ X / Twitter
-                        </button>
-                        <button
-                          onClick={() => handleShare('copy')}
-                          className="py-2 rounded-lg border border-dashed border-gray-300 text-gray-700 hover:border-blue-500 col-span-2"
-                        >
-                          📋 Copy link
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            )}
+        {/* Free / Paid */}
+        <div className="flex items-center gap-2">
+          <img src={FreeOrPaidIcon.src} className="w-6 h-6" />
+          <span className="capitalize">
+  {event.payment_type === 'free'
+    ? 'Free'
+    : event.ticket_types?.length
+      ? `₹${Math.min(
+          ...event.ticket_types.map(t => t.ticket_price)
+        )}`
+      : 'Paid'}
+</span>
 
-            {/* Free Event Booking */}
-            {event.payment_type === 'free' && (!event.ticket_types || event.ticket_types.length === 0) && (
-              <Card>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Free Event</h3>
-                  <div className="p-4 bg-green-50 rounded-lg mb-4">
-                    <p className="text-green-800 font-semibold text-center">🎉 This is a FREE event!</p>
-                  </div>
-                  <button 
-                    onClick={handleBookEvent}
-                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 rounded-lg hover:from-green-700 hover:to-emerald-700 font-semibold flex items-center justify-center gap-2 transition-all"
-                  >
-                    <ShoppingCart className="w-5 h-5" />
-                    Register Now
-                  </button>
-                </div>
-              </Card>
-            )}
+        </div>
+      </div>
 
-            {/* Contact */}
-            {event.POCS && event.POCS.length > 0 && (
-              <Card>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Contact</h3>
-                  <div className="space-y-4">
-                    {event.POCS.map((poc) => (
-                      <div key={poc._id} className="space-y-2 pb-4 border-b last:border-b-0 last:pb-0">
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-gray-400" />
-                          <p className="text-gray-900 font-medium">{poc.POC_name}</p>
-                        </div>
-                        {poc.POC_email && (
-                          <div className="flex items-center gap-2">
-                            <Mail className="w-4 h-4 text-gray-400" />
-                            <a href={`mailto:${poc.POC_email}`} className="text-blue-600 text-sm hover:underline break-all">
-                              {poc.POC_email}
-                            </a>
-                          </div>
-                        )}
-                        {poc.POC_contact && (
-                          <div className="flex items-center gap-2">
-                            <Phone className="w-4 h-4 text-gray-400" />
-                            <a href={`tel:${poc.POC_contact}`} className="text-blue-600 text-sm hover:underline">
-                              {poc.POC_contact}
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            )}
+      {/* DESCRIPTION */}
+      <div>
+  <h2 className="text-white text-lg font-semibold mb-2">
+    Description
+  </h2>
 
-            {/* Social Links */}
-            {(event.event_instagram_link || event.event_youtube_link) && (
-              <Card>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Follow Us</h3>
-                  <div className="space-y-2">
-                   {event.event_instagram_link && (
-                    <a
-                        href={event.event_instagram_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-pink-600 hover:underline"
-                    >
-                        <ExternalLink className="w-4 h-4" />
-                        Instagram
-                    </a>
-                    )}
-                    {event.event_youtube_link && (
-                    <a
-                        href={event.event_youtube_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-red-600 hover:underline"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        YouTube
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            )}
+  <p
+    className={`
+      text-white/70 leading-relaxed
+      ${!showFullDescription ? 'line-clamp-2' : ''}
+    `}
+  >
+    {event.event_description || 'No description available.'}
+  </p>
 
-            {/* Hashtags */}
-            {event.hashtag && event.hashtag.length > 0 && (
-              <Card>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Tags</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {event.hashtag.map((tag, index) => (
-                      <span key={`hashtag-${index}-${tag}`} className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-sm">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            )}
+  {event.event_description &&
+    event.event_description.length > 120 && (
+      <button
+        onClick={() => setShowFullDescription(!showFullDescription)}
+        className="mt-1 text-blue-400 text-sm font-medium hover:underline"
+      >
+        {showFullDescription ? 'Less' : 'More'}
+      </button>
+    )}
+</div>
 
-            {/* Event Status */}
-            <Card>
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Status</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Event Status:</span>
-                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                      event.event_status === 'live' ? 'bg-green-100 text-green-800' :
-                      event.event_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      event.event_status === 'completed' ? 'bg-gray-100 text-gray-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {event.event_status.toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Likes:</span>
-                    <span className="font-semibold text-gray-900">❤️ {likeCount}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Shares:</span>
-                    <span className="font-semibold text-gray-900">🔗 {shareCount}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Total booked:</span>
-                    <span className="font-semibold text-gray-900">🎟️ {bookingCount}</span>
-                  </div>
-                </div>
-              </div>
-            </Card>
+
+{/* EVENT GUIDELINES */}
+{event.event_rules?.type === 'text' && event.event_rules.content && (
+  <div>
+    <h2 className="text-white text-lg font-semibold mb-2">
+      Event Guidelines
+    </h2>
+
+    <p
+      className={`
+        text-white/70 leading-relaxed
+        ${!showFullGuidelines ? 'line-clamp-2' : ''}
+      `}
+    >
+      {event.event_rules.content}
+    </p>
+
+    {event.event_rules.content.length > 120 && (
+      <button
+        onClick={() => setShowFullGuidelines(!showFullGuidelines)}
+        className="mt-1 text-blue-400 text-sm font-medium hover:underline"
+      >
+        {showFullGuidelines ? 'Less' : 'More'}
+      </button>
+    )}
+  </div>
+)}
+
+
+
+
+    </div>
+  </Card>
+)}
+
+
+
+    {/* ================= DETAILS ================= */}
+    {activeSection === 'details' && (
+<div className="space-y-6 pl-8">
+
+    {/* DATE PILLS */}
+    <div className="flex flex-wrap gap-4 pt-8">
+      {event.event_dates?.map((date, i) => (
+        <div
+          key={i}
+          className="
+            flex items-center gap-2
+            px-4 py-3
+            rounded-xl
+            bg-[#15191d]
+            text-white/90
+            text-sm
+          "
+        >
+                      <img src={CalendarIcon.src} className="w-5 h-5" />
+
+          <span>
+            {new Date(date.start_date).toLocaleDateString('en-US', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            })}
+          </span>
+        </div>
+      ))}
+    </div>
+
+    {/* MAP CARD */}
+    {event.location && (
+      <div
+  className="
+    w-[60%]
+    h-[260px]
+    rounded-2xl
+    overflow-hidden
+    bg-[#15191d]
+  "
+>
+
+        <iframe
+          title="Event Location"
+          width="100%"
+          height="100%"
+          loading="lazy"
+          className="border-0"
+          src={`https://www.google.com/maps?q=${encodeURIComponent(
+            event.location
+          )}&output=embed`}
+        />
+      </div>
+    )}
+
+  </div>
+)}
+
+    {/* ================= GUESTS ================= */}
+{activeSection === 'guests' && event.guests?.length > 0 && (
+  <Card className="text-white">
+    <div className="p-5">
+      <div className="grid md:grid-cols-2 gap-x-12 gap-y-6 max-w-3xl">
+        {event.guests.map((guest) => (
+          <div
+            key={guest._id}
+            className="flex items-center gap-3"
+          >
+            <img
+              src={guest.guest_profile}
+              alt={guest.guest_name}
+              className="w-14 h-14 rounded-full object-cover border border-white/20"
+            />
+            <p className="font-semibold text-lg text-white">
+              {guest.guest_name}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </Card>
+)}
+
+
+{/* ================= PHOTOS ================= */}
+{activeSection === 'photos' && event.event_images?.length > 0 && (
+  <Card className="text-white">
+    <div className="p-6 overflow-hidden">
+      <div
+        className="
+          flex gap-3
+          max-w-full
+          min-w-0
+          overflow-x-auto
+          overscroll-x-contain
+          scrollbar-hide
+        "
+      >
+        {event.event_images.map((img) => (
+          <button
+            key={img._id}
+            onClick={() => setActivePhoto(img.path)}
+            className="
+              w-40 h-40
+              rounded-lg
+              overflow-hidden
+              bg-[#15191d]
+              hover:opacity-80
+              transition
+              flex-shrink-0
+            "
+          >
+            <img
+              src={img.path}
+              alt={img.originalName}
+              className="w-full h-full object-cover"
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  </Card>
+)}
+
+
+{/* ================= ADDITIONAL ================= */}
+{activeSection === 'additional' && (
+  <div className="space-y-6">
+
+    {/* ---------- HASHTAGS ---------- */}
+    {event.hashtag?.length > 0 && (
+      <Card className="text-white">
+        <div className="p-6">
+          <h2 className="text-lg font-semibold mb-3">Hashtags</h2>
+          <div className="flex flex-wrap gap-2">
+            {event.hashtag.map((tag, i) => (
+              <span
+                key={i}
+                className="text-blue-400 text-sm font-medium"
+              >
+                #{tag}
+              </span>
+            ))}
           </div>
         </div>
+      </Card>
+    )}
+
+    {/* ---------- POINT OF CONTACT ---------- */}
+    {event.POCS?.length > 0 && (
+      <Card className="text-white">
+        <div className="p-6">
+          <h2 className="text-lg font-semibold mb-4">Point of Contact</h2>
+
+          <div className="flex flex-wrap gap-6">
+            {event.POCS.map((poc) => (
+              <div
+                key={poc._id}
+                className="flex items-center gap-4"
+              >
+                <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center text-white text-sm font-semibold">
+                  {poc.POC_name?.charAt(0).toUpperCase()}
+                </div>
+
+                <div>
+                  <p className="font-medium">{poc.POC_name}</p>
+                  <p className="text-sm text-white/70">{poc.POC_email}</p>
+                  <p className="text-sm text-white/70">{poc.POC_contact}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+    )}
+
+    {/* ---------- PROHIBITED ITEMS ---------- */}
+    {event.prohibited_items?.length > 0 && (
+      <Card className="text-white">
+        <div className="p-6">
+          <h2 className="text-lg font-semibold mb-3">Prohibited Items</h2>
+
+          <div className="flex flex-wrap gap-3">
+            {event.prohibited_items.map((item, i) => (
+              <span
+                key={i}
+                className="px-4 py-2 rounded-lg bg-red-900/40 text-red-200 text-sm"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      </Card>
+    )}
+
+    {/* ---------- MORE INFORMATION ---------- */}
+    {(
+  event.kids_friendly ||
+  event.pet_friendly ||
+  event.event_instagram_link ||
+  event.event_youtube_link
+) && (
+  <Card className="text-white">
+    <div className="p-6">
+      <h2 className="text-lg font-semibold mb-4">More Information</h2>
+
+      <div className="flex flex-wrap gap-4">
+
+        {/* Kids Friendly */}
+        {event.kids_friendly && (
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{
+                background:
+                  'linear-gradient(133.41deg, rgba(41, 121, 255, 0.1) -14.78%, rgba(185, 208, 247, 0.05) 100%)',
+              }}
+            >
+              <img src={KidIcon.src} alt="Kids Friendly" className="w-5 h-5" />
+            </div>
+            <span className="text-sm text-white/80">Kids friendly event</span>
+          </div>
+        )}
+
+        {/* Pets Friendly */}
+        {event.pet_friendly && (
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{
+                background:
+                  'linear-gradient(133.41deg, rgba(41, 121, 255, 0.1) -14.78%, rgba(185, 208, 247, 0.05) 100%)',
+              }}
+            >
+              <img src={PetIcon.src} alt="Pets Friendly" className="w-5 h-5" />
+            </div>
+            <span className="text-sm text-white/80">Pets friendly event</span>
+          </div>
+        )}
+
+        {/* Instagram */}
+        {event.event_instagram_link && (
+  <a
+    href={event.event_instagram_link}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="flex items-center gap-3 max-w-full"
+  >
+    <div
+      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+      style={{
+        background:
+          'linear-gradient(133.41deg, rgba(41, 121, 255, 0.1) -14.78%, rgba(185, 208, 247, 0.05) 100%)',
+      }}
+    >
+      <img src={InstagramIcon.src} alt="Instagram" className="w-5 h-5" />
+    </div>
+
+    <span className="text-sm text-blue-400 hover:underline truncate">
+      {event.event_instagram_link}
+    </span>
+  </a>
+)}
+
+        {/* YouTube */}
+        {event.event_youtube_link && (
+  <a
+    href={event.event_youtube_link}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="flex items-center gap-3 max-w-full"
+  >
+    <div
+      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+      style={{
+        background:
+          'linear-gradient(133.41deg, rgba(41, 121, 255, 0.1) -14.78%, rgba(185, 208, 247, 0.05) 100%)',
+      }}
+    >
+      <img src={YoutubeIcon.src} alt="YouTube" className="w-5 h-5" />
+    </div>
+
+    <span className="text-sm text-red-400 hover:underline truncate">
+      {event.event_youtube_link}
+    </span>
+  </a>
+)}
+
+
+      </div>
+    </div>
+  </Card>
+)}
+
+
+
+  </div>
+)}
+
+
+  </div>
+
+ 
+</div>
+{/* ================= SIMILAR EVENTS ================= */}
+<div className="mt-10 ml-6">
+  <h2 className="text-lg font-semibold text-white mb-4 px-6">
+    Similar Events
+  </h2>
+
+  {similarEvents.length > 0 ? (
+    <div className="px-6 overflow-hidden">
+      <div
+        className="
+          flex gap-4
+          overflow-x-auto
+          overscroll-x-contain
+          scrollbar-hide
+        "
+      >
+        {similarEvents.map((ev) => (
+          <div
+            key={ev._id}
+            className="
+              w-48
+              rounded-xl
+              bg-[#15191d]
+              overflow-hidden
+              flex-shrink-0
+              hover:scale-[1.02]
+              transition
+              cursor-pointer
+            "
+            onClick={() => router.push(`/events/${ev._id}`)}
+          >
+            <div className="w-full h-40">
+              <img
+                src={ev.event_banner}
+                alt={ev.event_name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            <div className="p-3 space-y-1">
+              <p className="text-sm font-semibold text-white line-clamp-2">
+                {ev.event_name}
+              </p>
+
+              <p className="text-xs text-white/60">
+                {new Date(ev.event_dates?.[0]?.start_date).toLocaleDateString()}
+              </p>
+
+              <p className="text-xs text-white/50 truncate">
+                {ev.location}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : (
+    <p className="px-6 text-white/40">
+      No similar events found
+    </p>
+  )}
+</div>
+
+
          <BookingModal />
          <SuccessModal />
+         {activePhoto && (
+  <div
+    className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+    onClick={() => setActivePhoto(null)}
+  >
+    <img
+      src={activePhoto}
+      className="max-w-full max-h-full rounded-xl"
+    />
+  </div>
+)}
+
       </div>
+    </div>
     </div>
   );
 }
