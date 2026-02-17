@@ -232,17 +232,13 @@ const SideBar: React.FC = () => {
 
   const mobileNavItems = mainNavItems.slice(0, 5);
 
-  const handleNavClick = (path: string) => {
-    if (path === "/notification") {
-      setIsNotificationOpen(!isNotificationOpen);
-      // Clear notification count immediately when opening popup (Instagram-style)
-      if (!isNotificationOpen) {
-        setNotificationCount(0);
+    const handleNavClick = (path: string) => {
+      if (path === "/notification") {
+        setIsNotificationOpen(!isNotificationOpen);
+        return;
       }
-      return;
-    }
-    router.push(path);
-  };
+      router.push(path);
+    };
 
   const isActive = (path: string) => {
     if (!pathname) return false;
@@ -303,7 +299,6 @@ const SideBar: React.FC = () => {
           messageCount={unreadUsersCount}
           onNotificationClick={() => {
             setIsNotificationOpen(true);
-            setNotificationCount(0); // Clear count immediately
           }}
           onMessageClick={() => router.push("/message")}
           onPostClick={() => {
