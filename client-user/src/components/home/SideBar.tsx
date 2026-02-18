@@ -430,6 +430,8 @@ const SideBar: React.FC = () => {
                   height={20}
                   className="transition-all duration-200"
                   style={{
+                    width: "20px",
+                    height: "20px",
                     filter: isActive(item.path) ? "brightness(0)" : themeStyles.iconFilter,
                     opacity: 1
                   }}
