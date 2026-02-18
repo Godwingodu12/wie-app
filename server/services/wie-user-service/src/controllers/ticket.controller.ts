@@ -1399,3 +1399,81 @@ export const getFilteredEvents = async (
     });
   }
 };
+// FULL CORRECTED getPopularEvents
+// Place in: wie-user-service/src/controllers/ticket.controller.ts
+
+export const getPopularEvents = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { limit = '10' } = req.query;
+    const maxResults = Math.min(Math.max(parseInt(limit as string) || 10, 1), 50);
+
+    // Fetch all live events via gRPC
+    const result = await getAllLiveEvents();
+    let allEvents: any[] = Array.isArray(result) ? result : (result?.tickets || []);
+
+    // Flatten main events + sub-events
+    let events: any[] = [];
+    allEvents.forEach((mainEvent: any) => {
+      events.push({
+        ...mainEvent,
+        isSubEvent: false,
+        parentEventId: null,
+        parentEventName: null,
+      });
+      if (mainEvent.sub_events && Array.isArray(mainEvent.sub_events)) {
+        mainEvent.sub_events.forEach((subEvent: any) => {
+          events.push({
+            ...subEvent,
+            isSubEvent: true,
+            parentEventId: mainEvent._id,
+            parentEventName: mainEvent.event_name,
+            parentEventCategory: mainEvent.event_category,
+            parentEventBanner: mainEvent.event_banner,
+            parentEventLogo: mainEvent.event_logo,
+          });
+        });
+      }
+    });
+
+    // Filter: only events that have a displayable image
+    events = events.filter((e: any) => e.event_banner || e.event_portrait);
+
+    // Score each event using stats already present on the ticket object
+    // (populated by getAllLiveEvents via gRPC normalisation in ticketClient.ts)
+    // Score = (totalBookings × 3) + (like × 2) + (totalTicketsSold × 1)
+    const scored: Array<{ event: any; score: number }> = events.map((ev: any) => ({
+      event: ev,
+      score:
+        (ev.totalBookings ?? 0) * 3 +
+        (ev.like ?? 0) * 2 +
+        (ev.totalTicketsSold ?? 0) * 1,
+    }));
+
+    // Sort by score descending
+    scored.sort((a, b) => b.score - a.score);
+
+    const popularEvents = scored.slice(0, maxResults).map(({ event, score }) => ({
+      ...event,
+      popularity_score: score,
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: `Found ${popularEvents.length} popular event(s)`,
+      data: {
+        count: popularEvents.length,
+        events: popularEvents,
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ Error in getPopularEvents:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch popular events',
+      error: error.message,
+    });
+  }
+};
