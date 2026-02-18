@@ -3,32 +3,29 @@ import Chat from '../models/chat.model.js';
 
 export const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      dbName: process.env.DB_NAME || 'chat-service'
-    });
+    if (!process.env.MONGO_URI) {
+      throw new Error('MONGO_URI is not defined in environment variables');
+    }
+
+    const conn = await mongoose.connect(process.env.MONGO_URI);
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     console.log(`📊 Database: ${conn.connection.name}`);
 
-    // Drop problematic indexes on startup
+    // Index handling
     try {
       await Chat.collection.dropIndexes();
-      console.log('🗑️ Dropped old indexes');
-      
-      // Recreate indexes from schema
       await Chat.createIndexes();
-      console.log('✅ Recreated indexes');
-    } catch (indexError) {
-      console.log('ℹ️ Index cleanup:', indexError.message);
+    } catch (err) {
+      console.log('ℹ️ Index cleanup skipped:', err.message);
     }
-    
-    // Handle MongoDB errors
+
     mongoose.connection.on('error', (err) => {
       console.error('❌ MongoDB connection error:', err);
     });
 
     mongoose.connection.on('disconnected', () => {
-      console.warn('⚠️ MongoDB disconnected. Attempting to reconnect...');
+      console.warn('⚠️ MongoDB disconnected');
     });
 
     mongoose.connection.on('reconnected', () => {
