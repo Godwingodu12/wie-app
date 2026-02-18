@@ -45,11 +45,12 @@ app.use(metricsMiddleware);
 // Rate limiting
 app.use('/api', generalLimiter);
 
-// Database connection
 const connectDB = async (): Promise<void> => {
   try {
-    const mongoURI = `${process.env.MONGODB_URI}/${process.env.DB_NAME}`;
-    
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI is not defined in environment variables');
+    }
+
     const options = {
       maxPoolSize: 100,
       minPoolSize: 10,
@@ -59,7 +60,7 @@ const connectDB = async (): Promise<void> => {
       readPreference: 'secondaryPreferred' as const,
     };
 
-    await mongoose.connect(mongoURI, options);
+    await mongoose.connect(process.env.MONGODB_URI, options);
     
     mongoose.connection.on('connected', () => {
       logger.info('✅ MongoDB Connected: Connection Service');
