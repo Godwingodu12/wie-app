@@ -5,7 +5,7 @@ class Database {
 
   async connect(): Promise<void> {
     try {
-      const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/follow-service';
+      const mongoUri = process.env.MONGO_URI || 'mongodb+srv://gokulgopalan51_db_user:CygJ0mw43gL01T0l@cluster0.a6jitjg.mongodb.net/follow-service?retryWrites=true&w=majority&appName=Cluster0';
       
       await mongoose.connect(mongoUri);
       
