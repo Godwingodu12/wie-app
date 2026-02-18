@@ -3,36 +3,29 @@ import Notification from '../models/notification.model.js';
 
 export const connectDB = async () => {
   try {
-    // Check if MONGODB_URI is defined
-    if (!process.env.MONGODB_URI) {
-      throw new Error('MONGODB_URI is not defined in environment variables');
+    if (!process.env.MONGO_URI) {
+      throw new Error('MONGO_URI is not defined in environment variables');
     }
 
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      dbName: process.env.DB_NAME || 'notification_db'
-    });
-    
+    const conn = await mongoose.connect(process.env.MONGO_URI);
+
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     console.log(`📊 Database: ${conn.connection.name}`);
-    
-    // Drop problematic indexes on startup
+
+    // Drop & recreate indexes safely
     try {
       await Notification.collection.dropIndexes();
-      console.log('🗑️ Dropped old indexes');
-      // Recreate indexes from schema
       await Notification.createIndexes();
-      console.log('✅ Recreated indexes');
     } catch (indexError) {
-      console.log('ℹ️ Index cleanup:', indexError.message);
+      console.log('ℹ️ Index cleanup skipped:', indexError.message);
     }
-    
-    // Handle MongoDB errors
+
     mongoose.connection.on('error', (err) => {
-      console.error('❌ MongoDB connection error:', err);
+      console.error('❌ MongoDB error:', err);
     });
 
     mongoose.connection.on('disconnected', () => {
-      console.warn('⚠️ MongoDB disconnected. Attempting to reconnect...');
+      console.warn('⚠️ MongoDB disconnected');
     });
 
     mongoose.connection.on('reconnected', () => {
@@ -41,7 +34,6 @@ export const connectDB = async () => {
 
   } catch (error) {
     console.error('❌ MongoDB connection failed:', error.message);
-    console.error('💡 Tip: Make sure MongoDB is running and MONGODB_URI is set in .env');
     process.exit(1);
   }
 };
