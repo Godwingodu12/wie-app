@@ -297,6 +297,7 @@ message SubEvent {
   int32 total_cancellation = 48;
   string createdAt = 49;
   string updatedAt = 50;
+  string event_portrait = 51;
 }
 
 message TicketData {
@@ -365,6 +366,8 @@ message TicketData {
   bool razorpayEnabled = 63;
   string razorpayKeyId = 64;
   string razorpayKeySecret = 65;
+  string event_portrait = 66;
+
 }
 
 message GroupData {
