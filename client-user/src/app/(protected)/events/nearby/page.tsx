@@ -1,453 +1,621 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Header } from '@/components/layout/Header';
-import { Card } from '@/components/ui/Card';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import {
   getNearbyEventsFromCurrentLocation,
   getNearbyEventsByLocation,
-  formatDistance,
+  searchEventsByName,
+  getFilteredEvents,
+  getCategoryBasedEvents,
+  getPopularEvents,
 } from '@/services/ticketUserService';
-import { NearbyEvent } from '@/types/ticket';
-import { MapPin, Calendar, Users, Loader2, AlertCircle, Navigation, CheckCircle } from 'lucide-react';
-import axios from 'axios';
+import { NearbyEvent, EventWithLocation, FilterEventsParams } from '@/types/ticket';
+import { Loader2, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import SideBar from '@/components/home/SideBar';
+import { useSidebar } from '@/context/SidebarContext';
+import { EventCard } from '@/components/events/EventCard';
+import EventCategoryList from '@/components/events/Eventcategorylist';
+import FilterSearchEvents from '@/components/events/FilterSearchEvents';
+// Asset imports — adjust paths if your assets differ
+import SearchIcon from '@/assets/Event/serachIcon.png';
+import FilterButtonIcon from '@/assets/Event/FilterButton.png';
+const DISTANCE_BANDS = [5, 10, 50, 100, 150, 200, 300, 400, 500,600,700,800,900,1000];
+
+function getBand(dist: number): number {
+  for (const b of DISTANCE_BANDS) {
+    if (dist <= b) return b;
+  }
+  return 9999;
+}
+
+function bandLabel(band: number): string {
+  return band === 9999 ? '500+ km' : `Within ${band} km`;
+}
+
+function PopularEventBanner({
+  events,
+  onViewAll,
+}: {
+  events: NearbyEvent[];
+  onViewAll: () => void;
+}) {
+  const router = useRouter();
+  const [active, setActive] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const reset = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setActive((p) => (p + 1) % events.length);
+    }, 3000);
+  }, [events.length]);
+
+  useEffect(() => {
+    if (events.length < 2) return;
+    reset();
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [reset]);
+
+  if (!events.length) return null;
+
+  const ev = events[active];
+
+  const bannerSrc = (ev as any).event_portrait || ev.event_banner;
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-white font-semibold text-lg">Popular event</h2>
+        <button
+          onClick={onViewAll}
+          className="text-xs font-medium text-transparent bg-clip-text"
+          style={{
+            backgroundImage:
+              'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
+            WebkitBackgroundClip: 'text',
+          }}
+        >
+          see all
+        </button>
+      </div>
+
+      {/* Banner */}
+      <div
+        className="relative w-full overflow-hidden cursor-pointer group"
+        style={{ height: 240, borderRadius: 16 }}
+        onClick={() => router.push(`/events/${ev._id}`)}
+      >
+        {bannerSrc ? (
+          <img
+            src={bannerSrc}
+            alt={ev.event_name}
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <div
+            className="w-full h-full"
+            style={{
+              background: 'linear-gradient(135deg, #1C2024 0%, #2D3139 100%)',
+            }}
+          />
+        )}
+
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)',
+          }}
+        />
+
+        <div className="absolute bottom-4 left-4 right-14">
+          <p className="text-white font-bold text-base line-clamp-1">{ev.event_name}</p>
+          <p className="text-white/60 text-xs mt-0.5">
+            {ev.event_dates?.[0]?.start_date
+              ? new Date(ev.event_dates[0].start_date).toLocaleDateString('en-US', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })
+              : ''}
+          </p>
+        </div>
+
+        <div className="absolute bottom-4 right-4 flex gap-1.5">
+          {events.slice(0, 6).map((_, i) => (
+            <button
+              key={i}
+              onClick={(e) => { e.stopPropagation(); setActive(i); reset(); }}
+              className="transition-all"
+              style={{
+                width: i === active ? 16 : 6,
+                height: 6,
+                borderRadius: 3,
+                background: i === active ? '#8860D9' : 'rgba(255,255,255,0.4)',
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EventRow({
+  title,
+  events,
+  onSeeAll,
+}: {
+  title: string;
+  events: EventWithLocation[];
+  onSeeAll?: () => void;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  const scroll = (dir: 'left' | 'right') => {
+    rowRef.current?.scrollBy({ left: dir === 'left' ? -400 : 400, behavior: 'smooth' });
+  };
+
+  if (!events.length) return null;
+
+  return (
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-3 px-1">
+        <h3 className="text-white font-semibold text-base">{title}</h3>
+        {onSeeAll && (
+          <button
+            onClick={onSeeAll}
+            className="text-xs font-medium"
+            style={{
+              background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            see all
+          </button>
+        )}
+      </div>
+
+      <div className="relative group">
+        {/* Left arrow */}
+        <button
+          onClick={() => scroll('left')}
+          className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+        >
+          <ChevronLeft className="w-4 h-4 text-white" />
+        </button>
+
+        {/* Right arrow */}
+        <button
+          onClick={() => scroll('right')}
+          className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+        >
+          <ChevronRight className="w-4 h-4 text-white" />
+        </button>
+
+        <div
+          ref={rowRef}
+          className="flex gap-3 overflow-x-auto scrollbar-hide pb-1"
+        >
+          {events.map((ev) => (
+            <EventCard key={ev._id} event={ev} showDistance />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CategoryBreak({ category, events }: { category: string; events: EventWithLocation[] }) {
+  const router = useRouter();
+  if (!events.length) return null;
+
+  return (
+    <div
+      className="mb-8 p-4 rounded-2xl"
+      style={{ background: '#1C2024', border: '1px solid #2D3139' }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-white/50 text-xs uppercase tracking-wider mb-0.5">
+            You might also like
+          </p>
+          <h3 className="text-white font-semibold text-sm">{category}</h3>
+        </div>
+        <button
+          onClick={() =>
+            router.push(
+              `/events/categories?category=${encodeURIComponent(category)}`
+            )
+          }
+          className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors"
+        >
+          See all <ArrowRight className="w-3 h-3" />
+        </button>
+      </div>
+      <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+        {events.slice(0, 6).map((ev) => (
+          <EventCard key={ev._id} event={ev} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function NearbyEventsPage() {
   useAuth(true);
   const router = useRouter();
-  const [events, setEvents] = useState<NearbyEvent[]>([]);
+  const { isCollapsed, isMobile } = useSidebar();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [searchLocation, setSearchLocation] = useState('');
-  const [radius, setRadius] = useState(30);
-  const [searchType, setSearchType] = useState<'gps' | 'manual'>('gps');
-  const [currentLocation, setCurrentLocation] = useState<{
-    latitude: number;
-    longitude: number;
-    address: string;
-  } | null>(null);
-  const [fetchingLocation, setFetchingLocation] = useState(false);
-  // Add after existing useState declarations
-useEffect(() => {
-  // Load previous search from sessionStorage
-  const savedSearch = sessionStorage.getItem('nearbyEventsSearch');
-  if (savedSearch) {
-    const parsed = JSON.parse(savedSearch);
-    setEvents(parsed.events || []);
-    setCurrentLocation(parsed.currentLocation || null);
-    setRadius(parsed.radius || 30);
-    setSearchLocation(parsed.searchLocation || '');
-  }
-}, []);
+  const [popularEvents, setPopularEvents] = useState<NearbyEvent[]>([]);
+  const [nearbyByBand, setNearbyByBand] = useState<Map<number, NearbyEvent[]>>(new Map());
+  const [categoryBreaks, setCategoryBreaks] = useState<Map<number, { cat: string; events: EventWithLocation[] }>>(new Map());
+  const [searchResults, setSearchResults] = useState<EventWithLocation[] | null>(null);
+  const [filterResults, setFilterResults] = useState<EventWithLocation[] | null>(null);
+  const [filterResultsByCategory, setFilterResultsByCategory] = useState<Record<string, EventWithLocation[]>>({});
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [activeFilters, setActiveFilters] = useState<FilterEventsParams>({});
+  const [hasSearched, setHasSearched] = useState(false);
 
-// Save search results whenever they change
-useEffect(() => {
-  if (events.length > 0) {
-    sessionStorage.setItem('nearbyEventsSearch', JSON.stringify({
-      events,
-      currentLocation,
-      radius,
-      searchLocation,
-    }));
-  }
-}, [events, currentLocation, radius, searchLocation]);
+  // ── Load everything on mount ──
+  useEffect(() => {
+    loadInitialData();
+  }, []);
 
-  // Reverse geocode coordinates to get address
-  const getAddressFromCoordinates = async (lat: number, lng: number): Promise<string> => {
+  const loadInitialData = async () => {
+    setLoading(true);
     try {
-      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAP_API;
-      if (!apiKey) {
-        console.warn('Google Maps API key not configured');
-        return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-      }
+      // 1. Try GPS
+      const res = await getNearbyEventsFromCurrentLocation(500);
+      const events: NearbyEvent[] = res.data.events;
+      const loc = res.data.search_location;
+      setUserLocation({ latitude: loc.latitude, longitude: loc.longitude });
 
-      const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`
-      );
+      // Separate popular (top 6 closest) vs the rest
+      const sorted = [...events].sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999));
+      setPopularEvents(sorted.slice(0, 6));
 
-      if (response.data.status === 'OK' && response.data.results.length > 0) {
-        // Get the formatted address (usually the first result is most accurate)
-        const result = response.data.results[0];
-        
-        // Try to get a concise address (city, state, country)
-        const addressComponents = result.address_components;
-        let city = '';
-        let state = '';
-        let country = '';
-
-        addressComponents.forEach((component: any) => {
-          if (component.types.includes('locality')) {
-            city = component.long_name;
-          } else if (component.types.includes('administrative_area_level_1')) {
-            state = component.short_name;
-          } else if (component.types.includes('country')) {
-            country = component.long_name;
-          }
-        });
-
-        if (city && state) {
-          return `${city}, ${state}, ${country}`;
-        } else if (city) {
-          return `${city}, ${country}`;
-        }
-        
-        return result.formatted_address;
-      }
-
-      return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    } catch (error) {
-      console.error('Error getting address:', error);
-      return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    }
-  };
-
-  // Load nearby events using GPS
-  const loadNearbyEventsGPS = async () => {
-    try {
-      setLoading(true);
-      setFetchingLocation(true);
-      setError(null);
-      setSearchType('gps');
-      
-      const response = await getNearbyEventsFromCurrentLocation(radius);
-      setEvents(response.data.events);
-      
-      // Store the location details
-      const { latitude, longitude } = response.data.search_location;
-      
-      // Get address from coordinates
-      const address = await getAddressFromCoordinates(latitude, longitude);
-      
-      setCurrentLocation({
-        latitude,
-        longitude,
-        address,
+      // Group rest by distance band
+      const bandMap = new Map<number, NearbyEvent[]>();
+      sorted.forEach((ev) => {
+        const b = getBand(ev.distance ?? 999);
+        if (!bandMap.has(b)) bandMap.set(b, []);
+        bandMap.get(b)!.push(ev);
       });
-      
-      setFetchingLocation(false);
-    } catch (err: any) {
-      setFetchingLocation(false);
-      if (err.code === 1) {
-        setError('Location access denied. Please enable location services or search manually.');
-      } else {
-        setError(err.message || 'Failed to fetch nearby events');
-      }
-      console.error(err);
+      setNearbyByBand(bandMap);
+
+      // Build category breaks — 1 per every 2 bands (max 6 events each)
+      await buildCategoryBreaks(sorted);
+    } catch {
+      // GPS denied or failed — page still shows UI
     } finally {
       setLoading(false);
     }
   };
 
-  // Load nearby events using location string
-  const loadNearbyEventsByLocation = async () => {
-    if (!searchLocation.trim()) {
-      setError('Please enter a location');
+  const buildCategoryBreaks = async (events: NearbyEvent[]) => {
+    // Get unique categories from loaded events
+    const cats = Array.from(new Set(events.map((e) => e.event_category).filter(Boolean) as string[]));
+    const breaks = new Map<number, { cat: string; events: EventWithLocation[] }>();
+
+    // After every 2 distance bands, insert a category break
+    const bandsSorted = DISTANCE_BANDS.filter((b) =>
+      events.some((e) => getBand(e.distance ?? 999) <= b)
+    );
+
+    for (let i = 0; i < bandsSorted.length; i += 2) {
+      const cat = cats[Math.floor(i / 2) % cats.length];
+      if (!cat) continue;
+      try {
+        const catRes = await getCategoryBasedEvents({ category: cat });
+        const catEvents = Object.values(catRes.data.eventsByCategory).flat() as EventWithLocation[];
+        if (catEvents.length > 0) {
+          breaks.set(bandsSorted[i], { cat, events: catEvents.slice(0, 6) });
+        }
+      } catch {
+        // skip
+      }
+    }
+    setCategoryBreaks(breaks);
+  };
+
+  // ── Search handler ──
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      setHasSearched(false);
       return;
     }
-
+    setLoading(true);
+    setHasSearched(true);
     try {
-      setLoading(true);
-      setError(null);
-      setSearchType('manual');
-      setCurrentLocation(null); // Clear GPS location when searching manually
-      
-      const response = await getNearbyEventsByLocation(searchLocation, radius);
-      setEvents(response.data.events);
-      
-      // Store the searched location details
-      const { latitude, longitude } = response.data.search_location;
-      setCurrentLocation({
-        latitude,
-        longitude,
-        address: searchLocation,
-      });
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch nearby events');
-      console.error(err);
+      const res = await searchEventsByName({ searchQuery: searchQuery.trim() });
+      const flat = Object.values(res.data.eventsByCategory ?? {}).flat() as EventWithLocation[];
+      setSearchResults(flat);
+      setFilterResults(null);
+    } catch {
+      setSearchResults([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      loadNearbyEventsByLocation();
-    }
+  // ── Filter handler ──
+  const handleFilterApply = (response: any, filters: FilterEventsParams) => {
+    const byCategory = response.data?.eventsByCategory ?? {};
+    setFilterResultsByCategory(byCategory);
+    const flat = Object.values(byCategory).flat() as EventWithLocation[];
+    setFilterResults(flat);
+    setSearchResults(null);
+    setActiveFilters(filters);
+    setHasSearched(true);
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Header
-          title="Find Nearby Events"
-          subtitle="Discover events happening around you"
+  // ── Render distance band sections ──
+  const renderBands = () => {
+    const bands = Array.from(nearbyByBand.keys()).sort((a, b) => a - b);
+    const elements: JSX.Element[] = [];
+    let bandCount = 0;
+
+    bands.forEach((band) => {
+      const evs = nearbyByBand.get(band) ?? [];
+      elements.push(
+        <EventRow
+          key={`band-${band}`}
+          title={bandLabel(band)}
+          events={evs as unknown as EventWithLocation[]}
+          onSeeAll={() =>
+            router.push(`/events/categories?radius=${band}`)
+          }
         />
+      );
+      bandCount++;
 
-        {/* Search Controls */}
-        <Card className="mb-8">
-          <div className="p-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* GPS Location */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  📍 Use My Current Location
-                </label>
-                <button
-                  onClick={loadNearbyEventsGPS}
-                  disabled={loading}
-                  className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
-                >
-                  {loading && searchType === 'gps' ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      {fetchingLocation ? 'Getting Location...' : 'Finding Events...'}
-                    </>
-                  ) : (
-                    <>
-                      <Navigation className="w-5 h-5" />
-                      Find Events Near Me
-                    </>
-                  )}
-                </button>
-                <p className="text-xs text-gray-500 mt-2">
-                  Allow location access to find events nearby
-                </p>
-              </div>
+      // Insert category break after every 2 bands
+      if (bandCount % 2 === 0 && categoryBreaks.has(band)) {
+        const brk = categoryBreaks.get(band)!;
+        elements.push(
+          <CategoryBreak
+            key={`break-${band}`}
+            category={brk.cat}
+            events={brk.events}
+          />
+        );
+      }
+    });
 
-              {/* Manual Location */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  🔍 Or Search by Location
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={searchLocation}
-                    onChange={(e) => setSearchLocation(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Enter city, place, or address..."
-                    className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                    disabled={loading}
-                  />
-                  <button
-                    onClick={loadNearbyEventsByLocation}
-                    disabled={loading || !searchLocation.trim()}
-                    className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-                  >
-                    {loading && searchType === 'manual' ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      'Search'
-                    )}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Try: "Thrissur", "Mumbai", "Bangalore, Karnataka"
-                </p>
-              </div>
-            </div>
+    return elements;
+  };
 
-            {/* Current Location Display */}
-            {currentLocation && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-green-900">
-                      {searchType === 'gps' ? 'Current Location Detected' : 'Searching Location'}
-                    </p>
-                    <p className="text-sm text-green-800 mt-1">
-                      📍 {currentLocation.address}
-                    </p>
-                    <p className="text-xs text-green-700 mt-1">
-                      Coordinates: {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+  const sidebarWidth = isMobile ? 0 : isCollapsed ? 92 : 281;
 
-            {/* Radius Slider */}
-            <div className="mt-6">
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Search Radius
-                </label>
-                <span className="text-sm font-bold text-blue-600">
-                  {radius} km
-                </span>
-              </div>
-              <input
-                type="range"
-                min="1"
-                max="100"
-                value={radius}
-                onChange={(e) => setRadius(Number(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                disabled={loading}
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>1 km</span>
-                <span>50 km</span>
-                <span>100 km</span>
-              </div>
-            </div>
-          </div>
-        </Card>
-        {/* Clear Search Button */}
-        {events.length > 0 && (
-          <div className="mb-4 flex justify-end">
-            <button
-              onClick={() => {
-                setEvents([]);
-                setCurrentLocation(null);
-                setSearchLocation('');
-                setError(null);
-                sessionStorage.removeItem('nearbyEventsSearch');
+  return (
+    <div className="min-h-screen" style={{ background: '#0C1014' }}>
+      <style jsx global>{`
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+
+      <SideBar />
+
+      <main
+        className="transition-all duration-300 min-h-screen"
+        style={{ marginLeft: sidebarWidth, paddingBottom: isMobile ? 80 : 40 }}
+      >
+        <div className="max-w-[1194px] mx-auto px-4 sm:px-6 pt-6">
+
+          {/* ── Search Bar + Filter Button ── */}
+          <div className="flex items-center gap-3 mb-6">
+            {/* Search field */}
+            <div
+              className="flex items-center gap-3 flex-1 px-4"
+              style={{
+                height: 44,
+                borderRadius: 8,
+                background: '#38383866',
+                border: '1px solid #3D4149',
               }}
-              className="flex items-center gap-2 text-gray-600 hover:text-red-600 px-4 py-2 rounded-lg border border-gray-300 hover:border-red-300 transition-colors"
             >
-              <AlertCircle className="w-4 h-4" />
-              Clear Search
-            </button>
-          </div>
-        )}
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-red-800 font-medium">Error</p>
-              <p className="text-red-700 text-sm">{error}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Results Count */}
-        {events.length > 0 && (
-          <div className="mb-4">
-            <p className="text-gray-700">
-              Found <span className="font-bold text-blue-600">{events.length}</span> event
-              {events.length !== 1 ? 's' : ''} within {radius} km
-              {currentLocation && (
-                <span className="text-gray-600"> of {currentLocation.address}</span>
-              )}
-            </p>
-          </div>
-        )}
-
-        {/* Events Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {events.map((event) => (
-            <Card key={event._id} className="hover:shadow-xl transition-shadow overflow-hidden">
-              {/* Event Image */}
-              {event.event_banner && (
-                <div className="relative h-48 w-full">
-                  <img
-                    src={event.event_banner}
-                    alt={event.event_name}
-                    className="w-full h-full object-cover"
-                  />
-                  {event.event_logo && (
-                    <img
-                      src={event.event_logo}
-                      alt="Event logo"
-                      className="absolute bottom-2 right-2 w-16 h-16 rounded-full border-4 border-white shadow-lg"
-                    />
-                  )}
-                </div>
-              )}
-
-              <div className="p-5">
-                {/* Event Name */}
-                <h3 className="text-xl font-bold text-gray-900 mb-3 line-clamp-2">
-                  {event.event_name}
-                </h3>
-
-                {/* Distance & Sub-events Badges */}
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1">
-                    <MapPin className="w-3 h-3" />
-                    {formatDistance(event.distance)}
-                  </span>
-                  
-                  {event.has_nearby_sub_events && (
-                    <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full">
-                      +{event.nearby_sub_events_count} sub event
-                      {event.nearby_sub_events_count !== 1 ? 's' : ''}
-                    </span>
-                  )}
-
-                  {event.payment_type === 'free' && (
-                    <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-3 py-1 rounded-full">
-                      FREE
-                    </span>
-                  )}
-                </div>
-
-                {/* Category */}
-                <p className="text-gray-600 text-sm mb-2 font-medium">
-                  {event.event_category}
-                </p>
-
-                {/* Location */}
-                <div className="flex items-start gap-2 mb-3">
-                  <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-gray-500 text-sm line-clamp-2">
-                    {event.location || 'Online Event'}
-                  </p>
-                </div>
-
-                {/* Date */}
-                {event.event_dates?.[0] && (
-                  <div className="flex items-center gap-2 mb-4">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    <p className="text-gray-500 text-sm">
-                      {new Date(event.event_dates[0].start_date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                )}
-                <button 
-                  onClick={() => router.push(`/events/${event._id}`)}
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2.5 rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all font-medium"
+              <Image
+                src={SearchIcon}
+                alt="Search"
+                width={18}
+                height={18}
+                style={{ opacity: 0.5, flexShrink: 0 }}
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="Search events, location, categories etc.."
+                className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => { setSearchQuery(''); setSearchResults(null); setHasSearched(false); }}
+                  className="text-white/40 hover:text-white/70 text-xs transition-colors flex-shrink-0"
                 >
-                  View Details
+                  ✕
                 </button>
-              </div>
-            </Card>
-          ))}
-        </div>
+              )}
+            </div>
 
-        {/* No Events Found */}
-        {!loading && events.length === 0 && !error && (
-          <Card className="text-center py-12">
-            <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              No Events Found
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Try increasing the search radius or searching a different location.
-            </p>
+            {/* Filter button */}
             <button
-              onClick={() => setRadius(Math.min(radius + 20, 100))}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              onClick={() => setIsFilterOpen(true)}
+              className="flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 8,
+                background: '#38383866',
+                border: '1px solid #3D4149',
+              }}
             >
-              Increase Radius
+              <Image
+                src={FilterButtonIcon}
+                alt="Filter"
+                width={20}
+                height={20}
+              />
             </button>
-          </Card>
-        )}
-        {/* Loading State */}
-        {loading && (
-          <div className="flex justify-center items-center py-12">
-            <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
           </div>
-        )}
-      </div>
+
+          {/* ── Active filter chips ── */}
+          {Object.keys(activeFilters).length > 0 && (filterResults || filterResultsByCategory) && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {activeFilters.category && (
+                <span
+                  className="px-3 py-1 rounded-full text-xs text-white/80"
+                  style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+                >
+                  {activeFilters.category.split(',')[0].trim()}
+                </span>
+              )}
+              {activeFilters.radius && (
+                <span
+                  className="px-3 py-1 rounded-full text-xs text-white/80"
+                  style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+                >
+                  {activeFilters.radius} km
+                </span>
+              )}
+              {activeFilters.startDate && (
+                <span
+                  className="px-3 py-1 rounded-full text-xs text-white/80"
+                  style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+                >
+                  From {activeFilters.startDate}
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setActiveFilters({});
+                  setFilterResults(null);
+                  setFilterResultsByCategory({});
+                  setHasSearched(false);
+                }}
+                className="px-3 py-1 rounded-full text-xs text-red-400 hover:text-red-300 transition-colors"
+                style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
+
+          {/* ── Event Categories ── */}
+          <div className="mb-6">
+            <EventCategoryList />
+          </div>
+
+          {/* ── Loading ── */}
+          {loading && (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+            </div>
+          )}
+
+          {!loading && (
+            <>
+              {/* ── Search Results ── */}
+              {searchResults !== null && (
+                <div className="mb-8">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-white font-semibold text-lg">
+                      Search results
+                      <span className="text-white/40 text-sm font-normal ml-2">
+                        ({searchResults.length} found)
+                      </span>
+                    </h2>
+                    <button
+                      onClick={() => { setSearchResults(null); setHasSearched(false); }}
+                      className="text-xs text-white/40 hover:text-white/70 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  {searchResults.length > 0 ? (
+                    <div className="flex flex-wrap gap-3">
+                      {searchResults.map((ev) => (
+                        <EventCard key={ev._id} event={ev} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-white/40 text-sm py-8 text-center">
+                      No events found for "{searchQuery}"
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* ── Filter Results ── */}
+              {filterResults !== null && searchResults === null && (
+                <div className="mb-8">
+                  {Object.keys(filterResultsByCategory).length > 0 ? (
+                    Object.entries(filterResultsByCategory).map(([cat, evs]) => (
+                      <EventRow
+                        key={cat}
+                        title={cat}
+                        events={evs as EventWithLocation[]}
+                        onSeeAll={() =>
+                          router.push(
+                            `/events/categories?category=${encodeURIComponent(cat)}`
+                          )
+                        }
+                      />
+                    ))
+                  ) : (
+                    <p className="text-white/40 text-sm py-8 text-center">
+                      No events match your filters.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* ── Default View (no search / filter active) ── */}
+              {!hasSearched && (
+                <>
+                  {/* Popular event banner */}
+                  <PopularEventBanner
+                    events={popularEvents}
+                    onViewAll={() => router.push('/events/popular')}
+                  />
+
+                  {/* Nearby events by distance band + category breaks */}
+                  {nearbyByBand.size > 0 ? (
+                    renderBands()
+                  ) : (
+                    <div className="py-12 text-center">
+                      <p className="text-white/40 text-sm">
+                        Enable location access or use the search bar to find events near you.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </main>
+
+      {/* Filter Modal */}
+      <FilterSearchEvents
+        isOpen={isFilterOpen}
+        onClose={() => setIsFilterOpen(false)}
+        onApply={handleFilterApply}
+        initialFilters={activeFilters}
+        userLocation={userLocation}
+      />
     </div>
   );
 }

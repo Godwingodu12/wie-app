@@ -146,7 +146,8 @@ const mapSubEvents = (subEvents) => {
     totalTicketsSold: sub.totalTicketsSold || 0,
     revenue: sub.revenue || 0,
     createdAt: sub.createdAt?.toISOString() || '',
-    updatedAt: sub.updatedAt?.toISOString() || ''
+    updatedAt: sub.updatedAt?.toISOString() || '',
+    event_portrait: sub.event_portrait || ''
   }));
 };
 
@@ -276,7 +277,8 @@ const mapTicketToProto = (ticket) => {
     updatedAt: ticket.updatedAt?.toISOString() || '',
     razorpayEnabled: false,
     razorpayKeyId: '',
-    razorpayKeySecret: ''
+    razorpayKeySecret: '',
+    event_portrait: ticket.event_portrait || ''
   };
 };
 
