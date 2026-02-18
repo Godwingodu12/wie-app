@@ -139,6 +139,7 @@ export const getAllLiveEvents = async (): Promise<GetAllLiveEventsResponse> => {
           totalBookings: ticket.totalBookings || 0,
           totalTicketsSold: ticket.totalTicketsSold || 0,
           revenue: ticket.revenue || 0,
+          event_portrait: ticket.event_portrait || '',
           createdAt: ticket.createdAt || '',
           updatedAt: ticket.updatedAt || '',
           // CRITICAL: Preserve sub-event identification fields
@@ -272,6 +273,7 @@ export const getTicketById = async (ticketId: string): Promise<Ticket | null> =>
           totalBookings: ticket.totalBookings || 0,
           totalTicketsSold: ticket.totalTicketsSold || 0,
           revenue: ticket.revenue || 0,
+          event_portrait: ticket.event_portrait || '',
           createdAt: ticket.createdAt || '',
           updatedAt: ticket.updatedAt || '',
           ...ticket
