@@ -17,7 +17,8 @@ import {
   NameSearchResponse,
   LocationSearchParams,
   LocationSearchResponse,
-  CategorySearchParams
+  CategorySearchParams,
+  NearbyEvent
 } from '@/types/ticket';
 export const getLiveEvents = async (): Promise<LiveEventsResponse> => {
   try {
@@ -289,6 +290,18 @@ export const getCategoryBasedEvents = async (
     return res.data;
   } catch (err) {
     console.error('❌ getCategoryBasedEvents error:', err);
+    throw err;
+  }
+};
+export const getPopularEvents = async (limit = 10): Promise<{
+  success: boolean;
+  data: { count: number; events: NearbyEvent[] };
+}> => {
+  try {
+    const res = await api.get(`/tickets/popular-events?limit=${limit}`);
+    return res.data;
+  } catch (err) {
+    console.error('❌ getPopularEvents error:', err);
     throw err;
   }
 };
