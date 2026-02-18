@@ -1,508 +1,227 @@
 'use client';
-import { useState, useEffect, useCallback} from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { EventWithLocation } from '@/types/ticket';
-import { getEventStats, toggleLike, shareEvent } from '@/services/transactionService';
+import { getEventStats, toggleLike } from '@/services/transactionService';
 import { useAuth } from '@/hooks/useAuth';
-import { 
-  MapPin, 
-  Calendar, 
-  Clock, 
-  Users, 
-  Tag,
-  Globe,
-  MapPinned,
-  Video,
-  Heart,
-  TrendingUp,
-  Share2,
-  Ticket
-} from 'lucide-react';
-import { Card } from '@/components/ui/Card';
+import { Calendar, MapPin, Heart } from 'lucide-react';
+
 interface EventCardProps {
   event: EventWithLocation;
   showDistance?: boolean;
 }
+
 export function EventCard({ event, showDistance = false }: EventCardProps) {
   const router = useRouter();
   const { user } = useAuth();
-  const [eventStats, setEventStats] = useState<any>(null);
   const [isLiked, setIsLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Derived values from stats
-  const likeCount = eventStats ? (eventStats.like || eventStats.likes || 0) : 0;
-  const shareCount = eventStats ? (eventStats.share || eventStats.shares || 0) : 0;
-  const totalBookings = eventStats?.totalBookings ?? 0;
-  
-  const normalizeStats = (stats: any) => ({
-    like: stats?.like ?? stats?.likes ?? 0,
-    likes: stats?.likes ?? stats?.like ?? 0,
-    share: stats?.share ?? stats?.shares ?? 0,
-    shares: stats?.shares ?? stats?.share ?? 0,
-    totalBookings: stats?.totalBookings ?? 0,
-    ...stats,
-  });
+
   const fetchStats = useCallback(async () => {
     try {
       const response = await getEventStats(event._id);
       if (response.success && response.data) {
         const stats = response.data.stats;
-        const normalized = {
-          like: stats.like ?? stats.likes ?? 0,
-          likes: stats.likes ?? stats.like ?? 0,
-          share: stats.share ?? stats.shares ?? 0,
-          shares: stats.shares ?? stats.share ?? 0,
-          totalBookings: stats.totalBookings ?? 0,
-          totalRevenue: stats.totalRevenue ?? 0,
-          totalTicketsSold: stats.totalTicketsSold ?? 0,
-          views: stats.views ?? stats.view ?? 0,
-          saves: stats.saves ?? stats.save ?? 0,
-        };        
-        setEventStats(normalized);
+        setLikeCount(stats.like ?? stats.likes ?? 0);
         setIsLiked(response.data?.userInteractions?.liked ?? false);
       }
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-      // Set default stats on error
-      setEventStats({
-        like: 0,
-        likes: 0,
-        share: 0,
-        shares: 0,
-        totalBookings: 0,
-        totalRevenue: 0,
-        totalTicketsSold: 0,
-        views: 0,
-        saves: 0,
-      });
+    } catch {
+      // silent fail — stats are non-critical
     }
   }, [event._id]);
-  const handleLikeClick = async (e: any) => {
-    e.stopPropagation();
-    
-    if (!user) {
-      alert('Please login to like events');
-      return;
-    }
-    
-    if (isLoading) return;
-    
-    setIsLoading(true);
-    
-    // Save current state for rollback
-    const prevLiked = isLiked;
-    const prevStats = eventStats;
-    
-    try {
-      // Optimistically update UI
-      setIsLiked(!prevLiked);
-      
-      setEventStats((prev: any) => {
-        if (!prev) return prev;
-        const delta = !prevLiked ? 1 : -1;
-        const newLikes = Math.max(0, (prev.like || 0) + delta);
-  
-        return {
-          ...prev,
-          like: newLikes,
-          likes: newLikes,
-        };
-      });
-      
-      // Call API to update database
-      const response = await toggleLike(event._id);      
-      // ✅ FIXED: Wait a bit for database to sync, then refresh stats
-      setTimeout(async () => {
-        await fetchStats();
-      }, 300);
-      
-    } catch (err: any) {
-      // Revert on error
-      console.error('Error toggling like:', err);
-      setIsLiked(prevLiked);
-      setEventStats(prevStats);
-      alert(err.response?.data?.message || 'Failed to like event');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  const handleShareClick = async (e: any) => {
-    e.stopPropagation();
-    
-    if (!user) {
-      alert('Please login to share events');
-      return;
-    }
-    
-    if (isLoading) return;
-    
-    setIsLoading(true);
-    
-    // Save current state for rollback
-    const prevStats = eventStats;
-    
-    try {
-      const url = `${window.location.origin}/events/${event._id}`;
-      let shareMethod = 'clipboard';
-      
-      // Try native share API first
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: event.event_name,
-            text: event.event_description || '',
-            url,
-          });
-          shareMethod = 'native';
-        } catch (shareErr: any) {
-          if (shareErr.name !== 'AbortError') {
-            throw shareErr;
-          }
-          return; // User cancelled
-        }
-      }
-      // Fallback to clipboard
-      if (shareMethod === 'clipboard' && navigator.clipboard) {
-        await navigator.clipboard.writeText(url);
-        alert('Event link copied to clipboard!');
-      }
-      // Optimistically update UI
-      setEventStats((prev: any) => {
-        if (!prev) return prev;
-        const newShares = (prev.share || 0) + 1;
-  
-        return {
-          ...prev,
-          share: newShares,
-          shares: newShares,
-        };
-      });
-      
-      // Call API to update database
-      await shareEvent(event._id, shareMethod);      
-      // ✅ FIXED: Refresh stats after share
-      setTimeout(async () => {
-        await fetchStats();
-      }, 300);
-    } catch (err: any) {
-      console.error('Error sharing event:', err);
-      setEventStats(prevStats);
-      if (err.name !== 'AbortError') {
-        alert(err.response?.data?.message || 'Failed to share event');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  const handleCardClick = () => {
-    router.push(`/events/${event._id}`);
-  };
-  // Format date
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric'
-      });
-    } catch {
-      return dateString;
-    }
-  };
+
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
 
-  // Get event start date
-  const getEventStartDate = () => {
-    if (event.event_dates && event.event_dates.length > 0) {
-      return formatDate(event.event_dates[0].start_date);
-    }
-    return 'Date TBA';
-  };
-
-  // Get event start time
-  const getEventStartTime = () => {
-    if (event.event_dates && event.event_dates.length > 0 && event.event_dates[0].start_time) {
-      return event.event_dates[0].start_time;
-    }
-    return null;
-  };
-
-  // Get location icon based on location type
-  const getLocationIcon = () => {
-    switch (event.location_type) {
-      case 'online':
-        return <Globe className="w-4 h-4" />;
-      case 'recorded':
-        return <Video className="w-4 h-4" />;
-      case 'offline':
-      default:
-        return <MapPinned className="w-4 h-4" />;
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user || isLoading) return;
+    setIsLoading(true);
+    const prev = isLiked;
+    setIsLiked(!prev);
+    setLikeCount((c) => Math.max(0, c + (prev ? -1 : 1)));
+    try {
+      await toggleLike(event._id);
+      setTimeout(fetchStats, 300);
+    } catch {
+      setIsLiked(prev);
+      setLikeCount((c) => Math.max(0, c + (prev ? 1 : -1)));
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Get location display text
-  const getLocationText = () => {
-    if (event.location_type === 'online') {
-      return 'Online Event';
+  const formatDate = (ds: string) => {
+    try {
+      return new Date(ds).toLocaleDateString('en-US', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return ds;
     }
-    if (event.location_type === 'recorded') {
-      return 'Recorded Event';
-    }
-    return event.location || event.venue || 'Location TBA';
   };
 
-  // Get ticket price range
-  const getPriceDisplay = () => {
-    if (event.payment_type === 'free') {
-      return 'FREE';
-    }
-    
-    if (event.ticket_types && event.ticket_types.length > 0) {
-      const prices = event.ticket_types.map(t => t.ticket_price).filter(p => p > 0);
-      if (prices.length === 0) return 'FREE';
-      
-      const minPrice = Math.min(...prices);
-      const maxPrice = Math.max(...prices);
-      
-      if (minPrice === maxPrice) {
-        return `₹${minPrice}`;
-      }
-      return `₹${minPrice} - ₹${maxPrice}`;
-    }
-    
-    return 'Price TBA';
-  };
+  const startDate =
+    event.event_dates?.[0]?.start_date
+      ? formatDate(event.event_dates[0].start_date)
+      : 'Date TBA';
 
-  // Get total capacity
-  const getCapacity = () => {
-    if (event.total_capacity) {
-      return event.total_capacity;
-    }
-    if (event.ticket_types && event.ticket_types.length > 0) {
-      const total = event.ticket_types.reduce((sum, t) => sum + (t.max_capacity || 0), 0);
-      return total > 0 ? total.toString() : null;
-    }
-    return null;
-  };
+  const locationText =
+    event.location_type === 'online'
+      ? 'Online Event'
+      : event.location_type === 'recorded'
+      ? 'Recorded'
+      : (event.location || event.venue || 'Location TBA');
+
+  // Trim long location string
+  const trimmed = (s: string, max = 18) =>
+    s.length > max ? s.slice(0, max) + '…' : s;
+
+  const guests = event.guests?.slice(0, 4) ?? [];
 
   return (
-    <Card 
-      className="group cursor-pointer hover:shadow-xl transition-all duration-300 overflow-hidden h-full flex flex-col"
-      onClick={handleCardClick}
+    // Card: 170x260, radius 12
+    <div
+      className="relative flex-shrink-0 cursor-pointer hover:scale-[1.02] transition-transform duration-200"
+      style={{
+        width: 170,
+        height: 260,
+        borderRadius: 12,
+        background: '#38383833',
+        border: '1px solid #3D4149',
+      }}
+      onClick={() => router.push(`/events/${event._id}`)}
     >
-      {/* Event Image */}
-      <div className="relative w-full h-48 bg-gradient-to-br from-blue-100 to-purple-100 overflow-hidden">
+      {/* Image: 158x133, top:6, left:6, radius 6 */}
+      <div
+        className="absolute overflow-hidden"
+        style={{ top: 6, left: 6, width: 158, height: 133, borderRadius: 6 }}
+      >
         {event.event_banner ? (
           <img
             src={event.event_banner}
             alt={event.event_name}
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+            className="w-full h-full object-cover"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Calendar className="w-16 h-16 text-gray-400" />
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #2D3139 0%, #1C2024 100%)' }}
+          >
+            <Calendar className="w-8 h-8 text-white/20" />
           </div>
         )}
-        
-        {/* Distance Badge */}
-        {showDistance && event.distance !== null && event.distance !== undefined && (
-          <div className="absolute top-3 right-3 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg flex items-center gap-1">
-            <MapPin className="w-4 h-4" />
+
+        {/* Distance badge */}
+        {showDistance && event.distance != null && (
+          <div
+            className="absolute bottom-2 left-2 text-[10px] font-bold text-white px-2 py-0.5 rounded-full"
+            style={{ background: 'rgba(88,96,219,0.85)' }}
+          >
             {event.distance} km
           </div>
         )}
-
-        {/* Event Type Badge */}
-        <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold text-gray-700">
-          {event.event_type === 'public' ? 'Public' : 'Private'}
-        </div>
-        {/* Sub-Event Badge */}
-        {'isSubEvent' in event && event.isSubEvent && (
-          <div className="absolute top-3 left-3 mt-8 bg-purple-600/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold text-white">
-            Sub Event
-          </div>
-        )}
       </div>
-      {/* Event Details */}
-      <div className="p-4 flex-1 flex flex-col">
-        {/* Category */}
-        <div className="flex items-center gap-2 mb-2">
-          <Tag className="w-4 h-4 text-purple-600" />
-          <span className="text-sm font-medium text-purple-600">
-            {event.event_category}
+
+      {/* Like button: 34x34, top:9, left:127 (=6+158-37), radius:17 */}
+      <button
+        onClick={handleLike}
+        disabled={isLoading || !user}
+        className="absolute flex items-center justify-center transition-all"
+        style={{
+          top: 9,
+          left: 127,
+          width: 34,
+          height: 34,
+          borderRadius: 17,
+          background: 'rgba(28,32,36,0.75)',
+          backdropFilter: 'blur(6px)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          zIndex: 2,
+        }}
+      >
+        <Heart
+          className="w-4 h-4 transition-colors"
+          style={{ color: isLiked ? '#EF4444' : '#fff', fill: isLiked ? '#EF4444' : 'none' }}
+        />
+      </button>
+
+      {/* Text content below image: starts at 6+133+6 = 145 */}
+      <div
+        className="absolute px-2"
+        style={{ top: 145, left: 0, right: 0 }}
+      >
+        {/* Event name */}
+        <p
+          className="text-white font-semibold leading-tight mb-2 line-clamp-2"
+          style={{ fontSize: 11 }}
+        >
+          {event.event_name}
+        </p>
+
+        {/* Date — 138x16 */}
+        <div
+          className="flex items-center gap-1 mb-1"
+          style={{ width: 138, height: 16 }}
+        >
+          <Calendar className="flex-shrink-0" style={{ width: 10, height: 10, color: '#8860D9' }} />
+          <span className="text-white/60 truncate" style={{ fontSize: 10 }}>
+            {startDate}
           </span>
         </div>
 
-        {/* Event Name */}
-        <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
-          {event.event_name}
-        </h3>
-        {/* Show parent event name if it's a sub-event */}
-        {'isSubEvent' in event && event.isSubEvent && event.parentEventName && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
-            <span>Part of:</span>
-            <span className="font-medium text-purple-600">{event.parentEventName}</span>
-          </p>
-        )}
-        {/* Event Description */}
-        {event.event_description && (
-          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-            {event.event_description}
-          </p>
-        )}
-
-        {/* Event Info Grid */}
-        <div className="space-y-2 mb-4 flex-1">
-          {/* Date */}
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <Calendar className="w-4 h-4 text-gray-500 flex-shrink-0" />
-            <span className="truncate">
-              {getEventStartDate()}
-              {event.event_date_type === 'multi-day' && event.event_dates.length > 1 && (
-                <span className="text-xs text-gray-500 ml-1">
-                  ({event.event_dates.length} days)
-                </span>
-              )}
-            </span>
-          </div>
-
-          {/* Time */}
-          {getEventStartTime() && (
-            <div className="flex items-center gap-2 text-sm text-gray-700">
-              <Clock className="w-4 h-4 text-gray-500 flex-shrink-0" />
-              <span className="truncate">{getEventStartTime()}</span>
-            </div>
-          )}
-
-          {/* Location */}
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            {getLocationIcon()}
-            <span className="truncate">{getLocationText()}</span>
-          </div>
-
-          {/* Capacity */}
-          {getCapacity() && (
-            <div className="flex items-center gap-2 text-sm text-gray-700">
-              <Users className="w-4 h-4 text-gray-500 flex-shrink-0" />
-              <span>Capacity: {getCapacity()}</span>
-            </div>
-          )}
-
-          {/* Sub Events Count */}
-          {event.sub_events && event.sub_events.length > 0 && (
-            <div className="flex items-center gap-2 text-sm text-blue-600 font-medium">
-              <TrendingUp className="w-4 h-4" />
-              <span>{event.sub_events.length} Sub events</span>
-            </div>
-          )}      
-          {/* NEW: Show parent event name if it's a sub-event */}
-          {event.isSubEvent && event.parentEventName && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
-              <span>Part of:</span>
-              <span className="font-medium text-purple-600">{event.parentEventName}</span>
-            </p>
-          )}
-        </div>
-        {/* Action Buttons - Like, Share, Bookings */}
-        <div className="flex items-center gap-2 pt-3 border-t border-gray-200">
-          {/* Like Button */}
-          <button
-            onClick={handleLikeClick}
-            disabled={isLoading || !user}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex-1 justify-center ${
-              isLiked
-                ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-            } ${isLoading || !user ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            title={!user ? 'Login to like' : isLiked ? 'Unlike event' : 'Like event'}
-          >
-            <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-            <span>{likeCount}</span>
-          </button>
-
-          {/* Share Button */}
-          <button
-            onClick={handleShareClick}
-            disabled={isLoading || !user}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex-1 justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 ${
-              isLoading || !user ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-            }`}
-            title={!user ? 'Login to share' : 'Share event'}
-          >
-            <Share2 className="w-4 h-4" />
-            <span>{shareCount}</span>
-          </button>
-
-          {/* Bookings Count Button (Display only) */}
-          <div
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium flex-1 justify-center bg-green-50 text-green-600"
-            title="Total bookings"
-          >
-            <Ticket className="w-4 h-4" />
-            <span>{totalBookings}</span>
-          </div>
+        {/* Location — 138x16 */}
+        <div
+          className="flex items-center gap-1 mb-2"
+          style={{ width: 138, height: 16 }}
+        >
+          <MapPin className="flex-shrink-0" style={{ width: 10, height: 10, color: '#8860D9' }} />
+          <span className="text-white/60 truncate" style={{ fontSize: 10 }}>
+            {trimmed(locationText)}
+          </span>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-3 mt-2 border-t border-gray-200">
-          {/* Price */}
-          <div className="flex items-center gap-1">
-            <span className={`text-lg font-bold ${
-              event.payment_type === 'free' ? 'text-green-600' : 'text-gray-900'
-            }`}>
-              {getPriceDisplay()}
-            </span>
-          </div>
-
-          {/* View Details Button */}
-          <button
-            className="text-blue-600 hover:text-blue-700 font-semibold text-sm flex items-center gap-1 group-hover:gap-2 transition-all"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCardClick();
-            }}
-          >
-            View Details
-            <span className="group-hover:translate-x-1 transition-transform">→</span>
-          </button>
-        </div>
-        {/* Event Tags/Languages */}
-        {event.event_language && event.event_language.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-3">
-            {event.event_language.slice(0, 3).map((lang, idx) => (
-              <span
-                key={idx}
-                className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full"
+        {/* Guest avatars — 20x20, radius 100, border 2px */}
+        {guests.length > 0 && (
+          <div className="flex items-center" style={{ marginTop: 2 }}>
+            {guests.map((g, i) => (
+              <div
+                key={g._id}
+                className="overflow-hidden flex-shrink-0"
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 100,
+                  border: '2px solid #38383833',
+                  marginLeft: i === 0 ? 0 : -6,
+                  background: '#2D3139',
+                  zIndex: guests.length - i,
+                  position: 'relative',
+                }}
               >
-                {lang}
-              </span>
+                {g.guest_profile ? (
+                  <img
+                    src={g.guest_profile}
+                    alt={g.guest_name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full flex items-center justify-center text-white font-bold"
+                    style={{ fontSize: 7, background: '#5B6AD9' }}
+                  >
+                    {g.guest_name?.charAt(0)?.toUpperCase()}
+                  </div>
+                )}
+              </div>
             ))}
-            {event.event_language.length > 3 && (
-              <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
-                +{event.event_language.length - 3}
-              </span>
-            )}
           </div>
         )}
-
-        {/* Event Features */}
-        <div className="flex gap-2 mt-2">
-          {event.kids_friendly && (
-            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-              👶 Kids Friendly
-            </span>
-          )}
-          {event.pet_friendly && (
-            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
-              🐾 Pet Friendly
-            </span>
-          )}
-        </div>
       </div>
-    </Card>
+    </div>
   );
 }
