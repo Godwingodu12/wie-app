@@ -84,6 +84,12 @@ const LiveAddOnEventView = () => {
   const [selectedGuest, setSelectedGuest] = useState(null);
   const [currentGuideIndex, setCurrentGuideIndex] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+  const dateOptions = { month: "short", day: "numeric" };
+  const eventDates = eventData?.event_dates || [];
+  const rawStart = eventDates[0]?.start_date;
+  const lastEntry = eventDates[eventDates.length - 1];
+  const rawEnd   = lastEntry?.end_date || lastEntry?.start_date;
+
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
@@ -217,7 +223,7 @@ const LiveAddOnEventView = () => {
       creator: eventData.created_by || "Unknown Creator",
       // These fields are now fetched from getEventMetrics, falling back to eventData or defaults
       totalRevenue: metrics?.totalRevenue ?? eventData.total_revenue ?? "0",
-      totalBooking: metrics?.totalBooking ?? eventData.total_bookings ?? "0",
+      totalBooking: metrics?.totalTicketsSold ?? eventData.totalTicketsSold ?? "0",
       totalLikes: metrics?.totalLikes ?? eventData.like ?? "0",
       totalShare: metrics?.totalShare ?? eventData.share_count ?? "0",
       totalCancellation: metrics?.total_cancellation ?? eventData.total_cancellations ?? "0",
@@ -616,15 +622,28 @@ useEffect(() => {
       </div>
     );
   }
-  const formattedDate = eventData?.event_dates?.[0]?.start_date
-    ? new Date(eventData.event_dates[0].start_date).toLocaleDateString(
-      "en-US",
-      {
-        month: "short",
-        day: "numeric",
-      },
-    )
+
+  const formattedDate    = rawStart
+  ? new Date(rawStart).toLocaleDateString("en-US", dateOptions)
+  : "N/A";
+  const formattedEndDate = rawEnd
+    ? new Date(rawEnd).toLocaleDateString("en-US", dateOptions)
     : "N/A";
+
+  const isSameDay =
+    formattedDate !== "N/A" &&
+    formattedEndDate !== "N/A" &&
+    formattedDate === formattedEndDate;
+
+  const formattedDateLabel =
+    formattedDate === "N/A"
+      ? "N/A"
+      : isSameDay
+      ? formattedDate                              
+      : formattedEndDate !== "N/A"
+      ? `${formattedDate} – ${formattedEndDate}` 
+      : formattedDate;                            
+
   return (
     <>
       <style>{`
@@ -738,7 +757,7 @@ useEffect(() => {
                 <button
                   className={`px-6 py-2 rounded-full text-sm font-medium transition-colors ${theme.inactivePill} ml-auto lg:ml-0 text-blue-500`}
                 >
-                  January 22 - January 29
+                  {formattedDateLabel}
                 </button>
               </div>
             </div>
