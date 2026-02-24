@@ -382,6 +382,35 @@ const CreateTicket = () => {
     const fullUrl = `${API_BASE_URL}/${cleanPath}`;
     return fullUrl;
   };
+  const sanitizeEditorHtml = (html) => {
+    const temp = document.createElement("div");
+    temp.innerHTML = html;
+
+    temp.querySelectorAll("*").forEach((el) => {
+      Array.from(el.attributes).forEach((attr) => {
+        if (attr.name.startsWith("data-")) {
+          el.removeAttribute(attr.name);
+        }
+      });
+      el.removeAttribute("class");
+      el.removeAttribute("style");
+    });
+    temp.querySelectorAll("p p").forEach((innerP) => {
+      const parent = innerP.parentNode;
+      while (innerP.firstChild) {
+        parent.insertBefore(innerP.firstChild, innerP);
+      }
+      parent.removeChild(innerP);
+    });
+
+    return (
+      temp.innerHTML
+        .replace(/\u200B/g, "")
+        .replace(/​/g, "") 
+        .replace(/<p>\s*<\/p>/g, "")
+        .trim()
+    );
+  };
   const loadExistingTicketData = async (ticketIdParam) => {
     try {
       if (!ticketIdParam) return null;
@@ -2696,12 +2725,23 @@ if (
                       <div
                         ref={descriptionEditorRef}
                         contentEditable="true"
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pastedHtml =
+                            e.clipboardData.getData("text/html") ||
+                            e.clipboardData.getData("text/plain").replace(/\n/g, "<br>");
+                          const clean = sanitizeEditorHtml(pastedHtml);
+                          document.execCommand("insertHTML", false, clean);
+                        }}
                         onInput={() => {
                           if (descriptionEditorRef.current) {
+                            const clean = sanitizeEditorHtml(
+                              descriptionEditorRef.current.innerHTML
+                            );
                             handleInputChange({
                               target: {
                                 name: "event_description",
-                                value: descriptionEditorRef.current.innerHTML,
+                                value: clean,
                               },
                             });
                           }
