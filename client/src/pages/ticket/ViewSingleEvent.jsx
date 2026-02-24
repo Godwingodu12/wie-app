@@ -27,7 +27,6 @@ import Rules from "../../assets/ViewSingleEvent/Rules.svg";
 import LeftIcon from "../../assets/ViewSingleEvent/LeftIcon.svg";
 import RightIcon from "../../assets/ViewSingleEvent/RightIcon.svg";
 import Bank_Details from "../../assets/ViewSingleEvent/Bank_Details.svg";
-
 import {
   getTicketById,
   getGroupView,
@@ -59,7 +58,6 @@ import ConfirmModal from "../../components/Modal";
 import Alert from "../../components/Alert";
 import RulesModal from "../../components/ViewSingleEvent/RulesModal";
 import ScrollBarStyle from "../../components/ScrollBarStyle";
-
 import POCDetailModal from "../../components/ViewSingleEvent/POCDetailModal";
 import HashtagModal from "../../components/ViewSingleEvent/HashtagModal";
 import DateInformationModal from "../../components/ViewSingleEvent/DateInformationModal";
@@ -114,7 +112,9 @@ const ViewSingleEvent = () => {
   const [groupData, setGroupData] = useState(null);
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
+  const descriptionRef = useRef(null);
+  const [descriptionOverflows, setDescriptionOverflows] = useState(false);
+  const [showFullDescription, setShowFullDescription] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState(null);
 
@@ -371,7 +371,6 @@ const ViewSingleEvent = () => {
     };
   }, [eventData]);
 
-  // ADDED: useEffect for responsiveness
   useEffect(() => {
     const handleResize = () => {
       setViewportWidth(window.innerWidth);
@@ -381,6 +380,13 @@ const ViewSingleEvent = () => {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    if (descriptionRef.current) {
+      const el = descriptionRef.current;
+      setDescriptionOverflows(el.scrollHeight > el.clientHeight);
+    }
+  }, [eventData?.event_description]);
 
   const seatingEvents = useMemo(() => {
     if (!eventData) return [];
@@ -956,7 +962,6 @@ const ViewSingleEvent = () => {
             type="edit"
             groupId={groupId}
             ticketId={ticketId}
-            // Note: Corrected prop name to setAppAlert (lowercase 'a' in Alert)
             setAppAlert={setAppAlert}
           />
           <ActionCircleButton
@@ -1015,15 +1020,39 @@ const ViewSingleEvent = () => {
               </h2>
             </div>
             <div className="md:flex space-y-4 md:space-y-0 lg:space-x-6 space-x-3  mb-4">
-              <div
-                style={{
-                  borderRadius: "31.15px",
-                  boxShadow: `6.23px 6.23px 12.46px 0px #0000002E inset, -6.23px -6.23px 12.46px 0px #FFFFFF14 inset`,
-                }}
-                className={`p-4 ${theme.textColor} leading-relaxed text-sm flex-grow rounded-3xl  `}
-              >
-                {eventData.event_description ||
-                  "A detailed description of the event will appear here."}
+              <div className="flex flex-col flex-grow min-h-0">
+                <div
+                  ref={descriptionRef}
+                  style={{
+                    borderRadius: "31.15px",
+                    boxShadow: `6.23px 6.23px 12.46px 0px #0000002E inset, -6.23px -6.23px 12.46px 0px #FFFFFF14 inset`,
+                    maxHeight: showFullDescription ? "260px" : "130px",
+                    overflowY: showFullDescription ? "auto" : "hidden",
+                    transition: "max-height 0.3s ease",
+                  }}
+                  className={`p-4 ${theme.textColor} leading-relaxed text-sm rounded-3xl custom-scrollbar
+                    [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-2
+                    [&_li]:mb-1 [&_strong]:font-bold [&_em]:italic [&_u]:underline
+                  `}
+                >
+                  {eventData.event_description ? (
+                    <div dangerouslySetInnerHTML={{ __html: eventData.event_description }} />
+                  ) : (
+                    <span className="italic text-gray-500">
+                      A detailed description of the event will appear here.
+                    </span>
+                  )}
+                </div>
+                {descriptionOverflows && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFullDescription((prev) => !prev)}
+                    className="mt-1 text-xs font-semibold self-start pl-1 transition-colors duration-200"
+                    style={{ color: "#5E5CE6" }}
+                  >
+                    {showFullDescription ? "See less ▲" : "See more ▼"}
+                  </button>
+                )}
               </div>
               <div className="flex justify-between">
                 <Card
@@ -1071,16 +1100,17 @@ const ViewSingleEvent = () => {
                     </p>
                   </div>
                 </Card>
-                <div className="flex md:hidden pt-8">
+                <div className="flex md:hidden items-start pt-0 -mt-1">
                   <div
                     onClick={() => handleGroupLogoClick(groupData)}
-                    className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0 cursor-pointer transition-transform duration-200 active:scale-95"
+                    className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 cursor-pointer transition-transform duration-200 active:scale-95"
                     style={{ boxShadow: theme.shadowOutset }}
+                    title="View Group"
                   >
                     <img
                       src={getImageUrl(groupData?.company_logo)}
                       alt="Group Logo"
-                      className="w-full h-full rounded-full object-cover opacity-70 p-1"
+                      className="w-full h-full rounded-full object-cover opacity-80 p-0.5"
                     />
                   </div>
                 </div>
@@ -1240,17 +1270,17 @@ const ViewSingleEvent = () => {
                   </div>
                 </div>
               </div>
-              {/* Desktop logo */}
-              <div className="hidden md:flex w-1/4 lg:2/5 lg:px-8 lg:pt-10  pt-7">
+              <div className="hidden md:flex w-1/4 lg:w-1/5 items-start justify-center pt-1">
                 <div
                   onClick={() => handleGroupLogoClick(groupData)}
-                  className="h-20 w-20 xl:h-28 xl:w-28 rounded-full overflow-hidden flex-shrink-0 cursor-pointer transition-transform duration-200 hover:scale-105"
+                  className="h-14 w-14 xl:h-16 xl:w-16 rounded-full overflow-hidden flex-shrink-0 cursor-pointer transition-transform duration-200 hover:scale-110 -mt-2"
                   style={{ boxShadow: theme.shadowOutset }}
+                  title="View Group"
                 >
                   <img
                     src={getImageUrl(groupData?.company_logo)}
                     alt="Group Logo"
-                    className="w-full h-full rounded-full object-cover opacity-70 p-1"
+                    className="w-full h-full rounded-full object-cover opacity-80 p-0.5"
                   />
                 </div>
               </div>
@@ -1316,7 +1346,6 @@ const ViewSingleEvent = () => {
                       </div>
                     )}
                   </div>
-
                   <div className="flex-grow pl-2" onClick={handleLocationClick}>
                     <p
                       className={`lg::text-xl text-sm md:font-bold mb-0.5 ${theme.textColor}`}
@@ -1330,9 +1359,7 @@ const ViewSingleEvent = () => {
                       {eventData.venue}
                     </p>
                   </div>
-
                   <div className="md:w-[1px] h-10 bg-gray-700 md:mx-2 flex-shrink-0 hidden md:block"></div>
-
                   <div className="text-right flex-shrink-0 pr-2 lg:pr-3 w-1/4 lg:w-1/5">
                     <div className="flex flex-col items-center cursor-pointer space-y-2 transition-transform duration-200 hover:scale-[1.02]">
                       <div
@@ -1358,7 +1385,6 @@ const ViewSingleEvent = () => {
                 </div>
               </div>
             </div>
-
             {allEventsAndSubEvents.length > 1 ? (
               <div className="w-full">
                 <h3 className={`text-lg font-semibold mb-1 ${theme.textColor}`}>
