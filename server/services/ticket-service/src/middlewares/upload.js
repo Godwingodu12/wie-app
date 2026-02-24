@@ -9,7 +9,7 @@ const storage = multer.memoryStorage();
 
 // File type validation
 const generalFileFilter = (req, file, cb) => {
-  const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp','.jfif'];
+  const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp','.jfif','.avif'];
   const videoTypes = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv'];
   const docTypes = ['.pdf', '.doc', '.docx'];
   const allowed = [...imageTypes, ...videoTypes, ...docTypes];
@@ -39,7 +39,7 @@ const generalFileFilter = (req, file, cb) => {
 };
 const ticketMediaFileFilter = (req, file, cb) => {
   try {
-    const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp','.jfif'];
+    const imageTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp','.jfif','.avif'];
     const videoTypes = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
     const docTypes = ['.pdf', '.doc', '.docx'];
     
@@ -52,6 +52,8 @@ const ticketMediaFileFilter = (req, file, cb) => {
         'image/png': '.png',
         'image/gif': '.gif',
         'image/webp': '.webp',
+        'image/jfif': '.jfif',
+        'image/avif': '.avif',
         'video/mp4': '.mp4',
         'video/avi': '.avi',
         'video/mov': '.mov',
@@ -86,8 +88,8 @@ const ticketMediaFileFilter = (req, file, cb) => {
         allowed: imageTypes,
         errorMsg: 'Event banner must be an image file (JPG, JPEG, PNG, GIF, WEBP)'
       },
-      ticket_layout: {  // ✅ THIS MUST BE HERE
-        allowed: [...imageTypes, ...docTypes],  // ✅ Accept both images and PDFs
+      ticket_layout: {  
+        allowed: [...imageTypes, ...docTypes], 
         errorMsg: 'Ticket layout must be an image file (JPG, JPEG, PNG, GIF, WEBP) or PDF'
       },
       event_portrait: {
