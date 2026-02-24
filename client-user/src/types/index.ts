@@ -2,6 +2,8 @@ export interface User {
   id: string;
   email?: string | null;
   contact_no?: string | null;
+  gender?: string | null;
+  dob?: string | Date | null;
   name?: string | null;
   username?: string | null;
   profile_picture?: string | null;

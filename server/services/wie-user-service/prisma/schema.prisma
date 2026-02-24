@@ -2,11 +2,13 @@ generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
+
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")      # Uses PgBouncer for queries
-  directUrl = env("DIRECT_URL")        # Bypasses PgBouncer for migrations
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
+
 model Country {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   countryCode String    @unique @map("country_code") @db.VarChar(10)
@@ -48,6 +50,8 @@ model WieUser {
   allowMessagesFrom    String     @default("everyone") @map("allow_messages_from") @db.VarChar(20)
   lastSeenAt           DateTime?  @map("last_seen_at") @db.Timestamp(6)
   accountPrivacy       String     @default("public") @map("account_privacy") @db.VarChar(20)
+  dob                  DateTime?  @db.Date
+  gender               String?    @db.VarChar(20)
   otps                 Otp[]
   mutedMe              UserMute[] @relation("MutedRelation")
   mutedByMe            UserMute[] @relation("MuterRelation")

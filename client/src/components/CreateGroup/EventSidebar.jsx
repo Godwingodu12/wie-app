@@ -42,15 +42,15 @@ const EventSidebar = ({
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { navigationSteps } = useMemo(() => {
-    // Logic to determine if the Add Shows flow should be included
+  const { navigationSteps, isAddShowFlow } = useMemo(() => {
     const hasCompletedAddOnStep = formProgress?.add_on_events === true;
-    // Check if the user is currently editing a step equal to or past the Media step (Step 3)
-    const isOnAddOnRoute = location.pathname.includes("/update-ticket-addons/");
+    const isAddOnFlowActive =
+      check === true ||
+      hasCompletedAddOnStep ||
+      formProgress?.basic_info === true;
 
-    const isAddOnFlowActive = hasCompletedAddOnStep || isOnAddOnRoute;
     const useAddOnFlow = isAddOnFlowActive;
-    let steps = [
+    const steps = [
       {
         id: 1,
         name: "Group creation",
@@ -93,17 +93,15 @@ const EventSidebar = ({
       });
     }
 
-    const termsId = steps.length + 1;
-
     steps.push({
-      id: termsId,
+      id: useAddOnFlow ? 6 : 5,
       name: "Terms & conditions",
       icon: TcIcon,
       route: ticketId ? `/ticket/ticket-terms/${ticketId}` : "#",
     });
 
     return { isAddShowFlow: useAddOnFlow, navigationSteps: steps };
-  }, [formProgress, ticketId, groupId, check, location.pathname]);
+  }, [formProgress, ticketId, groupId, check]);
 
   const { currentStep, completedSteps } = useMemo(() => {
     let activeStep = 1;
@@ -121,30 +119,22 @@ const EventSidebar = ({
       }
     });
 
-    const addShowsStep = navigationSteps.find(
-      (step) => step.name === "Add shows"
-    );
-    const termsStep = navigationSteps.find(
-      (step) => step.name === "Terms & conditions"
-    );
-
     const completed = {
-      1: !!groupId,
+      1: true,
       2: formProgress?.basic_info || false,
       3: formProgress?.media || false,
       4: formProgress?.banking_tickets || false,
     };
 
-    // Dynamically map completion status for Add Shows and Terms
-    if (addShowsStep) {
-      completed[addShowsStep.id] = formProgress?.add_on_events || false;
-    }
-    if (termsStep) {
-      completed[termsStep.id] = formProgress?.terms_conditions || false;
+    if (isAddShowFlow) {
+      completed[5] = formProgress?.add_on_events || false;
+      completed[6] = formProgress?.terms_conditions || false;
+    } else {
+      completed[5] = formProgress?.terms_conditions || false;
     }
 
     return { currentStep: activeStep, completedSteps: completed };
-  }, [location.pathname, formProgress, navigationSteps, groupId]);
+  }, [location.pathname, formProgress, navigationSteps, isAddShowFlow]);
 
   const handleBack = onBackClick || (() => navigate(-1));
 
@@ -159,10 +149,7 @@ const EventSidebar = ({
     const activeStepIndex = navigationSteps.findIndex(
       (step) => step.id === currentStep
     );
-    // Ensure index is valid before calculating progress
-    if (activeStepIndex !== -1) {
-      progress = Math.round((activeStepIndex / totalSteps) * 100);
-    }
+    progress = Math.round((activeStepIndex / totalSteps) * 100);
   }
 
   const circumference = 2 * Math.PI * 50;
@@ -171,7 +158,7 @@ const EventSidebar = ({
   return (
     <div
       className={`hidden lg:flex w-[300px] p-6 flex-col transition-colors duration-300 sticky top-0 h-screen overflow-y-auto main-scrollbar ${
-        darkMode ? "bg-[#010101]" : "bg-[#F5F5F5]"
+        darkMode ? "bg-[#010101]" : "bg-[F5F5F5]"
       }`}
     >
       {/* --- Header & Back Button --- */}
@@ -214,7 +201,7 @@ const EventSidebar = ({
               strokeDasharray={circumference}
               strokeDashoffset={progressOffset}
               className={`${
-                darkMode ? "text-[#3EB489]" : "text-[#3EB489]"
+                darkMode ? "text-[#22C55E]" : "text-[#22C55E]"
               } transition-all duration-500`}
             />
           </svg>
@@ -243,28 +230,35 @@ const EventSidebar = ({
           const isActive = currentStep === step.id;
           const isCompleted = completedSteps[step.id];
           const stepIndex = navigationSteps.findIndex((s) => s.id === step.id);
-          const isPreviousCompleted =
-            step.id === 1
-              ? true
-              : completedSteps[navigationSteps[stepIndex - 1].id];
+          const previousStepCompleted =
+            stepIndex > 0
+              ? completedSteps[navigationSteps[stepIndex - 1].id]
+              : false;
 
-          const isAllowed = step.id === 1 || isCompleted || isPreviousCompleted;
+          const isAllowed =
+            step.id === 1 || isCompleted || previousStepCompleted;
           const hasRoute = step.route !== "#";
-          const isStepOne = step.id === 1;
-          const isInteractive =
-            !isStepOne && isAllowed && hasRoute && currentStep !== step.id;
+          const isInteractive = isAllowed && hasRoute && step.id !== 1;
+
           return (
             <div
               key={step.id}
-              className={`flex items-center justify-between -mx-6 px-6 py-3 rounded-lg transition-colors ${
-                isInteractive
-                  ? darkMode
-                    ? "hover:bg-gray-800 cursor-pointer"
-                    : "hover:bg-gray-100 cursor-pointer"
-                  : "cursor-not-allowed opacity-60"
-              } ${
-                isActive ? (darkMode ? "bg-gray-800" : "bg-[#00000033]") : ""
-              }`}
+              className={`relative flex items-center justify-between -mx-6 px-6 py-3 rounded-lg transition-all duration-200
+                ${
+                  isInteractive
+                    ? darkMode
+                      ? "hover:bg-gray-800 cursor-pointer"
+                      : "hover:bg-gray-200 cursor-pointer"
+                    : "cursor-not-allowed opacity-60"
+                }
+                ${
+                  isActive
+                    ? darkMode
+                       ? "bg-[#123f2a] border-l-4 border-[#22C55E]"
+                      : "bg-[#ECFDF5] border-l-[6px] border-[#22C55E] shadow-[inset_4px_0_0_0_#22C55E] shadow-sm"
+                    : ""
+                }
+              `}
               onClick={() => {
                 if (isInteractive) navigate(step.route);
               }}
@@ -273,24 +267,28 @@ const EventSidebar = ({
                 <img
                   src={step.icon}
                   alt="Step Icon"
-                  className={`w-5 h-5 ${
+                  className={`w-5 h-5 transition-all ${
                     isActive || isCompleted
                       ? "filter-green"
                       : darkMode
                       ? "opacity-30"
-                      : "filter-gray-900"
+                      : "opacity-50"
                   }`}
                 />
                 <span
-                  className={`font-medium text-sm ${
-                    isActive || isCompleted
-                      ? darkMode
-                        ? "text-[#3EB489]"
-                        : "text-[#3EB489]"
-                      : darkMode
-                      ? "text-gray-500"
-                      : "text-gray-400"
-                  }`}
+                  className={`text-sm transition-all
+                    ${
+                      isActive
+                        ? "text-[#22C55E] font-bold"
+                        : isCompleted
+                        ? darkMode
+                          ? "text-[#22C55E] font-medium"
+                          : "text-gray-700 font-medium"
+                        : darkMode
+                        ? "text-gray-500"
+                        : "text-gray-500"
+                    }
+                  `}
                 >
                   {step.name}
                 </span>
@@ -331,10 +329,10 @@ const EventSidebar = ({
         })}
       </nav>
       <style>{`
-            .filter-green { filter: invert(58%) sepia(56%) saturate(543%) hue-rotate(88deg) brightness(99%) contrast(92%); }
-            .filter-green-dark { filter: invert(34%) sepia(27%) saturate(1637%) hue-rotate(89deg) brightness(97%) contrast(91%); }
-            .filter-gray-900 { filter: invert(10%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%); }
-         `}</style>
+        .filter-green {filter: invert(56%) sepia(96%) saturate(380%) hue-rotate(96deg) brightness(104%) contrast(95%);}
+        .filter-green-dark { filter: invert(34%) sepia(27%) saturate(1637%) hue-rotate(89deg) brightness(97%) contrast(91%); }
+        .filter-gray-900 { filter: invert(10%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%); }
+      `}</style>
     </div>
   );
 };

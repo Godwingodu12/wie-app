@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Lock, Shield, Eye, ChevronRight, CheckCircle, X, Globe, Loader2 } from 'lucide-react';
 import { getAccountPrivacy, updateAccountPrivacy } from '@/services/wieUserService';
+import { useTheme } from '@/components/home/ThemeContext';
 
 export default function PrivacyPage() {
   const searchParams = useSearchParams();
@@ -12,6 +13,8 @@ export default function PrivacyPage() {
   const [accountPrivacy, setAccountPrivacy] = useState<'public' | 'private'>('public');
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+
+  const { isDark, themeStyles } = useTheme();
 
   useEffect(() => {
     const success = searchParams.get('success');
@@ -23,61 +26,38 @@ export default function PrivacyPage() {
       return () => clearTimeout(timer);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    fetchAccountPrivacy();
+  }, []);
+
   const fetchAccountPrivacy = async () => {
     try {
       setLoading(true);
       const res = await getAccountPrivacy();
-      
-      const privacy = res.accountPrivacy || 'public';      
-      if (privacy !== 'public' && privacy !== 'private') {
-        setAccountPrivacy('public');
-      } else {
-        setAccountPrivacy(privacy as 'public' | 'private');
-      }
+      setAccountPrivacy(res.accountPrivacy as 'public' | 'private');
     } catch (error) {
       console.error('Failed to fetch account privacy:', error);
-      setAccountPrivacy('public');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchAccountPrivacy();
-  }, []);
   const handleTogglePrivacy = async () => {
     const newPrivacy = accountPrivacy === 'public' ? 'private' : 'public';
-    
+
     try {
       setUpdating(true);
-      const response = await updateAccountPrivacy({ accountPrivacy: newPrivacy });
-      
-      // ✅ FIXED: Properly extract the accountPrivacy from response
-      const updatedPrivacy = response.accountPrivacy || newPrivacy;
-      
-      // ✅ Validate the response before setting state
-      if (updatedPrivacy === 'public' || updatedPrivacy === 'private') {
-        setAccountPrivacy(updatedPrivacy as 'public' | 'private');
-      } else {
-        console.error('Invalid privacy value from API:', updatedPrivacy);
-        setAccountPrivacy(newPrivacy); // Fallback to expected value
-      }
-      
-      // ✅ Show different messages based on privacy change
-      if (updatedPrivacy === 'private') {
-        setSuccessMessage(
-          'Your account is now private. New followers will need your approval.'
-        );
-      } else {
-        setSuccessMessage(
-          'Your account is now public. All pending follow requests have been automatically accepted.'
-        );
-      }
+      await updateAccountPrivacy({ accountPrivacy: newPrivacy });
+      setAccountPrivacy(newPrivacy);
+      setSuccessMessage(
+        newPrivacy === 'private'
+          ? 'Your account is now private. New followers will need your approval.'
+          : 'Your account is now public. Anyone can follow you without approval.'
+      );
     } catch (error: any) {
       console.error('Failed to update account privacy:', error);
       alert(error.response?.data?.message || 'Failed to update account privacy');
-      // ✅ Revert state on error
-      await fetchAccountPrivacy();
     } finally {
       setUpdating(false);
     }
@@ -89,49 +69,41 @@ export default function PrivacyPage() {
       description: 'Update your account password',
       icon: Lock,
       href: '/settings/privacy/change-password',
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
     },
     {
       title: 'Two-Factor Authentication',
       description: 'Add an extra layer of security',
       icon: Shield,
       href: '/settings/privacy/two-factor',
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
     },
     {
       title: 'Privacy Settings',
       description: 'Control who can see your information',
       icon: Eye,
       href: '/settings/privacy/visibility',
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
     },
   ];
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="w-full">
       <div className="mb-8">
-        <Link
-          href="/settings"
-          className="text-blue-600 hover:text-blue-700 text-sm font-medium mb-4 inline-block"
-        >
-          ← Back to Settings
-        </Link>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Privacy & Security</h1>
-        <p className="text-gray-600">Manage your account security and privacy</p>
+        <h2 className="text-2xl font-bold mb-2" style={{ color: themeStyles.text }}>
+          Privacy & Security
+        </h2>
+        <p style={{ color: themeStyles.textSecondary }}>
+          Manage your account security and privacy
+        </p>
       </div>
 
       {successMessage && (
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start justify-between gap-3">
+        <div className="mb-6 p-4 rounded-lg flex items-start justify-between gap-3 bg-green-500/10 border border-green-500/20">
           <div className="flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-            <p className="text-green-700 text-sm font-medium">{successMessage}</p>
+            <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+            <p className="text-green-500 text-sm font-medium">{successMessage}</p>
           </div>
           <button
             onClick={() => setSuccessMessage('')}
-            className="text-green-600 hover:text-green-700"
+            className="text-green-500 hover:text-green-600"
           >
             <X className="w-5 h-5" />
           </button>
@@ -139,28 +111,31 @@ export default function PrivacyPage() {
       )}
 
       {/* Account Privacy Toggle */}
-      <div className="mb-6 bg-white rounded-lg shadow border border-gray-200 p-6">
+      <div
+        className="mb-6 rounded-xl shadow-sm p-6 transition-colors"
+        style={{ background: themeStyles.cardBg, border: `1px solid ${themeStyles.border}` }}
+      >
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-4 flex-1">
-            <div className="bg-indigo-50 p-3 rounded-lg">
+            <div className="p-3 rounded-lg transition-colors" style={{ background: themeStyles.pillBg }}>
               {accountPrivacy === 'private' ? (
-                <Lock className="w-6 h-6 text-indigo-600" />
+                <Lock className="w-6 h-6" style={{ color: themeStyles.text }} />
               ) : (
-                <Globe className="w-6 h-6 text-indigo-600" />
+                <Globe className="w-6 h-6" style={{ color: themeStyles.text }} />
               )}
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              <h3 className="text-lg font-semibold mb-1" style={{ color: themeStyles.text }}>
                 Account Privacy
               </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                {accountPrivacy === 'private' 
+              <p className="text-sm mb-4" style={{ color: themeStyles.textSecondary }}>
+                {accountPrivacy === 'private'
                   ? 'Your account is private. Only approved followers can see your posts.'
                   : 'Your account is public. Anyone can see your posts and follow you.'}
               </p>
-              
+
               {loading ? (
-                <div className="flex items-center gap-2 text-gray-500">
+                <div className="flex items-center gap-2" style={{ color: themeStyles.textSecondary }}>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span className="text-sm">Loading...</span>
                 </div>
@@ -170,11 +145,19 @@ export default function PrivacyPage() {
                   disabled={updating}
                   className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
                     updating
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      ? 'opacity-50 cursor-not-allowed'
                       : accountPrivacy === 'private'
-                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                        : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                        ? 'bg-[#8860D9] text-white hover:bg-[#7b54c4]'
+                        : ''
                   }`}
+                  style={
+                    !updating && accountPrivacy !== 'private'
+                      ? {
+                          background: themeStyles.pillBg,
+                          color: themeStyles.text,
+                        }
+                      : {}
+                  }
                 >
                   {updating ? (
                     <span className="flex items-center gap-2">
@@ -200,21 +183,24 @@ export default function PrivacyPage() {
             <Link
               key={option.href}
               href={option.href}
-              className="block bg-white rounded-lg shadow hover:shadow-md transition-shadow p-6 border border-gray-200"
+              className="block rounded-xl shadow-sm hover:shadow-md transition-all p-6 hover:border-opacity-50"
+               style={{ background: themeStyles.cardBg, border: `1px solid ${themeStyles.border}` }}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={`${option.bgColor} p-3 rounded-lg`}>
-                    <Icon className={`w-6 h-6 ${option.color}`} />
+                  <div className="p-3 rounded-lg transition-colors" style={{ background: themeStyles.pillBg }}>
+                    <Icon className="w-6 h-6" style={{ color: themeStyles.text }} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold" style={{ color: themeStyles.text }}>
                       {option.title}
                     </h3>
-                    <p className="text-sm text-gray-600">{option.description}</p>
+                    <p className="text-sm" style={{ color: themeStyles.textSecondary }}>
+                      {option.description}
+                    </p>
                   </div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-400" />
+                <ChevronRight className="w-5 h-5" style={{ color: themeStyles.textSecondary }} />
               </div>
             </Link>
           );

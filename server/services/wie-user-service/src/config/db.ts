@@ -13,11 +13,17 @@ class Database {
         throw new Error('DATABASE_URL is not defined');
       }
 
-      // Connect pg Pool (for raw queries if needed)
+      // ✅ FIX: Use DIRECT_URL for Prisma (bypasses PgBouncer for deleteMany/transactions)
+      const prismaUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
+      
+      // Override Prisma's datasource URL at runtime
+      process.env.DATABASE_URL = prismaUrl;
+
+      // Connect pg Pool (for raw queries) - still use pooled connection
       this.pool = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: false,
-        max: 5, // Reduced from 20 for Supabase
+        max: 5,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
       });
@@ -32,7 +38,7 @@ class Database {
       await client.query('SELECT 1');
       client.release();
 
-      // Connect Prisma
+      // Connect Prisma (now using DIRECT_URL)
       await prisma.$connect();
 
       console.log('✅ Supabase PostgreSQL connected (WIE User Service - Prisma + pg Pool)');
@@ -74,7 +80,6 @@ class Database {
       }
       
       this.isConnected = false;
-      console.log('✅ Database connections closed (Prisma + pg Pool)');
     } catch (error) {
       console.error('❌ Error closing database connections:', error);
       throw error;

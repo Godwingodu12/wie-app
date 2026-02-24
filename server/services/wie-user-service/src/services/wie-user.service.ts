@@ -1,45 +1,58 @@
-import { Request, Response } from 'express';
-import WIEUSER, { WieUser } from '../models/wieuser.model';
-import COUNTRY from '../models/country.model';
-import OTP from '../models/otp.model';
-import { hashPassword, comparePassword } from '../utils/hash';
-import * as followClient from '../grpc/followClient';
-import { generateToken } from '../utils/jwt';
-import otpService from '../reposetory/otp';
-import { generateOtp } from '../utils/otp';
-import { sendEmail } from '../utils/sendMail';
-import { sendSMSOTP } from '../utils/sendSMS';
-import { isLocalAuthUser } from '../utils/password';
-import UserMuteModel, { MuteOptions } from '../models/userMute.model';
-import { getGoogleAuthUrl, getGoogleUserInfo } from '../utils/google-oauth';
-import { uploadProfileImage, replaceProfileImage } from '../utils/cloudinaryHelper';
+import { Request, Response } from "express";
+import WIEUSER, { WieUser } from "../models/wieuser.model";
+import COUNTRY from "../models/country.model";
+import OTP from "../models/otp.model";
+import { hashPassword, comparePassword } from "../utils/hash";
+import * as followClient from "../grpc/followClient";
+import { generateToken } from "../utils/jwt";
+import otpService from "../reposetory/otp";
+import { generateOtp } from "../utils/otp";
+import { sendEmail } from "../utils/sendMail";
+import { sendSMSOTP } from "../utils/sendSMS";
+import { isLocalAuthUser } from "../utils/password";
+import UserMuteModel, { MuteOptions } from "../models/userMute.model";
+import { getGoogleAuthUrl, getGoogleUserInfo } from "../utils/google-oauth";
+import {
+  uploadProfileImage,
+  replaceProfileImage,
+} from "../utils/cloudinaryHelper";
 import {
   validateEmail,
   validateContactNo,
   validatePassword,
   validateName,
-} from '../utils/validation.js';
-import { createClient } from 'redis';
+} from "../utils/validation.js";
+import { createClient } from "redis";
 const redis = createClient();
 // Store temporary signup data in memory (in production, use Redis)
 const tempUserStore = new Map<string, any>();
 // Auto-delete unverified users after 15 minutes
 const UNVERIFIED_USER_EXPIRY_MINUTES = 15;
 // Start periodic cleanup of unverified users
-setInterval(async () => {
-  try {
-    const deletedCount = await WIEUSER.deleteUnverifiedUsers(UNVERIFIED_USER_EXPIRY_MINUTES);
-    if (deletedCount > 0) {
-      console.log(`🧹 Auto-cleanup: Deleted ${deletedCount} unverified user(s)`);
+setInterval(
+  async () => {
+    try {
+      const deletedCount = await WIEUSER.deleteUnverifiedUsers(
+        UNVERIFIED_USER_EXPIRY_MINUTES,
+      );
+      if (deletedCount > 0) {
+        console.log(
+          `🧹 Auto-cleanup: Deleted ${deletedCount} unverified user(s)`,
+        );
+      }
+    } catch (error) {
+      console.error("❌ Error in unverified users cleanup:", error);
     }
-  } catch (error) {
-    console.error('❌ Error in unverified users cleanup:', error);
-  }
-}, 5 * 60 * 1000); // Run every 5 minutes
+  },
+  5 * 60 * 1000,
+); // Run every 5 minutes
 export const index = (req: Request, res: Response): void => {
-  res.json({ message: 'Welcome to the WIE User Service' });
+  res.json({ message: "Welcome to the WIE User Service" });
 };
-export const getCountries = async (req: Request, res: Response): Promise<void> => {
+export const getCountries = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const countries = await COUNTRY.findAll();
     res.status(200).json({
@@ -47,55 +60,62 @@ export const getCountries = async (req: Request, res: Response): Promise<void> =
       data: countries,
     });
   } catch (error: any) {
-    console.error('Get countries error:', error);
-    res.status(500).json({ message: 'Failed to fetch countries', error: error.message });
+    console.error("Get countries error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to fetch countries", error: error.message });
   }
 };
 const validateCountryCode = async (countryCode: string): Promise<boolean> => {
   const country = await COUNTRY.findByCode(countryCode);
   return !!country;
 };
-export const signupSendOtp = async (req: Request, res: Response): Promise<void> => {
+export const signupSendOtp = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const { email, contact_no, password, country_code } = req.body;
 
     // Validation
     if (!password || !validatePassword(password)) {
-      res.status(400).json({ message: 'Password must be at least 6 characters' });
+      res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters" });
       return;
     }
 
     if (!country_code) {
-      res.status(400).json({ message: 'Country is required' });
+      res.status(400).json({ message: "Country is required" });
       return;
     }
 
     if (!email && !contact_no) {
-      res.status(400).json({ message: 'Email or contact number is required' });
+      res.status(400).json({ message: "Email or contact number is required" });
       return;
     }
 
     if (email && !validateEmail(email)) {
-      res.status(400).json({ message: 'Invalid email format' });
+      res.status(400).json({ message: "Invalid email format" });
       return;
     }
 
     if (contact_no && !validateContactNo(contact_no)) {
-      res.status(400).json({ message: 'Invalid contact number format' });
+      res.status(400).json({ message: "Invalid contact number format" });
       return;
     }
 
     // Validate country exists
     const isValidCountry = await validateCountryCode(country_code);
     if (!isValidCountry) {
-      res.status(400).json({ message: 'Invalid country selected' });
+      res.status(400).json({ message: "Invalid country selected" });
       return;
     }
 
     // Get country details (you'll need this for country_id)
     const country = await COUNTRY.findByCode(country_code);
     if (!country) {
-      res.status(400).json({ message: 'Country not found' });
+      res.status(400).json({ message: "Country not found" });
       return;
     }
 
@@ -109,8 +129,8 @@ export const signupSendOtp = async (req: Request, res: Response): Promise<void> 
     }
 
     if (existingUser) {
-      res.status(400).json({ 
-        message: 'User already exists with this email or contact number' 
+      res.status(400).json({
+        message: "User already exists with this email or contact number",
       });
       return;
     }
@@ -120,7 +140,7 @@ export const signupSendOtp = async (req: Request, res: Response): Promise<void> 
 
     // Generate temporary user ID
     const tempUserId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // Store user data temporarily (expires in 2 minutes)
     tempUserStore.set(tempUserId, {
       email: email || null,
@@ -130,12 +150,15 @@ export const signupSendOtp = async (req: Request, res: Response): Promise<void> 
       createdAt: Date.now(),
     });
     // Clean up after 2 minutes
-    setTimeout(() => {
-      tempUserStore.delete(tempUserId);
-    }, 2 * 60 * 1000);
+    setTimeout(
+      () => {
+        tempUserStore.delete(tempUserId);
+      },
+      2 * 60 * 1000,
+    );
     // Generate and send OTP
     const otp = generateOtp();
-    await otpService.insertOTP(tempUserId, otp, 2, 'signup'); // 2 minutes expiration
+    await otpService.insertOTP(tempUserId, otp, 2, "signup"); // 2 minutes expiration
     if (email) {
       await sendEmail(email, otp);
     }
@@ -143,27 +166,34 @@ export const signupSendOtp = async (req: Request, res: Response): Promise<void> 
       await sendSMSOTP(contact_no, otp);
     }
     res.status(200).json({
-      message: 'OTP sent successfully',
+      message: "OTP sent successfully",
       tempUserId,
-      expiresIn: '2 minutes',
+      expiresIn: "2 minutes",
     });
   } catch (error: any) {
-    console.error('Signup OTP error:', error);
-    res.status(500).json({ message: 'Failed to send OTP', error: error.message });
+    console.error("Signup OTP error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to send OTP", error: error.message });
   }
 };
-export const signupVerifyOtp = async (req: Request, res: Response): Promise<void> => {
+export const signupVerifyOtp = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const { tempUserId, otp, name } = req.body;
 
     if (!tempUserId || !otp) {
-      res.status(400).json({ message: 'Temporary user ID and OTP are required' });
+      res
+        .status(400)
+        .json({ message: "Temporary user ID and OTP are required" });
       return;
     }
 
     // Validate name only if provided
     if (name && !validateName(name)) {
-      res.status(400).json({ message: 'Name must be at least 2 characters' });
+      res.status(400).json({ message: "Name must be at least 2 characters" });
       return;
     }
 
@@ -171,8 +201,8 @@ export const signupVerifyOtp = async (req: Request, res: Response): Promise<void
     const userData = tempUserStore.get(tempUserId);
 
     if (!userData) {
-      res.status(400).json({ 
-        message: 'Registration session expired. Please start signup again.' 
+      res.status(400).json({
+        message: "Registration session expired. Please start signup again.",
       });
       return;
     }
@@ -189,7 +219,7 @@ export const signupVerifyOtp = async (req: Request, res: Response): Promise<void
     const newUser = await WIEUSER.create({
       email: userData.email || undefined,
       contact_no: userData.contact_no || undefined,
-      name: name || undefined,  // Optional now
+      name: name || undefined, // Optional now
       password: userData.hashedPassword,
       country_id: userData.country_id,
     });
@@ -203,7 +233,7 @@ export const signupVerifyOtp = async (req: Request, res: Response): Promise<void
     const token = generateToken(newUser);
 
     res.status(201).json({
-      message: 'User registered successfully',
+      message: "User registered successfully",
       token,
       user: {
         id: newUser.id,
@@ -222,60 +252,81 @@ export const signupVerifyOtp = async (req: Request, res: Response): Promise<void
       },
     });
   } catch (error: any) {
-    console.error('Signup verify error:', error);
-    res.status(500).json({ message: 'Registration failed', error: error.message });
+    console.error("Signup verify error:", error);
+    res
+      .status(500)
+      .json({ message: "Registration failed", error: error.message });
   }
 };
-export const googleAuth = async (req: Request, res: Response): Promise<void> => {
+export const googleAuth = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const authUrl = getGoogleAuthUrl();
     res.status(200).json({
       success: true,
-      message: 'Google OAuth URL generated',
+      message: "Google OAuth URL generated",
       data: { authUrl },
     });
   } catch (error: any) {
-    console.error('Google Auth Error:', error);
+    console.error("Google Auth Error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to generate Google OAuth URL',
+      message: "Failed to generate Google OAuth URL",
       error: error.message,
     });
   }
 };
-export const googleCallback = async (req: Request, res: Response): Promise<void> => {
+export const googleCallback = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const { code } = req.query;
-    if (!code || typeof code !== 'string') {
-      res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Authorization code is required')}`);
+    if (!code || typeof code !== "string") {
+      res.redirect(
+        `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Authorization code is required")}`,
+      );
       return;
     }
     const googleUser = await getGoogleUserInfo(code);
     if (!googleUser.verified_email) {
-      res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Google email is not verified')}`);
+      res.redirect(
+        `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Google email is not verified")}`,
+      );
       return;
     }
     let user = await WIEUSER.findByGoogleId(googleUser.id);
     if (!user) {
       const existingUser = await WIEUSER.findByEmail(googleUser.email);
       if (existingUser) {
-        if (existingUser.auth_provider === 'local' || !existingUser.auth_provider) {
+        if (
+          existingUser.auth_provider === "local" ||
+          !existingUser.auth_provider
+        ) {
           user = await WIEUSER.linkGoogleAccount(existingUser.id, {
             google_id: googleUser.id,
-            profile_picture: googleUser.picture || existingUser.profile_picture || undefined,
-            auth_provider: 'hybrid', 
+            profile_picture:
+              googleUser.picture || existingUser.profile_picture || undefined,
+            auth_provider: "hybrid",
           });
-        } else if (existingUser.auth_provider === 'google') {
+        } else if (existingUser.auth_provider === "google") {
           user = existingUser;
-        } else if (existingUser.auth_provider === 'hybrid') {
+        } else if (existingUser.auth_provider === "hybrid") {
           user = existingUser;
-          if (googleUser.picture && user.profile_picture !== googleUser.picture) {
+          if (
+            googleUser.picture &&
+            user.profile_picture !== googleUser.picture
+          ) {
             user = await WIEUSER.updateProfile(user.id, {
               profile_picture: googleUser.picture,
             });
           }
         } else {
-          res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('An account with this email already exists with a different login method.')}`);
+          res.redirect(
+            `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("An account with this email already exists with a different login method.")}`,
+          );
           return;
         }
       } else {
@@ -284,7 +335,7 @@ export const googleCallback = async (req: Request, res: Response): Promise<void>
           name: googleUser.name,
           profile_picture: googleUser.picture,
           google_id: googleUser.id,
-          auth_provider: 'google',
+          auth_provider: "google",
           password: undefined,
         });
       }
@@ -297,7 +348,9 @@ export const googleCallback = async (req: Request, res: Response): Promise<void>
       }
     }
     if (user.is_blocked) {
-      res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Your account has been blocked. Please contact support.')}`);
+      res.redirect(
+        `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Your account has been blocked. Please contact support.")}`,
+      );
       return;
     }
     await WIEUSER.updateOnlineStatus(user.id, true);
@@ -314,69 +367,82 @@ export const googleCallback = async (req: Request, res: Response): Promise<void>
       auth_provider: user.auth_provider,
     };
     const encodedUser = encodeURIComponent(JSON.stringify(userData));
-    res.redirect(`${process.env.CORS_ORIGIN}/auth/google/callback?token=${token}&user=${encodedUser}`);
+    res.redirect(
+      `${process.env.CORS_ORIGIN}/auth/google/callback?token=${token}&user=${encodedUser}`,
+    );
   } catch (error: any) {
-    console.error('Google Callback Error:', error);
-    res.redirect(`${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent('Google authentication failed')}`);
+    console.error("Google Callback Error:", error);
+    res.redirect(
+      `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Google authentication failed")}`,
+    );
   }
 };
-export const getMicrosoftAuthUrl = async (req: Request, res: Response): Promise<void> => {  
+export const getMicrosoftAuthUrl = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const clientId = process.env.MICROSOFT_CLIENT_ID;
     const redirectUri = process.env.MICROSOFT_REDIRECT_URI;
-    const scope = encodeURIComponent('User.Read');
-    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri || '')}&response_mode=query&scope=${scope}&state=12345`;
+    const scope = encodeURIComponent("User.Read");
+    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri || "")}&response_mode=query&scope=${scope}&state=12345`;
     res.status(200).json({
       success: true,
-      message: 'Microsoft OAuth URL generated',
+      message: "Microsoft OAuth URL generated",
       data: { authUrl },
     });
   } catch (error: any) {
-    console.error('Microsoft Auth URL Error:', error);
+    console.error("Microsoft Auth URL Error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to generate Microsoft OAuth URL',
+      message: "Failed to generate Microsoft OAuth URL",
       error: error.message,
     });
   }
 };
-export const getAppleAuthUrl = async (req: Request, res: Response): Promise<void> => {
+export const getAppleAuthUrl = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const clientId = process.env.APPLE_CLIENT_ID;
     const redirectUri = process.env.APPLE_REDIRECT_URI;
-    const scope = encodeURIComponent('name email');
-    const authUrl = `https://appleid.apple.com/auth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri || '')}&response_mode=form_post&scope=${scope}&state=12345`; 
+    const scope = encodeURIComponent("name email");
+    const authUrl = `https://appleid.apple.com/auth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri || "")}&response_mode=form_post&scope=${scope}&state=12345`;
     res.status(200).json({
       success: true,
-      message: 'Apple OAuth URL generated',
+      message: "Apple OAuth URL generated",
       data: { authUrl },
     });
   } catch (error: any) {
-    console.error('Apple Auth URL Error:', error);
+    console.error("Apple Auth URL Error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to generate Apple OAuth URL',
+      message: "Failed to generate Apple OAuth URL",
       error: error.message,
     });
   }
 };
-export const checkCanSetPassword = async (req: Request, res: Response): Promise<void> => {
+export const checkCanSetPassword = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
-    const userId = req.user?.id; 
+    const userId = req.user?.id;
 
     if (!userId) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
 
     const user = await WIEUSER.findById(userId);
     if (!user) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(404).json({ message: "User not found" });
       return;
     }
 
     // Check if user is Google user without password
-    const canSetPassword = user.auth_provider === 'google' && !user.password;
+    const canSetPassword = user.auth_provider === "google" && !user.password;
 
     res.status(200).json({
       success: true,
@@ -385,52 +451,55 @@ export const checkCanSetPassword = async (req: Request, res: Response): Promise<
       hasPassword: !!user.password,
     });
   } catch (error: any) {
-    console.error('Check Can Set Password Error:', error);
-    res.status(500).json({ 
+    console.error("Check Can Set Password Error:", error);
+    res.status(500).json({
       success: false,
-      message: 'Failed to check password status', 
-      error: error.message 
+      message: "Failed to check password status",
+      error: error.message,
     });
   }
 };
-export const setPasswordForGoogleUser = async (req: Request, res: Response): Promise<void> => {
+export const setPasswordForGoogleUser = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const userId = req.user?.id; // From JWT middleware
     const { password, confirmPassword } = req.body;
 
     if (!userId) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
 
     // Validate password
     if (!password || !validatePassword(password)) {
-      res.status(400).json({ 
-        message: 'Password must be at least 6 characters' 
+      res.status(400).json({
+        message: "Password must be at least 6 characters",
       });
       return;
     }
 
     // Check if passwords match
     if (password !== confirmPassword) {
-      res.status(400).json({ 
-        message: 'Passwords do not match' 
+      res.status(400).json({
+        message: "Passwords do not match",
       });
       return;
     }
 
     const user = await WIEUSER.findById(userId);
     if (!user) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(404).json({ message: "User not found" });
       return;
     }
 
     // Check if user is eligible to set password
-    if (user.auth_provider !== 'google' || user.password) {
-      res.status(400).json({ 
-        message: user.password 
-          ? 'Password already set. Use change password instead.'
-          : 'Only Google users can set a password this way.'
+    if (user.auth_provider !== "google" || user.password) {
+      res.status(400).json({
+        message: user.password
+          ? "Password already set. Use change password instead."
+          : "Only Google users can set a password this way.",
       });
       return;
     }
@@ -439,11 +508,15 @@ export const setPasswordForGoogleUser = async (req: Request, res: Response): Pro
     const hashedPassword = await hashPassword(password);
 
     // Update user with password and change auth_provider to hybrid
-    const updatedUser = await WIEUSER.setPasswordForOAuthUser(userId, hashedPassword);
+    const updatedUser = await WIEUSER.setPasswordForOAuthUser(
+      userId,
+      hashedPassword,
+    );
 
     res.status(200).json({
       success: true,
-      message: 'Password set successfully. You can now login with email and password.',
+      message:
+        "Password set successfully. You can now login with email and password.",
       user: {
         id: updatedUser.id,
         email: updatedUser.email,
@@ -452,11 +525,11 @@ export const setPasswordForGoogleUser = async (req: Request, res: Response): Pro
       },
     });
   } catch (error: any) {
-    console.error('Set Password Error:', error);
-    res.status(500).json({ 
+    console.error("Set Password Error:", error);
+    res.status(500).json({
       success: false,
-      message: 'Failed to set password', 
-      error: error.message 
+      message: "Failed to set password",
+      error: error.message,
     });
   }
 };
@@ -465,23 +538,26 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const { identifier, password } = req.body;
 
     if (!identifier || !password) {
-      res.status(400).json({ message: 'Email/Contact number and password are required' });
+      res
+        .status(400)
+        .json({ message: "Email/Contact number and password are required" });
       return;
     }
 
     const user = await WIEUSER.findByEmailOrContactNo(identifier);
     if (!user) {
-      res.status(401).json({ message: 'Invalid credentials' });
+      res.status(401).json({ message: "Invalid credentials" });
       return;
     }
 
     // Check if user has local authentication (password-based)
     if (!user.password || !isLocalAuthUser(user.password)) {
       // Pure Google user (no password set)
-      if (user.auth_provider === 'google') {
-        res.status(400).json({ 
-          message: 'This account uses Google Sign-In. Please login with Google.',
-          auth_provider: user.auth_provider
+      if (user.auth_provider === "google") {
+        res.status(400).json({
+          message:
+            "This account uses Google Sign-In. Please login with Google.",
+          auth_provider: user.auth_provider,
         });
         return;
       }
@@ -491,30 +567,30 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     if (user.password) {
       const isPasswordValid = await comparePassword(password, user.password);
       if (!isPasswordValid) {
-        res.status(401).json({ message: 'Invalid credentials' });
+        res.status(401).json({ message: "Invalid credentials" });
         return;
       }
     } else {
-      res.status(401).json({ message: 'Invalid credentials' });
+      res.status(401).json({ message: "Invalid credentials" });
       return;
     }
 
     if (user.is_blocked) {
-      res.status(403).json({ message: 'Your account has been blocked' });
+      res.status(403).json({ message: "Your account has been blocked" });
       return;
     }
 
     if (!user.is_verified) {
-      res.status(403).json({ 
-        message: 'Please verify your account first',
-        userId: user.id 
+      res.status(403).json({
+        message: "Please verify your account first",
+        userId: user.id,
       });
       return;
     }
     await WIEUSER.updateOnlineStatus(user.id, true);
     const token = generateToken(user);
     res.status(200).json({
-      message: 'Login successful',
+      message: "Login successful",
       token,
       user: {
         id: user.id,
@@ -526,7 +602,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         country_id: user.country_id,
         role: user.role,
         status: user.status,
-        isOnline: true,  
+        isOnline: true,
         last_seen_at: null,
         is_blocked: user.is_blocked,
         is_verified: user.is_verified,
@@ -536,28 +612,28 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (error: any) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: 'Login failed', error: error.message });
+    console.error("Login error:", error);
+    res.status(500).json({ message: "Login failed", error: error.message });
   }
 };
 export const logout = async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
     const userId = req.user.id;
     await WIEUSER.updateOnlineStatus(userId, false);
     await WIEUSER.incrementTokenVersion(req.user.id);
-    res.status(200).json({ 
-      message: 'Logged out successfully from all devices',
-      isOnline: false  
+    res.status(200).json({
+      message: "Logged out successfully from all devices",
+      isOnline: false,
     });
   } catch (error: any) {
-    console.error('Logout error:', error);
-    res.status(500).json({ 
-      message: 'Logout failed', 
-      error: error.message 
+    console.error("Logout error:", error);
+    res.status(500).json({
+      message: "Logout failed",
+      error: error.message,
     });
   }
 };
@@ -566,16 +642,16 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
     const { userId } = req.body;
 
     if (!userId) {
-      res.status(400).json({ message: 'User ID is required' });
+      res.status(400).json({ message: "User ID is required" });
       return;
     }
 
     // Check OTP limit first
     const limitCheck = await otpService.checkOtpLimit(userId);
     if (!limitCheck.allowed) {
-      res.status(429).json({ 
+      res.status(429).json({
         message: limitCheck.message,
-        remainingAttempts: 0
+        remainingAttempts: 0,
       });
       return;
     }
@@ -584,13 +660,13 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
     let contact_no = null;
     let isTemp = false;
 
-    if (userId.startsWith('temp_')) {
+    if (userId.startsWith("temp_")) {
       isTemp = true;
       const userData = tempUserStore.get(userId);
-      
+
       if (!userData) {
-        res.status(400).json({ 
-          message: 'Registration session expired. Please start signup again.' 
+        res.status(400).json({
+          message: "Registration session expired. Please start signup again.",
         });
         return;
       }
@@ -599,7 +675,7 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
     } else {
       const user = await WIEUSER.findById(userId);
       if (!user) {
-        res.status(404).json({ message: 'User not found' });
+        res.status(404).json({ message: "User not found" });
         return;
       }
       email = user.email;
@@ -607,46 +683,51 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
     }
     // Generate and send new OTP
     const otp = generateOtp();
-    await otpService.insertOTP(userId, otp, 5, isTemp ? 'signup' : 'login');
+    await otpService.insertOTP(userId, otp, 5, isTemp ? "signup" : "login");
     if (email) {
       await sendEmail(email, otp);
     }
     if (contact_no) {
       await sendSMSOTP(contact_no, otp);
     }
-    res.status(200).json({ 
-      message: 'OTP resent successfully',
-      expiresIn: '5 minutes',
-      remainingAttempts: limitCheck.remainingAttempts - 1
+    res.status(200).json({
+      message: "OTP resent successfully",
+      expiresIn: "5 minutes",
+      remainingAttempts: limitCheck.remainingAttempts - 1,
     });
   } catch (error: any) {
-    console.error('Resend OTP error:', error);
-    
+    console.error("Resend OTP error:", error);
+
     // Handle rate limit errors
-    if (error.message?.includes('Too many OTP requests')) {
-      res.status(429).json({ 
+    if (error.message?.includes("Too many OTP requests")) {
+      res.status(429).json({
         message: error.message,
-        remainingAttempts: 0
+        remainingAttempts: 0,
       });
       return;
     }
-    
-    res.status(500).json({ message: 'Failed to resend OTP', error: error.message });
+
+    res
+      .status(500)
+      .json({ message: "Failed to resend OTP", error: error.message });
   }
 };
-export const updateProfile = async (req: Request, res: Response): Promise<void> => {
+export const updateProfile = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized: User not authenticated' });
+      res.status(401).json({ message: "Unauthorized: User not authenticated" });
       return;
     }
     const userId = req.user.id;
-    const { name, username, country_id, bio,accountPrivacy  } = req.body;
-    
+    const { name, username, country_id, bio, accountPrivacy } = req.body;
+
     // Get current user data to check for existing profile picture
     const currentUser = await WIEUSER.findById(userId);
     if (!currentUser) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(404).json({ message: "User not found" });
       return;
     }
 
@@ -659,17 +740,17 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
           // Replace existing image
           profilePictureUrl = await replaceProfileImage(
             req.file.buffer,
-            currentUser.profile_picture
+            currentUser.profile_picture,
           );
         } else {
           // Upload new image
           profilePictureUrl = await uploadProfileImage(req.file.buffer);
         }
       } catch (uploadError: any) {
-        console.error('Profile picture upload error:', uploadError);
-        res.status(500).json({ 
-          message: 'Failed to upload profile picture',
-          error: uploadError.message 
+        console.error("Profile picture upload error:", uploadError);
+        res.status(500).json({
+          message: "Failed to upload profile picture",
+          error: uploadError.message,
         });
         return;
       }
@@ -680,7 +761,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     if (country_id) {
       const country = await COUNTRY.findById(country_id);
       if (!country) {
-        res.status(400).json({ message: 'Invalid country selected' });
+        res.status(400).json({ message: "Invalid country selected" });
         return;
       }
       countryName = country.country_name;
@@ -705,7 +786,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     }
 
     res.status(200).json({
-      message: 'Profile updated successfully',
+      message: "Profile updated successfully",
       user: {
         id: updatedUser.id,
         email: updatedUser.email,
@@ -731,20 +812,101 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       },
     });
   } catch (error: any) {
-    console.error('Update profile error:', error);
-    res.status(500).json({ message: 'Failed to update profile', error: error.message });
+    console.error("Update profile error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to update profile", error: error.message });
   }
 };
-export const getProfile = async (req: Request, res: Response): Promise<void> => {
+
+export const updatePersonalDetails = async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized: User not authenticated' });
+      res.status(401).json({ message: "Unauthorized: User not authenticated" });
+      return;
+    }
+    const userId = req.user.id;
+    const { email, contact_no, gender, dob } = req.body;
+
+    // Validation
+    if (email && !validateEmail(email)) {
+      res.status(400).json({ message: "Invalid email format" });
+      return;
+    }
+    if (contact_no && !validateContactNo(contact_no)) {
+      res.status(400).json({ message: "Invalid contact number format" });
+      return;
+    }
+
+    // Check if email or contact_no already taken by someone else
+    if (email) {
+      const existingUserEmail = await WIEUSER.findByEmail(email);
+      if (existingUserEmail && existingUserEmail.id !== userId) {
+        res.status(400).json({ message: "Email is already in use by another user" });
+        return;
+      }
+    }
+    if (contact_no) {
+      const existingUserPhone = await WIEUSER.findByContactNo(contact_no);
+      if (existingUserPhone && existingUserPhone.id !== userId) {
+        res.status(400).json({ message: "Contact number is already in use by another user" });
+        return;
+      }
+    }
+
+    let parsedDob: Date | undefined;
+    if (dob) {
+      parsedDob = new Date(dob);
+      if (isNaN(parsedDob.getTime())) {
+        res.status(400).json({ message: "Invalid date format for dob" });
+        return;
+      }
+    }
+
+    const updatedUser = await WIEUSER.updateProfile(userId, {
+      email,
+      contact_no,
+      gender,
+      dob: parsedDob,
+    } as any);
+
+    res.status(200).json({
+      message: "Personal details updated successfully",
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        contact_no: updatedUser.contact_no,
+        name: updatedUser.name,
+        username: updatedUser.username,
+        profile_picture: updatedUser.profile_picture,
+        country_id: updatedUser.country_id,
+        gender: updatedUser.gender,
+        dob: updatedUser.dob,
+        bio: updatedUser.bio,
+        accountPrivacy: updatedUser.accountPrivacy,
+      },
+    });
+  } catch (error: any) {
+    console.error("Update personal details error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to update personal details", error: error.message });
+  }
+};
+
+export const getProfile = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: "Unauthorized: User not authenticated" });
       return;
     }
     const userId = req.user.id;
     const user = await WIEUSER.findById(userId);
     if (!user) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(404).json({ message: "User not found" });
       return;
     }
     let countryName = null;
@@ -776,7 +938,7 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
         accountPrivacy: user.accountPrivacy,
         status: user.status,
         isOnline: user.isOnline,
-        last_seen_at: user.lastSeenAt, 
+        last_seen_at: user.lastSeenAt,
         is_blocked: user.is_blocked,
         is_verified: user.is_verified,
         auth_provider: user.auth_provider,
@@ -785,8 +947,10 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
       },
     });
   } catch (error: any) {
-    console.error('Get profile error:', error);
-    res.status(500).json({ message: 'Failed to get profile', error: error.message });
+    console.error("Get profile error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to get profile", error: error.message });
   }
 };
 export const getUserProfile = async (userId: string) => {
@@ -802,7 +966,7 @@ export const getUserProfile = async (userId: string) => {
       try {
         country = await COUNTRY.findById(user.country_id);
       } catch (err) {
-        console.warn('Failed to fetch country details:', err);
+        console.warn("Failed to fetch country details:", err);
       }
     }
 
@@ -830,11 +994,14 @@ export const getUserProfile = async (userId: string) => {
       updated_at: user.updated_at,
     };
   } catch (error) {
-    console.error('Error fetching user profile:', error);
+    console.error("Error fetching user profile:", error);
     return null;
   }
 };
-export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+export const forgotPassword = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const { email, contact_no } = req.body;
 
@@ -842,7 +1009,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     if (!email && !contact_no) {
       res.status(400).json({
         success: false,
-        message: 'Please provide either email or contact number',
+        message: "Please provide either email or contact number",
       });
       return;
     }
@@ -858,7 +1025,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     if (!user) {
       res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
       return;
     }
@@ -867,7 +1034,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     if (user.is_blocked) {
       res.status(403).json({
         success: false,
-        message: 'Your account has been blocked. Please contact support.',
+        message: "Your account has been blocked. Please contact support.",
       });
       return;
     }
@@ -888,10 +1055,10 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     // Save OTP to database with 10 minute expiry
     try {
-      await otpService.insertOTP(user.id, otp, 10, 'reset');
+      await otpService.insertOTP(user.id, otp, 10, "reset");
     } catch (otpError: any) {
       // Handle rate limit errors from insertOTP
-      if (otpError.message?.includes('Too many OTP requests')) {
+      if (otpError.message?.includes("Too many OTP requests")) {
         res.status(429).json({
           success: false,
           message: otpError.message,
@@ -910,18 +1077,18 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     }
     res.status(200).json({
       success: true,
-      message: 'OTP sent successfully for password reset',
+      message: "OTP sent successfully for password reset",
       data: {
         userId: user.id,
       },
       remainingAttempts: limitCheck.remainingAttempts - 1, // Include remaining attempts
-      expiresIn: '10 minutes',
+      expiresIn: "10 minutes",
     });
   } catch (error: any) {
-    console.error('Forgot password error:', error);
-    
+    console.error("Forgot password error:", error);
+
     // Handle specific error types
-    if (error.message?.includes('Too many OTP requests')) {
+    if (error.message?.includes("Too many OTP requests")) {
       res.status(429).json({
         success: false,
         message: error.message,
@@ -932,7 +1099,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     res.status(500).json({
       success: false,
-      message: 'Failed to process forgot password request',
+      message: "Failed to process forgot password request",
       error: error.message,
     });
   }
@@ -1008,14 +1175,17 @@ export const verifyResetOTP = async (
   }
 };
 // Reset Password
-export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+export const resetPassword = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const { userId, newPassword } = req.body;
 
     if (!userId || !newPassword) {
       res.status(400).json({
         success: false,
-        message: 'User ID and new password are required',
+        message: "User ID and new password are required",
       });
       return;
     }
@@ -1024,7 +1194,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     if (newPassword.length < 6) {
       res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters long',
+        message: "Password must be at least 6 characters long",
       });
       return;
     }
@@ -1035,7 +1205,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     if (!user) {
       res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
       return;
     }
@@ -1045,7 +1215,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     const token = generateToken(updatedUser);
     res.status(200).json({
       success: true,
-      message: 'Password reset successfully',
+      message: "Password reset successfully",
       data: {
         token,
         user: {
@@ -1062,67 +1232,76 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       },
     });
   } catch (error: any) {
-    console.error('Reset password error:', error);
+    console.error("Reset password error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to reset password',
+      message: "Failed to reset password",
       error: error.message,
     });
   }
 };
-export const changePassword = async (req: Request, res: Response): Promise<void> => {
+export const changePassword = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
-    const userId = req.user?.id; 
+    const userId = req.user?.id;
     const { currentPassword, newPassword } = req.body;
     if (!userId) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
     if (!newPassword || !validatePassword(newPassword)) {
-      res.status(400).json({ 
-        message: 'New password must be at least 6 characters' 
+      res.status(400).json({
+        message: "New password must be at least 6 characters",
       });
       return;
     }
     const user = await WIEUSER.findById(userId);
     if (!user) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(404).json({ message: "User not found" });
       return;
     }
     if (!user.password) {
-      res.status(400).json({ 
-        message: 'No password set. Please use set password instead.' 
+      res.status(400).json({
+        message: "No password set. Please use set password instead.",
       });
       return;
     }
-    const isPasswordValid = await comparePassword(currentPassword, user.password);
+    const isPasswordValid = await comparePassword(
+      currentPassword,
+      user.password,
+    );
     if (!isPasswordValid) {
-      res.status(401).json({ message: 'Current password is incorrect' });
+      res.status(401).json({ message: "Current password is incorrect" });
       return;
     }
     await WIEUSER.updatePassword(userId, newPassword);
     res.status(200).json({
       success: true,
-      message: 'Password changed successfully',
+      message: "Password changed successfully",
     });
   } catch (error: any) {
-    console.error('Change Password Error:', error);
-    res.status(500).json({ 
+    console.error("Change Password Error:", error);
+    res.status(500).json({
       success: false,
-      message: 'Failed to change password', 
-      error: error.message 
+      message: "Failed to change password",
+      error: error.message,
     });
   }
 };
-export const getUserLocation = async (req: Request, res: Response): Promise<void> => {
+export const getUserLocation = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
     const location = await WIEUSER.getLocation(req.user.id);
     if (!location) {
-      res.status(404).json({ message: 'User location not found' });
+      res.status(404).json({ message: "User location not found" });
       return;
     }
 
@@ -1131,14 +1310,19 @@ export const getUserLocation = async (req: Request, res: Response): Promise<void
       data: location,
     });
   } catch (error: any) {
-    console.error('Get location error:', error);
-    res.status(500).json({ message: 'Failed to get location', error: error.message });
+    console.error("Get location error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to get location", error: error.message });
   }
 };
-export const updateUserLocation = async (req: Request, res: Response): Promise<void> => {
+export const updateUserLocation = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
     const { location, latitude, longitude } = req.body;
@@ -1159,7 +1343,7 @@ export const updateUserLocation = async (req: Request, res: Response): Promise<v
     if (latitude !== undefined && latitude !== null) {
       const lat = parseFloat(latitude);
       if (isNaN(lat) || lat < -90 || lat > 90) {
-        res.status(400).json({ message: 'Invalid latitude' });
+        res.status(400).json({ message: "Invalid latitude" });
         return;
       }
       updateData.latitude = lat;
@@ -1170,7 +1354,7 @@ export const updateUserLocation = async (req: Request, res: Response): Promise<v
     if (longitude !== undefined && longitude !== null) {
       const lng = parseFloat(longitude);
       if (isNaN(lng) || lng < -180 || lng > 180) {
-        res.status(400).json({ message: 'Invalid longitude' });
+        res.status(400).json({ message: "Invalid longitude" });
         return;
       }
       updateData.longitude = lng;
@@ -1180,43 +1364,52 @@ export const updateUserLocation = async (req: Request, res: Response): Promise<v
 
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
-      res.status(400).json({ message: 'No location data provided' });
+      res.status(400).json({ message: "No location data provided" });
       return;
     }
 
-    const updatedLocation = await WIEUSER.updateLocation(req.user.id, updateData);
-    
+    const updatedLocation = await WIEUSER.updateLocation(
+      req.user.id,
+      updateData,
+    );
+
     res.status(200).json({
       success: true,
-      message: 'Location updated successfully',
+      message: "Location updated successfully",
       data: updatedLocation,
     });
   } catch (error: any) {
-    console.error('Update location error:', error);
-    res.status(500).json({ message: 'Failed to update location', error: error.message });
+    console.error("Update location error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to update location", error: error.message });
   }
 };
 const isValidUUID = (uuid: string): boolean => {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(uuid);
 };
-export const searchUsers = async (req: Request, res: Response): Promise<void> => {
+export const searchUsers = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
-    const { query, page = '1', limit = '20' } = req.query;
-    const userId = req.user?.id; 
-    if (!query || typeof query !== 'string') {
-      res.status(400).json({ 
+    const { query, page = "1", limit = "20" } = req.query;
+    const userId = req.user?.id;
+    if (!query || typeof query !== "string") {
+      res.status(400).json({
         success: false,
-        message: 'Search query is required' 
+        message: "Search query is required",
       });
       return;
     }
 
     // Validate current user ID
     if (userId && !isValidUUID(userId)) {
-      res.status(401).json({ 
+      res.status(401).json({
         success: false,
-        message: 'Invalid authentication' 
+        message: "Invalid authentication",
       });
       return;
     }
@@ -1229,7 +1422,7 @@ export const searchUsers = async (req: Request, res: Response): Promise<void> =>
 
     // Filter out current user and blocked users
     const filteredUsers = users.filter(
-      (u: WieUser) => u.id !== userId && !u.is_blocked && u.status === 'active'
+      (u: WieUser) => u.id !== userId && !u.is_blocked && u.status === "active",
     );
 
     res.status(200).json({
@@ -1250,35 +1443,41 @@ export const searchUsers = async (req: Request, res: Response): Promise<void> =>
       totalPages: Math.ceil(total / limitNum),
     });
   } catch (error: any) {
-    console.error('Search users error:', error);
+    console.error("Search users error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to search users',
+      message: "Failed to search users",
       error: error.message,
     });
   }
 };
-export const getSuggestedUsers = async (req: Request, res: Response): Promise<void> => {
+export const getSuggestedUsers = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
-    const userId = req.user?.id; 
-    const { limit = '10' } = req.query;
+    const userId = req.user?.id;
+    const { limit = "10" } = req.query;
     const limitNum = Number(limit);
-    
+
     // Validate current user ID
     if (userId && !isValidUUID(userId)) {
-      res.status(401).json({ 
+      res.status(401).json({
         success: false,
-        message: 'Invalid authentication' 
+        message: "Invalid authentication",
       });
       return;
     }
-    
+
     // Get more users than needed so we can filter
     const users = await WIEUSER.findMany(1, limitNum * 2);
-    
+
     // Filter out current user and blocked users, then limit results
     const filteredUsers = users
-      .filter((u: WieUser) => u.id !== userId && !u.is_blocked && u.status === 'active')
+      .filter(
+        (u: WieUser) =>
+          u.id !== userId && !u.is_blocked && u.status === "active",
+      )
       .slice(0, limitNum);
 
     res.status(200).json({
@@ -1294,88 +1493,97 @@ export const getSuggestedUsers = async (req: Request, res: Response): Promise<vo
       })),
     });
   } catch (error: any) {
-    console.error('Get suggested users error:', error);
+    console.error("Get suggested users error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get suggested users',
+      message: "Failed to get suggested users",
       error: error.message,
     });
   }
 };
-export const updateHeartbeat = async (req: Request, res: Response): Promise<void> => {
+export const updateHeartbeat = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
 
     const userId = req.user.id;
-    
+
     // Update online status and last seen
     await WIEUSER.updateOnlineStatus(userId, true);
 
     res.status(200).json({
       success: true,
-      message: 'Heartbeat updated',
+      message: "Heartbeat updated",
     });
   } catch (error: any) {
-    console.error('Heartbeat error:', error);
-    res.status(500).json({ 
-      message: 'Failed to update heartbeat', 
-      error: error.message 
+    console.error("Heartbeat error:", error);
+    res.status(500).json({
+      message: "Failed to update heartbeat",
+      error: error.message,
     });
   }
 };
 export const cleanupStaleOnlineUsers = async (): Promise<void> => {
   try {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
-    
+
     // Find users marked online but haven't updated in 2 minutes
     const staleUsers = await WIEUSER.findStaleOnlineUsers(twoMinutesAgo);
-    
+
     for (const user of staleUsers) {
       await WIEUSER.updateOnlineStatus(user.id, false);
     }
   } catch (error: any) {
-    console.error('❌ Error cleaning up stale users:', error);
+    console.error("❌ Error cleaning up stale users:", error);
   }
 };
-export const getAccountPrivacy = async (req: Request, res: Response): Promise<void> => {
+export const getAccountPrivacy = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     if (!req.user) {
-      console.error('❌ No req.user found in getAccountPrivacy');
-      res.status(401).json({ 
+      console.error("❌ No req.user found in getAccountPrivacy");
+      res.status(401).json({
         success: false,
-        message: 'Unauthorized - Please login first' 
+        message: "Unauthorized - Please login first",
       });
       return;
     }
 
     const userId = req.user.id;
-    
+
     const accountPrivacy = await WIEUSER.getAccountPrivacy(userId);
 
     res.status(200).json({
       success: true,
-      accountPrivacy: accountPrivacy || 'public',
+      accountPrivacy: accountPrivacy || "public",
     });
   } catch (error: any) {
-    console.error('❌ Get account privacy error:', error);
-    res.status(500).json({ 
+    console.error("❌ Get account privacy error:", error);
+    res.status(500).json({
       success: false,
-      message: 'Failed to get account privacy', 
-      error: error.message 
+      message: "Failed to get account privacy",
+      error: error.message,
     });
   }
 };
 
-export const updateAccountPrivacy = async (req: Request, res: Response): Promise<void> => {
+export const updateAccountPrivacy = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     if (!req.user) {
-      console.error('❌ No req.user found in updateAccountPrivacy');
-      res.status(401).json({ 
-        success: false, 
-        message: 'Unauthorized - Please login first' 
+      console.error("❌ No req.user found in updateAccountPrivacy");
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized - Please login first",
       });
       return;
     }
@@ -1383,23 +1591,29 @@ export const updateAccountPrivacy = async (req: Request, res: Response): Promise
     const userId = req.user.id;
     const { accountPrivacy } = req.body;
 
-    if (!accountPrivacy || !['public', 'private'].includes(accountPrivacy)) {
-      console.error('❌ Invalid account privacy value:', accountPrivacy);
-      res.status(400).json({ 
+    if (!accountPrivacy || !["public", "private"].includes(accountPrivacy)) {
+      console.error("❌ Invalid account privacy value:", accountPrivacy);
+      res.status(400).json({
         success: false,
-        message: 'Invalid account privacy value. Must be "public" or "private"' 
+        message: 'Invalid account privacy value. Must be "public" or "private"',
       });
       return;
     }
 
     const currentPrivacy = await WIEUSER.getAccountPrivacy(userId);
-    const updatedUser = await WIEUSER.updateAccountPrivacy(userId, accountPrivacy);
+    const updatedUser = await WIEUSER.updateAccountPrivacy(
+      userId,
+      accountPrivacy,
+    );
 
-    if (currentPrivacy === 'private' && accountPrivacy === 'public') {
+    if (currentPrivacy === "private" && accountPrivacy === "public") {
       try {
         const result = await followClient.autoAcceptPendingRequests(userId);
       } catch (error: any) {
-        console.error('❌ Failed to auto-accept pending requests:', error.message);
+        console.error(
+          "❌ Failed to auto-accept pending requests:",
+          error.message,
+        );
       }
     }
 
@@ -1409,26 +1623,27 @@ export const updateAccountPrivacy = async (req: Request, res: Response): Promise
       accountPrivacy: updatedUser.accountPrivacy,
     });
   } catch (error: any) {
-    console.error('❌ Update account privacy error:', error);
-    res.status(500).json({ 
+    console.error("❌ Update account privacy error:", error);
+    res.status(500).json({
       success: false,
-      message: 'Failed to update account privacy', 
-      error: error.message 
+      message: "Failed to update account privacy",
+      error: error.message,
     });
   }
 };
 export const muteUser = async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
 
     const muterId = req.user.id;
-    const { muted_user_id, mute_posts, mute_stories, mute_reels, mute_notes } = req.body;
+    const { muted_user_id, mute_posts, mute_stories, mute_reels, mute_notes } =
+      req.body;
 
     if (!muted_user_id) {
-      res.status(400).json({ message: 'Muted user ID is required' });
+      res.status(400).json({ message: "Muted user ID is required" });
       return;
     }
 
@@ -1436,62 +1651,69 @@ export const muteUser = async (req: Request, res: Response): Promise<void> => {
       mutePosts: mute_posts ?? true,
       muteStories: mute_stories ?? true,
       muteReels: mute_reels ?? false,
-      muteNotes: mute_notes ?? false
+      muteNotes: mute_notes ?? false,
     };
 
-    const muteRecord = await UserMuteModel.muteUser(muterId, muted_user_id, options);
+    const muteRecord = await UserMuteModel.muteUser(
+      muterId,
+      muted_user_id,
+      options,
+    );
 
     res.status(200).json({
       success: true,
-      message: 'User muted successfully',
-      data: muteRecord
+      message: "User muted successfully",
+      data: muteRecord,
     });
   } catch (error: any) {
-    console.error('Mute user error:', error);
-    
-    if (error.message === 'Cannot mute yourself') {
+    console.error("Mute user error:", error);
+
+    if (error.message === "Cannot mute yourself") {
       res.status(400).json({ message: error.message });
       return;
     }
-    
-    if (error.message === 'User to mute not found') {
+
+    if (error.message === "User to mute not found") {
       res.status(404).json({ message: error.message });
       return;
     }
-    
-    res.status(500).json({ 
-      message: 'Failed to mute user', 
-      error: error.message 
+
+    res.status(500).json({
+      message: "Failed to mute user",
+      error: error.message,
     });
   }
 };
-export const getUserById = async (req: Request, res: Response): Promise<void> => {
+export const getUserById = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const { userId } = req.params;
     // Validate UUID format
     if (!userId) {
-      res.status(400).json({ 
+      res.status(400).json({
         success: false,
-        message: 'Invalid user ID format' 
+        message: "Invalid user ID format",
       });
       return;
     }
-    
+
     const user = await WIEUSER.findById(userId);
-    
+
     if (!user) {
-      res.status(404).json({ 
+      res.status(404).json({
         success: false,
-        message: 'User not found' 
+        message: "User not found",
       });
       return;
     }
 
     // Don't show blocked or inactive users
-    if (user.is_blocked || user.status !== 'active') {
-      res.status(404).json({ 
+    if (user.is_blocked || user.status !== "active") {
+      res.status(404).json({
         success: false,
-        message: 'User not found' 
+        message: "User not found",
       });
       return;
     }
@@ -1524,18 +1746,21 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
       },
     });
   } catch (error: any) {
-    console.error('Get user by ID error:', error);
+    console.error("Get user by ID error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get user',
+      message: "Failed to get user",
       error: error.message,
     });
   }
 };
-export const unmuteUser = async (req: Request, res: Response): Promise<void> => {
+export const unmuteUser = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
 
@@ -1543,42 +1768,46 @@ export const unmuteUser = async (req: Request, res: Response): Promise<void> => 
     const { muted_user_id } = req.body;
 
     if (!muted_user_id) {
-      res.status(400).json({ message: 'Muted user ID is required' });
+      res.status(400).json({ message: "Muted user ID is required" });
       return;
     }
 
     const success = await UserMuteModel.unmuteUser(muterId, muted_user_id);
 
     if (!success) {
-      res.status(404).json({ message: 'Mute record not found' });
+      res.status(404).json({ message: "Mute record not found" });
       return;
     }
 
     res.status(200).json({
       success: true,
-      message: 'User unmuted successfully'
+      message: "User unmuted successfully",
     });
   } catch (error: any) {
-    console.error('Unmute user error:', error);
-    res.status(500).json({ 
-      message: 'Failed to unmute user', 
-      error: error.message 
+    console.error("Unmute user error:", error);
+    res.status(500).json({
+      message: "Failed to unmute user",
+      error: error.message,
     });
   }
 };
 
-export const updateMuteOptions = async (req: Request, res: Response): Promise<void> => {
+export const updateMuteOptions = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
 
     const muterId = req.user.id;
-    const { muted_user_id, mute_posts, mute_stories, mute_reels, mute_notes } = req.body;
+    const { muted_user_id, mute_posts, mute_stories, mute_reels, mute_notes } =
+      req.body;
 
     if (!muted_user_id) {
-      res.status(400).json({ message: 'Muted user ID is required' });
+      res.status(400).json({ message: "Muted user ID is required" });
       return;
     }
 
@@ -1588,32 +1817,39 @@ export const updateMuteOptions = async (req: Request, res: Response): Promise<vo
     if (mute_reels !== undefined) options.muteReels = mute_reels;
     if (mute_notes !== undefined) options.muteNotes = mute_notes;
 
-    const updated = await UserMuteModel.updateMuteOptions(muterId, muted_user_id, options);
+    const updated = await UserMuteModel.updateMuteOptions(
+      muterId,
+      muted_user_id,
+      options,
+    );
 
     res.status(200).json({
       success: true,
-      message: 'Mute options updated successfully',
-      data: updated
+      message: "Mute options updated successfully",
+      data: updated,
     });
   } catch (error: any) {
-    console.error('Update mute options error:', error);
-    
-    if (error.message === 'Mute record not found') {
+    console.error("Update mute options error:", error);
+
+    if (error.message === "Mute record not found") {
       res.status(404).json({ message: error.message });
       return;
     }
-    
-    res.status(500).json({ 
-      message: 'Failed to update mute options', 
-      error: error.message 
+
+    res.status(500).json({
+      message: "Failed to update mute options",
+      error: error.message,
     });
   }
 };
 
-export const checkMuteStatus = async (req: Request, res: Response): Promise<void> => {
+export const checkMuteStatus = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
 
@@ -1621,7 +1857,7 @@ export const checkMuteStatus = async (req: Request, res: Response): Promise<void
     const { user_id } = req.params;
 
     if (!user_id) {
-      res.status(400).json({ message: 'User ID is required' });
+      res.status(400).json({ message: "User ID is required" });
       return;
     }
 
@@ -1629,21 +1865,24 @@ export const checkMuteStatus = async (req: Request, res: Response): Promise<void
 
     res.status(200).json({
       success: true,
-      data: status
+      data: status,
     });
   } catch (error: any) {
-    console.error('Check mute status error:', error);
-    res.status(500).json({ 
-      message: 'Failed to check mute status', 
-      error: error.message 
+    console.error("Check mute status error:", error);
+    res.status(500).json({
+      message: "Failed to check mute status",
+      error: error.message,
     });
   }
 };
 
-export const getMutedUsers = async (req: Request, res: Response): Promise<void> => {
+export const getMutedUsers = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
 
@@ -1653,21 +1892,24 @@ export const getMutedUsers = async (req: Request, res: Response): Promise<void> 
     res.status(200).json({
       success: true,
       count: mutedUsers.length,
-      data: mutedUsers
+      data: mutedUsers,
     });
   } catch (error: any) {
-    console.error('Get muted users error:', error);
-    res.status(500).json({ 
-      message: 'Failed to get muted users', 
-      error: error.message 
+    console.error("Get muted users error:", error);
+    res.status(500).json({
+      message: "Failed to get muted users",
+      error: error.message,
     });
   }
 };
 
-export const getMutedCount = async (req: Request, res: Response): Promise<void> => {
+export const getMutedCount = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Unauthorized' });
+      res.status(401).json({ message: "Unauthorized" });
       return;
     }
 
@@ -1676,13 +1918,13 @@ export const getMutedCount = async (req: Request, res: Response): Promise<void> 
 
     res.status(200).json({
       success: true,
-      count
+      count,
     });
   } catch (error: any) {
-    console.error('Get muted count error:', error);
-    res.status(500).json({ 
-      message: 'Failed to get muted count', 
-      error: error.message 
+    console.error("Get muted count error:", error);
+    res.status(500).json({
+      message: "Failed to get muted count",
+      error: error.message,
     });
   }
 };

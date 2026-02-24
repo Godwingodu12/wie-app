@@ -6,7 +6,7 @@ import {
   updateUserLocation, checkCanSetPassword, setPasswordForGoogleUser, changePassword,
   searchUsers, getUserById, getSuggestedUsers, updateHeartbeat,
   getAccountPrivacy, updateAccountPrivacy, muteUser, unmuteUser, getMutedUsers,
-  getMutedCount, checkMuteStatus
+  getMutedCount, checkMuteStatus, updatePersonalDetails
 } from '../services/wie-user.service';
 import { authenticateToken } from '../middlewares/auth.middleware';
 import upload from '../middlewares/upload';
@@ -53,6 +53,7 @@ router.post('/unmute', authenticateToken, unmuteUser);
 
 // ✅ PUT routes
 router.put('/update-profile', authenticateToken, upload.single('profile_picture'), updateProfile);
+router.put('/update-personal-details', authenticateToken, updatePersonalDetails);
 router.put('/update-location', authenticateToken, updateUserLocation);
 
 // ✅ DYNAMIC route LAST (catches everything else)
