@@ -8,6 +8,8 @@ export interface WieUser {
   name?: string | null;
   username?: string | null;
   profile_picture?: string | null;
+  gender?: string | null;
+  dob?: Date | null;
   country_id?: string | null;
   role: string;
   status: string;
@@ -39,6 +41,8 @@ export interface CreateUserInput {
   name?: string;
   username?: string;
   profile_picture?: string;
+  gender?: string;
+  dob?: Date;
   country_id?: string;
   role?: string;
   status?: string;
@@ -65,6 +69,8 @@ const toDatabaseFormat = (user: any): WieUser => {
     name: user.name,
     username: user.username,
     profile_picture: user.profilePicture,
+    gender: user.gender,
+    dob: user.dob,
     country_id: user.countryId,
     role: user.role,
     status: user.status,
@@ -100,6 +106,8 @@ class WieUserModel {
         name: userData.name || null,
         username: userData.username || null,
         profilePicture: userData.profile_picture || null,
+        gender: userData.gender || null,
+        dob: userData.dob || null,
         countryId: userData.country_id || null,
         googleId: userData.google_id || null,  
         lastSeenAt: userData.lastSeenAt || null,
@@ -128,6 +136,8 @@ class WieUserModel {
           name: true,
           username: true,
           profilePicture: true,
+          gender: true,
+          dob: true,
           countryId: true,
           role: true,
           status: true,
@@ -197,6 +207,8 @@ class WieUserModel {
           name: true,
           username: true,
           profilePicture: true,
+          gender: true,
+          dob: true,
           countryId: true,
           role: true,
           status: true,
@@ -351,6 +363,8 @@ class WieUserModel {
     country_id?: string;
     bio?: string;
     accountPrivacy?: string;
+    gender?: string;
+    dob?: Date;
   }): Promise<WieUser> {
     const user = await prisma.wieUser.update({
       where: { id },
@@ -362,7 +376,9 @@ class WieUserModel {
         username: updates.username,
         countryId: updates.country_id,
         bio: updates.bio,
-        accountPrivacy: updates.accountPrivacy
+        accountPrivacy: updates.accountPrivacy,
+        gender: updates.gender,
+        dob: updates.dob,
       },
     });
     return toDatabaseFormat(user);
@@ -601,6 +617,8 @@ class WieUserModel {
           updatedAt: true,
           contactNo: true,
           profilePicture: true,
+          gender: true,
+          dob: true,
           countryId: true,
           role: true,
           status: true,
