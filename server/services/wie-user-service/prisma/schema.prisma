@@ -2,11 +2,13 @@ generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
+
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")      # Uses PgBouncer for queries
-  directUrl = env("DIRECT_URL")        # Bypasses PgBouncer for migrations
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
+
 model Country {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   countryCode String    @unique @map("country_code") @db.VarChar(10)
@@ -48,6 +50,8 @@ model WieUser {
   allowMessagesFrom    String     @default("everyone") @map("allow_messages_from") @db.VarChar(20)
   lastSeenAt           DateTime?  @map("last_seen_at") @db.Timestamp(6)
   accountPrivacy       String     @default("public") @map("account_privacy") @db.VarChar(20)
+  dob                  DateTime?  @db.Date
+  gender               String?    @db.VarChar(20)
   otps                 Otp[]
   mutedMe              UserMute[] @relation("MutedRelation")
   mutedByMe            UserMute[] @relation("MuterRelation")
@@ -88,4 +92,148 @@ model Otp {
   @@index([tempId], map: "idx_otps_temp_id")
   @@index([expiresAt], map: "idx_otps_expires_at")
   @@map("otps")
+}
+
+model bookings {
+  id                   String                 @id @db.Uuid
+  booking_id           String                 @unique @db.VarChar(50)
+  user_id              String                 @db.Uuid
+  ticket_id            String                 @db.VarChar(50)
+  group_id             String                 @db.VarChar(50)
+  ticket_type          String                 @db.VarChar(100)
+  quantity             Int                    @default(1)
+  price_per_ticket     Decimal                @db.Decimal(10, 2)
+  subtotal             Decimal                @db.Decimal(10, 2)
+  tax                  Decimal                @default(0) @db.Decimal(10, 2)
+  platform_fee         Decimal                @default(0) @db.Decimal(10, 2)
+  total_amount         Decimal                @db.Decimal(10, 2)
+  currency             String                 @default("INR") @db.VarChar(10)
+  payment_status       PaymentStatus          @default(PENDING)
+  payment_method       String?                @db.VarChar(50)
+  razorpay_order_id    String?                @unique @db.VarChar(100)
+  razorpay_payment_id  String?                @db.VarChar(100)
+  razorpay_signature   String?
+  booking_status       BookingStatus          @default(PENDING)
+  user_details         Json
+  event_details        Json
+  qr_code              String?
+  qr_code_url          String?
+  is_verified          Boolean                @default(false)
+  verified_at          DateTime?              @db.Timestamp(6)
+  verified_by          String?                @db.VarChar(50)
+  cancellation_reason  String?
+  cancelled_at         DateTime?              @db.Timestamp(6)
+  refund_amount        Decimal?               @db.Decimal(10, 2)
+  refund_status        RefundStatus?
+  refund_processed_at  DateTime?              @db.Timestamp(6)
+  created_at           DateTime               @default(now()) @db.Timestamp(6)
+  updated_at           DateTime               @db.Timestamp(6)
+  cancellation_count   Int                    @default(0)
+  refund_id            String?                @db.VarChar(100)
+  refund_initiated_at  DateTime?              @db.Timestamp(6)
+  seat_details         Json?
+  payment_transactions payment_transactions[]
+
+  @@index([created_at], map: "idx_bookings_created_at")
+  @@index([group_id], map: "idx_bookings_group_id")
+  @@index([razorpay_order_id], map: "idx_bookings_razorpay_order")
+  @@index([booking_status], map: "idx_bookings_status")
+  @@index([ticket_id], map: "idx_bookings_ticket_id")
+  @@index([user_id], map: "idx_bookings_user_id")
+}
+
+model interactions {
+  id               String          @id @db.Uuid
+  user_id          String          @db.Uuid
+  ticket_id        String          @db.VarChar(50)
+  interaction_type InteractionType
+  metadata         Json?           @db.Json
+  created_at       DateTime        @default(now()) @db.Timestamp(6)
+  updated_at       DateTime        @db.Timestamp(6)
+
+  @@unique([user_id, ticket_id, interaction_type], map: "unique_user_ticket_interaction")
+  @@index([ticket_id, interaction_type], map: "idx_interactions_ticket_type")
+  @@index([user_id], map: "idx_interactions_user_id")
+}
+
+model payment_transactions {
+  id                  String        @id @db.Uuid
+  booking_id          String        @db.Uuid
+  razorpay_order_id   String        @db.VarChar(100)
+  razorpay_payment_id String?       @db.VarChar(100)
+  amount              Decimal       @db.Decimal(10, 2)
+  currency            String        @default("INR") @db.VarChar(10)
+  status              PaymentStatus
+  method              String?       @db.VarChar(50)
+  bank                String?       @db.VarChar(100)
+  wallet              String?       @db.VarChar(50)
+  vpa                 String?       @db.VarChar(100)
+  email               String?       @db.VarChar(255)
+  contact             String?       @db.VarChar(20)
+  webhook_data        Json?         @db.Json
+  error_code          String?       @db.VarChar(50)
+  error_description   String?
+  created_at          DateTime      @default(now()) @db.Timestamp(6)
+  updated_at          DateTime      @db.Timestamp(6)
+  refund_id           String?       @db.VarChar(100)
+  bookings            bookings      @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+
+  @@index([booking_id], map: "idx_payment_transactions_booking")
+  @@index([razorpay_order_id], map: "idx_payment_transactions_order")
+  @@index([razorpay_payment_id], map: "idx_payment_transactions_payment")
+}
+
+model settlements {
+  id                  String           @id @db.Uuid
+  booking_id          String           @db.Uuid
+  organization_amount Decimal          @db.Decimal(10, 2)
+  platform_fee        Decimal          @db.Decimal(10, 2)
+  status              SettlementStatus @default(PENDING)
+  bank_details        Json
+  razorpay_payout_id  String?          @db.VarChar(100)
+  processed_at        DateTime?        @db.Timestamp(6)
+  created_at          DateTime         @default(now()) @db.Timestamp(6)
+  updated_at          DateTime         @db.Timestamp(6)
+
+  @@index([booking_id], map: "idx_settlements_booking")
+  @@index([status], map: "idx_settlements_status")
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+  VERIFIED
+}
+
+enum InteractionType {
+  LIKE
+  SHARE
+  VIEW
+  SAVE
+  FEEDBACK
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum SettlementStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
