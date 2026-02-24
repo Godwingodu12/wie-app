@@ -908,6 +908,65 @@ export const getGroups = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+const sanitizeDescriptionHtml = (html) => {
+  if (!html || typeof html !== "string") return "";
+
+  return html
+    .replace(/<!--StartFragment-->/gi, "")
+    .replace(/<!--EndFragment-->/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")        
+    .replace(/&nbsp;/gi, " ")
+
+    // 3. Strip data-* paste-marker attributes (ProseMirror, TipTap, Slate)
+    .replace(/\s+data-[a-z][a-z0-9-]*="[^"]*"/gi, "")
+    .replace(/\s+data-[a-z][a-z0-9-]*='[^']*'/gi, "")
+
+    // 4. Strip inline style and class attributes (keep structure, not styling)
+    .replace(/\s+style="[^"]*"/gi, "")
+    .replace(/\s+style='[^']*'/gi, "")
+    .replace(/\s+class="[^"]*"/gi, "")
+    .replace(/\s+class='[^']*'/gi, "")
+
+    // 5. Strip zero-width spaces and other invisible Unicode chars
+    .replace(/\u200B/g, "")
+    .replace(/\u200C/g, "")
+    .replace(/\u200D/g, "")
+    .replace(/\uFEFF/g, "")
+    .replace(/&#8203;/g, "")               
+    .replace(/&#x200[BbCcDd];/gi, "")
+
+    //    Allowed: p, br, ul, ol, li, b, strong, i, em, u, span
+    .replace(
+      /<(?!\/?(?:p|br|ul|ol|li|b|strong|i|em|u|span)\b)[^>]+>/gi,
+      ""
+    )
+    // 7. Remove empty <p> and <li> tags left after stripping
+    .replace(/<p>\s*<\/p>/gi, "")
+    .replace(/<li>\s*<\/li>/gi, "")
+
+    // 8. Collapse multiple consecutive <br> into one
+    .replace(/(<br\s*\/?>\s*){2,}/gi, "<br>")
+
+    // 9. Collapse multiple consecutive blank lines / whitespace runs
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+
+    .trim();
+};
+
+const stripHtmlForValidation = (html) => {
+  if (!html) return "";
+  return html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#\d+;/g, "")
+    .replace(/\u200B/g, "")
+    .trim();
+};
 export const createTicketBasicInfo = async (req, res) => {
   try {
     const guestProfileFiles = {};
@@ -1180,9 +1239,11 @@ export const createTicketBasicInfo = async (req, res) => {
       });
     }
 
-    if (event_description.trim().length < 10 || event_description.trim().length > 5000) {
+    const cleanedDescription = sanitizeDescriptionHtml(event_description);
+    const descriptionPlainText = stripHtmlForValidation(cleanedDescription);
+    if (descriptionPlainText.length < 10 || descriptionPlainText.length > 5000) {
       return res.status(400).json({
-        message: 'Event description must be between 10 and 5000 characters',
+        message: "Event description must be between 10 and 5000 characters",
       });
     }
 

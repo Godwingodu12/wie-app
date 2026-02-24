@@ -241,9 +241,8 @@ const handleResetToTotalView = () => {
     ? {
         name: eventData.event_name || "Event Name",
         creator: eventData.created_by || "Unknown Creator",
-        // Use selectedDateStats if available, otherwise use metrics
         totalRevenue: selectedDateStats?.totalRevenue ?? metrics?.totalRevenue ?? eventData.total_revenue ?? "0",
-        totalBooking: selectedDateStats?.totalBookings ?? metrics?.totalBooking ?? eventData.total_bookings ?? "0",
+        totalBooking: selectedDateStats?.totalTicketsSold ?? metrics?.totalTicketsSold ?? eventData.totalTicketsSold ?? "0",
         totalLikes: metrics?.totalLikes ?? eventData.like ?? "0",
         totalShare: metrics?.totalShare ?? eventData.share_count ?? "0",
         totalCancellation: metrics?.total_cancellation ?? eventData.total_cancellations ?? "0",
@@ -836,8 +835,8 @@ const displayDate = isSameDate
                     </div>
                     <div className="text-xl font-bold">
                       {selectedDateStats 
-                        ? selectedDateStats.totalBookings 
-                        : (computedEventData?.totalBooking || "0")}
+                        ? selectedDateStats.totalTicketsSold 
+                        : (computedEventData?.totalTicketsSold || "0")}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
