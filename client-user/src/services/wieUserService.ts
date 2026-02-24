@@ -33,10 +33,10 @@ export interface UpdateAccountPrivacyRequest{
   accountPrivacy: 'public' | 'private';
 }
 export interface UpdatePersonalDetailsRequest{
-  email: string;
-  contact_no: string;
-  gender: string;
-  date_of_birth: string;
+  email?: string;
+  contact_no?: string;
+  gender?: string;
+  dob?: string;
 }
 export const getCountries = async (): Promise<Country[]> => {
   try {
