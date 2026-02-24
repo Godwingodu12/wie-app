@@ -32,6 +32,12 @@ export interface AccountPrivacyResponse{
 export interface UpdateAccountPrivacyRequest{
   accountPrivacy: 'public' | 'private';
 }
+export interface UpdatePersonalDetailsRequest{
+  first_name: string;
+  last_name: string;
+  gender: string;
+  date_of_birth: string;
+}
 export const getCountries = async (): Promise<Country[]> => {
   try {
     const res = await api.get<ApiResponse<Country[]>>('/user/countries');
@@ -346,3 +352,18 @@ export const unmuteUser = async(userId: string): Promise<ApiResponse> => {
     throw err;
   }
 };
+export const updatePersonalDetails = async (
+  data: UpdatePersonalDetailsRequest
+): Promise<User> => {
+  try {
+    const res = await api.put<ApiResponse>('/user/update-personal-details', data);
+    if (!res.data.user) {
+      throw new Error('User data not found in response');
+    }
+    return res.data.user;
+  } catch (err) {
+    console.error('updatePersonalDetails error:', err);
+    throw err;
+  }
+};
+
