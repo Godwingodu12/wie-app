@@ -1,6 +1,5 @@
 import Notification from '../models/notification.model.js';
 import { emitToUser } from '../socket/socket.js';
-// Create notification (HTTP endpoint - can be used directly if needed)
 export const createNotification = async (req, res) => {
   try {
     const notificationData = req.body;
