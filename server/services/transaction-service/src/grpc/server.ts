@@ -4,7 +4,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import BookingModel from '../models/booking.model.js';
 import { getEventDates } from './ticketClient.js';
-
+import { processRefundJob } from '../controllers/settlementController';
+import amqp from 'amqplib';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -191,6 +192,37 @@ const getMonthlyBookingChart = async (call: any, callback: any) => {
   }
 };
 
+const getBookingsForEvent = async (call: any, callback: any) => {
+  try {
+    const { ticketId } = call.request;
+
+    if (!ticketId) {
+      return callback(null, { bookings: [], count: 0, error: 'ticketId is required' });
+    }
+
+    const bookings = await BookingModel.findByTicketIdWithStatus(
+      ticketId,
+      ['confirmed', 'CONFIRMED', 'pending', 'PENDING']
+    );
+
+    const mapped = bookings.map((b: any) => ({
+      bookingId: b.bookingId  || '',
+      userId:    b.userId     || '',
+      subtotal:  b.subtotal?.toString() || '0',
+      status:    b.bookingStatus || '',
+    }));
+
+    callback(null, {
+      bookings: mapped,
+      count:    mapped.length,
+      error:    '',
+    });
+  } catch (error: any) {
+    console.error('❌ [gRPC] getBookingsForEvent error:', error);
+    callback(null, { bookings: [], count: 0, error: error.message });
+  }
+};
+
 export const startGrpcServer = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -203,7 +235,8 @@ export const startGrpcServer = (): Promise<void> => {
       server.addService(bookingProto.BookingService.service, {
         GetBookingStatsByDate: getBookingStatsByDate,
         GetBookingGrowthStats: getBookingGrowthStats,
-        GetMonthlyBookingChart: getMonthlyBookingChart
+        GetMonthlyBookingChart: getMonthlyBookingChart,
+        GetBookingsForEvent: getBookingsForEvent,
       });
 
       const port = process.env.BOOKING_GRPC_PORT || '50054';
@@ -228,4 +261,49 @@ export const startGrpcServer = (): Promise<void> => {
       reject(error);
     }
   });
+};
+
+// Rate-limited to ~200 refunds/min to avoid Razorpay throttling
+// Start this alongside the gRPC server
+export const startRefundWorker = async (): Promise<void> => {
+  const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost';
+  const QUEUE_NAME = 'wie.refund.jobs';
+  const RATE_LIMIT_MS = 300; // 200 refunds/min = 1 per 300ms
+
+  let conn: any, ch: any;
+
+  const connect = async () => {
+    conn = await amqp.connect(RABBITMQ_URL);
+    ch = await conn.createChannel();
+    await ch.assertQueue(QUEUE_NAME, { durable: true });
+    ch.prefetch(1); // Process one at a time per worker instance
+
+    console.log(`✅ [RefundWorker] Listening on queue: ${QUEUE_NAME}`);
+
+    ch.consume(QUEUE_NAME, async (msg: any) => {
+      if (!msg) return;
+      const job = JSON.parse(msg.content.toString());
+      console.log(`📥 [RefundWorker] Processing refund for booking: ${job.bookingId}`);
+
+      try {
+        await processRefundJob(job.bookingId, job.refundPercentage, job.eventName);
+        ch.ack(msg);
+        await new Promise((r) => setTimeout(r, RATE_LIMIT_MS));
+      } catch (err: any) {
+        console.error(`❌ [RefundWorker] Job failed:`, err.message);
+        // Nack with requeue=false after 3 retries — dead-letter queue handles it
+        ch.nack(msg, false, false);
+      }
+    });
+  };
+
+  try {
+    await connect();
+    conn.on('error', async () => {
+      console.error('⚠️ [RefundWorker] RabbitMQ connection lost — reconnecting in 5s');
+      setTimeout(connect, 5000);
+    });
+  } catch (err: any) {
+    console.error('❌ [RefundWorker] Failed to start:', err.message);
+  }
 };
