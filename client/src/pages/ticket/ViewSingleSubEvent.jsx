@@ -806,10 +806,10 @@ const ViewSingleSubEvent = () => {
               </div>
 
               <div className="max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                <p className={`text-sm ${theme.textColor} leading-relaxed`}>
+                <p className={`text-sm ${theme.textColor} leading-relaxed whitespace-pre-line`}>
                   {subEventData.event_description &&
                   subEventData.event_description.trim()
-                    ? subEventData.event_description
+                    ? subEventData.event_description.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()
                     : "No detailed description is available for this sub-event."}
                 </p>
               </div>
@@ -1201,12 +1201,14 @@ const ViewSingleSubEvent = () => {
                 theme={theme}
                 onClick={handleTicketDetailsClick}
               />
-              <CustomStyledButton
-                Icon={Seat}
-                label="Seating Layout"
-                theme={theme}
-                onClick={handleSeatingLayoutClick}
-              />
+              {(subEventData.ticket_layout || subEventData.seating_layout?.seats?.length > 0) && (
+                <CustomStyledButton
+                  Icon={Seat}
+                  label="Seating Layout"
+                  theme={theme}
+                  onClick={handleSeatingLayoutClick}
+                />
+              )}
               <CustomStyledButton
                 Icon={Rules}
                 label="Rules & Regulation"
