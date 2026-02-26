@@ -6485,7 +6485,7 @@ export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, no
     await newMainTicket.save();
   }
 
-  //  Clear sub_events from old main & store reference 
+  // ── Clear sub_events from old main & store reference ─────────────────────
   ticket.sub_events             = [];
   ticket.promoted_to_ticket_id  = newMainTicket._id;
   ticket.markModified("sub_events");
