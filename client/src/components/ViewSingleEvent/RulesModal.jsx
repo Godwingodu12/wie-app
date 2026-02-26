@@ -116,15 +116,26 @@ const RulesModal = ({ eventRules, theme, onClose, formatImagePath }) => {
                 boxShadow: theme.shadowInset,
               }}
             >
-              <pre
-                className={`whitespace-pre-wrap font-sans text-sm ${theme.text}`}
+              <p
+                className={`whitespace-pre-line text-sm ${theme.text}`}
                 style={{ fontFamily: "inherit" }}
               >
-                {eventRules.content}
-              </pre>
+                {eventRules.content
+                  .replace(/<br\s*\/?>/gi, "\n")
+                  .replace(/<\/p>/gi, "\n")
+                  .replace(/<\/li>/gi, "\n")
+                  .replace(/<li>/gi, "• ")
+                  .replace(/<[^>]+>/g, "")
+                  .replace(/&nbsp;/gi, " ")
+                  .replace(/&amp;/g, "&")
+                  .replace(/&lt;/g, "<")
+                  .replace(/&gt;/g, ">")
+                  .replace(/&quot;/g, '"')
+                  .replace(/\n{3,}/g, "\n\n")
+                  .trim()}
+              </p>
             </div>
           )}
-
           {isFile && eventRules.path && (
             <div className="space-y-4">
               {/* PDF/Document Viewer */}
