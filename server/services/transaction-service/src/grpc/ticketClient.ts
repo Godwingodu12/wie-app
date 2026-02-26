@@ -194,6 +194,47 @@ export const getPreviousEventStats = async (ticketId: string): Promise<any> => {
     });
   });
 };
+
+export const cancelEventViaGrpc = async (
+  ticketId: string,
+  subEventId: string = "",
+  hostId: string,
+  cancellation_reason: string = ""
+): Promise<{ success: boolean; cancelledAt: string }> => {
+  return new Promise((resolve, reject) => {
+    const client = getClient();
+    client.CancelEvent(
+      { ticketId, subEventId, hostId, cancellation_reason },
+      (error: any, response: any) => {
+        if (error) return reject(new Error(`CancelEvent gRPC failed: ${error.message}`));
+        if (!response.success) return reject(new Error(response.error));
+        resolve({ success: true, cancelledAt: response.cancelledAt });
+      }
+    );
+  });
+};
+
+export const getEventCancellationInfo = async (
+  ticketId: string,
+  subEventId: string = ""
+): Promise<{ eventId: string; paymentType: string; groupId: string; eventName: string }> => {
+  return new Promise((resolve, reject) => {
+    const client = getClient();
+    client.GetEventCancellationInfo(
+      { ticketId, subEventId },
+      (error: any, response: any) => {
+        if (error) return reject(new Error(`GetEventCancellationInfo failed: ${error.message}`));
+        if (response.error) return reject(new Error(response.error));
+        resolve({
+          eventId: response.eventId,
+          paymentType: response.paymentType,
+          groupId: response.groupId,
+          eventName: response.eventName,
+        });
+      }
+    );
+  });
+};
 export const getEventDates = async (ticketId: string): Promise<{
   start_date: string;
   start_time?: string;
