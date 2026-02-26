@@ -2,16 +2,13 @@ import { publishToQueue } from '../rabbit/consumer.js';
 import { isChannelAvailable } from '../rabbit/connection.js';
 export const createNotification = async (notificationData) => {
   if (!isChannelAvailable()) {
-    console.warn('⚠️ RabbitMQ not available, notification not sent:', notificationData);
     return { success: false, error: 'RabbitMQ not available' };
   }
   try {
-    console.log('📤 Sending notification to notification-service:', notificationData);
     
     const response = await publishToQueue('notification-create', notificationData, 5000);
     
     if (response && response.success) {
-      console.log('✅ Notification sent successfully:', response.notification?._id);
       return response;
     } else {
       console.error('❌ Failed to create notification:', response?.error);
