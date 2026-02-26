@@ -186,9 +186,8 @@ export const listenExchangeQueue = async (
         channel.nack(msg, false, false); // No requeue — avoid infinite loops
       }
     });
-
-    console.log(`✅ [RabbitMQ] Bound "${queueName}" to exchange "${exchangeName}" via key "${routingKey}"`);
   } catch (error) {
     console.error(`❌ Error setting up exchange listener for "${queueName}":`, error.message);
   }
 };
+
