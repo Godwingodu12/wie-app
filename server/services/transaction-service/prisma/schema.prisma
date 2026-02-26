@@ -2,14 +2,16 @@ generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
+
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
+
 model Booking {
   id                  String               @id @default(uuid()) @db.Uuid
-  bookingId           String               @unique @map("booking_id") @db.VarChar(50) 
+  bookingId           String               @unique @map("booking_id") @db.VarChar(50)
   userId              String               @map("user_id") @db.Uuid
   ticketId            String               @map("ticket_id") @db.VarChar(50)
   groupId             String               @map("group_id") @db.VarChar(50)
@@ -45,6 +47,7 @@ model Booking {
   refundId            String?              @map("refund_id") @db.VarChar(100)
   refundInitiatedAt   DateTime?            @map("refund_initiated_at") @db.Timestamp(6)
   seatDetails         Json?                @map("seat_details")
+  refund_retry_count  Int                  @default(0)
   paymentTransactions PaymentTransaction[]
 
   @@index([userId], map: "idx_bookings_user_id")
@@ -100,26 +103,175 @@ model PaymentTransaction {
 }
 
 model Settlement {
-  id                 String           @id @default(uuid()) @db.Uuid
-  bookingId          String           @map("booking_id") @db.Uuid
-  organizationAmount Decimal          @map("organization_amount") @db.Decimal(10, 2)
-  platformFee        Decimal          @map("platform_fee") @db.Decimal(10, 2)
-  status             SettlementStatus @default(PENDING)
-  bankDetails        Json             @map("bank_details")
-  razorpayPayoutId   String?          @map("razorpay_payout_id") @db.VarChar(100)
-  processedAt        DateTime?        @map("processed_at") @db.Timestamp(6)
-  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamp(6)
+  id                    String           @id @default(uuid()) @db.Uuid
+  bookingId             String           @map("booking_id") @db.Uuid
+  organizationAmount    Decimal          @map("organization_amount") @db.Decimal(10, 2)
+  platformFee           Decimal          @map("platform_fee") @db.Decimal(10, 2)
+  status                SettlementStatus @default(PENDING)
+  bankDetails           Json             @map("bank_details")
+  razorpayPayoutId      String?          @map("razorpay_payout_id") @db.VarChar(100)
+  processedAt           DateTime?        @map("processed_at") @db.Timestamp(6)
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamp(6)
+  ticketId              String?          @map("ticket_id") @db.VarChar(50)
+  groupId               String?          @map("group_id") @db.VarChar(50)
+  totalAmount           Decimal?         @map("total_amount") @db.Decimal(10, 2)
+  settlementType        String           @default("STANDARD") @map("settlement_type") @db.VarChar(20)
+  scheduledAt           DateTime?        @map("scheduled_at") @db.Timestamp(6)
+  retryCount            Int              @default(0) @map("retry_count")
+  hostRazorpayAccountId String?          @map("host_razorpay_account_id") @db.VarChar(100)
+  razorpayTransferId    String?          @map("razorpay_transfer_id") @db.VarChar(100)
 
   @@index([bookingId], map: "idx_settlements_booking")
   @@index([status], map: "idx_settlements_status")
+  @@index([groupId], map: "idx_settlements_group_id")
+  @@index([ticketId], map: "idx_settlements_ticket_id")
   @@map("settlements")
 }
+
+model HostLinkedAccount {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id            String   @unique @db.VarChar(50)
+  razorpay_account_id String   @db.VarChar(100)
+  kyc_status          String   @default("pending") @db.VarChar(20)
+  business_name       String?  @db.VarChar(255)
+  email               String?  @db.VarChar(255)
+  is_active           Boolean  @default(true)
+  created_at          DateTime @default(now()) @db.Timestamp(6)
+  updated_at          DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([group_id], map: "idx_host_linked_accounts_group_id")
+  @@map("host_linked_accounts")
+}
+
+model Ledger {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  booking_id   String   @db.VarChar(100)
+  ticket_id    String?  @db.VarChar(50)
+  group_id     String?  @db.VarChar(50)
+  type         String   @db.VarChar(20)
+  debit        Decimal? @db.Decimal(10, 2)
+  credit       Decimal? @db.Decimal(10, 2)
+  balance      Decimal  @db.Decimal(10, 2)
+  reference_id String?  @db.VarChar(100)
+  description  String?
+  status       String   @default("completed") @db.VarChar(20)
+  created_at   DateTime @default(now()) @db.Timestamp(6)
+  updated_at   DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([booking_id], map: "idx_ledger_booking_id")
+  @@index([group_id], map: "idx_ledger_group_id")
+  @@index([ticket_id], map: "idx_ledger_ticket_id")
+  @@index([type], map: "idx_ledger_type")
+  @@map("ledger")
+}
+
+model HostAdjustment {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id          String    @db.VarChar(50)
+  booking_id        String    @db.VarChar(100)
+  settlement_id     String    @db.VarChar(100)
+  adjustment_amount Decimal   @db.Decimal(10, 2)
+  reason            String?
+  status            String    @default("PENDING") @db.VarChar(20)
+  applied_at        DateTime? @db.Timestamp(6)
+  created_at        DateTime  @default(now()) @db.Timestamp(6)
+  updated_at        DateTime  @default(now()) @db.Timestamp(6)
+
+  @@index([booking_id], map: "idx_host_adjustments_booking_id")
+  @@index([group_id], map: "idx_host_adjustments_group_id")
+  @@map("host_adjustments")
+}
+
+model countries {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  country_code String      @unique @db.VarChar(10)
+  country_name String      @db.VarChar(100)
+  created_at   DateTime    @default(now()) @db.Timestamp(6)
+  phone_code   String?     @db.VarChar(10)
+  wie_users    wie_users[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model otps {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  otp_value  String     @db.VarChar(6)
+  expires_at DateTime   @db.Timestamp(6)
+  created_at DateTime   @default(now()) @db.Timestamp(6)
+  otp_type   String     @default("signup") @db.VarChar(20)
+  temp_id    String?    @db.VarChar(255)
+  user_id    String?    @db.Uuid
+  wie_users  wie_users? @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([expires_at], map: "idx_otps_expires_at")
+  @@index([temp_id], map: "idx_otps_temp_id")
+  @@index([user_id], map: "idx_otps_user_id")
+}
+
+model user_mutes {
+  id                                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  muter_id                                 String    @db.Uuid
+  muted_id                                 String    @db.Uuid
+  mute_posts                               Boolean   @default(true)
+  mute_stories                             Boolean   @default(true)
+  mute_reels                               Boolean   @default(false)
+  mute_notes                               Boolean   @default(false)
+  created_at                               DateTime  @default(now()) @db.Timestamp(6)
+  wie_users_user_mutes_muted_idTowie_users wie_users @relation("user_mutes_muted_idTowie_users", fields: [muted_id], references: [id], onDelete: Cascade)
+  wie_users_user_mutes_muter_idTowie_users wie_users @relation("user_mutes_muter_idTowie_users", fields: [muter_id], references: [id], onDelete: Cascade)
+
+  @@unique([muter_id, muted_id])
+  @@index([muted_id])
+  @@index([muter_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model wie_users {
+  id                                        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                                     String?      @unique @db.VarChar(255)
+  contact_no                                String?      @unique @db.VarChar(20)
+  password                                  String?      @db.VarChar(255)
+  name                                      String?      @db.VarChar(255)
+  profile_picture                           String?
+  role                                      String       @default("user") @db.VarChar(50)
+  is_blocked                                Boolean      @default(false)
+  is_verified                               Boolean      @default(false)
+  created_at                                DateTime     @default(now()) @db.Timestamp(6)
+  updated_at                                DateTime     @default(now()) @db.Timestamp(6)
+  username                                  String?      @unique @db.VarChar(100)
+  bio                                       String?
+  country_id                                String?      @db.Uuid
+  status                                    String       @default("pending") @db.VarChar(20)
+  auth_provider                             String       @default("local") @db.VarChar(20)
+  google_id                                 String?      @unique @db.VarChar(255)
+  is_online                                 Boolean      @default(false)
+  latitude                                  Float?
+  location                                  String?
+  longitude                                 Float?
+  followers_count                           Int          @default(0)
+  following_count                           Int          @default(0)
+  posts_count                               Int          @default(0)
+  token_version                             Int          @default(0)
+  allow_message_requests                    Boolean      @default(false)
+  allow_messages_from                       String       @default("everyone") @db.VarChar(20)
+  last_seen_at                              DateTime?    @db.Timestamp(6)
+  account_privacy                           String       @default("public") @db.VarChar(20)
+  dob                                       DateTime?    @db.Date
+  gender                                    String?      @db.VarChar(20)
+  otps                                      otps[]
+  user_mutes_user_mutes_muted_idTowie_users user_mutes[] @relation("user_mutes_muted_idTowie_users")
+  user_mutes_user_mutes_muter_idTowie_users user_mutes[] @relation("user_mutes_muter_idTowie_users")
+  countries                                 countries?   @relation(fields: [country_id], references: [id])
+}
+
 enum SettlementStatus {
   PENDING
   PROCESSING
   COMPLETED
   FAILED
+  HELD
+  REFUND_INITIATED
 }
 
 enum PaymentStatus {

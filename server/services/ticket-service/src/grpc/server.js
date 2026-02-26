@@ -621,8 +621,6 @@ const updateTicketCancellation = async (call, callback) => {
   try {
     const { ticketId, increment } = call.request;
 
-    console.log(`📥 [gRPC] UpdateTicketCancellation called for ticket: ${ticketId}, increment: ${increment}`);
-
     if (!ticketId) {
       return callback(null, {
         success: false,
@@ -665,8 +663,6 @@ const updateTicketCancellation = async (call, callback) => {
       ticket.markModified('sub_events');
       await ticket.save();
 
-      console.log(`✅ [gRPC] Updated cancellations for sub-event ${ticketId}: ${currentCancellations} -> ${newCancellations}`);
-
       callback(null, {
         success: true,
         ticketId: ticketId,
@@ -679,8 +675,6 @@ const updateTicketCancellation = async (call, callback) => {
 
       ticket.total_cancellation = newCancellations;
       await ticket.save();
-
-      console.log(`✅ [gRPC] Updated cancellations for ticket ${ticketId}: ${currentCancellations} -> ${newCancellations}`);
 
       callback(null, {
         success: true,
@@ -703,9 +697,6 @@ const updateTicketCancellation = async (call, callback) => {
 const getPreviousEventStats = async (call, callback) => {
   try {
     const { ticketId } = call.request;
-
-    console.log(`📥 [gRPC] GetPreviousEventStats called for ticket: ${ticketId}`);
-
     if (!ticketId) {
       return callback(null, {
         totalLikes: 0,
@@ -790,9 +781,6 @@ const getPreviousEventStats = async (call, callback) => {
       totalCapacityPercentage: 0,
       error: ''
     };
-
-    console.log(`✅ [gRPC] GetPreviousEventStats completed for ticket ${ticketId}`);
-
     callback(null, response);
 
   } catch (error) {
@@ -814,6 +802,98 @@ const getPreviousEventStats = async (call, callback) => {
     });
   }
 };
+// cancellation status before processing refunds(gRPC: CancelEvent — called by transaction-service to verify)
+const cancelEventGrpc = async (call, callback) => {
+  try {
+    const { ticketId, subEventId, hostId, cancellation_reason } = call.request;
+
+    if (!ticketId) {
+      return callback(null, { success: false, error: "ticketId is required" });
+    }
+
+    const ticket = await Ticket.findById(ticketId);
+    if (!ticket) {
+      return callback(null, { success: false, error: "Ticket not found" });
+    }
+
+    if (hostId && ticket.userId?.toString() !== hostId) {
+      return callback(null, { success: false, error: "Unauthorized: not the event host" });
+    }
+
+    const now = new Date();
+
+    if (subEventId) {
+      const subIndex = ticket.sub_events.findIndex(
+        (se) => se._id.toString() === subEventId
+      );
+      if (subIndex === -1) {
+        return callback(null, { success: false, error: "Sub-event not found" });
+      }
+      ticket.sub_events[subIndex].event_status = "cancelled";
+      ticket.sub_events[subIndex].cancelled_at = now;
+      ticket.markModified("sub_events");
+    } else {
+      ticket.event_status = "cancelled";
+      ticket.cancelled_at = now;
+      ticket.cancelled_by = hostId;
+    }
+
+    await ticket.save();
+
+    callback(null, {
+      success: true,
+      ticketId,
+      subEventId: subEventId || "",
+      cancelledAt: now.toISOString(),
+      error: "",
+    });
+  } catch (error) {
+    console.error("❌ [gRPC] cancelEventGrpc error:", error);
+    callback(null, { success: false, error: error.message });
+  }
+};
+// Returns eventId + paymentType for transaction-service refund worker
+const getEventCancellationInfo = async (call, callback) => {
+  try {
+    const { ticketId, subEventId } = call.request;
+
+    const ticket = await Ticket.findById(ticketId).lean();
+    if (!ticket) {
+      return callback(null, {
+        eventId: "",
+        paymentType: "",
+        groupId: "",
+        eventName: "",
+        error: "Ticket not found",
+      });
+    }
+
+    let targetEvent = ticket;
+    if (subEventId) {
+      const sub = ticket.sub_events?.find((se) => se._id.toString() === subEventId);
+      if (!sub) {
+        return callback(null, {
+          eventId: "",
+          paymentType: "",
+          groupId: "",
+          eventName: "",
+          error: "Sub-event not found",
+        });
+      }
+      targetEvent = sub;
+    }
+
+    callback(null, {
+      eventId: subEventId || ticketId,
+      paymentType: targetEvent.payment_type || ticket.payment_type || "free",
+      groupId: ticket.groupId?.toString() || "",
+      eventName: targetEvent.event_name || "",
+      error: "",
+    });
+  } catch (error) {
+    callback(null, { eventId: "", paymentType: "", groupId: "", eventName: "", error: error.message });
+  }
+};
 export const startGrpcServer = (port = 50052) => {
   const server = new grpc.Server();
   server.addService(ticketProto.TicketService.service, {
@@ -826,6 +906,8 @@ export const startGrpcServer = (port = 50052) => {
     GetTicketBookingStats: getTicketBookingStats,
     UpdateTicketCancellation: updateTicketCancellation,
     GetPreviousEventStats: getPreviousEventStats,
+    CancelEvent: cancelEventGrpc,
+    GetEventCancellationInfo: getEventCancellationInfo,
   });
   server.bindAsync(
     `0.0.0.0:${port}`,
@@ -835,7 +917,6 @@ export const startGrpcServer = (port = 50052) => {
         console.error("gRPC server failed to bind:", error);
         return;
       }
-      console.log(`gRPC server running on port ${boundPort}`);
     }
   );
   return server;

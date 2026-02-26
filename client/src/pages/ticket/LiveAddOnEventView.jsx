@@ -6,6 +6,7 @@ import SearchBar from "../../components/HomePage/SearchBar";
 import SideBar from "../../components/HomePage/SideBar";
 import BottomNavigation from "../../components/HomePage/BottomNavigation";
 import EventLocationModal from "../../components/ViewSingleEvent/EventLocationModal";
+import { EventCancelModal, EventCancelSuccessModal } from "../../components/Event/EventCancelModal";
 import GuideModal from "../../components/ViewSingleEvent/GuideModal";
 import WieLogo from "../../assets/HomePage/WieLogo.svg?url";
 import { toast } from "react-hot-toast";
@@ -13,8 +14,8 @@ import {
   getMyLiveEventView,
   getGroupView,
   getTicketById,
-  getAddOnEventLiveView,
-  getEventMetrics, // Import the new service function
+  getAddOnEventLiveView,cancelSubEvent, getCancellationReport,
+  getEventMetrics, 
 } from "../../services/ticketService";
 import {
   Radio,
@@ -35,7 +36,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Hash,
+  Hash,Ban, FileSpreadsheet, AlertTriangle
 } from "lucide-react";
 import Card from "../../components/ViewSingleEvent/Card";
 import InsetCard from "../../components/ViewSingleEvent/InsetCard";
@@ -89,6 +90,16 @@ const LiveAddOnEventView = () => {
   const rawStart = eventDates[0]?.start_date;
   const lastEntry = eventDates[eventDates.length - 1];
   const rawEnd   = lastEntry?.end_date || lastEntry?.start_date;
+  //Sub-Event Cancellation State
+  const [showCancelModal, setShowCancelModal]         = useState(false);
+  const [cancelReason, setCancelReason]               = useState("");
+  const [cancelReasonError, setCancelReasonError]     = useState("");
+  const [isCancelling, setIsCancelling]               = useState(false);
+  const [cancelSuccess, setCancelSuccess]             = useState(false);
+  const [showDownloadReport, setShowDownloadReport]   = useState(false);
+  const [isDownloading, setIsDownloading]             = useState(false);
+  const [cancellationSummary, setCancellationSummary] = useState(null);
+  const [downloadError, setDownloadError] = useState("");
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -112,6 +123,7 @@ const LiveAddOnEventView = () => {
     const maxIndex = Math.max(0, (eventData?.guests?.length || 0) - guidesToShow);
     setCurrentGuideIndex((prev) => Math.min(maxIndex, prev + 1));
   };
+
   // Fetch event data
   useEffect(() => {
     const fetchEventData = async () => {
@@ -216,6 +228,78 @@ const LiveAddOnEventView = () => {
 
     fetchEventData();
   }, [ticketId]);
+  // ── Handle Sub-Event Cancellation 
+const handleCancelEvent = async () => {
+  if (!cancelReason.trim()) {
+    setCancelReasonError("Please provide a cancellation reason.");
+    return;
+  }
+  if (cancelReason.trim().length < 10) {
+    setCancelReasonError("Reason must be at least 10 characters.");
+    return;
+  }
+  // sub-event needs parentEventId + ticketId (subEventId)
+  const parentEventId = eventData?.parentEventId;
+  if (!parentEventId) {
+    setCancelReasonError("Parent event ID not found. Cannot cancel sub-event.");
+    return;
+  }
+  try {
+    setIsCancelling(true);
+    setCancelReasonError("");
+    const response = await cancelSubEvent(parentEventId, ticketId, cancelReason.trim());
+    if (response.success) {
+      setCancelSuccess(true);
+      setShowDownloadReport(true);
+      setCancellationSummary({
+        eventName:        eventData?.event_name,
+        totalBookings:    response.data?.affectedBookings || 0,
+        refundPercentage: response.data?.refundPercentage || 100,
+        isPaid:           eventData?.payment_type === "paid",
+        reason:           cancelReason.trim(),
+      });
+      setEventData((prev) => ({ ...prev, event_status: "cancelled" }));
+      toast.success("Sub-event cancelled. All attendees have been notified.");
+    }
+  } catch (err) {
+    const msg = err?.response?.data?.message || err.message || "Failed to cancel sub-event.";
+    toast.error(msg);
+    setCancelReasonError(msg);
+  } finally {
+    setIsCancelling(false);
+  }
+};
+
+const handleCloseCancelModal = () => {
+  if (cancelSuccess) {
+    setShowCancelModal(false);
+  } else {
+    setShowCancelModal(false);
+    setCancelReason("");
+    setCancelReasonError("");
+  }
+};
+
+const handleDownloadReport = async () => {
+  try {
+    setIsDownloading(true);
+    setDownloadError("");
+    // ticketId here is the sub-event ID from useParams()
+    // parentEventId is the root ticket that owns this sub-event
+    const parentEventId = eventData?.parentEventId;
+    if (!parentEventId) {
+      throw new Error("Parent event ID not found. Cannot generate report.");
+    }
+    await getCancellationReport(parentEventId, ticketId);
+    toast.success("Report downloaded successfully!");
+  } catch (err) {
+    const msg = err?.message || "Failed to download report. Please try again.";
+    setDownloadError(msg);
+    toast.error(msg);
+  } finally {
+    setIsDownloading(false);
+  }
+};
   // Computed values from API data
   const computedEventData = eventData
     ? {
@@ -386,22 +470,6 @@ useEffect(() => {
     { month: "AUG", value: 320, height: "h-16" },
   ];
   const generateCalendarDays = () => {
-    // Rely on currentDate state for calendar navigation
-    // We want to show a week or a month? The original code showed a week starting from event date or today.
-    // To support "Calendar Controls" (Month/Year), we usually show the whole month or at least a week within that month.
-    // The user's request is "check for calendar controls... implement the same buttons".
-    // I will anchor the 7-day view to the 'currentDate' state.
-
-    // Logic: Show 7 days starting from the beginning of the week of 'currentDate'
-    // OR if we want to show strict days of the selected month/year.
-    // Let's stick to the "week" view but updated by the controls for now, as the grid is 7 cols but only 1 row (based on original code).
-    // Wait, original code: for (let i = 0; i < 7; i++)
-
-    // Better Approach: 'currentDate' represents the focal point.
-    // If the user changes Month/Year, 'currentDate' updates.
-    // We display the week containing 'currentDate', or just the first 7 days of that month?
-    // Let's display the week containing 'currentDate'.
-
     const dayOfWeek = currentDate.getDay();
     const startOfWeek = new Date(currentDate);
     startOfWeek.setDate(currentDate.getDate() - dayOfWeek);
@@ -751,14 +819,45 @@ useEffect(() => {
                   </div>
                 </div>
               </div>
-
-              {/* Filter Pills (Right) */}
               <div className="flex items-center gap-3 flex-wrap pb-2 lg:pb-0 mt-4 lg:mt-0">
                 <button
                   className={`px-6 py-2 rounded-full text-sm font-medium transition-colors ${theme.inactivePill} ml-auto lg:ml-0 text-blue-500`}
                 >
                   {formattedDateLabel}
                 </button>
+
+                {/* Cancel Sub-Event Button */}
+                {eventData?.event_status !== "cancelled" ? (
+                  <button
+                    onClick={() => setShowCancelModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                              bg-red-600 hover:bg-red-700 text-white transition-all duration-200
+                              hover:scale-105 shadow-lg"
+                  >
+                    <Ban size={16} />
+                    Cancel Event
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                                  bg-gray-600 text-gray-300 cursor-not-allowed">
+                    <Ban size={16} />
+                    Event Cancelled
+                  </div>
+                )}
+
+                {/* Download Report Button */}
+                {(showDownloadReport || eventData?.event_status === "cancelled") && (
+                  <button
+                    onClick={handleDownloadReport}
+                    disabled={isDownloading}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                              bg-emerald-600 hover:bg-emerald-700 text-white transition-all duration-200
+                              hover:scale-105 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <FileSpreadsheet size={16} />
+                    {isDownloading ? "Downloading..." : "Download Report"}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1160,7 +1259,7 @@ useEffect(() => {
                         <Armchair className="w-8 h-8 filter brightness-0 invert" />
                       </button>
                       <span className="text-xs font-medium">
-                        Seating layout
+                        Seating
                       </span>
                     </div>
                   </div>
@@ -1454,12 +1553,35 @@ useEffect(() => {
         </div>
       </div>
       {/* <-- This closing div was missing */}
+      {showCancelModal && !cancelSuccess && (
+        <EventCancelModal
+          theme={theme}
+          isDark={isDark}
+          eventData={eventData}
+          cancelReason={cancelReason}
+          setCancelReason={setCancelReason}
+          cancelReasonError={cancelReasonError}
+          setCancelReasonError={setCancelReasonError}
+          isCancelling={isCancelling}
+          onConfirm={handleCancelEvent}
+          onClose={handleCloseCancelModal}
+        />
+      )}
+      {showCancelModal && cancelSuccess && (
+        <EventCancelSuccessModal
+          theme={theme}
+          isDark={isDark}
+          cancellationSummary={cancellationSummary}
+          isDownloading={isDownloading}
+          downloadError={downloadError}
+          onDownload={handleDownloadReport}   
+          onClose={() => setShowCancelModal(false)}
+        />
+      )}
     </>
   );
 };
-
 // --- Sub-Components for this page ---
-
 const getButtonNeumorphicShadows = (isDark) =>
   isDark
     ? "shadow-[inset_2px_2px_5px_#1a1b1e,inset_-2px_-2px_5px_#3c3f44]"

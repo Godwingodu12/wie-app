@@ -5,10 +5,11 @@ import Database from './config/db';
 import bookingRoutes from './routes/bookingRoutes';
 import interactionRoutes from './routes/interactionRoutes';
 import adminRoutes from './routes/adminRoutes';
-import { startGrpcServer } from './grpc/server';
+import { startGrpcServer,startRefundWorker } from './grpc/server';
 import webhookRoutes from './routes/webhookRoutes';
 import { connectRabbitMQ } from './rabbit';
 import { startConsumers } from './rabbit/index';
+import { startSettlementWorker } from './workers/settlementWorker';
 
 const app = express();
 const PORT = process.env.PORT || 5007;
@@ -49,6 +50,7 @@ const startServer = async () => {
     // Connect to database
     await Database.connect();
     startGrpcServer();
+    startRefundWorker().catch(console.error);
     console.log('✅ gRPC server started');
     
     // Optionally connect to RabbitMQ (if RABBITMQ_URL is provided)
@@ -56,6 +58,7 @@ const startServer = async () => {
       try {
         await connectRabbitMQ();
         await startConsumers();
+        await startSettlementWorker().catch(console.error);
         console.log('✅ RabbitMQ connected and consumers started');
       } catch (rabbitError: any) {
         console.warn('⚠️ RabbitMQ connection failed, but server will continue running');

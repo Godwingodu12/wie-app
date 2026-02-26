@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../config/db';
 import { SettlementService } from '../services/settlementService';
 import RazorpayService from '../config/razorpay';
@@ -8,45 +7,20 @@ import { updateTicketCancellation, getEventDates } from '../grpc/ticketClient';
 import { getUserById } from '../clients/userServiceClient';
 import { generateQRCode } from '../utils/qrGenerator';
 import { createNotification } from '../utils/notificationHelper';
+import { LedgerModel } from '../models/ledger.model';
 import { BookingModel, PaymentTransactionModel } from '../models';
-// Helper to safely update ticket stats
 async function safeUpdateTicketStats(
-  ticketId: string, 
-  field: 'like' | 'share' | 'totalBookings' | 'totalTicketsSold' | 'revenue', 
+  ticketId: string,
+  field: 'like' | 'share' | 'totalBookings' | 'totalTicketsSold' | 'revenue',
   value: number
 ) {
   try {
     await updateTicketStats(ticketId, field, value);
-    console.log(`✅ Successfully updated ${field}`);
   } catch (error: any) {
-    console.error(`⚠️ Warning: Could not update ticket ${field}:`, error.message);
+    console.error(`⚠️ Could not update ticket ${field}:`, error.message);
   }
 }
-// Calculate pricing
-const calculatePricing = (
-  pricePerTicket: number,
-  quantity: number
-): {
-  subtotal: number;
-  tax: number;
-  platformFee: number;
-  totalAmount: number;
-} => {
-  const subtotal = pricePerTicket * quantity;
-  const taxPercentage = parseFloat(process.env.TAX_PERCENTAGE || '18');
-  const platformFeePercentage = parseFloat(process.env.PLATFORM_FEE_PERCENTAGE || '2');
 
-  const tax = (subtotal * taxPercentage) / 100;
-  const platformFee = (subtotal * platformFeePercentage) / 100;
-  const totalAmount = subtotal + tax + platformFee;
-
-  return {
-    subtotal: parseFloat(subtotal.toFixed(2)),
-    tax: parseFloat(tax.toFixed(2)),
-    platformFee: parseFloat(platformFee.toFixed(2)),
-    totalAmount: parseFloat(totalAmount.toFixed(2)),
-  };
-};
 export const registerFreeEvent = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -62,21 +36,22 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
         message: 'ticketId and quantity are required',
       });
     }
+
+    // Prevent duplicate registration
     const existingBooking = await BookingModel.findOne({
       userId,
       ticketId,
-      bookingStatus: {
-        in: ['CONFIRMED', 'PENDING']  // Changed from $in to in
-      }
+      bookingStatus: { in: ['CONFIRMED', 'PENDING'] },
     });
+
     if (existingBooking) {
       return res.status(400).json({
         success: false,
         message: 'You have already registered for this event',
       });
     }
-    const ticket = await getTicketById(ticketId);
 
+    const ticket = await getTicketById(ticketId);
     if (!ticket) {
       return res.status(404).json({ success: false, message: 'Ticket not found' });
     }
@@ -90,17 +65,166 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
 
     const user = await getUserById(userId);
 
-    const rawBank = ticket.banking_details?.[0];
-    const settlementBankDetails = rawBank
-      ? {
-          bank_acc_holder: rawBank.bank_acc_holder || '',
-          bank_acc_no: rawBank.bank_acc_no || '',
-          bank_ifsc: rawBank.bank_ifsc || '',
-          bank_acc_type: rawBank.bank_acc_type || '',
-        }
-      : undefined;
-
     const bookingId = `FR${Date.now()}${Math.random()
+      .toString(36)
+      .substr(2, 9)
+      .toUpperCase()}`;
+
+    // Free event — all amounts are 0, no platform fee
+    const booking = await BookingModel.create({
+      bookingId,
+      userId,
+      ticketId,
+      groupId:        ticket.groupId,
+      ticketType:     ticketTypeId || 'Free Entry',
+      quantity,
+      pricePerTicket: 0,
+      subtotal:       0,
+      tax:            0,
+      platformFee:    0,   // ✅ no fee for free events
+      totalAmount:    0,
+      currency:       'INR',
+      userDetails: {
+        name:  user.name     || '',
+        email: user.email    || '',
+        phone: user.contactNo || '',
+      },
+      eventDetails: {
+        eventName: ticket.event_name,
+        eventDate: ticket.event_dates[0]?.start_date || '',
+        eventTime: ticket.event_dates[0]?.start_time || '',
+        venue:     ticket.venue || ticket.location   || '',
+        location:  ticket.location                   || '',
+      },
+    });
+
+    // Generate QR and confirm immediately (no payment needed)
+    const qrCode = await generateQRCode({
+      bookingId: booking.bookingId,
+      userId:    booking.userId,
+      ticketId:  booking.ticketId,
+      eventName: ticket.event_name,
+      eventDate: ticket.event_dates[0]?.start_date || '',
+      quantity:  booking.quantity,
+    });
+
+    const confirmedBooking = await BookingModel.update(booking.id, {
+      paymentStatus: 'COMPLETED',
+      bookingStatus: 'CONFIRMED',
+      qrCode,
+    });
+
+    await safeUpdateTicketStats(ticketId, 'totalBookings', 1);
+    await safeUpdateTicketStats(ticketId, 'totalTicketsSold', quantity);
+
+    await createNotification({
+      userId,
+      type:      'booking_confirmed',
+      title:     'Registration Confirmed!',
+      message:   `Your registration for ${ticket.event_name} is confirmed`,
+      bookingId: String(booking.id),
+      ticketId,
+      link:      `/bookings/${booking.id}`,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Free event registration successful',
+      data: { booking: confirmedBooking, qrCode },
+    });
+  } catch (error: any) {
+    console.error('❌ Error registering for free event:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+export const createBooking = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { ticketId, ticketTypeId, quantity } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (!ticketId || !ticketTypeId || !quantity || quantity < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'ticketId, ticketTypeId, and quantity are required',
+      });
+    }
+
+    const ticket = await getTicketById(ticketId);
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: 'Ticket not found' });
+    }
+
+    if (ticket.payment_type === 'free') {
+      return res.status(400).json({
+        success: false,
+        message: 'This is a free event. Use the free registration endpoint instead.',
+      });
+    }
+
+    const ticketType = ticket.ticket_types.find((tt: any) => tt._id === ticketTypeId);
+    if (!ticketType) {
+      return res.status(404).json({ success: false, message: 'Ticket type not found' });
+    }
+
+    // Check capacity
+    if (ticketType.max_capacity) {
+      const totalBooked = await BookingModel.countBookedTickets(
+        ticketId,
+        ticketType.ticket_type
+      );
+      if (totalBooked + quantity > ticketType.max_capacity) {
+        return res.status(400).json({
+          success: false,
+          message: `Only ${ticketType.max_capacity - totalBooked} tickets available`,
+        });
+      }
+    }
+
+    // Check 50 ticket limit per user per event
+    const userExistingBookings = await prisma.booking.aggregate({
+      where: {
+        userId,
+        ticketId,
+        bookingStatus: { in: ['CONFIRMED', 'PENDING'] },
+      },
+      _sum: { quantity: true },
+    });
+    const totalUserTickets = userExistingBookings._sum.quantity || 0;
+    if (totalUserTickets + quantity > 50) {
+      return res.status(400).json({
+        success: false,
+        message: `Maximum 50 tickets per event. You have already booked ${totalUserTickets}.`,
+      });
+    }
+
+    const user  = await getUserById(userId);
+    const group = await getGroupById(ticket.groupId);
+
+    // ── Pricing: host gets full ticket value, WIE charges flat fee on top ────
+    // subtotal     = ticket price × qty  → goes to host 100%
+    // platformFee  = ₹1 × qty           → wie keeps
+    // totalAmount  = subtotal + fee      → user pays this
+    const subtotal      = parseFloat((ticketType.ticket_price * quantity).toFixed(2));
+    const platformFee   = parseFloat(
+      (parseFloat(process.env.PLATFORM_FEE_PER_TICKET || '1') * quantity).toFixed(2)
+    );
+    const totalAmount   = parseFloat((subtotal + platformFee).toFixed(2));
+
+    const settlementBankDetails =
+      ticket.banking_details && ticket.banking_details.length > 0
+        ? ticket.banking_details[0]
+        : {
+            bank_acc_holder: group.primary_bank_acc_holder || 'N/A',
+            bank_acc_no:     group.primary_bank_acc_no     || 'N/A',
+            bank_ifsc:       group.primary_bank_ifsc        || 'N/A',
+            bank_acc_type:   group.primary_bank_acc_type    || 'N/A',
+          };
+
+    const bookingId = `BK${Date.now()}${Math.random()
       .toString(36)
       .substr(2, 9)
       .toUpperCase()}`;
@@ -109,185 +233,32 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
       bookingId,
       userId,
       ticketId,
-      groupId: ticket.groupId,
-      ticketType: ticketTypeId || 'Free Entry',
-      quantity,
-      pricePerTicket: 0,
-      subtotal: 0,
-      tax: 0,
-      platformFee: 0,
-      totalAmount: 0,
-      currency: 'INR',
-      userDetails: {
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.contactNo || '',
-      },
-      eventDetails: {
-        eventName: ticket.event_name,
-        eventDate: ticket.event_dates[0]?.start_date || '',
-        eventTime: ticket.event_dates[0]?.start_time || '',
-        venue: ticket.venue || ticket.location || '',
-        location: ticket.location || '',
-        settlementBankDetails,
-      },
-    });
-
-    const qrCode = await generateQRCode({
-      bookingId: booking.bookingId,
-      userId: booking.userId,
-      ticketId: booking.ticketId,
-      eventName: ticket.event_name,
-      eventDate: ticket.event_dates[0]?.start_date || '',
-      quantity: booking.quantity,
-    });
-
-    const confirmedBooking = await BookingModel.update(booking.id, {
-      paymentStatus: 'COMPLETED',
-      bookingStatus: 'CONFIRMED',
-      qrCode,
-    });
-    await safeUpdateTicketStats(ticketId, 'totalBookings', 1);
-    await safeUpdateTicketStats(ticketId, 'totalTicketsSold', quantity);
-    await createNotification({
-      userId,
-      type: 'booking_confirmed',
-      title: 'Registration Confirmed!',
-      message: `Your registration for ${ticket.event_name} is confirmed`,
-      bookingId: String(booking.id),
-      ticketId,
-      link: `/bookings/${booking.id}`,
-    });
-    res.status(201).json({
-      success: true,
-      message: 'Free event registration successful',
-      data: {
-        booking: confirmedBooking,
-        qrCode,
-      },
-    });
-  } catch (error: any) {
-    console.error('❌ Error registering for free event:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-// Create Booking
-export const createBooking = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    const { ticketId, ticketTypeId, quantity } = req.body;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-    // Validate input
-    if (!ticketId || !ticketTypeId || !quantity || quantity < 1) {
-      return res.status(400).json({
-        success: false,
-        message: 'ticketId, ticketTypeId, and quantity are required',
-      });
-    }
-    // Fetch ticket details
-    const ticket = await getTicketById(ticketId);
-    if (!ticket) {
-      return res.status(404).json({ success: false, message: 'Ticket not found' });
-    }
-    // Check if event is free
-    if (ticket.payment_type === 'free') {
-      return res.status(400).json({
-        success: false,
-        message: 'This is a free event. Use the free registration endpoint instead.',
-      });
-    }
-    // Find ticket type
-    const ticketType = ticket.ticket_types.find((tt) => tt._id === ticketTypeId);
-    if (!ticketType) {
-      return res.status(404).json({ success: false, message: 'Ticket type not found' });
-    }
-    // Check capacity
-    if (ticketType.max_capacity) {
-      const totalBooked = await BookingModel.countBookedTickets(ticketId, ticketType.ticket_type);
-
-      if (totalBooked + quantity > ticketType.max_capacity) {
-        return res.status(400).json({
-          success: false,
-          message: `Only ${ticketType.max_capacity - totalBooked} tickets available`,
-        });
-      }
-    }
-    // Get user details
-    const user = await getUserById(userId);
-    // Calculate pricing WITH PLATFORM FEE
-    const subtotal = ticketType.ticket_price * quantity;
-    const platformFee = parseFloat(process.env.PLATFORM_FEE_PER_TICKET || '1') * quantity;
-    const tax = 0; // No tax
-    const totalAmount = subtotal + platformFee;
-    const pricing = {
-      subtotal: parseFloat(subtotal.toFixed(2)),
-      tax: parseFloat(tax.toFixed(2)),
-      platformFee: parseFloat(platformFee.toFixed(2)),
-      totalAmount: parseFloat(totalAmount.toFixed(2)),
-    };
-    // Get group details for settlement tracking
-    const group = await getGroupById(ticket.groupId);
-    // Generate booking ID
-    const bookingId = `BK${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-    // Store admin's bank details for settlement
-    const settlementBankDetails = ticket.banking_details && ticket.banking_details.length > 0
-      ? ticket.banking_details[0]
-      : {
-          bank_acc_holder: group.primary_bank_acc_holder || 'N/A',
-          bank_acc_no: group.primary_bank_acc_no || 'N/A',
-          bank_ifsc: group.primary_bank_ifsc || 'N/A',
-          bank_acc_type: group.primary_bank_acc_type || 'N/A',
-        };
-    // ✅ CHECK: Maximum 50 tickets per user per event
-    const userExistingBookings = await prisma.booking.aggregate({
-      where: {
-        userId,
-        ticketId,
-        bookingStatus: { in: ['CONFIRMED', 'PENDING'] },
-      },
-      _sum: {
-        quantity: true,
-      },
-    });
-    const totalUserTickets = userExistingBookings._sum.quantity || 0;
-    if (totalUserTickets + quantity > 50) {
-      return res.status(400).json({
-        success: false,
-        message: `You can only book a maximum of 50 tickets per event. You have already booked ${totalUserTickets} tickets.`,
-      });
-    }
-    // Create booking using model
-    const booking = await BookingModel.create({
-      bookingId,
-      userId,
-      ticketId,
-      groupId: ticket.groupId,
-      ticketType: ticketType.ticket_type,
+      groupId:        ticket.groupId,
+      ticketType:     ticketType.ticket_type,
       quantity,
       pricePerTicket: ticketType.ticket_price,
-      subtotal: pricing.subtotal,
-      tax: pricing.tax,
-      platformFee: pricing.platformFee,
-      totalAmount: pricing.totalAmount,
-      currency: 'INR',
+      subtotal,       // ✅ pure ticket value — host's 100% share
+      tax:            0,
+      platformFee,    // ✅ ₹1 × qty — wie's flat fee
+      totalAmount,    // ✅ what user pays
+      currency:       'INR',
       userDetails: {
-        name: user.name || '',
-        email: user.email || '',
+        name:  user.name      || '',
+        email: user.email     || '',
         phone: user.contactNo || '',
       },
       eventDetails: {
-        eventName: ticket.event_name,
-        eventDate: ticket.event_dates[0]?.start_date || '',
-        eventTime: ticket.event_dates[0]?.start_time || '',
-        venue: ticket.venue || ticket.location || '',
-        location: ticket.location || '',
-        settlementBankDetails, // Store for settlement tracking
-        groupName: group.name || '',
+        eventName:            ticket.event_name,
+        eventDate:            ticket.event_dates[0]?.start_date || '',
+        eventTime:            ticket.event_dates[0]?.start_time || '',
+        venue:                ticket.venue || ticket.location   || '',
+        location:             ticket.location                   || '',
+        settlementBankDetails,
+        groupName:            group.name || '',
       },
     });
-    // Create Razorpay order using WIE platform's credentials
+
+    // Create Razorpay order for totalAmount (what user pays)
     const razorpay = RazorpayService.getInstance(
       process.env.RAZORPAY_KEY_ID!,
       process.env.RAZORPAY_KEY_SECRET!
@@ -295,45 +266,46 @@ export const createBooking = async (req: Request, res: Response) => {
 
     const razorpayOrder = await RazorpayService.createOrder(
       razorpay,
-      pricing.totalAmount,
+      totalAmount,
       'INR',
       bookingId,
       {
-        bookingId: booking.id,
+        bookingId:          booking.id,
         userId,
         ticketId,
-        eventName: ticket.event_name,
-        platformFee: pricing.platformFee,
-        organizationAmount: pricing.subtotal,
+        eventName:          ticket.event_name,
+        platformFee,
+        organizationAmount: subtotal,  // host's share stored in notes
       }
     );
-    // Update booking with Razorpay order ID
+
     await BookingModel.update(booking.id, {
       razorpayOrderId: razorpayOrder.id,
     });
-    // Create payment transaction log
+
     await PaymentTransactionModel.create({
-      bookingId: booking.id,
+      bookingId:       booking.id,
       razorpayOrderId: razorpayOrder.id,
-      amount: pricing.totalAmount,
-      currency: 'INR',
-      status: 'PENDING',
+      amount:          totalAmount,
+      currency:        'INR',
+      status:          'PENDING',
     });
+
     res.status(201).json({
       success: true,
       message: 'Booking created successfully',
       data: {
         booking: {
-          id: booking.id,
-          bookingId: booking.bookingId,
-          subtotal: booking.subtotal,
-          platformFee: booking.platformFee,
-          totalAmount: booking.totalAmount,
-          currency: booking.currency,
+          id:          booking.id,
+          bookingId:   booking.bookingId,
+          subtotal:    booking.subtotal,     // ₹ host's share
+          platformFee: booking.platformFee,  // ₹1 × qty
+          totalAmount: booking.totalAmount,  // user pays this
+          currency:    booking.currency,
         },
         razorpayOrder: {
-          id: razorpayOrder.id,
-          amount: razorpayOrder.amount,
+          id:       razorpayOrder.id,
+          amount:   razorpayOrder.amount,    // in paise
           currency: razorpayOrder.currency,
         },
         razorpayKeyId: process.env.RAZORPAY_KEY_ID,
@@ -344,7 +316,6 @@ export const createBooking = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-// Create Seated Booking
 export const createSeatedBooking = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -361,128 +332,118 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
       });
     }
 
-    // Fetch ticket details
     const ticket = await getTicketById(ticketId);
     if (!ticket) {
       return res.status(404).json({ success: false, message: 'Ticket not found' });
     }
 
-    // Check if event is free
     if (ticket.payment_type === 'free') {
       return res.status(400).json({
         success: false,
         message: 'This is a free event. Use the free registration endpoint instead.',
       });
     }
-    if (!ticket.seating_layout || !ticket.seating_layout.seats) {
+
+    if (!ticket.seating_layout?.seats) {
       return res.status(400).json({
         success: false,
         message: 'This event does not have a seating layout',
       });
     }
+
+    // Check seat availability
     const existingBookings = await BookingModel.findByTicketId(ticketId);
     const bookedSeats = existingBookings
-      .filter(b => b.bookingStatus === 'CONFIRMED' || b.bookingStatus === 'PENDING')
-      .flatMap(b => {
-        const seatDetails = b.seatDetails as any;
-        return seatDetails?.selectedSeats || [];
-      });
-    const unavailableSeats = selectedSeats.filter((seat: string) => bookedSeats.includes(seat));
+      .filter((b) => b.bookingStatus === 'CONFIRMED' || b.bookingStatus === 'PENDING')
+      .flatMap((b) => (b.seatDetails as any)?.selectedSeats || []);
+
+    const unavailableSeats = selectedSeats.filter((seat: string) =>
+      bookedSeats.includes(seat)
+    );
     if (unavailableSeats.length > 0) {
       return res.status(400).json({
         success: false,
         message: `Seats already booked: ${unavailableSeats.join(', ')}`,
       });
     }
-    const user = await getUserById(userId);
+
+    const user  = await getUserById(userId);
+    const group = await getGroupById(ticket.groupId);
+
+    // Build seat details and calculate subtotal from seat prices
     let subtotal = 0;
     const seatDetails: any[] = [];
-    const seatingLayout = ticket.seating_layout;
-    if (!seatingLayout) {
-      return res.status(400).json({
-        success: false,
-        message: 'Seating layout is not available',
-      });
-    }
+
     selectedSeats.forEach((seatId: string) => {
-      const seat = seatingLayout.seats.find((s: any) => s.seatId === seatId);
+      const seat = ticket.seating_layout.seats.find((s: any) => s.seatId === seatId);
       if (seat) {
-        // ✅ Use price directly from seat
         const seatPrice = seat.price || 0;
         subtotal += seatPrice;
         seatDetails.push({
-          seatId: seat.seatId,
-          row: seat.row,
-          column: seat.column,
-          ticketType: seat.ticketTypeName || 'Unknown',
+          seatId:       seat.seatId,
+          row:          seat.row,
+          column:       seat.column,
+          ticketType:   seat.ticketTypeName  || 'Unknown',
           ticketTypeId: seat.ticketTypeId,
-          price: seatPrice,
-          color: seat.ticketTypeColor,
+          price:        seatPrice,
+          color:        seat.ticketTypeColor || '',
         });
       }
     });
-    const quantity = selectedSeats.length;
-    const platformFee = parseFloat(process.env.PLATFORM_FEE_PER_TICKET || '1') * quantity;
-    const tax = 0;
-    const totalAmount = subtotal + platformFee;
 
-    const pricing = {
-      subtotal: parseFloat(subtotal.toFixed(2)),
-      tax: parseFloat(tax.toFixed(2)),
-      platformFee: parseFloat(platformFee.toFixed(2)),
-      totalAmount: parseFloat(totalAmount.toFixed(2)),
-    };
+    const quantity    = selectedSeats.length;
+    subtotal          = parseFloat(subtotal.toFixed(2));
+    const platformFee = parseFloat(
+      (parseFloat(process.env.PLATFORM_FEE_PER_TICKET || '1') * quantity).toFixed(2)
+    );
+    const totalAmount = parseFloat((subtotal + platformFee).toFixed(2));
 
-    // Get group details
-    const group = await getGroupById(ticket.groupId);
+    const settlementBankDetails =
+      ticket.banking_details && ticket.banking_details.length > 0
+        ? ticket.banking_details[0]
+        : {
+            bank_acc_holder: group.primary_bank_acc_holder || 'N/A',
+            bank_acc_no:     group.primary_bank_acc_no     || 'N/A',
+            bank_ifsc:       group.primary_bank_ifsc        || 'N/A',
+            bank_acc_type:   group.primary_bank_acc_type    || 'N/A',
+          };
 
-    // Generate booking ID
-    const bookingId = `BK${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    const bookingId = `BK${Date.now()}${Math.random()
+      .toString(36)
+      .substr(2, 9)
+      .toUpperCase()}`;
 
-    // Get settlement bank details
-    const settlementBankDetails = ticket.banking_details && ticket.banking_details.length > 0
-      ? ticket.banking_details[0]
-      : {
-          bank_acc_holder: group.primary_bank_acc_holder || 'N/A',
-          bank_acc_no: group.primary_bank_acc_no || 'N/A',
-          bank_ifsc: group.primary_bank_ifsc || 'N/A',
-          bank_acc_type: group.primary_bank_acc_type || 'N/A',
-        };
-    // Create booking
     const booking = await BookingModel.create({
       bookingId,
       userId,
       ticketId,
-      groupId: ticket.groupId,
-      ticketType: 'Seated',
+      groupId:        ticket.groupId,
+      ticketType:     'Seated',
       quantity,
-      pricePerTicket: subtotal / quantity,
-      subtotal: pricing.subtotal,
-      tax: pricing.tax,
-      platformFee: pricing.platformFee,
-      totalAmount: pricing.totalAmount,
-      currency: 'INR',
+      pricePerTicket: quantity > 0 ? parseFloat((subtotal / quantity).toFixed(2)) : 0,
+      subtotal,       // ✅ sum of seat prices — host's 100% share
+      tax:            0,
+      platformFee,    // ✅ ₹1 × seats — wie's flat fee
+      totalAmount,    // ✅ user pays this
+      currency:       'INR',
       userDetails: {
-        name: user.name || '',
-        email: user.email || '',
+        name:  user.name      || '',
+        email: user.email     || '',
         phone: user.contactNo || '',
       },
       eventDetails: {
-        eventName: ticket.event_name,
-        eventDate: ticket.event_dates[0]?.start_date || '',
-        eventTime: ticket.event_dates[0]?.start_time || '',
-        venue: ticket.venue || ticket.location || '',
-        location: ticket.location || '',
+        eventName:            ticket.event_name,
+        eventDate:            ticket.event_dates[0]?.start_date || '',
+        eventTime:            ticket.event_dates[0]?.start_time || '',
+        venue:                ticket.venue || ticket.location   || '',
+        location:             ticket.location                   || '',
         settlementBankDetails,
-        groupName: group.name || '',
+        groupName:            group.name || '',
       },
-      selectedSeats, // Add this line
-      seatDetails: {
-        selectedSeats,
-        seats: seatDetails,
-      },
+      selectedSeats,
+      seatDetails: { selectedSeats, seats: seatDetails },
     });
-    // Create Razorpay order
+
     const razorpay = RazorpayService.getInstance(
       process.env.RAZORPAY_KEY_ID!,
       process.env.RAZORPAY_KEY_SECRET!
@@ -490,50 +451,47 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
 
     const razorpayOrder = await RazorpayService.createOrder(
       razorpay,
-      pricing.totalAmount,
+      totalAmount,
       'INR',
       bookingId,
       {
-        bookingId: booking.id,
+        bookingId:          booking.id,
         userId,
         ticketId,
-        eventName: ticket.event_name,
-        platformFee: pricing.platformFee,
-        organizationAmount: pricing.subtotal,
-        seatedBooking: true,
-        seatCount: quantity,
+        eventName:          ticket.event_name,
+        platformFee,
+        organizationAmount: subtotal,
+        seatedBooking:      true,
+        seatCount:          quantity,
       }
     );
 
-    // Update booking with Razorpay order ID
-    await BookingModel.update(booking.id, {
+    await BookingModel.update(booking.id, { razorpayOrderId: razorpayOrder.id });
+
+    await PaymentTransactionModel.create({
+      bookingId:       booking.id,
       razorpayOrderId: razorpayOrder.id,
+      amount:          totalAmount,
+      currency:        'INR',
+      status:          'PENDING',
     });
 
-    // Create payment transaction log
-    await PaymentTransactionModel.create({
-      bookingId: booking.id,
-      razorpayOrderId: razorpayOrder.id,
-      amount: pricing.totalAmount,
-      currency: 'INR',
-      status: 'PENDING',
-    });
     res.status(201).json({
       success: true,
       message: 'Seated booking created successfully',
       data: {
         booking: {
-          id: booking.id,
-          bookingId: booking.bookingId,
-          subtotal: booking.subtotal,
+          id:          booking.id,
+          bookingId:   booking.bookingId,
+          subtotal:    booking.subtotal,
           platformFee: booking.platformFee,
           totalAmount: booking.totalAmount,
-          currency: booking.currency,
-          seatDetails: seatDetails,
+          currency:    booking.currency,
+          seatDetails,
         },
         razorpayOrder: {
-          id: razorpayOrder.id,
-          amount: razorpayOrder.amount,
+          id:       razorpayOrder.id,
+          amount:   razorpayOrder.amount,
           currency: razorpayOrder.currency,
         },
         razorpayKeyId: process.env.RAZORPAY_KEY_ID,
@@ -544,31 +502,20 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-// Get booked seats for an event
 export const getBookedSeats = async (req: Request, res: Response) => {
   try {
     const { ticketId } = req.params;
 
     const bookings = await BookingModel.findByTicketId(ticketId);
-    
     const bookedSeats = bookings
-      .filter(b => b.bookingStatus === 'CONFIRMED' || b.bookingStatus === 'PENDING')
-      .flatMap(b => {
-        // Access seatDetails from JSON field
-        const seatDetails = b.seatDetails as any;
-        return seatDetails?.selectedSeats || [];
-      });
+      .filter((b) => b.bookingStatus === 'CONFIRMED' || b.bookingStatus === 'PENDING')
+      .flatMap((b) => (b.seatDetails as any)?.selectedSeats || []);
 
-    res.json({
-      success: true,
-      data: { bookedSeats },
-    });
+    res.json({ success: true, data: { bookedSeats } });
   } catch (error: any) {
-    console.error('❌ Error fetching booked seats:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
-// Check if user has already booked a specific event
 export const checkUserBooking = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -581,21 +528,19 @@ export const checkUserBooking = async (req: Request, res: Response) => {
     const existingBooking = await BookingModel.findOne({
       userId,
       ticketId,
-      bookingStatus: {
-        in: ['CONFIRMED', 'PENDING']
-      }
+      bookingStatus: { in: ['CONFIRMED', 'PENDING'] },
     });
 
     res.json({
       success: true,
       hasBooked: !!existingBooking,
-      booking: existingBooking || null,
+      booking:   existingBooking || null,
     });
   } catch (error: any) {
-    console.error('❌ Error checking booking:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 export const verifyPayment = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -612,9 +557,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
       });
     }
 
-    // Find booking
     const booking = await BookingModel.findByRazorpayOrderId(razorpayOrderId);
-
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
@@ -623,7 +566,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
-    // ✅ Verify signature using WIE platform's Razorpay secret
+    // Verify Razorpay signature
     const isValid = RazorpayService.verifySignature(
       razorpayOrderId,
       razorpayPaymentId,
@@ -636,19 +579,16 @@ export const verifyPayment = async (req: Request, res: Response) => {
         paymentStatus: 'FAILED',
         bookingStatus: 'CANCELLED',
       });
-
       await PaymentTransactionModel.updateByRazorpayOrderId(razorpayOrderId, {
-        status: 'FAILED',
+        status:           'FAILED',
         errorDescription: 'Invalid payment signature',
       });
-
       return res.status(400).json({
         success: false,
         message: 'Payment verification failed',
       });
     }
 
-    // ✅ Fetch payment details using WIE platform's Razorpay credentials
     const razorpay = RazorpayService.getInstance(
       process.env.RAZORPAY_KEY_ID!,
       process.env.RAZORPAY_KEY_SECRET!
@@ -662,134 +602,168 @@ export const verifyPayment = async (req: Request, res: Response) => {
     // Generate QR code
     const qrCode = await generateQRCode({
       bookingId: booking.bookingId,
-      userId: booking.userId,
-      ticketId: booking.ticketId,
+      userId:    booking.userId,
+      ticketId:  booking.ticketId,
       eventName: (booking.eventDetails as any).eventName,
       eventDate: (booking.eventDetails as any).eventDate,
-      quantity: booking.quantity,
+      quantity:  booking.quantity,
     });
 
-    // Update booking as confirmed
+    // Confirm booking
     const updatedBooking = await BookingModel.update(booking.id, {
-      paymentStatus: 'COMPLETED',
-      bookingStatus: 'CONFIRMED',
+      paymentStatus:    'COMPLETED',
+      bookingStatus:    'CONFIRMED',
       razorpayPaymentId,
       razorpaySignature,
-      paymentMethod: paymentDetails.method,
+      paymentMethod:    paymentDetails.method,
       qrCode,
     });
 
-    // Update transaction log
     await PaymentTransactionModel.updateByRazorpayOrderId(razorpayOrderId, {
-      status: 'COMPLETED',
+      status:           'COMPLETED',
       razorpayPaymentId,
-      method: paymentDetails.method,
-      bank: paymentDetails.bank || undefined,
-      wallet: paymentDetails.wallet || undefined,
-      vpa: paymentDetails.vpa || undefined,
-      email: paymentDetails.email || undefined,
-      contact: paymentDetails.contact ? String(paymentDetails.contact) : undefined,
-      webhookData: paymentDetails as any,
+      method:           paymentDetails.method,
+      bank:             paymentDetails.bank    || undefined,
+      wallet:           paymentDetails.wallet  || undefined,
+      vpa:              paymentDetails.vpa     || undefined,
+      email:            paymentDetails.email   || undefined,
+      contact:          paymentDetails.contact ? String(paymentDetails.contact) : undefined,
+      webhookData:      paymentDetails as any,
     });
+
     // Update ticket stats
     await safeUpdateTicketStats(booking.ticketId, 'totalBookings', 1);
     await safeUpdateTicketStats(booking.ticketId, 'totalTicketsSold', booking.quantity);
-    const ticketRevenue = parseFloat(booking.subtotal.toString());
-    await safeUpdateTicketStats(booking.ticketId, 'revenue', ticketRevenue);
-    // Send notifications
-    await createNotification({
-      userId,
-      type: 'booking_confirmed',
-      title: 'Booking Confirmed!',
-      message: `Your booking for ${(booking.eventDetails as any).eventName} is confirmed`,
-      bookingId: String(booking.id),
-      ticketId: booking.ticketId,
-      link: `/bookings/${booking.id}`,
-    });
-
-    await createNotification({
-      userId,
-      type: 'payment_success',
-      title: 'Payment Successful',
-      message: `Payment of ₹${booking.totalAmount} received successfully`,
-      bookingId: String(booking.id),
-      ticketId: booking.ticketId,
-    });
-    // ✅ Create settlement record
-    const { organizationAmount, platformFee } = SettlementService.calculateSettlement(
-      parseFloat(booking.totalAmount.toString()),
-      1, // ₹1 per ticket
-      booking.quantity
+    await safeUpdateTicketStats(
+      booking.ticketId,
+      'revenue',
+      parseFloat(booking.subtotal.toString()) // only ticket value (host's share) as revenue
     );
 
-    await SettlementService.createSettlement({
-      bookingId: booking.id,
-      organizationAmount,
+    // Notifications
+    await createNotification({
+      userId,
+      type:      'booking_confirmed',
+      title:     'Booking Confirmed!',
+      message:   `Your booking for ${(booking.eventDetails as any).eventName} is confirmed`,
+      bookingId: String(booking.id),
+      ticketId:  booking.ticketId,
+      link:      `/bookings/${booking.id}`,
+    });
+
+    await createNotification({
+      userId,
+      type:      'payment_success',
+      title:     'Payment Successful',
+      message:   `Payment of ₹${booking.totalAmount} received successfully`,
+      bookingId: String(booking.id),
+      ticketId:  booking.ticketId,
+    });
+
+    // ── ESCROW: Hold funds until event completes 
+    // subtotal = host's 100% ticket value
+    // platformFee = wie's flat ₹1 × qty (already stored in booking)
+    const organizationAmount = parseFloat(booking.subtotal.toString());
+    const platformFee        = parseFloat(booking.platformFee.toString());
+    const totalPaid          = parseFloat(booking.totalAmount.toString());
+
+    // Get host's Razorpay linked account (non-blocking if missing)
+    let hostRazorpayAccountId: string | undefined;
+    try {
+      const hostAccount = await prisma.hostLinkedAccount.findUnique({
+        where: { group_id: booking.groupId },
+      });
+      hostRazorpayAccountId = hostAccount?.razorpay_account_id ?? undefined;
+    } catch {
+      // Host may not have linked account yet — that's ok
+    }
+
+    await SettlementService.createEscrowEntry({
+      bookingId:            String(booking.id),
+      ticketId:             booking.ticketId,
+      groupId:              booking.groupId,
+      totalAmount:          totalPaid,
+      organizationAmount,   // ✅ host's 100% share
+      platformFee,          // ✅ wie's flat fee
+      bankDetails: (booking.eventDetails as any).settlementBankDetails || {
+        bank_acc_holder: process.env.WIE_BANK_ACC_HOLDER || 'WIE Platform',
+        bank_acc_no:     process.env.WIE_BANK_ACC_NO     || '',
+        bank_ifsc:       process.env.WIE_BANK_IFSC       || '',
+        bank_acc_type:   process.env.WIE_BANK_ACC_TYPE   || 'current',
+      },
+      status:               'HELD',
+      host_razorpay_account_id: hostRazorpayAccountId,
+    });
+
+    // Record in internal ledger
+    await LedgerModel.recordPayment({
+      bookingId:   String(booking.id),
+      ticketId:    booking.ticketId,
+      groupId:     booking.groupId,
+      totalAmount: totalPaid,
       platformFee,
-      bankDetails: (booking.eventDetails as any).settlementBankDetails,
+      hostAmount:  organizationAmount,
+      referenceId: razorpayPaymentId,
     });
 
     res.json({
       success: true,
       message: 'Payment verified successfully',
-      data: {
-        booking: updatedBooking,
-        qrCode,
-      },
+      data: { booking: updatedBooking, qrCode },
     });
   } catch (error: any) {
     console.error('❌ Error verifying payment:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
-// Get User Bookings
 export const getUserBookings = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
+
     const { status, limit = 50, skip = 0 } = req.query;
+
     const result = await BookingModel.findByUserId(userId, {
       status: status as any,
-      limit: parseInt(limit as string),
-      skip: parseInt(skip as string),
+      limit:  parseInt(limit as string),
+      skip:   parseInt(skip as string),
     });
+
     res.json({
       success: true,
       data: {
         bookings: result.bookings,
-        total: result.total,
-        limit: parseInt(limit as string),
-        skip: parseInt(skip as string),
+        total:    result.total,
+        limit:    parseInt(limit as string),
+        skip:     parseInt(skip as string),
       },
     });
   } catch (error: any) {
-    console.error('❌ Error fetching bookings:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
-// Get Booking by ID
 export const getBookingById = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     const { bookingId } = req.params;
+
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
+
     const booking = await BookingModel.findById(bookingId);
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
+
     if (booking.userId !== userId) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
-    res.json({
-      success: true,
-      data: { booking },
-    });
+
+    res.json({ success: true, data: { booking } });
   } catch (error: any) {
-    console.error('❌ Error fetching booking:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -798,251 +772,220 @@ export const cancelBooking = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     const { bookingId } = req.params;
     const { cancellationReason } = req.body;
+
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
+
     const booking = await BookingModel.findById(bookingId);
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
+
     if (booking.userId !== userId) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
+
     if (booking.bookingStatus === 'CANCELLED') {
       return res.status(400).json({
         success: false,
         message: 'Booking is already cancelled',
       });
     }
-    // ✅ NEW: Fetch event dates from ticket service
-    let eventDates;
+
+    // Validate 4-hour cancellation window
     try {
-      eventDates = await getEventDates(booking.ticketId);
-    } catch (eventErr: any) {
-      console.error('❌ Failed to fetch event dates:', eventErr.message);
-      return res.status(500).json({
-        success: false,
-        message: 'Unable to verify event timing. Please try again later.',
-      });
-    }
-    // ✅ NEW: Validate 4-hour cancellation window
-    if (eventDates && eventDates.start_date) {
-      try {
+      const eventDates = await getEventDates(booking.ticketId);
+      if (eventDates?.start_date) {
         const eventStartDate = new Date(eventDates.start_date);
-        // If start_time is provided, combine it with the date
         if (eventDates.start_time) {
-          // Parse time (format: "HH:MM" or "HH:MM:SS")
-          const timeParts = eventDates.start_time.split(':');
-          eventStartDate.setHours(
-            parseInt(timeParts[0]),
-            parseInt(timeParts[1]),
-            parseInt(timeParts[2] || '0')
-          );
+          const [h, m, s] = eventDates.start_time.split(':');
+          eventStartDate.setHours(parseInt(h), parseInt(m), parseInt(s || '0'));
         } else {
-          // If no time specified, assume midnight
           eventStartDate.setHours(0, 0, 0, 0);
         }
-        const now = new Date();
-        const fourHoursBeforeEvent = new Date(eventStartDate.getTime() - (4 * 60 * 60 * 1000));
-        // Check if current time is within 4 hours of event start
-        if (now > fourHoursBeforeEvent) {
-          const hoursUntilEvent = (eventStartDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-          if (hoursUntilEvent < 0) {
-            return res.status(400).json({
-              success: false,
-              message: 'Cannot cancel booking. The event has already started or passed.',
-              eventStartTime: eventStartDate.toISOString(),
-            });
-          } else {
-            return res.status(400).json({
-              success: false,
-              message: `Cannot cancel booking. Cancellations must be made at least 4 hours before the event. Time remaining: ${hoursUntilEvent.toFixed(1)} hours.`,
-              eventStartTime: eventStartDate.toISOString(),
-              hoursUntilEvent: parseFloat(hoursUntilEvent.toFixed(1)),
-            });
-          }
+
+        const now                = new Date();
+        const fourHoursBefore    = new Date(eventStartDate.getTime() - 4 * 60 * 60 * 1000);
+        const hoursUntilEvent    = (eventStartDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+        if (hoursUntilEvent < 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Cannot cancel. The event has already started or passed.',
+          });
         }
-      } catch (dateErr: any) {
-        console.error('❌ Error parsing event date:', dateErr);
-        return res.status(500).json({
-          success: false,
-          message: 'Unable to verify event timing. Please contact support.',
-        });
+
+        if (now > fourHoursBefore) {
+          return res.status(400).json({
+            success: false,
+            message: `Cannot cancel. Must cancel at least 4 hours before event. ${hoursUntilEvent.toFixed(1)} hours remaining.`,
+            hoursUntilEvent: parseFloat(hoursUntilEvent.toFixed(1)),
+          });
+        }
       }
-    } else {
-      console.warn('⚠️ Event dates not found for ticket:', booking.ticketId);
+    } catch (dateErr: any) {
+      console.error('❌ Could not fetch event dates:', dateErr.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Unable to verify event timing. Please try again.',
+      });
     }
-    // Cancel booking and increment cancellation count
+
+    // Cancel the booking
     const updatedBooking = await BookingModel.cancel(bookingId, cancellationReason);
-    const ticketAmount = parseFloat(booking.subtotal.toString());
-    const isPaidBooking = ticketAmount > 0 && booking.paymentStatus === 'COMPLETED' && booking.razorpayPaymentId;
+
+    const subtotal    = parseFloat(booking.subtotal.toString());
+    const platformFee = parseFloat(booking.platformFee.toString());
+    const totalPaid   = parseFloat(booking.totalAmount.toString());
+
+    // User cancellation: refund full totalAmount (subtotal + platform fee)
+    // Platform fee IS refunded on user cancellation (host didn't cancel)
+    const isPaidBooking =
+      totalPaid > 0 &&
+      booking.paymentStatus === 'COMPLETED' &&
+      !!booking.razorpayPaymentId;
+
     if (isPaidBooking) {
-      const refundAmount = parseFloat(ticketAmount.toFixed(2));
+      // ✅ Refund totalAmount — user gets everything back on self-cancellation
+      const refundAmount = totalPaid;
+
       try {
         const razorpay = RazorpayService.getInstance(
           process.env.RAZORPAY_KEY_ID!,
           process.env.RAZORPAY_KEY_SECRET!
         );
-        if (!booking.razorpayPaymentId) {
-          throw new Error('No payment ID found for this booking');
-        }        
-        let paymentDetails;
-        try {
-          paymentDetails = await RazorpayService.getPaymentDetails(
-            razorpay,
-            booking.razorpayPaymentId.trim()
-          );
-        } catch (paymentErr: any) {
-          console.error('❌ Failed to fetch payment details:', paymentErr.message);
-          throw new Error(`Cannot verify payment status: ${paymentErr.message}`);
-        }
-        // ✅ Verify payment is captured
-        if (!paymentDetails) {
-          throw new Error('Payment details not found');
-        }
+
+        const paymentDetails = await RazorpayService.getPaymentDetails(
+          razorpay,
+          booking.razorpayPaymentId!.trim()
+        );
+
         if (paymentDetails.status !== 'captured') {
-          throw new Error(`Payment not captured. Current status: ${paymentDetails.status}`);
+          throw new Error(`Payment not captured. Status: ${paymentDetails.status}`);
         }
-        if (!paymentDetails.captured) {
-          throw new Error('Payment capture flag is false');
+
+        const paidInRupees = parseFloat((paymentDetails.amount / 100).toFixed(2));
+        if (refundAmount > paidInRupees) {
+          throw new Error(
+            `Refund ₹${refundAmount} exceeds payment ₹${paidInRupees}`
+          );
         }
-        // ✅ Calculate refund amount (in rupees, not paise)
-        const paymentAmountInRupees = parseFloat((paymentDetails.amount / 100).toFixed(2));
-        // ✅ Verify refund amount doesn't exceed payment
-        if (refundAmount > paymentAmountInRupees) {
-          throw new Error(`Refund amount (₹${refundAmount}) exceeds payment amount (₹${paymentAmountInRupees})`);
-        }
-        if (refundAmount <= 0) {
-          throw new Error('Invalid refund amount: must be greater than 0');
-        }        
+
         const refund = await RazorpayService.initiateRefund(
           razorpay,
-          booking.razorpayPaymentId.trim(),
+          booking.razorpayPaymentId!.trim(),
           refundAmount,
           {
             booking_id: booking.bookingId,
-            reason: 'Booking cancelled'
+            reason:     cancellationReason || 'Booking cancelled by user',
           }
         );
-        // Update booking with refund info
+
         await BookingModel.update(bookingId, {
-          refundAmount: refundAmount,
-          refundStatus: 'PROCESSING',
-          refundId: refund.id,
+          refundAmount,
+          refundStatus:      'PROCESSING',
+          refundId:          refund.id,
           refundInitiatedAt: new Date(),
         });
-        // Log refund transaction
+
         await PaymentTransactionModel.create({
-          bookingId: booking.id,
-          razorpayOrderId: booking.razorpayOrderId || `refund_${booking.razorpayPaymentId}`,
-          razorpayPaymentId: booking.razorpayPaymentId,
-          amount: refundAmount,
-          currency: 'INR',
-          status: 'PROCESSING',
-          method: 'refund',
-          refundId: refund.id,
-          vpa: paymentDetails.vpa || paymentDetails.upi?.vpa || undefined,
+          bookingId:         booking.id,
+          razorpayOrderId:   booking.razorpayOrderId || `refund_${booking.bookingId}`,
+          razorpayPaymentId: booking.razorpayPaymentId ?? undefined,
+          amount:            refundAmount,
+          currency:          'INR',
+          status:            'PROCESSING',
+          method:            'refund',
+          refundId:          refund.id,
           webhookData: {
-            refund: {
-              id: refund.id,
-              status: refund.status,
-              amount: parseFloat((refund.amount / 100).toFixed(2)),
-              amount_in_paise: refund.amount,
-              speed: refund.speed,
-            },
-            original_payment: {
-              id: paymentDetails.id,
-              method: paymentDetails.method,
-              vpa: paymentDetails.vpa || paymentDetails.upi?.vpa,
-              amount: paymentAmountInRupees,
-              amount_in_paise: paymentDetails.amount,
-            },
-            refundInitiatedAt: new Date().toISOString(),
-            ticketAmount: ticketAmount,
-            platformFeeRetained: parseFloat(booking.platformFee.toString()),
-            totalAmountPaid: parseFloat(booking.totalAmount.toString()),
+            refundId:             refund.id,
+            refundStatus:         refund.status,
+            refundAmountRupees:   refundAmount,
+            subtotalRefunded:     subtotal,
+            platformFeeRefunded:  platformFee,  // ✅ platform fee also refunded
+            originalPaymentId:    paymentDetails.id,
+            cancelledBy:          'user',
           } as any,
         });
+
+        // Update escrow — cancel it so host doesn't get paid
+        await SettlementService.markEscrowAsRefunding(booking.ticketId);
+
+        // Record refund in ledger
+        await LedgerModel.recordRefund({
+          bookingId:   String(booking.id),
+          ticketId:    booking.ticketId,
+          groupId:     booking.groupId,
+          amount:      refundAmount,
+          referenceId: refund.id,
+          reason:      cancellationReason || 'Cancelled by user',
+        });
+
         await createNotification({
           userId,
-          type: 'refund_initiated',
-          title: 'Refund Initiated',
-          message: `Refund of ₹${refundAmount.toFixed(2)} has been initiated to your ${paymentDetails.method === 'upi' ? 'UPI' : paymentDetails.method} account. Platform fee of ₹${parseFloat(booking.platformFee.toString()).toFixed(2)} is non-refundable. Amount will be credited within 5-7 business days.`,
+          type:      'refund_initiated',
+          title:     'Refund Initiated',
+          message:   `Full refund of ₹${refundAmount.toFixed(2)} has been initiated. Will be credited within 5–7 business days.`,
           bookingId: String(booking.id),
-          ticketId: booking.ticketId,
+          ticketId:  booking.ticketId,
         });
-      } catch (refundError: any) {
-        console.error('❌ Refund initiation failed:', {
-          error: refundError.message,
-          bookingId: booking.bookingId,
-          amount: refundAmount,
-          paymentId: booking.razorpayPaymentId,
-          paymentStatus: booking.paymentStatus
-        });
-        // Mark refund as failed
+
+      } catch (refundErr: any) {
+        console.error('❌ Refund failed:', refundErr.message);
+
         await BookingModel.update(bookingId, {
           refundStatus: 'FAILED',
-          refundAmount: refundAmount,
+          refundAmount: totalPaid,
         });
-        // Notify user about manual refund
+
         await createNotification({
           userId,
-          type: 'refund_failed',
-          title: 'Refund Processing',
-          message: `Your booking has been cancelled. Refund of ₹${refundAmount.toFixed(2)} will be processed manually within 5-7 business days. Please contact support if you have questions.`,
+          type:      'refund_failed',
+          title:     'Refund Will Be Processed Manually',
+          message:   `Your booking was cancelled. Refund of ₹${totalPaid.toFixed(2)} will be processed manually within 5–7 business days.`,
           bookingId: String(booking.id),
-          ticketId: booking.ticketId,
+          ticketId:  booking.ticketId,
         });
       }
     } else {
-      // ✅ Free event or unpaid booking - no refund needed      
+      // Free event or unpaid booking
       await createNotification({
         userId,
-        type: 'booking_cancelled',
-        title: 'Registration Cancelled',
-        message: `Your registration for ${(booking.eventDetails as any).eventName} has been cancelled successfully`,
+        type:      'booking_cancelled',
+        title:     'Registration Cancelled',
+        message:   `Your registration for ${(booking.eventDetails as any).eventName} has been cancelled.`,
         bookingId: String(booking.id),
-        ticketId: booking.ticketId,
+        ticketId:  booking.ticketId,
       });
     }
-    // ✅ Update ticket stats (always update, regardless of payment type)
-    try {
-      await safeUpdateTicketStats(booking.ticketId, 'totalBookings', -1);
-      await safeUpdateTicketStats(booking.ticketId, 'totalTicketsSold', -booking.quantity);
-      const ticketRevenue = parseFloat(booking.subtotal.toString());
-      if (ticketRevenue > 0) {
-        await safeUpdateTicketStats(booking.ticketId, 'revenue', -ticketRevenue);
-      }
-      // ✅ Update cancellation count
-      await updateTicketCancellation(booking.ticketId, 1);
-    } catch (statsError) {
-      console.error('❌ Error updating ticket stats:', statsError);
+
+    // Update ticket stats
+    await safeUpdateTicketStats(booking.ticketId, 'totalBookings', -1);
+    await safeUpdateTicketStats(booking.ticketId, 'totalTicketsSold', -booking.quantity);
+    if (subtotal > 0) {
+      await safeUpdateTicketStats(booking.ticketId, 'revenue', -subtotal);
     }
-    // Get user's cancellation stats
-    let cancellationStats;
-    try {
-      cancellationStats = await BookingModel.getUserCancellationStats(userId);
-    } catch (statsError) {
-      console.error('❌ Error getting cancellation stats:', statsError);
-      cancellationStats = { totalCancellations: 0, totalCancelledTickets: 0 };
-    }
-    res.status(200).json({
+    await updateTicketCancellation(booking.ticketId, 1).catch(console.error);
+
+    const cancellationStats = await BookingModel.getUserCancellationStats(userId).catch(
+      () => ({ totalCancellations: 0, totalCancelledTickets: 0 })
+    );
+
+    res.json({
       success: true,
       message: 'Booking cancelled successfully',
-      data: { 
-        booking: updatedBooking,
+      data: {
+        booking:          updatedBooking,
         cancellationStats,
-        refundStatus: isPaidBooking ? 
-          (updatedBooking.refundStatus || 'PROCESSING') : 
-          'NOT_APPLICABLE',
+        refundStatus:     isPaidBooking
+          ? (updatedBooking.refundStatus || 'PROCESSING')
+          : 'NOT_APPLICABLE',
       },
     });
   } catch (error: any) {
     console.error('❌ Error cancelling booking:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || 'Failed to cancel booking'
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 export const getUserCancellationStats = async (req: Request, res: Response) => {
@@ -1051,13 +994,10 @@ export const getUserCancellationStats = async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
+
     const stats = await BookingModel.getUserCancellationStats(userId);
-    res.json({
-      success: true,
-      data: stats,
-    });
+    res.json({ success: true, data: stats });
   } catch (error: any) {
-    console.error('❌ Error fetching cancellation stats:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -1065,20 +1005,24 @@ export const trackRefund = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     const { bookingId } = req.params;
+
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
+
     const result = await BookingModel.getRefundDetails(bookingId);
     if (!result.booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
+
     if (result.booking.userId !== userId) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
+
     res.json({
       success: true,
       data: {
-        booking: result.booking,
+        booking:            result.booking,
         refundTransactions: result.refundTransactions,
       },
     });
@@ -1143,16 +1087,13 @@ export const getMonthlyBookingStats = async (req: Request, res: Response) => {
 export const getTicketTypeStats = async (req: Request, res: Response) => {
   try {
     const { ticketId } = req.params;
-
     if (!ticketId) {
       return res.status(400).json({
         success: false,
         message: 'ticketId is required',
       });
     }
-
     const typeStats = await BookingModel.getTicketTypeStats(ticketId);
-
     res.json({
       success: true,
       data: typeStats,

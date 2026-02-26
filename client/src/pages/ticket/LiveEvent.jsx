@@ -1063,6 +1063,7 @@ const EventsList = ({
                     </td>
                     <td className="py-3 px-4 text-right">
                       <button
+                        onClick={() => navigate(`/ticket/live-event-view/${event._id}`)}
                         className={`px-4 py-1.5 border border-[#6549B8] rounded-full text-sm transition-colors ${
                           isDark
                             ? "text-white hover:bg-[#6549B8]"

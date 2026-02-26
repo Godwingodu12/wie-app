@@ -5,8 +5,11 @@ import TicketLike from '../models/ticketLike.model.js';
 import { createNotification } from '../utils/notificationHelper.js';
 import { logger } from '../utils/logger.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
+import { promoteFirstSubEventToMain,getCancellationDescription } from '../services/ticket.service.js';
 import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
-import { getBookingStatsByDate, getBookingGrowthStats, getMonthlyBookingChart } from '../grpc/bookingClient.js';
+import { getBookingStatsByDate, getBookingGrowthStats, getMonthlyBookingChart,getBookingsForEvent } from '../grpc/bookingClient.js';
+import ExcelJS from 'exceljs';
+import { getWieUsersByIds }    from '../grpc/wieUserClient.js';
 import { 
   generateSeatingLayoutFromFile, 
   validateSeatingLayout,
@@ -327,9 +330,7 @@ if (uploadedFiles.event_images) {
               );
             }
             
-            if (localFilePath) {
-              console.log('🔄 Generating seating layout from uploaded file...');
-              
+            if (localFilePath) {              
               const generatedLayout = await generateSeatingLayoutFromFile(
                 localFilePath,
                 Number(totalCapacity),
@@ -365,16 +366,10 @@ if (uploadedFiles.event_images) {
                     price: Number(assignment.price !== undefined ? assignment.price : 0),
                   })),
                 };
-                
-                console.log('✅ Seating layout generated successfully:', {
-                  totalSeats: processedSeatingLayout.seats.length,
-                  assignments: processedSeatingLayout.ticketTypeAssignments.length,
-                });
               }
             }
           } catch (layoutError) {
             console.error('❌ Layout generation failed:', layoutError);
-            console.log('⚠️ Continuing without seating layout generation');
           }
         }
       }
@@ -432,14 +427,6 @@ if (uploadedFiles.event_images) {
             seats: processedSeats,
             ticketTypeAssignments: processedAssignments
           };
-
-          console.log('✅ Processed seating_layout from request:', {
-            totalSeats: processedSeats.length,
-            assignedSeats: processedSeats.filter(s => s.ticketTypeId).length,
-            seatsWithPrice: processedSeats.filter(s => s.price > 0).length,
-            seatsWithName: processedSeats.filter(s => s.ticketTypeName).length,
-            assignments: processedAssignments.length
-          });
         }
       } catch (parseError) {
         console.error('❌ Error parsing seating_layout from request:', parseError);
@@ -779,17 +766,8 @@ event_videos: [
         // Detailed logging for verification
         const assignedSeats = processedSeatingLayout.seats.filter(s => s.ticketTypeId);
         const seatsWithPrice = assignedSeats.filter(s => s.price > 0);
-        console.log('✅ Seating layout saved to updatedSubEvent:', {
-          totalSeats: processedSeatingLayout.seats.length,
-          assignedSeats: assignedSeats.length,
-          seatsWithPrice: seatsWithPrice.length,
-          assignments: processedSeatingLayout.ticketTypeAssignments?.length || 0,
-          sampleAssignedSeat: assignedSeats[0],
-          sampleAssignment: processedSeatingLayout.ticketTypeAssignments?.[0]
-        });
       } else if (existingSubEvent.seating_layout) {
         updatedSubEvent.seating_layout = existingSubEvent.seating_layout;
-        console.log('✅ Preserved existing seating layout');
       }
       
       // Clear online/recorded fields
@@ -825,17 +803,9 @@ event_videos: [
     }
     // ✅ CRITICAL: Verify seating_layout structure before saving
     if (updatedSubEvent.seating_layout && updatedSubEvent.seating_layout.seats) {
-      console.log('🔍 Final verification before MongoDB save:');
       const assignedSeats = updatedSubEvent.seating_layout.seats.filter(s => s.ticketTypeId);
       const seatsWithTypeName = assignedSeats.filter(s => s.ticketTypeName);
       const seatsWithPrice = assignedSeats.filter(s => s.price > 0);
-      
-      console.log('📊 Seating layout final stats:', {
-        totalSeats: updatedSubEvent.seating_layout.seats.length,
-        assignedSeats: assignedSeats.length,
-        seatsWithTypeName: seatsWithTypeName.length,
-        seatsWithPrice: seatsWithPrice.length
-      });
 
       // ✅ BLOCKING VALIDATION
       const incompleteSeats = assignedSeats.filter(s => 
@@ -866,39 +836,13 @@ event_videos: [
     await ticket.save();
     const savedTicket = await Ticket.findById(ticketId);
     const savedSubEvent = savedTicket.sub_events[subEventIndex];
-    console.log("💾 FINAL OBJECT TO SAVE:", {
-  name: updatedSubEvent.event_name,
-  portrait: updatedSubEvent.event_portrait, // Check if this is a URL string
-  images_array_size: updatedSubEvent.event_images?.length,
-  videos_array_size: updatedSubEvent.event_videos?.length
-});
     if (savedSubEvent.seating_layout && savedSubEvent.seating_layout.seats) {
-      console.log('🔍 POST-SAVE VERIFICATION:');
       
       const savedAssignedSeats = savedSubEvent.seating_layout.seats.filter(s => s.ticketTypeId);
       const savedSeatsWithTypeName = savedAssignedSeats.filter(s => s.ticketTypeName);
       const savedSeatsWithPrice = savedAssignedSeats.filter(s => s.price > 0);
-      
-      console.log('📊 Saved seating layout stats:', {
-        totalSeats: savedSubEvent.seating_layout.seats.length,
-        assignedSeats: savedAssignedSeats.length,
-        seatsWithTypeName: savedSeatsWithTypeName.length,
-        seatsWithPrice: savedSeatsWithPrice.length
-      });
-
       // Sample verification
       const savedSampleSeat = savedAssignedSeats[0];
-      if (savedSampleSeat) {
-        console.log('🔍 Sample seat AFTER save:', {
-          seatId: savedSampleSeat.seatId,
-          ticketTypeId: savedSampleSeat.ticketTypeId,
-          ticketTypeName: savedSampleSeat.ticketTypeName,
-          ticketTypeColor: savedSampleSeat.ticketTypeColor,
-          price: savedSampleSeat.price,
-          allKeys: Object.keys(savedSampleSeat)
-        });
-      }
-
       // Check what was lost
       if (savedSeatsWithTypeName.length < savedAssignedSeats.length) {
         console.error('❌ CRITICAL: ticketTypeName was lost during save!', {
@@ -1134,7 +1078,7 @@ export const getOtherGroupView = async (req, res) => {
 export const getMyEvents = async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
-        const tickets = await Ticket.find({ userId: userId,event_status: { $in: ['pending', 'confirmed', 'live', 'completed'] } })
+        const tickets = await Ticket.find({ userId: userId,event_status: { $in: ['pending', 'confirmed', 'live', 'completed','cancelled'] } })
         .sort({ updatedAt: -1 }) 
         .exec();
         res.status(200).json({
@@ -1446,12 +1390,8 @@ export const getGroupTicketPercentages = async (req, res) => {
         groupPercentages: {}
       });
     }
-    
     // Ensure groupIds are ObjectIds
-    const groupIds = groups.map(g => new mongoose.Types.ObjectId(g._id));
-    
-    console.log("Group IDs:", groupIds);
-    
+    const groupIds = groups.map(g => new mongoose.Types.ObjectId(g._id));    
     // First, let's check if there are any tickets at all
     const totalTicketsCheck = await Ticket.countDocuments({
       groupId: { $in: groupIds }
@@ -1692,15 +1632,15 @@ export const goLiveEvent = async(req, res) => {
         currentDate: currentDate.toLocaleDateString()
       });
     }
-    // All dates are valid, proceed to go live
     ticket.event_status = 'live';
     ticket.sub_events.forEach(subEvent => {
       subEvent.event_status = 'live';
     });
+
+    ticket.markModified('sub_events');
+
     await ticket.save();
-    // Now populate groupId after save
     await ticket.populate('groupId');
-    // Create notification for hosted event
     try {
       await createNotification({
         userId: userId,
@@ -3158,6 +3098,754 @@ export const getEventMonthlyChart = async (req, res) => {
     res.status(500).json({
       message: "An error occurred while fetching chart data",
       error: error.message
+    });
+  }
+};
+
+export const getCancellationReport = async (req, res) => {
+  try {
+    const { ticketId, subEventId } = req.params;
+    const userId = req.user?.id || req.user?._id;
+
+    let ticket     = null;
+    let targetEvent = null;
+    let reportId   = ticketId; // ID used for booking lookup + filename
+
+    if (subEventId) {
+      // ── Sub-event report: ticketId = parentTicketId, subEventId = sub-event _id
+      ticket = await Ticket.findById(ticketId);
+      if (!ticket) {
+        return res.status(404).json({ success: false, message: 'Parent event not found' });
+      }
+      if (ticket.userId?.toString() !== userId?.toString()) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+      }
+      const subEvent = ticket.sub_events?.find(
+        (se) => se._id.toString() === subEventId
+      );
+      if (!subEvent) {
+        return res.status(404).json({ success: false, message: 'Sub-event not found' });
+      }
+      targetEvent = subEvent;
+      reportId    = subEventId; // bookings are stored under sub-event ID
+
+    } else {
+      // ── Main event report
+      ticket = await Ticket.findById(ticketId);
+      if (!ticket) {
+        return res.status(404).json({ success: false, message: 'Event not found' });
+      }
+      if (ticket.userId?.toString() !== userId?.toString()) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+      }
+      targetEvent = ticket;
+    }
+
+    // Fetch bookings using the correct ID (subEventId or ticketId)
+    const bookings = await getBookingsForEvent(reportId);
+
+    // Batch fetch user details
+    const userIds = [...new Set(bookings.map(b => b.userId).filter(Boolean))];
+    const users   = userIds.length > 0 ? await getWieUsersByIds(userIds) : [];
+    const userMap = {};
+    users.forEach(u => { userMap[u.id] = u; });
+
+    const isPaid = targetEvent.payment_type === 'paid' || ticket.payment_type === 'paid';
+
+    const totalRefunded = bookings.reduce((sum, b) => {
+      return sum + parseFloat(b.subtotal || '0');
+    }, 0);
+
+    //  Build Excel 
+    const workbook   = new ExcelJS.Workbook();
+    workbook.creator = 'WIE Platform';
+    workbook.created = new Date();
+
+    //  Sheet 1: Summary 
+    const summarySheet = workbook.addWorksheet('Cancellation Summary');
+    summarySheet.columns = [{ width: 35 }, { width: 30 }];
+
+    summarySheet.mergeCells('A1:B1');
+    const titleCell      = summarySheet.getCell('A1');
+    titleCell.value      = subEventId ? 'SUB-EVENT CANCELLATION REPORT' : 'EVENT CANCELLATION REPORT';
+    titleCell.font       = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+    titleCell.fill       = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+    titleCell.alignment  = { horizontal: 'center', vertical: 'middle' };
+    summarySheet.getRow(1).height = 36;
+
+    const addSummaryRow = (label, value, isHighlight = false) => {
+      const row = summarySheet.addRow([label, value]);
+      row.getCell(1).font = { bold: true, size: 11 };
+      row.getCell(2).font = { size: 11, color: { argb: isHighlight ? 'FFDC2626' : 'FF111827' } };
+      row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+      row.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+      row.height = 22;
+    };
+
+    summarySheet.addRow([]); 
+
+    //  Event info rows 
+    addSummaryRow('Event Name',    targetEvent.event_name || ticket.event_name || 'N/A');
+    addSummaryRow('Event ID',      reportId);
+
+    if (subEventId) {
+      addSummaryRow('Parent Event Name', ticket.event_name  || 'N/A');
+      addSummaryRow('Parent Event ID',   ticketId);
+    }
+
+    addSummaryRow('Event Type',    isPaid ? 'Paid' : 'Free');
+    addSummaryRow(
+      'Event Date',
+      targetEvent.event_dates?.[0]?.start_date
+        ? new Date(targetEvent.event_dates[0].start_date).toLocaleDateString('en-IN')
+        : 'N/A'
+    );
+
+    addSummaryRow(
+      'Cancellation Date',
+      targetEvent.cancelled_at
+        ? new Date(targetEvent.cancelled_at).toLocaleString('en-IN')
+        : (ticket.cancelled_at
+            ? new Date(ticket.cancelled_at).toLocaleString('en-IN')
+            : 'N/A')
+    );
+    addSummaryRow(
+      'Cancellation Reason',
+      targetEvent.cancellation_reason
+        || ticket.cancellation_reason
+        || 'Not specified'
+    );
+
+    summarySheet.addRow([]);
+
+    const totalTicketsAffected  = bookings.reduce(
+      (s, b) => s + (parseInt(b.quantity) || 1), 0
+    );
+    const modelTotalBookings = (subEventId ? targetEvent.totalBookings : ticket.totalBookings) ?? bookings.length;
+    const modelTotalTicketsSold = (subEventId ? targetEvent.totalTicketsSold : ticket.totalTicketsSold) ?? 0;
+    const likesCount            = (subEventId ? targetEvent.like               : ticket.like)              ?? 0;
+    const sharesCount           = (subEventId ? targetEvent.share              : ticket.share)             ?? 0;
+    const cancellationCount     = (subEventId ? targetEvent.total_cancellation : ticket.total_cancellation) ?? 0;
+
+    addSummaryRow('Total users Bookings',   modelTotalBookings);
+    addSummaryRow('Total Tickets Sold',    modelTotalTicketsSold);
+    addSummaryRow('Total Tickets in Report',   totalTicketsAffected);
+    addSummaryRow('Total Likes',               likesCount);
+    addSummaryRow('Total Shares',              sharesCount);
+    addSummaryRow('Total Tickets Cancellations', cancellationCount);
+
+    summarySheet.addRow([]);
+
+    if (isPaid) {
+      const totalPlatformFees = bookings.reduce(
+        (s, b) => s + parseFloat(b.platform_fee || b.platformFee || '0'), 0
+      );
+      addSummaryRow(
+        'Total Amount Being Refunded (₹)',
+        `₹${totalRefunded.toFixed(2)}`,
+        true
+      );
+      addSummaryRow(
+        'Host Revenue Lost (₹)',
+        `₹${totalRefunded.toFixed(2)}`,
+        true
+      );
+      addSummaryRow(
+        'Platform Fees (retained by WIE)',
+        `₹${totalPlatformFees.toFixed(2)}`
+      );
+    }
+
+    //  Sheet 2: Booking Details
+    const detailSheet = workbook.addWorksheet('Booking Details');
+    const headers = isPaid
+      ? ['#', 'Booking ID', 'User Name', 'Email', 'Phone', 'Tickets Qty',
+         'Ticket Price (₹)', 'Subtotal (₹)', 'Platform Fee (₹)',
+         'Total Paid (₹)', 'Refund Amount (₹)', 'Refund Status', 'Booked At']
+      : ['#', 'Booking ID', 'User Name', 'Email', 'Phone', 'Tickets Qty', 'Booked At', 'Status'];
+
+    const headerRow = detailSheet.addRow(headers);
+    headerRow.height = 28;
+    headerRow.eachCell((cell) => {
+      cell.font      = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border    = {
+        top:    { style: 'thin', color: { argb: 'FF6366F1' } },
+        bottom: { style: 'thin', color: { argb: 'FF6366F1' } },
+        left:   { style: 'thin', color: { argb: 'FF6366F1' } },
+        right:  { style: 'thin', color: { argb: 'FF6366F1' } },
+      };
+    });
+
+    detailSheet.columns = isPaid
+      ? [
+          { width: 5  }, { width: 28 }, { width: 22 }, { width: 28 },
+          { width: 16 }, { width: 12 }, { width: 18 }, { width: 16 },
+          { width: 18 }, { width: 16 }, { width: 18 }, { width: 16 }, { width: 22 },
+        ]
+      : [
+          { width: 5  }, { width: 28 }, { width: 22 }, { width: 28 },
+          { width: 16 }, { width: 12 }, { width: 22 }, { width: 14 },
+        ];
+
+    bookings.forEach((booking, idx) => {
+      const user        = userMap[booking.userId] || {};
+      const subtotal    = parseFloat(booking.subtotal    || '0');
+      const platformFee = parseFloat(booking.platformFee || booking.platform_fee || '0');
+      const totalPaid   = subtotal + platformFee;
+      const bookedAt    = booking.createdAt
+        ? new Date(booking.createdAt).toLocaleString('en-IN') : 'N/A';
+
+      const rowData = isPaid
+        ? [
+            idx + 1,
+            booking.bookingId  || booking.id || 'N/A',
+            user.name          || user.username || 'N/A',
+            user.email         || 'N/A',
+            user.contact_no    || 'N/A',
+            booking.quantity   || 1,
+            parseFloat(booking.pricePerTicket || subtotal),
+            subtotal,
+            platformFee,
+            totalPaid,
+            subtotal, // refund = subtotal (100% of ticket value)
+            booking.refundStatus || 'PENDING',
+            bookedAt,
+          ]
+        : [
+            idx + 1,
+            booking.bookingId  || booking.id || 'N/A',
+            user.name          || user.username || 'N/A',
+            user.email         || 'N/A',
+            user.contact_no    || 'N/A',
+            booking.quantity   || 1,
+            bookedAt,
+            booking.status     || 'CANCELLED',
+          ];
+
+      const dataRow = detailSheet.addRow(rowData);
+      dataRow.height = 20;
+      const isEven   = idx % 2 === 0;
+
+      dataRow.eachCell((cell, colNum) => {
+        cell.fill      = { type: 'pattern', pattern: 'solid',
+                           fgColor: { argb: isEven ? 'FFF5F3FF' : 'FFFFFFFF' } };
+        cell.border    = {
+          top:    { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          left:   { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          right:  { style: 'thin', color: { argb: 'FFE5E7EB' } },
+        };
+        cell.alignment = { horizontal: colNum <= 2 ? 'center' : 'left', vertical: 'middle' };
+        if (isPaid && (colNum === 11 || colNum === 10)) {
+          cell.font = { color: { argb: 'FFDC2626' }, bold: colNum === 11 };
+        }
+      });
+    });
+
+    // ── Sheet 3: Financial Summary (paid only) ────────────────────────────────
+    if (isPaid) {
+      const finSheet = workbook.addWorksheet('Financial Summary');
+      finSheet.columns = [{ width: 35 }, { width: 20 }, { width: 20 }];
+
+      finSheet.mergeCells('A1:C1');
+      const finTitleCell      = finSheet.getCell('A1');
+      finTitleCell.value      = 'FINANCIAL IMPACT SUMMARY';
+      finTitleCell.font       = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+      finTitleCell.fill       = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } };
+      finTitleCell.alignment  = { horizontal: 'center', vertical: 'middle' };
+      finSheet.getRow(1).height = 32;
+
+      finSheet.addRow([]);
+      const finHeader = finSheet.addRow(['Description', 'Amount (₹)', 'Notes']);
+      finHeader.eachCell(c => {
+        c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF374151' } };
+      });
+
+      const totalTickets     = bookings.reduce((s, b) => s + (parseInt(b.quantity) || 1), 0);
+      const totalPlatformFee = bookings.reduce(
+        (s, b) => s + parseFloat(b.platformFee || b.platform_fee || '0'), 0
+      );
+
+      const finRows = [
+        ['Total Ticket Revenue (Host Share)',  totalRefunded.toFixed(2),                      'Amount to be refunded to users'],
+        ['Total Platform Fees Collected',      totalPlatformFee.toFixed(2),                   'Retained by WIE platform'],
+        ['Total Amount Collected',             (totalRefunded + totalPlatformFee).toFixed(2), 'Total from users'],
+        ['Net Host Loss',                      totalRefunded.toFixed(2),                      'Host loses this amount'],
+        ['Total Tickets to Refund',            totalTickets,                                  'Number of tickets'],
+        ['Total Bookings to Cancel',           bookings.length,                               'Number of booking records'],
+      ];
+
+      finRows.forEach((row, i) => {
+        const r = finSheet.addRow(row);
+        r.height = 22;
+        r.getCell(1).font = { bold: true };
+        r.getCell(2).font = { color: { argb: i <= 3 ? 'FFDC2626' : 'FF111827' }, bold: i === 3 };
+        r.eachCell(c => {
+          c.fill      = { type: 'pattern', pattern: 'solid',
+                          fgColor: { argb: i % 2 === 0 ? 'FFFFF5F5' : 'FFFFFFFF' } };
+          c.alignment = { vertical: 'middle' };
+        });
+      });
+    }
+    res.setHeader('Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition',
+      `attachment; filename=cancellation-report-${reportId}-${Date.now()}.xlsx`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+
+  } catch (error) {
+    console.error('❌ getCancellationReport error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const cancelEvent = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const { ticketId, subEventId } = req.params;
+    const { cancellation_reason } = req.body;
+
+    if (!ticketId) {
+      return res.status(400).json({ message: "Missing required parameter: ticketId" });
+    }
+
+    const ticket = await Ticket.findOne({ _id: ticketId, userId });
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found or you don't have access" });
+    }
+
+    const now = new Date();
+    let targetEvent   = null;
+    let isSubEvent    = false;
+    let subEventIndex = -1;
+
+    if (subEventId) {
+      subEventIndex = ticket.sub_events.findIndex(
+        (se) => se._id.toString() === subEventId
+      );
+      if (subEventIndex === -1) {
+        return res.status(404).json({ message: "Sub-event not found" });
+      }
+      targetEvent = ticket.sub_events[subEventIndex];
+      isSubEvent  = true;
+    } else {
+      targetEvent = ticket;
+    }
+
+    // Guard: already cancelled/completed/deleted
+    const nonCancellableStatuses = ["cancelled", "completed", "deleted"];
+    if (nonCancellableStatuses.includes(targetEvent.event_status)) {
+      return res.status(400).json({
+        message: `Event is already ${targetEvent.event_status} and cannot be cancelled`,
+      });
+    }
+
+    // Refund tier calculation 
+    const eventStartDate = targetEvent.event_dates?.[0]?.start_date;
+    let refundPercentage = 100;
+    let cancellationTier = "full_refund";
+
+    if (eventStartDate) {
+      const eventStart = new Date(eventStartDate);
+      const startTime  = targetEvent.event_dates?.[0]?.start_time;
+      if (startTime) {
+        const [h, m, s] = startTime.split(":");
+        eventStart.setHours(parseInt(h), parseInt(m), parseInt(s || 0));
+      }
+      const hoursUntilEvent = (eventStart - now) / (1000 * 60 * 60);
+
+      if (hoursUntilEvent <= 0) {
+        refundPercentage = 0;
+        cancellationTier = "no_refund";
+      } else if (hoursUntilEvent <= 24) {
+        refundPercentage = 80;
+        cancellationTier = "event_day";
+      } else if (hoursUntilEvent <= 48) {
+        refundPercentage = 90;
+        cancellationTier = "last_day";
+      } else {
+        refundPercentage = 100;
+        cancellationTier = "full_refund";
+      }
+    }
+
+    //  Apply cancellation 
+    if (isSubEvent) {
+      ticket.sub_events[subEventIndex].event_status        = "cancelled";
+      ticket.sub_events[subEventIndex].cancellation_reason = cancellation_reason || "";
+      ticket.sub_events[subEventIndex].cancelled_at        = now;
+      ticket.sub_events[subEventIndex].cancelled_by        = userId;
+      ticket.markModified(`sub_events.${subEventIndex}.event_status`);
+      ticket.markModified(`sub_events.${subEventIndex}.cancellation_reason`);
+      ticket.markModified(`sub_events.${subEventIndex}.cancelled_at`);
+      ticket.markModified(`sub_events.${subEventIndex}.cancelled_by`);
+      await ticket.save();
+
+    } else {
+      let promotionResult = { promoted: false, newMain: null };
+      try {
+        promotionResult = await promoteFirstSubEventToMain(
+          ticketId,
+          userId.toString(),
+          now
+        );
+      } catch (promoErr) {
+        console.error("⚠️ Sub-event promotion failed (non-blocking):", promoErr.message);
+      }
+
+      const ticketToCancel = await Ticket.findById(ticketId);
+      if (ticketToCancel) {
+        ticketToCancel.event_status        = "cancelled";
+        ticketToCancel.cancellation_reason = cancellation_reason || "";
+        ticketToCancel.cancelled_at        = now;
+        ticketToCancel.cancelled_by        = userId;
+        ticketToCancel.isMain              = false;
+        // sub_events is already [] after promotion — no need to cancel them
+        await ticketToCancel.save();
+      }
+    }   
+
+    //  Fetch bookings for notification/refund 
+    let bookedUserIds    = [];
+    let bookingRefundMap = {};
+    try {
+      const bookings = await getBookingsForEvent(
+        isSubEvent ? subEventId : ticketId
+      );
+      bookedUserIds = bookings.map((b) => b.userId);
+
+      if (targetEvent.payment_type === "paid" || ticket.payment_type === "paid") {
+        bookings.forEach((b) => {
+          const subtotal  = parseFloat(b.subtotal || 0);
+          const refundAmt = parseFloat(
+            ((subtotal * refundPercentage) / 100).toFixed(2)
+          );
+          bookingRefundMap[b.userId] = refundAmt;
+        });
+      }
+    } catch (fetchErr) {
+      console.warn("⚠️ Could not fetch booked users:", fetchErr.message);
+    }
+
+    //  Publish cancellation event 
+    try {
+      await publishEventCancellation({
+        eventId:             isSubEvent ? subEventId : ticketId,
+        parentEventId:       isSubEvent ? ticketId : null,
+        isSubEvent,
+        hostId:              userId.toString(),
+        groupId:             ticket.groupId?.toString(),
+        eventName:           targetEvent.event_name,
+        paymentType:         targetEvent.payment_type || ticket.payment_type,
+        refundPercentage,
+        cancellationTier,
+        cancellation_reason: cancellation_reason || "",
+        cancelledAt:         now.toISOString(),
+        bookedUserIds,
+        bookingRefundMap,
+      });
+    } catch (publishErr) {
+      console.error("⚠️ Failed to publish EVENT_CANCELLED:", publishErr.message);
+    }
+
+    // Notify the host 
+    try {
+      await createNotification({
+        userId:    userId.toString(),
+        type:      "event_cancelled",
+        title:     "Event Cancelled Successfully",
+        message:   `Your event "${targetEvent.event_name}" has been cancelled. Refund policy: ${cancellationTier} (${refundPercentage}% refund to attendees).`,
+        ticketId,
+        groupId:   ticket.groupId?.toString(),
+        eventName: targetEvent.event_name,
+      });
+    } catch (notifErr) {
+      console.error("⚠️ Host notification failed:", notifErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `${isSubEvent ? "Sub-event" : "Event"} cancelled successfully`,
+      data: {
+        ticketId,
+        subEventId:   isSubEvent ? subEventId : null,
+        event_name:   targetEvent.event_name,
+        event_status: "cancelled",
+        cancelled_at: now,
+        refundPolicy: {
+          refundPercentage,
+          cancellationTier,
+          description: getCancellationDescription(cancellationTier),
+        },
+        ...(!isSubEvent && {
+          promotion: {
+            promoted:        promotionResult?.promoted        || false,
+            newMainTicketId: promotionResult?.newMainTicketId || null,
+          },
+        }),
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error cancelling event:", error);
+    if (error.name === "CastError") {
+      return res.status(400).json({ message: "Invalid ID format" });
+    }
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+export const rehostEvent = async (req, res) => {
+  try {
+    const userId  = req.user._id || req.user.id;
+    const { ticketId } = req.params;
+    const { rehost_as, reason } = req.body;
+    // rehost_as: "main" | "sub"
+
+    if (!["main", "sub"].includes(rehost_as)) {
+      return res.status(400).json({
+        success: false,
+        message: 'rehost_as must be "main" or "sub"',
+      });
+    }
+
+    const cancelledTicket = await Ticket.findOne({ _id: ticketId, userId });
+    if (!cancelledTicket) {
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found or access denied",
+      });
+    }
+
+    if (cancelledTicket.event_status !== "cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Only cancelled events can be re-hosted",
+      });
+    }
+
+    const now = new Date();
+
+    // ── CASE 1: Re-host as MAIN EVENT 
+    if (rehost_as === "main") {
+      // Find the currently promoted main ticket
+      const currentPromotedMain = await Ticket.findOne({
+        original_main_event_id: cancelledTicket._id,
+        userId,
+        event_status: { $nin: ["cancelled", "deleted"] },
+      });
+
+      // ── Collect ALL sub-events that should live under the restored main ──
+      // Source 1: sub-events currently under the promoted main ticket
+      // Source 2: the promoted main ticket itself (demoted back to sub-event)
+      let allSubEventsForRestoredMain = [];
+
+      if (currentPromotedMain) {
+        // Sub-events currently under the promoted main
+        const promotedMainSubEvents = (currentPromotedMain.sub_events || []).map(
+          (se) => ({
+            ...(se.toObject ? se.toObject() : { ...se }),
+            main_ticket_id: cancelledTicket._id,
+          })
+        );
+
+        // The promoted main itself becomes a sub-event
+        const demotedSubEventObj = {
+          event_name:           currentPromotedMain.event_name,
+          event_category:       currentPromotedMain.event_category,
+          event_subcategory:    currentPromotedMain.event_subcategory,
+          event_type:           currentPromotedMain.event_type,
+          event_language:       currentPromotedMain.event_language       || [],
+          event_description:    currentPromotedMain.event_description,
+          event_banner:         currentPromotedMain.event_banner,
+          event_logo:           currentPromotedMain.event_logo,
+          event_images:         currentPromotedMain.event_images         || [],
+          event_portrait:       currentPromotedMain.event_portrait,
+          event_videos:         currentPromotedMain.event_videos         || [],
+          event_dates:          currentPromotedMain.event_dates,
+          event_date_type:      currentPromotedMain.event_date_type,
+          gate_open_time:       currentPromotedMain.gate_open_time,
+          location:             currentPromotedMain.location,
+          location_type:        currentPromotedMain.location_type,
+          venue:                currentPromotedMain.venue,
+          exact_map_location:   currentPromotedMain.exact_map_location,
+          seating_arrangement:  currentPromotedMain.seating_arrangement  || "none",
+          min_age_allowed:      currentPromotedMain.min_age_allowed      ?? 0,
+          max_age_allowed:      currentPromotedMain.max_age_allowed,
+          kids_friendly:        currentPromotedMain.kids_friendly        ?? false,
+          pet_friendly:         currentPromotedMain.pet_friendly         ?? false,
+          payment_type:         currentPromotedMain.payment_type,
+          ticket_types:         currentPromotedMain.ticket_types         || [],
+          banking_details:      currentPromotedMain.banking_details      || [],
+          guests:               currentPromotedMain.guests               || [],
+          POCS:                 currentPromotedMain.POCS                 || [],
+          hashtag:              currentPromotedMain.hashtag              || [],
+          prohibited_items:     currentPromotedMain.prohibited_items     || [],
+          total_capacity:       currentPromotedMain.total_capacity,
+          booking_start_date:   currentPromotedMain.booking_start_date,
+          booking_end_date:     currentPromotedMain.booking_end_date,
+          event_rules:          currentPromotedMain.event_rules,
+          event_status:         "confirmed",
+          main_ticket_id:       cancelledTicket._id,
+          subevent:             "1",
+        };
+
+        // Order: promoted main first (it was the "first" sub-event),
+        // then all its children
+        allSubEventsForRestoredMain = [demotedSubEventObj, ...promotedMainSubEvents];
+      }
+
+      // ── Restore the cancelled ticket as main with all sub-events ─────────
+      cancelledTicket.event_status          = "confirmed";
+      cancelledTicket.cancellation_reason   = "";
+      cancelledTicket.cancelled_at          = undefined;
+      cancelledTicket.cancelled_by          = undefined;
+      cancelledTicket.isMain                = true;
+      cancelledTicket.promoted_to_ticket_id = undefined;
+      cancelledTicket.sub_events            = allSubEventsForRestoredMain;
+      cancelledTicket.markModified("sub_events");
+      await cancelledTicket.save();
+      // ── Delete the promoted main ticket (now embedded as sub-event) ───────
+      if (currentPromotedMain) {
+        await Ticket.findByIdAndDelete(currentPromotedMain._id);
+      }
+      // ── Notify host
+      try {
+        await createNotification({
+          userId:    userId.toString(),
+          type:      "event_rehosted",
+          title:     "Event Re-hosted Successfully",
+          message:   `Your event "${cancelledTicket.event_name}" has been re-hosted as the main event with ${allSubEventsForRestoredMain.length} sub-event(s).`,
+          ticketId,
+          groupId:   cancelledTicket.groupId?.toString(),
+          eventName: cancelledTicket.event_name,
+        });
+      } catch (notifErr) {
+        console.error("⚠️ Rehost notification failed:", notifErr.message);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Event re-hosted as main event successfully",
+        data: {
+          ticketId,
+          event_name:        cancelledTicket.event_name,
+          event_status:      "confirmed",
+          rehosted_as:       "main",
+          sub_events_count:  allSubEventsForRestoredMain.length,
+        },
+      });
+    }
+    // ── CASE 2: Re-host as SUB EVENT
+    if (rehost_as === "sub") {
+      // Find the currently promoted main to attach this as a sub-event
+      const currentPromotedMain = await Ticket.findOne({
+        original_main_event_id: cancelledTicket._id,
+        userId,
+        event_status: { $nin: ["cancelled", "deleted"] },
+      });
+
+      if (!currentPromotedMain) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "No active main event found to attach this as a sub-event. Re-host as main event instead.",
+        });
+      }
+
+      // Build sub-event from cancelled ticket
+      const newSubEventObj = {
+        event_name:           cancelledTicket.event_name,
+        event_category:       cancelledTicket.event_category,
+        event_subcategory:    cancelledTicket.event_subcategory,
+        event_type:           cancelledTicket.event_type,
+        event_language:       cancelledTicket.event_language       || [],
+        event_description:    cancelledTicket.event_description,
+        event_banner:         cancelledTicket.event_banner,
+        event_logo:           cancelledTicket.event_logo,
+        event_images:         cancelledTicket.event_images         || [],
+        event_portrait:       cancelledTicket.event_portrait,
+        event_videos:         cancelledTicket.event_videos         || [],
+        event_dates:          cancelledTicket.event_dates,
+        event_date_type:      cancelledTicket.event_date_type,
+        gate_open_time:       cancelledTicket.gate_open_time,
+        location:             cancelledTicket.location,
+        location_type:        cancelledTicket.location_type,
+        venue:                cancelledTicket.venue,
+        exact_map_location:   cancelledTicket.exact_map_location,
+        seating_arrangement:  cancelledTicket.seating_arrangement  || "none",
+        min_age_allowed:      cancelledTicket.min_age_allowed      ?? 0,
+        max_age_allowed:      cancelledTicket.max_age_allowed,
+        kids_friendly:        cancelledTicket.kids_friendly        ?? false,
+        pet_friendly:         cancelledTicket.pet_friendly         ?? false,
+        payment_type:         cancelledTicket.payment_type,
+        ticket_types:         cancelledTicket.ticket_types         || [],
+        banking_details:      cancelledTicket.banking_details      || [],
+        guests:               cancelledTicket.guests               || [],
+        POCS:                 cancelledTicket.POCS                 || [],
+        hashtag:              cancelledTicket.hashtag              || [],
+        prohibited_items:     cancelledTicket.prohibited_items     || [],
+        total_capacity:       cancelledTicket.total_capacity,
+        booking_start_date:   cancelledTicket.booking_start_date,
+        booking_end_date:     cancelledTicket.booking_end_date,
+        event_rules:          cancelledTicket.event_rules,
+        event_status:         "confirmed",
+        main_ticket_id:       currentPromotedMain._id,
+        subevent:             "1",
+      };
+
+      // Push into promoted main's sub_events
+      currentPromotedMain.sub_events.push(newSubEventObj);
+      currentPromotedMain.markModified("sub_events");
+      await currentPromotedMain.save();
+
+      // Mark old cancelled ticket as deleted (it now lives as sub-event)
+      cancelledTicket.event_status = "deleted";
+      await cancelledTicket.save();
+
+      try {
+        await createNotification({
+          userId:    userId.toString(),
+          type:      "event_rehosted",
+          title:     "Event Re-hosted as Sub-Event",
+          message:   `Your event "${cancelledTicket.event_name}" has been re-hosted as a sub-event under "${currentPromotedMain.event_name}".`,
+          ticketId,
+          groupId:   cancelledTicket.groupId?.toString(),
+          eventName: cancelledTicket.event_name,
+        });
+      } catch (notifErr) {
+        console.error("⚠️ Rehost notification failed:", notifErr.message);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message:  "Event re-hosted as sub-event successfully",
+        data: {
+          ticketId,
+          newMainTicketId: currentPromotedMain._id.toString(),
+          event_name:      cancelledTicket.event_name,
+          event_status:    "confirmed",
+          rehosted_as:     "sub",
+        },
+      });
+    }
+
+  } catch (error) {
+    console.error("❌ rehostEvent error:", error);
+    if (error.name === "CastError") {
+      return res.status(400).json({ success: false, message: "Invalid ID format" });
+    }
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
     });
   }
 };

@@ -183,6 +183,9 @@ const subEventSchema = new mongoose.Schema({
     enum: ['pending', 'confirmed', 'cancelled', 'live','completed','deleted'],
     default: 'pending'
   },
+  cancellation_reason: { type: String, default: '' },
+  cancelled_at:        { type: Date },
+  cancelled_by:        { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   like: { type: Number, required: false, default: 0 },
   share: { type: Number, required: false, default: 0 },
   // Booking statistics
@@ -327,6 +330,15 @@ const ticketSchema = new mongoose.Schema({
     enum: ['pending', 'confirmed', 'cancelled','live','completed','deleted'],
     default: 'pending'
   },
+  cancellation_reason: { type: String, default: '' },
+  cancelled_at:        { type: Date },
+  cancelled_by:        { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  // Promotion tracking
+  promoted_to_ticket_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
+  promoted_from_sub_event:  { type: Boolean, default: false },
+  original_main_event_id:   { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
+  promoted_at:              { type: Date },
+  isMain:                   { type: Boolean, default: true },
   updated_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   updated_at: { type: Date, default: Date.now },
   

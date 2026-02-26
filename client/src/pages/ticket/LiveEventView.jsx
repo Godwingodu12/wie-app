@@ -7,13 +7,15 @@ import SideBar from "../../components/HomePage/SideBar";
 import BottomNavigation from "../../components/HomePage/BottomNavigation";
 import SeatingLayoutModal from "../../components/ViewSingleEvent/SeatingLayoutModal";
 import GuideModal from "../../components/ViewSingleEvent/GuideModal";
+import { EventCancelModal, EventCancelSuccessModal } from "../../components/Event/EventCancelModal";
+import ReHostModal from "../../components/Event/ReHostModal";
 import EventLocationModal from "../../components/ViewSingleEvent/EventLocationModal";
 import WieLogo from "../../assets/HomePage/WieLogo.svg?url";
 import { toast } from "react-hot-toast";
 import {
   getMyLiveEventView,
   getGroupView,
-  getTicketById,
+  getTicketById,cancelEvent, cancelSubEvent, getCancellationReport,rehostEvent,
   getEventMetrics,getEventStatsByDate, getEventGrowthStats, getEventMonthlyChart
 } from "../../services/ticketService";
 import { getImageUrl } from "../../utils/imageUtils";
@@ -36,7 +38,7 @@ import {
   TrendingUp,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
+  ChevronDown, AlertTriangle, FileSpreadsheet, Ban,RefreshCw
 } from "lucide-react";
 import ActionCircleButton from "../../components/ViewSingleEvent/ActionCircleButton";
 const HEADER_HEIGHT = 72; // From HomePage
@@ -73,6 +75,18 @@ const LiveEventsPage = () => {
   const [error, setError] = useState(null);
   const [groupName, setGroupName] = useState("");
   const [selectedGuest, setSelectedGuest] = useState(null);
+  // ── Event Cancellation State 
+  const [showCancelModal, setShowCancelModal]         = useState(false);
+  const [cancelReason, setCancelReason]               = useState("");
+  const [cancelReasonError, setCancelReasonError]     = useState("");
+  const [isCancelling, setIsCancelling]               = useState(false);
+  const [cancelSuccess, setCancelSuccess]             = useState(false);
+  const [showDownloadReport, setShowDownloadReport]   = useState(false);
+  const [isDownloading, setIsDownloading]             = useState(false);
+  const [cancellationSummary, setCancellationSummary] = useState(null);
+  const [downloadError, setDownloadError]             = useState("");
+  const [showRehostModal, setShowRehostModal]         = useState(false);
+  const [isRehosting, setIsRehosting]                 = useState(false);
 // Update the fetchEventData useEffect to also fetch initial growth stats
 useEffect(() => {
   const fetchEventData = async () => {
@@ -182,7 +196,6 @@ useEffect(() => {
     
     if (isInitialLoad) {
       // On initial load, just use the metrics from getEventMetrics
-      console.log('Initial load - using total metrics');
       return;
     }
 
@@ -235,6 +248,106 @@ const handleResetToTotalView = () => {
   setGrowthStats(null);
   setMonthlyChartData([]);
   setDateError(null);
+};
+const handleCancelEvent = async () => {
+  if (!cancelReason.trim()) {
+    setCancelReasonError("Please provide a cancellation reason.");
+    return;
+  }
+  if (cancelReason.trim().length < 10) {
+    setCancelReasonError("Reason must be at least 10 characters.");
+    return;
+  }
+  try {
+    setIsCancelling(true);
+    setCancelReasonError("");
+    const response = await cancelEvent(ticketId, cancelReason.trim());
+    if (response.success) {
+      setCancelSuccess(true);
+      setShowDownloadReport(true);
+
+      const promotion = response.data?.promotion;
+
+      setCancellationSummary({
+        eventName:          eventData?.event_name,
+        totalBookings:      response.data?.affectedBookings || 0,
+        refundPercentage:   response.data?.refundPolicy?.refundPercentage ?? 100,
+        cancellationTier:   response.data?.refundPolicy?.cancellationTier,
+        isPaid:             eventData?.payment_type === "paid",
+        reason:             cancelReason.trim(),
+        promoted:           promotion?.promoted || false,
+        newMainTicketId:    promotion?.newMainTicketId || null,
+      });
+
+      setEventData((prev) => ({ ...prev, event_status: "cancelled" }));
+      toast.success(
+        promotion?.promoted
+          ? "Event cancelled. First sub-event promoted to main event. Attendees notified."
+          : "Event cancelled. All attendees have been notified."
+      );
+    }
+  } catch (err) {
+    const msg = err?.response?.data?.message || err.message || "Failed to cancel event.";
+    toast.error(msg);
+    setCancelReasonError(msg);
+  } finally {
+    setIsCancelling(false);
+  }
+};
+
+const handleCloseCancelModal = () => {
+  if (cancelSuccess) {
+    setShowCancelModal(false);
+  } else {
+    setShowCancelModal(false);
+    setCancelReason("");
+    setCancelReasonError("");
+  }
+};
+
+const handleDownloadReport = async () => {
+  try {
+    setIsDownloading(true);
+    setDownloadError("");
+    await getCancellationReport(ticketId);
+    toast.success("Report downloaded successfully!");
+  } catch (err) {
+    const msg = err?.message || "Failed to download report. Please try again.";
+    setDownloadError(msg);
+    toast.error(msg);
+  } finally {
+    setIsDownloading(false);
+  }
+};
+
+const handleRehost = async (rehostAs) => {
+  try {
+    setIsRehosting(true);
+    const response = await rehostEvent(ticketId, rehostAs);
+    if (response.success) {
+      setShowRehostModal(false);
+      toast.success(
+        rehostAs === "main"
+          ? "Event re-hosted as main event successfully!"
+          : "Event re-hosted as sub-event successfully!"
+      );
+      if (rehostAs === "main") {
+        setEventData((prev) => ({ ...prev, event_status: "confirmed" }));
+      } else {
+        const newMainId = response.data?.newMainTicketId;
+        if (newMainId) {
+          navigate(`/ticket/live-event-view/${newMainId}`);
+        } else {
+          navigate(-1);
+        }
+      }
+    }
+  } catch (err) {
+    const msg = err?.response?.data?.message || err.message || "Failed to re-host event.";
+    toast.error(msg);
+  } finally {
+    setIsRehosting(false);
+  }
 };
   // Computed values from API data
   const computedEventData = eventData
@@ -725,13 +838,67 @@ const displayDate = isSameDate
               </div>
               {/* Filter Pills (Right) */}
               <div className="flex items-center my-auto space-x-4 flex-shrink-0 ml-auto mr-4">
-                <ActionCircleButton
-                  theme={theme}
-                  type="edit"
-                  groupId={groupId}
-                  ticketId={ticketId}
-                  setAppAlert={setAppAlert}
-                />
+                {/* Edit button — hidden for cancelled events */}
+                {eventData?.event_status === "live" && (
+                  <ActionCircleButton
+                    theme={theme}
+                    type="edit"
+                    groupId={groupId}
+                    ticketId={ticketId}
+                    setAppAlert={setAppAlert}
+                  />
+                )}
+
+                {/* Cancel OR Re-host button */}
+                {eventData?.event_status === "cancelled" && (
+                  <button
+                    onClick={() => setShowRehostModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                              bg-emerald-600 hover:bg-emerald-700 text-white transition-all duration-200
+                              hover:scale-105 shadow-lg"
+                  >
+                    <RefreshCw size={16} />
+                    Re-host Event
+                  </button>
+                )}
+
+                {eventData?.event_status === "confirmed" && (
+                  <button
+                    onClick={() => navigate(`/ticket/view-confirm-event/${ticketId}`)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                              bg-green-600 hover:bg-green-700 text-white transition-all duration-200
+                              hover:scale-105 shadow-lg"
+                  >
+                    <Radio size={16} />
+                    Host event page
+                  </button>
+                )}
+
+                {eventData?.event_status === "live" && (
+                  <button
+                    onClick={() => setShowCancelModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                              bg-red-600 hover:bg-red-700 text-white transition-all duration-200
+                              hover:scale-105 shadow-lg"
+                  >
+                    <Ban size={16} />
+                    Cancel Event
+                  </button>
+                )}
+
+                {/* Download Report — only for cancelled events */}
+                {(showDownloadReport || eventData?.event_status === "cancelled") && eventData?.event_status !== "confirmed" && (
+                  <button
+                    onClick={handleDownloadReport}
+                    disabled={isDownloading}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                              bg-indigo-600 hover:bg-indigo-700 text-white transition-all duration-200
+                              hover:scale-105 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <FileSpreadsheet size={16} />
+                    {isDownloading ? "Downloading..." : "Download Report"}
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-3 flex-wrap pb-2 lg:pb-0 mt-4 lg:mt-0">
                 <button
@@ -932,7 +1099,7 @@ const displayDate = isSameDate
                         <Armchair className="w-8 h-8 filter brightness-0 invert" />
                       </button>
                       <span className="text-xs font-medium">
-                        Seating layout
+                        Seating
                       </span>
                     </div>
                   </div>
@@ -1327,6 +1494,43 @@ const displayDate = isSameDate
         </div >
       </div >
       {/* <-- This closing div was missing */}
+      {showCancelModal && !cancelSuccess && (
+        <EventCancelModal
+          theme={theme}
+          isDark={isDark}
+          eventData={eventData}
+          cancelReason={cancelReason}
+          setCancelReason={setCancelReason}
+          cancelReasonError={cancelReasonError}
+          setCancelReasonError={setCancelReasonError}
+          isCancelling={isCancelling}
+          onConfirm={handleCancelEvent}
+          onClose={handleCloseCancelModal}
+        />
+      )}
+
+      {showCancelModal && cancelSuccess && (
+        <EventCancelSuccessModal
+          theme={theme}
+          isDark={isDark}
+          cancellationSummary={cancellationSummary}
+          isDownloading={isDownloading}
+          downloadError={downloadError}
+          onDownload={handleDownloadReport}
+          onClose={() => setShowCancelModal(false)}
+        />
+      )}
+
+      {showRehostModal && (
+        <ReHostModal
+          theme={theme}
+          isDark={isDark}
+          eventData={eventData}
+          isRehosting={isRehosting}
+          onConfirm={handleRehost}
+          onClose={() => setShowRehostModal(false)}
+        />
+      )}
     </>
   );
 };

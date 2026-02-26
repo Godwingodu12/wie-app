@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
 import { SettlementService } from '../services/settlementService';
-
+import { getEventCancellationInfo } from '../grpc/ticketClient';
+import { BookingModel, PaymentTransactionModel } from '../models';
+import RazorpayService from '../config/razorpay';
+import { createNotification } from '../utils/notificationHelper';
+import { LedgerModel } from '../models/ledger.model';
+import { prisma }      from '../config/db';
+import amqp from 'amqplib';
 export const getPlatformEarnings = async (req: Request, res: Response) => {
   try {
     const { startDate, endDate } = req.query;
@@ -84,4 +90,341 @@ export const getSettlementStats = async (req: Request, res: Response) => {
     console.error('❌ Error fetching settlement stats:', error);
     res.status(500).json({ success: false, message: error.message });
   }
+};
+
+export const triggerEventCancellationRefunds = async (req: Request, res: Response) => {
+  try {
+    const { eventId, parentEventId, isSubEvent, refundPercentage, eventName, paymentType } = req.body;
+
+    if (!eventId) {
+      return res.status(400).json({ success: false, message: 'eventId is required' });
+    }
+
+    // Free event — no refund, just notify
+    if (paymentType === 'free') {
+      await _notifyFreeEventCancellation(eventId, eventName);
+      return res.json({
+        success: true,
+        message: 'Free event cancellation notifications sent',
+        refundsProcessed: 0,
+      });
+    }
+
+    // Fetch all confirmed/pending bookings for this event
+    const bookings = await BookingModel.findByTicketIdWithStatus(eventId, ['CONFIRMED', 'PENDING']);
+
+    if (!bookings.length) {
+      return res.json({ success: true, message: 'No bookings to refund', refundsProcessed: 0 });
+    }
+
+    // Mark all bookings as REFUND_PENDING
+    await Promise.all(
+      bookings.map((b: any) =>
+        BookingModel.update(b.id, {
+          bookingStatus: 'CANCELLED',
+          cancellationReason: `Event cancelled by host: ${eventName}`,
+          refundStatus: 'PENDING',
+          refundAmount: parseFloat(
+            ((parseFloat(b.subtotal.toString()) * refundPercentage) / 100).toFixed(2)
+          ),
+        })
+      )
+    );
+
+    // Push each booking to the REFUND queue (async, rate-limited)
+    await _publishBulkRefundJobs(bookings, refundPercentage, eventName, eventId);
+
+    // Update escrow: mark funds as REFUND_INITIATED (unblock from host payout)
+    await SettlementService.markEscrowAsRefunding(eventId);
+
+    res.json({
+      success: true,
+      message: `Refund jobs queued for ${bookings.length} bookings`,
+      refundsQueued: bookings.length,
+      refundPercentage,
+    });
+  } catch (error: any) {
+    console.error('❌ triggerEventCancellationRefunds error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// PROCESS SINGLE REFUND JOB (called by refund worker consumer)
+export const processRefundJob = async (bookingId: string, refundPercentage: number, eventName: string) => {
+  const booking = await BookingModel.findById(bookingId);
+  if (!booking) {
+    console.error(`❌ Refund job: booking ${bookingId} not found`);
+    return;
+  }
+
+  // Skip if already refunded
+  if (booking.refundStatus === 'COMPLETED') {
+    return;
+  }
+
+  const subtotal = parseFloat(booking.subtotal.toString());
+  const refundAmount = parseFloat(((subtotal * refundPercentage) / 100).toFixed(2));
+  const isPaid = refundAmount > 0 && booking.paymentStatus === 'COMPLETED' && booking.razorpayPaymentId;
+
+  if (!isPaid) {
+    // Free booking — just mark cancelled, send notification
+    await BookingModel.update(booking.id, {
+      bookingStatus: 'CANCELLED',
+      refundStatus: 'NOT_APPLICABLE',
+    });
+    await _sendCancellationNotification(booking.userId, eventName, booking.ticketId, String(booking.id), 0, false);
+    return;
+  }
+
+  try {
+    const razorpay = RazorpayService.getInstance(
+      process.env.RAZORPAY_KEY_ID!,
+      process.env.RAZORPAY_KEY_SECRET!
+    );
+
+    // Idempotency key prevents double refund
+    const idempotencyKey = `refund_${booking.bookingId}`;
+
+    const refund = await RazorpayService.initiateRefund(
+      razorpay,
+      booking.razorpayPaymentId!.trim(),
+      refundAmount,
+      {
+        booking_id: booking.bookingId,
+        reason: `Event cancelled: ${eventName}`,
+        idempotency_key: idempotencyKey,
+      }
+    );
+
+    await BookingModel.update(booking.id, {
+      refundAmount,
+      refundStatus: 'PROCESSING',
+      refundId: refund.id,
+      refundInitiatedAt: new Date(),
+    });
+
+    await PaymentTransactionModel.create({
+      bookingId: booking.id,
+      razorpayOrderId: booking.razorpayOrderId || `event_cancel_${booking.bookingId}`,
+      razorpayPaymentId: booking.razorpayPaymentId ?? undefined,
+      amount: refundAmount,
+      currency: 'INR',
+      status: 'PROCESSING',
+      method: 'refund',
+      refundId: refund.id,
+      webhookData: { eventCancellationRefund: true, refundPercentage, eventName } as any,
+    });
+
+    await _sendCancellationNotification(
+      booking.userId, eventName, booking.ticketId, String(booking.id), refundAmount, true
+    );
+
+  } catch (refundErr: any) {
+    console.error(`❌ Refund failed for booking ${bookingId}:`, refundErr.message);
+    const retryCount = (booking as any).refundRetryCount || 0;
+    await BookingModel.update(booking.id, {
+      refundStatus: retryCount >= 3 ? 'FAILED' : 'PENDING',
+      refundRetryCount: retryCount + 1,
+    } as any);
+
+    await _sendCancellationNotification(
+      booking.userId, eventName, booking.ticketId, String(booking.id), refundAmount, true, true
+    );
+  }
+};
+// POST /settlements/host/create-linked-account
+export const createHostLinkedAccount = async (req: Request, res: Response) => {
+  try {
+    const { groupId, name, email, phone, legalBusinessName } = req.body;
+
+    if (!groupId || !email || !legalBusinessName) {
+      return res.status(400).json({
+        success: false,
+        message: 'groupId, email, and legalBusinessName are required',
+      });
+    }
+
+    // Check if already exists — use snake_case field name
+    const existing = await prisma.hostLinkedAccount.findUnique({
+      where: { group_id: groupId },         
+    });
+
+    if (existing) {
+      return res.json({
+        success: true,
+        message: 'Linked account already exists',
+        data: {
+          id:                existing.id,
+          razorpayAccountId: existing.razorpay_account_id,  
+          kycStatus:         existing.kyc_status,          
+        },
+      });
+    }
+
+    const account = await RazorpayService.createLinkedAccount({
+      name,
+      email,
+      phone,
+      legalBusinessName,
+    });
+
+    // Create using snake_case field names
+    const hostAccount = await prisma.hostLinkedAccount.create({
+      data: {
+        group_id:           groupId,         
+        razorpay_account_id: account.id,    
+        kyc_status:         'pending',
+        business_name:      legalBusinessName, 
+        email,
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Host linked account created',
+      data: {
+        id:                hostAccount.id,
+        razorpayAccountId: hostAccount.razorpay_account_id,  
+        kycStatus:         hostAccount.kyc_status,           
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ createHostLinkedAccount error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+//  POST /settlements/event/:ticketId/complete
+// Call this when an event is marked completed — triggers host payouts
+export const triggerEventCompletion = async (req: Request, res: Response) => {
+  try {
+    const { ticketId } = req.params;
+
+    if (!ticketId) {
+      return res.status(400).json({ success: false, message: 'ticketId required' });
+    }
+
+    const result = await SettlementService.triggerEventSettlements(ticketId);
+
+    // Also release escrow status
+    await SettlementService.releaseEscrowToHost(ticketId);
+
+    res.json({
+      success: true,
+      message: `Settlement jobs queued for ${result.queued} bookings`,
+      data:    result,
+    });
+  } catch (error: any) {
+    console.error('❌ triggerEventCompletion error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+// GET /settlements/ledger/:ticketId 
+export const getLedgerByTicket = async (req: Request, res: Response) => {
+  try {
+    const { ticketId } = req.params;
+
+    const entries = await prisma.ledger.findMany({
+      where:   { ticket_id: ticketId },       
+      orderBy: { created_at: 'desc' },        
+    });
+
+    const summary = {
+      totalPayments: entries
+        .filter(e => e.type === 'PAYMENT')
+        .reduce((s, e) => s + parseFloat(e.credit?.toString() || '0'), 0),
+
+      totalRefunds: entries
+        .filter(e => e.type === 'REFUND')
+        .reduce((s, e) => s + parseFloat(e.debit?.toString() || '0'), 0),
+
+      totalSettled: entries
+        .filter(e => e.type === 'SETTLEMENT')
+        .reduce((s, e) => s + parseFloat(e.debit?.toString() || '0'), 0),
+
+      totalAdjustments: entries
+        .filter(e => e.type === 'ADJUSTMENT')
+        .reduce((s, e) => s + parseFloat(e.debit?.toString() || '0'), 0),
+    };
+
+    res.json({ success: true, data: { entries, summary } });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+const _publishBulkRefundJobs = async (bookings: any[], refundPercentage: number, eventName: string, eventId: string) => {
+  let conn: any, ch: any;
+  try {
+    conn = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://localhost');
+    ch = await conn.createChannel();
+    await ch.assertQueue('wie.refund.jobs', { durable: true });
+
+    for (const booking of bookings) {
+      ch.sendToQueue(
+        'wie.refund.jobs',
+        Buffer.from(JSON.stringify({
+          bookingId: booking.id,
+          bookingDbId: booking.bookingId,
+          userId: booking.userId,
+          ticketId: booking.ticketId,
+          refundPercentage,
+          eventName,
+          eventId,
+          enqueuedAt: new Date().toISOString(),
+        })),
+        { persistent: true }
+      );
+    }
+  } finally {
+    if (ch) await ch.close();
+    if (conn) await conn.close();
+  }
+};
+
+const _sendCancellationNotification = async (
+  userId: string,
+  eventName: string,
+  ticketId: string,
+  bookingId: string,
+  refundAmount: number,
+  isPaid: boolean,
+  isFailed = false
+) => {
+  try {
+    const title = isFailed
+      ? 'Refund Will Be Processed Manually'
+      : isPaid
+        ? 'Event Cancelled — Refund Initiated'
+        : 'Event Cancelled';
+
+    const message = isFailed
+      ? `Your event "${eventName}" was cancelled. Refund of ₹${refundAmount.toFixed(2)} will be processed manually within 5–7 business days.`
+      : isPaid
+        ? `Your event "${eventName}" was cancelled by the host. A refund of ₹${refundAmount.toFixed(2)} has been initiated and will be credited within 5–7 business days.`
+        : `Your registration for "${eventName}" has been cancelled by the host.`;
+
+    await createNotification({
+      userId,
+      type: 'event_cancelled',
+      title,
+      message,
+      ticketId,
+      bookingId,
+      link: `/bookings/${bookingId}`,
+    });
+  } catch (err: any) {
+    console.error('⚠️ Notification failed for user', userId, err.message);
+  }
+};
+
+const _notifyFreeEventCancellation = async (eventId: string, eventName: string) => {
+  const bookings = await BookingModel.findByTicketIdWithStatus(eventId, ['CONFIRMED', 'PENDING']);
+  await Promise.all(
+    bookings.map((b: any) =>
+      Promise.all([
+        BookingModel.update(b.id, { bookingStatus: 'CANCELLED', cancellationReason: `Event cancelled: ${eventName}` }),
+        _sendCancellationNotification(b.userId, eventName, eventId, String(b.id), 0, false),
+      ])
+    )
+  );
 };

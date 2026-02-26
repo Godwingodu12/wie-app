@@ -148,3 +148,46 @@ export const publishToQueue = async (queueName, message, timeout = 10000) => {
     }
   });
 };
+// Use this instead of listenQueue when the message comes from a topic exchange(for event.cancelled routing key)
+export const listenExchangeQueue = async (
+  exchangeName,
+  routingKey,
+  queueName,
+  handler
+) => {
+  if (!isChannelAvailable()) {
+    console.warn(`⚠️ RabbitMQ channel not available, skipping exchange queue: ${queueName}`);
+    return;
+  }
+
+  try {
+    const channel = getChannel();
+
+    // Assert exchange
+    await channel.assertExchange(exchangeName, 'topic', { durable: true });
+
+    // Assert durable queue
+    await channel.assertQueue(queueName, { durable: true });
+
+    // Bind queue to exchange with routing key
+    await channel.bindQueue(queueName, exchangeName, routingKey);
+
+    channel.prefetch(5);
+
+    channel.consume(queueName, async (msg) => {
+      if (!msg) return;
+
+      try {
+        const content = JSON.parse(msg.content.toString());
+        await handler(content);
+        channel.ack(msg);
+      } catch (error) {
+        console.error(`❌ Error processing exchange queue "${queueName}":`, error.message);
+        channel.nack(msg, false, false); // No requeue — avoid infinite loops
+      }
+    });
+  } catch (error) {
+    console.error(`❌ Error setting up exchange listener for "${queueName}":`, error.message);
+  }
+};
+

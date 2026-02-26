@@ -532,7 +532,6 @@ export const uploadTicketMedia = (req, res, next) => {
     }
     
     if (req.files) {
-      console.log('📦 Uploaded files:', Object.keys(req.files));
       Object.entries(req.files).forEach(([fieldname, files]) => {
         files.forEach(file => {
           console.log(`  - ${fieldname}: ${file.originalname} (${file.size} bytes, buffer: ${file.buffer?.length || 0} bytes)`);

@@ -570,3 +570,77 @@ export const getEventMonthlyChart = async (ticketId, year, month) => {
     throw error;
   }
 };
+export const cancelEvent = async (ticketId, cancellationReason) => {
+  try {
+    const response = await api.post(`/ticket/cancel-event/${ticketId}`, {
+      cancellation_reason: cancellationReason,
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const cancelSubEvent = async (ticketId, subEventId, cancellationReason) => {
+  try {
+    const response = await api.post(
+      `/ticket/${ticketId}/sub-events/${subEventId}/cancel`,
+      { cancellation_reason: cancellationReason }
+    );
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+export const getCancellationReport = async (ticketId, subEventId = null) => {
+  try {
+    // Build URL: use sub-event route if subEventId is provided
+    const url = subEventId
+      ? `/ticket/get-cancellation-report/${ticketId}/sub-event/${subEventId}`
+      : `/ticket/get-cancellation-report/${ticketId}`;
+
+    const response = await api.get(url, { responseType: 'blob' });
+
+    // Verify we got an Excel file, not a JSON error
+    const contentType = response.headers?.['content-type'] || '';
+    if (contentType.includes('application/json')) {
+      const text = await response.data.text();
+      const json = JSON.parse(text);
+      throw new Error(json.message || 'Report generation failed');
+    }
+
+    // Trigger download
+    const fileName = subEventId
+      ? `cancellation-report-sub-${subEventId}.xlsx`
+      : `cancellation-report-${ticketId}.xlsx`;
+
+    const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+    const link    = document.createElement('a');
+    link.href     = blobUrl;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(blobUrl);
+    return true;
+
+  } catch (error) {
+    if (error?.response?.data instanceof Blob) {
+      try {
+        const text = await error.response.data.text();
+        const json = JSON.parse(text);
+        throw new Error(json.message || 'Failed to download report');
+      } catch {
+        throw new Error('Failed to download report. Server error.');
+      }
+    }
+    throw error;
+  }
+};
+
+export const rehostEvent = async (ticketId, rehostAs) => {
+  const response = await api.post(`/ticket/rehost-event/${ticketId}`, {
+    rehost_as: rehostAs,
+  });
+  return response.data;
+};

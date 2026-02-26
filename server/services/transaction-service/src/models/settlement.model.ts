@@ -4,6 +4,8 @@ export enum SettlementStatus {
   PROCESSING = 'PROCESSING',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
+  HELD = 'HELD', 
+  REFUND_INITIATED = 'REFUND_INITIATED'
 }
 interface CreateSettlementData {
   bookingId: string;
@@ -16,6 +18,12 @@ interface CreateSettlementData {
     bank_ifsc: string;
     bank_acc_type: string;
   };
+  // Escrow fields (optional for backward compat)
+  ticketId?: string;
+  groupId?: string;
+  totalAmount?: number;
+  settlementType?: string;
+  scheduledAt?: Date | null;
 }
 
 interface UpdateSettlementData {
@@ -23,7 +31,7 @@ interface UpdateSettlementData {
   platformFee?: number;
   status?: SettlementStatus;
   razorpayPayoutId?: string;
-  processedAt?: Date;
+  processedAt?: Date;      
 }
 
 interface SettlementWhereInput {
@@ -44,18 +52,22 @@ interface SettlementOrderByInput {
 }
 
 export class SettlementModel {
-  /**
-   * Create a new settlement record
-   */
+
   static async create(data: CreateSettlementData) {
     return await prisma.settlement.create({
       data: {
-        bookingId: data.bookingId,
+        bookingId: data.bookingId,                    
         organizationAmount: data.organizationAmount,
         platformFee: data.platformFee,
-        status: data.status || 'PENDING',
+        status: (data.status || SettlementStatus.PENDING) as any,
         bankDetails: data.bankDetails as any,
-      },
+        // Escrow fields — only written when provided
+        ...(data.ticketId     && { ticketId: data.ticketId }),
+        ...(data.groupId      && { groupId: data.groupId }),
+        ...(data.totalAmount  !== undefined && { totalAmount: data.totalAmount }),
+        ...(data.settlementType && { settlementType: data.settlementType }),
+        ...(data.scheduledAt  !== undefined && { scheduledAt: data.scheduledAt }),
+      } as any, 
     });
   }
 
