@@ -544,5 +544,52 @@ export class BookingModel {
 
     return Object.values(dailyStats);
   }
+  // Find booking with its settlement (for race condition checks)
+  static async findWithSettlement(id: string): Promise<{
+    booking: Booking | null;
+    settlement: any | null;
+  }> {
+    const booking = await prisma.booking.findUnique({ where: { id } });
+    if (!booking) return { booking: null, settlement: null };
+
+    const settlement = await prisma.settlement.findFirst({
+      where: { bookingId: id },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return { booking, settlement };
+  }
+  // Bulk cancel bookings for event (used in cancellation flow)
+  static async bulkCancelByTicketId(
+    ticketId: string,
+    reason: string,
+    refundPercentage: number
+  ): Promise<{ count: number; bookings: Booking[] }> {
+    const bookings = await prisma.booking.findMany({
+      where: {
+        ticketId,
+        bookingStatus: { in: ['CONFIRMED', 'PENDING'] },
+      },
+    });
+
+    await Promise.all(
+      bookings.map((b) =>
+        prisma.booking.update({
+          where: { id: b.id },
+          data: {
+            bookingStatus:      'CANCELLED',
+            cancellationReason: reason,
+            cancelledAt:        new Date(),
+            refundStatus:       'PENDING',
+            refundAmount:       parseFloat(
+              ((parseFloat(b.subtotal.toString()) * refundPercentage) / 100).toFixed(2)
+            ),
+          },
+        })
+      )
+    );
+
+    return { count: bookings.length, bookings };
+  }
 }
 export default BookingModel;
