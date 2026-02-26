@@ -7,6 +7,7 @@ import { connectDB } from './config/database.js';
 import { connectRabbitMQ, startConsumers } from './rabbit/index.js';
 import { initializeSocket, getIO } from './socket/socket.js';
 import notificationRoutes from './routes/notification.routes.js';
+import { startEventCancellationConsumer } from './consumers/eventCancellationConsumer.js';
 
 // Load environment variables
 dotenv.config();
@@ -65,7 +66,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Request logging middleware (development only)
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, res, next) => {
-    console.log(`${req.method} ${req.path} - ${new Date().toISOString()}`);
     next();
   });
 }
@@ -125,9 +125,7 @@ const gracefulShutdown = async (signal) => {
   console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
   
   // Stop accepting new connections
-  server.close(async () => {
-    console.log('✅ HTTP server closed');
-    
+  server.close(async () => {    
     try {
       // Close Socket.IO connections
       try {
@@ -150,7 +148,6 @@ const gracefulShutdown = async (signal) => {
       // Note: RabbitMQ connections are typically handled by the library
       // If there's a disconnect method, it should be called here
       
-      console.log('✅ Graceful shutdown completed');
       process.exit(0);
     } catch (error) {
       console.error('❌ Error during graceful shutdown:', error);
@@ -183,9 +180,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Initialize services
 const startServer = async () => {
-  try {
-    console.log('🚀 Starting Notification Service...');
-    
+  try {    
     // Connect to MongoDB
     await connectDB();
     
@@ -196,21 +191,17 @@ const startServer = async () => {
     server.listen(PORT, () => {
       console.log(`🚀 Notification Service running on port ${PORT}`);
       console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🌐 Health check: http://localhost:${PORT}/health`);
     });
 
-    // Connect to RabbitMQ (non-blocking - service continues if RabbitMQ fails)
     try {
       await connectRabbitMQ();
       await startConsumers();
-      console.log('✅ RabbitMQ connected and consumers started');
+      await startEventCancellationConsumer();
     } catch (rabbitError) {
       console.error('⚠️ RabbitMQ connection failed, but server will continue running');
       console.error('⚠️ Notification features requiring auth-service communication will not work');
-      console.log('⚠️ RabbitMQ will attempt to reconnect automatically...');
     }
     
-    console.log('✅ Notification Service initialized successfully');
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
