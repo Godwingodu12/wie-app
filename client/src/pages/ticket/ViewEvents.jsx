@@ -604,8 +604,10 @@ const EventsList = ({
       case "completed":
         navigate(`/ticket/previous-event-view/${ticketId}`);
         break;
+      case "cancelled":
+        navigate(`/ticket/live-event-view/${ticketId}`);
+        break;
       default:
-        // Fallback for unknown status
         navigate(`/ticket/view-single-event/${ticketId}`);
     }
   };
@@ -1202,10 +1204,17 @@ const EventsList = ({
                       >
                         {event.event_category ? event.event_category : "N/A"}
                       </td>
-                      <td
-                        className={`py-3 px-4 ${theme.text} text-sm truncate`}
-                      >
-                        {event.event_status ? event.event_status : "N/A"}
+                      <td className="py-3 px-4 text-sm truncate">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          event.event_status === "live"      ? "bg-red-500/20 text-red-400"      :
+                          event.event_status === "confirmed" ? "bg-green-500/20 text-green-400"  :
+                          event.event_status === "cancelled" ? "bg-gray-500/20 text-gray-400"    :
+                          event.event_status === "completed" ? "bg-blue-500/20 text-blue-400"    :
+                          event.event_status === "pending"   ? "bg-yellow-500/20 text-yellow-400":
+                          `${theme.text}`
+                        }`}>
+                          {event.event_status?.toUpperCase() || "N/A"}
+                        </span>
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
