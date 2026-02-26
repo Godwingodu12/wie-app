@@ -184,10 +184,32 @@ const EventTermsAndConditionsPage = () => {
       setIsLoading(false);
     }
   };
-  const handleSaveAndHostLive = () => {
+  const handleSaveAndHostLive = async () => {
     if (!ticketId) return;
-    navigate(`/live-event-view/${ticketId}`);
-  };  
+
+    setIsLoading(true);
+    try {
+      await goLiveEvent(ticketId);
+      showAlert({
+        type: "success",
+        message: "Event Updated!",
+        description: "All sub-events are now live.",
+      });
+      setTimeout(() => {
+        navigate(`/ticket/live-events`);
+      }, 1500);
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message || "Failed to go live. Please try again.";
+      showAlert({
+        type: "error",
+        message: "Failed",
+        description: errorMessage,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }; 
   if (dataLoading) {
     return (
       <div className="dark bg-[#111111] min-h-screen flex items-center justify-center text-white">
@@ -344,9 +366,10 @@ const EventTermsAndConditionsPage = () => {
                   <button
                     type="button"
                     onClick={handleSaveAndHostLive}
-                    className="px-6 py-2.5 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+                    disabled={isLoading}
+                    className="px-6 py-2.5 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    Save & Host
+                    {isLoading ? "Updating..." : "Save & Host"}
                   </button>
                 )}
               </div>
