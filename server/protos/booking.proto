@@ -6,6 +6,7 @@ service BookingService {
   rpc GetBookingStatsByDate(BookingStatsByDateRequest) returns (BookingStatsByDateResponse);
   rpc GetBookingGrowthStats(BookingGrowthStatsRequest) returns (BookingGrowthStatsResponse);
   rpc GetMonthlyBookingChart(MonthlyBookingChartRequest) returns (MonthlyBookingChartResponse);
+  rpc GetBookingsForEvent(GetBookingsForEventRequest) returns (GetBookingsForEventResponse);
 }
 
 message BookingStatsByDateRequest {
@@ -47,4 +48,20 @@ message ChartDataPoint {
 
 message MonthlyBookingChartResponse {
   repeated ChartDataPoint chartData = 1;
+}
+message BookingUser {
+  string bookingId = 1;
+  string userId    = 2;
+  string subtotal  = 3;
+  string status    = 4;
+}
+
+message GetBookingsForEventRequest {
+  string ticketId = 1;
+}
+
+message GetBookingsForEventResponse {
+  repeated BookingUser bookings = 1;
+  int32               count    = 2;
+  string              error    = 3;
 }
