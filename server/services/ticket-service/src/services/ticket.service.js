@@ -4,6 +4,8 @@ import upload from "../middlewares/upload.js";
 import fs from "fs";
 import { uploadTicketMedia, uploadFields } from "../middlewares/upload.js";
 import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
+import { publishEventCancellation } from "../utils/eventPublisher.js";
+import { getBookingsForEvent } from '../grpc/bookingClient.js';
 import { 
   generateSeatingLayoutFromFile, 
   normalizeSeatData,
@@ -99,23 +101,17 @@ export const CreateGroup = async (req, res) => {
           error: ifscValidation.error,
         });
       }
-
-      console.log('Bank details verified:', ifscValidation.bankDetails);
     }
 
     // VALIDATE AADHAAR CARD IF UPLOADED (BEFORE CLOUDINARY UPLOAD)
     if (req.files?.id_proof?.[0]) {
-      console.log('Validating Aadhaar card...');
       const aadhaarValidation = await validateAadhaarDocument(req.files.id_proof[0]);
-      
       if (!aadhaarValidation.isValid) {
         return res.status(400).json({
           message: "Aadhaar card validation failed",
           error: aadhaarValidation.error,
         });
       }
-
-      console.log('Aadhaar verified:', aadhaarValidation.aadhaarNumber);
     }
 
     // NOW PROCESS FILE UPLOADS TO CLOUDINARY (after validation passes)
@@ -488,12 +484,10 @@ export const UpdateGroup = async (req, res) => {
           error: ifscValidation.error,
         });
       }
-      console.log('Bank details verified:', ifscValidation.bankDetails);
     }
     
     // VALIDATE AADHAAR CARD IF NEW FILE IS UPLOADED (BEFORE CLOUDINARY UPLOAD)
     if (req.files?.id_proof?.[0]) {
-      console.log('Validating new Aadhaar card...');
       const aadhaarValidation = await validateAadhaarDocument(req.files.id_proof[0]);
       
       if (!aadhaarValidation.isValid) {
@@ -502,7 +496,6 @@ export const UpdateGroup = async (req, res) => {
           error: aadhaarValidation.error,
         });
       }
-      console.log('Aadhaar verified:', aadhaarValidation.aadhaarNumber);
     }
     
     // NOW PROCESS FILE UPLOADS TO CLOUDINARY (after validation passes)
@@ -1028,11 +1021,6 @@ export const createTicketBasicInfo = async (req, res) => {
     const uploadedFiles = await processFileUploads(req.files || {});
     Object.keys(uploadedFiles).forEach((fieldName) => {
       if (fieldName === "ticket_layout") {
-        console.log('🎫 Ticket layout file detected:', {
-          hasCloudinaryUrl: !!uploadedFiles.ticket_layout.cloudinaryUrl,
-          hasLocalPath: !!uploadedFiles.ticket_layout.localPath,
-          mimeType: uploadedFiles.ticket_layout.mimeType
-        });
         return; 
       }
       if (fieldName.startsWith("guest_profile_")) {
@@ -2150,23 +2138,20 @@ export const updateTicketMedia = async (req, res) => {
           }
         }
       }
-    } else {
-      console.log("👤 User role is not organization:", userRole);
-    }
- console.log("🔍 Syncing Images. Body contains keep-list:")
+    } 
     // Check if any new media files were uploaded
-   const hasNewMediaFiles =
+    const hasNewMediaFiles =
       !!eventLogoUrl || !!eventBannerUrl || !!eventPortraitUrl || event_images.length > 0 || event_videos.length > 0;
     const hasNewCollegeAuth = !!collegeAuthorisationUrl;
 
     const isSyncingGallery = !!(
-  req.body.existing_event_images || 
-  req.body.image_order || 
-  req.body.existing_event_videos || 
-  req.body.video_order||
-  req.body.delete_event_portrait || // Add these flags
-  req.body.delete_event_logo
-);
+      req.body.existing_event_images || 
+      req.body.image_order || 
+      req.body.existing_event_videos || 
+      req.body.video_order||
+      req.body.delete_event_portrait || // Add these flags
+      req.body.delete_event_logo
+    );
 
     if (!hasNewMediaFiles && !hasNewCollegeAuth && !isSyncingGallery) {
       const existingTicket = await Ticket.findById(ticketId);
@@ -2483,6 +2468,7 @@ uploadedFiles: {
     });
   }
 };
+
 export const updateTicketAddOns = async (req, res) => {
   const ticketId = req.params.ticketId;
   const processedFiles = {};
@@ -2518,9 +2504,7 @@ export const updateTicketAddOns = async (req, res) => {
     }
     const isLayoutGenerationOnly = req.body.generate_layout_only === "true" || 
                                   req.body.generate_layout_only === true;
-    if (isLayoutGenerationOnly) {
-      console.log('🔄 Layout Generation Mode - Processing file upload only');
-      
+    if (isLayoutGenerationOnly) {      
       // Process the uploaded file
       const uploadedFiles = await processFileUploads(req.files || {});
       if (!uploadedFiles.ticket_layout) {
@@ -2588,12 +2572,6 @@ export const updateTicketAddOns = async (req, res) => {
           }
           
           const normalizedSeats = generatedLayout.seats.map(seat => normalizeSeatData(seat));
-          
-          console.log('✅ Normalized seats for generation-only mode:', {
-            total: normalizedSeats.length,
-            sampleSeat: normalizedSeats[0]
-          });
-          
           const missingFields = normalizedSeats.filter(seat =>
             seat.ticketTypeId === undefined ||
             seat.ticketTypeName === undefined ||
@@ -2953,7 +2931,6 @@ export const updateTicketAddOns = async (req, res) => {
     const uploadedFiles = await processFileUploads(req.files || {});
     Object.keys(uploadedFiles).forEach((fieldName) => {
       if (fieldName === "ticket_layout") {
-        console.log('🎫 Ticket layout file detected');
         return;
       }
       if (fieldName.startsWith("guest_profile_")) {
@@ -3349,11 +3326,6 @@ export const updateTicketAddOns = async (req, res) => {
           });
         }
 
-        console.log(
-          `✅ IFSC verified for banking detail ${index + 1}:`,
-          ifscValidation.bankDetails
-        );
-
         // Validate bank_acc_holder
         if (!banking.bank_acc_holder || String(banking.bank_acc_holder).trim() === "") {
           return res.status(400).json({
@@ -3455,7 +3427,6 @@ export const updateTicketAddOns = async (req, res) => {
           return [];
         }
       }
-      console.log("ticket_types is an unknown type");
       return [];
     })();
 
@@ -3501,7 +3472,6 @@ export const updateTicketAddOns = async (req, res) => {
               .split(",")
               .map((item) => item.trim())
               .filter((item) => item !== "");
-            console.log("Comma split result:", split);
             return split;
           }
           return [];
@@ -3509,11 +3479,8 @@ export const updateTicketAddOns = async (req, res) => {
       }
 
       if (typeof rawItems === "object" && rawItems !== null) {
-        console.log("prohibited_items is object, extracting values");
         return Object.values(rawItems);
       }
-
-      console.log("❌ Unknown type");
       return [];
     })();
     let processedGuests = [];
@@ -3540,9 +3507,7 @@ export const updateTicketAddOns = async (req, res) => {
         }
         if (guestProfileFiles[index] && guestProfileFiles[index].path) {
           guestData.guest_profile = guestProfileFiles[index].path;
-        } else {
-          console.log(`⚠️ No profile file for guest ${index} in addons`);
-        }
+        } 
         return guestData;
       });
     }
@@ -3592,7 +3557,6 @@ export const updateTicketAddOns = async (req, res) => {
         } else {
           console.log(`⚠ No photo for ticket ${index}`);
         }
-        console.log("Final:", ticketData);
         return ticketData;
       });
     }
@@ -3648,7 +3612,22 @@ export const updateTicketAddOns = async (req, res) => {
           if (typeof item === "string") {
             return item.trim();
           } else if (typeof item === "object" && item !== null) {
-            return item.name || item.item || item.value || JSON.stringify(item);
+            // Handle React Select / tag-input shapes: { label, value }, { name }, { item }, { value }
+            const extracted =
+              item.label ||
+              item.name ||
+              item.item ||
+              item.value ||
+              item.text ||
+              item.title;
+            if (extracted && String(extracted).trim() !== "") {
+              return String(extracted).trim();
+            }
+            // Last resort: if object has only one string-valued key, use it
+            const stringValues = Object.values(item).filter(
+              (v) => typeof v === "string" && v.trim() !== ""
+            );
+            return stringValues.length === 1 ? stringValues[0].trim() : "";
           } else {
             return String(item).trim();
           }
@@ -3668,6 +3647,8 @@ export const updateTicketAddOns = async (req, res) => {
             ticket_photo_public_id: String(ticket.ticket_photo_public_id || ""),
           }))
         : [];
+    const cleanedDescription = sanitizeDescriptionHtml(subEventData.event_description);
+    const descriptionPlainText = stripHtmlForValidation(cleanedDescription);
     if (isEditingSubEvent && editingSubEventId) {
       const ticket = await Ticket.findById(ticketId);
       if (!ticket) {
@@ -3693,7 +3674,7 @@ export const updateTicketAddOns = async (req, res) => {
         location_type: String(subEventData.location_type),
         min_age_allowed: Number(ageNum),
         max_age_allowed: Number(ageMax),
-        event_description: String(subEventData.event_description).trim(),
+        event_description: descriptionPlainText,
         payment_type: String(subEventData.payment_type),
         kids_friendly: Boolean(
           subEventData.kids_friendly === "true" ||
@@ -3846,9 +3827,9 @@ export const updateTicketAddOns = async (req, res) => {
         subEventData.event_rules_text &&
         String(subEventData.event_rules_text).trim()
       ) {
-        updatedSubEvent.event_rules = {
+        updatedSubEvent.event_rules = {  
           type: "text",
-          content: String(subEventData.event_rules_text).trim(),
+          content: stripHtmlForValidation(subEventData.event_rules_text),
           uploadedAt: new Date(),
         };
       } else {
@@ -3905,11 +3886,9 @@ export const updateTicketAddOns = async (req, res) => {
       );
       // Fallback strategies if not found
       if (!updatedSubEventData) {
-        console.warn('⚠️ Sub-event not found by ID, attempting fallbacks...');
         // Strategy 1: Try to find by index (since we know the index)
         if (updatedTicket.sub_events[subEventIndex]) {
           updatedSubEventData = updatedTicket.sub_events[subEventIndex];
-          console.log('✅ Found sub-event by index:', subEventIndex);
         }
         // Strategy 2: Find by event name match
         else {
@@ -3918,13 +3897,11 @@ export const updateTicketAddOns = async (req, res) => {
           );
           if (matchingSubEvent) {
             updatedSubEventData = matchingSubEvent;
-            console.log('✅ Found sub-event by name match');
           }
         }
         // Strategy 3: Use the last sub-event as last resort
         if (!updatedSubEventData && updatedTicket.sub_events.length > 0) {
           updatedSubEventData = updatedTicket.sub_events[updatedTicket.sub_events.length - 1];
-          console.log('⚠️ Using last sub-event as final fallback');
         }
       }
       // Final validation
@@ -3937,12 +3914,6 @@ export const updateTicketAddOns = async (req, res) => {
           hint: "The sub-event may have been updated but could not be retrieved. Please refresh and check.",
         });
       }
-      console.log('✅ Successfully located updated sub-event:', {
-        id: updatedSubEventData._id,
-        name: updatedSubEventData.event_name,
-        hasSeatingLayout: !!updatedSubEventData.seating_layout,
-        ticketLayout: updatedSubEventData.ticket_layout || 'none',
-      });
       return res.status(200).json({
         message: "Sub-event updated successfully",
         ticket: updatedTicket,
@@ -3971,10 +3942,8 @@ export const updateTicketAddOns = async (req, res) => {
     if (!hasNewBannerFile) {
       if (hasExistingBannerInPayload) {
         processedFiles.event_banner = subEventData.existing_event_banner;
-        console.log('✅ Using existing banner from payload');
       } else if (isEditingSubEvent && existingBanner) {
         processedFiles.event_banner = existingBanner;
-        console.log('✅ Using existing banner from database');
       } else {
         return res.status(400).json({
           message: "Event banner is required for sub-events",
@@ -3984,15 +3953,7 @@ export const updateTicketAddOns = async (req, res) => {
     }
     if (req.files && req.files.ticket_layout && req.files.ticket_layout[0]) {
       const file = req.files.ticket_layout[0];
-      
-      console.log('🎫 Processing ticket_layout from req.files:', {
-        originalname: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        hasBuffer: !!file.buffer,
-        isEditMode: isEditingSubEvent,
-      });
-      
+
       if (!file.buffer || file.buffer.length === 0) {
         throw new Error('Ticket layout file is empty. Please upload a valid file.');
       }
@@ -4001,7 +3962,6 @@ export const updateTicketAddOns = async (req, res) => {
       // We just need to ensure it's properly stored in uploadedFiles
       
       if (!uploadedFiles.ticket_layout) {
-        console.warn('⚠️ ticket_layout not found in uploadedFiles, processing manually');
         
         const tempDir = path.join(__dirname, '../temp');
         if (!fs.existsSync(tempDir)) {
@@ -4013,7 +3973,6 @@ export const updateTicketAddOns = async (req, res) => {
         
         try {
           fs.writeFileSync(tempFilePath, file.buffer);
-          console.log('✅ Temporary file saved:', tempFilePath);
         } catch (writeError) {
           console.error('❌ Failed to write temp file:', writeError);
           throw new Error(`Failed to save temporary file: ${writeError.message}`);
@@ -4038,16 +3997,13 @@ export const updateTicketAddOns = async (req, res) => {
             resource_type: result.resource_type
           };
           
-          console.log('✅ ticket_layout uploaded to Cloudinary:', result.url);
         } catch (uploadError) {
           if (fs.existsSync(tempFilePath)) {
             fs.unlinkSync(tempFilePath);
           }
           throw new Error(`Failed to upload ticket layout: ${uploadError.message}`);
         }
-      } else {
-        console.log('✅ ticket_layout already processed by processFileUploads');
-      }
+      } 
     }
 
     // CRITICAL FIX: In edit mode, preserve existing layout if no new file uploaded
@@ -4056,7 +4012,6 @@ export const updateTicketAddOns = async (req, res) => {
         (se) => se._id.toString() === editingSubEventId
       );
       if (existingSubEvent && existingSubEvent.ticket_layout) {
-        console.log('✅ Preserving existing ticket_layout in edit mode');
         uploadedFiles.ticket_layout = {
           cloudinaryUrl: existingSubEvent.ticket_layout,
           localPath: null,
@@ -4065,26 +4020,15 @@ export const updateTicketAddOns = async (req, res) => {
         };
       }
     }
-    if (subEventData.location_type === "offline") {
-      console.log('🎯 Offline event - checking for seating layout data...');
-      
+    if (subEventData.location_type === "offline") {      
       // PRIORITY 1: Frontend-provided layout with assignments (MOST IMPORTANT)
       if (subEventData.seating_layout && 
           subEventData.seating_layout.seats && 
-          subEventData.seating_layout.seats.length > 0) {
-        
-        console.log('📥 Using seating layout from frontend with assignments');
-        
+          subEventData.seating_layout.seats.length > 0) {        
         const layoutData = subEventData.seating_layout;
         
         // Validate that seats have required fields
         const seatsWithAssignments = layoutData.seats.filter(s => s.ticketTypeId);
-        console.log('🔍 Frontend layout validation:', {
-          totalSeats: layoutData.seats.length,
-          assignedSeats: seatsWithAssignments.length,
-          hasAssignments: layoutData.ticketTypeAssignments?.length || 0
-        });
-        
         processedSeatingLayout = {
           rows: (layoutData.rows || []).map(r => String(r)),
           columns: Number(layoutData.columns || 0),
@@ -4125,12 +4069,6 @@ export const updateTicketAddOns = async (req, res) => {
             }))
         };
         
-        console.log('✅ Frontend layout processed:', {
-          totalSeats: processedSeatingLayout.seats.length,
-          assignedSeats: processedSeatingLayout.seats.filter(s => s.ticketTypeId).length,
-          assignments: processedSeatingLayout.ticketTypeAssignments.length
-        });
-        
         // Store file URL if available
         if (uploadedFiles.ticket_layout?.cloudinaryUrl) {
           processedFiles.ticket_layout = uploadedFiles.ticket_layout.cloudinaryUrl;
@@ -4138,9 +4076,7 @@ export const updateTicketAddOns = async (req, res) => {
         }
       }
       // PRIORITY 2: File-based generation (ONLY if no frontend layout)
-      else if (uploadedFiles.ticket_layout && totalCapacityNum > 0) {
-        console.log('📄 No frontend layout - generating from file...');
-        
+      else if (uploadedFiles.ticket_layout && totalCapacityNum > 0) {        
         try {
           const layoutFileData = uploadedFiles.ticket_layout;
           let localFilePath;
@@ -4161,7 +4097,6 @@ export const updateTicketAddOns = async (req, res) => {
           
           if (localFilePath) {
             try {
-              console.log('🔄 Generating seating layout from file...');
               const generatedLayout = await generateSeatingLayoutFromFile(
                 localFilePath,
                 totalCapacityNum,
@@ -4169,7 +4104,6 @@ export const updateTicketAddOns = async (req, res) => {
               );
               
               // ✅ CRITICAL VALIDATION: Verify all seats have required fields
-              console.log('🔍 Validating generated layout...');
               if (generatedLayout.seats && generatedLayout.seats.length > 0) {
                 const missingFieldsSeats = generatedLayout.seats.filter(seat => 
                   seat.ticketTypeId === undefined || 
@@ -4194,9 +4128,6 @@ export const updateTicketAddOns = async (req, res) => {
                     price: seat.price !== undefined ? seat.price : 0
                   }));
                   
-                  console.log('✅ Fixed missing fields in generated seats');
-                } else {
-                  console.log('✅ All generated seats have required fields');
                 }
               }
               
@@ -4227,11 +4158,6 @@ export const updateTicketAddOns = async (req, res) => {
                   })),
               };
               
-              console.log('✅ File-based layout generated:', {
-                seats: processedSeatingLayout.seats.length,
-                assignments: processedSeatingLayout.ticketTypeAssignments.length
-              });
-              
               // Store file URL for database
               if (layoutFileData.cloudinaryUrl) {
                 processedFiles.ticket_layout = layoutFileData.cloudinaryUrl;
@@ -4260,12 +4186,10 @@ export const updateTicketAddOns = async (req, res) => {
           if (uploadedFiles.ticket_layout?.cloudinaryUrl) {
             processedFiles.ticket_layout = uploadedFiles.ticket_layout.cloudinaryUrl;
             processedFiles.ticket_layout_public_id = uploadedFiles.ticket_layout.public_id || "";
-            console.log('⚠️ Layout generation failed, but file URL stored');
           }
         }
       } else if (uploadedFiles.ticket_layout) {
         // File present but no capacity - just store URL
-        console.log('ℹ️ Ticket layout file present but no generation performed (capacity may be 0)');
         if (uploadedFiles.ticket_layout.cloudinaryUrl) {
           processedFiles.ticket_layout = uploadedFiles.ticket_layout.cloudinaryUrl;
           processedFiles.ticket_layout_public_id = uploadedFiles.ticket_layout.public_id || "";
@@ -4278,7 +4202,6 @@ export const updateTicketAddOns = async (req, res) => {
           (se) => se._id.toString() === editingSubEventId
         );
         if (existingSubEvent?.seating_layout) {
-          console.log('✅ Preserving existing seating layout in edit mode');
           processedSeatingLayout = existingSubEvent.seating_layout;
         }
       }
@@ -4384,7 +4307,7 @@ export const updateTicketAddOns = async (req, res) => {
       location_type: String(subEventData.location_type),
       min_age_allowed: Number(ageNum),
       max_age_allowed: Number(ageMax),
-      event_description: String(subEventData.event_description).trim(),
+      event_description: descriptionPlainText,
       payment_type: String(subEventData.payment_type),
       main_ticket_id: ticketId,
       kids_friendly: Boolean(
@@ -4491,7 +4414,6 @@ export const updateTicketAddOns = async (req, res) => {
       // Seating layout assignment - data already validated in consolidated processing
       if (processedSeatingLayout?.seats?.length > 0) {
          // ✅ FINAL VALIDATION BEFORE ASSIGNMENT
-        console.log('🔍 Final validation before assignment...');
         const invalidSeats = processedSeatingLayout.seats.filter(seat =>
           seat.ticketTypeId === undefined ||
           seat.ticketTypeName === undefined ||
@@ -4517,18 +4439,9 @@ export const updateTicketAddOns = async (req, res) => {
             ticketTypeColor: seat.ticketTypeColor !== undefined ? seat.ticketTypeColor : null,
             price: seat.price !== undefined ? Number(seat.price) : 0
           }));
-          
-          console.log('✅ Emergency fix applied to seats');
         }
         newSubEvent.seating_layout = processedSeatingLayout;
-        console.log('✅ Seating layout assigned to new sub-event:', {
-          totalSeats: processedSeatingLayout.seats.length,
-          assignedSeats: processedSeatingLayout.seats.filter(s => s.ticketTypeId).length,
-          assignmentGroups: processedSeatingLayout.ticketTypeAssignments?.length || 0
-        });
-      } else {
-        console.log('ℹ️ No seating layout available for this event');
-      }
+      } 
     } else if (
       subEventData.location_type === "online" ||
       subEventData.location_type === "recorded"
@@ -4559,15 +4472,15 @@ export const updateTicketAddOns = async (req, res) => {
         resource_type: String(processedFiles.event_rules.resource_type),
         uploadedAt: new Date(processedFiles.event_rules.uploadedAt),
       };
-    } else if (
-      subEventData.event_rules_text &&
-      String(subEventData.event_rules_text).trim()
-    ) {
-      newSubEvent.event_rules = {
-        type: "text",
-        content: String(subEventData.event_rules_text).trim(),
-        uploadedAt: new Date(),
-      };
+      } else if (
+        subEventData.event_rules_text &&
+        String(subEventData.event_rules_text).trim()
+      ) {
+        newSubEvent.event_rules = {
+          type: "text",
+          content: stripHtmlForValidation(sanitizeDescriptionHtml(subEventData.event_rules_text)),
+          uploadedAt: new Date(),
+        };
     } else {
       newSubEvent.event_rules = {
         type: "text",
@@ -4823,7 +4736,6 @@ export const updateTicketAddOns = async (req, res) => {
       
       // Delete files from Cloudinary
       if (filesToDelete.length > 0) {
-        console.log(`🗑️ Cleaning up ${filesToDelete.length} files from Cloudinary`);
         for (const publicId of filesToDelete) {
           await deleteFromCloudinary(publicId);
         }
@@ -4838,6 +4750,7 @@ export const updateTicketAddOns = async (req, res) => {
     });
   }
 };
+
 export const updateTicketDetails = async (req, res) => {
   const ticketId = req.params.ticketId;
   
@@ -5412,9 +5325,6 @@ export const updateTicketDetails = async (req, res) => {
             hint: "Please check your IFSC code or try again later",
           });
         }
-
-        console.log("✅ IFSC code verified successfully:", ifscValidation.bankDetails);
-
         // Validate bank_acc_holder
         if (!banking.bank_acc_holder || String(banking.bank_acc_holder).trim() === "") {
           return res.status(400).json({
@@ -5661,7 +5571,6 @@ export const updateTicketDetails = async (req, res) => {
         }
         // Save to updateData
         updateData.seating_layout = finalLayout;
-        console.log('✅ Manual seating layout processed and ready to save');
       } catch (parseError) {
         console.error('❌ Error parsing seating_layout from request:', parseError);
         console.error('Stack:', parseError.stack);
@@ -6166,6 +6075,7 @@ export const getTicketById = async (req, res) => {
       .json({ message: "Internal server error", error: error.message });
   }
 };
+
 // Delete Ticket
 export const deleteTicket = async (req, res) => {
   try {
@@ -6475,4 +6385,126 @@ export const getAllLiveEvents =  async (req, res)=>{
       error: error.message 
     });
   }   
+};
+
+export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, now) => {
+  const ticket = await Ticket.findById(ticketId);
+  if (!ticket) throw new Error("Ticket not found for promotion");
+
+  // Find first ACTIVE sub-event (oldest _id = first created)
+  const activeSubEvents = (ticket.sub_events || [])
+    .filter((se) => !["cancelled", "completed", "deleted"].includes(se.event_status))
+    .sort((a, b) => a._id.toString().localeCompare(b._id.toString()));
+
+  if (activeSubEvents.length === 0) {
+    return { promoted: false, newMain: null };
+  }
+
+  const newMainSubEvent    = activeSubEvents[0];
+  const newMainSubEventId  = newMainSubEvent._id.toString();
+
+  const promotedSubEventObj = newMainSubEvent.toObject
+    ? newMainSubEvent.toObject()
+    : { ...newMainSubEvent };
+
+  // Remaining sub-events: exclude the promoted one
+  // Update their main_ticket_id AFTER we know the new main's _id
+  const remainingSubEventDocs = ticket.sub_events.filter(
+    (se) => se._id.toString() !== newMainSubEventId
+  );
+
+  // ── Create new main Ticket from promoted sub-event ────────────────────────
+  const newMainTicket = new Ticket({
+    event_name:           promotedSubEventObj.event_name,
+    event_category:       promotedSubEventObj.event_category,
+    event_subcategory:    promotedSubEventObj.event_subcategory,
+    event_type:           promotedSubEventObj.event_type,
+    event_language:       promotedSubEventObj.event_language        || [],
+    event_description:    promotedSubEventObj.event_description,
+    event_banner:         promotedSubEventObj.event_banner,
+    event_logo:           promotedSubEventObj.event_logo,
+    event_images:         promotedSubEventObj.event_images          || [],
+    event_portrait:       promotedSubEventObj.event_portrait,
+    event_videos:         promotedSubEventObj.event_videos          || [],
+    event_dates:          promotedSubEventObj.event_dates,
+    event_date_type:      promotedSubEventObj.event_date_type       || ticket.event_date_type,
+    gate_open_time:       promotedSubEventObj.gate_open_time,
+    location:             promotedSubEventObj.location,
+    location_type:        promotedSubEventObj.location_type         || ticket.location_type,
+    venue:                promotedSubEventObj.venue,
+    exact_map_location:   promotedSubEventObj.exact_map_location,
+    seating_arrangement:  promotedSubEventObj.seating_arrangement   || 'none',
+    min_age_allowed:      promotedSubEventObj.min_age_allowed       ?? ticket.min_age_allowed ?? 0,
+    max_age_allowed:      promotedSubEventObj.max_age_allowed,
+    kids_friendly:        promotedSubEventObj.kids_friendly         ?? false,
+    pet_friendly:         promotedSubEventObj.pet_friendly          ?? false,
+    payment_type:         promotedSubEventObj.payment_type          || ticket.payment_type,
+    ticket_types:         promotedSubEventObj.ticket_types          || ticket.ticket_types   || [],
+    seating_layout:       promotedSubEventObj.seating_layout        || ticket.seating_layout,
+    ticket_layout:        promotedSubEventObj.ticket_layout         || ticket.ticket_layout,
+    banking_details:      promotedSubEventObj.banking_details       || ticket.banking_details || [],
+    guests:               promotedSubEventObj.guests                || [],
+    POCS:                 promotedSubEventObj.POCS                  || [],
+    hashtag:              promotedSubEventObj.hashtag               || [],
+    prohibited_items:     promotedSubEventObj.prohibited_items      || [],
+    total_capacity:       promotedSubEventObj.total_capacity,
+    booking_start_date:   promotedSubEventObj.booking_start_date,
+    booking_end_date:     promotedSubEventObj.booking_end_date,
+    event_rules:          promotedSubEventObj.event_rules,
+    event_instagram_link: promotedSubEventObj.event_instagram_link,
+    event_youtube_link:   promotedSubEventObj.event_youtube_link,
+    groupId:              ticket.groupId,
+    userId:               ticket.userId,
+    created_by:           ticket.created_by,
+    isMain:               true,
+    parentEventId:        null,
+    // ── Inherit the original main's live/confirmed status ─────────────────
+    event_status:         ticket.event_status === "live" ? "live" : "confirmed",
+    // ── Remaining sub-events with updated main_ticket_id ──────────────────
+    // We set main_ticket_id AFTER save since we need newMainTicket._id
+    sub_events:           remainingSubEventDocs.map((se) => ({
+      ...(se.toObject ? se.toObject() : { ...se }),
+      main_ticket_id: null, // temporary — updated below after save
+    })),
+    // ── Promotion metadata ─────────────────────────────────────────────────
+    promoted_from_sub_event: true,
+    promoted_at:          now,
+    original_main_event_id: ticket._id,
+  });
+
+  await newMainTicket.save();
+
+  // ── Now update main_ticket_id on all remaining sub-events ────────────────
+  // The new main's _id is now known after save
+  if (newMainTicket.sub_events?.length > 0) {
+    newMainTicket.sub_events = newMainTicket.sub_events.map((se) => ({
+      ...(se.toObject ? se.toObject() : { ...se }),
+      main_ticket_id: newMainTicket._id,
+    }));
+    newMainTicket.markModified("sub_events");
+    await newMainTicket.save();
+  }
+
+  //  Clear sub_events from old main & store reference 
+  ticket.sub_events             = [];
+  ticket.promoted_to_ticket_id  = newMainTicket._id;
+  ticket.markModified("sub_events");
+  await ticket.save();
+  return {
+    promoted:              true,
+    newMain:               newMainTicket,
+    newMainTicketId:       newMainTicket._id.toString(),
+    promotedSubEventId:    newMainSubEventId,
+    remainingSubEventCount: remainingSubEventDocs.length,
+  };
+};
+// Helper: describe cancellation tier
+export const getCancellationDescription = (tier) => {
+  const descriptions = {
+    full_refund: "Full refund — cancelled more than 48 hours before event",
+    last_day:    "90% refund — cancelled between 24–48 hours before event",
+    event_day:   "80% refund — cancelled within 24 hours of event",
+    no_refund:   "No refund — event has already started or passed",
+  };
+  return descriptions[tier] || "Refund policy applies";
 };
