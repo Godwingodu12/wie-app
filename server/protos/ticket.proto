@@ -12,6 +12,8 @@ service TicketService {
   rpc GetTicketBookingStats(GetBookingStatsRequest) returns (BookingStatsResponse);
   rpc UpdateTicketCancellation(UpdateCancellationRequest) returns (UpdateCancellationResponse);
   rpc GetPreviousEventStats(GetPreviousEventStatsRequest) returns (PreviousEventStatsResponse);
+  rpc CancelEvent(CancelEventRequest) returns (CancelEventResponse);
+  rpc GetEventCancellationInfo(GetEventCancellationInfoRequest) returns (EventCancellationInfoResponse);
 }
 
 message GetAllLiveEventsRequest {}
@@ -397,4 +399,31 @@ message GroupData {
   string razorpayKeyId = 24;
   string razorpayKeySecret = 25;
   string razorpayAccountId = 26;
+}
+message CancelEventRequest {
+  string ticketId = 1;
+  string subEventId = 2;
+  string hostId = 3;
+  string cancellation_reason = 4;
+}
+
+message CancelEventResponse {
+  bool success = 1;
+  string ticketId = 2;
+  string subEventId = 3;
+  string cancelledAt = 4;
+  string error = 5;
+}
+
+message GetEventCancellationInfoRequest {
+  string ticketId = 1;
+  string subEventId = 2;
+}
+
+message EventCancellationInfoResponse {
+  string eventId = 1;
+  string paymentType = 2;
+  string groupId = 3;
+  string eventName = 4;
+  string error = 5;
 }
