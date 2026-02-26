@@ -25,8 +25,6 @@ interface NotificationPayload {
 }
 export const createNotification = async (payload: NotificationPayload): Promise<void> => {
   try {
-    console.log('📤 Sending notification to notification-service:', payload);
-
     // ✅ Ensure all IDs are strings
     const sanitizedPayload = {
       ...payload,
@@ -36,7 +34,6 @@ export const createNotification = async (payload: NotificationPayload): Promise<
     };
 
     await sendRPC('notification-create', sanitizedPayload, 5000);
-    console.log('✅ Notification sent successfully');
   } catch (error: any) {
     console.error('❌ Error sending notification:', error.message);
     // Don't throw - notification failure shouldn't break the main flow
