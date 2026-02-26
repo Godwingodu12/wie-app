@@ -165,5 +165,101 @@ class RazorpayService {
       throw new Error(`Failed to fetch refund: ${error.message}`);
     }
   }
+  // ─── Create Razorpay Linked Account for Host (one-time onboarding)
+static async createLinkedAccount(data: {
+  name: string;
+  email: string;
+  phone: string;
+  legalBusinessName: string;
+  businessType?: string;
+}): Promise<any> {
+  try {
+    const razorpay = this.getInstance(
+      process.env.RAZORPAY_KEY_ID!,
+      process.env.RAZORPAY_KEY_SECRET!
+    );
+    // Razorpay Route: create sub-merchant account
+    const account = await (razorpay as any).accounts.create({
+      email:               data.email,
+      profile: {
+        category:          'entertainment',
+        subcategory:       'ticketing',
+        addresses: {
+          registered: {
+            street1:   '507, Koramangala',
+            street2:   '1st block',
+            city:      'Bengaluru',
+            state:     'KARNATAKA',
+            postal_code: 560034,
+            country:   'IN',
+          },
+        },
+      },
+      legal_info: {
+        pan:  'AAACL1234C',  
+        gst:  '29AAACL1234C1Z5',
+      },
+    });
+    return account;
+  } catch (error: any) {
+    console.error('❌ Error creating linked account:', error);
+    throw new Error(`Failed to create linked account: ${error.message}`);
+  }
+}
+
+// ─── Transfer host share AFTER event completion (Phase 5)
+static async transferToHost(data: {
+  razorpayAccountId: string;   // host's linked account ID
+  amount: number;               // in rupees
+  currency: string;
+  settlementId: string;         // used as idempotency key
+  bookingId: string;
+  notes?: any;
+}): Promise<any> {
+  try {
+    const razorpay = this.getInstance(
+      process.env.RAZORPAY_KEY_ID!,
+      process.env.RAZORPAY_KEY_SECRET!
+    );
+
+    const transfer = await (razorpay as any).transfers.create({
+      account:  data.razorpayAccountId,
+      amount:   Math.round(data.amount * 100), // paise
+      currency: data.currency || 'INR',
+      notes: {
+        settlementId: data.settlementId,
+        bookingId:    data.bookingId,
+        ...data.notes,
+      },
+    });
+
+    console.log(`✅ Razorpay transfer created: ${transfer.id} → ₹${data.amount}`);
+    return transfer;
+  } catch (error: any) {
+    console.error('❌ Error creating transfer:', error.error || error.message);
+    throw new Error(
+      `Transfer failed: ${error.error?.description || error.message}`
+    );
+  }
+}
+
+static async reverseTransfer(
+  transferId: string,
+  amount: number
+): Promise<any> {
+  try {
+    const razorpay = this.getInstance(
+      process.env.RAZORPAY_KEY_ID!,
+      process.env.RAZORPAY_KEY_SECRET!
+    );
+    const reversal = await (razorpay as any).transfers.reverse(transferId, {
+      amount: Math.round(amount * 100),
+    });
+    return reversal;
+  } catch (error: any) {
+    console.error('❌ Error reversing transfer:', error.message);
+    throw new Error(`Transfer reversal failed: ${error.message}`);
+  }
+}
 }
 export default RazorpayService;
