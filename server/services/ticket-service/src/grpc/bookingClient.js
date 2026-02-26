@@ -85,3 +85,25 @@ export const getMonthlyBookingChart = async (ticketId, year, month) => {
     );
   });
 };
+export const getBookingsForEvent = async (ticketId) => {
+  return new Promise((resolve) => {
+    const grpcClient = getClient();
+
+    grpcClient.GetBookingsForEvent(
+      { ticketId },
+      (error, response) => {
+        if (error) {
+          console.error('❌ [Booking gRPC] getBookingsForEvent error:', error.message);
+          resolve([]); // Graceful fallback
+          return;
+        }
+        if (response.error) {
+          console.error('❌ [Booking gRPC] getBookingsForEvent response error:', response.error);
+          resolve([]);
+          return;
+        }
+        resolve(response.bookings || []);
+      }
+    );
+  });
+};
