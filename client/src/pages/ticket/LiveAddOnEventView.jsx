@@ -7,13 +7,15 @@ import SideBar from "../../components/HomePage/SideBar";
 import BottomNavigation from "../../components/HomePage/BottomNavigation";
 import EventLocationModal from "../../components/ViewSingleEvent/EventLocationModal";
 import { EventCancelModal, EventCancelSuccessModal } from "../../components/Event/EventCancelModal";
+import ReHostSubEventModal from "../../components/Event/ReHostSubEventModal";
+import ReHostModal from "../../components/Event/ReHostModal";
 import GuideModal from "../../components/ViewSingleEvent/GuideModal";
 import WieLogo from "../../assets/HomePage/WieLogo.svg?url";
 import { toast } from "react-hot-toast";
 import {
   getMyLiveEventView,
   getGroupView,
-  getTicketById,
+  getTicketById,deleteSubEvent,  rehostSubEvent, goLiveSubEvent,
   getAddOnEventLiveView,cancelSubEvent, getCancellationReport,
   getEventMetrics, 
 } from "../../services/ticketService";
@@ -36,7 +38,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Hash,Ban, FileSpreadsheet, AlertTriangle
+  Hash,Ban, FileSpreadsheet, AlertTriangle, RefreshCw, Trash2,Edit2, Zap
 } from "lucide-react";
 import Card from "../../components/ViewSingleEvent/Card";
 import InsetCard from "../../components/ViewSingleEvent/InsetCard";
@@ -100,7 +102,13 @@ const LiveAddOnEventView = () => {
   const [isDownloading, setIsDownloading]             = useState(false);
   const [cancellationSummary, setCancellationSummary] = useState(null);
   const [downloadError, setDownloadError] = useState("");
-
+  const [showRehostModal, setShowRehostModal]         = useState(false);
+  const [isRehosting, setIsRehosting]                 = useState(false);
+  // ── Go Live State
+  const [isGoingLive, setIsGoingLive]                 = useState(false);
+  // ── Delete State
+  const [showDeleteConfirm, setShowDeleteConfirm]     = useState(false);
+  const [isDeleting, setIsDeleting]                   = useState(false);
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
@@ -280,29 +288,96 @@ const handleCloseCancelModal = () => {
   }
 };
 
-const handleDownloadReport = async () => {
-  try {
-    setIsDownloading(true);
-    setDownloadError("");
-    // ticketId here is the sub-event ID from useParams()
-    // parentEventId is the root ticket that owns this sub-event
-    const parentEventId = eventData?.parentEventId;
-    if (!parentEventId) {
-      throw new Error("Parent event ID not found. Cannot generate report.");
+  const handleDownloadReport = async () => {
+    try {
+      setIsDownloading(true);
+      setDownloadError("");
+      // ticketId here is the sub-event ID from useParams()
+      // parentEventId is the root ticket that owns this sub-event
+      const parentEventId = eventData?.parentEventId;
+      if (!parentEventId) {
+        throw new Error("Parent event ID not found. Cannot generate report.");
+      }
+      await getCancellationReport(parentEventId, ticketId);
+      toast.success("Report downloaded successfully!");
+    } catch (err) {
+      const msg = err?.message || "Failed to download report. Please try again.";
+      setDownloadError(msg);
+      toast.error(msg);
+    } finally {
+      setIsDownloading(false);
     }
-    await getCancellationReport(parentEventId, ticketId);
-    toast.success("Report downloaded successfully!");
-  } catch (err) {
-    const msg = err?.message || "Failed to download report. Please try again.";
-    setDownloadError(msg);
-    toast.error(msg);
-  } finally {
-    setIsDownloading(false);
-  }
-};
-  // Computed values from API data
-  const computedEventData = eventData
-    ? {
+  };
+
+  const handleRehost = async () => {
+    try {
+      setIsRehosting(true);
+      const parentEventId = eventData?.parentEventId;
+      if (!parentEventId) {
+        toast.error("Parent event ID not found.");
+        return;
+      }
+      const response = await rehostSubEvent(parentEventId, ticketId);
+      if (response.success) {
+        setShowRehostModal(false);
+        toast.success("Sub-event re-hosted successfully!");
+        navigate(`/ticket/confirm-add-on-event/${parentEventId}/${ticketId}`);
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err.message || "Failed to re-host sub-event.";
+      toast.error(msg);
+    } finally {
+      setIsRehosting(false);
+    }
+  };
+
+  const handleGoLive = async () => {
+    try {
+      setIsGoingLive(true);
+      const parentEventId = eventData?.parentEventId;
+      if (!parentEventId) {
+        toast.error("Parent event ID not found.");
+        return;
+      }
+      const response = await goLiveSubEvent(parentEventId, ticketId);
+      if (response.success) {
+        setEventData((prev) => ({ ...prev, event_status: "live" }));
+        toast.success("Sub-event is now live!");
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err.message || "Failed to go live.";
+      toast.error(msg);
+    } finally {
+      setIsGoingLive(false);
+    }
+  };
+
+  const handleDeleteSubEvent = async () => {
+    try {
+      setIsDeleting(true);
+      const parentEventId = eventData?.parentEventId;
+      if (!parentEventId) {
+        toast.error("Parent event ID not found.");
+        return;
+      }
+      const response = await deleteSubEvent(parentEventId, ticketId);
+      if (response.success) {
+        toast.success("Sub-event deleted successfully.");
+        // Redirect to deleted events page
+        navigate("/ticket/deleted-events");
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err.message || "Failed to delete sub-event.";
+      toast.error(msg);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+// Computed values from API data
+const computedEventData = eventData
+  ? {
       name: eventData.event_name || "Event Name",
       creator: eventData.created_by || "Unknown Creator",
       // These fields are now fetched from getEventMetrics, falling back to eventData or defaults
@@ -826,8 +901,50 @@ useEffect(() => {
                   {formattedDateLabel}
                 </button>
 
-                {/* Cancel Sub-Event Button */}
-                {eventData?.event_status !== "cancelled" ? (
+                {/* Edit button — only for confirmed or live sub-events */}
+                {(eventData?.event_status === "confirmed" || eventData?.event_status === "live") && (
+                  <button
+                    onClick={() => navigate(
+                      `/ticket/update-ticket-addons/${eventData?.parentEventId}`
+                    )}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                              bg-purple-600 hover:bg-purple-700 text-white transition-all duration-200
+                              hover:scale-105 shadow-lg"
+                  >
+                    <Edit2 size={16} />
+                    Edit
+                  </button>
+                )}
+
+                {/* Re-host — only for cancelled */}
+                {eventData?.event_status === "cancelled" && (
+                  <button
+                    onClick={() => setShowRehostModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                              bg-emerald-600 hover:bg-emerald-700 text-white transition-all duration-200
+                              hover:scale-105 shadow-lg"
+                  >
+                    <RefreshCw size={16} />
+                    Re-host
+                  </button>
+                )}
+
+                {/* Go Live — only for confirmed */}
+                {eventData?.event_status === "confirmed" && (
+                  <button
+                    onClick={handleGoLive}
+                    disabled={isGoingLive}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                              bg-green-600 hover:bg-green-700 text-white transition-all duration-200
+                              hover:scale-105 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <Zap size={16} />
+                    {isGoingLive ? "Going Live..." : "Go Live"}
+                  </button>
+                )}
+
+                {/* Cancel — only for live */}
+                {eventData?.event_status === "live" && (
                   <button
                     onClick={() => setShowCancelModal(true)}
                     className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
@@ -837,27 +954,32 @@ useEffect(() => {
                     <Ban size={16} />
                     Cancel Event
                   </button>
-                ) : (
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
-                                  bg-gray-600 text-gray-300 cursor-not-allowed">
-                    <Ban size={16} />
-                    Event Cancelled
-                  </div>
                 )}
 
-                {/* Download Report Button */}
+                {/* Download Report — only for cancelled */}
                 {(showDownloadReport || eventData?.event_status === "cancelled") && (
                   <button
                     onClick={handleDownloadReport}
                     disabled={isDownloading}
                     className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
-                              bg-emerald-600 hover:bg-emerald-700 text-white transition-all duration-200
+                              bg-indigo-600 hover:bg-indigo-700 text-white transition-all duration-200
                               hover:scale-105 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <FileSpreadsheet size={16} />
                     {isDownloading ? "Downloading..." : "Download Report"}
                   </button>
                 )}
+
+                {/* Delete — always visible */}
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                            bg-gray-700 hover:bg-gray-600 text-white transition-all duration-200
+                            hover:scale-105 shadow-lg border border-gray-600"
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </button>
               </div>
             </div>
 
@@ -1574,9 +1696,78 @@ useEffect(() => {
           cancellationSummary={cancellationSummary}
           isDownloading={isDownloading}
           downloadError={downloadError}
-          onDownload={handleDownloadReport}   
+          onDownload={handleDownloadReport}
           onClose={() => setShowCancelModal(false)}
         />
+      )}
+
+      {showRehostModal && (
+        <ReHostSubEventModal
+          theme={theme}
+          isDark={isDark}
+          eventData={eventData}
+          isRehosting={isRehosting}
+          onConfirm={handleRehost}
+          onClose={() => setShowRehostModal(false)}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div
+            className={`${isDark ? "bg-[#212426]" : "bg-white"} rounded-3xl p-6 w-full max-w-sm shadow-2xl`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                <Trash2 className="text-red-500 w-5 h-5" />
+              </div>
+              <div>
+                <h2 className={`text-lg font-bold ${theme.text}`}>Delete Sub-Event</h2>
+                <p className={`text-xs ${theme.subText}`}>{eventData?.event_name}</p>
+              </div>
+            </div>
+
+            <div className={`rounded-2xl p-4 mb-6 ${isDark ? "bg-red-900/20 border border-red-700/40" : "bg-red-50 border border-red-200"}`}>
+              <p className={`text-sm ${isDark ? "text-red-300" : "text-red-700"}`}>
+                Warning: This add-on event is live. If you delete it, you will permanently lose all associated bookings, revenue details, and export/download data. This action is irreversible and may impact financial records for this event. Please confirm before proceeding.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className={`flex-1 py-3 rounded-full font-semibold text-sm border transition-all
+                           ${isDark
+                             ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                             : "border-gray-300 text-gray-700 hover:bg-gray-100"}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteSubEvent}
+                disabled={isDeleting}
+                className="flex-1 py-3 rounded-full font-semibold text-sm text-white
+                           bg-red-600 hover:bg-red-700
+                           disabled:opacity-60 disabled:cursor-not-allowed
+                           transition-all duration-200 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={15} />
+                    Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
