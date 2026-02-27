@@ -7,6 +7,7 @@ import { logger } from '../utils/logger.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
 import { promoteFirstSubEventToMain,getCancellationDescription } from '../services/ticket.service.js';
 import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
+import { publishEventCancellation } from "../utils/eventPublisher.js";
 import { getBookingStatsByDate, getBookingGrowthStats, getMonthlyBookingChart,getBookingsForEvent } from '../grpc/bookingClient.js';
 import ExcelJS from 'exceljs';
 import { getWieUsersByIds }    from '../grpc/wieUserClient.js';
