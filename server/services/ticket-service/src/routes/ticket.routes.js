@@ -3,11 +3,11 @@ import { uploadFields, uploadTicketMedia } from '../middlewares/upload.js';
 import multer from 'multer';
 import { uploadGroupFiles } from '../middlewares/upload.js';
 import {getUserData,CreateGroup, UpdateGroup,createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
-getTicketById,deleteTicket,deleteSubEvent,deleteEventPermenently,deleteAllEvents,viewTickets, getAllDeletedEvents,getDeletedEventById,recoverDeletedEvent,getAllGroups,getAllLiveEvents} from '../services/ticket.service.js';
+getTicketById,deleteTicket,deleteSubEvent,deleteEventPermenently,deleteAllEvents,viewTickets, getAllDeletedEvents,getDeletedEventById,recoverDeletedEvent,getAllGroups,getAllLiveEvents,recoverSubEvent} from '../services/ticket.service.js';
 import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getGroupById,getOtherGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getMyPreviousEventView,getOthersEvents,getOthersEventsById,getOtherLiveEvents,
 getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getAddOnEventLiveView,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted,getPostalDetailsFromCoords,
 getPreviousEventView,getPreviousSubEventView,getPreviousEventStatistics,getPreviousEventMonthlyStats,getPreviousSubEventMonthlyStats,getPreviousEventCapacityStats,getPreviousSubEventCapacityStats,getEventMetrics,getEventStatsByDate, getEventGrowthStats, getEventMonthlyChart,
-cancelEvent, getCancellationReport, rehostEvent } from '../controller/ticket.controller.js';
+cancelEvent, getCancellationReport, rehostEvent, rehostSubEvent,goLiveSubEvent } from '../controller/ticket.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);
@@ -28,8 +28,8 @@ router.get('/get-all-tickets', getAllGroupTicketId);
 router.get('/get-ticket-sub-events/:ticketId', getTicketSubEvents);
 router.get('/get-ticket/:ticketId', getTicketById);
 router.post('/delete-ticket/:ticketId', deleteTicket);
-router.post('/delete-sub-event/:ticketId/:subEventId',protect, deleteSubEvent);
-router.delete('/delete-event-permenently/:ticketId', protect, deleteEventPermenently);
+router.post('/delete-sub-event/:ticketId/:subEventId', protect, deleteSubEvent);
+router.delete('/delete-event-permanently/:ticketId', protect, deleteEventPermenently);
 router.post('/delete-all-events',protect, deleteAllEvents);
 router.get('/get-all-deleted-events', getAllDeletedEvents);
 router.get('/get-deleted-event/:eventId', protect, getDeletedEventById);
@@ -83,4 +83,8 @@ router.post('/:ticketId/sub-events/:subEventId/cancel', cancelEvent);
 router.get('/get-cancellation-report/:ticketId', getCancellationReport);
 router.get('/get-cancellation-report/:ticketId/sub-event/:subEventId', getCancellationReport);
 router.post('/rehost-event/:ticketId', rehostEvent);
+router.post('/:parentTicketId/sub-events/:subEventId/rehost', rehostSubEvent);
+router.post('/:parentTicketId/sub-events/:subEventId/go-live', goLiveSubEvent);
+router.post('/:parentTicketId/sub-events/:subEventId/recover', protect, recoverSubEvent);
+
 export default router;
