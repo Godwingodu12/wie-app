@@ -87,7 +87,7 @@ const UpdateTicketAddOns = () => {
   const [previewImageFiles, setPreviewImageFiles] = useState({});
   const [alert, setAlert] = useState(null);
   const [isReorderingImages, setIsReorderingImages] = useState(false);
-const [isReorderingVideos, setIsReorderingVideos] = useState(false);
+  const [isReorderingVideos, setIsReorderingVideos] = useState(false);
   const [confirmState, setConfirmState] = useState({
     isOpen: false,
     onConfirm: null,
@@ -231,7 +231,12 @@ const [isReorderingVideos, setIsReorderingVideos] = useState(false);
     }
     try {
       const ticketData = await getTicketById(ticketId);
-      setExistingSubEvents(ticketData?.ticket?.sub_events || []);
+      const HIDDEN_STATUSES = ["deleted", "remove", "removed", "cancelled"];
+      setExistingSubEvents(
+        (ticketData?.ticket?.sub_events || []).filter(
+          (se) => !HIDDEN_STATUSES.includes(se.event_status)
+        )
+      );
       setMainEventData(ticketData?.ticket || null);
       try {
         // Add validation to ensure ticketId is properly formatted
@@ -3205,13 +3210,15 @@ const handleReorderToggle = (targetField) => {
                   <>
                     {existingSubEvents.length > 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                        {existingSubEvents.map((event, index) => (
-                          <div
-                            key={index}
-                            onClick={() => handleSubEventClick(event._id)}
-                            className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg overflow-hidden shadow-md cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 text-white"
-                          >
-                            <div className="p-4 flex items-center">
+                        {existingSubEvents
+                          .filter((event) => !["deleted", "remove", "removed", "cancelled"].includes(event.event_status))
+                          .map((event, index) => (
+                            <div
+                              key={index}
+                              onClick={() => handleSubEventClick(event._id)}
+                              className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg overflow-hidden shadow-md cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200 text-white"
+                            >
+                              <div className="p-4 flex items-center">
                               <div className="flex-1 w-4/5">
                                 <h3 className="font-semibold text-lg mb-1 truncate">
                                   {event.event_name}
