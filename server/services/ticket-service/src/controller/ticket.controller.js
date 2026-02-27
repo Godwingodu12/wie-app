@@ -937,77 +937,43 @@ res.status(500).json({
 });
 }
 };
-export const deleteSubEvent = async (req, res) => {
-  const { ticketId, subEventId } = req.params;
-  if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
-    return res.status(400).json({ 
-      message: "Invalid ticket ID format" 
-    });
-  }
-
-  try {
-    const userId = req.user._id || req.user.id;
-    
-    const updatedTicket = await Ticket.findOneAndUpdate(
-      { _id: ticketId },
-      {
-        $pull: { sub_events: { _id: subEventId } },
-        updated_by: userId,
-        updated_at: new Date()
-      },
-      { new: true }
-    );
-
-    if (!updatedTicket) {
-      return res.status(404).json({ message: "Ticket not found" });
-    }
-
-    res.status(200).json({
-      message: "Sub-event deleted successfully",
-      ticket: updatedTicket,
-      remainingSubEvents: updatedTicket.sub_events.length
-    });
-
-  } catch (error) {
-    console.error("Error deleting sub-event:", error);
-    res.status(500).json({ 
-      message: "Internal server error", 
-      error: error.message 
-    });
-  }
-};
 export const getGroupView = async (req, res) => {
   try {
-    const userId = req.user._id || req.user.id;
     const ticketId = req.params.ticketId;
+
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({
-        message: "Invalid ticket ID format"
+      return res.status(400).json({ message: "Invalid ticket ID format" });
+    }
+
+    let ticket = null;
+
+    ticket = await Ticket.findById(ticketId);
+    if (!ticket) {
+      ticket = await Ticket.findOne({
+        "sub_events._id": ticketId,
       });
     }
-    const ticket = await Ticket.findOne({ _id: ticketId, userId: userId });
     if (!ticket) {
-      return res.status(404).json({
-        message: "Ticket not found"
-      });
+      return res.status(404).json({ message: "Ticket not found" });
     }
     const groupId = ticket.groupId;
-    const group = await Group.findOne({ _id: groupId, userId: userId });
-    if (!group) {
-      return res.status(404).json({
-        message: "Group not found"
-      });
+    if (!groupId) {
+      return res.status(404).json({ message: "No group associated with this ticket" });
     }
-    res.status(200).json({
-      message: "Groups retrieved successfully",
-      group: group
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    return res.status(200).json({
+      message: "Group retrieved successfully",
+      group:   group,
     });
+
   } catch (error) {
     console.error("Error fetching group:", error);
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message
-    });
+    return res.status(500).json({ message: "Internal server error", error: error.message });
   }
 };
 export const getGroupById = async (req, res) => {
@@ -3847,5 +3813,104 @@ export const rehostEvent = async (req, res) => {
       message: "Internal server error",
       error: error.message,
     });
+  }
+};
+export const rehostSubEvent = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const { parentTicketId, subEventId } = req.params;
+
+    const parentTicket = await Ticket.findOne({ _id: parentTicketId, userId });
+    if (!parentTicket) {
+      return res.status(404).json({ success: false, message: "Parent event not found or access denied" });
+    }
+
+    const subEvent = parentTicket.sub_events.id
+      ? parentTicket.sub_events.id(subEventId)
+      : parentTicket.sub_events.find((se) => se._id.toString() === subEventId);
+
+    if (!subEvent) {
+      return res.status(404).json({ success: false, message: "Sub-event not found" });
+    }
+
+    if (subEvent.event_status !== "cancelled") {
+      return res.status(400).json({ success: false, message: "Only cancelled sub-events can be re-hosted" });
+    }
+
+    // Re-host: set back to confirmed
+    subEvent.event_status      = "confirmed";
+    subEvent.cancellation_reason = "";
+    subEvent.cancelled_at      = undefined;
+    subEvent.cancelled_by      = undefined;
+
+    parentTicket.markModified("sub_events");
+    await parentTicket.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Sub-event re-hosted successfully",
+      data: {
+        subEventId,
+        parentTicketId,
+        event_name:   subEvent.event_name,
+        event_status: "confirmed",
+      },
+    });
+  } catch (error) {
+    console.error("❌ rehostSubEvent error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+  }
+};
+
+export const goLiveSubEvent = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const { parentTicketId, subEventId } = req.params;
+
+    const parentTicket = await Ticket.findOne({ _id: parentTicketId, userId });
+    if (!parentTicket) {
+      return res.status(404).json({ success: false, message: "Parent event not found or access denied" });
+    }
+
+    // Parent must be live before sub-event can go live
+    if (parentTicket.event_status !== "live") {
+      return res.status(400).json({
+        success: false,
+        message: `Parent event must be live first. Current status: ${parentTicket.event_status}`,
+      });
+    }
+
+    const subEvent = parentTicket.sub_events.id
+      ? parentTicket.sub_events.id(subEventId)
+      : parentTicket.sub_events.find((se) => se._id.toString() === subEventId);
+
+    if (!subEvent) {
+      return res.status(404).json({ success: false, message: "Sub-event not found" });
+    }
+
+    if (subEvent.event_status !== "confirmed") {
+      return res.status(400).json({
+        success: false,
+        message: `Sub-event must be in confirmed status to go live. Current: ${subEvent.event_status}`,
+      });
+    }
+
+    subEvent.event_status = "live";
+    parentTicket.markModified("sub_events");
+    await parentTicket.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Sub-event is now live",
+      data: {
+        subEventId,
+        parentTicketId,
+        event_name:   subEvent.event_name,
+        event_status: "live",
+      },
+    });
+  } catch (error) {
+    console.error("❌ goLiveSubEvent error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error", error: error.message });
   }
 };

@@ -409,13 +409,16 @@ const chartData = React.useMemo(() => {
     return days;
   };
   const calendarDays = generateCalendarDays();
+  const HIDDEN_STATUSES = ["deleted", "remove"];
   const addOnEvents =
-    eventData?.sub_events?.map((subEvent) => ({
-      name: subEvent.event_name,
-      id: subEvent._id,
-      category: subEvent.event_category,
-      banner: subEvent.event_banner,
-    })) || [];
+    eventData?.sub_events
+      ?.filter((subEvent) => !HIDDEN_STATUSES.includes(subEvent.event_status))
+      ?.map((subEvent) => ({
+        name: subEvent.event_name,
+        id: subEvent._id,
+        category: subEvent.event_category,
+        banner: subEvent.event_banner,
+      })) || [];
   const handleThemeToggle = () => {
     const newTheme = !isDark;
     setIsDark(newTheme);

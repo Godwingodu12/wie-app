@@ -46,6 +46,8 @@ import ViewSingleSubEvent from './pages/ticket/ViewSingleSubEvent';
 import OthersFFE from './pages/auth/OthersFFE';
 import GetFollowerEventList from './pages/auth/GetFollowerEventList';
 import LiveAddOnEventView from './pages/ticket/LiveAddOnEventView';
+import ConfirmAddOnEvent from "./pages/ticket/Confirmaddonevent";
+
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, user } = useSelector((state) => state.auth);
   if (!token || !user) {
@@ -461,6 +463,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['organisation', 'admin']}>
             <LiveAddOnEventView/>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ticket/confirm-add-on-event/:parentEventId/:subEventId"
+        element={
+          <ProtectedRoute allowedRoles={['organisation', 'admin']}>
+            <ConfirmAddOnEvent/>
           </ProtectedRoute>
         }
       />

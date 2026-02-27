@@ -164,10 +164,9 @@ export const deleteTicket = async (ticketId) => {
 }
 export const deleteSubEvent = async (ticketId, subEventId) => {
   try {
-    const response = await api.post(`ticket/delete-sub-event/${ticketId}/${subEventId}`);
+    const response = await api.post(`/ticket/delete-sub-event/${ticketId}/${subEventId}`);
     return response.data;
-  }
-  catch (error) {
+  } catch (error) {
     throw error;
   }
 };
@@ -179,9 +178,15 @@ export const getAllDeletedEvents = async () => {
     throw error;
   }
 };
-export const deleteEventPermenently = async (ticketId) => {
+
+export const deleteEventPermenently = async (ticketId, options = {}) => {
   try {
-    const response = await api.delete(`ticket/delete-event-permenently/${ticketId}`); // Changed from POST to DELETE
+    const response = await api.delete(`/ticket/delete-event-permanently/${ticketId}`, {
+      data: {
+        isSubEvent:    options.isSubEvent    || false,
+        parentEventId: options.parentEventId || null,
+      },
+    });
     return response.data;
   } catch (error) {
     throw error;
@@ -195,13 +200,12 @@ export const deleteAllEvents = async () => {
     throw error;
   }
 };
-export const getDeletedEventById = async (eventId) => {
-  try {
-    const response = await api.get(`ticket/get-deleted-event/${eventId}`);
-    return response.data;
-  } catch (error) {
-    throw error;
-  }
+export const getDeletedEventById = async (eventId, subEventId = null) => {
+  const url = subEventId
+    ? `/ticket/get-deleted-event/${eventId}?subEventId=${subEventId}`
+    : `/ticket/get-deleted-event/${eventId}`;
+  const response = await api.get(url);
+  return response.data;
 };
 export const recoverDeletedEvent = async (ticketId) => {
   try {
@@ -214,7 +218,7 @@ export const recoverDeletedEvent = async (ticketId) => {
 };
 export const getGroupView = async (ticketId) => {
   try {
-    const response = await api.get(`ticket/get-group-view/${ticketId}`);
+    const response = await api.get(`/ticket/get-group-view/${ticketId}`);
     return response.data;
   } catch (error) {
     throw error;
@@ -642,5 +646,27 @@ export const rehostEvent = async (ticketId, rehostAs) => {
   const response = await api.post(`/ticket/rehost-event/${ticketId}`, {
     rehost_as: rehostAs,
   });
+  return response.data;
+};
+
+// ADD:
+export const rehostSubEvent = async (parentTicketId, subEventId) => {
+  const response = await api.post(
+    `/ticket/${parentTicketId}/sub-events/${subEventId}/rehost`
+  );
+  return response.data;
+};
+
+export const goLiveSubEvent = async (parentTicketId, subEventId) => {
+  const response = await api.post(
+    `/ticket/${parentTicketId}/sub-events/${subEventId}/go-live`
+  );
+  return response.data;
+};
+
+export const recoverSubEvent = async (parentTicketId, subEventId) => {
+  const response = await api.post(
+    `/ticket/${parentTicketId}/sub-events/${subEventId}/recover`
+  );
   return response.data;
 };

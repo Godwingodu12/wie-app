@@ -35,8 +35,10 @@ import {
   deleteEventPermenently,
   recoverDeletedEvent,
   getAllDeletedEvents,
+  recoverSubEvent,
+  rehostSubEvent,
 } from "../../services/ticketService";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Card from "../../components/ViewSingleEvent/Card";
 import getCarouselEvents from "../../components/ViewSingleEvent/getCarouselEvents";
 import getPreferences from "../../components/ViewSingleEvent/getPreferences";
@@ -90,7 +92,9 @@ const lightTheme = {
 const DeletedEventView = () => {
   const { ticketId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation(); // <--- New hook usage
+  const location = useLocation(); 
+  const [searchParams] = useSearchParams();
+  const subEventId = searchParams.get("subEventId") || null;
   const initialThemeIsDark = location.state?.initialThemeIsDark ?? true;
   const [theme, setTheme] = useState(
     initialThemeIsDark ? darkTheme : lightTheme
@@ -134,6 +138,8 @@ const DeletedEventView = () => {
 
   const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
   const [appAlert, setAppAlert] = useState(null);
+  const [showConfirmRehostModal, setShowConfirmRehostModal] = useState(false);
+  const [isRehosting, setIsRehosting] = useState(false);
 
   const [showRulesModal, setShowRulesModal] = useState(false);
 
@@ -204,42 +210,87 @@ const DeletedEventView = () => {
     setShowPOCModal(false);
     setSelectedPOC(null);
   };
-  const handleSave = useCallback(async () => {
+
+ const handleSave = useCallback(async () => {
     setShowConfirmSaveModal(false);
     if (!ticketId) {
-      setAppAlert({
-        type: "error",
-        message: "Error",
-        description: "Ticket ID is missing.",
-      });
+      setAppAlert({ type: "error", message: "Error", description: "Ticket ID is missing." });
       return;
     }
 
-    setLoading(true);
+    // Capture sub-event info before any state changes
+    const capturedSubEventId   = subEventId;
+    const capturedParentId     = ticketId; // when subEventId exists, ticketId = parentEventId
 
+    setLoading(true);
     try {
-      await recoverDeletedEvent(ticketId);
-      setAppAlert({
-        type: "success",
-        message: "Event Recovered!",
-        description: "Your event has been Recovered successfully.",
-      });
-      setTimeout(() => {
-        navigate("/ticket/view-events");
-      }, 1500);
+      if (capturedSubEventId) {
+        // ── Sub-event: recover via recoverSubEvent ──────────────────────
+        const response = await recoverSubEvent(capturedParentId, capturedSubEventId);
+        if (response?.success) {
+          setAppAlert({
+            type: "success",
+            message: "Sub-event Recovered!",
+            description: `"${eventData?.event_name}" has been restored successfully.`,
+          });
+          setTimeout(() => {
+            navigate(
+              `/ticket/confirm-add-on-event/${capturedParentId}/${capturedSubEventId}`
+            );
+          }, 1500);
+        }
+      } else {
+        // ── Root ticket: recover via recoverDeletedEvent ────────────────
+        await recoverDeletedEvent(capturedParentId);
+        setAppAlert({
+          type: "success",
+          message: "Event Recovered!",
+          description: "Your event has been recovered successfully.",
+        });
+        setTimeout(() => {
+          navigate(`/ticket/view-confirm-event/${capturedParentId}`);
+        }, 1500);
+      }
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.message ||
-        "Failed to save event. Please try again.";
-      setAppAlert({
-        type: "error",
-        message: "Save Failed",
-        description: errorMessage,
-      });
+      const errorMessage = err?.response?.data?.message || "Failed to recover event. Please try again.";
+      setAppAlert({ type: "error", message: "Recovery Failed", description: errorMessage });
     } finally {
       setLoading(false);
     }
-  }, [ticketId, navigate]);
+  }, [ticketId, subEventId, eventData, navigate]);
+
+  const handleRehost = useCallback(async () => {
+    setShowConfirmRehostModal(false);
+    if (!ticketId || !subEventId) {
+      setAppAlert({ type: "error", message: "Error", description: "Missing event IDs." });
+      return;
+    }
+
+    const capturedSubEventId = subEventId;
+    const capturedParentId   = ticketId;
+
+    setIsRehosting(true);
+    try {
+      const response = await rehostSubEvent(capturedParentId, capturedSubEventId);
+      if (response?.success) {
+        setAppAlert({
+          type: "success",
+          message: "Sub-event Re-hosted!",
+          description: `"${eventData?.event_name}" has been re-hosted successfully.`,
+        });
+        setTimeout(() => {
+          navigate(
+            `/ticket/confirm-add-on-event/${capturedParentId}/${capturedSubEventId}`
+          );
+        }, 1500);
+      }
+    } catch (err) {
+      const errorMessage = err?.response?.data?.message || "Failed to re-host sub-event.";
+      setAppAlert({ type: "error", message: "Re-host Failed", description: errorMessage });
+    } finally {
+      setIsRehosting(false);
+    }
+  }, [ticketId, subEventId, eventData, navigate]);
 
   const allEventsForBankView = useMemo(() => {
     if (!eventData) return []; // 1. Collect all events and their associated bank details
@@ -286,21 +337,37 @@ const DeletedEventView = () => {
   }, [eventData, groupData]);
 
   const handleSaveEvent = () => {
-    setShowConfirmSaveModal(true);
+    const status = eventData?.event_status;
+    // Cancelled sub-events → rehost modal
+    // Deleted/removed sub-events → recover modal
+    // Root tickets → recover modal
+    if (subEventId && status === "cancelled") {
+      setShowConfirmRehostModal(true);
+    } else {
+      setShowConfirmSaveModal(true);
+    }
   };
 
   const handleConfirmDelete = async () => {
     setShowConfirmDeleteModal(false);
     if (!ticketId) return;
 
+    // Capture before any state changes
+    const capturedTicketId   = subEventId || ticketId; 
+    const capturedParentId   = subEventId ? ticketId : null;
+    const capturedIsSubEvent = !!subEventId;
+
     try {
       setLoading(true);
 
-      await deleteEventPermenently(ticketId);
+      await deleteEventPermenently(capturedTicketId, {
+        isSubEvent:    capturedIsSubEvent,
+        parentEventId: capturedParentId,
+      });
 
       setAppAlert({
-        message: "Success!",
-        description: `Event ID ${ticketId} was successfully deleted.`,
+        message: "Deleted!",
+        description: `"${eventData?.event_name}" was permanently deleted.`,
         type: "success",
         show: true,
       });
@@ -309,7 +376,7 @@ const DeletedEventView = () => {
     } catch (error) {
       setAppAlert({
         message: "Error Deleting Event",
-        description: error.message || "Please check server connection.",
+        description: error?.response?.data?.message || error.message || "Please check server connection.",
         type: "error",
         show: true,
       });
@@ -556,6 +623,7 @@ const DeletedEventView = () => {
 
     initializeMap();
   }, [isApiReady, eventData]);
+
   useEffect(() => {
     const fetchAndSetData = async () => {
       if (!ticketId) {
@@ -567,11 +635,11 @@ const DeletedEventView = () => {
         setLoading(true);
 
         const [ticketResponse, groupResponse] = await Promise.all([
-          getDeletedEventById(ticketId),
+          getDeletedEventById(ticketId, subEventId),
           getGroupView(ticketId),
         ]);
 
-        const data =
+        const parentData =
           ticketResponse?.ticket ||
           ticketResponse?.data?.ticket ||
           ticketResponse?.data ||
@@ -580,16 +648,49 @@ const DeletedEventView = () => {
         const fetchedGroupData =
           groupResponse?.group || groupResponse?.data || groupResponse;
 
-        if (!data || !data.event_name)
+        if (!parentData || !parentData.event_name)
           throw new Error("Event data is incomplete.");
-        // Test if logo URL is accessible
-        if (data.event_logo) {
-          const testImg = new Image();
-          testImg.onload = () => (testImg.onerror = () => null);
-          testImg.src = data.event_logo;
+
+        const HIDDEN = ["deleted", "remove", "cancelled", "removed"];
+
+        if (subEventId) {
+          // Backend already found the sub-event — use it directly from response
+          // or fall back to searching inside sub_events array
+          const subEventFromResponse = ticketResponse?.subEvent;
+          const subEvent = subEventFromResponse
+            || parentData.sub_events?.find(
+                (se) => se._id?.toString() === subEventId
+               );
+
+          if (!subEvent) {
+            throw new Error("Sub-event not found inside parent ticket.");
+          }
+
+          const mergedSubEvent = {
+            ...subEvent,
+            groupId:         subEvent.groupId         || parentData.groupId,
+            banking_details: subEvent.banking_details?.length
+              ? subEvent.banking_details
+              : parentData.banking_details,
+            // Show sibling sub-events (excluding self and hidden ones)
+            sub_events: (parentData.sub_events || []).filter(
+              (se) =>
+                se._id?.toString() !== subEventId &&
+                !HIDDEN.includes(se.event_status)
+            ),
+            isSubEvent:      true,
+            parentEventId:   ticketId,
+            parentEventName: parentData.event_name,
+          };
+          setEventData(mergedSubEvent);
+        } else {
+          // Root ticket — filter hidden sub-events
+          parentData.sub_events = (parentData.sub_events || []).filter(
+            (se) => !HIDDEN.includes(se.event_status)
+          );
+          setEventData(parentData);
         }
 
-        setEventData(data);
         setGroupData(fetchedGroupData);
       } catch (err) {
         setError(err.message || "Failed to load event details.");
@@ -599,7 +700,7 @@ const DeletedEventView = () => {
     };
 
     fetchAndSetData();
-  }, [ticketId]);
+  }, [ticketId, subEventId]);
 
   const [showPreferenceModal, setShowPreferenceModal] = useState(false);
 
@@ -850,7 +951,6 @@ const DeletedEventView = () => {
       LocationLabel = "Offline";
       break;
   }
-  eventData.sub_events[eventData.sub_events.length] = eventData;
   return (
     <div
       key={`main-container-${theme.isDark ? "dark" : "light"}`}
@@ -873,9 +973,23 @@ const DeletedEventView = () => {
         isOpen={showConfirmSaveModal}
         onClose={() => setShowConfirmSaveModal(false)}
         onConfirm={handleSave}
-        title="Confirm Event?"
-        message={`Are you sure you want to save and confirm event : ${eventData.event_name} ? This will confirm your final selection.`}
-        confirmText="Confirm Save"
+        title={subEventId ? "Recover Sub-event?" : "Recover Event?"}
+        message={
+          subEventId
+            ? `Are you sure you want to recover "${eventData.event_name}"? It will be restored under its parent event.`
+            : `Are you sure you want to recover "${eventData.event_name}"? This will restore the event to confirmed status.`
+        }
+        confirmText="Recover"
+        darkMode={theme.isDark}
+      />
+
+      <ConfirmModal
+        isOpen={showConfirmRehostModal}
+        onClose={() => setShowConfirmRehostModal(false)}
+        onConfirm={handleRehost}
+        title="Re-host Sub-event?"
+        message={`Are you sure you want to re-host "${eventData.event_name}"? It will be restored as a confirmed sub-event under its parent event.`}
+        confirmText={isRehosting ? "Re-hosting..." : "Re-host"}
         darkMode={theme.isDark}
       />
 
@@ -914,6 +1028,7 @@ const DeletedEventView = () => {
             />
           </button>
         </div>
+
         <div className=" md:flex hidden justify-start md:justify-center flex-grow">
           <Card
             theme={theme}
@@ -927,23 +1042,39 @@ const DeletedEventView = () => {
             >
               {eventData.event_name || "EVENT NAME"}
             </h1>
+            {eventData.isSubEvent && (
+              <p className="text-center text-xs mt-1 text-purple-400">
+                Sub-event of: {eventData.parentEventName}
+              </p>
+            )}
           </Card>
         </div>
 
         {/* 2. Action Buttons - Always on the far right, never wraps */}
         <div className="flex items-center my-auto space-x-4 flex-shrink-0 ml-4">
         <div
-            className="flex flex-col items-center cursor-pointer space-y-2 transition-transform duration-200 hover:scale-[1.02]"
-            onClick={handleSaveEvent}
+          className="flex flex-col items-center cursor-pointer space-y-2 transition-transform duration-200 hover:scale-[1.02]"
+          onClick={handleSaveEvent}
+          title={
+            subEventId && eventData?.event_status === "cancelled"
+              ? "Re-host Sub-event"
+              : "Recover Event"
+          }
         >
-            <div
-            className="w-10 h-10 md:w-12 md:h-12 bg-green-500 text-white rounded-full flex items-center justify-center"
+          <div
+            className="w-10 h-10 md:w-12 md:h-12 text-white rounded-full flex items-center justify-center"
             style={{
-                boxShadow: theme.shadowOutset,
+              boxShadow: theme.shadowOutset,
+              background: subEventId && eventData?.event_status === "cancelled"
+                ? "linear-gradient(135deg,#6942B8,#9B59B6)"  // purple for rehost
+                : "linear-gradient(135deg,#16a34a,#22c55e)",  // green for recover
             }}
-            >
+          >
             <RotateCcw size={20} />
-            </div>
+          </div>
+          <p className={`text-xs ${theme.isDark ? "text-gray-400" : "text-gray-600"}`}>
+            {subEventId && eventData?.event_status === "cancelled" ? "Re-host" : "Recover"}
+          </p>
         </div>
         
         <ActionCircleButton
@@ -969,6 +1100,11 @@ const DeletedEventView = () => {
             >
               {eventData.event_name || "EVENT NAME"}
             </h1>
+            {eventData.isSubEvent && (
+              <p className="text-center text-xs mt-1 text-purple-400">
+                Sub-event of: {eventData.parentEventName}
+              </p>
+            )}
           </Card>
         </div>
       </div>
@@ -2309,7 +2445,7 @@ const DeletedEventView = () => {
           isOpen={showPOCModal}
           person={selectedPOC}
           theme={theme}
-          onClose={handleClosePOCModal} // Use the specific close handler
+          onClose={handleClosePOCModal} 
         />
       )}
     </div>

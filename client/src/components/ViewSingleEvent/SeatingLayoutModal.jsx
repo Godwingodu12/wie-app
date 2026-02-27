@@ -1,11 +1,9 @@
-// components/ViewSingleEvent/SeatingLayoutModal.jsx
 import React, { useState, useEffect } from "react";
 import {
   ArrowLeft,
   Plus,
   Minus,
   Undo,
-  Pencil,
   MapPin,
   Clock,
   Users,
@@ -17,7 +15,6 @@ import {
 } from "lucide-react";
 import Card from "../../components/ViewSingleEvent/Card";
 import dayjs from "dayjs";
-import { getPostalDetailsFromCoords } from "../../services/ticketService";
 
 const SeatingLayoutModal = ({
   eventData,
@@ -35,39 +32,6 @@ const SeatingLayoutModal = ({
   const [zoom, setZoom] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
 
-  const [geocodedDetails, setGeocodedDetails] = useState(null);
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
-
-  useEffect(() => {
-    const fetchGeocode = async () => {
-      const coords = eventData.exact_map_location; // Only fetch if it's offline and has coordinates
-
-      if (
-        eventData.location_type === "offline" &&
-        typeof coords?.latitude === "number" &&
-        typeof coords?.longitude === "number"
-      ) {
-        setIsLoadingDetails(true);
-        try {
-          const details = await getPostalDetailsFromCoords(
-            coords.latitude,
-            coords.longitude
-          );
-          setGeocodedDetails(details);
-        } catch (error) {
-          console.error("Error fetching geocoded details in modal:", error);
-          setGeocodedDetails(null); // Clear on failure
-        } finally {
-          setIsLoadingDetails(false);
-        }
-      } else {
-        setGeocodedDetails(null);
-      }
-    };
-
-    fetchGeocode();
-  }, [eventData]);
-
   // --- ZOOM HANDLERS ---
   const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.2, 3.0));
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.2, 1.0)); // Don't zoom out beyond 100%
@@ -76,21 +40,16 @@ const SeatingLayoutModal = ({
     setPosition({ x: 0, y: 0 });
   };
 
-  const defaultLocation = {
-    address: eventData.location || "Venue Address",
-    pincode: eventData.pincode || (isLoadingDetails ? "Loading..." : "N/A"),
-    country: eventData.country || (isLoadingDetails ? "Loading..." : "N/A"),
-    locality:(isLoadingDetails ? "Loading..." : "N/A"),
+  // --- DATA DERIVATION ---
+  const venueData = eventData?.venue_details || {
+    name: "Seminar Hall",
+    address: eventData.venue || "The Government Engineering College...",
+    pincode: eventData.pincode || "670644",
+    country: eventData.country || "India",
   };
 
-  const venueData = {
-    name: eventData.venue || "Seminar Hall", 
-    address: geocodedDetails?.formattedAddress || defaultLocation.address,
-    pincode: geocodedDetails?.postalCode || defaultLocation.pincode,
-    country: geocodedDetails?.country || defaultLocation.country,
-    locality:geocodedDetails?.locality||defaultLocation.locality,
-  };
-
+  const eventName = eventData.event_name || "Event Seating Layout";
+  const location = eventData.location || "Wayanad";
   const subLocation = eventData.venue || "Venue Address";
 
   const eventDates = eventData.event_dates?.[0];
@@ -117,7 +76,6 @@ const SeatingLayoutModal = ({
   const seatingLayoutPath = eventData.ticket_layout
     ? formatImagePath(eventData.ticket_layout)
     : "https://via.placeholder.com/800x600/3A2D5C/FFFFFF?text=No+Layout+Image";
-
   const bgColor = "#5E5CE6";
   const gradientBg =
     "linear-gradient(180.23deg, #1E1242 -0.04%, #6549B8 99.57%)";
@@ -126,48 +84,95 @@ const SeatingLayoutModal = ({
   const cardBg = theme.cardBg;
   const themeOutsetShadow = theme.shadowOutset;
   const themeInsetShadow = theme.shadowInset;
+// Helper to render the complex seating chart visualization
+const renderSeatingChart = () => {
+  // Check if seating_layout data exists
+  if (!eventData.seating_layout?.seats || eventData.seating_layout.seats.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <span className={`text-lg ${textColor}`}>No seating layout available</span>
+      </div>
+    );
+  }
 
-  // Helper to render individual seats (Illustrative, using INSET shadow)
+  const { rows, columns, seats, ticketTypeAssignments } = eventData.seating_layout;
 
-  // Helper to render the complex seating chart visualization (Image Container)
-  const renderSeatingChart = () => (
-    <div className="w-full h-full flex items-center justify-center relative overflow-hidden">
-      <img
-        src={seatingLayoutPath} // 👈 Dynamic image source
-        alt="Seating Layout"
-        className="max-w-full max-h-full object-contain"
-        style={{
-          // Apply zoom and pan transformation
-          transform: `scale(${zoom}) translate(${position.x}px, ${position.y}px)`,
-          transformOrigin: "center center",
-          transition: "transform 0.1s ease-out",
-          userSelect: "none",
-        }}
-        // Placeholder pan functionality (can be enhanced with onMouseDown/onMouseMove)
-        onMouseDown={(e) => {
-          if (zoom > 1) {
-            e.preventDefault();
-            let startX = e.clientX - position.x;
-            let startY = e.clientY - position.y;
+  // Group seats by row
+  const seatsByRow = seats.reduce((acc, seat) => {
+    if (!acc[seat.row]) acc[seat.row] = [];
+    acc[seat.row].push(seat);
+    return acc;
+  }, {});
 
-            const onMouseMove = (moveEvent) => {
-              setPosition({
-                x: moveEvent.clientX - startX,
-                y: moveEvent.clientY - startY,
-              });
-            };
-            const onMouseUp = () => {
-              document.removeEventListener("mousemove", onMouseMove);
-              document.removeEventListener("mouseup", onMouseUp);
-            };
-            document.addEventListener("mousemove", onMouseMove);
-            document.addEventListener("mouseup", onMouseUp);
-          }
-        }}
-      />
+  return (
+    <div 
+      className="w-full h-full flex flex-col items-center justify-center gap-2 p-4"
+      style={{
+        transform: `scale(${zoom}) translate(${position.x}px, ${position.y}px)`,
+        transformOrigin: "center center",
+        transition: "transform 0.1s ease-out",
+        userSelect: "none",
+      }}
+      onMouseDown={(e) => {
+        if (zoom > 1) {
+          e.preventDefault();
+          let startX = e.clientX - position.x;
+          let startY = e.clientY - position.y;
+
+          const onMouseMove = (moveEvent) => {
+            setPosition({
+              x: moveEvent.clientX - startX,
+              y: moveEvent.clientY - startY,
+            });
+          };
+          const onMouseUp = () => {
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup", onMouseUp);
+          };
+          document.addEventListener("mousemove", onMouseMove);
+          document.addEventListener("mouseup", onMouseUp);
+        }
+      }}
+    >
+      {/* Stage indicator */}
+      <div 
+        className="w-full max-w-md py-2 rounded-t-lg text-center font-semibold"
+        style={{ backgroundColor: bgColor }}
+      >
+        <span className="text-white">STAGE</span>
+      </div>
+
+      {/* Render seats by rows */}
+      {rows.map((row) => (
+        <div key={row} className="flex items-center gap-1">
+          {/* Row label */}
+          <span className={`text-xs font-semibold ${textColor} w-6 text-center`}>
+            {row}
+          </span>
+          
+          {/* Seats in this row */}
+          {seatsByRow[row]?.sort((a, b) => a.column - b.column).map((seat) => (
+            <div
+              key={seat.seatId}
+              className="w-6 h-6 rounded flex items-center justify-center text-xs font-medium cursor-pointer transition-transform hover:scale-110"
+              style={{
+                backgroundColor: seat.isAvailable 
+                  ? (seat.ticketTypeColor || '#6B7280')
+                  : '#374151',
+                color: 'white',
+                opacity: seat.isAvailable ? 1 : 0.5,
+                boxShadow: seat.isSelected ? '0 0 0 2px white' : 'none',
+              }}
+              title={`${seat.seatId} - ${seat.ticketTypeName || 'General'} - ${seat.isAvailable ? 'Available' : 'Booked'}`}
+            >
+              {seat.column}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
-
+};
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-70 z-[100] flex items-center justify-center p-4 transition-opacity duration-300 backdrop-blur-sm"
@@ -283,7 +288,7 @@ const SeatingLayoutModal = ({
               <span
                 className={`text-sm font-medium ${textColor} leading-tight`}
               >
-                {venueData.locality}
+                {location}
               </span>
               <span className={`text-xs text-gray-400 leading-none`}>
                 {subLocation}
@@ -348,7 +353,6 @@ const SeatingLayoutModal = ({
                 {renderSeatingChart()}
               </div>
             </div>
-
             {/* RIGHT COLUMN (1/3 width): Details Stack */}
             <div className="lg:col-span-1 flex flex-col gap-6">
               {/* Four Action Buttons Group (Gradient Buttons) */}
@@ -386,15 +390,6 @@ const SeatingLayoutModal = ({
                   }}
                 >
                   <RotateCcw size={20} className="text-white" />
-                </button>
-                <button
-                  className="w-10 h-10 rounded-full flex items-center justify-center transition-transform duration-200 hover:scale-[1.05]"
-                  style={{
-                    background: gradientBg,
-                    boxShadow: themeOutsetShadow,
-                  }}
-                >
-                  <Pencil size={20} className="text-white" />
                 </button>
               </Card>
 
@@ -446,7 +441,7 @@ const SeatingLayoutModal = ({
                 <h4 className={`text-lg font-semibold mb-4 ${textColor}`}>
                   Venue
                 </h4>
-                <div className="max-h-[110px] overflow-y-auto p-1">
+                <div className="max-h-[110px] overflow-y-auto">
                   <div className="grid grid-cols-2 gap-y-2 text-sm">
                     <span className={`text-gray-400`}>Address</span>
                     <span className={`${textColor} text-right`}>

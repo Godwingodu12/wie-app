@@ -180,7 +180,7 @@ const subEventSchema = new mongoose.Schema({
   // Status
   event_status: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled', 'live','completed','deleted'],
+    enum: ['pending', 'confirmed', 'cancelled', 'live','completed','deleted','remove'],
     default: 'pending'
   },
   cancellation_reason: { type: String, default: '' },
@@ -327,7 +327,7 @@ const ticketSchema = new mongoose.Schema({
   // Status and Updates
   event_status: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled','live','completed','deleted'],
+    enum: ['pending', 'confirmed', 'cancelled','live','completed','deleted','remove'],
     default: 'pending'
   },
   cancellation_reason: { type: String, default: '' },

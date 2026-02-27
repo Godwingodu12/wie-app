@@ -228,6 +228,7 @@ const SeatingLayoutPreview = ({
         } z-20 flex gap-2`}
       >
         <button
+          type="button"
           onClick={() => setScale((prev) => Math.min(prev + 0.2, 2))}
           className={`bg-white dark:bg-transparent p-2 rounded shadow hover:bg-gray-100 dark:hover:bg-gray-600 ${
             isExpanded ? "text-white bg-transparent " : ""
@@ -237,6 +238,7 @@ const SeatingLayoutPreview = ({
           <img src={ZoomIn} alt="" className={darkMode ? "" : "invert"} />
         </button>
         <button
+          type="button"
           onClick={() => setScale((prev) => Math.max(prev - 0.2, 0.5))}
           className={`bg-white dark:bg-transparent p-2 rounded shadow hover:bg-gray-100 dark:hover:bg-gray-600 ${
             isExpanded ? "text-white bg-transparent " : ""
@@ -246,6 +248,7 @@ const SeatingLayoutPreview = ({
           <img src={ZoomOut} alt="" className={darkMode ? "" : "invert"} />
         </button>
         <button
+          type="button"
           onClick={() => {
             setScale(1);
             setPosition({ x: 0, y: 0 });
@@ -271,6 +274,7 @@ const SeatingLayoutPreview = ({
         )}
         {isExpandable && !isExpanded && (
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               setIsExpanded(true);
@@ -370,6 +374,7 @@ const SeatingLayoutPreview = ({
 
                       return (
                         <button
+                          type="button"
                           key={seat.seatId}
                           onClick={() => handleSeatClick(seat)}
                           onMouseEnter={() => setHoveredSeat(seat)}
@@ -489,6 +494,7 @@ const SeatingLayoutPreview = ({
         <div className="w-full h-full relative">
           {/* Close button for fullscreen */}
           <button
+            type="button"
             onClick={() => setIsExpanded(false)}
             className="absolute top-4 right-4 z-[10000] bg-red-600 hover:bg-red-700 text-white p-3 rounded-lg shadow-2xl transition-colors flex items-center gap-2"
             title="Exit Fullscreen (ESC)"
