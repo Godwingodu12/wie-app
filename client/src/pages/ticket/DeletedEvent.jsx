@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { getUserData } from "../../services/ticketService";
-import { getAllDeletedEvents,getGroupView,deleteEventPermenently,recoverDeletedEvent,deleteAllEvents,getDeletedEventById } from "../../services/ticketService.js";
+import { getAllDeletedEvents, getGroupView, deleteEventPermenently, recoverDeletedEvent, deleteAllEvents, getDeletedEventById, recoverSubEvent } from "../../services/ticketService.js";
 import SideBar from "../../components/HomePage/SideBar.jsx";
 import SearchBar from "../../components/HomePage/SearchBar.jsx";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
@@ -75,15 +75,27 @@ const DeletedEvent = () => {
     fetchUser();
   }, []);
 
-// Fetch group name for a specific event using ticketId
-const fetchGroupName = async (ticketId) => {
+const fetchGroupName = async (event) => {
+  // For sub-events use parentEventId; for root tickets use _id
+  const idToUse = event?.isSubEvent && event?.parentEventId
+    ? event.parentEventId
+    : event?._id;
+
+  if (!idToUse || typeof idToUse !== "string" || !idToUse.match(/^[0-9a-fA-F]{24}$/)) {
+    return "N/A";
+  }
   try {
-    const response = await getGroupView(ticketId);
-    return response?.group?.name || "N/A";
-  } catch (error) {
+    const response = await getGroupView(idToUse);
+    return (
+      response?.group?.name  ||
+      response?.data?.group?.name ||
+      "N/A"
+    );
+  } catch {
     return "N/A";
   }
 };
+
 const fetchDeletedEvents = async () => {
   setLoading(true);
   try {
@@ -95,12 +107,10 @@ const fetchDeletedEvents = async () => {
     if (Array.isArray(eventsArray) && eventsArray.length > 0) {
       setDeletedEvents(eventsArray);
       
-      // Fetch group names for all events using ticketId
       const groupPromises = eventsArray.map(async (event) => {
-        const groupName = await fetchGroupName(event._id);
+        const groupName = await fetchGroupName(event);
         return { eventId: event._id, groupName };
       });
-      
       const groupResults = await Promise.all(groupPromises);
       
       // Convert array to object for easy lookup
@@ -114,13 +124,7 @@ const fetchDeletedEvents = async () => {
     }
   } catch (error) {
     console.error("Error fetching deleted events:", error);
-    
-    if (error?.response?.status === 404) {
-      console.log("No deleted events found (404)");
-      setDeletedEvents([]);
-    } else {
-      setDeletedEvents([]);
-    }
+    setDeletedEvents([]);
   } finally {
     setLoading(false);
   }
@@ -164,7 +168,12 @@ const confirmDeleteAll = async () => {
     setIsDeletingAll(false);
   }
 };
+
 const handlePermanentDelete = async (event) => {
+  if (!event?._id) {
+    showAlert({ type: "error", message: "Cannot delete: Event ID is missing." });
+    return;
+  }
   setSelectedEventToDelete(event);
   setIsDeleteModalOpen(true);
 };
@@ -173,8 +182,13 @@ const confirmPermanentDelete = async () => {
   if (!selectedEventToDelete) return;
   setIsDeleting(true);
   try {
-    const response = await deleteEventPermenently(selectedEventToDelete._id);
-    
+    const response = await deleteEventPermenently(
+      selectedEventToDelete._id,
+      {
+        isSubEvent:    selectedEventToDelete.isSubEvent    || false,
+        parentEventId: selectedEventToDelete.parentEventId || null,
+      }
+    );
     if (response) {
       showAlert({
         type: "success",
@@ -194,7 +208,12 @@ const confirmPermanentDelete = async () => {
     setIsDeleting(false);
   }
 };
+
 const handleRecover = async (event) => {
+  if (!event?._id) {
+    showAlert({ type: "error", message: "Cannot recover: Event ID is missing." });
+    return;
+  }
   setSelectedEventToRecover(event);
   setIsRecoverModalOpen(true);
 };
@@ -202,33 +221,71 @@ const handleRecover = async (event) => {
 const confirmRecover = async () => {
   if (!selectedEventToRecover) return;
   setisRecovering(true);
+
+  // Capture ALL needed values immediately — state will be cleared before setTimeout fires
+  const eventToRecover    = { ...selectedEventToRecover };
+  const isSubEvent        = !!(eventToRecover.isSubEvent && eventToRecover.parentEventId);
+  const parentEventId     = eventToRecover.parentEventId;
+  const subEventId        = eventToRecover._id;
+  const rootEventId       = eventToRecover._id;
+  const eventName         = eventToRecover.event_name;
+
   try {
-    const response = await recoverDeletedEvent(selectedEventToRecover._id);
-    
-    if (response) {
-      showAlert({
-        type: "success",
-        message: `"${selectedEventToRecover.event_name}" recovered successfully!`,
-      });
-      setIsRecoverModalOpen(false);
-      setSelectedEventToRecover(null);
-      await fetchDeletedEvents();
-      setTimeout(() => {
-        navigate("/ticket/view-events");
-      }, 1500);
+    if (isSubEvent) {
+      const response = await recoverSubEvent(parentEventId, subEventId);
+
+      if (response?.success) {
+        showAlert({
+          type: "success",
+          message: `"${eventName}" recovered successfully!`,
+        });
+        setIsRecoverModalOpen(false);
+        setSelectedEventToRecover(null);
+        await fetchDeletedEvents();
+        // Navigate to the sub-event ConfirmAddOnEvent page
+        setTimeout(() => {
+          navigate(`/ticket/confirm-add-on-event/${parentEventId}/${subEventId}`);
+        }, 1500);
+      }
+    } else {
+      // Root ticket
+      const response = await recoverDeletedEvent(rootEventId);
+      if (response) {
+        showAlert({
+          type: "success",
+          message: `"${eventName}" recovered successfully!`,
+        });
+        setIsRecoverModalOpen(false);
+        setSelectedEventToRecover(null);
+        await fetchDeletedEvents();
+        // Navigate to main event confirm page
+        setTimeout(() => {
+          navigate(`/ticket/view-confirm-event/${rootEventId}`);
+        }, 1500);
+      }
     }
   } catch (error) {
     console.error("Error recovering event:", error);
-    showAlert({
-      type: "error",
-      message: "Failed to recover event",
-    });
+    const msg = error?.response?.data?.message || error?.message || "Failed to recover event";
+    showAlert({ type: "error", message: msg });
   } finally {
     setisRecovering(false);
   }
 };
-const handleView = (eventId) => {
-  navigate(`/ticket/deleted-event-view/${eventId}`);
+
+const handleView = (event) => {
+  // Guard: event must be an object, not a raw ID string
+  if (!event || typeof event !== "object" || !event._id) {
+    showAlert({ type: "error", message: "Cannot view: Event ID is missing." });
+    return;
+  }
+  if (event.isSubEvent && event.parentEventId) {
+    navigate(
+      `/ticket/deleted-event-view/${event.parentEventId}?subEventId=${event._id}`
+    );
+  } else {
+    navigate(`/ticket/deleted-event-view/${event._id}`);
+  }
 };
   const formatDate = (event) => {
     // Try multiple possible date field locations
@@ -460,7 +517,7 @@ const handleView = (eventId) => {
                                 isDark ? "hover:bg-gray-800/30" : "hover:bg-gray-100/50"
                               } transition-colors min-h-[78px]`}
                             >
-                              <td className={`py-6 px-4 ${theme.text} text-sm`}>
+                            <td className={`py-6 px-4 ${theme.text} text-sm`}>
                                 <div className="flex items-center gap-3">
                                   <div
                                     className={`w-8 h-8 rounded-full flex-shrink-0 ${
@@ -469,11 +526,23 @@ const handleView = (eventId) => {
                                   >
                                     <Trash2 className={`w-4 h-4 ${isDark ? "text-red-300" : "text-red-600"}`} />
                                   </div>
-                                  <span className="truncate">{event.event_name || "N/A"}</span>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="truncate">{event.event_name || "N/A"}</span>
+                                    {event.isSubEvent && (
+                                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full w-fit mt-0.5
+                                        ${isDark ? "bg-purple-900/40 text-purple-300" : "bg-purple-100 text-purple-700"}`}>
+                                        Sub-event of: {event.parentEventName}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                               <td className={`py-6 px-4 ${theme.text} text-sm`}>
-                                <div className="truncate">{groups[event._id] || "Loading..."}</div>
+                                <div className="truncate">
+                                  {event.isSubEvent
+                                    ? event.parentEventName
+                                    : (groups[event._id] || "Loading...")}
+                                </div>
                               </td>
                               <td className={`py-6 px-4 ${theme.text} text-sm`}>
                                 <div className="truncate">{event.event_category || event.event_type || "N/A"}</div>
@@ -483,8 +552,8 @@ const handleView = (eventId) => {
                               </td>
                               <td className="py-6 px-4">
                                 <div className="flex items-center justify-center gap-2">
-                                  <button
-                                    onClick={() => handleView(event._id)}
+                                   <button
+                                    onClick={() => handleView(event)}
                                     className="px-4 py-2 rounded-full text-xs font-semibold text-white shadow-md hover:shadow-lg transition-all duration-300 flex items-center gap-1"
                                     style={{
                                       background: " linear-gradient(180deg, #1E1242 0%, #6942B8 100%)",
@@ -563,8 +632,8 @@ const handleView = (eventId) => {
                           </div>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
-                          <button
-                            onClick={() => handleView(event._id)}
+                           <button
+                            onClick={() => handleView(event)}
                             className="px-3 py-2 rounded-lg text-xs font-semibold text-white shadow-md transition-all duration-300 flex flex-col items-center justify-center gap-1"
                             style={{
                               background: "linear-gradient(180deg, #1E40AF 0%, #3B82F6 100%)",
@@ -668,8 +737,12 @@ const handleView = (eventId) => {
               </div>
               <h3 className={`text-xl font-bold ${theme.text}`}>Recover Event</h3>
             </div>
-            <p className={`${theme.subText} mb-6`}>
-              Are you sure you want to recover <span className="font-semibold">{selectedEventToRecover?.event_name}</span>? This event will be restored to active events.
+           <p className={`${theme.subText} mb-6`}>
+              Are you sure you want to recover{" "}
+              <span className="font-semibold">{selectedEventToRecover?.event_name}</span>?{" "}
+              {selectedEventToRecover?.isSubEvent
+                ? "This sub-event will be restored under its parent event and redirected to the confirm page."
+                : "This event will be restored and redirected to the confirm page."}
             </p>
             <div className="flex gap-3">
               <button
