@@ -7,6 +7,8 @@ import notificationRoutes from './routes/notification.routes.js';
 import { startGrpcServer } from './grpc/server.js';
 import internalRoutes from './routes/internal.routes.js';
 import { startEventStatusScheduler, checkExpiredConfirmedEvents } from './jobs/eventStatusScheduler.js';
+import { startAutoDeleteCron } from "./services/ticket.service.js";
+
 dotenv.config();
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -20,7 +22,6 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-
 app.use('/api/ticket', ticketRoutes);
 app.use('/api/notification', notificationRoutes);
 app.use('/api/internal', internalRoutes);
@@ -35,7 +36,7 @@ const startServer = async () => {
 
     startEventStatusScheduler();
     checkExpiredConfirmedEvents();
-
+    startAutoDeleteCron();
     app.listen(PORT, () => {
       //
     });
