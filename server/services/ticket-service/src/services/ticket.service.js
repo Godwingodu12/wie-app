@@ -5,8 +5,6 @@ import fs from "fs";
 import cron from "node-cron";
 import { uploadTicketMedia, uploadFields } from "../middlewares/upload.js";
 import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
-import { publishEventCancellation } from "../utils/eventPublisher.js";
-import { getBookingsForEvent } from '../grpc/bookingClient.js';
 import { 
   generateSeatingLayoutFromFile, 
   normalizeSeatData,
@@ -6527,7 +6525,7 @@ export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, no
     (se) => se._id.toString() !== newMainSubEventId
   );
 
-  // ── Create new main Ticket from promoted sub-event ────────────────────────
+  //  Create new main Ticket from promoted sub-event 
   const newMainTicket = new Ticket({
     event_name:           promotedSubEventObj.event_name,
     event_category:       promotedSubEventObj.event_category,
@@ -6572,15 +6570,15 @@ export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, no
     created_by:           ticket.created_by,
     isMain:               true,
     parentEventId:        null,
-    // ── Inherit the original main's live/confirmed status ─────────────────
+    //  Inherit the original main's live/confirmed status 
     event_status:         ticket.event_status === "live" ? "live" : "confirmed",
-    // ── Remaining sub-events with updated main_ticket_id ──────────────────
+    //  Remaining sub-events with updated main_ticket_id 
     // We set main_ticket_id AFTER save since we need newMainTicket._id
     sub_events:           remainingSubEventDocs.map((se) => ({
       ...(se.toObject ? se.toObject() : { ...se }),
       main_ticket_id: null, // temporary — updated below after save
     })),
-    // ── Promotion metadata ─────────────────────────────────────────────────
+    // ── Promotion metadata 
     promoted_from_sub_event: true,
     promoted_at:          now,
     original_main_event_id: ticket._id,
@@ -6588,7 +6586,7 @@ export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, no
 
   await newMainTicket.save();
 
-  // ── Now update main_ticket_id on all remaining sub-events ────────────────
+  //  Now update main_ticket_id on all remaining sub-events 
   // The new main's _id is now known after save
   if (newMainTicket.sub_events?.length > 0) {
     newMainTicket.sub_events = newMainTicket.sub_events.map((se) => ({
@@ -6598,8 +6596,6 @@ export const promoteFirstSubEventToMain = async (ticketId, cancelledByUserId, no
     newMainTicket.markModified("sub_events");
     await newMainTicket.save();
   }
-
-  // ── Clear sub_events from old main & store reference ─────────────────────
   ticket.sub_events             = [];
   ticket.promoted_to_ticket_id  = newMainTicket._id;
   ticket.markModified("sub_events");
