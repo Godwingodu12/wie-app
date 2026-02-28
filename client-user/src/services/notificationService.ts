@@ -51,6 +51,7 @@ export type NotificationType =
   | 'event_recovered'
   | 'event_invite'
   | 'event_cancelled'
+  | 'event_rehosted'
   | 'event_completed'
   | 'event_updated'
   | 'ticket_purchased'
@@ -191,5 +192,5 @@ export const markNotificationAsRead = async (notificationId: string) => {
 export const markAllNotificationsAsRead = async () => {
     const response = await notificationApi.patch('/mark-all-read');
     return response.data;
-  };
+};
 export default notificationApi;
