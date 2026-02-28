@@ -5,9 +5,10 @@ import TicketLike from '../models/ticketLike.model.js';
 import { createNotification } from '../utils/notificationHelper.js';
 import { logger } from '../utils/logger.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
-import { promoteFirstSubEventToMain,getCancellationDescription } from '../services/ticket.service.js';
+import { promoteFirstSubEventToMain, getCancellationDescription, snapshotAndLockTicket, rehostMainEventV2 } from '../services/ticket.service.js';
+import TicketAudit from '../models/ticketAudit.model.js';
 import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
-import { publishEventCancellation } from "../utils/eventPublisher.js";
+import { publishEventCancellation, publishToExchange } from "../utils/eventPublisher.js";
 import { getBookingStatsByDate, getBookingGrowthStats, getMonthlyBookingChart,getBookingsForEvent } from '../grpc/bookingClient.js';
 import ExcelJS from 'exceljs';
 import { getWieUsersByIds }    from '../grpc/wieUserClient.js';
@@ -2217,23 +2218,42 @@ export const getPostalDetailsFromCoords = async (req, res) => {
 export const getAddOnEventLiveView = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    const subEventId = req.params.subEventId;
-    if (!subEventId || !subEventId.match(/^[0-9a-fA-F]{24}$/)) {
-      logger.warn('Invalid sub-event ID format', { subEventId, userId });
-      return res.status(400).json({
-        success: false,
-        message: "Invalid sub-event ID format"
-      });
-    }
-    const ticket = await Ticket.findOne({ 
-      'sub_events._id': subEventId, 
-      userId: userId, 
+    const { subEventId } = req.params;
+
+    // Search by sub-event _id WITHOUT userId restriction so any authenticated
+    // user can view it (host navigating after rehost gets new _id)
+    let ticket = await Ticket.findOne({
+      "sub_events._id": new mongoose.Types.ObjectId(subEventId),
     });
+
+    // Fallback: if not found by current _id, check if this was a rehosted sub-event
+    // (old _id stored in rehosted_from field of the new sub-event)
+    if (!ticket) {
+      ticket = await Ticket.findOne({
+        "sub_events.rehosted_from": new mongoose.Types.ObjectId(subEventId),
+      });
+
+      if (ticket) {
+        // Find the new sub-event that was rehosted from this old id
+        const newSubEvent = ticket.sub_events.find(
+          (se) => se.rehosted_from?.toString() === subEventId
+        );
+        if (newSubEvent) {
+          // Redirect client to correct new sub-event URL
+          return res.status(301).json({
+            success: false,
+            redirectTo: newSubEvent._id.toString(),
+            message: 'Sub-event has been rehosted. Use new ID.',
+          });
+        }
+      }
+    }
+
     if (!ticket) {
       logger.warn('Ticket with sub-event not found', { subEventId, userId });
       return res.status(404).json({
         success: false,
-        message: "Sub-event not found or parent ticket is not live"
+        message: 'Sub-event not found or parent ticket is not live',
       });
     }
     const subEvent = ticket.sub_events.find(
@@ -3414,7 +3434,7 @@ export const cancelEvent = async (req, res) => {
       targetEvent = ticket;
     }
 
-    // Guard: already cancelled/completed/deleted
+    // Guard: already cancelled / completed / deleted 
     const nonCancellableStatuses = ["cancelled", "completed", "deleted"];
     if (nonCancellableStatuses.includes(targetEvent.event_status)) {
       return res.status(400).json({
@@ -3422,7 +3442,7 @@ export const cancelEvent = async (req, res) => {
       });
     }
 
-    // Refund tier calculation 
+    // ── Refund tier calculation 
     const eventStartDate = targetEvent.event_dates?.[0]?.start_date;
     let refundPercentage = 100;
     let cancellationTier = "full_refund";
@@ -3436,35 +3456,88 @@ export const cancelEvent = async (req, res) => {
       }
       const hoursUntilEvent = (eventStart - now) / (1000 * 60 * 60);
 
-      if (hoursUntilEvent <= 0) {
-        refundPercentage = 0;
-        cancellationTier = "no_refund";
-      } else if (hoursUntilEvent <= 24) {
-        refundPercentage = 80;
-        cancellationTier = "event_day";
-      } else if (hoursUntilEvent <= 48) {
-        refundPercentage = 90;
-        cancellationTier = "last_day";
-      } else {
-        refundPercentage = 100;
-        cancellationTier = "full_refund";
-      }
+      if      (hoursUntilEvent <= 0)  { refundPercentage = 0;   cancellationTier = "no_refund";   }
+      else if (hoursUntilEvent <= 24) { refundPercentage = 80;  cancellationTier = "event_day";   }
+      else if (hoursUntilEvent <= 48) { refundPercentage = 90;  cancellationTier = "last_day";    }
+      else                            { refundPercentage = 100; cancellationTier = "full_refund"; }
     }
 
-    //  Apply cancellation 
+    // ── promotionResult declared here so the response block can always read it ─
+    let promotionResult = { promoted: false, newMain: null };
+
+    // BRANCH A — SUB-EVENT CANCELLATION
     if (isSubEvent) {
+
+      // Step 1: Snapshot metrics BEFORE status change (values are still valid now)
+      const se         = ticket.sub_events[subEventIndex];
+      const seMetrics  = se.lifecycle_metrics ?? {};
+      const seSnapshot = {
+        like:               seMetrics.like               ?? se.like               ?? 0,
+        share:              seMetrics.share              ?? se.share              ?? 0,
+        totalBookings:      seMetrics.totalBookings      ?? se.totalBookings      ?? 0,
+        totalTicketsSold:   seMetrics.totalTicketsSold   ?? se.totalTicketsSold   ?? 0,
+        revenue:            seMetrics.revenue            ?? se.revenue            ?? 0,
+        total_cancellation: seMetrics.total_cancellation ?? se.total_cancellation ?? 0,
+        total_refund_amount: 0, // calculated below if paid
+      };
+
+      // Calculate sub-event refund amount if paid
+      if (targetEvent.payment_type === "paid" || ticket.payment_type === "paid") {
+        try {
+          const subBookings = await getBookingsForEvent(subEventId);
+          seSnapshot.total_refund_amount = subBookings.reduce((sum, b) => {
+            const subtotal = parseFloat(b.subtotal || 0);
+            return sum + parseFloat(((subtotal * refundPercentage) / 100).toFixed(2));
+          }, 0);
+        } catch (_) {}
+      }
+
+      // Step 2: Push to inline audit_history (immutable record inside sub-event)
+      if (!ticket.sub_events[subEventIndex].audit_history) {
+        ticket.sub_events[subEventIndex].audit_history = [];
+      }
+      ticket.sub_events[subEventIndex].audit_history.push({
+        version:             se.version ?? 1,
+        cancelled_at:        now,
+        cancellation_reason: cancellation_reason || "",
+        metrics_snapshot:    seSnapshot,
+      });
+
+      // Step 3: Apply cancelled status
       ticket.sub_events[subEventIndex].event_status        = "cancelled";
       ticket.sub_events[subEventIndex].cancellation_reason = cancellation_reason || "";
       ticket.sub_events[subEventIndex].cancelled_at        = now;
       ticket.sub_events[subEventIndex].cancelled_by        = userId;
-      ticket.markModified(`sub_events.${subEventIndex}.event_status`);
-      ticket.markModified(`sub_events.${subEventIndex}.cancellation_reason`);
-      ticket.markModified(`sub_events.${subEventIndex}.cancelled_at`);
-      ticket.markModified(`sub_events.${subEventIndex}.cancelled_by`);
+
+      // Single markModified call covers the entire sub-event object
+      ticket.markModified(`sub_events.${subEventIndex}`);
       await ticket.save();
 
+    // BRANCH B — MAIN EVENT CANCELLATION
     } else {
-      let promotionResult = { promoted: false, newMain: null };
+
+      // Step 1: Fetch bookings NOW (single fetch — used for both audit + refund map)
+      let bookingsForEvent = [];
+      try {
+        bookingsForEvent = await getBookingsForEvent(ticketId);
+      } catch (fetchErr) {
+        console.warn("⚠️ Could not fetch bookings for main event:", fetchErr.message);
+      }
+
+      // Step 2: Build refund map from the single fetch
+      const bookingRefundMapTemp = {};
+      let   totalRefundAmount    = 0;
+
+      if (targetEvent.payment_type === "paid" || ticket.payment_type === "paid") {
+        bookingsForEvent.forEach((b) => {
+          const subtotal  = parseFloat(b.subtotal || 0);
+          const refundAmt = parseFloat(((subtotal * refundPercentage) / 100).toFixed(2));
+          bookingRefundMapTemp[b.userId] = refundAmt;
+          totalRefundAmount += refundAmt;
+        });
+      }
+
+      // Step 3: Promote first sub-event to main (if sub-events exist)
       try {
         promotionResult = await promoteFirstSubEventToMain(
           ticketId,
@@ -3475,6 +3548,7 @@ export const cancelEvent = async (req, res) => {
         console.error("⚠️ Sub-event promotion failed (non-blocking):", promoErr.message);
       }
 
+      // Step 4: Re-fetch ticket after promotion (sub_events may have changed)
       const ticketToCancel = await Ticket.findById(ticketId);
       if (ticketToCancel) {
         ticketToCancel.event_status        = "cancelled";
@@ -3482,38 +3556,52 @@ export const cancelEvent = async (req, res) => {
         ticketToCancel.cancelled_at        = now;
         ticketToCancel.cancelled_by        = userId;
         ticketToCancel.isMain              = false;
-        // sub_events is already [] after promotion — no need to cancel them
         await ticketToCancel.save();
-      }
-    }   
 
-    //  Fetch bookings for notification/refund 
-    let bookedUserIds    = [];
-    let bookingRefundMap = {};
-    try {
-      const bookings = await getBookingsForEvent(
-        isSubEvent ? subEventId : ticketId
-      );
-      bookedUserIds = bookings.map((b) => b.userId);
-
-      if (targetEvent.payment_type === "paid" || ticket.payment_type === "paid") {
-        bookings.forEach((b) => {
-          const subtotal  = parseFloat(b.subtotal || 0);
-          const refundAmt = parseFloat(
-            ((subtotal * refundPercentage) / 100).toFixed(2)
-          );
-          bookingRefundMap[b.userId] = refundAmt;
+        // Step 5: Snapshot & lock (uses already-saved cancelled ticket + pre-fetched refund total)
+        await snapshotAndLockTicket(ticketToCancel, {
+          cancelled_by:        userId,
+          cancellation_reason: cancellation_reason || "",
+          refund_percentage:   refundPercentage,
+          cancellation_tier:   cancellationTier,
+          total_refund_amount: totalRefundAmount,
         });
       }
-    } catch (fetchErr) {
-      console.warn("⚠️ Could not fetch booked users:", fetchErr.message);
+
+      // Assign to outer scope for publish block below
+      var _mainBookings        = bookingsForEvent;
+      var _mainBookingRefundMap = bookingRefundMapTemp;
     }
 
-    //  Publish cancellation event 
+    // For sub-event: fetch now (not fetched above in sub-event path except for refund calc)
+    // For main event: reuse already-fetched data
+    let bookedUserIds    = [];
+    let bookingRefundMap = {};
+
+    if (isSubEvent) {
+      try {
+        const subBookings = await getBookingsForEvent(subEventId);
+        bookedUserIds = subBookings.map((b) => b.userId);
+        if (targetEvent.payment_type === "paid" || ticket.payment_type === "paid") {
+          subBookings.forEach((b) => {
+            const subtotal  = parseFloat(b.subtotal || 0);
+            const refundAmt = parseFloat(((subtotal * refundPercentage) / 100).toFixed(2));
+            bookingRefundMap[b.userId] = refundAmt;
+          });
+        }
+      } catch (fetchErr) {
+        console.warn("⚠️ Could not fetch sub-event bookings:", fetchErr.message);
+      }
+    } else {
+      // Reuse what we already fetched in Branch B — no second DB call
+      bookedUserIds    = (_mainBookings        ?? []).map((b) => b.userId);
+      bookingRefundMap = (_mainBookingRefundMap ?? {});
+    }
+
     try {
       await publishEventCancellation({
         eventId:             isSubEvent ? subEventId : ticketId,
-        parentEventId:       isSubEvent ? ticketId : null,
+        parentEventId:       isSubEvent ? ticketId   : null,
         isSubEvent,
         hostId:              userId.toString(),
         groupId:             ticket.groupId?.toString(),
@@ -3530,7 +3618,6 @@ export const cancelEvent = async (req, res) => {
       console.error("⚠️ Failed to publish EVENT_CANCELLED:", publishErr.message);
     }
 
-    // Notify the host 
     try {
       await createNotification({
         userId:    userId.toString(),
@@ -3567,6 +3654,7 @@ export const cancelEvent = async (req, res) => {
         }),
       },
     });
+
   } catch (error) {
     console.error("❌ Error cancelling event:", error);
     if (error.name === "CastError") {
@@ -3574,258 +3662,150 @@ export const cancelEvent = async (req, res) => {
     }
     return res.status(500).json({
       message: "Internal server error",
-      error: error.message,
+      error:   error.message,
     });
   }
 };
 
 export const rehostEvent = async (req, res) => {
   try {
-    const userId  = req.user._id || req.user.id;
+    const userId      = req.user._id || req.user.id;
     const { ticketId } = req.params;
-    const { rehost_as, reason } = req.body;
-    // rehost_as: "main" | "sub"
-
-    if (!["main", "sub"].includes(rehost_as)) {
-      return res.status(400).json({
-        success: false,
-        message: 'rehost_as must be "main" or "sub"',
-      });
-    }
 
     const cancelledTicket = await Ticket.findOne({ _id: ticketId, userId });
     if (!cancelledTicket) {
-      return res.status(404).json({
-        success: false,
-        message: "Ticket not found or access denied",
-      });
+      return res.status(404).json({ success: false, message: 'Ticket not found or access denied' });
+    }
+    if (cancelledTicket.event_status !== 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Only cancelled events can be re-hosted' });
     }
 
-    if (cancelledTicket.event_status !== "cancelled") {
-      return res.status(400).json({
-        success: false,
-        message: "Only cancelled events can be re-hosted",
-      });
-    }
+    // ── Create a brand-new V2 ticket with fresh zero metrics 
+    const newTicket = await rehostMainEventV2(cancelledTicket, userId);
 
-    const now = new Date();
+    //    demote it back as a sub-event under the new V2 ticket 
+    const currentPromotedMain = await Ticket.findOne({
+      original_main_event_id: cancelledTicket._id,
+      userId,
+      event_status: { $nin: ['cancelled', 'deleted'] },
+    });
 
-    // ── CASE 1: Re-host as MAIN EVENT 
-    if (rehost_as === "main") {
-      // Find the currently promoted main ticket
-      const currentPromotedMain = await Ticket.findOne({
-        original_main_event_id: cancelledTicket._id,
-        userId,
-        event_status: { $nin: ["cancelled", "deleted"] },
-      });
-
-      // ── Collect ALL sub-events that should live under the restored main ──
-      // Source 1: sub-events currently under the promoted main ticket
-      // Source 2: the promoted main ticket itself (demoted back to sub-event)
-      let allSubEventsForRestoredMain = [];
-
-      if (currentPromotedMain) {
-        // Sub-events currently under the promoted main
-        const promotedMainSubEvents = (currentPromotedMain.sub_events || []).map(
-          (se) => ({
-            ...(se.toObject ? se.toObject() : { ...se }),
-            main_ticket_id: cancelledTicket._id,
-          })
-        );
-
-        // The promoted main itself becomes a sub-event
-        const demotedSubEventObj = {
-          event_name:           currentPromotedMain.event_name,
-          event_category:       currentPromotedMain.event_category,
-          event_subcategory:    currentPromotedMain.event_subcategory,
-          event_type:           currentPromotedMain.event_type,
-          event_language:       currentPromotedMain.event_language       || [],
-          event_description:    currentPromotedMain.event_description,
-          event_banner:         currentPromotedMain.event_banner,
-          event_logo:           currentPromotedMain.event_logo,
-          event_images:         currentPromotedMain.event_images         || [],
-          event_portrait:       currentPromotedMain.event_portrait,
-          event_videos:         currentPromotedMain.event_videos         || [],
-          event_dates:          currentPromotedMain.event_dates,
-          event_date_type:      currentPromotedMain.event_date_type,
-          gate_open_time:       currentPromotedMain.gate_open_time,
-          location:             currentPromotedMain.location,
-          location_type:        currentPromotedMain.location_type,
-          venue:                currentPromotedMain.venue,
-          exact_map_location:   currentPromotedMain.exact_map_location,
-          seating_arrangement:  currentPromotedMain.seating_arrangement  || "none",
-          min_age_allowed:      currentPromotedMain.min_age_allowed      ?? 0,
-          max_age_allowed:      currentPromotedMain.max_age_allowed,
-          kids_friendly:        currentPromotedMain.kids_friendly        ?? false,
-          pet_friendly:         currentPromotedMain.pet_friendly         ?? false,
-          payment_type:         currentPromotedMain.payment_type,
-          ticket_types:         currentPromotedMain.ticket_types         || [],
-          banking_details:      currentPromotedMain.banking_details      || [],
-          guests:               currentPromotedMain.guests               || [],
-          POCS:                 currentPromotedMain.POCS                 || [],
-          hashtag:              currentPromotedMain.hashtag              || [],
-          prohibited_items:     currentPromotedMain.prohibited_items     || [],
-          total_capacity:       currentPromotedMain.total_capacity,
-          booking_start_date:   currentPromotedMain.booking_start_date,
-          booking_end_date:     currentPromotedMain.booking_end_date,
-          event_rules:          currentPromotedMain.event_rules,
-          event_status:         "confirmed",
-          main_ticket_id:       cancelledTicket._id,
-          subevent:             "1",
-        };
-
-        // Order: promoted main first (it was the "first" sub-event),
-        // then all its children
-        allSubEventsForRestoredMain = [demotedSubEventObj, ...promotedMainSubEvents];
-      }
-
-      // ── Restore the cancelled ticket as main with all sub-events ─────────
-      cancelledTicket.event_status          = "confirmed";
-      cancelledTicket.cancellation_reason   = "";
-      cancelledTicket.cancelled_at          = undefined;
-      cancelledTicket.cancelled_by          = undefined;
-      cancelledTicket.isMain                = true;
-      cancelledTicket.promoted_to_ticket_id = undefined;
-      cancelledTicket.sub_events            = allSubEventsForRestoredMain;
-      cancelledTicket.markModified("sub_events");
-      await cancelledTicket.save();
-      // ── Delete the promoted main ticket (now embedded as sub-event) ───────
-      if (currentPromotedMain) {
-        await Ticket.findByIdAndDelete(currentPromotedMain._id);
-      }
-      // ── Notify host
-      try {
-        await createNotification({
-          userId:    userId.toString(),
-          type:      "event_rehosted",
-          title:     "Event Re-hosted Successfully",
-          message:   `Your event "${cancelledTicket.event_name}" has been re-hosted as the main event with ${allSubEventsForRestoredMain.length} sub-event(s).`,
-          ticketId,
-          groupId:   cancelledTicket.groupId?.toString(),
-          eventName: cancelledTicket.event_name,
-        });
-      } catch (notifErr) {
-        console.error("⚠️ Rehost notification failed:", notifErr.message);
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: "Event re-hosted as main event successfully",
-        data: {
-          ticketId,
-          event_name:        cancelledTicket.event_name,
-          event_status:      "confirmed",
-          rehosted_as:       "main",
-          sub_events_count:  allSubEventsForRestoredMain.length,
+    if (currentPromotedMain) {
+      // Build sub-event object from promoted main (demote it)
+      const demotedSubEvent = {
+        event_name:          currentPromotedMain.event_name,
+        event_category:      currentPromotedMain.event_category,
+        event_subcategory:   currentPromotedMain.event_subcategory,
+        event_type:          currentPromotedMain.event_type,
+        event_language:      currentPromotedMain.event_language     || [],
+        event_description:   currentPromotedMain.event_description,
+        event_banner:        currentPromotedMain.event_banner,
+        event_logo:          currentPromotedMain.event_logo,
+        event_images:        currentPromotedMain.event_images       || [],
+        event_portrait:      currentPromotedMain.event_portrait,
+        event_videos:        currentPromotedMain.event_videos       || [],
+        event_dates:         currentPromotedMain.event_dates,
+        event_date_type:     currentPromotedMain.event_date_type,
+        gate_open_time:      currentPromotedMain.gate_open_time,
+        location:            currentPromotedMain.location,
+        location_type:       currentPromotedMain.location_type,
+        venue:               currentPromotedMain.venue,
+        exact_map_location:  currentPromotedMain.exact_map_location,
+        seating_arrangement: currentPromotedMain.seating_arrangement || 'none',
+        min_age_allowed:     currentPromotedMain.min_age_allowed     ?? 0,
+        max_age_allowed:     currentPromotedMain.max_age_allowed,
+        kids_friendly:       currentPromotedMain.kids_friendly       ?? false,
+        pet_friendly:        currentPromotedMain.pet_friendly        ?? false,
+        payment_type:        currentPromotedMain.payment_type,
+        ticket_types:        currentPromotedMain.ticket_types        || [],
+        banking_details:     currentPromotedMain.banking_details     || [],
+        guests:              currentPromotedMain.guests              || [],
+        POCS:                currentPromotedMain.POCS                || [],
+        hashtag:             currentPromotedMain.hashtag             || [],
+        prohibited_items:    currentPromotedMain.prohibited_items    || [],
+        total_capacity:      currentPromotedMain.total_capacity,
+        booking_start_date:  currentPromotedMain.booking_start_date,
+        booking_end_date:    currentPromotedMain.booking_end_date,
+        event_rules:         currentPromotedMain.event_rules,
+        event_status:        'confirmed',
+        main_ticket_id:      newTicket._id,
+        subevent:            '1',
+        // Reset metrics for this demoted sub-event under V2
+        like: 0, share: 0, totalBookings: 0,
+        totalTicketsSold: 0, revenue: 0, total_cancellation: 0,
+        lifecycle_metrics: {
+          like: 0, share: 0, totalBookings: 0,
+          totalTicketsSold: 0, revenue: 0,
+          total_cancellation: 0, total_refund_amount: 0,
         },
-      });
-    }
-    // ── CASE 2: Re-host as SUB EVENT
-    if (rehost_as === "sub") {
-      // Find the currently promoted main to attach this as a sub-event
-      const currentPromotedMain = await Ticket.findOne({
-        original_main_event_id: cancelledTicket._id,
-        userId,
-        event_status: { $nin: ["cancelled", "deleted"] },
-      });
-
-      if (!currentPromotedMain) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "No active main event found to attach this as a sub-event. Re-host as main event instead.",
-        });
-      }
-
-      // Build sub-event from cancelled ticket
-      const newSubEventObj = {
-        event_name:           cancelledTicket.event_name,
-        event_category:       cancelledTicket.event_category,
-        event_subcategory:    cancelledTicket.event_subcategory,
-        event_type:           cancelledTicket.event_type,
-        event_language:       cancelledTicket.event_language       || [],
-        event_description:    cancelledTicket.event_description,
-        event_banner:         cancelledTicket.event_banner,
-        event_logo:           cancelledTicket.event_logo,
-        event_images:         cancelledTicket.event_images         || [],
-        event_portrait:       cancelledTicket.event_portrait,
-        event_videos:         cancelledTicket.event_videos         || [],
-        event_dates:          cancelledTicket.event_dates,
-        event_date_type:      cancelledTicket.event_date_type,
-        gate_open_time:       cancelledTicket.gate_open_time,
-        location:             cancelledTicket.location,
-        location_type:        cancelledTicket.location_type,
-        venue:                cancelledTicket.venue,
-        exact_map_location:   cancelledTicket.exact_map_location,
-        seating_arrangement:  cancelledTicket.seating_arrangement  || "none",
-        min_age_allowed:      cancelledTicket.min_age_allowed      ?? 0,
-        max_age_allowed:      cancelledTicket.max_age_allowed,
-        kids_friendly:        cancelledTicket.kids_friendly        ?? false,
-        pet_friendly:         cancelledTicket.pet_friendly         ?? false,
-        payment_type:         cancelledTicket.payment_type,
-        ticket_types:         cancelledTicket.ticket_types         || [],
-        banking_details:      cancelledTicket.banking_details      || [],
-        guests:               cancelledTicket.guests               || [],
-        POCS:                 cancelledTicket.POCS                 || [],
-        hashtag:              cancelledTicket.hashtag              || [],
-        prohibited_items:     cancelledTicket.prohibited_items     || [],
-        total_capacity:       cancelledTicket.total_capacity,
-        booking_start_date:   cancelledTicket.booking_start_date,
-        booking_end_date:     cancelledTicket.booking_end_date,
-        event_rules:          cancelledTicket.event_rules,
-        event_status:         "confirmed",
-        main_ticket_id:       currentPromotedMain._id,
-        subevent:             "1",
+        audit_history: [],
+        version: 1,
       };
 
-      // Push into promoted main's sub_events
-      currentPromotedMain.sub_events.push(newSubEventObj);
-      currentPromotedMain.markModified("sub_events");
-      await currentPromotedMain.save();
-
-      // Mark old cancelled ticket as deleted (it now lives as sub-event)
-      cancelledTicket.event_status = "deleted";
-      await cancelledTicket.save();
-
-      try {
-        await createNotification({
-          userId:    userId.toString(),
-          type:      "event_rehosted",
-          title:     "Event Re-hosted as Sub-Event",
-          message:   `Your event "${cancelledTicket.event_name}" has been re-hosted as a sub-event under "${currentPromotedMain.event_name}".`,
-          ticketId,
-          groupId:   cancelledTicket.groupId?.toString(),
-          eventName: cancelledTicket.event_name,
-        });
-      } catch (notifErr) {
-        console.error("⚠️ Rehost notification failed:", notifErr.message);
-      }
-
-      return res.status(200).json({
-        success: true,
-        message:  "Event re-hosted as sub-event successfully",
-        data: {
-          ticketId,
-          newMainTicketId: currentPromotedMain._id.toString(),
-          event_name:      cancelledTicket.event_name,
-          event_status:    "confirmed",
-          rehosted_as:     "sub",
+      // Also bring its sub-events under V2
+      const promotedMainSubEvents = (currentPromotedMain.sub_events || []).map(se => ({
+        ...(se.toObject ? se.toObject() : { ...se }),
+        _id: new mongoose.Types.ObjectId(),
+        main_ticket_id: newTicket._id,
+        event_status: 'confirmed',
+        like: 0, share: 0, totalBookings: 0,
+        totalTicketsSold: 0, revenue: 0, total_cancellation: 0,
+        lifecycle_metrics: {
+          like: 0, share: 0, totalBookings: 0,
+          totalTicketsSold: 0, revenue: 0,
+          total_cancellation: 0, total_refund_amount: 0,
         },
-      });
+        audit_history: [],
+        version: 1,
+      }));
+
+      // Push demoted sub-event + its children into V2
+      newTicket.sub_events.push(demotedSubEvent, ...promotedMainSubEvents);
+      newTicket.markModified('sub_events');
+      await newTicket.save();
+
+      // Delete promoted main (it now lives as sub-event in V2)
+      await Ticket.findByIdAndDelete(currentPromotedMain._id);
     }
 
-  } catch (error) {
-    console.error("❌ rehostEvent error:", error);
-    if (error.name === "CastError") {
-      return res.status(400).json({ success: false, message: "Invalid ID format" });
+    // Notify host
+    try {
+      await createNotification({
+        userId:    userId.toString(),
+        type:      'event_rehosted',
+        title:     'Event Re-hosted Successfully',
+        message:   `"${cancelledTicket.event_name}" has been re-hosted as V${newTicket.version}. All metrics reset to zero. Previous version is preserved for audit.`,
+        ticketId:  newTicket._id.toString(),
+        groupId:   newTicket.groupId?.toString(),
+        eventName: newTicket.event_name,
+      });
+    } catch (notifErr) {
+      console.error('⚠️ Rehost notification failed:', notifErr.message);
     }
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message,
+
+    return res.status(200).json({
+      success: true,
+      message: 'Event re-hosted successfully as new version',
+      data: {
+        newTicketId:        newTicket._id.toString(),
+        cancelledTicketId:  ticketId,
+        event_name:         newTicket.event_name,
+        event_status:       'confirmed',
+        version:            newTicket.version,
+        sub_events_count:   newTicket.sub_events?.length ?? 0,
+        metrics_reset:      true,
+        audit_preserved:    true,
+      },
     });
+  } catch (error) {
+    console.error('❌ rehostEvent error:', error);
+    if (error.name === 'CastError') {
+      return res.status(400).json({ success: false, message: 'Invalid ID format' });
+    }
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
+
 export const rehostSubEvent = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
@@ -3833,57 +3813,135 @@ export const rehostSubEvent = async (req, res) => {
 
     const parentTicket = await Ticket.findOne({ _id: parentTicketId, userId });
     if (!parentTicket) {
-      return res.status(404).json({ success: false, message: "Parent event not found or access denied" });
+      return res.status(404).json({ success: false, message: 'Parent event not found or access denied' });
     }
 
-    const subEvent = parentTicket.sub_events.id
-      ? parentTicket.sub_events.id(subEventId)
-      : parentTicket.sub_events.find((se) => se._id.toString() === subEventId);
-
-    if (!subEvent) {
-      return res.status(404).json({ success: false, message: "Sub-event not found" });
+    const subIdx = parentTicket.sub_events.findIndex(
+      se => se._id.toString() === subEventId
+    );
+    if (subIdx === -1) {
+      return res.status(404).json({ success: false, message: 'Sub-event not found' });
     }
 
-    if (subEvent.event_status !== "cancelled") {
-      return res.status(400).json({ success: false, message: "Only cancelled sub-events can be re-hosted" });
+    const oldSubEvent = parentTicket.sub_events[subIdx];
+    if (oldSubEvent.event_status !== 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Only cancelled sub-events can be re-hosted' });
     }
 
-    // Re-host: set back to confirmed
-    subEvent.event_status      = "confirmed";
-    subEvent.cancellation_reason = "";
-    subEvent.cancelled_at      = undefined;
-    subEvent.cancelled_by      = undefined;
+    // ── Step 1: audit_history already written in cancelEvent ─────────────────
+    // (snapshotted inline at cancel time — no need to do it again here)
 
-    parentTicket.markModified("sub_events");
+    // ── Step 2: Build a new sub-event object with structure copied, metrics zero ──
+    const oldObj = oldSubEvent.toObject ? oldSubEvent.toObject() : { ...oldSubEvent };
+    const newSubEvent = {
+      // Structure copied
+      event_name:          oldObj.event_name,
+      event_category:      oldObj.event_category,
+      event_subcategory:   oldObj.event_subcategory,
+      event_type:          oldObj.event_type,
+      event_language:      oldObj.event_language     || [],
+      event_description:   oldObj.event_description,
+      event_banner:        oldObj.event_banner,
+      event_logo:          oldObj.event_logo,
+      event_images:        oldObj.event_images       || [],
+      event_portrait:      oldObj.event_portrait,
+      event_videos:        oldObj.event_videos       || [],
+      event_dates:         oldObj.event_dates,
+      event_date_type:     oldObj.event_date_type,
+      gate_open_time:      oldObj.gate_open_time,
+      location:            oldObj.location,
+      location_type:       oldObj.location_type,
+      venue:               oldObj.venue,
+      exact_map_location:  oldObj.exact_map_location,
+      seating_arrangement: oldObj.seating_arrangement || 'none',
+      min_age_allowed:     oldObj.min_age_allowed     ?? 0,
+      max_age_allowed:     oldObj.max_age_allowed,
+      kids_friendly:       oldObj.kids_friendly       ?? false,
+      pet_friendly:        oldObj.pet_friendly        ?? false,
+      payment_type:        oldObj.payment_type,
+      ticket_types:        oldObj.ticket_types        || [],
+      banking_details:     oldObj.banking_details     || [],
+      guests:              oldObj.guests              || [],
+      POCS:                oldObj.POCS                || [],
+      hashtag:             oldObj.hashtag             || [],
+      prohibited_items:    oldObj.prohibited_items    || [],
+      total_capacity:      oldObj.total_capacity,
+      booking_start_date:  oldObj.booking_start_date,
+      booking_end_date:    oldObj.booking_end_date,
+      event_rules:         oldObj.event_rules,
+      event_instagram_link: oldObj.event_instagram_link,
+      event_youtube_link:  oldObj.event_youtube_link,
+      subevent:            oldObj.subevent            || '1',
+      main_ticket_id:      parentTicket._id,
+
+      // ── Fresh status ──
+      event_status:        'confirmed',
+      _id:                 new mongoose.Types.ObjectId(), // new _id
+
+      // ── Versioning ──
+      version:             (oldObj.version ?? 1) + 1,
+      rehosted_from:       oldObj._id, // audit trail back to cancelled version
+
+      // ── RESET metrics (all zero) ──
+      like:               0,
+      share:              0,
+      totalBookings:      0,
+      totalTicketsSold:   0,
+      revenue:            0,
+      total_cancellation: 0,
+      lifecycle_metrics: {
+        like: 0, share: 0, totalBookings: 0,
+        totalTicketsSold: 0, revenue: 0,
+        total_cancellation: 0, total_refund_amount: 0,
+      },
+
+      // ── Carry forward audit_history from old sub-event (immutable record) ──
+      audit_history: oldObj.audit_history || [],
+
+      // ── Clear cancellation fields ──
+      cancellation_reason: '',
+      cancelled_at:        undefined,
+      cancelled_by:        undefined,
+      rehosted_at:         new Date(),
+    };
+
+    // ── Step 3: Remove old cancelled sub-event, push new one 
+    parentTicket.sub_events.splice(subIdx, 1);
+    parentTicket.sub_events.push(newSubEvent);
+    parentTicket.markModified('sub_events');
     await parentTicket.save();
+
+    //  Step 4: Publish rehost event for notifications 
     try {
-  // Get all bookings for this sub-event to find previously-refunded users
-  // Import your booking/transaction model or publish via RabbitMQ
-      await publishToExchange('wie.events', 'event.rehosted', {
-        eventId:       subEventId,
+        await publishToExchange('wie.events', 'event.rehosted', {
+        eventId:       newSubEvent._id.toString(),
         parentEventId: parentTicketId,
         isSubEvent:    true,
-        eventName:     parentTicket.sub_events[subIdx].event_name,
+        eventName:     newSubEvent.event_name,
         rehostedAt:    new Date().toISOString(),
-        bookedUserIds: [], 
+        bookedUserIds: [],
       });
     } catch (publishErr) {
       console.error('❌ Failed to publish rehost event:', publishErr.message);
-      // Non-fatal — don't fail the request
     }
+
     return res.status(200).json({
       success: true,
-      message: "Sub-event re-hosted successfully",
+      message: 'Sub-event re-hosted successfully as new version',
       data: {
-        subEventId,
+        newSubEventId:  newSubEvent._id.toString(),
+        oldSubEventId:  subEventId,
         parentTicketId,
-        event_name:   subEvent.event_name,
-        event_status: "confirmed",
+        event_name:     newSubEvent.event_name,
+        event_status:   'confirmed',
+        version:        newSubEvent.version,
+        metrics_reset:  true,
+        audit_preserved: true,
       },
     });
   } catch (error) {
-    console.error("❌ rehostSubEvent error:", error);
-    return res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+    console.error('❌ rehostSubEvent error:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
   }
 };
 
@@ -3945,5 +4003,60 @@ export const goLiveSubEvent = async (req, res) => {
   } catch (error) {
     console.error("❌ goLiveSubEvent error:", error);
     return res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+  }
+};
+
+// Returns all audit snapshots for a given ticket (all cancelled versions)
+export const getAuditHistory = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const { ticketId } = req.params;
+
+    const audits = await TicketAudit.find({
+      original_ticket_id: ticketId,
+    }).sort({ version: 1 }).lean();
+
+    return res.status(200).json({ success: true, data: { audits } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Returns all versions of an event (for dashboard: V1 cancelled, V2 live, etc.)
+export const getEventVersions = async (req, res) => {
+  try {
+    const { originalEventId } = req.params;
+
+    // Find all tickets that share the same original lineage
+    const versions = await Ticket.find({
+      $or: [
+        { _id: originalEventId },
+        { original_event_id: originalEventId },
+        { parent_event_id: originalEventId },
+      ],
+    })
+    .select('event_name event_status version lifecycle_metrics totalBookings revenue cancelled_at rehosted_at createdAt')
+    .sort({ version: 1 })
+    .lean();
+
+    // Also get audit snapshots for cancelled versions
+    const audits = await TicketAudit.find({
+      $or: [
+        { original_ticket_id: originalEventId },
+        { original_ticket_id: { $in: versions.map(v => v._id) } },
+      ],
+    }).sort({ version: 1 }).lean();
+
+    const auditMap = {};
+    audits.forEach(a => { auditMap[a.original_ticket_id.toString()] = a; });
+
+    const result = versions.map(v => ({
+      ...v,
+      audit: auditMap[v._id.toString()] || null,
+    }));
+
+    return res.status(200).json({ success: true, data: { versions: result } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

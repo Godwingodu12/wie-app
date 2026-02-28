@@ -1,6 +1,7 @@
 import Group from "../models/group.model.js";
 import Ticket from "../models/ticket.model.js";
 import upload from "../middlewares/upload.js";
+import TicketAudit from '../models/ticketAudit.model.js';
 import fs from "fs";
 import cron from "node-cron";
 import { uploadTicketMedia, uploadFields } from "../middlewares/upload.js";
@@ -6656,6 +6657,191 @@ export const startAutoDeleteCron = () => {
       console.error("❌ Auto-delete cron error:", err.message);
     }
   });
+};
+// Freezes a cancelled ticket's lifecycle metrics into the TicketAudit table.
+export const snapshotAndLockTicket = async (ticket, {
+  cancelled_by,
+  cancellation_reason = '',
+  refund_percentage   = 100,
+  cancellation_tier   = 'full_refund',
+  total_refund_amount = 0,
+} = {}) => {
+  try {
+    // Determine current lifecycle metrics (prefer new field, fall back to top-level)
+    const metrics = ticket.lifecycle_metrics ?? {};
+    const snapshot = {
+      like:               metrics.like              ?? ticket.like              ?? 0,
+      share:              metrics.share             ?? ticket.share             ?? 0,
+      totalBookings:      metrics.totalBookings     ?? ticket.totalBookings     ?? 0,
+      totalTicketsSold:   metrics.totalTicketsSold  ?? ticket.totalTicketsSold  ?? 0,
+      revenue:            metrics.revenue           ?? ticket.revenue           ?? 0,
+      total_cancellation: metrics.total_cancellation ?? ticket.total_cancellation ?? 0,
+      total_refund_amount,
+    };
 
-  console.log("⏰ Auto-delete cron job started (runs daily at midnight)");
+    const audit = new TicketAudit({
+      original_ticket_id: ticket._id,
+      userId:             ticket.userId,
+      groupId:            ticket.groupId,
+      version:            ticket.version ?? 1,
+      is_sub_event:       false,
+      event_structure: {
+        event_name:        ticket.event_name,
+        event_category:    ticket.event_category,
+        event_subcategory: ticket.event_subcategory,
+        event_type:        ticket.event_type,
+        event_description: ticket.event_description,
+        event_banner:      ticket.event_banner,
+        event_logo:        ticket.event_logo,
+        location:          ticket.location,
+        location_type:     ticket.location_type,
+        venue:             ticket.venue,
+        payment_type:      ticket.payment_type,
+        event_dates:       ticket.event_dates,
+        ticket_types:      ticket.ticket_types,
+        sub_events_count:  ticket.sub_events?.length ?? 0,
+      },
+      metrics_snapshot:   snapshot,
+      cancelled_at:       ticket.cancelled_at || new Date(),
+      cancelled_by:       cancelled_by || ticket.cancelled_by,
+      cancellation_reason,
+      refund_percentage,
+      cancellation_tier,
+      is_locked:          true,
+    });
+
+    await audit.save();
+
+    // Lock the ticket so no metric updates can happen on the cancelled version
+    ticket.is_locked = true;
+    await ticket.save();
+
+    console.log(`✅ Audit snapshot saved for ticket ${ticket._id} (v${ticket.version ?? 1})`);
+    return audit;
+  } catch (err) {
+    // Non-fatal — audit failure must never block cancellation flow
+    console.error(`⚠️ snapshotAndLockTicket failed for ${ticket._id}:`, err.message);
+    return null;
+  }
+};
+// Creates a brand-new V2 ticket from a cancelled V1's structure.
+// Resets ALL lifecycle metrics to zero. Links audit trail.
+export const rehostMainEventV2 = async (cancelledTicket, userId) => {
+  const now = new Date();
+
+  // Determine original_event_id: if cancelled ticket already has one, use it
+  const originalEventId = cancelledTicket.original_event_id ?? cancelledTicket._id;
+
+  const newTicket = new Ticket({
+    // ── STRUCTURE (copied as-is) ──
+    event_name:           cancelledTicket.event_name,
+    event_category:       cancelledTicket.event_category,
+    event_subcategory:    cancelledTicket.event_subcategory,
+    event_type:           cancelledTicket.event_type,
+    event_language:       cancelledTicket.event_language        || [],
+    event_description:    cancelledTicket.event_description,
+    event_banner:         cancelledTicket.event_banner,
+    event_logo:           cancelledTicket.event_logo,
+    event_images:         cancelledTicket.event_images          || [],
+    event_portrait:       cancelledTicket.event_portrait,
+    event_videos:         cancelledTicket.event_videos          || [],
+    event_dates:          cancelledTicket.event_dates,
+    event_date_type:      cancelledTicket.event_date_type,
+    gate_open_time:       cancelledTicket.gate_open_time,
+    location:             cancelledTicket.location,
+    location_type:        cancelledTicket.location_type,
+    venue:                cancelledTicket.venue,
+    exact_map_location:   cancelledTicket.exact_map_location,
+    seating_arrangement:  cancelledTicket.seating_arrangement   || 'none',
+    min_age_allowed:      cancelledTicket.min_age_allowed       ?? 0,
+    max_age_allowed:      cancelledTicket.max_age_allowed,
+    kids_friendly:        cancelledTicket.kids_friendly         ?? false,
+    pet_friendly:         cancelledTicket.pet_friendly          ?? false,
+    payment_type:         cancelledTicket.payment_type,
+    ticket_types:         cancelledTicket.ticket_types          || [],
+    seating_layout:       cancelledTicket.seating_layout,
+    ticket_layout:        cancelledTicket.ticket_layout,
+    banking_details:      cancelledTicket.banking_details       || [],
+    guests:               cancelledTicket.guests                || [],
+    POCS:                 cancelledTicket.POCS                  || [],
+    hashtag:              cancelledTicket.hashtag               || [],
+    prohibited_items:     cancelledTicket.prohibited_items      || [],
+    total_capacity:       cancelledTicket.total_capacity,
+    booking_start_date:   cancelledTicket.booking_start_date,
+    booking_end_date:     cancelledTicket.booking_end_date,
+    event_rules:          cancelledTicket.event_rules,
+    event_instagram_link: cancelledTicket.event_instagram_link,
+    event_youtube_link:   cancelledTicket.event_youtube_link,
+    groupId:              cancelledTicket.groupId,
+    userId:               cancelledTicket.userId,
+    created_by:           cancelledTicket.created_by,
+
+    // ── Copy sub-events structure only, reset their metrics too 
+    sub_events: (cancelledTicket.sub_events || [])
+      .filter(se => !['cancelled', 'deleted', 'remove'].includes(se.event_status))
+      .map(se => ({
+        ...(se.toObject ? se.toObject() : { ...se }),
+        _id:                new mongoose.Types.ObjectId(), // fresh _id
+        event_status:       'confirmed',
+        // Reset sub-event metrics
+        like:               0,
+        share:              0,
+        totalBookings:      0,
+        totalTicketsSold:   0,
+        revenue:            0,
+        total_cancellation: 0,
+        lifecycle_metrics: {
+          like: 0, share: 0, totalBookings: 0,
+          totalTicketsSold: 0, revenue: 0,
+          total_cancellation: 0, total_refund_amount: 0,
+        },
+        audit_history:      [], // fresh audit history for V2 sub-events
+        version:            1,
+        rehosted_from:      se._id, // track where it came from
+        cancellation_reason: '',
+        cancelled_at:        undefined,
+        cancelled_by:        undefined,
+        rehosted_at:         undefined,
+      })),
+    version:           (cancelledTicket.version ?? 1) + 1,
+    parent_event_id:   cancelledTicket._id,          // points to cancelled V1
+    original_event_id: originalEventId,              // always points to V1
+
+    like:               0,
+    share:              0,
+    totalBookings:      0,
+    totalTicketsSold:   0,
+    revenue:            0,
+    total_cancellation: 0,
+    lifecycle_metrics: {
+      like: 0, share: 0, totalBookings: 0,
+      totalTicketsSold: 0, revenue: 0,
+      total_cancellation: 0, total_refund_amount: 0,
+    },
+
+    event_status:      'confirmed',
+    is_locked:         false,
+    isMain:            true,
+    rehosted_at:       now,
+
+    cancellation_reason: '',
+    cancelled_at:        undefined,
+    cancelled_by:        undefined,
+    promoted_to_ticket_id: undefined,
+
+    form_progress:     cancelledTicket.form_progress,
+    terms_accepted:    cancelledTicket.terms_accepted,
+    terms_accepted_at: cancelledTicket.terms_accepted_at,
+    company_terms_version: cancelledTicket.company_terms_version,
+  });
+
+  await newTicket.save();
+
+  // Update audit record to link new ticket
+  await TicketAudit.updateOne(
+    { original_ticket_id: cancelledTicket._id, version: cancelledTicket.version ?? 1 },
+    { $set: { rehosted_ticket_id: newTicket._id } }
+  );
+  console.log(`✅ V${newTicket.version} ticket created: ${newTicket._id} (from cancelled ${cancelledTicket._id})`);
+  return newTicket;
 };
