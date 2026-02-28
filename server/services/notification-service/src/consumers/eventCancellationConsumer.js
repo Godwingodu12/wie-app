@@ -3,7 +3,7 @@ import { getWieUsersByIds }    from '../grpc/wieUserClient.js';
 import { getCancelledEventInfo, getTicketDetails } from '../grpc/ticketClient.js';
 import { sendEventCancellationEmail } from '../utils/emailSender.js';
 import { sendEventCancellationSMS }   from '../utils/smsSender.js';
-import { createNotification }         from '../controllers/notification.controller.js';
+import { createNotificationInternal as createNotification } from '../controllers/notification.controller.js';
 
 const EXCHANGE_NAME = 'wie.events';
 const ROUTING_KEY   = 'event.cancelled';
@@ -28,15 +28,13 @@ const handleEventCancellation = async (payload) => {
     parentEventId,    // set when isSubEvent = true
     isSubEvent  = false,
     bookedUserIds    = [],
-    bookingRefundMap = {},  // { userId: refundAmount } — from ticket-service publisher
+    bookingRefundMap = {},  // { userId: refundAmount }  from ticket-service publisher
     cancellation_reason,
     cancelledAt,
     refundPercentage = 100,
   } = payload;
 
-  console.log(`📥 [EventCancellationConsumer] Received cancellation | eventId: ${eventId} | isSubEvent: ${isSubEvent} | users: ${bookedUserIds.length}`);
-
-  // ── Step 1: Fetch authoritative event details from ticket-service via gRPC ──
+  // Step 1: Fetch authoritative event details from ticket-service via gRPC ──
   // Use parentEventId when it's a sub-event so GetTicketById works correctly
   const ticketIdToFetch  = isSubEvent && parentEventId ? parentEventId : eventId;
   const subEventIdToFetch = isSubEvent ? eventId : '';
@@ -86,26 +84,20 @@ const handleEventCancellation = async (payload) => {
 
   const isPaid = paymentType === 'paid';
 
-  console.log(`📋 [EventCancellationConsumer] Event details resolved | name: "${eventName}" | paid: ${isPaid} | venue: "${venue}" | date: ${eventDate}`);
 
-  // ── Step 2: No booked users — nothing to notify ────────────────────────────
+  // Step 2: No booked users — nothing to notify 
   if (!bookedUserIds.length) {
-    console.log(`ℹ️ [EventCancellationConsumer] No booked users for event ${eventId}`);
     return { success: true, notified: 0 };
   }
 
-  // ── Step 3: Batch fetch all user details in ONE gRPC call ─────────────────
-  console.log(`👥 [EventCancellationConsumer] Fetching ${bookedUserIds.length} users via gRPC`);
+  // Step 3: Batch fetch all user details in ONE gRPC call 
   const users = await getWieUsersByIds(bookedUserIds);
 
   if (!users || users.length === 0) {
-    console.warn(`⚠️ [EventCancellationConsumer] No user data returned for event ${eventId}`);
     return { success: true, notified: 0 };
   }
 
-  // ── Step 4: Notify all users in parallel ───────────────────────────────────
-  console.log(`📨 [EventCancellationConsumer] Notifying ${users.length} users...`);
-
+  // Step 4: Notify all users in parallel 
   const results = await Promise.allSettled(
     users.map((user) =>
       notifyUser({
@@ -125,11 +117,10 @@ const handleEventCancellation = async (payload) => {
   const successCount = results.filter((r) => r.status === 'fulfilled').length;
   const failCount    = results.filter((r) => r.status === 'rejected').length;
 
-  console.log(`✅ [EventCancellationConsumer] Done | notified: ${successCount} | failed: ${failCount}`);
   return { success: true, notified: successCount };
 };
 
-// ─── Per-User Notification (push + email + SMS in parallel) ───────────────────
+//  Per-User Notification (push + email + SMS in parallel) 
 const notifyUser = async ({
   user,
   eventId,
@@ -160,7 +151,7 @@ const notifyUser = async ({
   // Fire all 3 channels — failures are isolated per channel
   await Promise.allSettled([
 
-    // ── 1. Push Notification (always) ────────────────────────────────────────
+    // 1. Push Notification (always) 
     createNotification({
       userId:    user.id,
       type:      'event_cancelled',
@@ -172,7 +163,7 @@ const notifyUser = async ({
       console.error(`❌ [Push] user ${user.id}:`, err.message)
     ),
 
-    // ── 2. Email (only if user.email exists) ─────────────────────────────────
+    // 2. Email (only if user.email exists) 
     user.email
       ? sendEventCancellationEmail({
           email:              user.email,
@@ -189,7 +180,7 @@ const notifyUser = async ({
         )
       : Promise.resolve(),
 
-    // ── 3. SMS (only if user.contact_no exists) ───────────────────────────────
+    //  3. SMS (only if user.contact_no exists) 
     user.contact_no
       ? sendEventCancellationSMS({
           contactNo:       user.contact_no,
