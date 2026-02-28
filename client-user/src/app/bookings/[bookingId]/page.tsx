@@ -144,6 +144,7 @@ export default function BookingDetailPage() {
   const isCancelled = booking.bookingStatus === 'CANCELLED';
   const hasRefund = booking.refundAmount && booking.refundAmount > 0;
   const refundCompleted = booking.refundStatus === 'COMPLETED' && booking.refundProcessedAt;
+  const isAdminCancelled = booking.cancellationReason?.toLowerCase().includes('event cancelled') || booking.cancellationReason?.toLowerCase().includes('cancelled by host');
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -177,7 +178,28 @@ export default function BookingDetailPage() {
             </span>
           </div>
         </Card>
-
+        {/* Admin/host cancelled event banner */}
+        {isCancelled && isAdminCancelled && (
+          <div className="mb-4 p-4 rounded-xl flex items-start gap-3 bg-red-50 border border-red-200">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-red-800 text-sm">This event was cancelled by the host</p>
+              <p className="text-red-700 text-xs mt-0.5">
+                {hasRefund
+                  ? `A refund of ₹${booking.refundAmount} has been initiated and will be credited within 5–7 business days.`
+                  : 'This was a free event — no refund needed.'}
+              </p>
+            </div>
+            {hasRefund && booking.refundStatus !== 'COMPLETED' && (
+              <button
+                onClick={handleTrackRefund}
+                className="text-xs font-semibold text-red-600 hover:text-red-800 whitespace-nowrap"
+              >
+                Track Refund →
+              </button>
+            )}
+          </div>
+        )}
         <div className="grid md:grid-cols-3 gap-6">
           {/* Main Details */}
           <div className="md:col-span-2 space-y-6">
@@ -318,13 +340,23 @@ export default function BookingDetailPage() {
                 </div>
               </Card>
             )}
-
             {/* Cancellation Details */}
             {isCancelled && (
               <Card>
                 <div className="p-6">
-                  <h2 className="text-xl font-bold text-gray-900 mb-4">Cancellation Details</h2>
+                  <div className="flex items-center gap-2 mb-4">
+                    <h2 className="text-xl font-bold text-gray-900">Cancellation Details</h2>
+                    {isAdminCancelled && (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                        By Host
+                      </span>
+                    )}
+                  </div>
                   <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">Cancelled By</p>
+                      <p className="text-gray-600">{isAdminCancelled ? 'Event Host' : 'You'}</p>
+                    </div>
                     {booking.cancelledAt && (
                       <div>
                         <p className="text-sm font-semibold text-gray-700">Cancelled On</p>
