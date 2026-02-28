@@ -11,8 +11,8 @@ import ConnectionsIcon from "@/assets/Home/ConnectionsIcon.png";
 import NotificationsIcon from "@/assets/Home/NotificationsIcon.svg";
 import EventsIcon from "@/assets/Home/EventsIcon.svg";
 import SettingsIcon from "@/assets/Home/SettingsIcon.svg";
-import { getUserNotifications } from "@/services/notificationService";
-import { getUnreadUsersCount } from "@/services/chatService"; // ✅ Changed from getUnreadMessageCount
+import { getUserNotifications ,markAllNotificationsAsRead} from "@/services/notificationService";
+import { getUnreadUsersCount } from "@/services/chatService"; 
 import realtimeNotificationService from "@/services/realtimeNotificationService";
 import { getFollowStats } from "@/services/followService";
 import socketService from "@/services/socketService";
@@ -232,13 +232,20 @@ const SideBar: React.FC = () => {
 
   const mobileNavItems = mainNavItems.slice(0, 5);
 
-    const handleNavClick = (path: string) => {
-      if (path === "/notification") {
-        setIsNotificationOpen(!isNotificationOpen);
-        return;
+  const handleNavClick = (path: string) => {
+    if (path === "/notification") {
+      const opening = !isNotificationOpen;
+      setIsNotificationOpen(opening);
+      if (opening) {
+        setNotificationCount(0);
+        markAllNotificationsAsRead().catch((err) =>
+          console.error('Failed to mark all notifications read:', err)
+        );
       }
-      router.push(path);
-    };
+      return;
+    }
+    router.push(path);
+  };
 
   const isActive = (path: string) => {
     if (!pathname) return false;
@@ -299,6 +306,10 @@ const SideBar: React.FC = () => {
           messageCount={unreadUsersCount}
           onNotificationClick={() => {
             setIsNotificationOpen(true);
+            setNotificationCount(0);
+            markAllNotificationsAsRead().catch((err) =>
+              console.error('Failed to mark all notifications read:', err)
+            );
           }}
           onMessageClick={() => router.push("/message")}
           onPostClick={() => {
@@ -310,9 +321,13 @@ const SideBar: React.FC = () => {
           isActive={isActive}
           onNavClick={handleNavClick}
         />
-        <NotificationPopup
+         <NotificationPopup
           isOpen={isNotificationOpen}
-          onClose={() => setIsNotificationOpen(false)}
+           onClose={() => {
+            setIsNotificationOpen(false);
+            setNotificationCount(0);
+            markAllNotificationsAsRead().catch(() => null);
+          }}
         />
         <style jsx global>{`
           @media (max-width: 768px) {
@@ -704,9 +719,14 @@ const SideBar: React.FC = () => {
 
 
       </aside>
-      <NotificationPopup
+       <NotificationPopup
         isOpen={isNotificationOpen}
-        onClose={() => setIsNotificationOpen(false)}
+
+        onClose={() => {
+            setIsNotificationOpen(false);
+            setNotificationCount(0);
+            markAllNotificationsAsRead().catch(() => null);
+          }}
       />
       <style jsx global>{`
         .scrollbar-hide::-webkit-scrollbar {
