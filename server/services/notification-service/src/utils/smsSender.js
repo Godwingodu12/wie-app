@@ -53,3 +53,40 @@ export const sendEventCancellationSMS = async ({
     console.error(`❌ [SMS] Failed to ${phone}:`, err.message);
   }
 };
+
+export const sendEventRehostSMS = async ({
+  contactNo,
+  userName,
+  eventName,
+  eventDate,
+  venue,
+}) => {
+  if (!contactNo) return;
+
+  const twilioClient = getClient();
+  if (!twilioClient) {
+    console.warn('⚠️ [SMS] Twilio not configured — skipping rehost SMS');
+    return;
+  }
+
+  let phone = contactNo.toString().trim();
+  if (!phone.startsWith('+')) {
+    phone = '+91' + phone;
+  }
+
+  const dateText  = eventDate ? ` on ${eventDate}` : '';
+  const venueText = venue     ? ` at ${venue}`     : '';
+
+  const message = `Hi ${userName}, great news! "${eventName}"${venueText}${dateText} is back & live again. Book your tickets at wie.app -Wie Events`;
+
+  try {
+    const result = await twilioClient.messages.create({
+      body: message,
+      from: fromNumber,
+      to:   phone,
+    });
+    console.log(`✅ [SMS] Rehost SMS sent to ${phone}: SID ${result.sid}`);
+  } catch (err) {
+    console.error(`❌ [SMS] Failed rehost SMS to ${phone}:`, err.message);
+  }
+};
