@@ -312,4 +312,11 @@ export const getUserCancelledBookings = async (): Promise<{
   const response = await transactionApi.get('/bookings/my-cancelled-bookings');
   return response.data;
 };
+export const getUserRehostedBookings = async (): Promise<{
+  success: boolean;
+  data: { events: any[]; count: number };
+}> => {
+  const response = await transactionApi.get('/bookings/my-rehosted-bookings');
+  return response.data;
+};
 export default transactionApi;
