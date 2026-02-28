@@ -157,7 +157,8 @@ const notifyUser = async ({
       type:      'event_cancelled',
       title:     pushTitle,
       message:   pushMessage,
-      ticketId:  eventId,
+      // Guard against synthetic/non-ObjectId eventIds from the payload
+      ticketId:  /^[a-f\d]{24}$/i.test(eventId) ? eventId : undefined,
       eventName,
     }).catch((err) =>
       console.error(`❌ [Push] user ${user.id}:`, err.message)
