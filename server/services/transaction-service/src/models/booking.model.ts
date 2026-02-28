@@ -69,6 +69,9 @@ export interface UpdateBookingData {
   refundId?: string; 
   refundInitiatedAt?: Date; 
 }
+const isValidUUID = (id: string): boolean => {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
 export class BookingModel {
   static async create(data: CreateBookingData): Promise<Booking> {
     return await prisma.booking.create({
@@ -97,7 +100,13 @@ export class BookingModel {
   /**
    * Find booking by ID
    */
-  static async findById(id: string): Promise<Booking | null> {
+ static async findById(id: string): Promise<Booking | null> {
+    // Guard: Prisma UUID column rejects non-UUID strings with a hard crash
+    // If the caller passed a bookingId string (e.g. "WIE-...") instead of the UUID id,
+    // fall back to findByBookingId automatically
+    if (!isValidUUID(id)) {
+      return BookingModel.findByBookingId(id);
+    }
     return await prisma.booking.findUnique({
       where: { id },
       include: {
