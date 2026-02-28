@@ -3,7 +3,7 @@ import { prisma } from '../config/db';
 import { SettlementService } from '../services/settlementService';
 import RazorpayService from '../config/razorpay';
 import { getTicketById, getGroupById, updateTicketStats } from '../clients/ticketServiceClient';
-import { updateTicketCancellation, getEventDates } from '../grpc/ticketClient';
+import { updateTicketCancellation, getEventDates,getCancelledEvents } from '../grpc/ticketClient';
 import { getUserById } from '../clients/userServiceClient';
 import { generateQRCode } from '../utils/qrGenerator';
 import { createNotification } from '../utils/notificationHelper';
@@ -1104,5 +1104,139 @@ export const getTicketTypeStats = async (req: Request, res: Response) => {
       success: false,
       message: error.message || 'Failed to fetch ticket type stats',
     });
+  }
+};
+
+export const getUserCancelledBookings = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    // GetCancelledEvents returns ALL cancelled tickets/sub-events globally
+    let cancelledTicketIds = new Set<string>();
+    let cancelledEventMeta: Record<string, { cancellation_reason: string; cancelled_at: string; event_name: string }> = {};
+
+    try {
+      const cancelledEvents = await getCancelledEvents();
+      cancelledEvents.forEach((ev) => {
+        cancelledTicketIds.add(ev.eventId);
+        cancelledEventMeta[ev.eventId] = {
+          cancellation_reason: ev.cancellation_reason || 'Event cancelled by host',
+          cancelled_at:        ev.cancelled_at,
+          event_name:          ev.event_name,
+        };
+      });
+    } catch (grpcErr: any) {
+      // Non-fatal — gRPC might be unavailable, fall back to DB-only
+      console.warn('⚠️ getUserCancelledBookings: gRPC getCancelledEvents failed:', grpcErr.message);
+    }
+
+    // Step 2: Fetch ALL bookings for this user (confirmed + cancelled) 
+    const { bookings: allUserBookings } = await BookingModel.findByUserId(userId, {
+      limit: 200,
+    });
+
+    // Step 3: Find bookings whose ticket is admin-cancelled but booking row 
+    const staleBookings = allUserBookings.filter(
+      (b) =>
+        cancelledTicketIds.has(b.ticketId) &&
+        (b.bookingStatus === 'CONFIRMED' || b.bookingStatus === 'PENDING')
+    );
+
+    // ── Step 4: Auto-fix stale bookings — mark them as CANCELLED with the reason ──
+    if (staleBookings.length > 0) {
+      console.log(`🔄 Auto-fixing ${staleBookings.length} stale booking(s) for userId ${userId}`);
+      await Promise.all(
+        staleBookings.map((b) => {
+          const meta = cancelledEventMeta[b.ticketId];
+          return BookingModel.update(b.id, {
+            bookingStatus:      'CANCELLED',
+            cancellationReason: meta?.cancellation_reason || 'Event cancelled by host',
+            cancelledAt:        meta?.cancelled_at ? new Date(meta.cancelled_at) : new Date(),
+            // Mark refund as PENDING if paid event and no refund started yet
+            ...(parseFloat(b.subtotal.toString()) > 0 && !b.refundStatus
+              ? { refundStatus: 'PENDING', refundAmount: parseFloat(b.subtotal.toString()) }
+              : {}),
+          });
+        })
+      );
+    }
+
+    // ── Step 5: Now fetch all CANCELLED bookings for this user (fresh after fix) ──
+    const { bookings: cancelledBookings } = await BookingModel.findByUserId(userId, {
+      status: 'CANCELLED' as any,
+      limit: 200,
+    });
+
+    // ── Step 6: Build response, enriching with gRPC metadata where available ──
+    const result = cancelledBookings.map((b) => {
+      const grpcMeta = cancelledEventMeta[b.ticketId];
+
+      // Detect admin vs user cancellation
+      const isAdminCancelled =
+        b.cancellationReason?.toLowerCase().includes('event cancelled') ||
+        b.cancellationReason?.toLowerCase().includes('cancelled by host') ||
+        cancelledTicketIds.has(b.ticketId); // also detect via gRPC cross-ref
+
+      // Use gRPC event name as fallback if eventDetails is stale
+      const eventDetails = b.eventDetails as any;
+      const enrichedEventDetails = {
+        ...eventDetails,
+        eventName: eventDetails?.eventName || grpcMeta?.event_name || 'Unknown Event',
+      };
+
+      return {
+        id:                  b.id,
+        bookingId:           b.bookingId,
+        userId:              b.userId,
+        ticketId:            b.ticketId,
+        groupId:             b.groupId,
+        ticketType:          b.ticketType,
+        quantity:            b.quantity,
+        subtotal:            parseFloat(b.subtotal.toString()),
+        platformFee:         parseFloat(b.platformFee.toString()),
+        totalAmount:         parseFloat(b.totalAmount.toString()),
+        currency:            b.currency,
+        bookingStatus:       b.bookingStatus,
+        paymentStatus:       b.paymentStatus,
+        paymentMethod:       b.paymentMethod,
+        eventDetails:        enrichedEventDetails,
+        userDetails:         b.userDetails,
+        qrCode:              b.qrCode,
+        isVerified:          b.isVerified,
+        // Cancellation
+        cancellationReason:  b.cancellationReason || grpcMeta?.cancellation_reason,
+        cancelledAt:         b.cancelledAt || (grpcMeta?.cancelled_at ? new Date(grpcMeta.cancelled_at) : null),
+        cancelledBy:         isAdminCancelled ? 'host' : 'user',
+        isAdminCancelled,
+        // Refund
+        refundAmount:        b.refundAmount ? parseFloat(b.refundAmount.toString()) : null,
+        refundStatus:        b.refundStatus,
+        refundId:            b.refundId,
+        refundInitiatedAt:   b.refundInitiatedAt,
+        refundProcessedAt:   b.refundProcessedAt,
+        createdAt:           b.createdAt,
+        updatedAt:           b.updatedAt,
+      };
+    });
+
+    const pendingRefunds   = result.filter(b => b.refundStatus === 'PENDING' || b.refundStatus === 'PROCESSING').length;
+    const completedRefunds = result.filter(b => b.refundStatus === 'COMPLETED').length;
+
+    return res.json({
+      success: true,
+      data: {
+        cancelledBookings: result,
+        count:             result.length,
+        pendingRefunds,
+        completedRefunds,
+        autoFixed:         staleBookings.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ getUserCancelledBookings error:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
