@@ -319,7 +319,7 @@ const handleCloseCancelModal = () => {
     }
   };
 
-const handleRehost = async () => {
+  const handleRehost = async () => {
     try {
       setIsRehosting(true);
       const parentEventId = eventData?.parentEventId;
@@ -331,13 +331,11 @@ const handleRehost = async () => {
       if (response.success) {
         setShowRehostModal(false);
         toast.success("Sub-event re-hosted successfully! Redirecting...");
-        // Navigate to the NEW sub-event _id returned from the API
-        // The old ticketId no longer exists as a sub-event — a new _id was assigned
         const newSubEventId = response.data?.newSubEventId;
-        if (newSubEventId) {
-          navigate(`/ticket/live-add-on-event-view/${newSubEventId}`);
+        if (newSubEventId && parentEventId) {
+          // Navigate to ConfirmAddOnEvent with BOTH parentEventId and new subEventId
+          navigate(`/ticket/confirm-add-on-event/${parentEventId}/${newSubEventId}`);
         } else {
-          // Fallback: go to parent event if new ID not returned
           navigate(`/ticket/live-event-view/${parentEventId}`);
         }
       }

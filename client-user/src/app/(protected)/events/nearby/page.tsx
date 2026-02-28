@@ -12,9 +12,8 @@ import {
   getCategoryBasedEvents,
   getPopularEvents,
   getCancelledEvents,
-  getRehostedEvents,
 } from '@/services/ticketUserService';
-import { getUserLikedEvents, getUserSavedEvents, getUserCancelledBookings } from '@/services/transactionService';
+import { getUserLikedEvents, getUserSavedEvents, getUserCancelledBookings, getUserRehostedBookings } from '@/services/transactionService';
 import { NearbyEvent, EventWithLocation, FilterEventsParams } from '@/types/ticket';
 import { Loader2, ChevronLeft, ChevronRight, ArrowRight, AlertCircle } from 'lucide-react';
 import SideBar from '@/components/home/SideBar';
@@ -540,21 +539,47 @@ export default function NearbyEventsPage() {
  const loadInitialData = async () => {
     setLoading(true);
     try {
-        Promise.all([
-          getRehostedEvents().catch(() =>  ({ data: { events: [] } })),
-          getUserLikedEvents().catch(() => ({ data: { ticketIds: [] } })),
-          getUserSavedEvents().catch(() => ({ data: { ticketIds: [] } })),
-          // getUserCancelledBookings fetches the user's own cancelled bookings
-          // (events they BOOKED that got admin-cancelled) — not all cancelled events globally
-          getUserCancelledBookings().catch(() => ({ data: { cancelledBookings: [] } })),
-        ]).then(([rehostedRes, likedRes, savedRes, cancelledBookingsRes]) => {
-          setRehostedEvents(rehostedRes?.data?.events ?? []);
-          setLikedTicketIds(new Set(likedRes?.data?.ticketIds  ?? []));
-          setSavedTicketIds(new Set(savedRes?.data?.ticketIds ?? []));
+      Promise.all([
+        getUserRehostedBookings().catch(() => ({ data: { events: [] } })),  // ← user-specific rehosted
+        getUserLikedEvents().catch(() => ({ data: { ticketIds: [] } })),
+        getUserSavedEvents().catch(() => ({ data: { ticketIds: [] } })),
+        getUserCancelledBookings().catch(() => ({ data: { cancelledBookings: [] } })),
+      ]).then(([rehostedRes, likedRes, savedRes, cancelledBookingsRes]) => {
 
-        // Build cancelled event display objects from the user's cancelled bookings
-        const cancelledFromBookings = (cancelledBookingsRes?.data?.cancelledBookings ?? [])
-          .filter((b: any) => b.isAdminCancelled) // only host-cancelled, not user-self-cancelled
+        //  Rehosted: already filtered server-side to this user's cancelled bookings
+        // Extra client-side dedup by eventId just in case
+        const rawRehosted: any[] = rehostedRes?.data?.events ?? [];
+        const seenRehostedIds = new Set<string>();
+        const dedupedRehosted = rawRehosted.filter((ev) => {
+          const id: string = ev.eventId || ev._id || '';
+          if (seenRehostedIds.has(id)) return false;
+          seenRehostedIds.add(id);
+          return true;
+        });
+        setRehostedEvents(dedupedRehosted);
+
+        setLikedTicketIds(new Set(likedRes?.data?.ticketIds ?? []));
+        setSavedTicketIds(new Set(savedRes?.data?.ticketIds ?? []));
+
+        // ── Cancelled: only host-cancelled events, deduplicated by ticketId ──
+        const rawCancelled: any[] = cancelledBookingsRes?.data?.cancelledBookings ?? [];
+        const seenTicketIds = new Set<string>();
+        const cancelledFromBookings = rawCancelled
+          .filter((b: any) => b.isAdminCancelled)
+          .sort((a: any, b: any) => {
+            // Prefer entries with refund info, then most recent cancellation
+            const aScore = a.refundAmount ? 1 : 0;
+            const bScore = b.refundAmount ? 1 : 0;
+            if (bScore !== aScore) return bScore - aScore;
+            return new Date(b.cancelledAt || b.updatedAt).getTime() -
+                  new Date(a.cancelledAt || a.updatedAt).getTime();
+          })
+          .filter((b: any) => {
+            // One entry per ticketId (same event booked multiple times → show once)
+            if (seenTicketIds.has(b.ticketId)) return false;
+            seenTicketIds.add(b.ticketId);
+            return true;
+          })
           .map((b: any) => ({
             eventId:             b.ticketId,
             event_name:          (b.eventDetails as any)?.eventName || 'Event',
@@ -567,9 +592,9 @@ export default function NearbyEventsPage() {
             refundStatus:        b.refundStatus,
             bookingId:           b.id,
           }));
+
         setUserCancelledBookings(cancelledFromBookings);
-        // Keep the global cancelledEvents state empty — we no longer show it to all users
-        setCancelledEvents([]);
+        setCancelledEvents([]); // never show global cancelled list to all users
       });
       // 1. Try GPS
       const res = await getNearbyEventsFromCurrentLocation(500);

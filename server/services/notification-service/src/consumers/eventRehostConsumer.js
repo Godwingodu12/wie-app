@@ -119,13 +119,12 @@ const notifyRehostUser = async ({
 
   await Promise.allSettled([
 
-    // ── Push Notification ──
     createNotification({
       userId:    user.id,
       type:      'event_rehosted',
       title:     `Event is Back: ${resolvedEventName}`,
       message:   pushMessage,
-      ticketId:  eventId,
+      ticketId:  /^[a-f\d]{24}$/i.test(eventId) ? eventId : undefined,
       eventName: resolvedEventName,
     }).catch((err) =>
       console.error(`❌ [RehostPush] userId=${user.id}:`, err.message)

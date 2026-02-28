@@ -91,11 +91,15 @@ export const getNotifications = async (req, res) => {
     });
   }
 };
-// Mark notification as read
 export const markAsRead = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
     const { notificationId } = req.params;
+
+    if (!notificationId || !/^[a-f\d]{24}$/i.test(notificationId)) {
+      return res.status(400).json({ message: 'Invalid notification ID format' });
+    }
+
     const notification = await Notification.findOneAndUpdate(
       { _id: notificationId, userId },
       { isRead: true },
@@ -148,11 +152,15 @@ export const markAllAsRead = async (req, res) => {
     });
   }
 };
-// Delete notification
 export const deleteNotification = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
     const { notificationId } = req.params;
+
+    if (!notificationId || !/^[a-f\d]{24}$/i.test(notificationId)) {
+      return res.status(400).json({ message: 'Invalid notification ID format' });
+    }
+
     const notification = await Notification.findOneAndDelete({
       _id: notificationId,
       userId
