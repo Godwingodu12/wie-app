@@ -146,8 +146,18 @@ const LiveAddOnEventView = () => {
         setError(null);
 
         // Fetch sub-event data using getAddOnEventLiveView
-        const ticketResponse = await getAddOnEventLiveView(ticketId);
-
+        let ticketResponse;
+        try {
+          ticketResponse = await getAddOnEventLiveView(ticketId);
+        } catch (axiosErr) {
+          // Handle 301: sub-event was rehosted, navigate to new _id
+          const redirectId = axiosErr?.response?.data?.redirectTo;
+          if (axiosErr?.response?.status === 301 && redirectId) {
+            navigate(`/ticket/live-add-on-event-view/${redirectId}`, { replace: true });
+            return;
+          }
+          throw axiosErr;
+        }
         // Extract event data - Handle multiple response structures (Robust extraction)
         let data;
         if (ticketResponse?.data?.subEvent) {
@@ -309,7 +319,7 @@ const handleCloseCancelModal = () => {
     }
   };
 
-  const handleRehost = async () => {
+const handleRehost = async () => {
     try {
       setIsRehosting(true);
       const parentEventId = eventData?.parentEventId;
@@ -320,8 +330,16 @@ const handleCloseCancelModal = () => {
       const response = await rehostSubEvent(parentEventId, ticketId);
       if (response.success) {
         setShowRehostModal(false);
-        toast.success("Sub-event re-hosted successfully!");
-        navigate(`/ticket/confirm-add-on-event/${parentEventId}/${ticketId}`);
+        toast.success("Sub-event re-hosted successfully! Redirecting...");
+        // Navigate to the NEW sub-event _id returned from the API
+        // The old ticketId no longer exists as a sub-event — a new _id was assigned
+        const newSubEventId = response.data?.newSubEventId;
+        if (newSubEventId) {
+          navigate(`/ticket/live-add-on-event-view/${newSubEventId}`);
+        } else {
+          // Fallback: go to parent event if new ID not returned
+          navigate(`/ticket/live-event-view/${parentEventId}`);
+        }
       }
     } catch (err) {
       const msg = err?.response?.data?.message || err.message || "Failed to re-host sub-event.";
