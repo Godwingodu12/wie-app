@@ -17,8 +17,8 @@ export const toggleLike = async (req: Request, res: Response) => {
     const existing = await InteractionModel.findUnique(userId, ticketId, 'LIKE');
 
     if (existing) {
-      // Unlike
-      await InteractionModel.delete(existing.id);
+      // Unlike — delete by composite key to avoid stale-id race condition
+      await InteractionModel.deleteByCompositeKey(userId, ticketId, 'LIKE');
 
       // Update ticket stats
       await updateTicketStats(ticketId, 'like', -1);
@@ -31,7 +31,7 @@ export const toggleLike = async (req: Request, res: Response) => {
     }
 
     // Like
-    await InteractionModel.create({
+  await InteractionModel.upsert({
       userId,
       ticketId,
       interactionType: 'LIKE',
@@ -150,8 +150,8 @@ export const toggleSave = async (req: Request, res: Response) => {
     const existing = await InteractionModel.findUnique(userId, ticketId, 'SAVE');
 
     if (existing) {
-      // Unsave
-      await InteractionModel.delete(existing.id);
+      // Unsave — delete by composite key
+      await InteractionModel.deleteByCompositeKey(userId, ticketId, 'SAVE');
 
       return res.status(200).json({
         success: true,
@@ -160,11 +160,12 @@ export const toggleSave = async (req: Request, res: Response) => {
       });
     }
     // Save
-    await InteractionModel.create({
+     await InteractionModel.upsert({
       userId,
       ticketId,
       interactionType: 'SAVE',
     });
+
     res.status(200).json({
       success: true,
       saved: true,
