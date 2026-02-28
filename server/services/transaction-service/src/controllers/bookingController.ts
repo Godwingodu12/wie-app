@@ -3,7 +3,7 @@ import { prisma } from '../config/db';
 import { SettlementService } from '../services/settlementService';
 import RazorpayService from '../config/razorpay';
 import { getTicketById, getGroupById, updateTicketStats } from '../clients/ticketServiceClient';
-import { updateTicketCancellation, getEventDates,getCancelledEvents } from '../grpc/ticketClient';
+import { updateTicketCancellation, getEventDates,getCancelledEvents,getRehostedEvents } from '../grpc/ticketClient';
 import { getUserById } from '../clients/userServiceClient';
 import { generateQRCode } from '../utils/qrGenerator';
 import { createNotification } from '../utils/notificationHelper';
@@ -1116,7 +1116,7 @@ export const getUserCancelledBookings = async (req: Request, res: Response) => {
 
     // GetCancelledEvents returns ALL cancelled tickets/sub-events globally
     let cancelledTicketIds = new Set<string>();
-    let cancelledEventMeta: Record<string, { cancellation_reason: string; cancelled_at: string; event_name: string }> = {};
+    let cancelledEventMeta: Record<string, { cancellation_reason: string; cancelled_at: string; event_name: string; event_banner: string }> = {};
 
     try {
       const cancelledEvents = await getCancelledEvents();
@@ -1126,6 +1126,7 @@ export const getUserCancelledBookings = async (req: Request, res: Response) => {
           cancellation_reason: ev.cancellation_reason || 'Event cancelled by host',
           cancelled_at:        ev.cancelled_at,
           event_name:          ev.event_name,
+          event_banner:        ev.event_banner || '', 
         };
       });
     } catch (grpcErr: any) {
@@ -1184,7 +1185,8 @@ export const getUserCancelledBookings = async (req: Request, res: Response) => {
       const eventDetails = b.eventDetails as any;
       const enrichedEventDetails = {
         ...eventDetails,
-        eventName: eventDetails?.eventName || grpcMeta?.event_name || 'Unknown Event',
+        eventName:    eventDetails?.eventName    || grpcMeta?.event_name    || 'Unknown Event',
+        event_banner: eventDetails?.event_banner || grpcMeta?.event_banner  || null,
       };
 
       return {
@@ -1237,6 +1239,68 @@ export const getUserCancelledBookings = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('❌ getUserCancelledBookings error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Returns rehosted events only for users who had a booking for the original
+export const getUserRehostedBookings = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    // Step 1: Get all rehosted events from ticket-service (global list)
+    let allRehostedEvents: any[] = [];
+    try {
+      allRehostedEvents = await getRehostedEvents();
+    } catch (grpcErr: any) {
+      console.warn('⚠️ getUserRehostedBookings: getRehostedEvents gRPC failed:', grpcErr.message);
+      return res.json({ success: true, data: { events: [], count: 0 } });
+    }
+
+    if (allRehostedEvents.length === 0) {
+      return res.json({ success: true, data: { events: [], count: 0 } });
+    }
+
+    // Step 2: Fetch all CANCELLED bookings for this user
+    const { bookings: cancelledBookings } = await BookingModel.findByUserId(userId, {
+      status: 'CANCELLED' as any,
+      limit: 200,
+    });
+
+    // Build a Set of ticketIds the user had cancelled bookings for
+    const userCancelledTicketIds = new Set(cancelledBookings.map((b) => b.ticketId));
+
+    if (userCancelledTicketIds.size === 0) {
+      return res.json({ success: true, data: { events: [], count: 0 } });
+    }
+
+    // Step 3: Filter rehosted events to only those whose parentEventId or eventId
+    // matches one of the user's cancelled booking ticketIds
+    const seenEventIds = new Set<string>();
+    const relevantRehostedEvents = allRehostedEvents.filter((ev) => {
+      const evId: string = ev.eventId || ev._id || '';
+      const parentId: string = ev.parentEventId || '';
+      const isRelevant =
+        userCancelledTicketIds.has(evId) || userCancelledTicketIds.has(parentId);
+
+      // Deduplicate by evId
+      if (!isRelevant || seenEventIds.has(evId)) return false;
+      seenEventIds.add(evId);
+      return true;
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        events: relevantRehostedEvents,
+        count: relevantRehostedEvents.length,
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ getUserRehostedBookings error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
