@@ -6,7 +6,7 @@ import {
   getAllLiveEvents,
   getAllGroups,
   getTicketById,
-  getGroupById,
+  getGroupById,getCancelledEvents, getRehostedEvents
 } from '../grpc/ticketClient';
 import { getUserProfile } from '../services/wie-user.service';
 const DEFAULT_SEARCH_RADIUS_KM = 200;
@@ -1475,5 +1475,41 @@ export const getPopularEvents = async (
       message: 'Failed to fetch popular events',
       error: error.message,
     });
+  }
+};
+
+export const getCancelledEventsController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req.query.userId as string) || undefined;
+    const events = await getCancelledEvents(userId);
+    res.status(200).json({
+      success: true,
+      message: `Found ${events.length} cancelled event(s)`,
+      data: { events, count: events.length },
+    });
+  } catch (error: any) {
+    console.error('❌ getCancelledEventsController error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch cancelled events', error: error.message });
+  }
+};
+
+export const getRehostedEventsController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req.query.userId as string) || undefined;
+    const events = await getRehostedEvents(userId);
+    res.status(200).json({
+      success: true,
+      message: `Found ${events.length} rehosted event(s)`,
+      data: { events, count: events.length },
+    });
+  } catch (error: any) {
+    console.error('❌ getRehostedEventsController error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch rehosted events', error: error.message });
   }
 };
