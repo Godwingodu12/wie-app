@@ -11,9 +11,12 @@ import {
   getFilteredEvents,
   getCategoryBasedEvents,
   getPopularEvents,
+  getCancelledEvents,
+  getRehostedEvents,
 } from '@/services/ticketUserService';
+import { getUserLikedEvents, getUserSavedEvents, getUserCancelledBookings } from '@/services/transactionService';
 import { NearbyEvent, EventWithLocation, FilterEventsParams } from '@/types/ticket';
-import { Loader2, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, ArrowRight, AlertCircle } from 'lucide-react';
 import SideBar from '@/components/home/SideBar';
 import { useSidebar } from '@/context/SidebarContext';
 import { EventCard } from '@/components/events/EventCard';
@@ -148,10 +151,14 @@ function EventRow({
   title,
   events,
   onSeeAll,
+  likedIds = new Set<string>(),
+  savedIds  = new Set<string>(),
 }: {
   title: string;
   events: EventWithLocation[];
   onSeeAll?: () => void;
+  likedIds?: Set<string>;
+  savedIds?:  Set<string>;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
 
@@ -204,7 +211,13 @@ function EventRow({
           className="flex gap-3 overflow-x-auto scrollbar-hide pb-1"
         >
           {events.map((ev) => (
-            <EventCard key={ev._id} event={ev} showDistance />
+            <EventCard
+              key={ev._id}
+              event={ev}
+              showDistance
+              isLiked={likedIds.has(ev._id)}
+              isSaved={savedIds.has(ev._id)}
+            />
           ))}
         </div>
       </div>
@@ -248,6 +261,254 @@ function CategoryBreak({ category, events }: { category: string; events: EventWi
   );
 }
 
+function UserCancelledSection({ events, router }: { events: any[]; router: any }) {
+  if (!events.length) return null;
+
+  return (
+    <div
+      className="mb-6 p-4 rounded-2xl"
+      style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-3">
+        <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+        <h3 className="text-red-400 font-semibold text-sm">Your Cancelled Events</h3>
+        <span
+          className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+          style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}
+        >
+          {events.length} event{events.length > 1 ? 's' : ''}
+        </span>
+        <span className="text-white/30 text-[10px] ml-auto">Events you booked were cancelled by host</span>
+      </div>
+
+      {/* Horizontal scroll row */}
+      <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+        {events.map((ev) => (
+          <div
+            key={ev.eventId}
+            className="relative flex-shrink-0"
+            style={{ width: 220 }}
+          >
+            {/* Banner */}
+            <div
+              className="relative overflow-hidden"
+              style={{ height: 110, borderRadius: 10 }}
+            >
+              {ev.event_banner ? (
+                <img
+                  src={ev.event_banner}
+                  alt={ev.event_name}
+                  className="w-full h-full object-cover grayscale-[70%]"
+                />
+              ) : (
+                <div
+                  className="w-full h-full"
+                  style={{ background: 'linear-gradient(135deg, #2a1a1a 0%, #3d1a1a 100%)' }}
+                />
+              )}
+              <div
+                className="absolute inset-0"
+                style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%)' }}
+              />
+              <div
+                className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                style={{ background: 'rgba(239,68,68,0.9)', color: '#fff' }}
+              >
+                ✕ CANCELLED
+              </div>
+            </div>
+
+            {/* Info */}
+            <div className="mt-1.5 px-0.5">
+              <p className="text-white/80 font-medium text-xs line-clamp-1">{ev.event_name}</p>
+              {ev.cancellation_reason && (
+                <p className="text-white/40 text-[10px] mt-0.5 line-clamp-1 italic">
+                  "{ev.cancellation_reason}"
+                </p>
+              )}
+              {/* Refund status */}
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span
+                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{
+                    background:
+                      ev.refundStatus === 'COMPLETED' ? 'rgba(34,197,94,0.15)' :
+                      ev.refundStatus === 'PROCESSING' ? 'rgba(234,179,8,0.15)' :
+                      'rgba(239,68,68,0.15)',
+                    color:
+                      ev.refundStatus === 'COMPLETED' ? '#22c55e' :
+                      ev.refundStatus === 'PROCESSING' ? '#eab308' :
+                      '#ef4444',
+                  }}
+                >
+                  {ev.refundStatus === 'COMPLETED'  ? '✓ Refunded' :
+                   ev.refundStatus === 'PROCESSING' ? '↻ Processing' :
+                   '⏳ Refund Pending'}
+                </span>
+                {ev.refundAmount && (
+                  <span className="text-white/50 text-[10px]">₹{ev.refundAmount}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Track refund button */}
+            {ev.refundStatus !== 'COMPLETED' && ev.bookingId && (
+              <button
+                onClick={() => router.push(`/bookings/${ev.bookingId}/refund`)}
+                className="mt-2 w-full py-1.5 rounded-lg text-[10px] font-bold text-white"
+                style={{ background: 'rgba(239,68,68,0.25)', border: '1px solid rgba(239,68,68,0.4)' }}
+              >
+                Track Refund →
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RehostedEventsSection({ events }: { events: any[] }) {
+  const router = useRouter();
+  if (!events.length) return null;
+
+  return (
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-2 h-2 rounded-full animate-pulse"
+            style={{ background: '#22c55e' }}
+          />
+          <h3 className="text-white font-semibold text-base">Back & Live</h3>
+          <span
+            className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+            style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}
+          >
+            Re-hosted
+          </span>
+        </div>
+      </div>
+
+      {/* Horizontal scroll row */}
+      <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+        {events.map((ev) => (
+          <div
+            key={ev.eventId || ev._id}
+            className="relative flex-shrink-0 cursor-pointer group"
+            style={{ width: 200 }}
+            onClick={() =>
+              router.push(
+                ev.isSubEvent && ev.parentEventId
+                  ? `/events/${ev.parentEventId}`
+                  : `/events/${ev.eventId || ev._id}`
+              )
+            }
+          >
+            {/* Banner */}
+            <div
+              className="relative overflow-hidden"
+              style={{ height: 120, borderRadius: 12 }}
+            >
+              {ev.event_banner ? (
+                <img
+                  src={ev.event_banner}
+                  alt={ev.event_name}
+                  className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
+                />
+              ) : (
+                <div
+                  className="w-full h-full"
+                  style={{ background: 'linear-gradient(135deg, #0d2318 0%, #133d26 100%)' }}
+                />
+              )}
+
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)',
+                }}
+              />
+
+              {/* Re-hosted badge */}
+              <div
+                className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1"
+                style={{
+                  background: 'rgba(34,197,94,0.9)',
+                  color: '#fff',
+                  boxShadow: '0 0 8px rgba(34,197,94,0.4)',
+                }}
+              >
+                <span>↩</span> BACK
+              </div>
+
+              {/* Live badge */}
+              {ev.event_status === 'live' && (
+                <div
+                  className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-0.5 animate-pulse"
+                  style={{ background: 'rgba(239,68,68,0.9)', color: '#fff' }}
+                >
+                  <span
+                    className="w-1 h-1 rounded-full inline-block"
+                    style={{ background: '#fff' }}
+                  />
+                  LIVE
+                </div>
+              )}
+
+              {ev.isSubEvent && (
+                <div
+                  className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-full text-[9px] font-semibold"
+                  style={{ background: 'rgba(139,92,246,0.85)', color: '#fff' }}
+                >
+                  SUB
+                </div>
+              )}
+            </div>
+
+            {/* Info */}
+            <div className="mt-2 px-0.5">
+              <p className="text-white font-medium text-xs line-clamp-1">{ev.event_name}</p>
+              {ev.event_dates?.[0]?.start_date && (
+                <p className="text-green-400/70 text-[10px] mt-0.5">
+                  {new Date(ev.event_dates[0].start_date).toLocaleDateString('en-US', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </p>
+              )}
+              {ev.venue && (
+                <p className="text-white/30 text-[10px] mt-0.5 line-clamp-1">{ev.venue}</p>
+              )}
+            </div>
+
+            {/* Book again CTA */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(
+                  ev.isSubEvent && ev.parentEventId
+                    ? `/events/${ev.parentEventId}`
+                    : `/events/${ev.eventId || ev._id}`
+                );
+              }}
+              className="mt-2 w-full py-1.5 rounded-lg text-[10px] font-bold text-white transition-all hover:opacity-90"
+              style={{
+                background: 'linear-gradient(135deg, #16a34a, #22c55e)',
+                boxShadow: '0 2px 8px rgba(34,197,94,0.25)',
+              }}
+            >
+              Book Again →
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 export default function NearbyEventsPage() {
   useAuth(true);
   const router = useRouter();
@@ -265,15 +526,51 @@ export default function NearbyEventsPage() {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [activeFilters, setActiveFilters] = useState<FilterEventsParams>({});
   const [hasSearched, setHasSearched] = useState(false);
+  const [cancelledEvents, setCancelledEvents] = useState<any[]>([]);
+  const [rehostedEvents, setRehostedEvents] = useState<any[]>([]);
+  const [likedTicketIds, setLikedTicketIds] = useState<Set<string>>(new Set());
+  const [savedTicketIds, setSavedTicketIds] = useState<Set<string>>(new Set());
+  const [userCancelledBookings, setUserCancelledBookings] = useState<any[]>([]);
 
   // ── Load everything on mount ──
   useEffect(() => {
     loadInitialData();
   }, []);
 
-  const loadInitialData = async () => {
+ const loadInitialData = async () => {
     setLoading(true);
     try {
+        Promise.all([
+          getRehostedEvents().catch(() =>  ({ data: { events: [] } })),
+          getUserLikedEvents().catch(() => ({ data: { ticketIds: [] } })),
+          getUserSavedEvents().catch(() => ({ data: { ticketIds: [] } })),
+          // getUserCancelledBookings fetches the user's own cancelled bookings
+          // (events they BOOKED that got admin-cancelled) — not all cancelled events globally
+          getUserCancelledBookings().catch(() => ({ data: { cancelledBookings: [] } })),
+        ]).then(([rehostedRes, likedRes, savedRes, cancelledBookingsRes]) => {
+          setRehostedEvents(rehostedRes?.data?.events ?? []);
+          setLikedTicketIds(new Set(likedRes?.data?.ticketIds  ?? []));
+          setSavedTicketIds(new Set(savedRes?.data?.ticketIds ?? []));
+
+        // Build cancelled event display objects from the user's cancelled bookings
+        const cancelledFromBookings = (cancelledBookingsRes?.data?.cancelledBookings ?? [])
+          .filter((b: any) => b.isAdminCancelled) // only host-cancelled, not user-self-cancelled
+          .map((b: any) => ({
+            eventId:             b.ticketId,
+            event_name:          (b.eventDetails as any)?.eventName || 'Event',
+            event_banner:        (b.eventDetails as any)?.event_banner || null,
+            cancelled_at:        b.cancelledAt,
+            cancellation_reason: b.cancellationReason,
+            isSubEvent:          false,
+            parentEventId:       null,
+            refundAmount:        b.refundAmount,
+            refundStatus:        b.refundStatus,
+            bookingId:           b.id,
+          }));
+        setUserCancelledBookings(cancelledFromBookings);
+        // Keep the global cancelledEvents state empty — we no longer show it to all users
+        setCancelledEvents([]);
+      });
       // 1. Try GPS
       const res = await getNearbyEventsFromCurrentLocation(500);
       const events: NearbyEvent[] = res.data.events;
@@ -373,9 +670,9 @@ export default function NearbyEventsPage() {
           key={`band-${band}`}
           title={bandLabel(band)}
           events={evs as unknown as EventWithLocation[]}
-          onSeeAll={() =>
-            router.push(`/events/categories?radius=${band}`)
-          }
+          onSeeAll={() => router.push(`/events/categories?radius=${band}`)}
+          likedIds={likedTicketIds}
+          savedIds={savedTicketIds}
         />
       );
       bandCount++;
@@ -564,15 +861,15 @@ export default function NearbyEventsPage() {
                   {Object.keys(filterResultsByCategory).length > 0 ? (
                     Object.entries(filterResultsByCategory).map(([cat, evs]) => (
                       <EventRow
-                        key={cat}
-                        title={cat}
-                        events={evs as EventWithLocation[]}
-                        onSeeAll={() =>
-                          router.push(
-                            `/events/categories?category=${encodeURIComponent(cat)}`
-                          )
-                        }
-                      />
+                      key={cat}
+                      title={cat}
+                      events={evs as EventWithLocation[]}
+                      onSeeAll={() =>
+                        router.push(`/events/categories?category=${encodeURIComponent(cat)}`)
+                      }
+                      likedIds={likedTicketIds}
+                      savedIds={savedTicketIds}
+                    />
                     ))
                   ) : (
                     <p className="text-white/40 text-sm py-8 text-center">
@@ -581,15 +878,23 @@ export default function NearbyEventsPage() {
                   )}
                 </div>
               )}
-
-              {/* ── Default View (no search / filter active) ── */}
               {!hasSearched && (
                 <>
+                  {userCancelledBookings.length > 0 && (
+                    <UserCancelledSection
+                      events={userCancelledBookings}
+                      router={router}
+                    />
+                  )}
+
                   {/* Popular event banner */}
                   <PopularEventBanner
                     events={popularEvents}
                     onViewAll={() => router.push('/events/popular')}
                   />
+
+                  {/* Re-hosted live events */}
+                  <RehostedEventsSection events={rehostedEvents} />
 
                   {/* Nearby events by distance band + category breaks */}
                   {nearbyByBand.size > 0 ? (
