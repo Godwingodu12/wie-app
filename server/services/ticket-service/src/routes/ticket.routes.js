@@ -1,395 +1,92 @@
-import mongoose from 'mongoose';
-// Guest Schema
-const guestSchema = new mongoose.Schema({
-  guest_name: { type: String },
-  guest_profile: { type: String }, 
-  guest_link: { type: String }, 
-});
-// Ticket Type Schema
-const ticketTypeSchema = new mongoose.Schema({
-  ticket_type: { type: String },
-  ticket_price: { type: Number },
-  ticket_photo: { type: String },
-  ticket_photo_public_id: { type: String },
-  max_capacity: { type: Number },
-});
-const ticketdateSchema = new mongoose.Schema({
-    start_date: { type: String, required: true },
-    end_date: { type: String },
-    start_time: { type: String, required: false },
-    end_time: { type: String, required: false },
-    event_link: { type: String, required: false },
-    video_name: { type: String, required: false },
-    verification_event_code: { type: String, required: false },
-    video_file_path: { type: String, required: false },
-    preview_image_path: { type: String, required: false },
-});
-// Banking Details Schema
-const bankingDetailsSchema = new mongoose.Schema({
-  bank_acc_type: { type: String },
-  bank_acc_no: { type: String },
-  bank_ifsc: { type: String },
-  bank_acc_holder: { type: String },
-});
-const offerTicketSchema = new mongoose.Schema({
-  offer_ticket_type: { type: String, required: false },
-  offer_ticket_price: { type: String, required: false },
-  set_limit_for_user: { type: String, required: false },
-  offer_ticket_pic: { type: String, required: false },
-});
+import express from 'express';
+import { uploadFields, uploadTicketMedia } from '../middlewares/upload.js'; 
+import multer from 'multer';
+import { uploadGroupFiles } from '../middlewares/upload.js';
+import {getUserData,CreateGroup, UpdateGroup,createTicketBasicInfo, getGroups, getUserGroupCapabilities,updateTicketMedia,updateTicketAddOns,updateTicketDetails,updateTicketTerms,submitTicket,getAllGroupTicketId,
+getTicketById,deleteTicket,deleteSubEvent,deleteEventPermenently,deleteAllEvents,viewTickets, getAllDeletedEvents,getDeletedEventById,recoverDeletedEvent,getAllGroups,getAllLiveEvents,recoverSubEvent} from '../services/ticket.service.js';
+import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getGroupById,getOtherGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getMyPreviousEventView,getOthersEvents,getOthersEventsById,getOtherLiveEvents,
+getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getAddOnEventLiveView,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted,getPostalDetailsFromCoords,
+getPreviousEventView,getPreviousSubEventView,getPreviousEventStatistics,getPreviousEventMonthlyStats,getPreviousSubEventMonthlyStats,getPreviousEventCapacityStats,getPreviousSubEventCapacityStats,getEventMetrics,getEventStatsByDate, getEventGrowthStats, getEventMonthlyChart,
+cancelEvent, getCancellationReport, rehostEvent, rehostSubEvent,goLiveSubEvent,getAuditHistory,getEventVersions } from '../controller/ticket.controller.js';
+import { protect } from '../middlewares/auth.js';
+const router = express.Router();
+router.use(protect);
+router.get('/get-user-data',getUserData);
+router.post('/create-group',uploadGroupFiles, CreateGroup);
+router.put('/update-group/:groupId', protect, uploadGroupFiles, UpdateGroup);
+router.get('/get-groups', getGroups);
+router.post('/create-event/:groupId', createTicketBasicInfo);
+router.post('/create-event/:groupId/:ticketId', createTicketBasicInfo);
+router.get('/user-group-capabilities', getUserGroupCapabilities);
+router.post('/update-ticket-media/:ticketId', updateTicketMedia);
+router.post('/ticket-addons/:ticketId',uploadTicketMedia, updateTicketAddOns);
+router.put('/update-sub-event/:ticketId/:subEventId',uploadTicketMedia, updateSubEvent);
+router.post('/update-ticket-details/:ticketId', updateTicketDetails);
+router.post('/ticket-terms/:ticketId', updateTicketTerms);
+router.post('/submit-ticket/:ticketId', submitTicket);
+router.get('/get-all-tickets', getAllGroupTicketId);
+router.get('/get-ticket-sub-events/:ticketId', getTicketSubEvents);
+router.get('/get-ticket/:ticketId', getTicketById);
+router.post('/delete-ticket/:ticketId', deleteTicket);
+router.post('/delete-sub-event/:ticketId/:subEventId', protect, deleteSubEvent);
+router.delete('/delete-event-permanently/:ticketId', protect, deleteEventPermenently);
+router.post('/delete-all-events',protect, deleteAllEvents);
+router.get('/get-all-deleted-events', getAllDeletedEvents);
+router.get('/get-deleted-event/:eventId', protect, getDeletedEventById);
+router.put('/recover-deleted-event/:ticketId',protect, recoverDeletedEvent);
+router.get('/view-tickets', viewTickets);
+router.get('/get-groups-types', getGroupsTypes);
+router.get('/get-group-view/:ticketId', getGroupView);
+router.get('/get-group-by-id/:groupId', getGroupById);
+router.get('/get-other-group-view/:ticketId', getOtherGroupView);
+router.get('/my-events', getMyEvents);
+router.get('/my-event-view/:ticketId', getMyEventById);
+router.get('/my-live-events', getMyLiveEvents);
+router.get('/my-live-event-view/:ticketId', getMyLiveEventView);
+router.get('/addon-event-live-view/:subEventId', getAddOnEventLiveView);
+router.get('/my-past-events', getMyPastEvents);
+router.get('/my-upcoming-events', getMyUpcomingEvents);
+router.get('/my-previous-event-view/:ticketId', getMyPreviousEventView);
+router.get('/get-others-events/:otherId',getOthersEvents);
+router.get('/get-other-ticket-id/:otherId/:ticketId',getOthersEventsById)
+router.get('/get-others-live-events/:otherId',getOtherLiveEvents);
+router.get('/get-others-past-events/:otherId',getOthersPastEvents);
+router.get('/get-group-statistics', getGroupStatistics);
+router.post('/confirm-event/:ticketId',confirmEvent);
+router.post('/go-live-event/:ticketId',goLiveEvent);
+router.get('/get-previous-events',protect, getPreviousEvents);
+router.post('/make-event-completed', makeEventCompleted);
+router.get('/show-event-bank-details',protect, showEventBankDetails);
+router.get('/show-all-bank-details',protect, showAllBankDetails);
+router.get('/live-event-bank-details',protect, LiveEventBankDetails);
+router.post('/like-event/:ticketId',protect, likeEvent);
+router.post('/unlike-event/:ticketId',unlikeEvent);
+router.get('/check-user-liked/:ticketId',checkUserLiked);
+router.get('/group-event-count',protect, groupEventCount);
+router.get('/total-events-created-count',protect, totalEventsCreatedCount);
+router.get('/get-postal-details', getPostalDetailsFromCoords);
+router.get('/get-all-live-events',getAllLiveEvents);
+router.get('/get-all-groups', getAllGroups);
+router.get('/previous-event-statistics/:ticketId', getPreviousEventStatistics);
+router.get('/previous-event-view/:ticketId', getPreviousEventView);
+router.get('/previous-sub-event-view/:subEventId', getPreviousSubEventView);
+router.get('/previous-event-monthly-stats/:ticketId', getPreviousEventMonthlyStats);
+router.get('/previous-sub-event-monthly-stats/:subEventId', getPreviousSubEventMonthlyStats);
+router.get('/previous-event-capacity-stats/:ticketId', getPreviousEventCapacityStats);
+router.get('/previous-sub-event-capacity-stats/:subEventId', getPreviousSubEventCapacityStats);
+router.get('/event-metrics/:ticketId', getEventMetrics);
+router.get('/event-stats-by-date/:ticketId', protect, getEventStatsByDate);
+router.get('/event-growth-stats/:ticketId', protect, getEventGrowthStats);
+router.get('/event-monthly-chart/:ticketId', protect, getEventMonthlyChart);
+router.post('/cancel-event/:ticketId', cancelEvent);
+router.post('/:ticketId/sub-events/:subEventId/cancel', cancelEvent);
+router.get('/get-cancellation-report/:ticketId', getCancellationReport);
+router.get('/get-cancellation-report/:ticketId/sub-event/:subEventId', getCancellationReport);
+router.post('/rehost-event/:ticketId', rehostEvent);
+router.post('/:parentTicketId/sub-events/:subEventId/rehost', rehostSubEvent);
+router.post('/:parentTicketId/sub-events/:subEventId/go-live', goLiveSubEvent);
+router.post('/:parentTicketId/sub-events/:subEventId/recover', protect, recoverSubEvent);
+router.get('/audit-history/:ticketId', getAuditHistory);
+router.get('/event-versions/:originalEventId', getEventVersions);
 
-// POC Schema
-const POCSchema = new mongoose.Schema({
-  POC_name: { type: String, required: true },
-  POC_email: { type: String, required: true },
-  POC_contact: { type: String, required: true },
-});
-// File Schema for event rules
-const fileSchema = new mongoose.Schema({
-  type: { type: String, enum: ['file', 'text'], required: true },
-  path: { type: String }, // For file type
-  originalName: { type: String }, // For file type
-  mimeType: { type: String }, // For file type
-  size: { type: Number }, // For file type
-  content: { type: String }, // For text type
-  uploadedAt: { type: Date, default: Date.now }
-});
-// Sub Event Schema (for add-on events)
-const subEventSchema = new mongoose.Schema({
-  event_name: { type: String, required: true },
-  event_category: { type: String, required: true },
-  event_subcategory: { type: String, required: true },
-  event_type: { type: String, required: true,enum: ['private', 'public']},
-  subevent: { type: String, required: true, enum: ['1','2','5']},
-  event_language: {
-      type: [String],
-      enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other'],
-      default: []
-  },
-  location_type: {type: String, enum: ['offline', 'online', 'recorded'], required: false},
-  location: { 
-    type: String, 
-    required: function() { return this.location_type === 'offline'; } 
-  },
-  venue: { 
-      type: String, 
-      required: function() { return this.location_type === 'offline'; } 
-  },
-  seating_arrangement: { 
-      type: String, 
-      default: 'none', 
-      enum: ['seated', 'standing','seated and standing','other','none'],
-      required: function() { return this.location_type === 'offline'; }
-  },
-  min_age_allowed: { type: Number, required: true },
-  max_age_allowed: { type: Number, required: false },
-  kids_friendly: { type: Boolean, default: false },
-  pet_friendly: { type: Boolean, default: false },
-  exact_map_location: {
-    latitude: { type: Number },
-    longitude: { type: Number },
-    address: { type: String }
-  },
-  
-  // Date and Time
-  event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: false },
-  event_dates: [ticketdateSchema], // Supports multiple dates for multi-day or weekly events
-  gate_open_time: { type: String, required: false },
-  event_instagram_link: { type: String, required: false },
-  event_youtube_link: { type: String, required: false },
-  //for online event
-  verification_event_code: { type: String},
-  event_rules: fileSchema,
-  POCS: [POCSchema],
-  prohibited_items: [{ type: String }],
-  event_description: { type: String, required: true },
-  event_logo: { type: String, required: false },
-  event_banner: { type: String, required: true },
-  event_images: [{
-      path: {
-        type: String,
-        required: true
-      },
-      originalName: {
-        type: String,
-        required: true
-      },
-      mimeType: {
-        type: String,
-        required: true
-      },
-      size: {
-        type: Number,
-        required: true
-      },
-      uploadedAt: {
-        type: Date,
-        default: Date.now
-      }
-    }], 
-    // Add these after event_banner in ticketSchema
-  event_portrait: { type: String, required: false },
-  event_videos: [{
-    path: { type: String, required: true },
-    originalName: { type: String, required: true },
-    mimeType: { type: String, required: true },
-    size: { type: Number, required: true },
-    uploadedAt: { type: Date, default: Date.now }
-  }], 
-  // Event Details
-  hashtag: [{ type: String }], // Array of hashtags
-  payment_type: { type: String, enum: ['free', 'paid'], required: true },
-  main_ticket_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
-  // Banking Details for sub-events
-  banking_details: [bankingDetailsSchema],
-  // Multiple Guests, Guides, and Ticket Types for sub-events
-  guests: [guestSchema],
-  ticket_types: [ticketTypeSchema],
-  ticket_layout: { type: String, required: false },
-  ticket_layout_public_id: { type: String, required: false },
-  seating_layout: {
-    type: {
-      rows: [String],
-      columns: Number,
-      seats: [{
-        seatId: { type: String, required: true },
-        row: { type: String, required: true },
-        column: { type: Number, required: true },
-        isAvailable: { type: Boolean, default: true },
-        isSelected: { type: Boolean, default: false },
-        ticketTypeId: { type: String, default: null },
-        ticketTypeName: { type: String, default: null }, 
-        ticketTypeColor: { type: String, default: null },
-        price: { type: Number, default: 0 } 
-      }],
-      ticketTypeAssignments: [{
-        ticketTypeId: String,
-        ticketTypeName: String,
-        color: String,
-        assignedSeats: [String],
-        capacity: Number,
-        price: { type: Number, default: 0 }
-      }]
-    },
-    required: false
-  },
-  total_capacity: { type: String, required: false },
-  booking_start_date: { type: String, required: false },
-  booking_end_date: { type: String, required: false },
-  // Status
-  event_status: {
-    type: String,
-    enum: ['pending', 'confirmed', 'cancelled', 'live','completed','deleted','remove'],
-    default: 'pending'
-  },
-  cancellation_reason: { type: String, default: '' },
-  cancelled_at:        { type: Date },
-  cancelled_by:        { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  rehosted_at: { type: Date },
-  like: { type: Number, required: false, default: 0 },
-  share: { type: Number, required: false, default: 0 },
-  // Booking statistics
-  totalBookings: { type: Number, required: false, default: 0 },
-  totalTicketsSold: { type: Number, required: false, default: 0 }, 
-  revenue: { type: Number, required: false, default: 0 },
-  total_cancellation: { type: Number, required: false, default: 0 },
-  // Versioning for sub-events
-  version: { type: Number, default: 1 },
-  rehosted_from: { type: mongoose.Schema.Types.ObjectId, default: null }, // _id of old cancelled sub-event
-  // Sub-event audit history stored inline (no cross-table join needed)
-  audit_history: [{
-    version:          { type: Number },
-    cancelled_at:     { type: Date },
-    cancellation_reason: { type: String },
-    metrics_snapshot: { type: mongoose.Schema.Types.Mixed }, // frozen lifecycle_metrics
-  }],
-  // Sub-event lifecycle metrics (reset on rehost)
-  lifecycle_metrics: {
-    like:               { type: Number, default: 0 },
-    share:              { type: Number, default: 0 },
-    totalBookings:      { type: Number, default: 0 },
-    totalTicketsSold:   { type: Number, default: 0 },
-    revenue:            { type: Number, default: 0 },
-    total_cancellation: { type: Number, default: 0 },
-    total_refund_amount: { type: Number, default: 0 },
-  },
-}, { timestamps: true });
-// Main Ticket Schema (Event)
-const ticketSchema = new mongoose.Schema({
-  // Basic Information
-  event_name: { type: String, required: false },
-  event_category: { type: String, required: false },
-  event_subcategory: { type: String, required: false },
-  event_type: { type: String, required: false },
-  event_language: {
-    type: [String],
-    enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other'],
-    default: []
-  },
-  min_age_allowed: { type: Number, required: true },
-  max_age_allowed: { type: Number, required: false },
-  seating_arrangement: { type: String, default: false, enum: ['seated', 'standing','seated and standing','other','none']},
-  kids_friendly: { type: Boolean, default: false },
-  pet_friendly: { type: Boolean, default: false },
-  
-  // Location
-  location_type: {type: String, enum: ['offline', 'online', 'recorded'], required: true},
-  location: { type: String, required: false },
-  venue: { type: String, required: false },
-  exact_map_location: {
-    latitude: { type: Number },
-    longitude: { type: Number },
-    address: { type: String }
-  },
-  // Date and Time
-  event_date_type: { type: String, enum: ['one-day', 'multi-day', 'weekly'], required: true },
-  event_dates: [ticketdateSchema],
-  event_instagram_link: { type: String, required: false },
-  gate_open_time: { type: String, required: false },
-  event_youtube_link: { type: String, required: false },
-  //for online event
-  verification_event_code: { type: String},
-  event_rules: fileSchema,
-  
-  prohibited_items: [{ type: String }],
-  college_authorisation: { type: String, required: false },
-  event_description: { type: String, required: false },
-  event_logo: { type: String, required: false },
-  event_banner: { type: String, required: false },
-  event_images: [{
-    path: {
-      type: String,
-      required: true
-    },
-    originalName: {
-      type: String,
-      required: true
-    },
-    mimeType: {
-      type: String,
-      required: true
-    },
-    size: {
-      type: Number,
-      required: true
-    },
-    uploadedAt: {
-      type: Date,
-      default: Date.now
-    }
-  }], 
-  event_portrait: { type: String, required: false },
-  event_videos: [{
-    path: { type: String, required: true },
-    originalName: { type: String, required: true },
-    mimeType: { type: String, required: true },
-    size: { type: Number, required: true },
-    uploadedAt: { type: Date, default: Date.now }
-  }],// Array of image objects (max 10)
-  // Event Details
-  hashtag: [{ type: String }], // Array of hashtags
-  payment_type: { type: String, enum: ['free', 'paid'], required: false },
-  
-  // Banking Details (can have multiple for main event)
-  banking_details: [bankingDetailsSchema],
-  
-  // Multiple Guests, Guides, and Ticket Types
-  guests: [guestSchema], // This remains as array of objects
-  POCS: [POCSchema],
-  total_capacity: { type: String, required: false },
-  booking_start_date: { type: String, required: false },
-  booking_end_date: { type: String, required: false },
-  ticket_layout: { type: String, required: false },
-  ticket_layout_public_id: { type: String, required: false },
-  seating_layout: {
-    type: {
-      rows: [String],
-      columns: Number,
-      seats: [{
-        seatId: { type: String, required: true },
-        row: { type: String, required: true },
-        column: { type: Number, required: true },
-        isAvailable: { type: Boolean, default: true },
-        isSelected: { type: Boolean, default: false },
-        ticketTypeId: { type: String, default: null },
-        ticketTypeName: { type: String, default: null }, 
-        ticketTypeColor: { type: String, default: null },
-        price: { type: Number, default: 0 } 
-      }],
-      ticketTypeAssignments: [{
-        ticketTypeId: String,
-        ticketTypeName: String, 
-        color: String,
-        assignedSeats: [String],
-        capacity: Number,
-        price: { type: Number, default: 0 }
-      }]
-    },
-    required: false
-  },
-  ticket_types: [ticketTypeSchema],
-  created_by: { type: String, required: false },
-  like: {type: Number,required: false,default: 0},
-  share: { type: Number, required: false, default: 0 },
-  // Booking statistics
-  totalBookings: { type: Number, required: false, default: 0 },
-  totalTicketsSold: { type: Number, required: false, default: 0 }, 
-  revenue: { type: Number, required: false, default: 0 },
-  total_cancellation: { type: Number, required: false, default: 0 },
-  //ticket offer or bulk booking
-  event_ticket_offer: { type: Boolean, default: false },
-  offerTickets: [offerTicketSchema],
-  sub_events: [subEventSchema],
-  // References
-  groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Group', required: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  
-  // Status and Updates
-  event_status: {
-    type: String,
-    enum: ['pending', 'confirmed', 'cancelled','live','completed','deleted','remove'],
-    default: 'pending'
-  },
-  cancellation_reason: { type: String, default: '' },
-  cancelled_at:        { type: Date },
-  cancelled_by:        { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  rehosted_at: { type: Date },
-  // Promotion tracking
-  promoted_to_ticket_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
-  promoted_from_sub_event:  { type: Boolean, default: false },
-  original_main_event_id:   { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
-  promoted_at:              { type: Date },
-  isMain:                   { type: Boolean, default: true },
-  updated_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  updated_at: { type: Date, default: Date.now },
-  lifecycle_metrics: {
-    like:                    { type: Number, default: 0 },
-    share:                   { type: Number, default: 0 },
-    totalBookings:           { type: Number, default: 0 },
-    totalTicketsSold:        { type: Number, default: 0 },
-    revenue:                 { type: Number, default: 0 },
-    total_cancellation:      { type: Number, default: 0 },
-    total_refund_amount:     { type: Number, default: 0 },
-  },
-  // Form Progress Tracking
-  form_progress: {
-    basic_info: { type: Boolean, default: false },
-    media: { type: Boolean, default: false },
-    add_on_events: { type: Boolean, default: false },
-    banking_tickets: { type: Boolean, default: false },
-    terms_conditions: { type: Boolean, default: false },
-  },
-  
-  // Terms and Conditions (Company provided)
-  terms_accepted: { type: Boolean, default: false },
-  terms_accepted_at: { type: Date },
-  company_terms_version: { type: String }, // Track which version of terms was accepted
-  version: { type: Number, default: 1 },                            // increments on each rehost
-  parent_event_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket', default: null }, // previous cancelled version
-  original_event_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket', default: null }, // very first V1 always
-  is_locked: { type: Boolean, default: false },
-}, {
-  timestamps: true
-});
-const Ticket = mongoose.model('Ticket', ticketSchema);
-export default Ticket;
+export default router;
