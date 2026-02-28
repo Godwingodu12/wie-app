@@ -305,3 +305,31 @@ export const getPopularEvents = async (limit = 10): Promise<{
     throw err;
   }
 };
+
+export const getCancelledEvents = async (userId?: string): Promise<{
+  success: boolean;
+  data: { events: any[]; count: number };
+}> => {
+  try {
+    const query = userId ? `?userId=${userId}` : '';
+    const res = await api.get(`/tickets/cancelled-events${query}`);
+    return res.data;
+  } catch (err) {
+    console.error('❌ getCancelledEvents error:', err);
+    throw err;
+  }
+};
+
+export const getRehostedEvents = async (userId?: string): Promise<{
+  success: boolean;
+  data: { events: any[]; count: number };
+}> => {
+  try {
+    const query = userId ? `?userId=${userId}` : '';
+    const res = await api.get(`/tickets/rehosted-events${query}`);
+    return res.data;
+  } catch (err) {
+    console.error('❌ getRehostedEvents error:', err);
+    throw err;
+  }
+};
