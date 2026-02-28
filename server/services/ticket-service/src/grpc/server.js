@@ -894,6 +894,135 @@ const getEventCancellationInfo = async (call, callback) => {
     callback(null, { eventId: "", paymentType: "", groupId: "", eventName: "", error: error.message });
   }
 };
+
+const getCancelledEvents = async (call, callback) => {
+  try {
+    const { userId } = call.request;
+
+    // Root tickets that are cancelled
+    const cancelledRootTickets = await Ticket.find({
+      event_status: "cancelled",
+      ...(userId ? { userId } : {}),
+    }).lean();
+
+    const events = [];
+
+    // Root cancelled tickets
+    cancelledRootTickets.forEach((ticket) => {
+      events.push({
+        eventId:             ticket._id.toString(),
+        parentEventId:       "",
+        isSubEvent:          false,
+        event_name:          ticket.event_name || "",
+        event_status:        ticket.event_status || "cancelled",
+        event_banner:        ticket.event_banner || "",
+        event_category:      ticket.event_category || "",
+        cancelled_at:        ticket.cancelled_at ? ticket.cancelled_at.toISOString() : "",
+        cancellation_reason: ticket.cancellation_reason || "",
+        event_dates:         ticket.event_dates || [],
+        location:            ticket.location || "",
+        venue:               ticket.venue || "",
+      });
+    });
+
+    // Sub-events that are cancelled — scan all tickets
+    const allTickets = await Ticket.find(
+      userId
+        ? { userId, "sub_events.event_status": "cancelled" }
+        : { "sub_events.event_status": "cancelled" }
+    ).lean();
+
+    allTickets.forEach((ticket) => {
+      (ticket.sub_events || []).forEach((se) => {
+        if (se.event_status === "cancelled") {
+          events.push({
+            eventId:             se._id.toString(),
+            parentEventId:       ticket._id.toString(),
+            isSubEvent:          true,
+            event_name:          se.event_name || "",
+            event_status:        se.event_status || "cancelled",
+            event_banner:        se.event_banner || ticket.event_banner || "",
+            event_category:      se.event_category || ticket.event_category || "",
+            cancelled_at:        se.cancelled_at ? new Date(se.cancelled_at).toISOString() : "",
+            cancellation_reason: se.cancellation_reason || ticket.cancellation_reason || "",
+            event_dates:         se.event_dates || [],
+            location:            se.location || ticket.location || "",
+            venue:               se.venue || ticket.venue || "",
+          });
+        }
+      });
+    });
+
+    callback(null, { success: true, events, count: events.length, error: "" });
+  } catch (error) {
+    console.error("❌ [gRPC] getCancelledEvents error:", error);
+    callback(null, { success: false, events: [], count: 0, error: error.message });
+  }
+};
+
+const getRehostedEvents = async (call, callback) => {
+  try {
+    const { userId } = call.request;
+
+    // Root tickets recently rehosted — event_status is confirmed/live AND was previously cancelled
+    // We track rehosted by checking promoted_from_sub_event or rehosted_at field
+    const rehostedRootTickets = await Ticket.find({
+      event_status: { $in: ["confirmed", "live"] },
+      rehosted_at: { $exists: true },
+      ...(userId ? { userId } : {}),
+    }).lean();
+
+    const events = [];
+
+    rehostedRootTickets.forEach((ticket) => {
+      events.push({
+        eventId:       ticket._id.toString(),
+        parentEventId: "",
+        isSubEvent:    false,
+        event_name:    ticket.event_name || "",
+        event_status:  ticket.event_status || "",
+        event_banner:  ticket.event_banner || "",
+        event_category: ticket.event_category || "",
+        rehosted_at:   ticket.rehosted_at ? ticket.rehosted_at.toISOString() : "",
+        event_dates:   ticket.event_dates || [],
+        location:      ticket.location || "",
+        venue:         ticket.venue || "",
+      });
+    });
+
+    // Sub-events recently rehosted (confirmed/live after being cancelled)
+    const allTickets = await Ticket.find(
+      userId
+        ? { userId, "sub_events.rehosted_at": { $exists: true } }
+        : { "sub_events.rehosted_at": { $exists: true } }
+    ).lean();
+
+    allTickets.forEach((ticket) => {
+      (ticket.sub_events || []).forEach((se) => {
+        if (se.rehosted_at && ["confirmed", "live"].includes(se.event_status)) {
+          events.push({
+            eventId:       se._id.toString(),
+            parentEventId: ticket._id.toString(),
+            isSubEvent:    true,
+            event_name:    se.event_name || "",
+            event_status:  se.event_status || "",
+            event_banner:  se.event_banner || ticket.event_banner || "",
+            event_category: se.event_category || ticket.event_category || "",
+            rehosted_at:   se.rehosted_at ? new Date(se.rehosted_at).toISOString() : "",
+            event_dates:   se.event_dates || [],
+            location:      se.location || ticket.location || "",
+            venue:         se.venue || ticket.venue || "",
+          });
+        }
+      });
+    });
+
+    callback(null, { success: true, events, count: events.length, error: "" });
+  } catch (error) {
+    console.error("❌ [gRPC] getRehostedEvents error:", error);
+    callback(null, { success: false, events: [], count: 0, error: error.message });
+  }
+};
 export const startGrpcServer = (port = 50052) => {
   const server = new grpc.Server();
   server.addService(ticketProto.TicketService.service, {
@@ -908,6 +1037,8 @@ export const startGrpcServer = (port = 50052) => {
     GetPreviousEventStats: getPreviousEventStats,
     CancelEvent: cancelEventGrpc,
     GetEventCancellationInfo: getEventCancellationInfo,
+    GetCancelledEvents: getCancelledEvents,
+    GetRehostedEvents: getRehostedEvents,
   });
   server.bindAsync(
     `0.0.0.0:${port}`,
