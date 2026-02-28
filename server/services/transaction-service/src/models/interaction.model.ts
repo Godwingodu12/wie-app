@@ -42,18 +42,33 @@ export class InteractionModel {
     });
   }
 
-  /**
-   * Delete interaction
-   */
   static async delete(id: string): Promise<Interaction> {
     return await prisma.interaction.delete({
       where: { id },
     });
   }
 
-  /**
-   * Find interactions by user
-   */
+  static async deleteByCompositeKey(
+    userId: string,
+    ticketId: string,
+    interactionType: InteractionType
+  ): Promise<Interaction | null> {
+    try {
+      return await prisma.interaction.delete({
+        where: {
+          userId_ticketId_interactionType: {
+            userId,
+            ticketId,
+            interactionType,
+          },
+        },
+      });
+    } catch (err: any) {
+      // P2025 = record not found — treat as already deleted, not an error
+      if (err.code === 'P2025') return null;
+      throw err;
+    }
+  }
   static async findByUserId(
     userId: string,
     options?: {
