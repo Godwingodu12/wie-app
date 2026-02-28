@@ -246,11 +246,16 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
         router.push(`/bookings/${bookingId}`);
       } else if (targetUrl) {
         router.push(targetUrl);
-      } else if (
-        notification.type === "event_created" &&
-        notification.eventId
-      ) {
+      } else if (notification.type === "event_cancelled" && notification.ticketId) {
+        // Show cancelled event details — navigate to a cancelled info page or bookings
+        router.push(`/bookings?cancelled=${notification.ticketId}`);
+      } else if (notification.type === "event_rehosted" && notification.ticketId) {
+        // Navigate to the re-hosted event so user can re-book
+        router.push(`/events/${notification.ticketId}`);
+      } else if (notification.type === "event_created" && notification.eventId) {
         router.push(`/events/${notification.eventId}`);
+      } else if (notification.ticketId) {
+        router.push(`/events/${notification.ticketId}`);
       }
 
       onClose();
@@ -260,14 +265,15 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
   };
   /* Counts Calculation */
   const unreadTotal = notifications.filter(n => !n.isRead).length;
-
   const eventCount = notifications.filter(
     (n) =>
       !n.isRead &&
       (n.type?.includes("event") ||
         n.type?.includes("ticket") ||
         n.type?.includes("group") ||
-        n.type?.includes("booking")),
+        n.type?.includes("booking") ||
+        n.type === "event_cancelled" ||
+        n.type === "event_rehosted"),
   ).length;
 
   const followerCount = notifications.filter(
@@ -525,6 +531,8 @@ const NotificationItem = ({
     "event_reminder",
     "ticket_verified",
     "qr_code_generated",
+    "event_cancelled",
+    "event_rehosted",
   ];
 
   const isEvent =
@@ -1027,7 +1035,34 @@ const NotificationItem = ({
             </span>
           </div>
         )}
-
+        {/* Cancelled / Rehosted badge */}
+        {(notification.type === 'event_cancelled' || notification.type === 'event_rehosted') && (
+          <div className="flex items-center gap-1.5 mt-1">
+            <span
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{
+                backgroundColor: notification.type === 'event_cancelled'
+                  ? 'rgba(239,68,68,0.15)'
+                  : 'rgba(34,197,94,0.15)',
+                color: notification.type === 'event_cancelled' ? '#ef4444' : '#22c55e',
+              }}
+            >
+              {notification.type === 'event_cancelled' ? '❌ Event Cancelled' : '🎉 Event Re-hosted'}
+            </span>
+            {notification.type === 'event_rehosted' && (
+              <span
+                className="text-[10px] font-medium px-2 py-0.5 rounded-full cursor-pointer hover:opacity-80"
+                style={{ backgroundColor: '#5E5CE6', color: '#fff' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (notification.ticketId) router.push(`/events/${notification.ticketId}`);
+                }}
+              >
+                Book Again →
+              </span>
+            )}
+          </div>
+        )}
         {/* Bottom Row: Day/Time (Left) & Relative Time (Right) */}
         <div className="flex items-center justify-between mt-0.5 pt-0.5">
           <span className="text-[11px] capitalize" style={{ color: themeStyles.text }}>
@@ -1123,6 +1158,8 @@ const getIconHTML = (type: string | undefined): string => {
 };
 const getIcon = (type: string | undefined) => {
   if (!type) return <Bell size={18} />;
+  if (type === 'event_cancelled') return <Calendar size={18} style={{ color: '#ef4444' }} />;
+  if (type === 'event_rehosted')  return <Calendar size={18} style={{ color: '#22c55e' }} />;
   if (type.includes("event")) return <Calendar size={18} />;
   if (type.includes("ticket") || type.includes("booking"))
     return <Ticket size={18} />;
