@@ -14,6 +14,8 @@ service TicketService {
   rpc GetPreviousEventStats(GetPreviousEventStatsRequest) returns (PreviousEventStatsResponse);
   rpc CancelEvent(CancelEventRequest) returns (CancelEventResponse);
   rpc GetEventCancellationInfo(GetEventCancellationInfoRequest) returns (EventCancellationInfoResponse);
+  rpc GetCancelledEvents(GetCancelledEventsRequest) returns (GetCancelledEventsResponse);
+  rpc GetRehostedEvents(GetRehostedEventsRequest) returns (GetRehostedEventsResponse);
 }
 
 message GetAllLiveEventsRequest {}
@@ -426,4 +428,56 @@ message EventCancellationInfoResponse {
   string groupId = 3;
   string eventName = 4;
   string error = 5;
+}
+// ADD these messages at the bottom of ticket.proto (before the last closing brace):
+
+message GetCancelledEventsRequest {
+  string userId = 1;
+}
+
+message CancelledEventInfo {
+  string eventId       = 1;
+  string parentEventId = 2;
+  bool   isSubEvent    = 3;
+  string event_name    = 4;
+  string event_status  = 5;
+  string event_banner  = 6;
+  string event_category = 7;
+  string cancelled_at  = 8;
+  string cancellation_reason = 9;
+  repeated TicketDate event_dates = 10;
+  string location      = 11;
+  string venue         = 12;
+}
+
+message GetCancelledEventsResponse {
+  bool   success = 1;
+  repeated CancelledEventInfo events = 2;
+  int32  count   = 3;
+  string error   = 4;
+}
+
+message GetRehostedEventsRequest {
+  string userId = 1;
+}
+
+message RehostedEventInfo {
+  string eventId        = 1;
+  string parentEventId  = 2;
+  bool   isSubEvent     = 3;
+  string event_name     = 4;
+  string event_status   = 5;
+  string event_banner   = 6;
+  string event_category = 7;
+  string rehosted_at    = 8;
+  repeated TicketDate event_dates = 9;
+  string location       = 10;
+  string venue          = 11;
+}
+
+message GetRehostedEventsResponse {
+  bool   success = 1;
+  repeated RehostedEventInfo events = 2;
+  int32  count   = 3;
+  string error   = 4;
 }

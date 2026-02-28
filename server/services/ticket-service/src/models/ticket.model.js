@@ -186,6 +186,7 @@ const subEventSchema = new mongoose.Schema({
   cancellation_reason: { type: String, default: '' },
   cancelled_at:        { type: Date },
   cancelled_by:        { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  rehosted_at: { type: Date },
   like: { type: Number, required: false, default: 0 },
   share: { type: Number, required: false, default: 0 },
   // Booking statistics
@@ -333,6 +334,7 @@ const ticketSchema = new mongoose.Schema({
   cancellation_reason: { type: String, default: '' },
   cancelled_at:        { type: Date },
   cancelled_by:        { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  rehosted_at: { type: Date },
   // Promotion tracking
   promoted_to_ticket_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
   promoted_from_sub_event:  { type: Boolean, default: false },

@@ -8,7 +8,7 @@ import { connectRabbitMQ, startConsumers } from './rabbit/index.js';
 import { initializeSocket, getIO } from './socket/socket.js';
 import notificationRoutes from './routes/notification.routes.js';
 import { startEventCancellationConsumer } from './consumers/eventCancellationConsumer.js';
-
+import { startEventRehostConsumer } from './consumers/eventRehostConsumer.js';
 // Load environment variables
 dotenv.config();
 
@@ -197,6 +197,7 @@ const startServer = async () => {
       await connectRabbitMQ();
       await startConsumers();
       await startEventCancellationConsumer();
+      await startEventRehostConsumer();
     } catch (rabbitError) {
       console.error('⚠️ RabbitMQ connection failed, but server will continue running');
       console.error('⚠️ Notification features requiring auth-service communication will not work');

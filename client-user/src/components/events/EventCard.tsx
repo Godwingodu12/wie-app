@@ -9,14 +9,23 @@ import { Calendar, MapPin, Heart } from 'lucide-react';
 interface EventCardProps {
   event: EventWithLocation;
   showDistance?: boolean;
+  isLiked?: boolean;
+  isSaved?: boolean;
+  isCancelled?: boolean; 
 }
 
-export function EventCard({ event, showDistance = false }: EventCardProps) {
+export function EventCard({ event, showDistance = false, isLiked: isLikedProp, isSaved: isSavedProp, isCancelled }: EventCardProps) {
   const router = useRouter();
   const { user } = useAuth();
-  const [isLiked, setIsLiked] = useState(false);
+  const [isLiked, setIsLiked] = useState(isLikedProp ?? false);
   const [likeCount, setLikeCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const eventCancelled = isCancelled ?? (event as any)?.event_status === 'cancelled';
+
+  // Sync if parent prop changes (e.g. after bulk fetch resolves)
+  useEffect(() => {
+    if (isLikedProp !== undefined) setIsLiked(isLikedProp);
+  }, [isLikedProp]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -24,12 +33,15 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
       if (response.success && response.data) {
         const stats = response.data.stats;
         setLikeCount(stats.like ?? stats.likes ?? 0);
-        setIsLiked(response.data?.userInteractions?.liked ?? false);
+        // Only override from API if no prop was passed
+        if (isLikedProp === undefined) {
+          setIsLiked(response.data?.userInteractions?.liked ?? false);
+        }
       }
     } catch {
       // silent fail — stats are non-critical
     }
-  }, [event._id]);
+  }, [event._id, isLikedProp]);
 
   useEffect(() => {
     fetchStats();
@@ -86,15 +98,15 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
   return (
     // Card: 170x260, radius 12
     <div
-      className="relative flex-shrink-0 cursor-pointer hover:scale-[1.02] transition-transform duration-200"
+      className={`relative flex-shrink-0 transition-transform duration-200 ${eventCancelled ? 'cursor-not-allowed opacity-75' : 'cursor-pointer hover:scale-[1.02]'}`}
       style={{
         width: 170,
         height: 260,
         borderRadius: 12,
         background: '#38383833',
-        border: '1px solid #3D4149',
+        border: eventCancelled ? '1px solid rgba(239,68,68,0.3)' : '1px solid #3D4149',
       }}
-      onClick={() => router.push(`/events/${event._id}`)}
+      onClick={() => !eventCancelled && router.push(`/events/${event._id}`)}
     >
       {/* Image: 158x133, top:6, left:6, radius 6 */}
       <div
@@ -106,6 +118,7 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
             src={event.event_banner}
             alt={event.event_name}
             className="w-full h-full object-cover"
+            style={eventCancelled ? { filter: 'grayscale(60%)' } : undefined}
           />
         ) : (
           <div
@@ -116,8 +129,26 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
           </div>
         )}
 
-        {/* Distance badge */}
-        {showDistance && event.distance != null && (
+        {/* Cancelled overlay + badge */}
+        {eventCancelled && (
+          <>
+            {/* Dark overlay */}
+            <div
+              className="absolute inset-0"
+              style={{ background: 'rgba(0,0,0,0.45)' }}
+            />
+            {/* CANCELLED badge — top left */}
+            <div
+              className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold text-white"
+              style={{ background: 'rgba(239,68,68,0.92)', letterSpacing: '0.03em' }}
+            >
+              <span>✕</span> CANCELLED
+            </div>
+          </>
+        )}
+
+        {/* Distance badge — only when not cancelled */}
+        {!eventCancelled && showDistance && event.distance != null && (
           <div
             className="absolute bottom-2 left-2 text-[10px] font-bold text-white px-2 py-0.5 rounded-full"
             style={{ background: 'rgba(88,96,219,0.85)' }}
@@ -126,6 +157,31 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
           </div>
         )}
       </div>
+
+      {/* Like button — hidden when event is cancelled */}
+      {!eventCancelled && (
+        <button
+          onClick={handleLike}
+          disabled={isLoading || !user}
+          className="absolute flex items-center justify-center transition-all"
+          style={{
+            top: 9,
+            left: 127,
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            background: 'rgba(28,32,36,0.75)',
+            backdropFilter: 'blur(6px)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            zIndex: 2,
+          }}
+        >
+          <Heart
+            className="w-4 h-4 transition-colors"
+            style={{ color: isLiked ? '#EF4444' : '#fff', fill: isLiked ? '#EF4444' : 'none' }}
+          />
+        </button>
+      )}
 
       {/* Like button: 34x34, top:9, left:127 (=6+158-37), radius:17 */}
       <button
@@ -190,7 +246,7 @@ export function EventCard({ event, showDistance = false }: EventCardProps) {
           <div className="flex items-center" style={{ marginTop: 2 }}>
             {guests.map((g, i) => (
               <div
-                key={g._id}
+                key={g._id ?? `guest-${i}`}
                 className="overflow-hidden flex-shrink-0"
                 style={{
                   width: 20,

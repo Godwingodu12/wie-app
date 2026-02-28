@@ -1600,8 +1600,18 @@ export const goLiveEvent = async(req, res) => {
       });
     }
     ticket.event_status = 'live';
+    if (!ticket.rehosted_at && (ticket.cancelled_at || ticket.cancellation_reason)) {
+      ticket.rehosted_at = new Date();
+    }
     ticket.sub_events.forEach(subEvent => {
-      subEvent.event_status = 'live';
+      // Only set live on active sub-events (skip deleted/removed/cancelled ones)
+      if (!["deleted", "remove", "cancelled", "removed"].includes(subEvent.event_status)) {
+        subEvent.event_status = 'live';
+        // Set rehosted_at on sub-events that were rehosted along with the main event
+        if (!subEvent.rehosted_at && (subEvent.cancelled_at || subEvent.cancellation_reason)) {
+          subEvent.rehosted_at = new Date();
+        }
+      }
     });
 
     ticket.markModified('sub_events');
@@ -3846,7 +3856,21 @@ export const rehostSubEvent = async (req, res) => {
 
     parentTicket.markModified("sub_events");
     await parentTicket.save();
-
+    try {
+  // Get all bookings for this sub-event to find previously-refunded users
+  // Import your booking/transaction model or publish via RabbitMQ
+      await publishToExchange('wie.events', 'event.rehosted', {
+        eventId:       subEventId,
+        parentEventId: parentTicketId,
+        isSubEvent:    true,
+        eventName:     parentTicket.sub_events[subIdx].event_name,
+        rehostedAt:    new Date().toISOString(),
+        bookedUserIds: [], 
+      });
+    } catch (publishErr) {
+      console.error('❌ Failed to publish rehost event:', publishErr.message);
+      // Non-fatal — don't fail the request
+    }
     return res.status(200).json({
       success: true,
       message: "Sub-event re-hosted successfully",
@@ -3897,6 +3921,13 @@ export const goLiveSubEvent = async (req, res) => {
     }
 
     subEvent.event_status = "live";
+    if (!subEvent.rehosted_at && subEvent.cancelled_at) {
+      // cancelled_at still present means it was cancelled but rehosted_at wasn't set in recovery
+      subEvent.rehosted_at = new Date();
+    } else if (!subEvent.rehosted_at && subEvent.cancellation_reason) {
+      // cancellation_reason still present is another signal it went through cancellation
+      subEvent.rehosted_at = new Date();
+    }
     parentTicket.markModified("sub_events");
     await parentTicket.save();
 
@@ -3908,6 +3939,7 @@ export const goLiveSubEvent = async (req, res) => {
         parentTicketId,
         event_name:   subEvent.event_name,
         event_status: "live",
+        rehosted_at:  subEvent.rehosted_at || null,
       },
     });
   } catch (error) {

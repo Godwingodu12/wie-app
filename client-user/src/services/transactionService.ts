@@ -101,6 +101,48 @@ export interface BookedSeatsResponse {
     bookedSeats: string[];
   };
 }
+
+export interface CancelledBooking {
+  id: string;
+  bookingId: string;
+  userId: string;
+  ticketId: string;
+  groupId: string;
+  ticketType: string;
+  quantity: number;
+  subtotal: number;
+  platformFee: number;
+  totalAmount: number;
+  currency: string;
+  bookingStatus: string;
+  paymentStatus: string;
+  paymentMethod?: string;
+  eventDetails: any;
+  userDetails: any;
+  qrCode?: string;
+  isVerified: boolean;
+  // Cancellation
+  cancellationReason?: string;
+  cancelledAt?: string;
+  cancelledBy: 'host' | 'user';
+  isAdminCancelled: boolean;
+  // Refund
+  refundAmount?: number;
+  refundStatus?: string;
+  refundId?: string;
+  refundInitiatedAt?: string;
+  refundProcessedAt?: string;
+  latestRefundTransaction?: {
+    id: string;
+    amount: number;
+    status: string;
+    refundId?: string;
+    createdAt: string;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const registerFreeEvent = async (ticketId: string, quantity: number) => {
   const response = await transactionApi.post('/bookings/register-free', {
     ticketId,
@@ -256,6 +298,18 @@ export const checkUserBooking = async (ticketId: string) => {
 };
 export const trackRefund = async (bookingId: string) => {
   const response = await transactionApi.get(`/bookings/${bookingId}/refund/track`);
+  return response.data;
+};
+export const getUserCancelledBookings = async (): Promise<{
+  success: boolean;
+  data: {
+    cancelledBookings: CancelledBooking[];
+    count: number;
+    pendingRefunds: number;
+    completedRefunds: number;
+  };
+}> => {
+  const response = await transactionApi.get('/bookings/my-cancelled-bookings');
   return response.data;
 };
 export default transactionApi;

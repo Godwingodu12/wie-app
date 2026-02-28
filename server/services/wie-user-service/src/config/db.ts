@@ -13,16 +13,9 @@ class Database {
         throw new Error('DATABASE_URL is not defined');
       }
 
-      // ✅ FIX: Use DIRECT_URL for Prisma (bypasses PgBouncer for deleteMany/transactions)
-      const prismaUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
-      
-      // Override Prisma's datasource URL at runtime
-      process.env.DATABASE_URL = prismaUrl;
-
-      // Connect pg Pool (for raw queries) - still use pooled connection
       this.pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: false,
+        connectionString: process.env.DATABASE_URL, 
+        ssl: { rejectUnauthorized: false },
         max: 5,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,

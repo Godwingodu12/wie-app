@@ -17,6 +17,7 @@ const notificationSchema = new mongoose.Schema({
       'event_cancelled',
       'event_completed',
       'event_updated',
+      'event_rehosted',
       'ticket_purchased',
       'ticket_cancelled',
       'message_received',

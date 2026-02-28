@@ -73,6 +73,34 @@ interface BookingStats {
   totalRevenue: number;
   totalTicketsSold: number;
 }
+export interface CancelledEventInfo {
+  eventId:             string;
+  parentEventId:       string;
+  isSubEvent:          boolean;
+  event_name:          string;
+  event_status:        string;
+  event_banner:        string;
+  event_category:      string;
+  cancelled_at:        string;
+  cancellation_reason: string;
+  event_dates:         any[];
+  location:            string;
+  venue:               string;
+}
+
+export interface RehostedEventInfo {
+  eventId:       string;
+  parentEventId: string;
+  isSubEvent:    boolean;
+  event_name:    string;
+  event_status:  string;
+  event_banner:  string;
+  event_category: string;
+  rehosted_at:   string;
+  event_dates:   any[];
+  location:      string;
+  venue:         string;
+}
 export const getTicketById = async (ticketId: string): Promise<TicketData> => {
   return new Promise((resolve, reject) => {
     const client = getClient();
@@ -265,6 +293,44 @@ export const getEventDates = async (ticketId: string): Promise<{
           resolve(null);
         }
       }
+    });
+  });
+};
+
+export const getCancelledEvents = async (userId?: string): Promise<CancelledEventInfo[]> => {
+  return new Promise((resolve, reject) => {
+    const client = getClient();
+    client.GetCancelledEvents({ userId: userId || '' }, (error: any, response: any) => {
+      if (error) {
+        console.error('❌ [gRPC] getCancelledEvents error:', error.message);
+        reject(new Error(error.message));
+        return;
+      }
+      if (response.error) {
+        console.error('❌ [gRPC] getCancelledEvents response error:', response.error);
+        reject(new Error(response.error));
+        return;
+      }
+      resolve(response.events || []);
+    });
+  });
+};
+
+export const getRehostedEvents = async (userId?: string): Promise<RehostedEventInfo[]> => {
+  return new Promise((resolve, reject) => {
+    const client = getClient();
+    client.GetRehostedEvents({ userId: userId || '' }, (error: any, response: any) => {
+      if (error) {
+        console.error('❌ [gRPC] getRehostedEvents error:', error.message);
+        reject(new Error(error.message));
+        return;
+      }
+      if (response.error) {
+        console.error('❌ [gRPC] getRehostedEvents response error:', response.error);
+        reject(new Error(response.error));
+        return;
+      }
+      resolve(response.events || []);
     });
   });
 };

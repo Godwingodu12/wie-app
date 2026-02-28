@@ -1,10 +1,11 @@
 'use client';
 import { 
   createBooking, 
-  toggleLike, 
+  toggleLike,
+  toggleSave,
   shareEvent, 
   getEventStats,
-  recordView ,
+  recordView,
   registerFreeEvent,
   verifyPayment,
   checkUserBooking
@@ -62,6 +63,7 @@ export default function EventDetailPage() {
   const [activePhoto, setActivePhoto] = useState<string | null>(null);
   const [eventStats, setEventStats] = useState<any>(null);
   const [userLiked, setUserLiked] = useState(false);
+  const [userSaved, setUserSaved] = useState(false);
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [showShareOptions, setShowShareOptions] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -154,24 +156,52 @@ const SECTIONS = [
     checkBookingStatus();
   }
 }, [eventId, event]);
+
   const loadEventStats = async () => {
     try {
       const statsData = await getEventStats(eventId as string);
-
       setEventStats(normalizeStats(statsData?.data?.stats || {}));
-      setUserLiked(statsData?.data?.userInteractions?.liked ?? false);
-
+      // These come from the stats API — persist correctly across refresh
+      setUserLiked(statsData?.data?.userInteractions?.liked   ?? false);
+      setUserSaved(statsData?.data?.userInteractions?.saved   ?? false);
     } catch (error) {
       console.error("Failed to load stats:", error);
     }
   };
+
   const handleLike = async () => {
+    const newLikedState = !userLiked;
+    setUserLiked(newLikedState);
+    setEventStats((prev: any) => ({
+      ...prev,
+      like: Math.max(0, (prev?.like ?? 0) + (newLikedState ? 1 : -1)),
+    }));
     try {
-      await toggleLike(eventId as string);
-      setUserLiked(!userLiked);
+      const res = await toggleLike(eventId as string);
+      // Sync with server response
+      setUserLiked(res.liked);
       loadEventStats();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to like event');
+      // Revert on failure
+      setUserLiked(!newLikedState);
+      setEventStats((prev: any) => ({
+        ...prev,
+        like: Math.max(0, (prev?.like ?? 0) + (newLikedState ? -1 : 1)),
+      }));
+      console.error('Failed to like event:', error);
+    }
+  };
+  const handleSave = async () => {
+    const newSavedState = !userSaved;
+    setUserSaved(newSavedState);
+    try {
+      const res = await toggleSave(eventId as string);
+      setUserSaved(res.saved);
+      loadEventStats();
+    } catch (error: any) {
+      // Revert on failure
+      setUserSaved(!newSavedState);
+      console.error('Failed to save event:', error);
     }
   };
   const hasEventStarted = () => {
@@ -590,7 +620,7 @@ const BookingModal = () => {
           <div className="min-h-screen bg-[#0c1014] py-8">
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-<Card className="p-8 text-center bg-[#0f1320]  border-white/10">
+            <Card className="p-8 text-center bg-[#0f1320]  border-white/10">
             <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Event Not Found</h2>
             <p className="text-gray-600 mb-6">{error || 'The event you are looking for does not exist.'}</p>
@@ -624,7 +654,40 @@ const similarEvents = allEvents.filter((e) => {
     
     {/* Sidebar */}
     <SideBar />
-
+    {event?.event_status === 'cancelled' && (
+      <div
+        className="mx-4 mt-4 p-4 rounded-2xl flex items-start gap-3"
+        style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}
+      >
+        <AlertCircle className="text-red-400 w-5 h-5 flex-shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-red-400 font-semibold text-sm">This event has been cancelled</p>
+            <span
+              className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+              style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171' }}
+            >
+              BY HOST
+            </span>
+          </div>
+          {/* Show cancellation reason if available */}
+          {(event as any)?.cancellation_reason && (
+            <p className="text-white/70 text-xs mt-0.5 italic">
+              Reason: "{(event as any).cancellation_reason}"
+            </p>
+          )}
+          {hasBooked ? (
+            <p className="text-white/60 text-xs mt-1">
+              Your refund of <span className="text-green-400 font-semibold">₹{userBooking?.refundAmount ?? userBooking?.subtotal ?? ''}</span> has been initiated and will be credited within 5–7 business days.
+            </p>
+          ) : (
+            <p className="text-white/60 text-xs mt-1">
+              This event is no longer available for booking.
+            </p>
+          )}
+        </div>
+      </div>
+    )}
     {/* Main Content */}
    <div
   className={`
@@ -676,13 +739,20 @@ const similarEvents = allEvents.filter((e) => {
         </button>
 
         <div className="flex gap-3">
-          <button
-            onClick={handleLike}
-            className="w-10 h-10 rounded-full bg-[#293845] flex items-center justify-center hover:opacity-80"
-          >
-            <img src={LikeIcon.src} alt="Like" className="w-6 h-6" />
-          </button>
-
+          {event?.event_status !== 'cancelled' && (
+            <button
+              onClick={handleLike}
+              className="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-80 transition-colors"
+              style={{ background: userLiked ? 'rgba(239,68,68,0.25)' : '#293845' }}
+            >
+              <img
+                src={LikeIcon.src}
+                alt="Like"
+                className="w-6 h-6 transition-all"
+                style={{ filter: userLiked ? 'invert(30%) sepia(100%) saturate(700%) hue-rotate(320deg)' : 'none' }}
+              />
+            </button>
+          )}
           <button
             onClick={() => setShowShareOptions(true)}
             className="w-10 h-10 rounded-full bg-[#293845] flex items-center justify-center hover:opacity-80"
@@ -787,51 +857,46 @@ const similarEvents = allEvents.filter((e) => {
         </div>
 
         {/* ✅ RIGHT-MOST BUTTONS (ABSOLUTE) */}
-<div className="absolute right-5 top-1/2 translate-y-[-5%] flex gap-4">
-          <button
-  onClick={handleLike}
-  className="
-    flex items-center justify-center
-    w-40 h-12
-    gap-2
-    px-3 py-2
-    rounded-3xl
-    border border-purple-300
-    bg-transparent
-    text-white
-    backdrop-blur
-    hover:bg-white/10
-  "
->
-  <img src={WishListIcon.src} className="w-6 h-6 block" />
-  Wishlist
-</button>
-
-
-
-         <button
-  onClick={handleBookEvent}
-  className="
-    flex items-center justify-center
-    w-40 h-12
-    gap-2
-    px-3 py-2
-    rounded-3xl
-    text-white
-    bg-gradient-to-b from-indigo-300 via-violet-600 to-purple-400
-    hover:opacity-90
-  "
->
-  {actionLabel !== 'Watch Now' && (
-    <img
-      src={BookTicketIcon.src}
-      className="w-6 h-6 block"
-      alt="Book Ticket"
-    />
-  )}
-  {actionLabel}
-</button>
-
+        <div className="absolute right-5 top-1/2 translate-y-[-5%] flex gap-4">
+          {event?.event_status !== 'cancelled' && (
+            <>
+              <button
+                onClick={handleSave}
+                className="flex items-center justify-center w-40 h-12 gap-2 px-3 py-2 rounded-3xl backdrop-blur transition-all"
+                style={{
+                  border: userSaved ? '1px solid rgba(234,179,8,0.6)' : '1px solid #c4b5fd',
+                  background: userSaved ? 'rgba(234,179,8,0.12)' : 'transparent',
+                  color: userSaved ? '#facc15' : 'white',
+                }}
+              >
+                <img
+                  src={WishListIcon.src}
+                  className="w-6 h-6 block transition-all"
+                  style={{ filter: userSaved ? 'invert(85%) sepia(60%) saturate(400%) hue-rotate(5deg)' : 'none' }}
+                />
+                {userSaved ? 'Saved' : 'Wishlist'}
+              </button>
+              <button
+                onClick={handleBookEvent}
+                className="flex items-center justify-center w-40 h-12 gap-2 px-3 py-2 rounded-3xl text-white bg-gradient-to-b from-indigo-300 via-violet-600 to-purple-400 hover:opacity-90"
+              >
+                {actionLabel !== 'Watch Now' && (
+                  <img src={BookTicketIcon.src} className="w-6 h-6 block" alt="Book Ticket" />
+                )}
+                {actionLabel}
+              </button>
+            </>
+          )}
+          {/* Cancelled state — show refund CTA if user has booked */}
+          {event?.event_status === 'cancelled' && hasBooked && (
+            <button
+              onClick={() => router.push(`/bookings/${userBooking?.id}/refund`)}
+              className="flex items-center justify-center w-48 h-12 gap-2 px-3 py-2 rounded-3xl text-white font-semibold"
+              style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)' }}
+            >
+              Track Refund →
+            </button>
+          )}
         </div>
 
       </div>

@@ -1,29 +1,51 @@
 import Notification from '../models/notification.model.js';
 import { emitToUser } from '../socket/socket.js';
+
+export const createNotificationInternal = async (notificationData) => {
+  const { userId, type, title, message, ticketId, groupId, eventName, metadata, bookingId } = notificationData;
+
+  if (!userId || !type || !title || !message) {
+    throw new Error(`createNotificationInternal: missing required fields — userId:${userId}, type:${type}, title:${title}, message:${message}`);
+  }
+
+  const notification = new Notification({
+    userId,
+    type,
+    title,
+    message,
+    // ticketId is stored as ObjectId in schema — only set if it looks like a valid ObjectId
+    ticketId:  ticketId  && ticketId.match(/^[a-f\d]{24}$/i)  ? ticketId  : undefined,
+    groupId:   groupId   && groupId.match(/^[a-f\d]{24}$/i)   ? groupId   : undefined,
+    eventName: eventName || undefined,
+    metadata:  metadata  || undefined,
+    bookingId: bookingId || undefined,
+  });
+
+  await notification.save();
+
+  const unreadCount = await Notification.countDocuments({
+    userId: notification.userId,
+    isRead: false,
+  });
+
+  emitToUser(notification.userId.toString(), 'new-notification', {
+    notification: notification.toObject(),
+    unreadCount,
+  });
+
+  return notification;
+};
+
 export const createNotification = async (req, res) => {
   try {
-    const notificationData = req.body;
-    const notification = new Notification(notificationData);
-    await notification.save();
-    // Emit real-time notification to the user
-    const unreadCount = await Notification.countDocuments({ 
-      userId: notification.userId, 
-      isRead: false 
-    });
-    emitToUser(notification.userId.toString(), 'new-notification', {
-      notification: notification.toObject(),
-      unreadCount
-    });
-    res.status(201).json({ 
-      success: true, 
-      notification 
-    });
+    const notification = await createNotificationInternal(req.body);
+    res.status(201).json({ success: true, notification });
   } catch (error) {
     console.error('Error creating notification:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error', 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
     });
   }
 };
