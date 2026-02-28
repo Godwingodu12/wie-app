@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getEventById } from "@/services/ticketUserService";
+import { getEventById, getRehostedEvents } from "@/services/ticketUserService";
 import {
   X,
   Check,
@@ -89,11 +89,51 @@ export const NotificationPopup: React.FC<NotificationPopupProps> = ({
       }
     }, [isOpen]);
 
-  const loadNotifications = async () => {
+const loadNotifications = async () => {
     try {
       setLoading(true);
-      const res = await getUserNotifications({ limit: 50 }); // Fetch more for scrolling
-      setNotifications(res.notifications || []);
+
+      // Fetch existing notifications from notification service
+      const res = await getUserNotifications({ limit: 50 });
+      const existingNotifs: Notification[] = res.notifications || [];
+      // Cross-check: fetch rehosted events for this user (only events they booked when cancelled)
+      try {
+        const rehostedRes = await getRehostedEvents();
+        const rehostedEvents: any[] = rehostedRes?.data?.events || [];
+
+        // Find rehosted events that don't already have a notification
+        const existingRehostedTicketIds = new Set(
+          existingNotifs
+            .filter((n) => n.type === 'event_rehosted')
+            .map((n) => n.ticketId)
+            .filter(Boolean)
+        );
+
+        const syntheticNotifs: Notification[] = rehostedEvents
+          .filter((ev) => {
+            const evId = ev.eventId || ev._id || '';
+            return evId && !existingRehostedTicketIds.has(evId);
+          })
+          .map((ev): Notification => ({
+            id: `synthetic_rehosted_${ev.eventId || ev._id}`,
+            type: 'event_rehosted',
+            title: `Event is Back: ${ev.event_name}`,
+            message: `"${ev.event_name}" has been re-hosted and is now ${ev.event_status}. Book your tickets again!`,
+            createdAt: ev.rehosted_at || new Date().toISOString(),
+            isRead: false,
+            ticketId: ev.eventId || ev._id,
+            eventName: ev.event_name,
+            targetUrl: `/events/${ev.eventId || ev._id}`,
+            meta: { isSynthetic: true },
+          }));
+
+        // Merge: synthetic ones go at the top, real notifications follow
+        setNotifications([...syntheticNotifs, ...existingNotifs]);
+      } catch (rehostErr) {
+        // Non-fatal — fallback to existing notifications only
+        console.warn('⚠️ Failed to load rehosted events for notification merge:', rehostErr);
+        setNotifications(existingNotifs);
+      }
     } catch (error) {
       console.error("Failed to load notifications:", error);
     } finally {
