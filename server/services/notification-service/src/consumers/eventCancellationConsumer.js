@@ -147,6 +147,7 @@ const notifyUser = async ({
 
   const pushTitle   = `Event Cancelled: ${eventName}`;
   const pushMessage = `"${eventName}"${venue ? ` at ${venue}` : ''} on ${eventDate} was cancelled by the host.${reasonLine}${refundLine}`;
+  const isValidObjectId = (id) => typeof id === 'string' && /^[a-fA-F0-9]{24}$/.test(id);
 
   // Fire all 3 channels — failures are isolated per channel
   await Promise.allSettled([
@@ -157,9 +158,9 @@ const notifyUser = async ({
       type:      'event_cancelled',
       title:     pushTitle,
       message:   pushMessage,
-      // Guard against synthetic/non-ObjectId eventIds from the payload
-      ticketId:  /^[a-f\d]{24}$/i.test(eventId) ? eventId : undefined,
+      ticketId:  isValidObjectId(eventId) ? eventId : undefined,
       eventName,
+      updatedAt: new Date().toISOString(),   // ← lets frontend sort by updatedAt
     }).catch((err) =>
       console.error(`❌ [Push] user ${user.id}:`, err.message)
     ),
