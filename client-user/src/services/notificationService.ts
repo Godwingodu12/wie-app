@@ -85,6 +85,7 @@ export interface Notification {
   title: string;
   message: string;
   createdAt: string;
+  updatedAt?: string;  
   isRead: boolean;
   // Optional fields from backend
   bookingId?: string;

@@ -172,16 +172,16 @@ class RealtimeNotificationService {
     return this.socket?.connected || false;
   }
 
-  disconnect() {
-    if (this.socket) {
-      this.socket.removeAllListeners();
-      this.socket.disconnect();
-      this.socket = null;
-      this.listeners.clear();
-      this.isConnecting = false;
-      this.reconnectAttempts = 0;
-    }
+// AFTER — only clear socket, keep app-level listeners
+disconnect() {
+  if (this.socket) {
+    this.socket.removeAllListeners();
+    this.socket.disconnect();
+    this.socket = null;
+    this.isConnecting = false;
+    this.reconnectAttempts = 0;
   }
+}
 
   reconnect(token: string | null | undefined) {
     this.disconnect();

@@ -70,7 +70,12 @@ const timeAgo = (date: string | Date) => {
   if (interval > 1) return Math.floor(interval) + " minutes ago";
   return Math.floor(seconds) + " seconds ago";
 };
-
+const sortByNewest = (notifs: Notification[]): Notification[] =>
+  [...notifs].sort(
+    (a, b) =>
+      new Date(b.updatedAt ?? b.createdAt).getTime() -
+      new Date(a.updatedAt ?? a.createdAt).getTime(),
+  );
 export const NotificationPopup: React.FC<NotificationPopupProps> = ({
   isOpen,
   onClose,
@@ -128,11 +133,11 @@ const loadNotifications = async () => {
           }));
 
         // Merge: synthetic ones go at the top, real notifications follow
-        setNotifications([...syntheticNotifs, ...existingNotifs]);
+        setNotifications(sortByNewest([...syntheticNotifs, ...existingNotifs]));
       } catch (rehostErr) {
         // Non-fatal — fallback to existing notifications only
         console.warn('⚠️ Failed to load rehosted events for notification merge:', rehostErr);
-        setNotifications(existingNotifs);
+        setNotifications(sortByNewest(existingNotifs));
       }
     } catch (error) {
       console.error("Failed to load notifications:", error);
@@ -183,7 +188,7 @@ const loadNotifications = async () => {
           if (existingGroupIndex !== -1) {
             const updated = [...prev];
             updated[existingGroupIndex] = mapped;
-            return updated;
+            return sortByNewest(updated);
           }
         }
 
@@ -191,11 +196,11 @@ const loadNotifications = async () => {
         if (existingById !== -1) {
           const updated = [...prev];
           updated[existingById] = mapped;
-          return updated;
+          return sortByNewest(updated);
         }
 
         // New notification
-        return [mapped, ...prev];
+        return sortByNewest([mapped, ...prev]);
       });
     };
     const handleRead = (data: any) => {

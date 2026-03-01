@@ -571,7 +571,19 @@ const getTicketsByIds = async (call, callback) => {
 
 const getTicketBookingStats = async (call, callback) => {
   try {
-    const { ticketId } = call.request;    
+    const { ticketId } = call.request;
+
+    // Guard: reject missing, "undefined", "null", or non-ObjectId strings
+    // before they reach Mongoose and cause a CastError
+    if (!ticketId || ticketId === 'undefined' || ticketId === 'null' || !/^[a-f\d]{24}$/i.test(ticketId)) {
+      return callback(null, {
+        totalBookings: 0,
+        totalRevenue: 0,
+        totalTicketsSold: 0,
+        error: 'Invalid or missing ticket ID'
+      });
+    }
+
     // Get stats from the ticket document itself
     let ticket = await Ticket.findById(ticketId);
     let isSubEvent = false;
