@@ -252,3 +252,47 @@ export const sendEventRehostEmail = async ({
     console.error(`❌ [Email] Failed to send rehost email to ${email}:`, err.message);
   }
 };
+
+export const sendRefundSuccessEmail = async ({
+  email, userName, eventName, refundAmount, refundId, processedDate,
+}) => {
+  if (!email) return;
+  const mailOptions = {
+    from:    '"Wie Events" <salmanulfarisc13@gmail.com>',
+    to:      email,
+    subject: `✅ Refund Successful: ${eventName}`,
+    text:    `Hi ${userName || 'there'},\n\nYour refund of ₹${refundAmount.toFixed(2)} for "${eventName}" has been processed successfully on ${processedDate}.\n\nRefund ID: ${refundId}\n\nThe Wie Team`,
+    html: `
+    <!DOCTYPE html><html><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f4f4f4;">
+    <table role="presentation" style="width:100%;border-collapse:collapse;">
+      <tr><td style="padding:40px 0;text-align:center;">
+        <table role="presentation" style="width:600px;max-width:100%;margin:0 auto;background:#ffffff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+          <tr><td style="background:linear-gradient(135deg,#16a34a,#22c55e);border-radius:8px 8px 0 0;padding:30px;text-align:center;">
+            <h1 style="margin:0;color:#ffffff;font-size:24px;">✅ Refund Successful</h1>
+          </td></tr>
+          <tr><td style="padding:30px;">
+            <p style="color:#333;font-size:16px;">Hi <strong>${userName || 'there'}</strong>,</p>
+            <p style="color:#666;font-size:15px;">Your refund for <strong>${eventName}</strong> has been processed successfully.</p>
+            <div style="background:#f0fdf4;border:1px solid #22c55e;border-radius:8px;padding:20px;margin:20px 0;text-align:center;">
+              <p style="margin:0 0 8px 0;color:#15803d;font-size:14px;font-weight:bold;">REFUND AMOUNT</p>
+              <p style="margin:0;color:#15803d;font-size:32px;font-weight:bold;">₹${refundAmount.toFixed(2)}</p>
+              <p style="margin:8px 0 0 0;color:#15803d;font-size:13px;">Processed on ${processedDate}</p>
+            </div>
+            <p style="color:#999;font-size:13px;">Refund ID: <code>${refundId}</code></p>
+            <p style="color:#999;font-size:13px;">The amount will reflect in your account based on your bank's processing time.</p>
+          </td></tr>
+          <tr><td style="background:#f8f9fa;border-radius:0 0 8px 8px;padding:20px;text-align:center;">
+            <p style="margin:0;color:#999;font-size:12px;">© 2025 Wie Events. All rights reserved.</p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+    </body></html>`,
+  };
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ [Email] Refund success email sent to ${email}:`, info.response);
+  } catch (err) {
+    console.error(`❌ [Email] Failed to send refund email to ${email}:`, err.message);
+  }
+};
