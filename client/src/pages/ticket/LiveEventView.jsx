@@ -118,7 +118,38 @@ useEffect(() => {
         throw new Error("Invalid event data structure");
       }
       setEventData(data);
-      
+
+      try {
+        // For rehosted events (confirmed + version > 1), metrics should start at zero
+        // Don't call getEventMetrics — use lifecycle_metrics from the ticket itself
+        const isRehostedFresh =
+          data.event_status === "confirmed" && (data.version ?? 1) > 1;
+
+        if (isRehostedFresh) {
+          // Use the reset lifecycle_metrics embedded in the ticket
+          setMetrics({
+            totalRevenue:       data.lifecycle_metrics?.revenue            ?? 0,
+            totalTicketsSold:   data.lifecycle_metrics?.totalBookings      ?? 0,
+            totalLikes:         data.lifecycle_metrics?.like               ?? 0,
+            totalShare:         data.lifecycle_metrics?.share              ?? 0,
+            total_cancellation: data.lifecycle_metrics?.total_cancellation ?? 0,
+          });
+        } else {
+          const metricsResponse = await getEventMetrics(ticketId);
+          if (metricsResponse?.data) {
+            setMetrics(metricsResponse.data);
+          }
+        }
+      } catch (metricsErr) {
+        console.warn("Failed to fetch event metrics:", metricsErr);
+        setMetrics({
+          totalRevenue:       0,
+          totalTicketsSold:   0,
+          totalLikes:         0,
+          totalShare:         0,
+          total_cancellation: 0,
+        });
+      }
       // Fetch group data if groupId exists
       if (data.groupId) {
         try {
@@ -326,20 +357,17 @@ const handleRehost = async (rehostAs) => {
     const response = await rehostEvent(ticketId, rehostAs);
     if (response.success) {
       setShowRehostModal(false);
-      toast.success(
-        rehostAs === "main"
-          ? "Event re-hosted as main event successfully!"
-          : "Event re-hosted as sub-event successfully!"
-      );
-      if (rehostAs === "main") {
-        setEventData((prev) => ({ ...prev, event_status: "confirmed" }));
+      toast.success("Event re-hosted successfully! Loading new event...");
+
+      // The backend always returns newTicketId for the fresh V2 ticket
+      const newTicketId = response.data?.newTicketId;
+
+      if (newTicketId) {
+        // Navigate to the new ticket — this triggers a full fresh data load
+        navigate(`/ticket/live-event-view/${newTicketId}`, { replace: true });
       } else {
-        const newMainId = response.data?.newMainTicketId;
-        if (newMainId) {
-          navigate(`/ticket/live-event-view/${newMainId}`);
-        } else {
-          navigate(-1);
-        }
+        // Fallback: reload current page to force fresh fetch
+        window.location.reload();
       }
     }
   } catch (err) {
@@ -349,20 +377,51 @@ const handleRehost = async (rehostAs) => {
     setIsRehosting(false);
   }
 };
-  // Computed values from API data
-  const computedEventData = eventData
-    ? {
-        name: eventData.event_name || "Event Name",
-        creator: eventData.created_by || "Unknown Creator",
-        totalRevenue: selectedDateStats?.totalRevenue ?? metrics?.totalRevenue ?? eventData.total_revenue ?? "0",
-        totalBooking: selectedDateStats?.totalTicketsSold ?? metrics?.totalTicketsSold ?? eventData.totalTicketsSold ?? "0",
-        totalLikes: metrics?.totalLikes ?? eventData.like ?? "0",
-        totalShare: metrics?.totalShare ?? eventData.share_count ?? "0",
-        totalCancellation: metrics?.total_cancellation ?? eventData.total_cancellations ?? "0",
-        addOnRevenue: eventData.addon_revenue || "$0",
-        addOnRevenueMonth: eventData.addon_revenue_month || "$0",
-      }
-    : null;
+
+const computedEventData = eventData
+  ? {
+      name: eventData.event_name || "Event Name",
+      creator: eventData.created_by || "Unknown Creator",
+
+      // For rehosted events: lifecycle_metrics has reset zeros.
+      // For live events: use metrics from getEventMetrics API.
+      // Priority: selectedDateStats > API metrics > lifecycle_metrics > direct fields > 0
+      totalRevenue:
+        selectedDateStats?.totalRevenue ??
+        metrics?.totalRevenue ??
+        eventData.lifecycle_metrics?.revenue ??
+        eventData.revenue ??
+        0,
+
+      totalBooking:
+        selectedDateStats?.totalTicketsSold ??
+        metrics?.totalTicketsSold ??
+        eventData.lifecycle_metrics?.totalBookings ??
+        eventData.totalBookings ??
+        0,
+
+      totalLikes:
+        metrics?.totalLikes ??
+        eventData.lifecycle_metrics?.like ??
+        eventData.like ??
+        0,
+
+      totalShare:
+        metrics?.totalShare ??
+        eventData.lifecycle_metrics?.share ??
+        eventData.share ??
+        0,
+
+      totalCancellation:
+        metrics?.total_cancellation ??
+        eventData.lifecycle_metrics?.total_cancellation ??
+        eventData.total_cancellation ??
+        0,
+
+      addOnRevenue: eventData.addon_revenue || "0",
+      addOnRevenueMonth: eventData.addon_revenue_month || "0",
+    }
+  : null;
   // Theme setup from HomePage
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -828,6 +887,18 @@ const displayDate = isSameDate
                   <h1 className="text-3xl sm:text-4xl font-semibold flex items-center gap-3">
                     <Radio className="text-red-500" />
                     {computedEventData?.name || "Loading..."}
+                    {/* Version badge */}
+                    {eventData?.version && eventData.version > 1 && (
+                      <span className="text-sm font-semibold px-3 py-1 rounded-full bg-emerald-600 text-white">
+                        V{eventData.version} (Re-hosted)
+                      </span>
+                    )}
+                    {/* Status badge for cancelled events */}
+                    {eventData?.event_status === "cancelled" && (
+                      <span className="text-sm font-semibold px-3 py-1 rounded-full bg-red-600 text-white">
+                        Cancelled
+                      </span>
+                    )}
                   </h1>
                   <div className="mt-4">
                     <p className="text-base">
@@ -873,7 +944,7 @@ const displayDate = isSameDate
                               hover:scale-105 shadow-lg"
                   >
                     <Radio size={16} />
-                    Host event page
+                    Add to Live
                   </button>
                 )}
 
@@ -1436,6 +1507,81 @@ const displayDate = isSameDate
                 }}
               />
             </div>
+            {/* Version History Panel — shows when event has been rehosted */}
+            {eventData?.version > 1 && (
+              <div
+                className={`mt-8 p-6 rounded-3xl ${theme.cardBgDarker}`}
+                style={{ ...cardStyle, borderRadius: "24px" }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <RefreshCw className="text-emerald-400" size={20} />
+                  <h3 className="text-base font-semibold uppercase tracking-wider">
+                    Event History
+                  </h3>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {/* Current version */}
+                  <div className={`flex items-center justify-between p-4 rounded-2xl ${theme.bg}`}>
+                    <div>
+                      <span className="text-xs font-bold text-emerald-400 uppercase">
+                        Current — V{eventData.version}
+                      </span>
+                      <p className={`text-sm mt-1 ${theme.text}`}>
+                        Re-hosted on{" "}
+                        {eventData.rehosted_at
+                          ? new Date(eventData.rehosted_at).toLocaleDateString("en-US", {
+                              month: "short", day: "numeric", year: "numeric",
+                            })
+                          : new Date(eventData.createdAt).toLocaleDateString("en-US", {
+                              month: "short", day: "numeric", year: "numeric",
+                            })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4 text-right">
+                      <div>
+                        <p className={`text-xs ${theme.subText}`}>Revenue</p>
+                        <p className={`text-base font-bold text-emerald-400`}>
+                          ₹{computedEventData?.totalRevenue ?? 0}
+                        </p>
+                      </div>
+                      <div>
+                        <p className={`text-xs ${theme.subText}`}>Bookings</p>
+                        <p className={`text-base font-bold ${theme.text}`}>
+                          {computedEventData?.totalBooking ?? 0}
+                        </p>
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded-full bg-emerald-600 text-white">
+                        {eventData.event_status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Previous cancelled version link */}
+                  {eventData.original_event_id && (
+                    <div className={`flex items-center justify-between p-4 rounded-2xl ${theme.bg} opacity-60`}>
+                      <div>
+                        <span className="text-xs font-bold text-red-400 uppercase">
+                          Previous — V{(eventData.version ?? 2) - 1} (Cancelled)
+                        </span>
+                        <p className={`text-sm mt-1 ${theme.subText}`}>
+                          Original event ID: {eventData.original_event_id?.toString?.()?.slice(-8)}...
+                        </p>
+                      </div>
+                      <button
+                        onClick={() =>
+                          navigate(
+                            `/ticket/live-event-view/${eventData.original_event_id}`
+                          )
+                        }
+                        className="text-xs px-3 py-1.5 rounded-full bg-gray-600 hover:bg-gray-500 text-white transition-colors"
+                      >
+                        View Old Version
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             {/* Modals */}
             {showSeatingModal && (
               <SeatingLayoutModal
