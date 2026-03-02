@@ -100,7 +100,7 @@ class RazorpayService {
       // ✅ Create minimal refund request
       const refundRequest: any = {
         amount: refundAmountInPaise,
-        speed: 'normal'
+        speed: 'optimum'
       };
   
       // ✅ Only add notes if provided and valid
@@ -243,6 +243,7 @@ static async transferToHost(data: {
   }
 }
 
+// ─── Reverse a transfer (if host hasn't withdrawn yet) ───────────────────────
 static async reverseTransfer(
   transferId: string,
   amount: number
