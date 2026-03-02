@@ -157,20 +157,18 @@ export const processRefundJob = async (bookingId: string, refundPercentage: numb
     return;
   }
 
-  // Skip if already refunded
   if (booking.refundStatus === 'COMPLETED') {
-    return;
+    return; // Already refunded — idempotency guard
   }
 
-  const subtotal = parseFloat(booking.subtotal.toString());
+  const subtotal     = parseFloat(booking.subtotal.toString());
   const refundAmount = parseFloat(((subtotal * refundPercentage) / 100).toFixed(2));
-  const isPaid = refundAmount > 0 && booking.paymentStatus === 'COMPLETED' && booking.razorpayPaymentId;
+  const isPaid       = refundAmount > 0 && booking.paymentStatus === 'COMPLETED' && booking.razorpayPaymentId;
 
   if (!isPaid) {
-    // Free booking — just mark cancelled, send notification
     await BookingModel.update(booking.id, {
       bookingStatus: 'CANCELLED',
-      refundStatus: 'NOT_APPLICABLE',
+      refundStatus:  'NOT_APPLICABLE',
     });
     await _sendCancellationNotification(booking.userId, eventName, booking.ticketId, String(booking.id), 0, false);
     return;
@@ -182,56 +180,91 @@ export const processRefundJob = async (bookingId: string, refundPercentage: numb
       process.env.RAZORPAY_KEY_SECRET!
     );
 
-    // Idempotency key prevents double refund
-    const idempotencyKey = `refund_${booking.bookingId}`;
-
     const refund = await RazorpayService.initiateRefund(
       razorpay,
       booking.razorpayPaymentId!.trim(),
       refundAmount,
       {
         booking_id: booking.bookingId,
-        reason: `Event cancelled: ${eventName}`,
-        idempotency_key: idempotencyKey,
+        reason:     `Event cancelled: ${eventName}`,
       }
     );
+    
+
+    // ── In test mode (and live with speed:'optimum'), Razorpay returns
+    //    status='processed' immediately. Treat both 'processed' and any
+    const razorpayStatus = refund.status;
+    // In test mode Razorpay always returns 'pending' even with speed:'optimum'
+    const isTestMode  = process.env.NODE_ENV === 'development' || process.env.RAZORPAY_TEST_MODE === 'true';
+    const isCompleted = !!refund.id && razorpayStatus !== 'failed';
+    const refundStatus = isCompleted ? 'COMPLETED' : 'PROCESSING';
+    const now          = new Date();
 
     await BookingModel.update(booking.id, {
       refundAmount,
-      refundStatus: 'PROCESSING',
-      refundId: refund.id,
-      refundInitiatedAt: new Date(),
+      refundStatus,
+      refundId:            refund.id,
+      refundInitiatedAt:   now,
+      refundProcessedAt:   isCompleted ? now : undefined,
     });
 
     await PaymentTransactionModel.create({
-      bookingId: booking.id,
-      razorpayOrderId: booking.razorpayOrderId || `event_cancel_${booking.bookingId}`,
+      bookingId:         booking.id,
+      razorpayOrderId:   booking.razorpayOrderId || `event_cancel_${booking.bookingId}`,
       razorpayPaymentId: booking.razorpayPaymentId ?? undefined,
-      amount: refundAmount,
-      currency: 'INR',
-      status: 'PROCESSING',
-      method: 'refund',
-      refundId: refund.id,
-      webhookData: { eventCancellationRefund: true, refundPercentage, eventName } as any,
+      amount:            refundAmount,
+      currency:          'INR',
+      status:            isCompleted ? 'COMPLETED' : 'PROCESSING',
+      method:            'refund',
+      refundId:          refund.id,
+      webhookData:       {
+        eventCancellationRefund: true,
+        refundPercentage,
+        eventName,
+        razorpayRefundStatus: razorpayStatus,
+        isTestMode,
+      } as any,
     });
 
-    await _sendCancellationNotification(
-      booking.userId, eventName, booking.ticketId, String(booking.id), refundAmount, true
-    );
+    if (isCompleted) {
+      // ── Publish refund success event to RabbitMQ for notification-service ──
+      await _publishRefundSuccessEvent({
+        bookingId:    String(booking.id),
+        userId:       booking.userId,
+        ticketId:     booking.ticketId,
+        eventName,
+        refundAmount,
+        refundId:     refund.id,
+        refundStatus: 'COMPLETED',
+        processedAt:  now.toISOString(),
+      });
+
+      await _sendRefundSuccessNotification(
+        booking.userId, eventName, booking.ticketId,
+        String(booking.id), refundAmount, refund.id
+      );
+    } else {
+      await _sendCancellationNotification(
+        booking.userId, eventName, booking.ticketId,
+        String(booking.id), refundAmount, true
+      );
+    }
 
   } catch (refundErr: any) {
     console.error(`❌ Refund failed for booking ${bookingId}:`, refundErr.message);
     const retryCount = (booking as any).refundRetryCount || 0;
     await BookingModel.update(booking.id, {
-      refundStatus: retryCount >= 3 ? 'FAILED' : 'PENDING',
-      refundRetryCount: retryCount + 1,
+      refundStatus:      retryCount >= 3 ? 'FAILED' : 'PENDING',
+      refundRetryCount:  retryCount + 1,
     } as any);
 
     await _sendCancellationNotification(
-      booking.userId, eventName, booking.ticketId, String(booking.id), refundAmount, true, true
+      booking.userId, eventName, booking.ticketId,
+      String(booking.id), refundAmount, true, true
     );
   }
 };
+
 // POST /settlements/host/create-linked-account
 export const createHostLinkedAccount = async (req: Request, res: Response) => {
   try {
@@ -427,4 +460,62 @@ const _notifyFreeEventCancellation = async (eventId: string, eventName: string) 
       ])
     )
   );
+};
+
+// ── Publish refund.success to RabbitMQ (consumed by notification-service) ──
+const _publishRefundSuccessEvent = async (data: {
+  bookingId:    string;
+  userId:       string;
+  ticketId:     string;
+  eventName:    string;
+  refundAmount: number;
+  refundId:     string;
+  refundStatus: string;
+  processedAt:  string;
+}) => {
+  let conn: any, ch: any;
+  try {
+    const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost';
+    conn = await amqp.connect(RABBITMQ_URL);
+    ch   = await conn.createChannel();
+
+    // Use exchange for notification-service to consume
+    await ch.assertExchange('wie.events', 'topic', { durable: true });
+    ch.publish(
+      'wie.events',
+      'refund.success',
+      Buffer.from(JSON.stringify(data)),
+      { persistent: true }
+    );
+    console.log(`✅ [RefundSuccess] Published refund.success for booking ${data.bookingId}`);
+  } catch (err: any) {
+    console.error('⚠️ [RefundSuccess] Failed to publish:', err.message);
+  } finally {
+    if (ch)   try { await ch.close();   } catch (_) {}
+    if (conn) try { await conn.close(); } catch (_) {}
+  }
+};
+
+// ── In-process notification for instant refund success ──
+const _sendRefundSuccessNotification = async (
+  userId:       string,
+  eventName:    string,
+  ticketId:     string,
+  bookingId:    string,
+  refundAmount: number,
+  refundId:     string,
+) => {
+  try {
+    await createNotification({
+      userId,
+      type:      'refund_success',
+      title:     '✅ Refund Successful',
+      message:   `Your refund of ₹${refundAmount.toFixed(2)} for "${eventName}" has been processed successfully. Refund ID: ${refundId}`,
+      ticketId,
+      bookingId,
+      link:      `/bookings/${bookingId}`,
+    });
+  } catch (err: any) {
+    console.error('⚠️ [RefundSuccess] Notification failed for user', userId, err.message);
+  }
 };
