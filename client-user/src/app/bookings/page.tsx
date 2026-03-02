@@ -70,28 +70,18 @@ export default function BookingsPage() {
     }
   };
 
-  const getRefundBadge = (booking: Booking) => {
-    if (booking.bookingStatus !== 'CANCELLED' || !booking.refundAmount) return null;
-    const colors: Record<string, string> = {
-      COMPLETED:  'bg-green-50 text-green-700 border-green-200',
-      PROCESSING: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-      PENDING:    'bg-orange-50 text-orange-700 border-orange-200',
-      FAILED:     'bg-red-50 text-red-700 border-red-200',
-    };
-    const labels: Record<string, string> = {
-      COMPLETED:  '✓ Refund Completed',
-      PROCESSING: '↻ Refund Processing',
-      PENDING:    '⏳ Refund Pending',
-      FAILED:     '✕ Refund Failed',
-    };
-    const style = colors[booking.refundStatus || 'PENDING'] || colors.PENDING;
-    const label = labels[booking.refundStatus || 'PENDING'] || labels.PENDING;
-    return (
-      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${style}`}>
-        {label} · ₹{booking.refundAmount}
-      </span>
-    );
-  };
+const getRefundStatusPill = (refundStatus: string | undefined | null) => {
+  switch (refundStatus) {
+    case 'COMPLETED':
+      return <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">✓ Refund Completed</span>;
+    case 'PROCESSING':
+      return <span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">↻ Refund Processing</span>;
+    case 'FAILED':
+      return <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">✕ Refund Failed</span>;
+    default:
+      return <span className="px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">⏳ Refund Pending</span>;
+  }
+};
   // Detect if cancellation was by admin/host (cancellationReason contains "Event cancelled by host")
   const isAdminCancelled = (booking: Booking) =>
     booking.cancellationReason?.toLowerCase().includes('event cancelled') ||
@@ -172,106 +162,137 @@ export default function BookingsPage() {
               </h2>
             )}
             <div className="space-y-4">
-              {cancelledBookings.map((booking) => (
-                <Card
-                  key={booking.id}
-                  className="hover:shadow-lg transition-shadow cursor-pointer border-l-4"
-                  style={{ borderLeftColor: booking.isAdminCancelled ? '#ef4444' : '#9ca3af' }}
-                  onClick={() => router.push(`/bookings/${booking.id}`)}
-                >
-                  <div className="p-6">
-                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-start gap-3 mb-2">
-                          <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <h3 className="text-xl font-bold text-gray-900">
-                              {(booking.eventDetails as any)?.eventName}
-                            </h3>
-                            <p className="text-sm text-gray-500">Booking ID: {booking.bookingId}</p>
-                            {/* Cancellation source badge */}
-                            <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                              booking.isAdminCancelled
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {booking.isAdminCancelled ? '⚠ Event cancelled by host' : 'Cancelled by you'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Cancellation reason */}
-                        {booking.cancellationReason && (
-                          <p className="text-sm text-gray-500 ml-8 mb-2 italic">
-                            "{booking.cancellationReason}"
+              {cancelledBookings.map((booking) => {
+                const isRefundDone = booking.refundStatus === 'COMPLETED';
+                return (
+                  <Card
+                    key={booking.id}
+                    className="hover:shadow-lg transition-shadow cursor-pointer border-l-4"
+                    style={{
+                      borderLeftColor: isRefundDone
+                        ? '#22c55e'
+                        : booking.isAdminCancelled
+                          ? '#ef4444'
+                          : '#9ca3af',
+                    }}
+                    onClick={() => router.push(`/bookings/${booking.id}`)}
+                  >
+                    <div className="p-6">
+                      {/* Refund success banner — shown only when COMPLETED */}
+                      {isRefundDone && (
+                        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-green-50 border border-green-200">
+                          <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                          <p className="text-xs font-semibold text-green-700">
+                            Refund of ₹{booking.refundAmount} has been credited to your account
                           </p>
-                        )}
+                        </div>
+                      )}
 
-                        <div className="space-y-1 text-sm text-gray-500 ml-8">
-                          {(booking.eventDetails as any)?.eventDate && (
-                            <div className="flex items-center gap-2">
-                              <Calendar className="w-4 h-4" />
-                              <span>{(booking.eventDetails as any).eventDate}</span>
+                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-start gap-3 mb-2">
+                            {isRefundDone
+                              ? <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                              : <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                            }
+                            <div>
+                              <h3 className="text-xl font-bold text-gray-900">
+                                {(booking.eventDetails as any)?.eventName}
+                              </h3>
+                              <p className="text-sm text-gray-500">Booking ID: {booking.bookingId}</p>
+                              <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                                booking.isAdminCancelled
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {booking.isAdminCancelled ? '⚠ Event cancelled by host' : 'Cancelled by you'}
+                              </span>
                             </div>
-                          )}
-                          <div className="flex items-center gap-2">
-                            <Ticket className="w-4 h-4" />
-                            <span>{booking.ticketType} × {booking.quantity}</span>
                           </div>
+
+                          {booking.cancellationReason && (
+                            <p className="text-sm text-gray-500 ml-8 mb-2 italic">
+                              "{booking.cancellationReason}"
+                            </p>
+                          )}
+
+                          <div className="space-y-1 text-sm text-gray-500 ml-8">
+                            {(booking.eventDetails as any)?.eventDate && (
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4" />
+                                <span>{(booking.eventDetails as any).eventDate}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <Ticket className="w-4 h-4" />
+                              <span>{booking.ticketType} × {booking.quantity}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right: refund status */}
+                        <div className="flex flex-col items-end gap-2">
+                          <span className="px-3 py-1 rounded-full text-sm font-semibold bg-red-100 text-red-800">
+                            CANCELLED
+                          </span>
+
+                          {booking.refundAmount && booking.refundAmount > 0 ? (
+                            <>
+                              <div className="text-right">
+                                <p className="text-xs text-gray-500">Refund Amount</p>
+                                <p className={`text-xl font-bold ${isRefundDone ? 'text-green-600' : 'text-gray-900'}`}>
+                                  ₹{booking.refundAmount}
+                                </p>
+                              </div>
+
+                              {getRefundStatusPill(booking.refundStatus)}
+
+                              {/* Show "View Receipt" when done, "Track Refund" when pending/processing/failed */}
+                              {isRefundDone ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(`/bookings/${booking.id}/refund`);
+                                  }}
+                                  className="flex items-center gap-1 text-xs font-semibold text-green-600 hover:text-green-800"
+                                >
+                                  <CheckCircle className="w-3 h-3" />
+                                  View Refund Receipt
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(`/bookings/${booking.id}/refund`);
+                                  }}
+                                  className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
+                                >
+                                  <RefreshCw className="w-3 h-3" />
+                                  Track Refund
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-sm text-gray-500">Free event — no refund</p>
+                          )}
                         </div>
                       </div>
 
-                      {/* Right: refund status */}
-                      <div className="flex flex-col items-end gap-2">
-                        <span className="px-3 py-1 rounded-full text-sm font-semibold bg-red-100 text-red-800">
-                          CANCELLED
-                        </span>
-                        {booking.refundAmount && booking.refundAmount > 0 ? (
-                          <>
-                            <div className="text-right">
-                              <p className="text-xs text-gray-500">Refund Amount</p>
-                              <p className="text-xl font-bold text-gray-900">₹{booking.refundAmount}</p>
-                            </div>
-                            {/* Refund status pill */}
-                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                              booking.refundStatus === 'COMPLETED'  ? 'bg-green-100 text-green-700' :
-                              booking.refundStatus === 'PROCESSING' ? 'bg-yellow-100 text-yellow-700' :
-                              booking.refundStatus === 'FAILED'     ? 'bg-red-100 text-red-700' :
-                              'bg-orange-100 text-orange-700'
-                            }`}>
-                              {booking.refundStatus === 'COMPLETED'  ? '✓ Refund Completed' :
-                               booking.refundStatus === 'PROCESSING' ? '↻ Refund Processing' :
-                               booking.refundStatus === 'FAILED'     ? '✕ Refund Failed' :
-                               '⏳ Refund Pending'}
-                            </span>
-                            {booking.refundStatus !== 'COMPLETED' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  router.push(`/bookings/${booking.id}/refund`);
-                                }}
-                                className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                                Track Refund
-                              </button>
-                            )}
-                          </>
-                        ) : (
-                          <p className="text-sm text-gray-500">Free event — no refund</p>
+                      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
+                        <span>Booked on: {new Date(booking.createdAt).toLocaleDateString()}</span>
+                        {booking.cancelledAt && (
+                          <span>Cancelled: {new Date(booking.cancelledAt).toLocaleDateString()}</span>
+                        )}
+                        {isRefundDone && booking.refundProcessedAt && (
+                          <span className="text-green-600 font-medium">
+                            Refunded: {new Date(booking.refundProcessedAt).toLocaleDateString()}
+                          </span>
                         )}
                       </div>
                     </div>
-
-                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-                      <span>Booked on: {new Date(booking.createdAt).toLocaleDateString()}</span>
-                      {booking.cancelledAt && (
-                        <span>Cancelled: {new Date(booking.cancelledAt).toLocaleDateString()}</span>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
           </div>
         )}

@@ -54,6 +54,7 @@ export type NotificationType =
   | 'event_rehosted'
   | 'event_completed'
   | 'event_updated'
+  | 'event_refunded'
   | 'ticket_purchased'
   | 'ticket_cancelled'
   | 'message_received'

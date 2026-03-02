@@ -951,6 +951,20 @@ const DeletedEventView = () => {
       LocationLabel = "Offline";
       break;
   }
+const stripHtml = (html) => {
+  if (!html) return "";
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")   // convert <br> to newline
+    .replace(/<\/p>/gi, "\n")         // convert </p> to newline
+    .replace(/<[^>]+>/g, "")          // strip all remaining tags
+    .replace(/&nbsp;/g, " ")          // decode &nbsp;
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, "\n\n")       // collapse excess newlines
+    .trim();
+};
   return (
     <div
       key={`main-container-${theme.isDark ? "dark" : "light"}`}
@@ -1142,11 +1156,13 @@ const DeletedEventView = () => {
                 style={{
                   borderRadius: "31.15px",
                   boxShadow: `6.23px 6.23px 12.46px 0px #0000002E inset, -6.23px -6.23px 12.46px 0px #FFFFFF14 inset`,
+                  maxHeight: "160px",
+                  whiteSpace: "pre-line",
                 }}
-                className={`p-4 ${theme.textColor} leading-relaxed text-sm flex-grow rounded-3xl  `}
-              >
-                {eventData.event_description ||
-                  "A detailed description of the event will appear here."}
+                className={`p-4 ${theme.textColor} leading-relaxed text-sm rounded-3xl overflow-y-auto`}
+                >
+                  {stripHtml(eventData.event_description) ||
+                    "A detailed description of the event will appear here."}
               </div>
               <div className="flex justify-between">
                 <Card

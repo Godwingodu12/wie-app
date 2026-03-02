@@ -160,7 +160,7 @@ export const getNearbyEvents = async (
     let userLat: number;
     let userLng: number;
     // Validate and parse radius (default 30km, max 200km)
-    const searchRadius = Math.min(Math.max(parseFloat(radius as string) || 30, 1), 200);
+    const searchRadius = Math.min(Math.max(parseFloat(radius as string) || 30, 1), 99999);
     // Case 1: User provides GPS coordinates
     if (latitude && longitude) {
       userLat = parseFloat(latitude as string);
@@ -360,6 +360,142 @@ export const getNearbyEvents = async (
     });
   }
 };
+
+export const getAllEventsWithDistance = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { latitude, longitude, location } = req.query;
+
+    let userLat: number | null = null;
+    let userLng: number | null = null;
+
+    if (latitude && longitude) {
+      const lat = parseFloat(latitude as string);
+      const lng = parseFloat(longitude as string);
+      if (isValidCoordinate(lat, lng)) {
+        userLat = lat;
+        userLng = lng;
+      }
+    }
+
+    if (!userLat && !userLng && location && typeof location === 'string' && location.trim()) {
+      const coords = await geocodeLocation(location.trim());
+      if (coords) {
+        userLat = coords.lat;
+        userLng = coords.lng;
+      }
+    }
+
+    // Fetch ALL live events directly from DB — no flattening
+    const rawTickets = await getAllLiveEvents();
+
+    const seenIds = new Set<string>();
+    const events: any[] = [];
+
+    const calcDistance = (lat: number, lng: number): number | null => {
+      if (userLat === null || userLng === null) return null;
+      if (!isValidCoordinate(lat, lng)) return null;
+      return Math.round(calculateDistance(userLat, userLng, lat, lng) * 100) / 100;
+    };
+
+    // ── Step 1: Add all MAIN events ──
+    for (const ticket of rawTickets.tickets) {
+      const mainId = ticket._id?.toString() || '';
+      if (seenIds.has(mainId)) continue;
+      seenIds.add(mainId);
+
+      // Distance: use main event location, fall back to closest sub-event location
+      let distance: number | null = null;
+      const mLat = ticket.exact_map_location?.latitude;
+      const mLng = ticket.exact_map_location?.longitude;
+      if (mLat && mLng) {
+        distance = calcDistance(mLat, mLng);
+      }
+
+      // Check sub-events for a closer distance
+      if (ticket.sub_events && Array.isArray(ticket.sub_events)) {
+        for (const sub of ticket.sub_events) {
+          const sLat = sub.exact_map_location?.latitude;
+          const sLng = sub.exact_map_location?.longitude;
+          if (sLat && sLng) {
+            const d = calcDistance(sLat, sLng);
+            if (d !== null && (distance === null || d < distance)) {
+              distance = d;
+            }
+          }
+        }
+      }
+
+      events.push({
+        ...ticket.toObject(),
+        distance,
+        distance_unit: 'km',
+        _isSubEvent: false,
+      });
+    }
+
+    // ── Step 2: Add SUB-EVENTS as separate entries ──
+    for (const ticket of rawTickets.tickets) {
+      if (!ticket.sub_events || !Array.isArray(ticket.sub_events)) continue;
+
+      for (const sub of ticket.sub_events) {
+        const subId = sub._id?.toString() || '';
+        if (!subId || seenIds.has(subId)) continue;
+
+        // Only show live sub-events
+        if (sub.event_status && sub.event_status !== 'live') continue;
+
+        seenIds.add(subId);
+
+        const sLat = sub.exact_map_location?.latitude;
+        const sLng = sub.exact_map_location?.longitude;
+        const distance = (sLat && sLng) ? calcDistance(sLat, sLng) : null;
+
+        events.push({
+          ...sub,
+          _id: sub._id,
+          distance,
+          distance_unit: 'km',
+          _isSubEvent: true,
+          parentEventId: ticket._id?.toString(),
+          // Inherit parent fields if sub-event is missing them
+          event_banner: sub.event_banner || ticket.event_banner,
+          event_portrait: sub.event_portrait || ticket.event_portrait,
+        });
+      }
+    }
+
+    // ── Step 3: Sort — nearest first, no-location last ──
+    events.sort((a, b) => {
+      if (a.distance === null && b.distance === null) return 0;
+      if (a.distance === null) return 1;
+      if (b.distance === null) return -1;
+      return a.distance - b.distance;
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'All events fetched successfully',
+      data: {
+        count: events.length,
+        search_location: userLat && userLng
+          ? { latitude: userLat, longitude: userLng }
+          : null,
+        events,
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ Error in getAllEventsWithDistance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch all events',
+      error: error.message,
+    });
+  }
+};
+
 export const getTicket = async (
   req: Request,
   res: Response

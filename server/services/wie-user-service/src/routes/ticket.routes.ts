@@ -1,6 +1,6 @@
 import express from 'express';
 import { getLiveEvents,getActiveGroups,getTicket,getGroup,getNearbyEvents,getCategoryBasedEvents,getFilteredEvents,getInitialEvents,getEventsByName,getEventsByLocation,
-  getPopularEvents,getCancelledEventsController, getRehostedEventsController
+  getPopularEvents,getCancelledEventsController, getRehostedEventsController, getAllEventsWithDistance
   } from '../controllers/ticket.controller';
 const router: express.Router = express.Router();
 router.get('/live-events', getLiveEvents);
@@ -8,6 +8,7 @@ router.get('/get-active-groups', getActiveGroups);
 router.get('/event/:ticketId', getTicket);
 router.get('/group/:groupId', getGroup);
 router.get('/nearby-events', getNearbyEvents);
+router.get('/all-events', getAllEventsWithDistance);
 router.get('/category-events', getCategoryBasedEvents);
 router.get('/filtered-events', getFilteredEvents);
 router.get('/initial-events', getInitialEvents);

@@ -5,8 +5,10 @@ import {
   goLiveEvent,
   updateTicketTerms,
   confirmEvent,
+  rehostEvent
 } from "../../services/ticketService";
 import EventSidebar from "../../components/CreateGroup/EventSidebar";
+import ReHostModal from "../../components/Event/ReHostModal";
 import ThemeToggle from "../../components/HomePage/ThemeToggle.jsx";
 import Alert from "../../components/CreateGroup/Alert";
 import TcIcon from "../../assets/Event/T&cIcon.svg?react";
@@ -24,6 +26,14 @@ const EventTermsAndConditionsPage = () => {
   const [dataLoading, setDataLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(getInitialTheme());
   const [alert, setAlert] = useState(null);
+  const [showRehostModal, setShowRehostModal] = useState(false);
+  const [isRehosting, setIsRehosting]         = useState(false);
+  const theme = {
+    text:    darkMode ? "text-white"      : "text-gray-900",
+    subText: darkMode ? "text-gray-400"   : "text-gray-600",
+    cardBg:  darkMode ? "bg-[#1C1C1C]"   : "bg-white",
+    isDark:  darkMode,
+  };
 
   // --- Alert System ---
   const showAlert = (data) => setAlert({ ...data, show: true });
@@ -68,7 +78,6 @@ const EventTermsAndConditionsPage = () => {
         ? `/ticket/update-ticket-addons/${ticketId}`
         : `/ticket/update-ticket-details/${ticketId}`;
 
-      console.log("Navigating back to:", previousStep);
       navigate(previousStep);
     } catch (err) {
       console.error("Error fetching ticket data for navigation:", err);
@@ -210,6 +219,38 @@ const EventTermsAndConditionsPage = () => {
       setIsLoading(false);
     }
   }; 
+
+  const handleRehost = async (rehostAs) => {
+  if (!ticketId) return;
+  setIsRehosting(true);
+  try {
+    const response = await rehostEvent(ticketId, rehostAs);
+    if (response?.success) {
+      showAlert({
+        type: "success",
+        message: "Event Re-hosted!",
+        description: `Your event has been re-hosted successfully.`,
+      });
+      setShowRehostModal(false);
+
+      // Navigate to the new ticket's live view
+      const newTicketId = response.data?.newTicketId;
+      setTimeout(() => {
+        if (newTicketId) {
+          navigate(`/ticket/live-event-view/${newTicketId}`);
+        } else {
+          navigate(`/ticket/live-events`);
+        }
+      }, 1500);
+    }
+  } catch (err) {
+    const errorMessage =
+      err?.response?.data?.message || "Failed to re-host event. Please try again.";
+    showAlert({ type: "error", message: "Re-host Failed", description: errorMessage });
+  } finally {
+    setIsRehosting(false);
+  }
+};
   if (dataLoading) {
     return (
       <div className="dark bg-[#111111] min-h-screen flex items-center justify-center text-white">
@@ -218,6 +259,8 @@ const EventTermsAndConditionsPage = () => {
     );
   }
   const eventStatus = ticketData?.event_status;
+  const isMainEvent = ticketData?.isMain === true || !ticketData?.main_ticket_id;
+  const isCancelledMain = eventStatus === "cancelled" && isMainEvent;
   return (
     <div className={darkMode ? "dark" : ""}>
       <ScrollBarStyle isDark={darkMode} />
@@ -341,6 +384,8 @@ const EventTermsAndConditionsPage = () => {
                 >
                   {dataLoading ? "Loading..." : "Go back"}
                 </button>
+
+                {/* confirmed / pending — normal host flow */}
                 {(eventStatus === "confirmed" || eventStatus === "pending") && (
                   <>
                     <button
@@ -361,7 +406,8 @@ const EventTermsAndConditionsPage = () => {
                     </button>
                   </>
                 )}
-                {/* LIVE */}
+
+                {/* live — save & host */}
                 {eventStatus === "live" && (
                   <button
                     type="button"
@@ -372,7 +418,38 @@ const EventTermsAndConditionsPage = () => {
                     {isLoading ? "Updating..." : "Save & Host"}
                   </button>
                 )}
+
+                {/* cancelled MAIN event — show Re-host button that opens ReHostModal */}
+                {isCancelledMain && (
+                  <button
+                    type="button"
+                    onClick={() => setShowRehostModal(true)}
+                    disabled={isRehosting}
+                    className="px-6 py-2.5 rounded-lg font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  >
+                    {isRehosting ? (
+                      <>
+                        <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                        Re-hosting...
+                      </>
+                    ) : (
+                      "Re-host Event"
+                    )}
+                  </button>
+                )}
               </div>
+
+              {/* ReHostModal — rendered outside the form, at component level */}
+              {showRehostModal && isCancelledMain && (
+                <ReHostModal
+                  theme={theme}
+                  isDark={darkMode}
+                  eventData={ticketData}
+                  isRehosting={isRehosting}
+                  onConfirm={handleRehost}
+                  onClose={() => setShowRehostModal(false)}
+                />
+              )}
             </form>
           </div>
         </main>
