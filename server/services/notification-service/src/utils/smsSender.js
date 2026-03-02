@@ -90,3 +90,21 @@ export const sendEventRehostSMS = async ({
     console.error(`❌ [SMS] Failed rehost SMS to ${phone}:`, err.message);
   }
 };
+
+export const sendRefundSuccessSMS = async ({ contactNo, userName, eventName, refundAmount, refundId }) => {
+  if (!contactNo) return;
+  const twilioClient = getClient();
+  if (!twilioClient) { console.warn('⚠️ [SMS] Twilio not configured'); return; }
+
+  let phone = contactNo.toString().trim();
+  if (!phone.startsWith('+')) phone = '+91' + phone;
+
+  const message = `Hi ${userName}, your refund of INR ${refundAmount.toFixed(2)} for "${eventName}" is successful. Ref: ${refundId.slice(-8)} -Wie Events`;
+
+  try {
+    const result = await twilioClient.messages.create({ body: message, from: fromNumber, to: phone });
+    console.log(`✅ [SMS] Refund success SMS sent to ${phone}: SID ${result.sid}`);
+  } catch (err) {
+    console.error(`❌ [SMS] Refund SMS failed to ${phone}:`, err.message);
+  }
+};
