@@ -80,19 +80,36 @@ export const EventFilterModal = ({ isOpen, onClose, onApplyFilters, initialFilte
     });
   };
 
-  const handleApply = () => {
+  const handleApply = async () => {
     const cleanFilters: FilterEventsParams = {};
-    if (filters.category) cleanFilters.category = filters.category;
-    if (filters.subcategory) cleanFilters.subcategory = filters.subcategory;
-    if (filters.location) cleanFilters.location = filters.location;
-    if (filters.searchQuery) cleanFilters.searchQuery = filters.searchQuery;
+    if (filters.category)         cleanFilters.category = filters.category;
+    if (filters.subcategory)      cleanFilters.subcategory = filters.subcategory;
+    if (filters.searchQuery)      cleanFilters.searchQuery = filters.searchQuery;
     if (filters.radius && filters.radius !== 50) cleanFilters.radius = filters.radius;
-    if (filters.locationType) cleanFilters.locationType = filters.locationType;
-    if (filters.eventLanguage) cleanFilters.eventLanguage = filters.eventLanguage;
-    if (filters.startDate) cleanFilters.startDate = filters.startDate;
-    if (filters.endDate) cleanFilters.endDate = filters.endDate;
+    if (filters.locationType)     cleanFilters.locationType = filters.locationType;
+    if (filters.eventLanguage)    cleanFilters.eventLanguage = filters.eventLanguage;
+    if (filters.startDate)        cleanFilters.startDate = filters.startDate;
+    if (filters.endDate)          cleanFilters.endDate = filters.endDate;
     if (filters.bookingStartDate) cleanFilters.bookingStartDate = filters.bookingStartDate;
-    if (filters.bookingEndDate) cleanFilters.bookingEndDate = filters.bookingEndDate;
+    if (filters.bookingEndDate)   cleanFilters.bookingEndDate = filters.bookingEndDate;
+
+    // If location text is provided, use searchEventsByLocation
+    if (filters.location && filters.location.trim()) {
+      cleanFilters.location = filters.location.trim();
+      try {
+        const { searchEventsByLocation } = await import('@/services/ticketUserService');
+        const res = await searchEventsByLocation({
+          location: cleanFilters.location,
+          radius: cleanFilters.radius ?? 500,
+        });
+        onApplyFilters({ ...cleanFilters, _locationSearchResult: res } as any);
+      } catch (err) {
+        console.error('Location search error:', err);
+        onApplyFilters(cleanFilters);
+      }
+      return;
+    }
+
     onApplyFilters(cleanFilters);
   };
 
@@ -180,41 +197,34 @@ export const EventFilterModal = ({ isOpen, onClose, onApplyFilters, initialFilte
               </div>
             </div>
 
-            {/* Location & Radius */}
+            {/* Event Name / Location Search */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                  <MapPin className="w-4 h-4" /> Location
+                  <Search className="w-4 h-4" /> Event Name
+                </label>
+                <input
+                  type="text"
+                  value={filters.searchQuery || ''}
+                  onChange={(e) => handleInputChange('searchQuery', e.target.value)}
+                  placeholder="Search by event name..."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
+                  <MapPin className="w-4 h-4" /> Location Search
                 </label>
                 <input
                   type="text"
                   value={filters.location || ''}
                   onChange={(e) => handleInputChange('location', e.target.value)}
-                  placeholder="City name (e.g., Mumbai, Delhi, Kochi)"
+                  placeholder="City, state, country (e.g. Kochi)"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Enter specific city or area for accurate results
+                  Overrides GPS — searches events in this area
                 </p>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Search Radius: {filters.radius || 200} km
-                </label>
-                <input
-                  type="range"
-                  min="10"
-                  max="500"
-                  step="10"
-                  value={filters.radius || 200}
-                  onChange={(e) => handleInputChange('radius', parseInt(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>10 km</span>
-                  <span>250 km</span>
-                  <span>500 km</span>
-                </div>
               </div>
             </div>
 
