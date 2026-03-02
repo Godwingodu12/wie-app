@@ -881,13 +881,17 @@ export const cancelBooking = async (req: Request, res: Response) => {
             reason:     cancellationReason || 'Booking cancelled by user',
           }
         );
-
-        await BookingModel.update(bookingId, {
+        const isTestMode  = process.env.NODE_ENV === 'development' || process.env.RAZORPAY_TEST_MODE === 'true';
+        const isCompleted = !!refund.id && refund.status !== 'failed';
+        const now         = new Date();
+        await BookingModel.update(booking.id, {
           refundAmount,
-          refundStatus:      'PROCESSING',
+          refundStatus:      isCompleted ? 'COMPLETED' : 'PROCESSING',
           refundId:          refund.id,
-          refundInitiatedAt: new Date(),
+          refundInitiatedAt: now,
+          refundProcessedAt: isCompleted ? now : undefined,
         });
+        console.log(`✅ Refund ${isCompleted ? 'COMPLETED' : 'PROCESSING'}: ${refund.id}`);
 
         await PaymentTransactionModel.create({
           bookingId:         booking.id,
@@ -895,7 +899,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
           razorpayPaymentId: booking.razorpayPaymentId ?? undefined,
           amount:            refundAmount,
           currency:          'INR',
-          status:            'PROCESSING',
+          status: isCompleted ? 'COMPLETED' : 'PROCESSING',
           method:            'refund',
           refundId:          refund.id,
           webhookData: {
@@ -921,16 +925,16 @@ export const cancelBooking = async (req: Request, res: Response) => {
           referenceId: refund.id,
           reason:      cancellationReason || 'Cancelled by user',
         });
-
         await createNotification({
           userId,
-          type:      'refund_initiated',
-          title:     'Refund Initiated',
-          message:   `Full refund of ₹${refundAmount.toFixed(2)} has been initiated. Will be credited within 5–7 business days.`,
+          type:      isCompleted ? 'refund_success' : 'refund_initiated',
+          title:     isCompleted ? '✅ Refund Successful' : 'Refund Initiated',
+          message:   isCompleted
+            ? `Your refund of ₹${refundAmount.toFixed(2)} has been processed successfully.`
+            : `Full refund of ₹${refundAmount.toFixed(2)} has been initiated. Will be credited shortly.`,
           bookingId: String(booking.id),
           ticketId:  booking.ticketId,
         });
-
       } catch (refundErr: any) {
         console.error('❌ Refund failed:', refundErr.message);
 
@@ -1003,27 +1007,44 @@ export const getUserCancellationStats = async (req: Request, res: Response) => {
 };
 export const trackRefund = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId      = req.user?.id;
     const { bookingId } = req.params;
 
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
+    if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
     const result = await BookingModel.getRefundDetails(bookingId);
-    if (!result.booking) {
-      return res.status(404).json({ success: false, message: 'Booking not found' });
-    }
+    if (!result.booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+    if (result.booking.userId !== userId) return res.status(403).json({ success: false, message: 'Forbidden' });
 
-    if (result.booking.userId !== userId) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
-    }
+    const b           = result.booking;
+    const isCompleted = b.refundStatus === 'COMPLETED';
+    const isFailed    = b.refundStatus === 'FAILED';
+    const isPending   = b.refundStatus === 'PENDING' || b.refundStatus === 'PROCESSING';
 
     res.json({
       success: true,
       data: {
-        booking:            result.booking,
+        booking:            b,
         refundTransactions: result.refundTransactions,
+        refundSummary: {
+          status:           b.refundStatus,
+          isCompleted,
+          isFailed,
+          isPending,
+          refundAmount:     b.refundAmount   ? parseFloat(b.refundAmount.toString())   : null,
+          refundId:         b.refundId       ?? null,
+          refundInitiatedAt: b.refundInitiatedAt ?? null,
+          refundProcessedAt: b.refundProcessedAt ?? null,
+          // Human-readable status for frontend display
+          statusLabel: isCompleted
+            ? 'Refund Successful'
+            : isFailed
+              ? 'Refund Failed — Contact Support'
+              : isPending
+                ? 'Refund Processing'
+                : 'No Refund',
+          statusColor: isCompleted ? 'green' : isFailed ? 'red' : isPending ? 'yellow' : 'gray',
+        },
       },
     });
   } catch (error: any) {
