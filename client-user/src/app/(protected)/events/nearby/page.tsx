@@ -12,10 +12,14 @@ import {
   getCategoryBasedEvents,
   getPopularEvents,
   getCancelledEvents,
+  getAllEventsWithDistance,
+  getCurrentLocation,
+  searchEventsByLocation
 } from '@/services/ticketUserService';
 import { getUserLikedEvents, getUserSavedEvents, getUserCancelledBookings, getUserRehostedBookings } from '@/services/transactionService';
 import { NearbyEvent, EventWithLocation, FilterEventsParams } from '@/types/ticket';
-import { Loader2, ChevronLeft, ChevronRight, ArrowRight, AlertCircle } from 'lucide-react';
+import EnableLocation from '@/components/events/EnableLocation';
+import { Loader2, ChevronLeft, ChevronRight, ArrowRight, AlertCircle,MapPin, Navigation } from 'lucide-react';
 import SideBar from '@/components/home/SideBar';
 import { useSidebar } from '@/context/SidebarContext';
 import { EventCard } from '@/components/events/EventCard';
@@ -24,7 +28,7 @@ import FilterSearchEvents from '@/components/events/FilterSearchEvents';
 // Asset imports — adjust paths if your assets differ
 import SearchIcon from '@/assets/Event/serachIcon.png';
 import FilterButtonIcon from '@/assets/Event/FilterButton.png';
-const DISTANCE_BANDS = [5, 10, 50, 100, 150, 200, 300, 400, 500,600,700,800,900,1000];
+const DISTANCE_BANDS = [5, 10, 50, 100, 150, 200, 300, 400, 500,600,700,800,900,1000,9999];
 
 function getBand(dist: number): number {
   for (const b of DISTANCE_BANDS) {
@@ -34,7 +38,7 @@ function getBand(dist: number): number {
 }
 
 function bandLabel(band: number): string {
-  return band === 9999 ? '500+ km' : `Within ${band} km`;
+  return band === 9999 ? 'All Events' : `Within ${band} km`;
 }
 
 function PopularEventBanner({
@@ -530,100 +534,157 @@ export default function NearbyEventsPage() {
   const [likedTicketIds, setLikedTicketIds] = useState<Set<string>>(new Set());
   const [savedTicketIds, setSavedTicketIds] = useState<Set<string>>(new Set());
   const [userCancelledBookings, setUserCancelledBookings] = useState<any[]>([]);
-
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [locationDisplayName, setLocationDisplayName] = useState<string>('');
+  const [manualLocationInput, setManualLocationInput] = useState<string>('');
+  const [locationSource, setLocationSource] = useState<'gps' | 'manual' | 'none'>('none');
   // ── Load everything on mount ──
   useEffect(() => {
     loadInitialData();
   }, []);
+const loadInitialData = async () => {
+  setLoading(true);
 
- const loadInitialData = async () => {
-    setLoading(true);
+  // Fire user-specific requests in parallel (non-blocking)
+  Promise.all([
+    getUserRehostedBookings().catch(() => ({ data: { events: [] } })),
+    getUserLikedEvents().catch(() => ({ data: { ticketIds: [] } })),
+    getUserSavedEvents().catch(() => ({ data: { ticketIds: [] } })),
+    getUserCancelledBookings().catch(() => ({ data: { cancelledBookings: [] } })),
+  ]).then(([rehostedRes, likedRes, savedRes, cancelledBookingsRes]) => {
+    const rawRehosted: any[] = rehostedRes?.data?.events ?? [];
+    const seenRehostedIds = new Set<string>();
+    setRehostedEvents(
+      rawRehosted.filter((ev) => {
+        const id = ev.eventId || ev._id || '';
+        if (seenRehostedIds.has(id)) return false;
+        seenRehostedIds.add(id);
+        return true;
+      })
+    );
+    setLikedTicketIds(new Set(likedRes?.data?.ticketIds ?? []));
+    setSavedTicketIds(new Set(savedRes?.data?.ticketIds ?? []));
+
+    const rawCancelled: any[] = cancelledBookingsRes?.data?.cancelledBookings ?? [];
+    const seenTicketIds = new Set<string>();
+    const cancelledFromBookings = rawCancelled
+      .filter((b: any) => b.isAdminCancelled)
+      .sort((a: any, b: any) => {
+        const aScore = a.refundAmount ? 1 : 0;
+        const bScore = b.refundAmount ? 1 : 0;
+        if (bScore !== aScore) return bScore - aScore;
+        return (
+          new Date(b.cancelledAt || b.updatedAt).getTime() -
+          new Date(a.cancelledAt || a.updatedAt).getTime()
+        );
+      })
+      .filter((b: any) => {
+        if (seenTicketIds.has(b.ticketId)) return false;
+        seenTicketIds.add(b.ticketId);
+        return true;
+      })
+      .map((b: any) => ({
+        eventId: b.ticketId,
+        event_name: (b.eventDetails as any)?.eventName || 'Event',
+        event_banner: (b.eventDetails as any)?.event_banner || null,
+        cancelled_at: b.cancelledAt,
+        cancellation_reason: b.cancellationReason,
+        isSubEvent: false,
+        parentEventId: null,
+        refundAmount: b.refundAmount,
+        refundStatus: b.refundStatus,
+        bookingId: b.id,
+      }));
+    setUserCancelledBookings(cancelledFromBookings);
+    setCancelledEvents([]);
+  });
+
+  try {
+    // Try GPS silently
+    let lat: number | null = null;
+    let lng: number | null = null;
     try {
-      Promise.all([
-        getUserRehostedBookings().catch(() => ({ data: { events: [] } })),  // ← user-specific rehosted
-        getUserLikedEvents().catch(() => ({ data: { ticketIds: [] } })),
-        getUserSavedEvents().catch(() => ({ data: { ticketIds: [] } })),
-        getUserCancelledBookings().catch(() => ({ data: { cancelledBookings: [] } })),
-      ]).then(([rehostedRes, likedRes, savedRes, cancelledBookingsRes]) => {
+      const loc = await getCurrentLocation();
+      lat = loc.latitude;
+      lng = loc.longitude;
+      setUserLocation({ latitude: lat, longitude: lng });
+      setLocationSource('gps');
+      setLocationDisplayName('Detecting location…');
+    } catch {
+      // GPS denied/unavailable — show modal so user can set location
+      setLocationModalOpen(true);
+    }
 
-        //  Rehosted: already filtered server-side to this user's cancelled bookings
-        // Extra client-side dedup by eventId just in case
-        const rawRehosted: any[] = rehostedRes?.data?.events ?? [];
-        const seenRehostedIds = new Set<string>();
-        const dedupedRehosted = rawRehosted.filter((ev) => {
-          const id: string = ev.eventId || ev._id || '';
-          if (seenRehostedIds.has(id)) return false;
-          seenRehostedIds.add(id);
-          return true;
-        });
-        setRehostedEvents(dedupedRehosted);
+    // Always fetch ALL events regardless of GPS success
+    await fetchAndDisplayEvents(
+      lat !== null && lng !== null ? { latitude: lat, longitude: lng } : undefined
+    );
+  } catch (err) {
+    console.error('loadInitialData error:', err);
+  } finally {
+    setLoading(false);
+  }
+};
+// Central function to fetch + deduplicate + display all events
+const fetchAndDisplayEvents = async (
+  coords?: { latitude: number; longitude: number },
+  manualLocation?: string
+) => {
+  try {
+    let allEvents: NearbyEvent[] = [];
 
-        setLikedTicketIds(new Set(likedRes?.data?.ticketIds ?? []));
-        setSavedTicketIds(new Set(savedRes?.data?.ticketIds ?? []));
-
-        // ── Cancelled: only host-cancelled events, deduplicated by ticketId ──
-        const rawCancelled: any[] = cancelledBookingsRes?.data?.cancelledBookings ?? [];
-        const seenTicketIds = new Set<string>();
-        const cancelledFromBookings = rawCancelled
-          .filter((b: any) => b.isAdminCancelled)
-          .sort((a: any, b: any) => {
-            // Prefer entries with refund info, then most recent cancellation
-            const aScore = a.refundAmount ? 1 : 0;
-            const bScore = b.refundAmount ? 1 : 0;
-            if (bScore !== aScore) return bScore - aScore;
-            return new Date(b.cancelledAt || b.updatedAt).getTime() -
-                  new Date(a.cancelledAt || a.updatedAt).getTime();
-          })
-          .filter((b: any) => {
-            // One entry per ticketId (same event booked multiple times → show once)
-            if (seenTicketIds.has(b.ticketId)) return false;
-            seenTicketIds.add(b.ticketId);
-            return true;
-          })
-          .map((b: any) => ({
-            eventId:             b.ticketId,
-            event_name:          (b.eventDetails as any)?.eventName || 'Event',
-            event_banner:        (b.eventDetails as any)?.event_banner || null,
-            cancelled_at:        b.cancelledAt,
-            cancellation_reason: b.cancellationReason,
-            isSubEvent:          false,
-            parentEventId:       null,
-            refundAmount:        b.refundAmount,
-            refundStatus:        b.refundStatus,
-            bookingId:           b.id,
-          }));
-
-        setUserCancelledBookings(cancelledFromBookings);
-        setCancelledEvents([]); // never show global cancelled list to all users
+    if (manualLocation) {
+      // Use location search — flatten all categories, deduplicate
+      const res = await searchEventsByLocation({
+        location: manualLocation,
+        radius: 500,
       });
-      // 1. Try GPS
-      const res = await getNearbyEventsFromCurrentLocation(500);
-      const events: NearbyEvent[] = res.data.events;
-      const loc = res.data.search_location;
-      setUserLocation({ latitude: loc.latitude, longitude: loc.longitude });
+      const byCategory = res.data?.eventsByCategory ?? {};
+      const suggestions = res.data?.suggestionsByCategory ?? {};
+      const combined = [
+        ...Object.values(byCategory).flat(),
+        ...Object.values(suggestions).flat(),
+      ] as NearbyEvent[];
+      allEvents = deduplicateEvents(combined);
+    } else {
+      // Use live events + GPS distance sorting (fallback = no coords)
+      const res = await getAllEventsWithDistance(coords ? coords : {});
+      allEvents = deduplicateEvents(res.data.events ?? []);
+    }
 
-      // Separate popular (top 6 closest) vs the rest
-      const sorted = [...events].sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999));
-      setPopularEvents(sorted.slice(0, 6));
+    // Populate popular banner (top 6)
+    setPopularEvents(allEvents.slice(0, 6));
 
-      // Group rest by distance band
+    // Group by distance band
+    const bandMap = new Map<number, NearbyEvent[]>();
+    allEvents.forEach((ev) => {
+      const b = getBand((ev as any).distance ?? 9999);
+      if (!bandMap.has(b)) bandMap.set(b, []);
+      bandMap.get(b)!.push(ev);
+    });
+    setNearbyByBand(bandMap);
+
+    // Category breaks (non-blocking)
+    buildCategoryBreaks(allEvents).catch(() => {});
+  } catch (err) {
+    console.error('fetchAndDisplayEvents error:', err);
+    // Even on error, try to show live events without distance
+    try {
+      const res = await getAllEventsWithDistance({});
+      const events = deduplicateEvents(res.data.events ?? []);
+      setPopularEvents(events.slice(0, 6));
       const bandMap = new Map<number, NearbyEvent[]>();
-      sorted.forEach((ev) => {
-        const b = getBand(ev.distance ?? 999);
+      events.forEach((ev) => {
+        const b = getBand((ev as any).distance ?? 9999);
         if (!bandMap.has(b)) bandMap.set(b, []);
         bandMap.get(b)!.push(ev);
       });
       setNearbyByBand(bandMap);
-
-      // Build category breaks — 1 per every 2 bands (max 6 events each)
-      await buildCategoryBreaks(sorted);
     } catch {
-      // GPS denied or failed — page still shows UI
-    } finally {
-      setLoading(false);
+      // nothing more we can do
     }
-  };
-
+  }
+};
   const buildCategoryBreaks = async (events: NearbyEvent[]) => {
     // Get unique categories from loaded events
     const cats = Array.from(new Set(events.map((e) => e.event_category).filter(Boolean) as string[]));
@@ -649,38 +710,110 @@ export default function NearbyEventsPage() {
     }
     setCategoryBreaks(breaks);
   };
+// Location granted via GPS 
+const handleLocationGranted = async (coords: {
+  latitude: number;
+  longitude: number;
+  displayName?: string;
+}) => {
+  setUserLocation({ latitude: coords.latitude, longitude: coords.longitude });
+  setLocationDisplayName(coords.displayName || `${coords.latitude.toFixed(3)}, ${coords.longitude.toFixed(3)}`);
+  setLocationSource('gps');
+  setLocationModalOpen(false);
+  setLoading(true);
+  try {
+    await fetchAndDisplayEvents({ latitude: coords.latitude, longitude: coords.longitude });
+  } finally {
+    setLoading(false);
+  }
+};
 
-  // ── Search handler ──
+const handleManualLocation = async (location: string) => {
+  setManualLocationInput(location);
+  setLocationDisplayName(location);
+  setLocationSource('manual');
+  setLocationModalOpen(false);
+  setLoading(true);
+  try {
+    await fetchAndDisplayEvents(undefined, location);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const deduplicateEvents = (events: NearbyEvent[]): NearbyEvent[] => {
+    const seen = new Set<string>();
+    return events.filter((ev) => {
+      const id = (ev as any)._id?.toString() || '';
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  };
+
   const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults(null);
-      setHasSearched(false);
-      return;
-    }
-    setLoading(true);
-    setHasSearched(true);
-    try {
-      const res = await searchEventsByName({ searchQuery: searchQuery.trim() });
-      const flat = Object.values(res.data.eventsByCategory ?? {}).flat() as EventWithLocation[];
-      setSearchResults(flat);
-      setFilterResults(null);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Filter handler ──
-  const handleFilterApply = (response: any, filters: FilterEventsParams) => {
-    const byCategory = response.data?.eventsByCategory ?? {};
-    setFilterResultsByCategory(byCategory);
-    const flat = Object.values(byCategory).flat() as EventWithLocation[];
-    setFilterResults(flat);
+  const q = searchQuery.trim();
+  if (!q) {
     setSearchResults(null);
-    setActiveFilters(filters);
-    setHasSearched(true);
-  };
+    setHasSearched(false);
+    return;
+  }
+  setLoading(true);
+  setHasSearched(true);
+  try {
+    // Try name search first
+    const nameRes = await searchEventsByName({ searchQuery: q });
+    const nameFlat = deduplicateEvents(
+      Object.values(nameRes.data.eventsByCategory ?? {}).flat() as NearbyEvent[]
+    );
+
+    // Also try location search in parallel
+    const locRes = await searchEventsByLocation({
+      location: q,
+      radius: 500,
+      ...(userLocation ?? {}),
+    }).catch(() => null);
+
+    const locFlat = locRes
+      ? deduplicateEvents([
+          ...Object.values(locRes.data?.eventsByCategory ?? {}).flat(),
+          ...Object.values(locRes.data?.suggestionsByCategory ?? {}).flat(),
+        ] as NearbyEvent[])
+      : [];
+
+    // Merge, deduplicate again
+    const merged = deduplicateEvents([...nameFlat, ...locFlat]);
+    setSearchResults(merged as EventWithLocation[]);
+    setFilterResults(null);
+  } catch {
+    setSearchResults([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleFilterApply = (response: any, filters: FilterEventsParams) => {
+  const byCategory = response.data?.eventsByCategory ?? {};
+
+  // Final dedup pass across all categories (in case filter modal missed any)
+  const globalSeen = new Set<string>();
+  const cleanByCategory: Record<string, EventWithLocation[]> = {};
+  Object.entries(byCategory).forEach(([cat, evs]) => {
+    const filtered = (evs as any[]).filter((ev) => {
+      const id = ev._id?.toString() || '';
+      if (!id || globalSeen.has(id)) return false;
+      globalSeen.add(id);
+      return true;
+    });
+    if (filtered.length > 0) cleanByCategory[cat] = filtered as EventWithLocation[];
+  });
+
+  setFilterResultsByCategory(cleanByCategory);
+  setFilterResults(Object.values(cleanByCategory).flat() as EventWithLocation[]);
+  setSearchResults(null);
+  setActiveFilters(filters);
+  setHasSearched(true);
+};
 
   // ── Render distance band sections ──
   const renderBands = () => {
@@ -735,64 +868,90 @@ export default function NearbyEventsPage() {
       >
         <div className="max-w-[1194px] mx-auto px-4 sm:px-6 pt-6">
 
-          {/* ── Search Bar + Filter Button ── */}
-          <div className="flex items-center gap-3 mb-6">
-            {/* Search field */}
-            <div
-              className="flex items-center gap-3 flex-1 px-4"
-              style={{
-                height: 44,
-                borderRadius: 8,
-                background: '#38383866',
-                border: '1px solid #3D4149',
-              }}
-            >
-              <Image
-                src={SearchIcon}
-                alt="Search"
-                width={18}
-                height={18}
-                style={{ opacity: 0.5, flexShrink: 0 }}
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Search events, location, categories etc.."
-                className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => { setSearchQuery(''); setSearchResults(null); setHasSearched(false); }}
-                  className="text-white/40 hover:text-white/70 text-xs transition-colors flex-shrink-0"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+          {/* ── Single Search Bar with location context ── */}
+<div className="mb-4">
+  <div
+    className="flex items-center gap-3 w-full px-4"
+    style={{
+      height: 48,
+      borderRadius: 10,
+      background: '#38383866',
+      border: '1px solid #3D4149',
+    }}
+  >
+    {/* Location pill / icon on left */}
+    <button
+      onClick={() => setLocationModalOpen(true)}
+      className="flex items-center gap-1.5 flex-shrink-0 px-2 py-1 rounded-lg transition-all hover:bg-white/10"
+      style={{
+        background: locationSource !== 'none' ? 'rgba(136,96,217,0.18)' : 'rgba(255,255,255,0.06)',
+        border: '1px solid ' + (locationSource !== 'none' ? 'rgba(136,96,217,0.4)' : '#3D4149'),
+        maxWidth: 160,
+      }}
+      title="Set location"
+    >
+      {locationSource === 'gps' ? (
+        <Navigation className="w-3 h-3 text-green-400 flex-shrink-0" />
+      ) : locationSource === 'manual' ? (
+        <MapPin className="w-3 h-3 text-purple-400 flex-shrink-0" />
+      ) : (
+        <MapPin className="w-3 h-3 text-white/30 flex-shrink-0" />
+      )}
+      <span
+        className="text-xs truncate"
+        style={{
+          color: locationSource !== 'none' ? '#c4b5fd' : 'rgba(255,255,255,0.3)',
+          maxWidth: 110,
+        }}
+      >
+        {locationSource !== 'none'
+          ? locationDisplayName || 'My location'
+          : 'Set location'}
+      </span>
+    </button>
 
-            {/* Filter button */}
-            <button
-              onClick={() => setIsFilterOpen(true)}
-              className="flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity"
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 8,
-                background: '#38383866',
-                border: '1px solid #3D4149',
-              }}
-            >
-              <Image
-                src={FilterButtonIcon}
-                alt="Filter"
-                width={20}
-                height={20}
-              />
-            </button>
-          </div>
+    {/* Divider */}
+    <div className="w-px h-5 flex-shrink-0" style={{ background: '#3D4149' }} />
 
+    {/* Search input */}
+    <Image
+      src={SearchIcon}
+      alt="Search"
+      width={16}
+      height={16}
+      style={{ opacity: 0.4, flexShrink: 0 }}
+    />
+    <input
+      type="text"
+      value={searchQuery}
+      onChange={(e) => setSearchQuery(e.target.value)}
+      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+      placeholder="Search events, location, categories…"
+      className="flex-1 bg-transparent text-white text-sm placeholder-white/25 outline-none min-w-0"
+    />
+    {searchQuery && (
+      <button
+        onClick={() => {
+          setSearchQuery('');
+          setSearchResults(null);
+          setHasSearched(false);
+        }}
+        className="text-white/40 hover:text-white/70 text-xs transition-colors flex-shrink-0"
+      >
+        ✕
+      </button>
+    )}
+
+    {/* Filter button inside bar */}
+    <button
+      onClick={() => setIsFilterOpen(true)}
+      className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg hover:bg-white/10 transition-all"
+      style={{ border: '1px solid #3D4149' }}
+    >
+      <Image src={FilterButtonIcon} alt="Filter" width={16} height={16} />
+    </button>
+  </div>
+</div>
           {/* ── Active filter chips ── */}
           {Object.keys(activeFilters).length > 0 && (filterResults || filterResultsByCategory) && (
             <div className="flex flex-wrap gap-2 mb-4">
@@ -905,12 +1064,42 @@ export default function NearbyEventsPage() {
               )}
               {!hasSearched && (
                 <>
-                  {userCancelledBookings.length > 0 && (
-                    <UserCancelledSection
-                      events={userCancelledBookings}
-                      router={router}
-                    />
-                  )}
+                  {(() => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    const visibleCancelledBookings = userCancelledBookings.filter((booking) => {
+                      // Hide if refund already completed
+                      if (booking.refundStatus === 'COMPLETED') return false;
+
+                      // Hide if event start date is already past
+                      const eventStartDate =
+                        booking.eventDetails?.startDate ||
+                        booking.eventDetails?.event_start_date ||
+                        booking.event_start_date;
+
+                      if (eventStartDate) {
+                        const startDate = new Date(eventStartDate);
+                        startDate.setHours(0, 0, 0, 0);
+                        if (startDate < today) return false;
+                      }
+
+                      // Show only pending/processing refunds
+                      return (
+                        booking.refundStatus === 'PENDING' ||
+                        booking.refundStatus === 'PROCESSING' ||
+                        booking.refundStatus === null ||
+                        booking.refundStatus === undefined
+                      );
+                    });
+
+                    return visibleCancelledBookings.length > 0 ? (
+                      <UserCancelledSection
+                        events={visibleCancelledBookings}
+                        router={router}
+                      />
+                    ) : null;
+                  })()}
 
                   {/* Popular event banner */}
                   <PopularEventBanner
@@ -926,9 +1115,25 @@ export default function NearbyEventsPage() {
                     renderBands()
                   ) : (
                     <div className="py-12 text-center">
-                      <p className="text-white/40 text-sm">
-                        Enable location access or use the search bar to find events near you.
+                      <div
+                        className="inline-flex w-16 h-16 rounded-2xl items-center justify-center mb-4"
+                        style={{ background: '#1C2024', border: '1px solid #2D3139' }}
+                      >
+                        <MapPin className="w-7 h-7 text-purple-400" />
+                      </div>
+                      <p className="text-white/60 text-sm mb-4">
+                        Enable location access to find events near you.
                       </p>
+                      <button
+                        onClick={() => setLocationModalOpen(true)}
+                        className="px-6 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90"
+                        style={{
+                          background: 'linear-gradient(135deg, #5B8DEF 0%, #8860D9 100%)',
+                          boxShadow: '0 4px 16px rgba(136,96,217,0.3)',
+                        }}
+                      >
+                        Enable Location
+                      </button>
                     </div>
                   )}
                 </>
@@ -945,6 +1150,12 @@ export default function NearbyEventsPage() {
         onApply={handleFilterApply}
         initialFilters={activeFilters}
         userLocation={userLocation}
+      />
+      <EnableLocation
+        isOpen={locationModalOpen}
+        onClose={() => setLocationModalOpen(false)}
+        onLocationGranted={handleLocationGranted}
+        onManualLocation={handleManualLocation}
       />
     </div>
   );
