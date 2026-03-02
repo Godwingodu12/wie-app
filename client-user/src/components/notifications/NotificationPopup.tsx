@@ -12,6 +12,7 @@ import {
   MessageCircle,
   Users,
   Ticket,
+  CheckCircle
 } from "lucide-react";
 import {
   Notification,
@@ -291,6 +292,11 @@ const loadNotifications = async () => {
         router.push(`/bookings/${bookingId}`);
       } else if (targetUrl) {
         router.push(targetUrl);
+      } else if (notification.type === 'refund_success') {
+        // Navigate to refund tracking page
+        const bId = notification.bookingId || notification.meta?.bookingId;
+        if (bId) router.push(`/bookings/${bId}/refund`);
+        else router.push('/bookings');
       } else if (notification.type === "event_cancelled" && notification.ticketId) {
         // Show cancelled event details — navigate to a cancelled info page or bookings
         router.push(`/bookings?cancelled=${notification.ticketId}`);
@@ -339,7 +345,10 @@ const loadNotifications = async () => {
         n.type?.includes("event") ||
         n.type?.includes("ticket") ||
         n.type?.includes("group") ||
-        n.type?.includes("booking")
+        n.type?.includes("booking") ||
+        n.type === "event_cancelled" ||
+        n.type === "event_rehosted" ||
+        n.type === "refund_success"
       );
     }
     if (filter === "followers") {
@@ -1080,6 +1089,25 @@ const NotificationItem = ({
             </span>
           </div>
         )}
+        {/* Refund success badge */}
+        {notification.type === 'refund_success' && (
+          <div className="flex items-center gap-1.5 mt-1">
+            <span
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#22c55e' }}
+            >
+              ✅ Refund Successful
+            </span>
+            {notification.meta?.refundAmount && (
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#16a34a' }}
+              >
+                ₹{parseFloat(notification.meta.refundAmount).toFixed(2)}
+              </span>
+            )}
+          </div>
+        )}
         {/* Cancelled / Rehosted badge */}
         {(notification.type === 'event_cancelled' || notification.type === 'event_rehosted') && (
           <div className="flex items-center gap-1.5 mt-1">
@@ -1205,6 +1233,8 @@ const getIcon = (type: string | undefined) => {
   if (!type) return <Bell size={18} />;
   if (type === 'event_cancelled') return <Calendar size={18} style={{ color: '#ef4444' }} />;
   if (type === 'event_rehosted')  return <Calendar size={18} style={{ color: '#22c55e' }} />;
+    if (type === 'refund_success')  return <CheckCircle size={18} style={{ color: '#22c55e' }} />;
+
   if (type.includes("event")) return <Calendar size={18} />;
   if (type.includes("ticket") || type.includes("booking"))
     return <Ticket size={18} />;
