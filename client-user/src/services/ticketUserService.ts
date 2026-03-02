@@ -20,6 +20,25 @@ import {
   CategorySearchParams,
   NearbyEvent
 } from '@/types/ticket';
+
+// ADD at the bottom of ticketUserService.ts
+
+export interface AllEventsParams {
+  latitude?: number;
+  longitude?: number;
+  location?: string;
+}
+
+export interface AllEventsResponse {
+  success: boolean;
+  message: string;
+  data: {
+    count: number;
+    search_location: { latitude: number; longitude: number } | null;
+    events: NearbyEvent[];
+  };
+}
+
 export const getLiveEvents = async (): Promise<LiveEventsResponse> => {
   try {
     const res = await api.get('/tickets/live-events');
@@ -330,6 +349,31 @@ export const getRehostedEvents = async (userId?: string): Promise<{
     return res.data;
   } catch (err) {
     console.error('❌ getRehostedEvents error:', err);
+    throw err;
+  }
+};
+
+export const getAllEventsWithDistance = async (
+  params: { latitude?: number; longitude?: number; location?: string } = {}
+): Promise<any> => {
+  try {
+    const queryParams = new URLSearchParams();
+    if (params.latitude !== undefined) queryParams.append('latitude', params.latitude.toString());
+    if (params.longitude !== undefined) queryParams.append('longitude', params.longitude.toString());
+    if (params.location) queryParams.append('location', params.location);
+
+    const query = queryParams.toString();
+    const res = await api.get(`/tickets/all-events${query ? `?${query}` : ''}`);
+
+    return {
+      data: {
+        events: res.data?.data?.events ?? [],
+        count: res.data?.data?.count ?? 0,
+        search_location: res.data?.data?.search_location ?? null,
+      },
+    };
+  } catch (err) {
+    console.error('❌ getAllEventsWithDistance error:', err);
     throw err;
   }
 };
