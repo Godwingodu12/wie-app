@@ -69,35 +69,90 @@ export default function FilterSearchEvents({
     setStartDate('');
     setEndDate('');
   };
+const handleApply = async () => {
+  setIsLoading(true);
+  try {
+    const params: FilterEventsParams = {};
+    if (selectedCategory)    params.category = selectedCategory;
+    if (selectedSubcategory) params.subcategory = selectedSubcategory;
+    if (startDate)           params.startDate = startDate;
+    if (endDate)             params.endDate = endDate;
 
-  const handleApply = async () => {
-    setIsLoading(true);
-    try {
-      const params: FilterEventsParams = {};
-
-      if (selectedCategory) params.category = selectedCategory;
-      if (selectedSubcategory) params.subcategory = selectedSubcategory;
-      if (location.trim()) params.location = location.trim();
+    if (location.trim()) {
+      // Manual location typed — use location search
+      params.location = location.trim();
       if (currentDistance) params.radius = currentDistance;
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
 
-      // Pass user GPS coords if available and no manual location
-      if (userLocation && !location.trim()) {
-        params.latitude = userLocation.latitude;
-        params.longitude = userLocation.longitude;
-      }
+      const { searchEventsByLocation } = await import('@/services/ticketUserService');
+      const locRes = await searchEventsByLocation({
+        location: params.location,
+        radius: params.radius ?? 500,
+      });
 
-      const response = await getFilteredEvents(params);
-      onApply(response, params);
+      // Deduplicate across all categories + suggestions
+      const raw = [
+        ...Object.values(locRes.data?.eventsByCategory ?? {}).flat(),
+        ...Object.values(locRes.data?.suggestionsByCategory ?? {}).flat(),
+      ] as any[];
+
+      const seen = new Set<string>();
+      const deduped = raw.filter((ev) => {
+        const id = ev._id?.toString() || '';
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+
+      // Rebuild as single "All Results" category for the page to render
+      const syntheticResponse = {
+        ...locRes,
+        data: {
+          ...locRes.data,
+          eventsByCategory: deduped.length > 0 ? { 'Events Near Location': deduped } : {},
+        },
+      };
+
+      onApply(syntheticResponse, params);
       onClose();
-    } catch (error) {
-      console.error('Filter apply error:', error);
-    } finally {
-      setIsLoading(false);
+      return;
     }
-  };
 
+    // GPS-based or category/date only
+    if (userLocation) {
+      params.latitude  = userLocation.latitude;
+      params.longitude = userLocation.longitude;
+      if (currentDistance) params.radius = currentDistance;
+    }
+
+    const response = await getFilteredEvents(params);
+
+    // Deduplicate within filtered results too
+    const byCategory = response.data?.eventsByCategory ?? {};
+    const globalSeen = new Set<string>();
+    const dedupedByCategory: Record<string, any[]> = {};
+    Object.entries(byCategory).forEach(([cat, evs]) => {
+      const filtered = (evs as any[]).filter((ev) => {
+        const id = ev._id?.toString() || '';
+        if (!id || globalSeen.has(id)) return false;
+        globalSeen.add(id);
+        return true;
+      });
+      if (filtered.length > 0) dedupedByCategory[cat] = filtered;
+    });
+
+    const dedupedResponse = {
+      ...response,
+      data: { ...response.data, eventsByCategory: dedupedByCategory },
+    };
+
+    onApply(dedupedResponse, params);
+    onClose();
+  } catch (error) {
+    console.error('Filter apply error:', error);
+  } finally {
+    setIsLoading(false);
+  }
+};
   if (!isOpen) return null;
 
   return (
@@ -188,10 +243,21 @@ export default function FilterSearchEvents({
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              placeholder="Enter location manually"
+              placeholder={
+                userLocation
+                  ? `Current location active — or type to override`
+                  : `Enter city, state or country (e.g. Kochi, Kerala)`
+              }
               className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/30 outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
               style={{ background: '#2D3139', border: '1px solid #3D4149' }}
             />
+            {/* Show active GPS badge when no manual override */}
+            {userLocation && !location.trim() && (
+              <div className="flex items-center gap-1.5 mt-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                <span className="text-green-400/80 text-xs">Using your GPS location</span>
+              </div>
+            )}
           </div>
 
           {/* Distance */}
