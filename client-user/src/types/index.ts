@@ -15,6 +15,7 @@ export interface User {
   bio?: string | null;
   followRequestStatus?: 'pending' | 'active' | 'none'; 
   accountPrivacy?: string | null;
+  locationSource?: string | null;
   followers_count?: number;
   following_count?: number;
   posts_count?: number;

@@ -14,7 +14,9 @@ import {
   getCancelledEvents,
   getAllEventsWithDistance,
   getCurrentLocation,
-  searchEventsByLocation
+  searchEventsByLocation,
+  saveUserLocationPreference,
+  getSavedUserLocationPreference,
 } from '@/services/ticketUserService';
 import { getUserLikedEvents, getUserSavedEvents, getUserCancelledBookings, getUserRehostedBookings } from '@/services/transactionService';
 import { NearbyEvent, EventWithLocation, FilterEventsParams } from '@/types/ticket';
@@ -131,9 +133,9 @@ function PopularEventBanner({
         </div>
 
         <div className="absolute bottom-4 right-4 flex gap-1.5">
-          {events.slice(0, 6).map((_, i) => (
+           {events.slice(0, 6).map((ev, i) => (
             <button
-              key={i}
+              key={`dot-${ev._id ?? i}-${i}`}
               onClick={(e) => { e.stopPropagation(); setActive(i); reset(); }}
               className="transition-all"
               style={{
@@ -213,9 +215,9 @@ function EventRow({
           ref={rowRef}
           className="flex gap-3 overflow-x-auto scrollbar-hide pb-1"
         >
-          {events.map((ev) => (
+         {events.map((ev, idx) => (
             <EventCard
-              key={ev._id}
+              key={`${ev._id ?? 'ev'}-${idx}`}
               event={ev}
               showDistance
               isLiked={likedIds.has(ev._id)}
@@ -256,8 +258,8 @@ function CategoryBreak({ category, events }: { category: string; events: EventWi
         </button>
       </div>
       <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
-        {events.slice(0, 6).map((ev) => (
-          <EventCard key={ev._id} event={ev} />
+        {events.slice(0, 6).map((ev, idx) => (
+          <EventCard key={`cat-${ev._id ?? 'ev'}-${idx}`} event={ev} />
         ))}
       </div>
     </div>
@@ -513,8 +515,8 @@ function RehostedEventsSection({ events }: { events: any[] }) {
   );
 }
 export default function NearbyEventsPage() {
-  useAuth(true);
-  const router = useRouter();
+  const authData = useAuth(true);
+  const userId: string | null = (authData as any)?.user?.id ?? null;  const router = useRouter();
   const { isCollapsed, isMobile } = useSidebar();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -542,90 +544,192 @@ export default function NearbyEventsPage() {
   useEffect(() => {
     loadInitialData();
   }, []);
-const loadInitialData = async () => {
-  setLoading(true);
 
-  // Fire user-specific requests in parallel (non-blocking)
-  Promise.all([
-    getUserRehostedBookings().catch(() => ({ data: { events: [] } })),
-    getUserLikedEvents().catch(() => ({ data: { ticketIds: [] } })),
-    getUserSavedEvents().catch(() => ({ data: { ticketIds: [] } })),
-    getUserCancelledBookings().catch(() => ({ data: { cancelledBookings: [] } })),
-  ]).then(([rehostedRes, likedRes, savedRes, cancelledBookingsRes]) => {
-    const rawRehosted: any[] = rehostedRes?.data?.events ?? [];
-    const seenRehostedIds = new Set<string>();
-    setRehostedEvents(
-      rawRehosted.filter((ev) => {
-        const id = ev.eventId || ev._id || '';
-        if (seenRehostedIds.has(id)) return false;
-        seenRehostedIds.add(id);
-        return true;
-      })
-    );
-    setLikedTicketIds(new Set(likedRes?.data?.ticketIds ?? []));
-    setSavedTicketIds(new Set(savedRes?.data?.ticketIds ?? []));
-
-    const rawCancelled: any[] = cancelledBookingsRes?.data?.cancelledBookings ?? [];
-    const seenTicketIds = new Set<string>();
-    const cancelledFromBookings = rawCancelled
-      .filter((b: any) => b.isAdminCancelled)
-      .sort((a: any, b: any) => {
-        const aScore = a.refundAmount ? 1 : 0;
-        const bScore = b.refundAmount ? 1 : 0;
-        if (bScore !== aScore) return bScore - aScore;
-        return (
-          new Date(b.cancelledAt || b.updatedAt).getTime() -
-          new Date(a.cancelledAt || a.updatedAt).getTime()
-        );
-      })
-      .filter((b: any) => {
-        if (seenTicketIds.has(b.ticketId)) return false;
-        seenTicketIds.add(b.ticketId);
-        return true;
-      })
-      .map((b: any) => ({
-        eventId: b.ticketId,
-        event_name: (b.eventDetails as any)?.eventName || 'Event',
-        event_banner: (b.eventDetails as any)?.event_banner || null,
-        cancelled_at: b.cancelledAt,
-        cancellation_reason: b.cancellationReason,
-        isSubEvent: false,
-        parentEventId: null,
-        refundAmount: b.refundAmount,
-        refundStatus: b.refundStatus,
-        bookingId: b.id,
-      }));
-    setUserCancelledBookings(cancelledFromBookings);
-    setCancelledEvents([]);
-  });
-
-  try {
-    // Try GPS silently
-    let lat: number | null = null;
-    let lng: number | null = null;
+  const persistLocation = async (
+    uid: string,
+    displayName: string,
+    latitude: number | null,
+    longitude: number | null,
+    source: 'gps' | 'manual'
+  ) => {
     try {
-      const loc = await getCurrentLocation();
-      lat = loc.latitude;
-      lng = loc.longitude;
-      setUserLocation({ latitude: lat, longitude: lng });
-      setLocationSource('gps');
-      setLocationDisplayName('Detecting location…');
+      await saveUserLocationPreference({
+        userId: uid,
+        displayName,
+        latitude,
+        longitude,
+        source,
+      });
     } catch {
-      // GPS denied/unavailable — show modal so user can set location
-      setLocationModalOpen(true);
+      // silent — location persistence failure should never block UI
     }
+  };
 
-    // Always fetch ALL events regardless of GPS success
-    await fetchAndDisplayEvents(
-      lat !== null && lng !== null ? { latitude: lat, longitude: lng } : undefined
-    );
-  } catch (err) {
-    console.error('loadInitialData error:', err);
-  } finally {
-    setLoading(false);
-  }
-};
-// Central function to fetch + deduplicate + display all events
+  const loadInitialData = async () => {
+    setLoading(true);
+
+    // ── Non-blocking: user-specific data ──
+    Promise.all([
+      getUserRehostedBookings().catch(() => ({ data: { events: [] } })),
+      getUserLikedEvents().catch(() => ({ data: { ticketIds: [] } })),
+      getUserSavedEvents().catch(() => ({ data: { ticketIds: [] } })),
+      getUserCancelledBookings().catch(() => ({ data: { cancelledBookings: [] } })),
+    ]).then(([rehostedRes, likedRes, savedRes, cancelledBookingsRes]) => {
+      const rawRehosted: any[] = rehostedRes?.data?.events ?? [];
+      const seenRehostedIds = new Set<string>();
+      setRehostedEvents(
+        rawRehosted.filter((ev) => {
+          const id = ev.eventId || ev._id || '';
+          if (seenRehostedIds.has(id)) return false;
+          seenRehostedIds.add(id);
+          return true;
+        })
+      );
+      setLikedTicketIds(new Set(likedRes?.data?.ticketIds ?? []));
+      setSavedTicketIds(new Set(savedRes?.data?.ticketIds ?? []));
+
+      const rawCancelled: any[] = cancelledBookingsRes?.data?.cancelledBookings ?? [];
+      const seenTicketIds = new Set<string>();
+      const cancelledFromBookings = rawCancelled
+        .filter((b: any) => b.isAdminCancelled)
+        .sort((a: any, b: any) => {
+          const aScore = a.refundAmount ? 1 : 0;
+          const bScore = b.refundAmount ? 1 : 0;
+          if (bScore !== aScore) return bScore - aScore;
+          return (
+            new Date(b.cancelledAt || b.updatedAt).getTime() -
+            new Date(a.cancelledAt || a.updatedAt).getTime()
+          );
+        })
+        .filter((b: any) => {
+          if (seenTicketIds.has(b.ticketId)) return false;
+          seenTicketIds.add(b.ticketId);
+          return true;
+        })
+        .map((b: any) => ({
+          eventId: b.ticketId,
+          event_name: (b.eventDetails as any)?.eventName || 'Event',
+          event_banner: (b.eventDetails as any)?.event_banner || null,
+          cancelled_at: b.cancelledAt,
+          cancellation_reason: b.cancellationReason,
+          isSubEvent: false,
+          parentEventId: null,
+          refundAmount: b.refundAmount,
+          refundStatus: b.refundStatus,
+          bookingId: b.id,
+        }));
+      setUserCancelledBookings(cancelledFromBookings);
+      setCancelledEvents([]);
+    });
+
+    try {
+      // ── STEP 1: Load popular events immediately so page is never blank ──
+      try {
+        const popularRes = await getPopularEvents(12);
+        const popularList = popularRes?.data?.events ?? [];
+        if (popularList.length > 0) {
+          setPopularEvents(popularList);
+          const bandMap = new Map<number, NearbyEvent[]>();
+          popularList.forEach((ev: NearbyEvent) => {
+            const b = getBand((ev as any).distance ?? 9999);
+            if (!bandMap.has(b)) bandMap.set(b, []);
+            bandMap.get(b)!.push(ev);
+          });
+          setNearbyByBand(bandMap);
+        }
+      } catch {
+        try {
+          const fallbackRes = await getAllEventsWithDistance({});
+          const fallbackEvents = deduplicateEvents(fallbackRes?.data?.events ?? []);
+          if (fallbackEvents.length > 0) {
+            setPopularEvents(fallbackEvents.slice(0, 6));
+            const bandMap = new Map<number, NearbyEvent[]>();
+            fallbackEvents.forEach((ev) => {
+              const b = getBand((ev as any).distance ?? 9999);
+              if (!bandMap.has(b)) bandMap.set(b, []);
+              bandMap.get(b)!.push(ev);
+            });
+            setNearbyByBand(bandMap);
+          }
+        } catch { /* silent */ }
+      }
+
+      // ── STEP 2: Restore saved location from DB ──
+      // Get fresh userId from authData at call time (not stale closure)
+      const currentUserId = (authData as any)?.user?.id ?? null;
+
+      if (currentUserId) {
+        try {
+          const saved = await getSavedUserLocationPreference(currentUserId);
+          if (saved?.displayName) {
+            // Restore UI state immediately — this fixes "disappears on refresh"
+            setLocationDisplayName(saved.displayName);
+            setLocationSource(saved.source ?? 'manual');
+
+            if (saved.latitude && saved.longitude) {
+              setUserLocation({
+                latitude: saved.latitude,
+                longitude: saved.longitude,
+              });
+              setLoading(false);
+              // Fetch events with saved coords
+              await fetchAndDisplayEvents({
+                latitude: saved.latitude,
+                longitude: saved.longitude,
+              });
+              // Try GPS upgrade in background
+              getCurrentLocation()
+                .then(async (loc) => {
+                  setUserLocation({ latitude: loc.latitude, longitude: loc.longitude });
+                  setLocationSource('gps');
+                  await persistLocation(
+                    currentUserId,
+                    'My Location',
+                    loc.latitude,
+                    loc.longitude,
+                    'gps'
+                  );
+                  await fetchAndDisplayEvents({
+                    latitude: loc.latitude,
+                    longitude: loc.longitude,
+                  });
+                })
+                .catch(() => {/* keep saved location */});
+              return;
+            } else {
+              // Manual location with no coords — search by name
+              setLoading(false);
+              await fetchAndDisplayEvents(undefined, saved.displayName);
+              return;
+            }
+          }
+        } catch { /* no saved location, continue */ }
+      }
+
+      // ── STEP 3: Try GPS silently ──
+      getCurrentLocation()
+        .then(async (loc) => {
+          setUserLocation({ latitude: loc.latitude, longitude: loc.longitude });
+          setLocationSource('gps');
+          setLocationDisplayName('My Location');
+          if (currentUserId) {
+            await persistLocation(currentUserId, 'My Location', loc.latitude, loc.longitude, 'gps');
+          }
+          await fetchAndDisplayEvents({ latitude: loc.latitude, longitude: loc.longitude });
+        })
+        .catch(() => {
+          // GPS denied — events already showing from Step 1
+          setLocationModalOpen(true);
+        });
+
+    } catch (err) {
+      console.error('loadInitialData error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+// FIND AND REPLACE the entire fetchAndDisplayEvents function:
 const fetchAndDisplayEvents = async (
   coords?: { latitude: number; longitude: number },
   manualLocation?: string
@@ -634,10 +738,10 @@ const fetchAndDisplayEvents = async (
     let allEvents: NearbyEvent[] = [];
 
     if (manualLocation) {
-      // Use location search — flatten all categories, deduplicate
       const res = await searchEventsByLocation({
         location: manualLocation,
         radius: 500,
+        ...(coords ?? {}),
       });
       const byCategory = res.data?.eventsByCategory ?? {};
       const suggestions = res.data?.suggestionsByCategory ?? {};
@@ -647,15 +751,17 @@ const fetchAndDisplayEvents = async (
       ] as NearbyEvent[];
       allEvents = deduplicateEvents(combined);
     } else {
-      // Use live events + GPS distance sorting (fallback = no coords)
       const res = await getAllEventsWithDistance(coords ? coords : {});
-      allEvents = deduplicateEvents(res.data.events ?? []);
+      allEvents = deduplicateEvents(res?.data?.events ?? []);
     }
 
-    // Populate popular banner (top 6)
+    if (allEvents.length === 0) {
+      // Nothing returned — keep whatever is already displayed (popular fallback)
+      return;
+    }
+
     setPopularEvents(allEvents.slice(0, 6));
 
-    // Group by distance band
     const bandMap = new Map<number, NearbyEvent[]>();
     allEvents.forEach((ev) => {
       const b = getBand((ev as any).distance ?? 9999);
@@ -664,27 +770,13 @@ const fetchAndDisplayEvents = async (
     });
     setNearbyByBand(bandMap);
 
-    // Category breaks (non-blocking)
     buildCategoryBreaks(allEvents).catch(() => {});
   } catch (err) {
     console.error('fetchAndDisplayEvents error:', err);
-    // Even on error, try to show live events without distance
-    try {
-      const res = await getAllEventsWithDistance({});
-      const events = deduplicateEvents(res.data.events ?? []);
-      setPopularEvents(events.slice(0, 6));
-      const bandMap = new Map<number, NearbyEvent[]>();
-      events.forEach((ev) => {
-        const b = getBand((ev as any).distance ?? 9999);
-        if (!bandMap.has(b)) bandMap.set(b, []);
-        bandMap.get(b)!.push(ev);
-      });
-      setNearbyByBand(bandMap);
-    } catch {
-      // nothing more we can do
-    }
+    // Don't clear existing events on error — keep showing what we have
   }
 };
+
   const buildCategoryBreaks = async (events: NearbyEvent[]) => {
     // Get unique categories from loaded events
     const cats = Array.from(new Set(events.map((e) => e.event_category).filter(Boolean) as string[]));
@@ -710,36 +802,78 @@ const fetchAndDisplayEvents = async (
     }
     setCategoryBreaks(breaks);
   };
-// Location granted via GPS 
-const handleLocationGranted = async (coords: {
-  latitude: number;
-  longitude: number;
-  displayName?: string;
-}) => {
-  setUserLocation({ latitude: coords.latitude, longitude: coords.longitude });
-  setLocationDisplayName(coords.displayName || `${coords.latitude.toFixed(3)}, ${coords.longitude.toFixed(3)}`);
-  setLocationSource('gps');
-  setLocationModalOpen(false);
-  setLoading(true);
-  try {
-    await fetchAndDisplayEvents({ latitude: coords.latitude, longitude: coords.longitude });
-  } finally {
-    setLoading(false);
-  }
-};
 
-const handleManualLocation = async (location: string) => {
-  setManualLocationInput(location);
-  setLocationDisplayName(location);
-  setLocationSource('manual');
-  setLocationModalOpen(false);
-  setLoading(true);
-  try {
-    await fetchAndDisplayEvents(undefined, location);
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleLocationGranted = async (coords: {
+    latitude: number;
+    longitude: number;
+    displayName?: string;
+  }) => {
+    const displayName =
+      coords.displayName ||
+      `${coords.latitude.toFixed(3)}, ${coords.longitude.toFixed(3)}`;
+
+    setUserLocation({ latitude: coords.latitude, longitude: coords.longitude });
+    setLocationDisplayName(displayName);
+    setLocationSource('gps');
+    setLocationModalOpen(false);
+
+    const currentUserId = (authData as any)?.user?.id ?? null;
+    if (currentUserId) {
+      await persistLocation(currentUserId, displayName, coords.latitude, coords.longitude, 'gps');
+    }
+
+    setLoading(true);
+    try {
+      await fetchAndDisplayEvents({ latitude: coords.latitude, longitude: coords.longitude });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleManualLocation = async (location: string) => {
+    setManualLocationInput(location);
+    setLocationDisplayName(location);
+    setLocationSource('manual');
+    setLocationModalOpen(false);
+
+    const currentUserId = (authData as any)?.user?.id ?? null;
+
+    setLoading(true);
+    try {
+      // ── Try to geocode the manual location to get real coords ──
+      let lat: number | null = null;
+      let lng: number | null = null;
+      try {
+        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAP_API;
+        if (apiKey) {
+          const geoRes = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(location)}&key=${apiKey}`
+          );
+          const geoData = await geoRes.json();
+          if (geoData.status === 'OK' && geoData.results?.[0]) {
+            lat = geoData.results[0].geometry.location.lat;
+            lng = geoData.results[0].geometry.location.lng;
+            // Update state with real coords
+            setUserLocation({ latitude: lat!, longitude: lng! });
+          }
+        }
+      } catch { /* geocode failed — save with null coords */ }
+
+      // ── Save to DB (with coords if geocoded, null if not) ──
+      if (currentUserId) {
+        await persistLocation(currentUserId, location, lat, lng, 'manual');
+      }
+
+      // ── Fetch events ──
+      if (lat && lng) {
+        await fetchAndDisplayEvents({ latitude: lat, longitude: lng });
+      } else {
+        await fetchAndDisplayEvents(undefined, location);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const deduplicateEvents = (events: NearbyEvent[]): NearbyEvent[] => {
     const seen = new Set<string>();
@@ -1027,10 +1161,9 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
                   </div>
                   {searchResults.length > 0 ? (
                     <div className="flex flex-wrap gap-3">
-                      {searchResults.map((ev) => (
-                        <EventCard key={ev._id} event={ev} />
-                      ))}
-                    </div>
+                      {searchResults.map((ev, idx) => (
+                        <EventCard key={`search-${ev._id ?? 'ev'}-${idx}`} event={ev} />
+                      ))}                    </div>
                   ) : (
                     <p className="text-white/40 text-sm py-8 text-center">
                       No events found for "{searchQuery}"

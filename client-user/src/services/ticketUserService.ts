@@ -325,6 +325,37 @@ export const getPopularEvents = async (limit = 10): Promise<{
   }
 };
 
+// ── Saved location preference ──
+export const saveUserLocationPreference = async (payload: {
+  userId: string;
+  displayName: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  source: 'gps' | 'manual';
+}): Promise<void> => {
+  try {
+    await api.post('/tickets/user-location', payload);
+  } catch (err: any) {
+    console.error('❌ saveUserLocationPreference error:', err?.response?.data ?? err);
+  }
+};
+
+export const getSavedUserLocationPreference = async (
+  userId: string
+): Promise<{
+  displayName: string;
+  latitude: number | null;
+  longitude: number | null;
+  source: 'gps' | 'manual';
+} | null> => {
+  try {
+    const res = await api.get(`/tickets/user-location?userId=${userId}`);
+    return res.data?.data ?? null;
+  } catch (err: any) {
+    console.error('❌ getSavedUserLocationPreference error:', err?.response?.data ?? err);
+    return null;
+  }
+};
 export const getCancelledEvents = async (userId?: string): Promise<{
   success: boolean;
   data: { events: any[]; count: number };

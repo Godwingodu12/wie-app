@@ -72,11 +72,29 @@ const startCleanupInterval = () => {
 
 async function startServer() {
   try {
-    // ✅ SUPABASE DB SHOULD BE MANDATORY IN PROD
-    await db.connect();
-    console.log('✅ Supabase database connected');
-    startCleanupInterval();
+    // ── DB connect with retry ──
+    let dbConnected = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await db.connect();
+        console.log('✅ Supabase database connected');
+        dbConnected = true;
+        break;
+      } catch (err) {
+        console.error(`❌ DB connection attempt ${attempt}/3 failed:`, (err as Error).message);
+        if (attempt < 3) {
+          console.log(`⏳ Retrying in 3 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+      }
+    }
 
+    if (!dbConnected) {
+      console.error('❌ Could not connect to database after 3 attempts');
+      process.exit(1);
+    }
+
+    startCleanupInterval();
     // Redis (optional)
     try {
       await redisClient.connect();
