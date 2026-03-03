@@ -9,20 +9,33 @@ class Database {
 
   async connect(): Promise<void> {
     try {
-      if (!process.env.DATABASE_URL) {
-        throw new Error('DATABASE_URL is not defined');
+      // ── pg Pool uses DIRECT_URL (no pgbouncer) ──
+      // DATABASE_URL has pgbouncer=true which breaks raw pg connections
+      const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
+
+      if (!connectionString) {
+        throw new Error('DIRECT_URL or DATABASE_URL is not defined');
       }
 
+      // Strip pgbouncer params that break raw pg
+      const cleanUrl = connectionString
+        .replace(/[?&]pgbouncer=true/g, '')
+        .replace(/[?&]connection_limit=\d+/g, '')
+        .replace(/[?&]pool_timeout=\d+/g, '')
+        .replace(/\?&/, '?')
+        .replace(/&&/g, '&')
+        .replace(/[?&]$/, '');
+
       this.pool = new Pool({
-        connectionString: process.env.DATABASE_URL, 
+        connectionString: cleanUrl,
         ssl: { rejectUnauthorized: false },
-        max: 5,
+        max: 3,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 10000,
+        connectionTimeoutMillis: 15000,
       });
 
       this.pool.on('error', (err) => {
-        console.error('❌ Unexpected database error:', err);
+        console.error('❌ Unexpected pg pool error:', err);
         this.isConnected = false;
       });
 
@@ -30,9 +43,11 @@ class Database {
       const client = await this.pool.connect();
       await client.query('SELECT 1');
       client.release();
+      console.log('✅ pg Pool connected');
 
-      // Connect Prisma (now using DIRECT_URL)
+      // Connect Prisma separately (uses DATABASE_URL with pgbouncer)
       await prisma.$connect();
+      console.log('✅ Prisma connected');
 
       console.log('✅ Supabase PostgreSQL connected (WIE User Service - Prisma + pg Pool)');
       this.isConnected = true;
@@ -46,7 +61,7 @@ class Database {
 
   getPool(): pkg.Pool {
     if (!this.pool) {
-      throw new Error('Database not connected');
+      throw new Error('Database not connected. Call connect() first.');
     }
     return this.pool;
   }
@@ -64,14 +79,14 @@ class Database {
 
   async close(): Promise<void> {
     try {
-      // Disconnect Prisma first
       await prisma.$disconnect();
-      
-      // Then close pg Pool
+      console.log('✅ Prisma disconnected');
+
       if (this.pool) {
         await this.pool.end();
+        console.log('✅ pg Pool closed');
       }
-      
+
       this.isConnected = false;
     } catch (error) {
       console.error('❌ Error closing database connections:', error);
@@ -82,12 +97,11 @@ class Database {
   async healthCheck(): Promise<boolean> {
     try {
       if (!this.pool) return false;
-      const result = await this.pool.query('SELECT 1');
-      
-      // Also check Prisma connection
-      await prisma.$queryRaw`SELECT 1`;
-      
-      return result.rowCount === 1;
+      const [pgResult] = await Promise.all([
+        this.pool.query('SELECT 1'),
+        prisma.$queryRaw`SELECT 1`,
+      ]);
+      return pgResult.rowCount === 1;
     } catch {
       return false;
     }
