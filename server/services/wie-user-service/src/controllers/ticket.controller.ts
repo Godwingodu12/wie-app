@@ -388,9 +388,29 @@ export const getAllEventsWithDistance = async (
       }
     }
 
-    // Fetch ALL live events directly from DB — no flattening
-    const rawTickets = await getAllLiveEvents();
+    const rawResult = await getAllLiveEvents();
+    // getAllLiveEvents returns GetAllLiveEventsResponse — unwrap safely
+    const rawTickets: any[] = (() => {
+      if (Array.isArray(rawResult)) return rawResult;
+      if (Array.isArray((rawResult as any)?.tickets)) return (rawResult as any).tickets;
+      if (Array.isArray((rawResult as any)?.data?.tickets)) return (rawResult as any).data.tickets;
+      if (Array.isArray((rawResult as any)?.data)) return (rawResult as any).data;
+      if (rawResult && typeof rawResult === 'object') {
+        // Try grabbing first array-valued key
+        const firstArr = Object.values(rawResult as object).find(Array.isArray);
+        if (firstArr) return firstArr as any[];
+      }
+      return [];
+    })();
 
+    if (rawTickets.length === 0) {
+      res.status(200).json({
+        success: true,
+        message: 'No events found',
+        data: { count: 0, search_location: null, events: [] },
+      });
+      return;
+    }
     const seenIds = new Set<string>();
     const events: any[] = [];
 
@@ -401,7 +421,7 @@ export const getAllEventsWithDistance = async (
     };
 
     // ── Step 1: Add all MAIN events ──
-    for (const ticket of rawTickets.tickets) {
+    for (const ticket of rawTickets) {
       const mainId = ticket._id?.toString() || '';
       if (seenIds.has(mainId)) continue;
       seenIds.add(mainId);
@@ -429,42 +449,46 @@ export const getAllEventsWithDistance = async (
       }
 
       events.push({
-        ...ticket.toObject(),
+        ...(typeof ticket.toObject === 'function' ? ticket.toObject() : ticket),
         distance,
         distance_unit: 'km',
         _isSubEvent: false,
       });
     }
 
-    // ── Step 2: Add SUB-EVENTS as separate entries ──
-    for (const ticket of rawTickets.tickets) {
-      if (!ticket.sub_events || !Array.isArray(ticket.sub_events)) continue;
+    for (const ticket of rawTickets) {
+      const mainId = ticket._id?.toString() || ticket.id?.toString() || '';
+      if (!mainId || seenIds.has(mainId)) continue;
+      seenIds.add(mainId);
 
-      for (const sub of ticket.sub_events) {
-        const subId = sub._id?.toString() || '';
-        if (!subId || seenIds.has(subId)) continue;
-
-        // Only show live sub-events
-        if (sub.event_status && sub.event_status !== 'live') continue;
-
-        seenIds.add(subId);
-
-        const sLat = sub.exact_map_location?.latitude;
-        const sLng = sub.exact_map_location?.longitude;
-        const distance = (sLat && sLng) ? calcDistance(sLat, sLng) : null;
-
-        events.push({
-          ...sub,
-          _id: sub._id,
-          distance,
-          distance_unit: 'km',
-          _isSubEvent: true,
-          parentEventId: ticket._id?.toString(),
-          // Inherit parent fields if sub-event is missing them
-          event_banner: sub.event_banner || ticket.event_banner,
-          event_portrait: sub.event_portrait || ticket.event_portrait,
-        });
+      let distance: number | null = null;
+      const mLat = ticket.exact_map_location?.latitude;
+      const mLng = ticket.exact_map_location?.longitude;
+      if (mLat && mLng) {
+        distance = calcDistance(mLat, mLng);
       }
+
+      if (ticket.sub_events && Array.isArray(ticket.sub_events)) {
+        for (const sub of ticket.sub_events) {
+          const sLat = sub.exact_map_location?.latitude;
+          const sLng = sub.exact_map_location?.longitude;
+          if (sLat && sLng) {
+            const d = calcDistance(sLat, sLng);
+            if (d !== null && (distance === null || d < distance)) {
+              distance = d;
+            }
+          }
+        }
+      }
+
+      // Spread plain object directly — gRPC returns plain JS objects, not Mongoose docs
+      const plainTicket = { ...ticket };
+      events.push({
+        ...plainTicket,
+        distance,
+        distance_unit: 'km',
+        _isSubEvent: false,
+      });
     }
 
     // ── Step 3: Sort — nearest first, no-location last ──
@@ -1609,6 +1633,77 @@ export const getPopularEvents = async (
     res.status(500).json({
       success: false,
       message: 'Failed to fetch popular events',
+      error: error.message,
+    });
+  }
+};
+
+export const saveUserLocation = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { userId, displayName, latitude, longitude, source } = req.body;
+
+    if (!userId || typeof userId !== 'string') {
+      res.status(400).json({ success: false, message: 'userId is required' });
+      return;
+    }
+
+    await WIEUSER.saveUserLocation(
+      userId,
+      displayName || '',
+      latitude ?? null,
+      longitude ?? null,
+      (source === 'gps' || source === 'manual') ? source : 'manual'
+    );
+
+    res.status(200).json({ success: true, message: 'Location saved' });
+  } catch (error: any) {
+    console.error('❌ saveUserLocation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save location',
+      error: error.message,
+    });
+  }
+};
+
+export const getSavedUserLocation = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId || typeof userId !== 'string') {
+      res.status(400).json({ success: false, message: 'userId is required' });
+      return;
+    }
+
+    const saved = await WIEUSER.getSavedUserLocation(userId);
+
+    if (!saved) {
+      res.status(200).json({ success: true, data: null });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        displayName: saved.location ?? '',
+        latitude: saved.latitude ?? null,
+        longitude: saved.longitude ?? null,
+        source: (saved.locationSource === 'gps' || saved.locationSource === 'manual')
+          ? saved.locationSource
+          : 'manual',
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ getSavedUserLocation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get saved location',
       error: error.message,
     });
   }
