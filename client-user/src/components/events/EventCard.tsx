@@ -11,18 +11,24 @@ interface EventCardProps {
   showDistance?: boolean;
   isLiked?: boolean;
   isSaved?: boolean;
-  isCancelled?: boolean; 
+  isCancelled?: boolean;
 }
 
-export function EventCard({ event, showDistance = false, isLiked: isLikedProp, isSaved: isSavedProp, isCancelled }: EventCardProps) {
+export function EventCard({
+  event,
+  showDistance = false,
+  isLiked: isLikedProp,
+  isSaved: isSavedProp,
+  isCancelled,
+}: EventCardProps) {
   const router = useRouter();
   const { user } = useAuth();
   const [isLiked, setIsLiked] = useState(isLikedProp ?? false);
   const [likeCount, setLikeCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const eventCancelled = isCancelled ?? (event as any)?.event_status === 'cancelled';
+  const eventCancelled =
+    isCancelled ?? (event as any)?.event_status === 'cancelled';
 
-  // Sync if parent prop changes (e.g. after bulk fetch resolves)
   useEffect(() => {
     if (isLikedProp !== undefined) setIsLiked(isLikedProp);
   }, [isLikedProp]);
@@ -33,13 +39,12 @@ export function EventCard({ event, showDistance = false, isLiked: isLikedProp, i
       if (response.success && response.data) {
         const stats = response.data.stats;
         setLikeCount(stats.like ?? stats.likes ?? 0);
-        // Only override from API if no prop was passed
         if (isLikedProp === undefined) {
           setIsLiked(response.data?.userInteractions?.liked ?? false);
         }
       }
     } catch {
-      // silent fail — stats are non-critical
+      // silent fail
     }
   }, [event._id, isLikedProp]);
 
@@ -77,38 +82,41 @@ export function EventCard({ event, showDistance = false, isLiked: isLikedProp, i
     }
   };
 
-  const startDate =
-    event.event_dates?.[0]?.start_date
-      ? formatDate(event.event_dates[0].start_date)
-      : 'Date TBA';
+  const startDate = event.event_dates?.[0]?.start_date
+    ? formatDate(event.event_dates[0].start_date)
+    : 'Date TBA';
 
   const locationText =
     event.location_type === 'online'
       ? 'Online Event'
       : event.location_type === 'recorded'
       ? 'Recorded'
-      : (event.location || event.venue || 'Location TBA');
+      : event.location || event.venue || 'Location TBA';
 
-  // Trim long location string
   const trimmed = (s: string, max = 18) =>
     s.length > max ? s.slice(0, max) + '…' : s;
 
   const guests = event.guests?.slice(0, 4) ?? [];
 
   return (
-    // Card: 170x260, radius 12
     <div
-      className={`relative flex-shrink-0 transition-transform duration-200 ${eventCancelled ? 'cursor-not-allowed opacity-75' : 'cursor-pointer hover:scale-[1.02]'}`}
+      className={`relative flex-shrink-0 transition-transform duration-200 ${
+        eventCancelled
+          ? 'cursor-not-allowed opacity-75'
+          : 'cursor-pointer hover:scale-[1.02]'
+      }`}
       style={{
         width: 170,
         height: 260,
         borderRadius: 12,
         background: '#38383833',
-        border: eventCancelled ? '1px solid rgba(239,68,68,0.3)' : '1px solid #3D4149',
+        border: eventCancelled
+          ? '1px solid rgba(239,68,68,0.3)'
+          : '1px solid #3D4149',
       }}
       onClick={() => !eventCancelled && router.push(`/events/${event._id}`)}
     >
-      {/* Image: 158x133, top:6, left:6, radius 6 */}
+      {/* Banner image */}
       <div
         className="absolute overflow-hidden"
         style={{ top: 6, left: 6, width: 158, height: 133, borderRadius: 6 }}
@@ -123,31 +131,35 @@ export function EventCard({ event, showDistance = false, isLiked: isLikedProp, i
         ) : (
           <div
             className="w-full h-full flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #2D3139 0%, #1C2024 100%)' }}
+            style={{
+              background:
+                'linear-gradient(135deg, #2D3139 0%, #1C2024 100%)',
+            }}
           >
             <Calendar className="w-8 h-8 text-white/20" />
           </div>
         )}
 
-        {/* Cancelled overlay + badge */}
+        {/* Cancelled overlay */}
         {eventCancelled && (
           <>
-            {/* Dark overlay */}
             <div
               className="absolute inset-0"
               style={{ background: 'rgba(0,0,0,0.45)' }}
             />
-            {/* CANCELLED badge — top left */}
             <div
               className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold text-white"
-              style={{ background: 'rgba(239,68,68,0.92)', letterSpacing: '0.03em' }}
+              style={{
+                background: 'rgba(239,68,68,0.92)',
+                letterSpacing: '0.03em',
+              }}
             >
               <span>✕</span> CANCELLED
             </div>
           </>
         )}
 
-        {/* Distance badge — only when not cancelled */}
+        {/* Distance badge */}
         {!eventCancelled && showDistance && event.distance != null && (
           <div
             className="absolute bottom-2 left-2 text-[10px] font-bold text-white px-2 py-0.5 rounded-full"
@@ -158,7 +170,7 @@ export function EventCard({ event, showDistance = false, isLiked: isLikedProp, i
         )}
       </div>
 
-      {/* Like button — hidden when event is cancelled */}
+      {/* Like button — single instance, hidden when cancelled */}
       {!eventCancelled && (
         <button
           onClick={handleLike}
@@ -178,40 +190,19 @@ export function EventCard({ event, showDistance = false, isLiked: isLikedProp, i
         >
           <Heart
             className="w-4 h-4 transition-colors"
-            style={{ color: isLiked ? '#EF4444' : '#fff', fill: isLiked ? '#EF4444' : 'none' }}
+            style={{
+              color: isLiked ? '#EF4444' : '#fff',
+              fill: isLiked ? '#EF4444' : 'none',
+            }}
           />
         </button>
       )}
 
-      {/* Like button: 34x34, top:9, left:127 (=6+158-37), radius:17 */}
-      <button
-        onClick={handleLike}
-        disabled={isLoading || !user}
-        className="absolute flex items-center justify-center transition-all"
-        style={{
-          top: 9,
-          left: 127,
-          width: 34,
-          height: 34,
-          borderRadius: 17,
-          background: 'rgba(28,32,36,0.75)',
-          backdropFilter: 'blur(6px)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          zIndex: 2,
-        }}
-      >
-        <Heart
-          className="w-4 h-4 transition-colors"
-          style={{ color: isLiked ? '#EF4444' : '#fff', fill: isLiked ? '#EF4444' : 'none' }}
-        />
-      </button>
-
-      {/* Text content below image: starts at 6+133+6 = 145 */}
+      {/* Text content */}
       <div
         className="absolute px-2"
         style={{ top: 145, left: 0, right: 0 }}
       >
-        {/* Event name */}
         <p
           className="text-white font-semibold leading-tight mb-2 line-clamp-2"
           style={{ fontSize: 11 }}
@@ -219,29 +210,39 @@ export function EventCard({ event, showDistance = false, isLiked: isLikedProp, i
           {event.event_name}
         </p>
 
-        {/* Date — 138x16 */}
         <div
           className="flex items-center gap-1 mb-1"
           style={{ width: 138, height: 16 }}
         >
-          <Calendar className="flex-shrink-0" style={{ width: 10, height: 10, color: '#8860D9' }} />
-          <span className="text-white/60 truncate" style={{ fontSize: 10 }}>
+          <Calendar
+            className="flex-shrink-0"
+            style={{ width: 10, height: 10, color: '#8860D9' }}
+          />
+          <span
+            className="text-white/60 truncate"
+            style={{ fontSize: 10 }}
+          >
             {startDate}
           </span>
         </div>
 
-        {/* Location — 138x16 */}
         <div
           className="flex items-center gap-1 mb-2"
           style={{ width: 138, height: 16 }}
         >
-          <MapPin className="flex-shrink-0" style={{ width: 10, height: 10, color: '#8860D9' }} />
-          <span className="text-white/60 truncate" style={{ fontSize: 10 }}>
+          <MapPin
+            className="flex-shrink-0"
+            style={{ width: 10, height: 10, color: '#8860D9' }}
+          />
+          <span
+            className="text-white/60 truncate"
+            style={{ fontSize: 10 }}
+          >
             {trimmed(locationText)}
           </span>
         </div>
 
-        {/* Guest avatars — 20x20, radius 100, border 2px */}
+        {/* Guest avatars */}
         {guests.length > 0 && (
           <div className="flex items-center" style={{ marginTop: 2 }}>
             {guests.map((g, i) => (
