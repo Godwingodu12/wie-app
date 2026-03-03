@@ -1,12 +1,14 @@
 generator client {
-  provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+  schemas   = ["transactions"]
 }
 
 model Booking {
@@ -48,6 +50,7 @@ model Booking {
   refundInitiatedAt   DateTime?            @map("refund_initiated_at") @db.Timestamp(6)
   seatDetails         Json?                @map("seat_details")
   refund_retry_count  Int                  @default(0)
+  isAdminCancelled    Boolean              @default(false) @map("is_admin_cancelled")
   paymentTransactions PaymentTransaction[]
 
   @@index([userId], map: "idx_bookings_user_id")
@@ -57,6 +60,7 @@ model Booking {
   @@index([bookingStatus], map: "idx_bookings_status")
   @@index([createdAt], map: "idx_bookings_created_at")
   @@map("bookings")
+  @@schema("transactions")
 }
 
 model Interaction {
@@ -72,6 +76,7 @@ model Interaction {
   @@index([ticketId, interactionType], map: "idx_interactions_ticket_type")
   @@index([userId], map: "idx_interactions_user_id")
   @@map("interactions")
+  @@schema("transactions")
 }
 
 model PaymentTransaction {
@@ -100,6 +105,7 @@ model PaymentTransaction {
   @@index([razorpayOrderId], map: "idx_payment_transactions_order")
   @@index([razorpayPaymentId], map: "idx_payment_transactions_payment")
   @@map("payment_transactions")
+  @@schema("transactions")
 }
 
 model Settlement {
@@ -127,6 +133,7 @@ model Settlement {
   @@index([groupId], map: "idx_settlements_group_id")
   @@index([ticketId], map: "idx_settlements_ticket_id")
   @@map("settlements")
+  @@schema("transactions")
 }
 
 model HostLinkedAccount {
@@ -142,6 +149,7 @@ model HostLinkedAccount {
 
   @@index([group_id], map: "idx_host_linked_accounts_group_id")
   @@map("host_linked_accounts")
+  @@schema("transactions")
 }
 
 model Ledger {
@@ -164,6 +172,7 @@ model Ledger {
   @@index([ticket_id], map: "idx_ledger_ticket_id")
   @@index([type], map: "idx_ledger_type")
   @@map("ledger")
+  @@schema("transactions")
 }
 
 model HostAdjustment {
@@ -181,88 +190,7 @@ model HostAdjustment {
   @@index([booking_id], map: "idx_host_adjustments_booking_id")
   @@index([group_id], map: "idx_host_adjustments_group_id")
   @@map("host_adjustments")
-}
-
-model countries {
-  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  country_code String      @unique @db.VarChar(10)
-  country_name String      @db.VarChar(100)
-  created_at   DateTime    @default(now()) @db.Timestamp(6)
-  phone_code   String?     @db.VarChar(10)
-  wie_users    wie_users[]
-}
-
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model otps {
-  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  otp_value  String     @db.VarChar(6)
-  expires_at DateTime   @db.Timestamp(6)
-  created_at DateTime   @default(now()) @db.Timestamp(6)
-  otp_type   String     @default("signup") @db.VarChar(20)
-  temp_id    String?    @db.VarChar(255)
-  user_id    String?    @db.Uuid
-  wie_users  wie_users? @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@index([expires_at], map: "idx_otps_expires_at")
-  @@index([temp_id], map: "idx_otps_temp_id")
-  @@index([user_id], map: "idx_otps_user_id")
-}
-
-model user_mutes {
-  id                                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  muter_id                                 String    @db.Uuid
-  muted_id                                 String    @db.Uuid
-  mute_posts                               Boolean   @default(true)
-  mute_stories                             Boolean   @default(true)
-  mute_reels                               Boolean   @default(false)
-  mute_notes                               Boolean   @default(false)
-  created_at                               DateTime  @default(now()) @db.Timestamp(6)
-  wie_users_user_mutes_muted_idTowie_users wie_users @relation("user_mutes_muted_idTowie_users", fields: [muted_id], references: [id], onDelete: Cascade)
-  wie_users_user_mutes_muter_idTowie_users wie_users @relation("user_mutes_muter_idTowie_users", fields: [muter_id], references: [id], onDelete: Cascade)
-
-  @@unique([muter_id, muted_id])
-  @@index([muted_id])
-  @@index([muter_id])
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model wie_users {
-  id                                        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                                     String?      @unique @db.VarChar(255)
-  contact_no                                String?      @unique @db.VarChar(20)
-  password                                  String?      @db.VarChar(255)
-  name                                      String?      @db.VarChar(255)
-  profile_picture                           String?
-  role                                      String       @default("user") @db.VarChar(50)
-  is_blocked                                Boolean      @default(false)
-  is_verified                               Boolean      @default(false)
-  created_at                                DateTime     @default(now()) @db.Timestamp(6)
-  updated_at                                DateTime     @default(now()) @db.Timestamp(6)
-  username                                  String?      @unique @db.VarChar(100)
-  bio                                       String?
-  country_id                                String?      @db.Uuid
-  status                                    String       @default("pending") @db.VarChar(20)
-  auth_provider                             String       @default("local") @db.VarChar(20)
-  google_id                                 String?      @unique @db.VarChar(255)
-  is_online                                 Boolean      @default(false)
-  latitude                                  Float?
-  location                                  String?
-  longitude                                 Float?
-  followers_count                           Int          @default(0)
-  following_count                           Int          @default(0)
-  posts_count                               Int          @default(0)
-  token_version                             Int          @default(0)
-  allow_message_requests                    Boolean      @default(false)
-  allow_messages_from                       String       @default("everyone") @db.VarChar(20)
-  last_seen_at                              DateTime?    @db.Timestamp(6)
-  account_privacy                           String       @default("public") @db.VarChar(20)
-  dob                                       DateTime?    @db.Date
-  gender                                    String?      @db.VarChar(20)
-  otps                                      otps[]
-  user_mutes_user_mutes_muted_idTowie_users user_mutes[] @relation("user_mutes_muted_idTowie_users")
-  user_mutes_user_mutes_muter_idTowie_users user_mutes[] @relation("user_mutes_muter_idTowie_users")
-  countries                                 countries?   @relation(fields: [country_id], references: [id])
+  @@schema("transactions")
 }
 
 enum SettlementStatus {
@@ -272,6 +200,8 @@ enum SettlementStatus {
   FAILED
   HELD
   REFUND_INITIATED
+
+  @@schema("transactions")
 }
 
 enum PaymentStatus {
@@ -281,6 +211,8 @@ enum PaymentStatus {
   FAILED
   REFUNDED
   PARTIALLY_REFUNDED
+
+  @@schema("transactions")
 }
 
 enum BookingStatus {
@@ -289,6 +221,8 @@ enum BookingStatus {
   CANCELLED
   EXPIRED
   VERIFIED
+
+  @@schema("transactions")
 }
 
 enum RefundStatus {
@@ -296,6 +230,8 @@ enum RefundStatus {
   PROCESSING
   COMPLETED
   FAILED
+
+  @@schema("transactions")
 }
 
 enum InteractionType {
@@ -304,4 +240,6 @@ enum InteractionType {
   VIEW
   SAVE
   FEEDBACK
+
+  @@schema("transactions")
 }
