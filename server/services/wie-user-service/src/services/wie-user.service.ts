@@ -616,6 +616,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ message: "Login failed", error: error.message });
   }
 };
+
 export const logout = async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.user) {
@@ -623,8 +624,27 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
       return;
     }
     const userId = req.user.id;
+
+    // Check user exists before updating
+    const user = await WIEUSER.findById(userId);
+    if (!user) {
+      // User not found — still return success to clear client session
+      res.status(200).json({
+        message: "Logged out successfully",
+        isOnline: false,
+      });
+      return;
+    }
+
     await WIEUSER.updateOnlineStatus(userId, false);
-    await WIEUSER.incrementTokenVersion(req.user.id);
+
+    try {
+      await WIEUSER.incrementTokenVersion(userId);
+    } catch (tokenErr) {
+      // Non-fatal — still log out even if token version fails
+      console.warn('incrementTokenVersion failed during logout:', tokenErr);
+    }
+
     res.status(200).json({
       message: "Logged out successfully from all devices",
       isOnline: false,
@@ -1512,8 +1532,6 @@ export const updateHeartbeat = async (
     }
 
     const userId = req.user.id;
-
-    // Update online status and last seen
     await WIEUSER.updateOnlineStatus(userId, true);
 
     res.status(200).json({
@@ -1521,7 +1539,13 @@ export const updateHeartbeat = async (
       message: "Heartbeat updated",
     });
   } catch (error: any) {
-    console.error("Heartbeat error:", error);
+    // P1001 = DB unreachable — don't log full stack, just warn
+    if (error?.code === 'P1001') {
+      console.warn("⚠️ Heartbeat skipped — DB temporarily unreachable");
+      res.status(200).json({ success: true, message: "Heartbeat skipped (DB unavailable)" });
+      return;
+    }
+    console.error("Heartbeat error:", error.message);
     res.status(500).json({
       message: "Failed to update heartbeat",
       error: error.message,
@@ -1531,17 +1555,21 @@ export const updateHeartbeat = async (
 export const cleanupStaleOnlineUsers = async (): Promise<void> => {
   try {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
-
-    // Find users marked online but haven't updated in 2 minutes
     const staleUsers = await WIEUSER.findStaleOnlineUsers(twoMinutesAgo);
 
     for (const user of staleUsers) {
       await WIEUSER.updateOnlineStatus(user.id, false);
     }
   } catch (error: any) {
-    console.error("❌ Error cleaning up stale users:", error);
+    // P1001 = DB unreachable — suppress full stack trace, just warn
+    if (error?.code === 'P1001') {
+      console.warn("⚠️ Stale user cleanup skipped — DB temporarily unreachable");
+      return;
+    }
+    console.error("❌ Error cleaning up stale users:", error.message);
   }
 };
+
 export const getAccountPrivacy = async (
   req: Request,
   res: Response,
