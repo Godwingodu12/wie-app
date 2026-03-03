@@ -1,23 +1,14 @@
 generator client {
-  provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
-}
-
-model Country {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  countryCode String    @unique @map("country_code") @db.VarChar(10)
-  countryName String    @map("country_name") @db.VarChar(100)
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  phoneCode   String?   @map("phone_code") @db.VarChar(10)
-  users       WieUser[]
-
-  @@map("countries")
+  schemas   = ["public"]
 }
 
 model WieUser {
@@ -39,9 +30,9 @@ model WieUser {
   authProvider         String     @default("local") @map("auth_provider") @db.VarChar(20)
   googleId             String?    @unique @map("google_id") @db.VarChar(255)
   isOnline             Boolean    @default(false) @map("is_online")
-  latitude             Float?     @map("latitude")
+  latitude             Float?
   location             String?
-  longitude            Float?     @map("longitude")
+  longitude            Float?
   followersCount       Int        @default(0) @map("followers_count")
   followingCount       Int        @default(0) @map("following_count")
   postsCount           Int        @default(0) @map("posts_count")
@@ -52,12 +43,42 @@ model WieUser {
   accountPrivacy       String     @default("public") @map("account_privacy") @db.VarChar(20)
   dob                  DateTime?  @db.Date
   gender               String?    @db.VarChar(20)
+  locationSource       String?    @default("none") @map("location_source") @db.VarChar(10)
   otps                 Otp[]
   mutedMe              UserMute[] @relation("MutedRelation")
   mutedByMe            UserMute[] @relation("MuterRelation")
   country              Country?   @relation(fields: [countryId], references: [id])
-
   @@map("wie_users")
+  @@schema("public")
+}
+
+model Country {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  countryCode String    @unique @map("country_code") @db.VarChar(10)
+  countryName String    @map("country_name") @db.VarChar(100)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  phoneCode   String?   @map("phone_code") @db.VarChar(10)
+  users       WieUser[]
+
+  @@map("countries")
+  @@schema("public")
+}
+
+model Otp {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  otpValue  String   @map("otp_value") @db.VarChar(6)
+  expiresAt DateTime @map("expires_at") @db.Timestamp(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  otpType   String   @default("signup") @map("otp_type") @db.VarChar(20)
+  tempId    String?  @map("temp_id") @db.VarChar(255)
+  userId    String?  @map("user_id") @db.Uuid
+  user      WieUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt], map: "idx_otps_expires_at")
+  @@index([tempId], map: "idx_otps_temp_id")
+  @@index([userId], map: "idx_otps_user_id")
+  @@map("otps")
+  @@schema("public")
 }
 
 model UserMute {
@@ -73,23 +94,8 @@ model UserMute {
   muter       WieUser  @relation("MuterRelation", fields: [muterId], references: [id], onDelete: Cascade)
 
   @@unique([muterId, mutedId], name: "unique_mute")
-  @@index([muterId])
   @@index([mutedId])
+  @@index([muterId])
   @@map("user_mutes")
-}
-
-model Otp {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  otpValue  String   @map("otp_value") @db.VarChar(6)
-  expiresAt DateTime @map("expires_at") @db.Timestamp(6)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  otpType   String   @default("signup") @map("otp_type") @db.VarChar(20)
-  tempId    String?  @map("temp_id") @db.VarChar(255)
-  userId    String?  @map("user_id") @db.Uuid
-  user      WieUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId], map: "idx_otps_user_id")
-  @@index([tempId], map: "idx_otps_temp_id")
-  @@index([expiresAt], map: "idx_otps_expires_at")
-  @@map("otps")
+  @@schema("public")
 }
