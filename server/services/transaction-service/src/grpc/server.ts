@@ -210,6 +210,38 @@ const getBookingsForEvent = async (call: any, callback: any) => {
   }
 };
 
+const getRefundStatus = async (call: any, callback: any) => {
+  try {
+    const { bookingId } = call.request;
+    if (!bookingId) {
+      return callback(null, { success: false, error: 'bookingId required', refundStatus: '', refundAmount: 0, refundId: '', processedAt: '' });
+    }
+
+    const result = await BookingModel.getRefundDetails(bookingId);
+    if (!result?.booking) {
+      return callback(null, { success: false, error: 'Booking not found', refundStatus: '', refundAmount: 0, refundId: '', processedAt: '' });
+    }
+
+    const b = result.booking;
+    callback(null, {
+      success:           true,
+      error:             '',
+      bookingId:         String(b.id),
+      userId:            b.userId,
+      ticketId:          b.ticketId,
+      eventName:         (b.eventDetails as any)?.eventName || '',
+      refundStatus:      b.refundStatus    || 'NOT_APPLICABLE',
+      refundAmount:      b.refundAmount    ? parseFloat(b.refundAmount.toString()) : 0,
+      refundId:          b.refundId        || '',
+      processedAt:       b.refundProcessedAt ? b.refundProcessedAt.toISOString() : '',
+      refundInitiatedAt: b.refundInitiatedAt ? b.refundInitiatedAt.toISOString() : '',
+    });
+  } catch (err: any) {
+    console.error('❌ [gRPC] getRefundStatus error:', err.message);
+    callback(null, { success: false, error: err.message, refundStatus: '', refundAmount: 0, refundId: '', processedAt: '' });
+  }
+};
+
 export const startGrpcServer = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -224,6 +256,7 @@ export const startGrpcServer = (): Promise<void> => {
         GetBookingGrowthStats: getBookingGrowthStats,
         GetMonthlyBookingChart: getMonthlyBookingChart,
         GetBookingsForEvent: getBookingsForEvent,
+        GetRefundStatus: getRefundStatus, 
       });
 
       const port = process.env.BOOKING_GRPC_PORT || '50054';
