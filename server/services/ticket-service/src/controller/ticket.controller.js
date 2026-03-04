@@ -2842,53 +2842,52 @@ export const getPreviousSubEventCapacityStats = async (req, res) => {
     });
   }
 };
+
 export const getEventMetrics = async (req, res) => {
   try {
     const { ticketId } = req.params;
     const userId = req.user._id || req.user.id;
 
     if (!ticketId || !ticketId.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({
-        message: "Invalid ticket ID format"
-      });
+      return res.status(400).json({ message: 'Invalid ticket ID format' });
     }
 
     let metrics = {};
-    let found = false;
+    let found   = false;
+    let paymentType = 'paid'; 
 
-    // First, check if it's a main event
-    let ticket = await Ticket.findOne({ _id: ticketId, userId: userId });
-    
+    let ticket = await Ticket.findOne({ _id: ticketId, userId });
+
     if (ticket) {
-      // It's a main event
+      paymentType = ticket.payment_type || 'paid';
       metrics = {
-        totalRevenue: ticket.revenue || 0,
-        totalBooking: ticket.totalBookings || 0,
-        totalLikes: ticket.like || 0,
-        totalShare: ticket.share || 0,
-        total_cancellation: ticket.total_cancellation || 0,
+        totalRevenue:       ticket.revenue          || 0,
+        totalBookings:      ticket.totalBookings     || 0,  
+        totalTicketsSold:   ticket.totalTicketsSold  || 0,  
+        totalLikes:         ticket.like              || 0,
+        totalShare:         ticket.share             || 0,
+        total_cancellation: ticket.total_cancellation|| 0,
+        paymentType,                                         
       };
       found = true;
     } else {
-      // Check if it's a sub-event
-      ticket = await Ticket.findOne({ 
-        'sub_events._id': ticketId, 
-        userId: userId 
-      });
-      
+      ticket = await Ticket.findOne({ 'sub_events._id': ticketId, userId });
+
       if (ticket) {
-        // Find the specific sub-event
         const subEvent = ticket.sub_events.find(
-          sub => sub._id.toString() === ticketId
+          (sub) => sub._id.toString() === ticketId
         );
-        
+
         if (subEvent) {
+          paymentType = subEvent.payment_type || ticket.payment_type || 'paid';
           metrics = {
-            totalRevenue: subEvent.revenue || 0,
-            totalBooking: subEvent.totalBookings || 0,
-            totalLikes: subEvent.like || 0,
-            totalShare: subEvent.share || 0,
+            totalRevenue:       subEvent.revenue           || 0,
+            totalBookings:      subEvent.totalBookings      || 0,
+            totalTicketsSold:   subEvent.totalTicketsSold   || 0,
+            totalLikes:         subEvent.like               || 0,
+            totalShare:         subEvent.share              || 0,
             total_cancellation: subEvent.total_cancellation || 0,
+            paymentType,
           };
           found = true;
         }
@@ -2896,21 +2895,19 @@ export const getEventMetrics = async (req, res) => {
     }
 
     if (!found) {
-      return res.status(404).json({ 
-        message: "Event not found" 
-      });
+      return res.status(404).json({ message: 'Event not found' });
     }
 
     res.status(200).json({
-      message: "Event metrics retrieved successfully",
-      data: metrics
+      message: 'Event metrics retrieved successfully',
+      data:    metrics,
     });
 
   } catch (error) {
-    console.error("Error fetching event metrics:", error);
+    console.error('Error fetching event metrics:', error);
     res.status(500).json({
-      message: "An error occurred while fetching event metrics",
-      error: error.message
+      message: 'An error occurred while fetching event metrics',
+      error:   error.message,
     });
   }
 };

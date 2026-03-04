@@ -453,98 +453,73 @@ const getGroupById = async (call, callback) => {
 const updateTicketStats = async (call, callback) => {
   try {
     const { ticketId, statType, increment } = call.request;
+
     if (!ticketId || !statType || increment === undefined) {
       return callback(null, {
         success: false,
-        error: 'ticketId, statType, and increment are required'
+        error: 'ticketId, statType, and increment are required',
       });
     }
 
-    let ticket = await Ticket.findById(ticketId);
-    let isSubEvent = false;
-    let subEventIndex = -1;
-
-    if (!ticket) {
-      ticket = await Ticket.findOne({ 'sub_events._id': ticketId });
-      if (ticket) {
-        isSubEvent = true;
-        subEventIndex = ticket.sub_events.findIndex(se => se._id.toString() === ticketId);
-      }
+    const validStats = ['like', 'share', 'totalBookings', 'totalTicketsSold', 'revenue'];
+    if (!validStats.includes(statType)) {
+      return callback(null, { success: false, error: `Unknown statType: ${statType}` });
     }
 
-    if (!ticket) {
+    const mainTicket = await Ticket.findById(ticketId).lean();
+
+    if (mainTicket) {
+      const updated = await Ticket.findByIdAndUpdate(
+        ticketId,
+        { $inc: { [statType]: increment } },
+        { new: true, select: statType }
+      ).lean();
+
+      return callback(null, {
+        success:        true,
+        ticketId,
+        parentTicketId: '',
+        isSubEvent:     false,
+        statType,
+        newValue:       updated?.[statType] ?? 0,
+        error:          '',
+      });
+    }
+
+    const parent = await Ticket.findOne({ 'sub_events._id': ticketId }).lean();
+
+    if (!parent) {
       return callback(null, { success: false, error: 'Ticket not found' });
     }
 
-    if (isSubEvent && subEventIndex !== -1) {
-      const subEvent = ticket.sub_events[subEventIndex];
-      
-      switch (statType) {
-        case 'like':
-          subEvent.like = (subEvent.like || 0) + increment;
-          break;
-        case 'share':
-          subEvent.share = (subEvent.share || 0) + increment;
-          break;
-        case 'totalBookings':
-          subEvent.totalBookings = (subEvent.totalBookings || 0) + increment;
-          break;
-        case 'totalTicketsSold':
-          subEvent.totalTicketsSold = (subEvent.totalTicketsSold || 0) + increment;
-          break;
-        case 'revenue':
-          subEvent.revenue = (subEvent.revenue || 0) + increment;
-          break;
-        default:
-          return callback(null, { success: false, error: `Unknown statType: ${statType}` });
-      }
+    const subIndex = parent.sub_events.findIndex(
+      (se) => se._id.toString() === ticketId
+    );
 
-      ticket.markModified('sub_events');
-      await ticket.save();
-
-      callback(null, {
-        success: true,
-        ticketId: ticketId,
-        parentTicketId: ticket._id.toString(),
-        isSubEvent: true,
-        statType: statType,
-        newValue: subEvent[statType],
-        error: ''
-      });
-    } else {
-      switch (statType) {
-        case 'like':
-          ticket.like = (ticket.like || 0) + increment;
-          break;
-        case 'share':
-          ticket.share = (ticket.share || 0) + increment;
-          break;
-        case 'totalBookings':
-          ticket.totalBookings = (ticket.totalBookings || 0) + increment;
-          break;
-        case 'totalTicketsSold':
-          ticket.totalTicketsSold = (ticket.totalTicketsSold || 0) + increment;
-          break;
-        case 'revenue':
-          ticket.revenue = (ticket.revenue || 0) + increment;
-          break;
-        default:
-          return callback(null, { success: false, error: `Unknown statType: ${statType}` });
-      }
-
-      await ticket.save();
-
-      callback(null, {
-        success: true,
-        ticketId: ticket._id.toString(),
-        parentTicketId: '',
-        isSubEvent: false,
-        statType: statType,
-        newValue: ticket[statType],
-        error: ''
-      });
+    if (subIndex === -1) {
+      return callback(null, { success: false, error: 'Sub-event not found' });
     }
+
+    const updatedParent = await Ticket.findByIdAndUpdate(
+      parent._id,
+      { $inc: { [`sub_events.${subIndex}.${statType}`]: increment } },
+      { new: true, select: 'sub_events' }
+    ).lean();
+
+    const updatedSub = updatedParent?.sub_events?.[subIndex];
+
+    return callback(null, {
+      success:        true,
+      ticketId,
+      parentTicketId: parent._id.toString(),
+      isSubEvent:     true,
+      statType,
+      newValue:       updatedSub?.[statType] ?? 0,
+      error:          '',
+    });
+
   } catch (error) {
+    console.error('❌ [gRPC] UpdateTicketStats error:', error);
     callback(null, { success: false, error: error.message });
   }
 };
@@ -573,62 +548,68 @@ const getTicketBookingStats = async (call, callback) => {
   try {
     const { ticketId } = call.request;
 
-    // Guard: reject missing, "undefined", "null", or non-ObjectId strings
-    // before they reach Mongoose and cause a CastError
-    if (!ticketId || ticketId === 'undefined' || ticketId === 'null' || !/^[a-f\d]{24}$/i.test(ticketId)) {
+    if (
+      !ticketId ||
+      ticketId === 'undefined' ||
+      ticketId === 'null' ||
+      !/^[a-f\d]{24}$/i.test(ticketId)
+    ) {
       return callback(null, {
-        totalBookings: 0,
-        totalRevenue: 0,
+        totalBookings:    0,
+        totalRevenue:     0,
         totalTicketsSold: 0,
-        error: 'Invalid or missing ticket ID'
+        error:            '', 
       });
     }
 
-    // Get stats from the ticket document itself
-    let ticket = await Ticket.findById(ticketId);
-    let isSubEvent = false;
-    
-    if (!ticket) {
-      ticket = await Ticket.findOne({ 'sub_events._id': ticketId });
-      if (ticket) {
-        isSubEvent = true;
-        const subEvent = ticket.sub_events.find(se => se._id.toString() === ticketId);
-        if (subEvent) {
-          return callback(null, {
-            totalBookings: subEvent.totalBookings || 0,
-            totalRevenue: subEvent.revenue || 0,
-            totalTicketsSold: subEvent.totalTicketsSold || 0,
-            error: ''
-          });
-        }
+    const ticket = await Ticket.findById(ticketId)
+      .select('totalBookings totalTicketsSold revenue')
+      .lean();
+
+    if (ticket) {
+      return callback(null, {
+        totalBookings:    ticket.totalBookings    || 0,
+        totalRevenue:     ticket.revenue          || 0,
+        totalTicketsSold: ticket.totalTicketsSold || 0,
+        error:            '',
+      });
+    }
+
+    const parent = await Ticket.findOne(
+      { 'sub_events._id': ticketId },
+      { 'sub_events.$': 1 }
+    ).lean();
+
+    if (parent) {
+      const sub = parent.sub_events?.[0];
+      if (sub) {
+        return callback(null, {
+          totalBookings:    sub.totalBookings    || 0,
+          totalRevenue:     sub.revenue          || 0,
+          totalTicketsSold: sub.totalTicketsSold || 0,
+          error:            '',
+        });
       }
     }
 
-    if (!ticket) {
-      console.log(`❌ [gRPC Server] Ticket not found: ${ticketId}`);
-      return callback(null, {
-        totalBookings: 0,
-        totalRevenue: 0,
-        totalTicketsSold: 0,
-        error: 'Ticket not found'
-      });
-    }
-    callback(null, {
-      totalBookings: ticket.totalBookings || 0,
-      totalRevenue: ticket.revenue || 0,
-      totalTicketsSold: ticket.totalTicketsSold || 0,
-      error: ''
-    });
-  } catch (error) {
-    console.error(`❌ [gRPC Server] Error in GetTicketBookingStats:`, error);
-    callback(null, {
-      totalBookings: 0,
-      totalRevenue: 0,
+    return callback(null, {
+      totalBookings:    0,
+      totalRevenue:     0,
       totalTicketsSold: 0,
-      error: error.message
+      error:            '',
+    });
+
+  } catch (error) {
+    console.error('❌ [gRPC Server] Error in GetTicketBookingStats:', error);
+    callback(null, {
+      totalBookings:    0,
+      totalRevenue:     0,
+      totalTicketsSold: 0,
+      error:            error.message,
     });
   }
 };
+
 const updateTicketCancellation = async (call, callback) => {
   try {
     const { ticketId, increment } = call.request;

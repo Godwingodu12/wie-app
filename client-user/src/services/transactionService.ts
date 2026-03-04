@@ -271,7 +271,15 @@ export const toggleSave = async (ticketId: string) => {
   const response = await transactionApi.post(`/interactions/${ticketId}/save`);
   return response.data;
 };
+export const unlikeEvent = async (ticketId: string) => {
+  const response = await transactionApi.delete(`/interactions/${ticketId}/like`);
+  return response.data;
+};
 
+export const unsaveEvent = async (ticketId: string) => {
+  const response = await transactionApi.delete(`/interactions/${ticketId}/save`);
+  return response.data;
+};
 export const getEventStats = async (ticketId: string) => {
   const response = await transactionApi.get(`/interactions/${ticketId}/stats`);
   return response.data;

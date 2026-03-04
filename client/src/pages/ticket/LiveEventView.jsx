@@ -378,50 +378,43 @@ const handleRehost = async (rehostAs) => {
   }
 };
 
-const computedEventData = eventData
-  ? {
-      name: eventData.event_name || "Event Name",
-      creator: eventData.created_by || "Unknown Creator",
+  const computedEventData = eventData
+    ? {
+        name:    eventData.event_name || 'Event Name',
+        creator: eventData.created_by || 'Unknown Creator',
 
-      // For rehosted events: lifecycle_metrics has reset zeros.
-      // For live events: use metrics from getEventMetrics API.
-      // Priority: selectedDateStats > API metrics > lifecycle_metrics > direct fields > 0
-      totalRevenue:
-        selectedDateStats?.totalRevenue ??
-        metrics?.totalRevenue ??
-        eventData.lifecycle_metrics?.revenue ??
-        eventData.revenue ??
-        0,
+        totalRevenue:
+          selectedDateStats?.totalRevenue ??
+          metrics?.totalRevenue ??
+          eventData.revenue ?? 0,
 
-      totalBooking:
-        selectedDateStats?.totalTicketsSold ??
-        metrics?.totalTicketsSold ??
-        eventData.lifecycle_metrics?.totalBookings ??
-        eventData.totalBookings ??
-        0,
+        totalBooking:
+          selectedDateStats?.totalTicketsSold ??
+          metrics?.totalBookings ??           
+          eventData.totalBookings ?? 0,
 
-      totalLikes:
-        metrics?.totalLikes ??
-        eventData.lifecycle_metrics?.like ??
-        eventData.like ??
-        0,
+        totalTicketsSold:
+          metrics?.totalTicketsSold ??
+          eventData.totalTicketsSold ?? 0,
 
-      totalShare:
-        metrics?.totalShare ??
-        eventData.lifecycle_metrics?.share ??
-        eventData.share ??
-        0,
+        totalLikes:
+          metrics?.totalLikes ??
+          eventData.like ?? 0,
 
-      totalCancellation:
-        metrics?.total_cancellation ??
-        eventData.lifecycle_metrics?.total_cancellation ??
-        eventData.total_cancellation ??
-        0,
+        totalShare:
+          metrics?.totalShare ??
+          eventData.share ?? 0,
 
-      addOnRevenue: eventData.addon_revenue || "0",
-      addOnRevenueMonth: eventData.addon_revenue_month || "0",
-    }
-  : null;
+        totalCancellation:
+          metrics?.total_cancellation ??
+          eventData.total_cancellation ?? 0,
+
+        paymentType: metrics?.paymentType ?? eventData.payment_type ?? 'paid',
+
+        addOnRevenue:      eventData.addon_revenue       || '0',
+        addOnRevenueMonth: eventData.addon_revenue_month || '0',
+      }
+    : null;
   // Theme setup from HomePage
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -984,63 +977,76 @@ const displayDate = isSameDate
             </div>
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {/* Left Side: Total Revenue & Total Booking */}
+
+              {/* Revenue — hidden for free events */}
+              {metrics?.paymentType !== 'free' && (
+                <StatCard
+                  theme={theme}
+                  shadow={{ ...cardStyle, borderRadius: '20px' }}
+                  icon={<Lock />}
+                  title="TOTAL REVENUE"
+                  value={`₹${computedEventData?.totalRevenue || '0'}`}
+                  color={theme.subText}
+                />
+              )}
+
+              {/* Total Bookings */}
               <StatCard
                 theme={theme}
-                shadow={{ ...cardStyle, borderRadius: "20px" }}
-                icon={<Lock />}
-                title="TOTAL REVENUE"
-                value={`${computedEventData?.totalRevenue || "0"}`}
-                color={theme.subText}
-              />
-              <StatCard
-                theme={theme}
-                shadow={{ ...cardStyle, borderRadius: "20px" }}
+                shadow={{ ...cardStyle, borderRadius: '20px' }}
                 icon={<LayoutGrid />}
-                title="TOTAL BOOKING"
-                value={computedEventData.totalBooking}
+                title="TOTAL BOOKINGS"
+                value={computedEventData?.totalBooking || '0'}
                 color={theme.subText}
               />
-              {/* Right Side: Combined Likes/Share (Total Cancellation removed) */}
+
+              {/* Total Tickets Sold */}
               <StatCard
                 theme={theme}
-                shadow={{ ...cardStyle, borderRadius: "20px" }}
+                shadow={{ ...cardStyle, borderRadius: '20px' }}
+                icon={<Ticket />}
+                title="TOTAL TICKETS SOLD"
+                value={
+                  metrics?.totalTicketsSold ??
+                  eventData?.totalTicketsSold ??
+                  '0'
+                }
+                color={theme.subText}
+              />
+
+              {/* Total Cancellation */}
+              <StatCard
+                theme={theme}
+                shadow={{ ...cardStyle, borderRadius: '20px' }}
                 icon={<XCircle />}
                 title="TOTAL CANCELLATION"
-                value={computedEventData?.totalCancellation || "0"}
+                value={computedEventData?.totalCancellation || '0'}
                 color={theme.subText}
               />
+
+              {/* Likes + Shares combined card */}
               <div
                 className={`p-6 rounded-3xl ${theme.cardBgDarker}`}
-                style={{ ...cardStyle, borderRadius: "20px" }}
+                style={{ ...cardStyle, borderRadius: '20px' }}
               >
                 <div className="flex justify-around items-center">
-                  {/* Total Likes Section */}
                   <div className="flex flex-col items-center">
-                    <span
-                      className={`text-xs uppercase font-semibold ${theme.subText} mb-2`}
-                    >
+                    <span className={`text-xs uppercase font-semibold ${theme.subText} mb-2`}>
                       TOTAL LIKES
                     </span>
                     <Heart className="text-pink-500 w-6 h-6 mb-1" />
                     <div className={`text-xl font-bold ${theme.text}`}>
-                      {computedEventData?.totalLikes || "0"}
+                      {computedEventData?.totalLikes || '0'}
                     </div>
                   </div>
-
-                  {/* Divider Line */}
-                  <div className="h-16 w-px bg-gray-600"></div>
-
-                  {/* Total Share Section */}
+                  <div className="h-16 w-px bg-gray-600" />
                   <div className="flex flex-col items-center">
-                    <span
-                      className={`text-xs uppercase font-semibold ${theme.subText} mb-2`}
-                    >
+                    <span className={`text-xs uppercase font-semibold ${theme.subText} mb-2`}>
                       TOTAL SHARE
                     </span>
                     <Share2 className="text-blue-500 w-6 h-6 mb-1" />
                     <div className={`text-xl font-bold ${theme.text}`}>
-                      {computedEventData?.totalShare || "0"}
+                      {computedEventData?.totalShare || '0'}
                     </div>
                   </div>
                 </div>

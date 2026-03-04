@@ -8,6 +8,12 @@ const PROTO_PATH = path.join(
   __dirname,
   '../../../../protos/ticket.proto'
 );
+// retries on Mongoose version conflict (VersionError)
+const VERSION_CONFLICT_PATTERN = /No matching document found for id.*modifiedPaths/i;
+const MAX_RETRIES = 4;
+const RETRY_DELAY_MS = 80; // slight backoff to let the other write settle
+
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
   longs: String,
@@ -133,19 +139,50 @@ export const getGroupById = async (groupId: string): Promise<GroupData> => {
     });
   });
 };
+
 export const updateTicketStats = async (
   ticketId: string,
   statType: 'like' | 'share' | 'totalBookings' | 'totalTicketsSold' | 'revenue',
-  increment: number
+  increment: number,
+  _attempt = 0
 ): Promise<void> => {
   return new Promise((resolve, reject) => {
     const client = getClient();
-    
+
     client.UpdateTicketStats(
       { ticketId, statType, increment },
-      (error: any, response: any) => {
+      async (error: any, response: any) => {
+        const errMsg: string = error?.message || response?.error || '';
+
+        // Mongoose VersionError — retry with exponential backoff
+        if (errMsg && VERSION_CONFLICT_PATTERN.test(errMsg)) {
+          if (_attempt < MAX_RETRIES) {
+            const delay = RETRY_DELAY_MS * Math.pow(2, _attempt); // 80, 160, 320, 640 ms
+            console.warn(
+              `⚠️ [gRPC] Version conflict on UpdateTicketStats (${statType}), ` +
+              `retry ${_attempt + 1}/${MAX_RETRIES} in ${delay}ms…`
+            );
+            await sleep(delay);
+            try {
+              await updateTicketStats(ticketId, statType, increment, _attempt + 1);
+              resolve();
+            } catch (retryErr) {
+              reject(retryErr);
+            }
+            return;
+          }
+          // Exhausted retries — reject so safeUpdateTicketStats can swallow it
+          reject(
+            new Error(
+              `UpdateTicketStats (${statType}) failed after ${MAX_RETRIES} retries ` +
+              `due to version conflict: ${errMsg}`
+            )
+          );
+          return;
+        }
+
         if (error) {
-          reject(new Error(`Failed to update ticket stats: ${error.message}`));
+          reject(new Error(`Failed to update ticket stats: ${errMsg}`));
         } else if (response.error) {
           reject(new Error(response.error));
         } else {
@@ -155,37 +192,40 @@ export const updateTicketStats = async (
     );
   });
 };
+
 export const getTicketBookingStats = async (ticketId: string): Promise<BookingStats> => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    if (
+      !ticketId ||
+      ticketId === 'undefined' ||
+      ticketId === 'null' ||
+      !/^[a-f\d]{24}$/i.test(ticketId)
+    ) {
+      return resolve({ totalBookings: 0, totalRevenue: 0, totalTicketsSold: 0 });
+    }
+
     const client = getClient();
-        
+
     client.GetTicketBookingStats({ ticketId }, (error: any, response: any) => {
       if (error) {
-        console.error(`❌ [gRPC] Failed to fetch booking stats: ${error.message}`);
-        // Don't reject - return zeros instead
-        resolve({
-          totalBookings: 0,
-          totalRevenue: 0,
-          totalTicketsSold: 0,
-        });
-      } else if (response.error) {
-        console.error(`❌ [gRPC] Booking stats error: ${response.error}`);
-        // Don't reject - return zeros instead
-        resolve({
-          totalBookings: 0,
-          totalRevenue: 0,
-          totalTicketsSold: 0,
-        });
-      } else {
-        resolve({
-          totalBookings: response.totalBookings || 0,
-          totalRevenue: response.totalRevenue || 0,
-          totalTicketsSold: response.totalTicketsSold || 0,
-        });
+        console.error(`❌ [gRPC] GetTicketBookingStats transport error: ${error.message}`);
+        return resolve({ totalBookings: 0, totalRevenue: 0, totalTicketsSold: 0 });
       }
+
+      if (response?.error && response.error.trim() !== '') {
+        console.error(`❌ [gRPC] Booking stats error: ${response.error}`);
+        return resolve({ totalBookings: 0, totalRevenue: 0, totalTicketsSold: 0 });
+      }
+
+      resolve({
+        totalBookings:    response?.totalBookings    || 0,
+        totalRevenue:     response?.totalRevenue     || 0,
+        totalTicketsSold: response?.totalTicketsSold || 0,
+      });
     });
   });
 };
+
 export const updateTicketCancellation = async (
   ticketId: string,
   increment: number
