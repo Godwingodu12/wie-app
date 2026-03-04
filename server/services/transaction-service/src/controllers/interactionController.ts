@@ -3,7 +3,8 @@ import { updateTicketStats, getTicketStats } from '../clients/ticketServiceClien
 import { InteractionModel, BookingModel } from '../models';
 import { getTicketBookingStats } from '../clients/ticketServiceClient';
 import { prisma } from '../config/db';
-// Like/Unlike Event
+
+// ✅ FIXED toggleLike — decrements gRPC stat on unlike
 export const toggleLike = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -13,40 +14,52 @@ export const toggleLike = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    // Check if already liked
     const existing = await InteractionModel.findUnique(userId, ticketId, 'LIKE');
 
     if (existing) {
-      // Unlike — delete by composite key to avoid stale-id race condition
+      // ── Unlike ──
       await InteractionModel.deleteByCompositeKey(userId, ticketId, 'LIKE');
-
-      // Update ticket stats
-      await updateTicketStats(ticketId, 'like', -1);
-
-      return res.status(200).json({
-        success: true,
-        liked: false,
-        message: 'Event unliked',
-      });
+      await updateTicketStats(ticketId, 'like', -1).catch((err: any) =>
+        console.warn(`⚠️ Could not decrement like stat: ${err.message}`)
+      );
+      return res.status(200).json({ success: true, liked: false, message: 'Event unliked' });
     }
 
-    // Like
-  await InteractionModel.upsert({
-      userId,
-      ticketId,
-      interactionType: 'LIKE',
-    });
+    // ── Like ──
+    await InteractionModel.upsert({ userId, ticketId, interactionType: 'LIKE' });
+    await updateTicketStats(ticketId, 'like', 1).catch((err: any) =>
+      console.warn(`⚠️ Could not increment like stat: ${err.message}`)
+    );
 
-    // Update ticket stats
-    await updateTicketStats(ticketId, 'like', 1);
-
-    res.status(200).json({
-      success: true,
-      liked: true,
-      message: 'Event liked',
-    });
+    res.status(200).json({ success: true, liked: true, message: 'Event liked' });
   } catch (error: any) {
     console.error('❌ Error toggling like:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const toggleSave = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { ticketId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const existing = await InteractionModel.findUnique(userId, ticketId, 'SAVE');
+
+    if (existing) {
+      // ── Unsave ──
+      await InteractionModel.deleteByCompositeKey(userId, ticketId, 'SAVE');
+      return res.status(200).json({ success: true, saved: false, message: 'Event removed from saved' });
+    }
+
+    // ── Save ──
+    await InteractionModel.upsert({ userId, ticketId, interactionType: 'SAVE' });
+    res.status(200).json({ success: true, saved: true, message: 'Event saved' });
+  } catch (error: any) {
+    console.error('❌ Error toggling save:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -136,46 +149,7 @@ export const recordView = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-// Save/Unsave Event
-export const toggleSave = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    const { ticketId } = req.params;
 
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    // Check if already saved
-    const existing = await InteractionModel.findUnique(userId, ticketId, 'SAVE');
-
-    if (existing) {
-      // Unsave — delete by composite key
-      await InteractionModel.deleteByCompositeKey(userId, ticketId, 'SAVE');
-
-      return res.status(200).json({
-        success: true,
-        saved: false,
-        message: 'Event removed from saved',
-      });
-    }
-    // Save
-     await InteractionModel.upsert({
-      userId,
-      ticketId,
-      interactionType: 'SAVE',
-    });
-
-    res.status(200).json({
-      success: true,
-      saved: true,
-      message: 'Event saved',
-    });
-  } catch (error: any) {
-    console.error('❌ Error toggling save:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
 export const getEventStats = async (req: Request, res: Response) => {
   try {
     const { ticketId } = req.params;
