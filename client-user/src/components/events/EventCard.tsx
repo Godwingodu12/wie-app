@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { EventWithLocation } from '@/types/ticket';
-import { getEventStats, toggleLike } from '@/services/transactionService';
+import { getEventStats, toggleLike, unlikeEvent } from '@/services/transactionService';
 import { useAuth } from '@/hooks/useAuth';
 import { Calendar, MapPin, Heart } from 'lucide-react';
 
@@ -55,16 +55,23 @@ export function EventCard({
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user || isLoading) return;
+
     setIsLoading(true);
-    const prev = isLiked;
-    setIsLiked(!prev);
-    setLikeCount((c) => Math.max(0, c + (prev ? -1 : 1)));
+    const wasLiked = isLiked;
+
+    setIsLiked(!wasLiked);
+    setLikeCount((c) => Math.max(0, c + (wasLiked ? -1 : 1)));
+
     try {
-      await toggleLike(event._id);
+      if (wasLiked) {
+        await unlikeEvent(event._id);
+      } else {
+        await toggleLike(event._id);
+      }
       setTimeout(fetchStats, 300);
     } catch {
-      setIsLiked(prev);
-      setLikeCount((c) => Math.max(0, c + (prev ? 1 : -1)));
+      setIsLiked(wasLiked);
+      setLikeCount((c) => Math.max(0, c + (wasLiked ? 1 : -1)));
     } finally {
       setIsLoading(false);
     }
