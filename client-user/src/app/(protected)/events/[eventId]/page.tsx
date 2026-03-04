@@ -3,6 +3,8 @@ import {
   createBooking, 
   toggleLike,
   toggleSave,
+  unlikeEvent,
+  unsaveEvent,
   shareEvent, 
   getEventStats,
   recordView,
@@ -139,9 +141,10 @@ const SECTIONS = [
       loadEventStats();
     }
   }, [eventId, loading]);
+
   useEffect(() => {
-  const checkBookingStatus = async () => {
-    if (eventId && event?.payment_type === 'free') {
+    const checkBookingStatus = async () => {
+      if (!eventId) return;
       try {
         const result = await checkUserBooking(eventId);
         setHasBooked(result.hasBooked);
@@ -149,59 +152,66 @@ const SECTIONS = [
       } catch (error) {
         console.error('Error checking booking status:', error);
       }
-    }
-  };
+    };
 
-  if (event) {
-    checkBookingStatus();
-  }
-}, [eventId, event]);
+    if (event) {
+      checkBookingStatus();
+    }
+  }, [eventId, event]);
+
 
   const loadEventStats = async () => {
     try {
       const statsData = await getEventStats(eventId as string);
-      setEventStats(normalizeStats(statsData?.data?.stats || {}));
-      // These come from the stats API — persist correctly across refresh
-      setUserLiked(statsData?.data?.userInteractions?.liked   ?? false);
-      setUserSaved(statsData?.data?.userInteractions?.saved   ?? false);
+      const stats = statsData?.data?.stats || {};
+      const interactions = statsData?.data?.userInteractions || {};
+      setEventStats(normalizeStats(stats));
+      setUserLiked(interactions.liked  ?? false);
+      setUserSaved(interactions.saved  ?? false);
     } catch (error) {
-      console.error("Failed to load stats:", error);
+      console.error('Failed to load stats:', error);
+    }
+  };
+  const handleLike = async () => {
+    const wasLiked = userLiked;
+    // Optimistic update
+    setUserLiked(!wasLiked);
+    setEventStats((prev: any) => ({
+      ...prev,
+      like: Math.max(0, (prev?.like ?? 0) + (wasLiked ? -1 : 1)),
+    }));
+    try {
+      if (wasLiked) {
+        await unlikeEvent(eventId as string);
+      } else {
+        await toggleLike(eventId as string);
+      }
+      loadEventStats();
+    } catch (error: any) {
+      // Revert on failure
+      setUserLiked(wasLiked);
+      setEventStats((prev: any) => ({
+        ...prev,
+        like: Math.max(0, (prev?.like ?? 0) + (wasLiked ? 1 : -1)),
+      }));
+      console.error('Failed to toggle like:', error);
     }
   };
 
-  const handleLike = async () => {
-    const newLikedState = !userLiked;
-    setUserLiked(newLikedState);
-    setEventStats((prev: any) => ({
-      ...prev,
-      like: Math.max(0, (prev?.like ?? 0) + (newLikedState ? 1 : -1)),
-    }));
-    try {
-      const res = await toggleLike(eventId as string);
-      // Sync with server response
-      setUserLiked(res.liked);
-      loadEventStats();
-    } catch (error: any) {
-      // Revert on failure
-      setUserLiked(!newLikedState);
-      setEventStats((prev: any) => ({
-        ...prev,
-        like: Math.max(0, (prev?.like ?? 0) + (newLikedState ? -1 : 1)),
-      }));
-      console.error('Failed to like event:', error);
-    }
-  };
   const handleSave = async () => {
-    const newSavedState = !userSaved;
-    setUserSaved(newSavedState);
+    const wasSaved = userSaved;
+    setUserSaved(!wasSaved);
     try {
-      const res = await toggleSave(eventId as string);
-      setUserSaved(res.saved);
+      if (wasSaved) {
+        await unsaveEvent(eventId as string);
+      } else {
+        await toggleSave(eventId as string);
+      }
       loadEventStats();
     } catch (error: any) {
       // Revert on failure
-      setUserSaved(!newSavedState);
-      console.error('Failed to save event:', error);
+      setUserSaved(wasSaved);
+      console.error('Failed to toggle save:', error);
     }
   };
   const hasEventStarted = () => {
@@ -876,15 +886,29 @@ const similarEvents = allEvents.filter((e) => {
                 />
                 {userSaved ? 'Saved' : 'Wishlist'}
               </button>
-              <button
-                onClick={handleBookEvent}
-                className="flex items-center justify-center w-40 h-12 gap-2 px-3 py-2 rounded-3xl text-white bg-gradient-to-b from-indigo-300 via-violet-600 to-purple-400 hover:opacity-90"
-              >
-                {actionLabel !== 'Watch Now' && (
-                  <img src={BookTicketIcon.src} className="w-6 h-6 block" alt="Book Ticket" />
-                )}
-                {actionLabel}
-              </button>
+
+              {event?.payment_type === 'free' && hasBooked ? (
+                <button
+                  onClick={() => router.push(`/bookings/${userBooking?.id}`)}
+                  className="flex items-center justify-center w-40 h-12 gap-2 px-3 py-2 rounded-3xl text-white hover:opacity-90"
+                  style={{
+                    background: 'linear-gradient(180deg, #22c55e, #16a34a)',
+                  }}
+                >
+                  <img src={TicketIcon.src} className="w-6 h-6 block" alt="View Ticket" />
+                  View Ticket
+                </button>
+              ) : (
+                <button
+                  onClick={handleBookEvent}
+                  className="flex items-center justify-center w-40 h-12 gap-2 px-3 py-2 rounded-3xl text-white bg-gradient-to-b from-indigo-300 via-violet-600 to-purple-400 hover:opacity-90"
+                >
+                  {actionLabel !== 'Watch Now' && (
+                    <img src={BookTicketIcon.src} className="w-6 h-6 block" alt="Book Ticket" />
+                  )}
+                  {actionLabel}
+                </button>
+              )}
             </>
           )}
           {/* Cancelled state — show refund CTA if user has booked */}
