@@ -37,14 +37,13 @@ export const registerFreeEvent = async (req: Request, res: Response) => {
       });
     }
 
-    // Prevent duplicate registration
-    const existingBooking = await BookingModel.findOne({
+    const existingActiveBooking = await BookingModel.findOne({
       userId,
       ticketId,
       bookingStatus: { in: ['CONFIRMED', 'PENDING'] },
     });
 
-    if (existingBooking) {
+    if (existingActiveBooking) {
       return res.status(400).json({
         success: false,
         message: 'You have already registered for this event',
@@ -639,25 +638,14 @@ export const verifyPayment = async (req: Request, res: Response) => {
       'revenue',
       parseFloat(booking.subtotal.toString()) // only ticket value (host's share) as revenue
     );
-
-    // Notifications
-    await createNotification({
-      userId,
-      type:      'booking_confirmed',
-      title:     'Booking Confirmed!',
-      message:   `Your booking for ${(booking.eventDetails as any).eventName} is confirmed`,
-      bookingId: String(booking.id),
-      ticketId:  booking.ticketId,
-      link:      `/bookings/${booking.id}`,
-    });
-
     await createNotification({
       userId,
       type:      'payment_success',
-      title:     'Payment Successful',
-      message:   `Payment of ₹${booking.totalAmount} received successfully`,
+      title:     'Booking Confirmed!',
+      message:   `Your booking for ${(booking.eventDetails as any).eventName} is confirmed. Payment of ₹${booking.totalAmount} received.`,
       bookingId: String(booking.id),
       ticketId:  booking.ticketId,
+      link:      `/bookings/${booking.id}`,
     });
 
     // ── ESCROW: Hold funds until event completes 
@@ -964,7 +952,6 @@ export const cancelBooking = async (req: Request, res: Response) => {
       });
     }
 
-    // Update ticket stats
     await safeUpdateTicketStats(booking.ticketId, 'totalBookings', -1);
     await safeUpdateTicketStats(booking.ticketId, 'totalTicketsSold', -booking.quantity);
     if (subtotal > 0) {
