@@ -47,6 +47,9 @@ model WieUser {
   otps                 Otp[]
   mutedMe              UserMute[] @relation("MutedRelation")
   mutedByMe            UserMute[] @relation("MuterRelation")
+  website              String?    @db.VarChar(255)
+  showBadge            Boolean    @default(false) @map("show_badge")
+  showSuggestion       Boolean    @default(false) @map("show_suggestion")
   country              Country?   @relation(fields: [countryId], references: [id])
   @@map("wie_users")
   @@schema("public")
