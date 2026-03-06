@@ -367,3 +367,23 @@ export const updatePersonalDetails = async (
   }
 };
 
+export const updateShowBadge = async (showBadge: boolean): Promise<ApiResponse> => {
+  try {
+    const res = await api.put<ApiResponse>('/user/update-show-badge', { show_badge: showBadge });
+    return res.data;
+  } catch (err) {
+    console.error('updateShowBadge error:', err);
+    throw err;
+  }
+};
+
+export const updateShowSuggestion = async (showSuggestion: boolean): Promise<ApiResponse> => {
+  try {
+    const res = await api.put<ApiResponse>('/user/update-show-suggestion', { show_suggestion: showSuggestion });
+    return res.data;
+  } catch (err) {
+    console.error('updateShowSuggestion error:', err);
+    throw err;
+  }
+};
+

@@ -30,6 +30,9 @@ export interface User {
   auth_provider?: string;
   allowMessagesFrom?: string | null;
   allowMessageRequests?: boolean | null;
+  website?: string | null;
+  showBadge?: boolean;
+  showSuggestion?: boolean;
   created_at?: string | Date;
   updated_at?: string | Date;
 }
@@ -39,6 +42,9 @@ export interface UpdateProfileRequest {
   bio?: string;
   country_id?: string;
   profile_picture?: string;
+  website?: string;
+  showBadge?: boolean;
+  showSuggestion?: boolean;
 }
 export interface AuthState {
   user: User | null;

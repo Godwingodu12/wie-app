@@ -19,17 +19,20 @@ export interface WieUser {
   following_count: number;
   followers_count: number;
   posts_count: number;
-  latitude?: number | null;     
+  latitude?: number | null;
   longitude?: number | null;
-  isOnline: boolean; 
+  isOnline: boolean;
   lastSeenAt: Date | null;
   is_blocked: boolean;
   is_verified: boolean;
-  google_id?: string | null;  
+  google_id?: string | null;
   token_version: number;
   auth_provider: string;  
   allowMessagesFrom?: string | null;
   allowMessageRequests?: boolean | null;
+  website?: string | null;
+  showBadge?: boolean;
+  showSuggestion?: boolean;
   accountPrivacy?: string | null;
   created_at: Date;
   updated_at: Date;
@@ -57,10 +60,9 @@ export interface CreateUserInput {
   is_verified?: boolean;
   token_version?: number;
   google_id?: string;  
-  auth_provider?: string;  
+  auth_provider?: string;
 }
 
-// Helper function to convert Prisma camelCase to snake_case
 const toDatabaseFormat = (user: any): WieUser => {
   return {
     id: user.id,
@@ -92,6 +94,9 @@ const toDatabaseFormat = (user: any): WieUser => {
     auth_provider: user.authProvider, 
     allowMessagesFrom: user.allowMessagesFrom,  
     allowMessageRequests: user.allowMessageRequests,  
+    website: user.website,
+    showBadge: user.showBadge,
+    showSuggestion: user.showSuggestion,
     accountPrivacy: user.accountPrivacy,
     created_at: user.createdAt,
     updated_at: user.updatedAt,
@@ -318,13 +323,11 @@ class WieUserModel {
         where: { googleId: google_id },
       });
       if (!user) return null;
-      // Sanitize locationSource in case old array value still in DB
       if (Array.isArray((user as any).locationSource)) {
         (user as any).locationSource = null;
       }
       return toDatabaseFormat(user);
     } catch (error: any) {
-      // If field conversion fails (old array data), fetch with raw query
       console.warn('findByGoogleId Prisma error, trying raw fallback:', error.message);
       try {
         const results = await prisma.$queryRaw<any[]>`
@@ -422,6 +425,9 @@ class WieUserModel {
     contact_no?: string;
     username?: string;
     country_id?: string;
+    website?: string;
+    showBadge?: boolean;
+    showSuggestion?: boolean;
     bio?: string;
     accountPrivacy?: string;
     gender?: string;
@@ -436,6 +442,9 @@ class WieUserModel {
         contactNo: updates.contact_no,
         username: updates.username,
         countryId: updates.country_id,
+        website: updates.website,
+        showBadge: updates.showBadge,
+        showSuggestion: updates.showSuggestion,
         bio: updates.bio,
         accountPrivacy: updates.accountPrivacy,
         gender: updates.gender,
@@ -444,6 +453,7 @@ class WieUserModel {
     });
     return toDatabaseFormat(user);
   }
+
   async updateAccountPrivacy(id: string, accountPrivacy: string): Promise<WieUser> {
       const user = await prisma.wieUser.update({
         where: { id },
@@ -454,6 +464,39 @@ class WieUserModel {
       });
       return toDatabaseFormat(user);
   }
+
+  async updateWebsite(id: string, website: string): Promise<WieUser> {
+    const user = await prisma.wieUser.update({
+      where: { id },
+      data: {
+        website: website,
+        updatedAt: new Date(),
+      },
+    });
+    return toDatabaseFormat(user);
+  }
+
+  async updateShowBadge(id: string, showBadge: boolean): Promise<WieUser> {
+    const user = await prisma.wieUser.update({
+      where: { id },
+      data: {
+        showBadge: showBadge,
+        updatedAt: new Date(),
+      },
+    });
+    return toDatabaseFormat(user);
+  }
+  async updateShowSuggestion(id: string, showSuggestion: boolean): Promise<WieUser> {
+    const user = await prisma.wieUser.update({
+      where: { id },
+      data: {
+        showSuggestion: showSuggestion,
+        updatedAt: new Date(),
+      },
+    });
+    return toDatabaseFormat(user);
+  }
+
   async getAccountPrivacy(id: string): Promise<string> {
     const user = await prisma.wieUser.findUnique({
       where: { id },
@@ -464,6 +507,7 @@ class WieUserModel {
     const privacy = user?.accountPrivacy;
     return privacy === 'private' ? 'private' : 'public';
   }
+
   async linkGoogleAccount(
     id: string,
     googleData: {
@@ -570,7 +614,6 @@ class WieUserModel {
 
   async deleteUnverifiedUsers(olderThanMinutes: number): Promise<number> {
     const cutoffDate = new Date(Date.now() - olderThanMinutes * 60000);
-    
     const result = await prisma.wieUser.deleteMany({
       where: {
         isVerified: false,
@@ -580,7 +623,6 @@ class WieUserModel {
         },
       },
     });
-    
     return result.count;
   }
 
@@ -669,6 +711,7 @@ class WieUserModel {
       lastSeenAt: user.lastSeenAt,
     };
   }
+  
   async findStaleOnlineUsers(lastUpdateThreshold: Date): Promise<WieUser[]> {
     try {
       const users = await prisma.wieUser.findMany({
@@ -717,14 +760,14 @@ class WieUserModel {
       return [];
     }
   }
-// FIND saveUserLocation method and REPLACE WITH:
-async saveUserLocation(
+
+  async saveUserLocation(
   userId: string,
   displayName: string,
   latitude: number | null,
   longitude: number | null,
   source: 'gps' | 'manual'
-): Promise<void> {
+  ): Promise<void> {
   try {
     // Check user exists first
     const exists = await prisma.wieUser.findUnique({
@@ -744,34 +787,35 @@ async saveUserLocation(
         updatedAt: new Date(),
       },
     });
-  } catch (error: any) {
-    // Don't throw — location save failure should never crash the app
-    console.warn(`saveUserLocation failed for ${userId}:`, error.message);
+    } catch (error: any) {
+      // Don't throw — location save failure should never crash the app
+      console.warn(`saveUserLocation failed for ${userId}:`, error.message);
+    }
   }
-}
-async getSavedUserLocation(userId: string): Promise<{
-  location: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  locationSource: string | null;
-} | null> {
-   const user = await prisma.wieUser.findUnique({
-    where: { id: userId },
-    select: {
-      location: true,
-      latitude: true,
-      longitude: true,
-      locationSource: true,    
-    },
-  });
-  if (!user) return null;
-  return {
-    location: user.location ?? null,
-    latitude: user.latitude ?? null,
-    longitude: user.longitude ?? null,
-    locationSource: user.locationSource ?? null,  
-  };
-}
+
+  async getSavedUserLocation(userId: string): Promise<{
+    location: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    locationSource: string | null;
+  } | null> {
+    const user = await prisma.wieUser.findUnique({
+      where: { id: userId },
+      select: {
+        location: true,
+        latitude: true,
+        longitude: true,
+        locationSource: true,    
+      },
+    });
+    if (!user) return null;
+    return {
+      location: user.location ?? null,
+      latitude: user.latitude ?? null,
+      longitude: user.longitude ?? null,
+      locationSource: user.locationSource ?? null,  
+    };
+  }
 }
 
 export default new WieUserModel();

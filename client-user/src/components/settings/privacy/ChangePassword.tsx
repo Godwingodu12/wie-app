@@ -1,12 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { changePassword } from '@/services/wieUserService';
+import { changePassword, checkCanSetPassword } from '@/services/wieUserService';
+import { useTheme } from '@/components/home/ThemeContext';
+import SetPasswordComponent from '@/components/auth/SetPasswordComponent';
 
 export default function ChangePassword() {
   const router = useRouter();
+  const { themeStyles, isDark } = useTheme();
+
+  // State for rendering logic
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [canSetPassword, setCanSetPassword] = useState(false);
+
+  // Form State
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -14,6 +23,33 @@ export default function ChangePassword() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const response = await checkCanSetPassword();
+        setCanSetPassword(response.canSetPassword);
+      } catch (error) {
+        console.error("Failed to check password status", error);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+    checkStatus();
+  }, []);
+
+  if (checkingStatus) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2"
+             style={{ borderColor: isDark ? 'white' : 'black' }}></div>
+      </div>
+    );
+  }
+
+  if (canSetPassword) {
+    return <SetPasswordComponent />;
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -62,30 +98,41 @@ export default function ChangePassword() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
+    <div
+      className="max-w-2xl mx-auto py-6"
+    >
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
-          <div className="bg-red-50 p-2 rounded-lg">
-            <Lock className="w-6 h-6 text-red-600" />
+          <div
+            className="p-2 rounded-lg"
+            style={{ background: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEF2F2' }}
+          >
+            <Lock className={`w-6 h-6 ${isDark ? 'text-red-400' : 'text-red-600'}`} />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">Change Password</h2>
+          <h2 className="text-2xl font-bold" style={{ color: themeStyles.text }}>
+            Change Password
+          </h2>
         </div>
-        <p className="text-gray-600 text-sm">
+        <p className="text-sm" style={{ color: themeStyles.textSecondary }}>
           Update your password to keep your account secure
         </p>
       </div>
 
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <p className="text-red-700 text-sm">{error}</p>
+        <div className="mb-4 p-4 border rounded-lg flex items-start gap-3"
+             style={{
+               backgroundColor: isDark ? 'rgba(127, 29, 29, 0.1)' : '#FEF2F2',
+               borderColor: isDark ? 'rgba(127, 29, 29, 0.3)' : '#FECACA'
+             }}>
+          <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isDark ? 'text-red-400' : 'text-red-600'}`} />
+          <p className={`text-sm ${isDark ? 'text-red-300' : 'text-red-700'}`}>{error}</p>
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Current Password */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium mb-2" style={{ color: themeStyles.text }}>
             Current Password
           </label>
           <div className="relative">
@@ -93,14 +140,20 @@ export default function ChangePassword() {
               type={showCurrentPassword ? 'text' : 'password'}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
+              style={{
+                background: isDark ? '#27272A' : '#FFFFFF',
+                border: `1px solid ${themeStyles.border}`,
+                color: themeStyles.text
+              }}
               placeholder="Enter current password"
               disabled={loading}
             />
             <button
               type="button"
               onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-80 transition-opacity"
+              style={{ color: themeStyles.textSecondary }}
               disabled={loading}
             >
               {showCurrentPassword ? (
@@ -114,7 +167,7 @@ export default function ChangePassword() {
 
         {/* New Password */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium mb-2" style={{ color: themeStyles.text }}>
             New Password
           </label>
           <div className="relative">
@@ -122,14 +175,20 @@ export default function ChangePassword() {
               type={showNewPassword ? 'text' : 'password'}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
+              style={{
+                background: isDark ? '#27272A' : '#FFFFFF',
+                border: `1px solid ${themeStyles.border}`,
+                color: themeStyles.text
+              }}
               placeholder="Enter new password (min 6 characters)"
               disabled={loading}
             />
             <button
               type="button"
               onClick={() => setShowNewPassword(!showNewPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-80 transition-opacity"
+              style={{ color: themeStyles.textSecondary }}
               disabled={loading}
             >
               {showNewPassword ? (
@@ -143,14 +202,19 @@ export default function ChangePassword() {
 
         {/* Confirm New Password */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium mb-2" style={{ color: themeStyles.text }}>
             Confirm New Password
           </label>
           <input
             type={showNewPassword ? 'text' : 'password'}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
+            style={{
+              background: isDark ? '#27272A' : '#FFFFFF',
+              border: `1px solid ${themeStyles.border}`,
+              color: themeStyles.text
+            }}
             placeholder="Confirm your new password"
             disabled={loading}
           />
@@ -167,11 +231,15 @@ export default function ChangePassword() {
         </div>
       </form>
 
-      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h3 className="text-sm font-semibold text-blue-900 mb-2">
+      <div className="mt-6 p-4 border rounded-lg"
+           style={{
+             backgroundColor: isDark ? 'rgba(30, 58, 138, 0.1)' : '#EFF6FF',
+             borderColor: isDark ? 'rgba(30, 58, 138, 0.3)' : '#BFDBFE'
+           }}>
+        <h3 className={`text-sm font-semibold mb-2 ${isDark ? 'text-blue-300' : 'text-blue-900'}`}>
           Password Requirements:
         </h3>
-        <ul className="text-sm text-blue-800 space-y-1">
+        <ul className={`text-sm space-y-1 ${isDark ? 'text-blue-200' : 'text-blue-800'}`}>
           <li>• At least 6 characters long</li>
           <li>• Different from your current password</li>
           <li>• Use a mix of letters, numbers, and symbols for better security</li>
