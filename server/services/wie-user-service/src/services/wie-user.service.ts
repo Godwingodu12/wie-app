@@ -732,6 +732,7 @@ export const resendOtp = async (req: Request, res: Response): Promise<void> => {
       .json({ message: "Failed to resend OTP", error: error.message });
   }
 };
+
 export const updateProfile = async (
   req: Request,
   res: Response,
@@ -742,7 +743,7 @@ export const updateProfile = async (
       return;
     }
     const userId = req.user.id;
-    const { name, username, country_id, bio, accountPrivacy } = req.body;
+    const { name, username, country_id, bio, website, gender } = req.body;
 
     // Get current user data to check for existing profile picture
     const currentUser = await WIEUSER.findById(userId);
@@ -793,6 +794,8 @@ export const updateProfile = async (
       username,
       country_id,
       bio,
+      website,
+      gender,
       profile_picture: profilePictureUrl || undefined,
     });
 
@@ -816,8 +819,9 @@ export const updateProfile = async (
         profile_picture: updatedUser.profile_picture,
         country_id: updatedUser.country_id,
         country_name: countryName,
-        country_code: countryCode,
         bio: updatedUser.bio,
+        website: updatedUser.website,
+        gender: updatedUser.gender,
         location: updatedUser.location,
         latitude: updatedUser.latitude,
         longitude: updatedUser.longitude,
@@ -846,7 +850,7 @@ export const updatePersonalDetails = async (req: Request, res: Response): Promis
       return;
     }
     const userId = req.user.id;
-    const { email, contact_no, gender, dob } = req.body;
+    const { email, contact_no, dob } = req.body;
 
     // Validation
     if (email && !validateEmail(email)) {
@@ -886,7 +890,6 @@ export const updatePersonalDetails = async (req: Request, res: Response): Promis
     const updatedUser = await WIEUSER.updateProfile(userId, {
       email,
       contact_no,
-      gender,
       dob: parsedDob,
     } as any);
 
@@ -900,7 +903,6 @@ export const updatePersonalDetails = async (req: Request, res: Response): Promis
         username: updatedUser.username,
         profile_picture: updatedUser.profile_picture,
         country_id: updatedUser.country_id,
-        gender: updatedUser.gender,
         dob: updatedUser.dob,
         bio: updatedUser.bio,
         accountPrivacy: updatedUser.accountPrivacy,
@@ -926,7 +928,7 @@ export const getProfile = async (
     const userId = req.user.id;
     const user = await WIEUSER.findById(userId);
     if (!user) {
-      res.status(404).json({ message: "User not found" });
+      res.status(400).json({ message: "User not found" });
       return;
     }
     let countryName = null;
@@ -951,6 +953,9 @@ export const getProfile = async (
         country_name: countryName,
         country_code: countryCode,
         bio: user.bio,
+        website: user.website,
+        gender: user.gender,
+        dob: user.dob,
         location: user.location,
         latitude: user.latitude,
         longitude: user.longitude,
@@ -962,17 +967,21 @@ export const getProfile = async (
         is_blocked: user.is_blocked,
         is_verified: user.is_verified,
         auth_provider: user.auth_provider,
+        showBadge: user.showBadge,
+        showSuggestion: user.showSuggestion,
         created_at: user.created_at,
         updated_at: user.updated_at,
+
       },
     });
   } catch (error: any) {
     console.error("Get profile error:", error);
     res
-      .status(500)
+      .status(400)
       .json({ message: "Failed to get profile", error: error.message });
   }
 };
+
 export const getUserProfile = async (userId: string) => {
   try {
     const user = await WIEUSER.findById(userId);
@@ -1001,6 +1010,9 @@ export const getUserProfile = async (userId: string) => {
       country_code: country?.country_code || null,
       country_name: country?.country_name || null,
       bio: user.bio,
+      website: user.website,
+      gender: user.gender,
+      dob: user.dob,
       latitude: user.latitude,
       longitude: user.longitude,
       location: user.location,
@@ -1756,6 +1768,9 @@ export const getUserById = async (
         contact_no: user.contact_no,
         profile_picture: user.profile_picture,
         bio: user.bio,
+        website: user.website,
+        gender: user.gender,
+        dob: user.dob,
         location: user.location,
         is_verified: user.is_verified,
         is_blocked: user.is_blocked,
@@ -1952,6 +1967,80 @@ export const getMutedCount = async (
     console.error("Get muted count error:", error);
     res.status(500).json({
       message: "Failed to get muted count",
+      error: error.message,
+    });
+  }
+};
+
+export const updateShowBadge = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const userId = req.user.id;
+    const { show_badge } = req.body;
+
+    if (typeof show_badge !== "boolean") {
+      res.status(400).json({ message: "Invalid show_badge value" });
+      return;
+    }
+
+    const updatedUser = await WIEUSER.updateShowBadge(userId, show_badge);
+
+    res.status(200).json({
+      success: true,
+      message: "Show badge updated successfully",
+      user: {
+        id: updatedUser.id,
+        showBadge: updatedUser.showBadge,
+      },
+    });
+  } catch (error: any) {
+    console.error("Update show badge error:", error);
+    res.status(500).json({
+      message: "Failed to update show badge",
+      error: error.message,
+    });
+  }
+};
+
+export const updateShowSuggestion = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const userId = req.user.id;
+    const { show_suggestion } = req.body;
+
+    if (typeof show_suggestion !== "boolean") {
+      res.status(400).json({ message: "Invalid show_suggestion value" });
+      return;
+    }
+
+    const updatedUser = await WIEUSER.updateShowSuggestion(userId, show_suggestion);
+
+    res.status(200).json({
+      success: true,
+      message: "Show suggestion updated successfully",
+      user: {
+        id: updatedUser.id,
+        showSuggestion: updatedUser.showSuggestion,
+      },
+    });
+  } catch (error: any) {
+    console.error("Update show suggestion error:", error);
+    res.status(500).json({
+      message: "Failed to update show suggestion",
       error: error.message,
     });
   }
