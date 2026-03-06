@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
@@ -8,82 +8,67 @@ import {
   User,
   Shield,
   Bell,
-  Lock,
-  Users,
-  EyeOff,
-  MessageCircle,
-  AtSign,
-  Share2,
-  AlertCircle,
-  VolumeX,
   ChevronLeft,
+  ChevronRight,
   LogOut,
   Moon,
-  Sun
+  Sun,
+  UserX,
+  HeadphonesIcon,
+  ShieldCheck,
+  SquareUser
 } from 'lucide-react';
-import SideBar from '@/components/home/SideBar';
 import { useSidebar } from '@/context/SidebarContext';
 import { useTheme } from '@/components/home/ThemeContext';
 import WieUserLogo from "@/assets/Home/WieUserLogo.svg";
 import { logout } from '@/services/wieUserService';
-import { useAuth } from '@/hooks/useAuth';
 
 export default function SettingsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { isMobile, isCollapsed } = useSidebar();
+  const { isMobile } = useSidebar();
   const { isDark, themeStyles, toggleTheme } = useTheme();
   const pathname = usePathname();
   const router = useRouter();
 
-  const [isMobileDetail, setIsMobileDetail] = useState(false);
-
-  useEffect(() => {
-    if (pathname !== '/settings') {
-      setIsMobileDetail(true);
-    } else {
-      setIsMobileDetail(false);
-    }
-  }, [pathname]);
-
-  // Adjust margin based on Sidebar state
-  const marginLeft = isMobile ? "0" : (isCollapsed ? "92px" : "281px");
+  const isOnRootSettings = pathname === '/settings';
 
   const getPageTitle = () => {
-    if (pathname === '/settings' && isMobileDetail) return 'Personal Details';
-    if (pathname === '/settings/privacy') return 'Privacy Setting';
-    if (pathname === '/settings/privacy/change-password') return 'Change Password';
-    if (pathname === '/settings/notifications') return 'Notifications';
+    if (pathname === '/settings') return 'Settings';
+    if (pathname === '/settings/account') return 'Account Management';
+    if (pathname === '/settings/account/personal-details') return 'Personal Details';
+    if (pathname === '/settings/account/profile') return 'Profile Details';
+    if (pathname === '/settings/account/security') return 'Password & Security';
+    if (pathname === '/settings/privacy') return 'Privacy & Safety';
+    if (pathname === '/settings/privacy/blocked') return 'Blocked Accounts';
+    if (pathname === '/settings/app-experience') return 'App Experience';
+    if (pathname === '/settings/app-experience/notifications') return 'Notifications';
+    if (pathname === '/settings/app-experience/help') return 'Help & Support';
+    if (pathname === '/settings/app-experience/privacy-center') return 'Privacy Center';
     return 'Settings';
   };
 
-  const currentDisplayTitle = (typeof window !== 'undefined' && window.innerWidth < 1024 && isMobileDetail) ? getPageTitle() : 'Settings';
-
-  const handleBack = (e: React.MouseEvent) => {
-    if (typeof window !== 'undefined' && window.innerWidth < 1024 && isMobileDetail) {
-      e.preventDefault();
-      if (pathname === '/settings') {
-        setIsMobileDetail(false);
-      } else {
-        router.push('/settings');
-      }
+  const handleBack = () => {
+    if (!isOnRootSettings && isMobile) {
+      router.push('/settings');
+    } else {
+      router.push('/home');
     }
   };
 
   const handleLogout = async () => {
     try {
-        await logout();
-        if (typeof window !== 'undefined') {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-        }
-        router.push('/login');
+      await logout();
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+      router.push('/login');
     } catch (error) {
-        console.error("Logout failed", error);
-        // Force redirect anyway
-        router.push('/login');
+      console.error("Logout failed", error);
+      router.push('/login');
     }
   };
 
@@ -91,48 +76,50 @@ export default function SettingsLayout({
     {
       title: 'Account Management',
       items: [
-        { title: 'Personal Details', icon: User, href: '/settings' },
+        { title: 'Profile Details', icon: User, href: '/settings/account/profile' },
+        { title: 'Password & Security', icon: ShieldCheck, href: '/settings/account/security' },
+        { title: 'Personal Details', icon: SquareUser, href: '/settings/account/personal-details' },
       ]
     },
     {
       title: 'Privacy & Safety',
       items: [
-        { title: 'Privacy setting', icon: EyeOff, href: '/settings/privacy' },
-        { title: 'Change password', icon: Lock, href: '/settings/privacy/change-password' },
-        { title: 'Two factor authentication', icon: Shield, href: '#' },
+        { title: 'Account Privacy', icon: Shield, href: '/settings/privacy' },
+        { title: 'Blocked Accounts', icon: UserX, href: '/settings/privacy/blocked' },
       ]
     },
     {
-      title: 'Notifications',
+      title: 'App Experience',
       items: [
-        { title: 'Notifications', icon: Bell, href: '/settings/notifications' },
+        { title: 'Notifications', icon: Bell, href: '/settings/app-experience/notifications' },
+        { title: 'Help & Support', icon: HeadphonesIcon, href: '/settings/app-experience/help' },
+        { title: 'Privacy Center', icon: ShieldCheck, href: '/settings/app-experience/privacy-center' },
       ]
     },
     {
-        title: 'More Options',
-        items: [
-            {
-                title: isDark ? 'Light Mode' : 'Dark Mode',
-                icon: isDark ? Sun : Moon,
-                onClick: toggleTheme,
-                isAction: true
-            },
-            {
-                title: 'Log Out',
-                icon: LogOut,
-                onClick: handleLogout,
-                isAction: true,
-                isDangerous: true
-            }
-        ]
+      title: 'More Options',
+      items: [
+        {
+          title: isDark ? 'Light Mode' : 'Dark Mode',
+          icon: isDark ? Sun : Moon,
+          onClick: toggleTheme,
+          isAction: true
+        },
+        {
+          title: 'Log Out',
+          icon: LogOut,
+          onClick: handleLogout,
+          isAction: true,
+          isDangerous: true
+        }
+      ]
     }
   ];
 
-  // Specific Design Values from User request
   const glassStyle = {
     background: themeStyles.cardBg,
     backdropFilter: 'blur(60px)',
-    borderRadius: '24px',
+    borderRadius: isMobile ? '12px' : '24px',
     border: `1px solid ${themeStyles.border}`,
   };
 
@@ -154,43 +141,141 @@ export default function SettingsLayout({
     color: themeStyles.textSecondary,
   };
 
+  const NavItem = ({ item }: { item: any }) => {
+    const Icon = item.icon;
+    if (item.isAction) {
+      return (
+        <button
+          onClick={item.onClick}
+          className="flex items-center justify-between gap-4 transition-all duration-200 w-full text-left hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
+          style={inactiveItemStyle}
+        >
+          <div className="flex items-center gap-4">
+            <Icon
+              size={20}
+              style={{
+                color: item.isDangerous ? '#EF4444' : themeStyles.textSecondary,
+                opacity: 0.7
+              }}
+            />
+            <span
+              className="font-medium text-[15px]"
+              style={{ color: item.isDangerous ? '#EF4444' : themeStyles.textSecondary }}
+            >
+              {item.title}
+            </span>
+          </div>
+        </button>
+      );
+    }
+
+    const isActive = pathname === item.href;
+
+    return (
+      <Link
+        href={item.href}
+        className={`flex items-center justify-between gap-2 transition-all duration-200 ${isActive ? '' : 'hover:bg-black/5 dark:hover:bg-white/5 rounded-xl'}`}
+        style={isActive ? activeItemStyle : inactiveItemStyle}
+      >
+        <div className="flex items-center gap-4">
+          <Icon
+            size={20}
+            style={{
+              color: isActive ? (isDark ? '#FFFFFF' : themeStyles.activeItemText) : themeStyles.textSecondary,
+              opacity: isActive ? 1 : 0.7
+            }}
+          />
+          <span className="font-medium text-[15px]">
+            {item.title}
+          </span>
+        </div>
+        <ChevronRight size={16} style={{ color: themeStyles.textSecondary, opacity: 0.4 }} className="lg:hidden" />
+      </Link>
+    );
+  };
+
   return (
     <div
       className="min-h-screen font-sans transition-colors duration-300"
       style={{ background: themeStyles.background, color: themeStyles.text }}
     >
-
       <main
-        className="transition-all duration-300 ease-in-out min-h-screen relative flex flex-col items-center justify-center pt-8"
+        className="transition-all duration-300 ease-in-out min-h-screen flex flex-col"
+        style={{
+          marginLeft: 0,
+          paddingBottom: isMobile ? '80px' : '32px',
+        }}
       >
-        {/* Top Bar / Back Button Area */}
-        <div className="w-full max-w-[1400px] px-4 md:px-12 mb-6 flex items-center justify-start">
-             <Link href="/home" onClick={handleBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity" style={{ color: themeStyles.text }}>
-                 <div className="p-2 rounded-full bg-black/5 dark:bg-white/10">
-                     <ChevronLeft size={20} style={{ color: themeStyles.text }} />
-                 </div>
-                 <h1 className="text-2xl font-bold">{currentDisplayTitle}</h1>
-             </Link>
+        {/* Header */}
+        <div
+          className="sticky top-0 z-30 flex items-center gap-3 px-4 py-3 border-b lg:static lg:border-none lg:bg-transparent lg:px-12 lg:pt-8 lg:pb-0 lg:mb-6"
+          style={{
+            background: themeStyles.background,
+            borderColor: themeStyles.border,
+          }}
+        >
+          <button
+            onClick={handleBack}
+            className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors flex-shrink-0"
+          >
+            <ChevronLeft size={22} style={{ color: themeStyles.text }} />
+          </button>
+          <h1
+            className="font-bold text-lg lg:text-2xl truncate"
+            style={{ color: themeStyles.text }}
+          >
+            {getPageTitle()}
+          </h1>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-6 px-4 md:px-12 items-stretch justify-center w-full max-w-[1400px]">
+        {/* Mobile: root settings → show nav cards; sub-page → show children */}
+        <div className="flex flex-col lg:hidden flex-1 px-3 py-4 gap-3">
+          {isOnRootSettings ? (
+            sidebarSections.map((section, idx) => (
+              <div key={idx} style={{ ...glassStyle, borderRadius: '12px' }} className="overflow-hidden">
+                <h3
+                  className="px-4 pt-3 pb-1 text-xs font-bold uppercase tracking-wider"
+                  style={{ color: themeStyles.textSecondary }}
+                >
+                  {section.title}
+                </h3>
+                <div className="flex flex-col">
+                  {section.items.map((item: any, i: number) => (
+                    <div
+                      key={item.title}
+                      className="px-2"
+                      style={i < section.items.length - 1 ? { borderBottom: `1px solid ${themeStyles.border}` } : {}}
+                    >
+                      <NavItem item={item} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="flex flex-col flex-1 overflow-auto" style={glassStyle}>
+              {children}
+            </div>
+          )}
+        </div>
 
-          {/* Left Sidebar (Navigation) */}
+        {/* Desktop: sidebar + content side by side */}
+        <div className="hidden lg:flex flex-row gap-6 px-4 md:px-8 xl:px-12 items-start justify-center w-full max-w-[1400px] mx-auto">
+          {/* Left Sidebar */}
           <aside
-            className={`flex-1 flex flex-col p-4 md:p-6 gap-6 min-h-[500px] lg:min-h-[600px] ${isMobileDetail ? 'hidden lg:flex' : 'flex'}`}
+            className="w-[30%] max-w-[380px] flex-shrink-0 flex flex-col p-6 gap-6 min-h-[600px] sticky top-8"
             style={glassStyle}
           >
-             {/* Logo Section */}
-            <div className="flex items-center gap-3 px-4 mb-6">
-                 <Image
-                    src={WieUserLogo}
-                    alt="Wie Logo"
-                    width={32}
-                    height={32}
-                    className="flex-shrink-0"
-                    style={{ filter: themeStyles.iconFilter }}
-                  />
-                  <span className="font-bold text-2xl" style={{ color: themeStyles.text }}>Wie</span>
+            <div className="flex items-center gap-3 px-4 mb-2">
+              <Image
+                src={WieUserLogo}
+                alt="Wie Logo"
+                width={32}
+                height={32}
+                className="flex-shrink-0"
+                style={{ filter: themeStyles.iconFilter }}
+              />
+              <span className="font-bold text-2xl" style={{ color: themeStyles.text }}>Wie</span>
             </div>
 
             <nav className="flex flex-col gap-6 overflow-y-auto custom-scrollbar">
@@ -203,87 +288,22 @@ export default function SettingsLayout({
                     {section.title}
                   </h3>
                   <div className="flex flex-col gap-1">
-                    {section.items.map((item: any) => {
-                      const Icon = item.icon;
-
-                      if (item.isAction) {
-                        return (
-                           <button
-                              key={item.title}
-                              onClick={item.onClick}
-                              className={`
-                                flex items-center gap-4 transition-all duration-200 group w-full text-left
-                                hover:bg-black/5 dark:hover:bg-white/5 rounded-xl
-                              `}
-                              style={inactiveItemStyle}
-                           >
-                                <Icon
-                                    size={20}
-                                    style={{
-                                        color: item.isDangerous ? '#EF4444' : themeStyles.textSecondary,
-                                        opacity: 0.7
-                                    }}
-                                />
-                                <span
-                                    className={`font-medium text-[15px]`}
-                                    style={{ color: item.isDangerous ? '#EF4444' : themeStyles.textSecondary }}
-                                >
-                                    {item.title}
-                                </span>
-                           </button>
-                        );
-                      }
-
-                      // Strict active check
-                      const isActive = pathname === item.href;
-
-                      return (
-
-                        <Link
-                          key={item.title}
-                          href={item.href}
-                          onClick={(e) => {
-                            if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                              if (item.href === '/settings' && pathname === '/settings') {
-                                e.preventDefault();
-                                setIsMobileDetail(true);
-                              }
-                            }
-                          }}
-                          className={`
-                            flex items-center gap-4 transition-all duration-200 group
-                            ${isActive ? '' : 'hover:bg-black/5 dark:hover:bg-white/5 rounded-xl'}
-                          `}
-                          style={isActive ? activeItemStyle : inactiveItemStyle}
-                        >
-                            <Icon
-                                size={20}
-                                style={{
-                                    color: isActive ? (isDark ? '#FFFFFF' : themeStyles.activeItemText) : themeStyles.textSecondary,
-                                    opacity: isActive ? 1 : 0.7
-                                }}
-                            />
-                            <span className={`font-medium text-[15px]`}>
-                                {item.title}
-                            </span>
-                        </Link>
-                      );
-
-                    })}
+                    {section.items.map((item: any) => (
+                      <NavItem key={item.title} item={item} />
+                    ))}
                   </div>
                 </div>
               ))}
             </nav>
           </aside>
 
-          {/* Center Container (Content) */}
+          {/* Content */}
           <div
-            className={`flex-1 w-full p-4 md:p-8 min-h-[500px] lg:min-h-[600px] ${!isMobileDetail ? 'hidden lg:flex' : 'flex flex-col'}`}
+            className="flex-1 p-6 xl:p-8 min-h-[600px] flex flex-col"
             style={glassStyle}
           >
             {children}
           </div>
-
         </div>
       </main>
 

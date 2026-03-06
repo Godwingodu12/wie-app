@@ -1,14 +1,18 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Lock, Shield, Eye, ChevronRight, CheckCircle, X, Globe, Loader2 } from 'lucide-react';
+import { useDispatch } from 'react-redux';
+import { useAuth } from '@/hooks/useAuth';
+import { updateUser } from '@/features/auth/authSlice';
+import { Lock, CheckCircle, X, Loader2 } from 'lucide-react';
 import { getAccountPrivacy, updateAccountPrivacy } from '@/services/wieUserService';
 import { useTheme } from '@/components/home/ThemeContext';
 
 export default function PrivacyPage() {
   const searchParams = useSearchParams();
+  const dispatch = useDispatch();
+  const { user } = useAuth();
   const [successMessage, setSuccessMessage] = useState('');
   const [accountPrivacy, setAccountPrivacy] = useState<'public' | 'private'>('public');
   const [loading, setLoading] = useState(true);
@@ -50,6 +54,9 @@ export default function PrivacyPage() {
       setUpdating(true);
       await updateAccountPrivacy({ accountPrivacy: newPrivacy });
       setAccountPrivacy(newPrivacy);
+      if (user) {
+        dispatch(updateUser({ ...user, accountPrivacy: newPrivacy } as any));
+      }
       setSuccessMessage(
         newPrivacy === 'private'
           ? 'Your account is now private. New followers will need your approval.'
@@ -63,38 +70,8 @@ export default function PrivacyPage() {
     }
   };
 
-  const privacyOptions = [
-    {
-      title: 'Change Password',
-      description: 'Update your account password',
-      icon: Lock,
-      href: '/settings/privacy/change-password',
-    },
-    {
-      title: 'Two-Factor Authentication',
-      description: 'Add an extra layer of security',
-      icon: Shield,
-      href: '/settings/privacy/two-factor',
-    },
-    {
-      title: 'Privacy Settings',
-      description: 'Control who can see your information',
-      icon: Eye,
-      href: '/settings/privacy/visibility',
-    },
-  ];
-
   return (
     <div className="w-full">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-2" style={{ color: themeStyles.text }}>
-          Privacy & Security
-        </h2>
-        <p style={{ color: themeStyles.textSecondary }}>
-          Manage your account security and privacy
-        </p>
-      </div>
-
       {successMessage && (
         <div className="mb-6 p-4 rounded-lg flex items-start justify-between gap-3 bg-green-500/10 border border-green-500/20">
           <div className="flex items-start gap-3">
@@ -110,102 +87,87 @@ export default function PrivacyPage() {
         </div>
       )}
 
-      {/* Account Privacy Toggle */}
+      {/* Account Privacy Card */}
       <div
-        className="mb-6 rounded-xl shadow-sm p-6 transition-colors"
+        className="rounded-2xl shadow-sm p-6 transition-colors mb-6"
         style={{ background: themeStyles.cardBg, border: `1px solid ${themeStyles.border}` }}
       >
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-4 flex-1">
-            <div className="p-3 rounded-lg transition-colors" style={{ background: themeStyles.pillBg }}>
-              {accountPrivacy === 'private' ? (
-                <Lock className="w-6 h-6" style={{ color: themeStyles.text }} />
-              ) : (
-                <Globe className="w-6 h-6" style={{ color: themeStyles.text }} />
-              )}
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold mb-1" style={{ color: themeStyles.text }}>
-                Account Privacy
-              </h3>
-              <p className="text-sm mb-4" style={{ color: themeStyles.textSecondary }}>
-                {accountPrivacy === 'private'
-                  ? 'Your account is private. Only approved followers can see your posts.'
-                  : 'Your account is public. Anyone can see your posts and follow you.'}
-              </p>
+        <h2 className="text-xl font-semibold mb-5" style={{ color: themeStyles.text }}>
+          Account privacy
+        </h2>
 
-              {loading ? (
-                <div className="flex items-center gap-2" style={{ color: themeStyles.textSecondary }}>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-sm">Loading...</span>
-                </div>
-              ) : (
-                <button
-                  onClick={handleTogglePrivacy}
-                  disabled={updating}
-                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                    updating
-                      ? 'opacity-50 cursor-not-allowed'
-                      : accountPrivacy === 'private'
-                        ? 'bg-[#8860D9] text-white hover:bg-[#7b54c4]'
-                        : ''
-                  }`}
-                  style={
-                    !updating && accountPrivacy !== 'private'
-                      ? {
-                          background: themeStyles.pillBg,
-                          color: themeStyles.text,
-                        }
-                      : {}
-                  }
-                >
-                  {updating ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Updating...
-                    </span>
-                  ) : accountPrivacy === 'private' ? (
-                    'Switch to Public'
-                  ) : (
-                    'Switch to Private'
-                  )}
-                </button>
-              )}
-            </div>
+        <div
+          className="flex items-center justify-between gap-4 rounded-2xl px-4 py-3 mb-4"
+          style={{ background: isDark ? '#1f2229' : themeStyles.pillBg }}
+        >
+          <div className="flex items-center gap-3">
+            <Lock className="w-4 h-4" style={{ color: themeStyles.text }} />
+            <span className="text-sm font-medium" style={{ color: themeStyles.text }}>
+              Private account
+            </span>
           </div>
+
+          {loading ? (
+            <div className="flex items-center gap-2" style={{ color: themeStyles.textSecondary }}>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-sm">Loading...</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={accountPrivacy === 'private'}
+              onClick={handleTogglePrivacy}
+              disabled={updating}
+              className={`relative inline-flex items-center rounded-full transition-colors ${
+                updating ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+              }`}
+              style={{
+                width: '60px',
+                height: '30px',
+                borderRadius: '30px',
+                padding: '2px',
+                gap: '10px',
+                opacity: 1,
+                background: accountPrivacy === 'private'
+                  ? 'linear-gradient(147.67deg, #2979FF 13.16%, #6B9CF0 54.09%, #9DC1FF 100.03%)'
+                  : '#212426',
+              }}
+            >
+              <span className="sr-only">Toggle account privacy</span>
+              <span
+                className={`inline-block rounded-full bg-white shadow transition-transform ${
+                  accountPrivacy === 'private' ? 'translate-x-[30px]' : 'translate-x-[2px]'
+                }`}
+                style={{ width: '26px', height: '26px' }}
+              />
+            </button>
+          )}
         </div>
+
+        <p className="text-xs leading-5 mb-2" style={{ color: themeStyles.textSecondary }}>
+          When your account is public, your profile and posts can be seen by anyone, on or off Wie,
+          even if they don’t have a Wie account.
+        </p>
+        <p className="text-xs leading-5" style={{ color: themeStyles.textSecondary }}>
+          When your account is private, only followers that you approve can see what you share,
+          including your photos or videos on hashtag and location pages, and your followers and
+          following lists. Certain info on your profile, such as your profile picture and username,
+          is visible to everyone on and off Wie.
+          {' '}
+          <a href="#" className="font-medium" style={{ color: '#60a5fa' }}>
+            Learn more
+          </a>
+        </p>
+
+        {updating && !loading && (
+          <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: themeStyles.textSecondary }}>
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span>Updating...</span>
+          </div>
+        )}
       </div>
 
-      <div className="space-y-4">
-        {privacyOptions.map((option) => {
-          const Icon = option.icon;
-          return (
-            <Link
-              key={option.href}
-              href={option.href}
-              className="block rounded-xl shadow-sm hover:shadow-md transition-all p-6 hover:border-opacity-50"
-               style={{ background: themeStyles.cardBg, border: `1px solid ${themeStyles.border}` }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg transition-colors" style={{ background: themeStyles.pillBg }}>
-                    <Icon className="w-6 h-6" style={{ color: themeStyles.text }} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold" style={{ color: themeStyles.text }}>
-                      {option.title}
-                    </h3>
-                    <p className="text-sm" style={{ color: themeStyles.textSecondary }}>
-                      {option.description}
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5" style={{ color: themeStyles.textSecondary }} />
-              </div>
-            </Link>
-          );
-        })}
-      </div>
     </div>
   );
 }
