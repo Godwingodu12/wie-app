@@ -1,4 +1,4 @@
-import { connectRabbitMQ, isChannelAvailable } from './connection';
+import { connectRabbitMQ,getChannel, isChannelAvailable } from './connection';
 import { listenQueue } from './consumer';
 import { prisma } from '../config/db';
 export const startConsumers = async (): Promise<void> => {
@@ -193,5 +193,31 @@ export const startConsumers = async (): Promise<void> => {
       return { error: error.message, success: false };
     }
   });
+};
+export const publishRefundJob = async (job: {
+  bookingId: string;
+  refundPercentage: number;
+  eventName: string;
+}): Promise<void> => {
+  const QUEUE_NAME = 'wie.refund.jobs';
+
+  if (!isChannelAvailable()) {
+    console.warn('⚠️ [publishRefundJob] RabbitMQ channel not available, skipping refund job');
+    return;
+  }
+
+  try {
+    const channel = getChannel();
+    await channel.assertQueue(QUEUE_NAME, { durable: true });
+    channel.sendToQueue(
+      QUEUE_NAME,
+      Buffer.from(JSON.stringify(job)),
+      { persistent: true }
+    );
+    console.log(`✅ [publishRefundJob] Enqueued refund job for booking ${job.bookingId}`);
+  } catch (err: any) {
+    console.error('❌ [publishRefundJob] Failed to enqueue:', err.message);
+    throw err;
+  }
 };
 export { connectRabbitMQ };
