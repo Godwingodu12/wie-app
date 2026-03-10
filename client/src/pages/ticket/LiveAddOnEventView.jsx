@@ -17,28 +17,13 @@ import {
   getGroupView,
   getTicketById,deleteSubEvent,  rehostSubEvent, goLiveSubEvent,
   getAddOnEventLiveView,cancelSubEvent, getCancellationReport,
-  getEventMetrics, 
+  getEventMetrics, getTicketAuditBySubEvent
 } from "../../services/ticketService";
 import {
-  Radio,
-  ArrowLeft,
-  Lock,
-  LayoutGrid,
-  XCircle,
-  Heart,
-  Share2,
-  Armchair,
-  Users,
-  MapPin,
-  Landmark,
-  Download,
-  Bell,
-  Ticket,
-  TrendingUp,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  Hash,Ban, FileSpreadsheet, AlertTriangle, RefreshCw, Trash2,Edit2, Zap
+  Radio,ArrowLeft,
+  Lock,LayoutGrid,XCircle,Heart,Share2,Armchair,Users,MapPin,Landmark,Download,Bell,Ticket,
+  TrendingUp,History,BarChart2,DollarSign,Tag,Clock,ChevronLeft,ChevronRight,ChevronDown,Hash,Ban,
+   FileSpreadsheet, AlertTriangle, RefreshCw, Trash2,Edit2, Zap
 } from "lucide-react";
 import Card from "../../components/ViewSingleEvent/Card";
 import InsetCard from "../../components/ViewSingleEvent/InsetCard";
@@ -109,6 +94,9 @@ const LiveAddOnEventView = () => {
   // ── Delete State
   const [showDeleteConfirm, setShowDeleteConfirm]     = useState(false);
   const [isDeleting, setIsDeleting]                   = useState(false);
+  const [auditHistory, setAuditHistory]               = useState(null);
+  const [auditLoading, setAuditLoading]               = useState(false);
+  const [showAuditPanel, setShowAuditPanel]           = useState(false);
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
@@ -391,6 +379,27 @@ const handleCloseCancelModal = () => {
     }
   };
 
+  const fetchSubEventAudit = async () => {
+    try {
+      setAuditLoading(true);
+      const parentEventId = eventData?.parentEventId;
+      if (!parentEventId || !ticketId) return;
+
+      const response = await getTicketAuditBySubEvent(parentEventId, ticketId);
+
+      if (response?.data) {
+        setAuditHistory(response.data);
+        setShowAuditPanel(true);
+      } else {
+        toast.error("No audit record found for this sub-event.");
+      }
+    } catch (err) {
+      console.error("Failed to fetch sub-event audit:", err);
+      toast.error("Could not load audit history.");
+    } finally {
+      setAuditLoading(false);
+    }
+  };
 // Computed values from API data
 const computedEventData = eventData
   ? {
@@ -996,6 +1005,19 @@ useEffect(() => {
                   <Trash2 size={16} />
                   Delete
                 </button>
+                {/* Audit History — only for cancelled sub-events */}
+                {eventData?.event_status === "cancelled" && (
+                  <button
+                    onClick={fetchSubEventAudit}
+                    disabled={auditLoading}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold
+                              bg-amber-600 hover:bg-amber-700 text-white transition-all duration-200
+                              hover:scale-105 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <History size={16} />
+                    {auditLoading ? "Loading..." : "View Audit"}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1643,7 +1665,178 @@ useEffect(() => {
                 </div>
               </div>
             </div>
+            {/* ── Sub-Event Audit History Panel ── */}
+            {showAuditPanel && auditHistory && (
+              <div
+                className={`mt-8 p-6 rounded-3xl ${theme.cardBgDarker}`}
+                style={{ ...cardStyle, borderRadius: "24px" }}
+              >
+                {/* Panel Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                      <History className="text-amber-400 w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold uppercase tracking-wider">
+                        Sub-Event Audit Record
+                      </h3>
+                      <p className={`text-xs mt-0.5 ${theme.subText}`}>
+                        Immutable snapshot taken at cancellation
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowAuditPanel(false)}
+                    className={`text-xs px-3 py-1.5 rounded-full border ${
+                      isDark ? "border-gray-600 text-gray-400 hover:bg-gray-700" : "border-gray-300 text-gray-500 hover:bg-gray-100"
+                    } transition-colors`}
+                  >
+                    Dismiss
+                  </button>
+                </div>
 
+                {/* Cancellation Info Row */}
+                <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6`}>
+                  {/* Cancelled At */}
+                  <div className={`p-4 rounded-2xl ${theme.bg} flex flex-col gap-1`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Clock className="text-red-400 w-4 h-4" />
+                      <span className={`text-xs uppercase font-semibold ${theme.subText}`}>
+                        Cancelled At
+                      </span>
+                    </div>
+                    <span className={`text-sm font-bold ${theme.text}`}>
+                      {auditHistory.cancelled_at
+                        ? new Date(auditHistory.cancelled_at).toLocaleString("en-US", {
+                            month: "short", day: "numeric", year: "numeric",
+                            hour: "2-digit", minute: "2-digit",
+                          })
+                        : "N/A"}
+                    </span>
+                  </div>
+
+                  {/* Refund Policy */}
+                  <div className={`p-4 rounded-2xl ${theme.bg} flex flex-col gap-1`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Tag className="text-blue-400 w-4 h-4" />
+                      <span className={`text-xs uppercase font-semibold ${theme.subText}`}>
+                        Refund Policy
+                      </span>
+                    </div>
+                    <span className={`text-sm font-bold ${theme.text}`}>
+                      {auditHistory.refund_percentage ?? 100}%
+                    </span>
+                    <span className={`text-xs ${theme.subText} capitalize`}>
+                      {auditHistory.cancellation_tier?.replace(/_/g, " ") || "Full Refund"}
+                    </span>
+                  </div>
+
+                  {/* Version */}
+                  <div className={`p-4 rounded-2xl ${theme.bg} flex flex-col gap-1`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <BarChart2 className="text-purple-400 w-4 h-4" />
+                      <span className={`text-xs uppercase font-semibold ${theme.subText}`}>
+                        Version
+                      </span>
+                    </div>
+                    <span className={`text-sm font-bold ${theme.text}`}>
+                      V{auditHistory.version ?? 1}
+                    </span>
+                    <span className={`text-xs ${theme.subText}`}>
+                      {auditHistory.is_sub_event ? "Sub-Event Record" : "Main Event Record"}
+                    </span>
+                  </div>
+
+                  {/* Total Refund Amount */}
+                  <div className={`p-4 rounded-2xl ${theme.bg} flex flex-col gap-1`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <DollarSign className="text-emerald-400 w-4 h-4" />
+                      <span className={`text-xs uppercase font-semibold ${theme.subText}`}>
+                        Total Refund
+                      </span>
+                    </div>
+                    <span className={`text-sm font-bold text-emerald-400`}>
+                      ₹{auditHistory.metrics_snapshot?.total_refund_amount?.toFixed(2) ?? "0.00"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Cancellation Reason */}
+                {auditHistory.cancellation_reason && (
+                  <div className={`p-4 rounded-2xl ${theme.bg} mb-6`}>
+                    <p className={`text-xs uppercase font-semibold ${theme.subText} mb-2`}>
+                      Cancellation Reason
+                    </p>
+                    <p className={`text-sm ${theme.text}`}>
+                      {auditHistory.cancellation_reason}
+                    </p>
+                  </div>
+                )}
+
+                {/* Metrics Snapshot Grid */}
+                <div className="mb-2">
+                  <p className={`text-xs uppercase font-semibold ${theme.subText} mb-3 flex items-center gap-2`}>
+                    <BarChart2 className="w-4 h-4" />
+                    Frozen Lifecycle Metrics (at cancellation)
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {[
+                      { label: "Bookings",     value: auditHistory.metrics_snapshot?.totalBookings      ?? 0, color: "text-blue-400"   },
+                      { label: "Tickets Sold", value: auditHistory.metrics_snapshot?.totalTicketsSold   ?? 0, color: "text-purple-400" },
+                      { label: "Revenue",      value: `₹${auditHistory.metrics_snapshot?.revenue        ?? 0}`, color: "text-emerald-400" },
+                      { label: "Likes",        value: auditHistory.metrics_snapshot?.like                ?? 0, color: "text-pink-400"   },
+                      { label: "Shares",       value: auditHistory.metrics_snapshot?.share               ?? 0, color: "text-cyan-400"   },
+                      { label: "Cancellations",value: auditHistory.metrics_snapshot?.total_cancellation ?? 0, color: "text-red-400"    },
+                    ].map(({ label, value, color }) => (
+                      <div
+                        key={label}
+                        className={`p-3 rounded-xl ${theme.bg} flex flex-col items-center text-center`}
+                      >
+                        <span className={`text-xs ${theme.subText} mb-1`}>{label}</span>
+                        <span className={`text-base font-bold ${color}`}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Event Structure Snapshot */}
+                <div className={`mt-6 p-4 rounded-2xl ${theme.bg}`}>
+                  <p className={`text-xs uppercase font-semibold ${theme.subText} mb-3`}>
+                    Event Structure Snapshot
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-2">
+                    {[
+                      { label: "Event Name",    value: auditHistory.event_structure?.event_name },
+                      { label: "Category",      value: auditHistory.event_structure?.event_category },
+                      { label: "Sub-Category",  value: auditHistory.event_structure?.event_subcategory },
+                      { label: "Event Type",    value: auditHistory.event_structure?.event_type },
+                      { label: "Payment Type",  value: auditHistory.event_structure?.payment_type },
+                      { label: "Location Type", value: auditHistory.event_structure?.location_type },
+                      { label: "Venue",         value: auditHistory.event_structure?.venue },
+                    ]
+                      .filter(({ value }) => value)
+                      .map(({ label, value }) => (
+                        <div key={label} className="flex items-center justify-between gap-2 py-1 border-b border-gray-700/30">
+                          <span className={`text-xs ${theme.subText}`}>{label}</span>
+                          <span className={`text-xs font-semibold ${theme.text} capitalize`}>{value}</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Audit Record ID */}
+                <div className="mt-4 flex items-center justify-end gap-2">
+                  <span className={`text-[10px] ${theme.subText} opacity-50`}>
+                    Audit ID: {auditHistory._id?.toString?.()?.slice(-12) ?? "N/A"}
+                  </span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 opacity-50" />
+                  <span className={`text-[10px] ${theme.subText} opacity-50`}>
+                    Locked · Immutable
+                  </span>
+                </div>
+              </div>
+            )}
             {/* Footer Buttons */}
             {showSeatingModal && (
               <SeatingLayoutModal
