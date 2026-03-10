@@ -229,12 +229,7 @@ const isOnlineOrRecorded =
   event?.location_type === 'recorded';
 
 
-const actionLabel = isOnlineOrRecorded
-  ? hasEventStarted()
-    ? 'Watch Now'
-    : 'Notify Me'
-  : 'Book Tickets';
-
+const actionLabel = 'Book Tickets';
 
   const handleShare = async (method: string) => {
     try {
@@ -410,42 +405,25 @@ useEffect(() => {
   fetchAllEvents();
 }, []);
 
-const handleBookEvent = () => {
-  const isOnlineOrRecorded =
-    event?.location_type === 'online' ||
-    event?.location_type === 'recorded';
+  const handleBookEvent = () => {
+    const hasSeatingLayout =
+      (event?.seating_layout?.seats?.length ?? 0) > 0;
 
-  if (isOnlineOrRecorded) {
-    if (hasEventStarted()) {
-      // WATCH FLOW
-      router.push(`/events/${eventId}/watch`);
-    } else {
-      // NOTIFY FLOW
-      alert('You will be notified when the event starts');
-      // TODO: call notify-me API
-    }
-    return;
-  }
-
-  // ⬇️ OFFLINE EVENTS (existing logic)
-  const hasSeatingLayout =
-    (event?.seating_layout?.seats?.length ?? 0) > 0;
-
-  if (hasSeatingLayout) {
-    router.push(`/events/${eventId}/seating`);
-    return;
-  }
-
-  if (event?.payment_type === 'free') {
-    handleFreeRegistration();
-  } else {
-    if (!event?.ticket_types?.length) {
-      alert('No tickets available for this event');
+    if (hasSeatingLayout) {
+      router.push(`/events/${eventId}/seating`);
       return;
     }
-    setShowBookingModal(true);
-  }
-};
+
+    if (event?.payment_type === 'free') {
+      handleFreeRegistration();
+    } else {
+      if (!event?.ticket_types?.length) {
+        alert('No tickets available for this event');
+        return;
+      }
+      setShowBookingModal(true);
+    }
+  };
 
   const handleFreeRegistration = async () => {
     setIsBooking(true);
@@ -903,9 +881,7 @@ const similarEvents = allEvents.filter((e) => {
                   onClick={handleBookEvent}
                   className="flex items-center justify-center w-40 h-12 gap-2 px-3 py-2 rounded-3xl text-white bg-gradient-to-b from-indigo-300 via-violet-600 to-purple-400 hover:opacity-90"
                 >
-                  {actionLabel !== 'Watch Now' && (
-                    <img src={BookTicketIcon.src} className="w-6 h-6 block" alt="Book Ticket" />
-                  )}
+                  <img src={BookTicketIcon.src} className="w-6 h-6 block" alt="Book Ticket" />
                   {actionLabel}
                 </button>
               )}
