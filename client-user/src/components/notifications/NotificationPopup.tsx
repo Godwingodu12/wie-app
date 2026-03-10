@@ -255,33 +255,69 @@ const loadNotifications = async () => {
     try {
       await handleMarkRead(notification);
 
+      //  FOLLOW REQUEST 
       if (notification.type === 'follow_request') {
         const username = notification.meta?.username || notification.fromUserId;
-        if (username) {
-          router.push(`/profile/${username}`);
-          onClose();
-          return;
-        }
+        if (username) router.push(`/profile/${username}`);
+        onClose();
+        return;
       }
-      // Handle follow notifications
+
+      //  FOLLOWING (grouped or single) 
       if (notification.type === 'following') {
-        if (notification.meta?.primaryActors && notification.meta.primaryActors.length === 1) {
-          // Single follower - go to their profile
+        if (notification.meta?.primaryActors?.length === 1) {
           const follower = notification.meta.primaryActors[0];
-          const username = follower.username || follower.actorId;
-          router.push(`/profile/${username}`);
-        } else if (notification.meta?.primaryActors && notification.meta.primaryActors.length > 1) {
-          // Multiple followers - go to followers list
+          router.push(`/profile/${follower.username || follower.actorId}`);
+        } else if ((notification.meta?.primaryActors?.length ?? 0) > 1) {
           router.push('/connections?tab=followers');
         } else if (notification.fromUserId) {
-          // Fallback - use fromUserId
           router.push(`/profile/${notification.fromUserId}`);
         }
         onClose();
         return;
       }
 
-      // ... rest of your existing code for other notification types
+      // EVENT CANCELLED 
+      // Must come BEFORE generic bookingId check so it routes to cancelled tab
+      if (notification.type === 'event_cancelled') {
+        const bId = notification.bookingId || notification.meta?.bookingId;
+        if (bId) {
+          router.push(`/bookings/${bId}`);
+        } else if (notification.ticketId) {
+          router.push(`/bookings?cancelled=${notification.ticketId}`);
+        } else {
+          router.push('/bookings?tab=cancelled');
+        }
+        onClose();
+        return;
+      }
+
+      // REFUND SUCCESS
+      if (notification.type === 'refund_success') {
+        const bId = notification.bookingId || notification.meta?.bookingId;
+        router.push(bId ? `/bookings/${bId}/refund` : '/bookings');
+        onClose();
+        return;
+      }
+
+      // EVENT REHOSTED
+      if (notification.type === 'event_rehosted') {
+        if (notification.ticketId) router.push(`/events/${notification.ticketId}`);
+        else router.push('/bookings');
+        onClose();
+        return;
+      }
+
+      // EVENT CREATED
+      if (notification.type === 'event_created') {
+        if (notification.eventId) router.push(`/events/${notification.eventId}`);
+        else if (notification.ticketId) router.push(`/events/${notification.ticketId}`);
+        onClose();
+        return;
+      }
+
+      // GENERIC FALLBACK
+      // booking_confirmed, payment_success, refund_initiated, etc.
       const bookingId = notification.bookingId || notification.meta?.bookingId;
       const targetUrl =
         notification.targetUrl ||
@@ -292,26 +328,16 @@ const loadNotifications = async () => {
         router.push(`/bookings/${bookingId}`);
       } else if (targetUrl) {
         router.push(targetUrl);
-      } else if (notification.type === 'refund_success') {
-        // Navigate to refund tracking page
-        const bId = notification.bookingId || notification.meta?.bookingId;
-        if (bId) router.push(`/bookings/${bId}/refund`);
-        else router.push('/bookings');
-      } else if (notification.type === "event_cancelled" && notification.ticketId) {
-        // Show cancelled event details — navigate to a cancelled info page or bookings
-        router.push(`/bookings?cancelled=${notification.ticketId}`);
-      } else if (notification.type === "event_rehosted" && notification.ticketId) {
-        // Navigate to the re-hosted event so user can re-book
-        router.push(`/events/${notification.ticketId}`);
-      } else if (notification.type === "event_created" && notification.eventId) {
-        router.push(`/events/${notification.eventId}`);
       } else if (notification.ticketId) {
         router.push(`/events/${notification.ticketId}`);
+      } else if (notification.eventId) {
+        router.push(`/events/${notification.eventId}`);
       }
 
       onClose();
     } catch (error) {
-      console.error("Error handling notification click", error);
+      console.error('Error handling notification click', error);
+      onClose();
     }
   };
   /* Counts Calculation */
@@ -600,28 +626,27 @@ const NotificationItem = ({
     notification.meta?.eventId ||
     notification.meta?.event_id;
 
-  // Fetch Event Banner if needed
+
   useEffect(() => {
-    if (isEvent && targetEventId && !eventBanner && !bannerLoading) {
-      setBannerLoading(true);
-      getEventById(targetEventId)
-        .then((res) => {
-          const banner = res.data?.event?.event_banner;
-          if (banner) {
-            setEventBanner(banner);
-          }
-        })
-        .catch((err) => {
-          console.debug(
-            "Failed to load event banner for notification:",
-            notification.id,
-          );
-        })
-        .finally(() => {
-          setBannerLoading(false);
-        });
-    }
-  }, [isEvent, targetEventId, eventBanner, bannerLoading, notification.id]);
+  // Skip banner fetch for cancelled events — the event may return 404
+  if (notification.type === 'event_cancelled') return;
+
+  if (isEvent && targetEventId && !eventBanner && !bannerLoading) {
+    setBannerLoading(true);
+    getEventById(targetEventId)
+      .then((res) => {
+        const banner = res.data?.event?.event_banner;
+        if (banner) setEventBanner(banner);
+      })
+      .catch(() => {
+        // Silently ignore — banner is non-critical
+      })
+      .finally(() => {
+        setBannerLoading(false);
+      });
+  }
+  }, [isEvent, targetEventId, eventBanner, bannerLoading, notification.id, notification.type]);
+
   useEffect(() => {
     const fetchUserProfile = async () => {
       // Only fetch for follow-related notifications
@@ -915,7 +940,11 @@ const NotificationItem = ({
           style={{ background: themeStyles.pillBg, color: themeStyles.text }}
         >
           {isEvent ? (
-            bannerLoading ? (
+            notification.type === 'event_cancelled' ? (
+              <div className="w-full h-full flex items-center justify-center">
+                <Calendar size={18} style={{ color: '#ef4444' }} />
+              </div>
+            ) : bannerLoading ? (
               <div className="w-full h-full bg-zinc-700 animate-pulse" />
             ) : eventBanner ? (
               <img
