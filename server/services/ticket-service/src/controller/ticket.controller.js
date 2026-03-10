@@ -5,11 +5,11 @@ import TicketLike from '../models/ticketLike.model.js';
 import { createNotification } from '../utils/notificationHelper.js';
 import { logger } from '../utils/logger.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
-import { promoteFirstSubEventToMain, getCancellationDescription, snapshotAndLockTicket, rehostMainEventV2 } from '../services/ticket.service.js';
+import { promoteFirstSubEventToMain, getCancellationDescription, snapshotAndLockTicket,snapshotAndLockSubEvent, rehostMainEventV2 } from '../services/ticket.service.js';
 import TicketAudit from '../models/ticketAudit.model.js';
 import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
 import { publishEventCancellation, publishToExchange } from "../utils/eventPublisher.js";
-import { getBookingStatsByDate, getBookingGrowthStats, getMonthlyBookingChart,getBookingsForEvent } from '../grpc/bookingClient.js';
+import { getBookingStatsByDate, getBookingGrowthStats, getMonthlyBookingChart, getBookingsForEvent, cancelEventBookings } from '../grpc/bookingClient.js';
 import ExcelJS from 'exceljs';
 import { getWieUsersByIds }    from '../grpc/wieUserClient.js';
 import { 
@@ -3509,7 +3509,25 @@ export const cancelEvent = async (req, res) => {
       // Single markModified call covers the entire sub-event object
       ticket.markModified(`sub_events.${subEventIndex}`);
       await ticket.save();
-
+      // Step 4: Save sub-event audit to TicketAudit table
+      await snapshotAndLockSubEvent(ticket, se, {
+        cancelled_by:        userId,
+        cancellation_reason: cancellation_reason || '',
+        refund_percentage:   refundPercentage,
+        cancellation_tier:   cancellationTier,
+        total_refund_amount: seSnapshot.total_refund_amount ?? 0,
+      });
+      // Step 5: Cancel all CONFIRMED/PENDING bookings for this sub-event via transaction-service
+      try {
+        await cancelEventBookings(subEventId, {
+          cancellationReason: cancellation_reason || 'Event cancelled by host',
+          refundPercentage,
+          cancellationTier,
+          isHostCancellation: true,
+        });
+      } catch (bookingCancelErr) {
+        console.error('⚠️ Failed to cancel bookings for sub-event (non-blocking):', bookingCancelErr.message);
+      }
     // BRANCH B — MAIN EVENT CANCELLATION
     } else {
 
@@ -3564,7 +3582,17 @@ export const cancelEvent = async (req, res) => {
           total_refund_amount: totalRefundAmount,
         });
       }
-
+      // Step 6: Cancel all CONFIRMED/PENDING bookings for this main event
+      try {
+        await cancelEventBookings(ticketId, {
+          cancellationReason: cancellation_reason || 'Event cancelled by host',
+          refundPercentage,
+          cancellationTier,
+          isHostCancellation: true,
+        });
+      } catch (bookingCancelErr) {
+        console.error('⚠️ Failed to cancel bookings for main event (non-blocking):', bookingCancelErr.message);
+      }
       // Assign to outer scope for publish block below
       var _mainBookings        = bookingsForEvent;
       var _mainBookingRefundMap = bookingRefundMapTemp;
@@ -4055,5 +4083,25 @@ export const getEventVersions = async (req, res) => {
     return res.status(200).json({ success: true, data: { versions: result } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getSubEventAudit = async (req, res) => {
+  try {
+    const { parentEventId, subEventId } = req.params;
+    const audit = await TicketAudit.findOne({
+      original_ticket_id: parentEventId,
+      sub_event_id:       subEventId,
+      is_sub_event:       true,
+    }).lean();
+
+    if (!audit) {
+      return res.status(404).json({ message: "No audit record found for this sub-event." });
+    }
+
+    return res.status(200).json({ success: true, data: audit });
+  } catch (err) {
+    console.error("❌ getSubEventAudit error:", err);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

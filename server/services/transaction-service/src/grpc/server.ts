@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import BookingModel from '../models/booking.model.js';
 import { getEventDates } from './ticketClient.js';
 import { processRefundJob } from '../controllers/settlementController';
+import { prisma } from '../config/db.js';
+import { publishRefundJob } from '../rabbit/index.js';
 import amqp from 'amqplib';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -242,6 +244,136 @@ const getRefundStatus = async (call: any, callback: any) => {
   }
 };
 
+const publishEventCancellationNotificationUpdate = async ({
+  eventId, cancellationReason, refundPercentage, cancellationTier, isHostCancellation, bookings,
+}: any) => {
+  try {
+    const conn = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://localhost');
+    const ch   = await conn.createChannel();
+    const EXCHANGE = 'wie.events';
+    const ROUTING  = 'event.booking.cancelled';
+    await ch.assertExchange(EXCHANGE, 'topic', { durable: true });
+
+    const payload = {
+      eventId,
+      cancellationReason,
+      refundPercentage,
+      cancellationTier,
+      isHostCancellation,
+      bookings: bookings.map((b: any) => ({
+        id:       String(b.id),
+        bookingId: b.bookingId,
+        userId:   b.userId,
+        subtotal: parseFloat(b.subtotal?.toString() || '0'),
+        platformFee: parseFloat(b.platformFee?.toString() || '0'),
+        eventName: (b.eventDetails as any)?.eventName || '',
+        ticketType: b.ticketType,
+        quantity:   b.quantity,
+      })),
+    };
+
+    ch.publish(EXCHANGE, ROUTING, Buffer.from(JSON.stringify(payload)), { persistent: true });
+    await ch.close();
+    await conn.close();
+  } catch (err: any) {
+    console.error('⚠️ publishEventCancellationNotificationUpdate failed:', err.message);
+  }
+};
+
+const cancelEventBookings = async (call: any, callback: any) => {
+  try {
+    const { eventId, cancellationReason, refundPercentage, cancellationTier, isHostCancellation } = call.request;
+
+    if (!eventId) {
+      return callback(null, { success: false, error: 'eventId required', updatedCount: 0 });
+    }
+
+    // Find all active bookings for this event (ticketId matches eventId for main, or subEventId)
+    const bookings = await prisma.booking.findMany({
+      where: {
+        ticketId: eventId,
+        bookingStatus: { in: ['CONFIRMED', 'PENDING'] },
+      },
+    });
+
+    if (!bookings.length) {
+      return callback(null, { success: true, error: '', updatedCount: 0 });
+    }
+
+    const now = new Date();
+    // Bulk update all matching bookings to CANCELLED
+    const updateResult = await prisma.booking.updateMany({
+      where: {
+        ticketId: eventId,
+        bookingStatus: { in: ['CONFIRMED', 'PENDING'] },
+      },
+      data: {
+        bookingStatus:      'CANCELLED',
+        paymentStatus:      'REFUND_PENDING',
+        cancellationReason: cancellationReason || 'Event cancelled by host',
+        cancelledAt:        now,
+        refundStatus:       refundPercentage > 0 ? 'PENDING' : null,
+        refundAmount:       undefined, // calculated per booking below
+        updatedAt:          now,
+      },
+    });
+
+    // Per-booking: set individual refund amounts and push refund jobs
+    for (const booking of bookings) {
+      const subtotal   = parseFloat(booking.subtotal?.toString() || '0');
+      const refundAmt  = parseFloat(((subtotal * (refundPercentage ?? 100)) / 100).toFixed(2));
+
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          refundAmount:       refundAmt,
+          refundInitiatedAt:  refundAmt > 0 ? now : undefined,
+          cancellationReason: cancellationReason || 'Event cancelled by host',
+        },
+      });
+
+      // Enqueue refund job if there's an amount to refund
+      if (refundAmt > 0) {
+        try {
+          await publishRefundJob({
+            bookingId:        String(booking.id),
+            refundPercentage: refundPercentage ?? 100,
+            eventName:        (booking.eventDetails as any)?.eventName || '',
+          });
+        } catch (refundErr: any) {
+          console.error(`⚠️ Failed to enqueue refund for booking ${booking.id}:`, refundErr.message);
+        }
+      }
+    }
+
+    // Update the existing booking_confirmed / payment_success notifications to event_cancelled
+    // This is done via RabbitMQ publish — notification-service consumer will handle it
+    await publishEventCancellationNotificationUpdate({
+      eventId,
+      cancellationReason: cancellationReason || 'Event cancelled by host',
+      refundPercentage:   refundPercentage ?? 100,
+      cancellationTier:   cancellationTier  || 'full_refund',
+      isHostCancellation: isHostCancellation ?? true,
+      bookings: bookings.map((b: any) => ({
+        id:             String(b.id),
+        bookingId:      b.bookingId,
+        userId:         b.userId,
+        subtotal:       parseFloat(b.subtotal?.toString() || '0'),
+        platformFee:    parseFloat(b.platformFee?.toString() || '0'),
+        eventName:      (b.eventDetails as any)?.eventName || '',
+        ticketType:     b.ticketType,
+        quantity:       b.quantity,
+        ticketId:       b.ticketId,      
+        parentTicketId: b.parentTicketId || '', 
+      })),
+    });
+
+    callback(null, { success: true, error: '', updatedCount: updateResult.count });
+  } catch (err: any) {
+    console.error('❌ [gRPC] cancelEventBookings error:', err.message);
+    callback(null, { success: false, error: err.message, updatedCount: 0 });
+  }
+};
 export const startGrpcServer = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -257,6 +389,7 @@ export const startGrpcServer = (): Promise<void> => {
         GetMonthlyBookingChart: getMonthlyBookingChart,
         GetBookingsForEvent: getBookingsForEvent,
         GetRefundStatus: getRefundStatus, 
+        CancelEventBookings: cancelEventBookings,
       });
 
       const port = process.env.BOOKING_GRPC_PORT || '50054';
@@ -282,8 +415,6 @@ export const startGrpcServer = (): Promise<void> => {
   });
 };
 
-// Rate-limited to ~200 refunds/min to avoid Razorpay throttling
-// Start this alongside the gRPC server
 export const startRefundWorker = async (): Promise<void> => {
   const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost';
   const QUEUE_NAME = 'wie.refund.jobs';

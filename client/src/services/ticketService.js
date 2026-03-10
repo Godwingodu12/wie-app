@@ -670,3 +670,9 @@ export const recoverSubEvent = async (parentTicketId, subEventId) => {
   );
   return response.data;
 };
+export const getTicketAuditBySubEvent = async (parentEventId, subEventId) => {
+  const response = await api.get(
+    `/ticket/audit/sub-event/${parentEventId}/${subEventId}`
+  );
+  return response.data;
+};

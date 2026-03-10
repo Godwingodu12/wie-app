@@ -315,6 +315,171 @@ export const createBooking = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+export const verifyPayment = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing payment verification parameters',
+      });
+    }
+
+    const booking = await BookingModel.findByRazorpayOrderId(razorpayOrderId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    if (booking.userId !== userId) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    // Verify Razorpay signature
+    const isValid = RazorpayService.verifySignature(
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+      process.env.RAZORPAY_KEY_SECRET!
+    );
+
+    if (!isValid) {
+      await BookingModel.update(booking.id, {
+        paymentStatus: 'FAILED',
+        bookingStatus: 'CANCELLED',
+      });
+      await PaymentTransactionModel.updateByRazorpayOrderId(razorpayOrderId, {
+        status:           'FAILED',
+        errorDescription: 'Invalid payment signature',
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Payment verification failed',
+      });
+    }
+
+    const razorpay = RazorpayService.getInstance(
+      process.env.RAZORPAY_KEY_ID!,
+      process.env.RAZORPAY_KEY_SECRET!
+    );
+
+    const paymentDetails = await RazorpayService.getPaymentDetails(
+      razorpay,
+      razorpayPaymentId
+    );
+
+    // Generate QR code
+    const qrCode = await generateQRCode({
+      bookingId: booking.bookingId,
+      userId:    booking.userId,
+      ticketId:  booking.ticketId,
+      eventName: (booking.eventDetails as any).eventName,
+      eventDate: (booking.eventDetails as any).eventDate,
+      quantity:  booking.quantity,
+    });
+
+    // Confirm booking
+    const updatedBooking = await BookingModel.update(booking.id, {
+      paymentStatus:    'COMPLETED',
+      bookingStatus:    'CONFIRMED',
+      razorpayPaymentId,
+      razorpaySignature,
+      paymentMethod:    paymentDetails.method,
+      qrCode,
+    });
+
+    await PaymentTransactionModel.updateByRazorpayOrderId(razorpayOrderId, {
+      status:           'COMPLETED',
+      razorpayPaymentId,
+      method:           paymentDetails.method,
+      bank:             paymentDetails.bank    || undefined,
+      wallet:           paymentDetails.wallet  || undefined,
+      vpa:              paymentDetails.vpa     || undefined,
+      email:            paymentDetails.email   || undefined,
+      contact:          paymentDetails.contact ? String(paymentDetails.contact) : undefined,
+      webhookData:      paymentDetails as any,
+    });
+
+    // Update ticket stats
+    await safeUpdateTicketStats(booking.ticketId, 'totalBookings', 1);
+    await safeUpdateTicketStats(booking.ticketId, 'totalTicketsSold', booking.quantity);
+    await safeUpdateTicketStats(
+      booking.ticketId,
+      'revenue',
+      parseFloat(booking.subtotal.toString()) // only ticket value (host's share) as revenue
+    );
+    await createNotification({
+      userId,
+      type:      'payment_success',
+      title:     'Booking Confirmed!',
+      message:   `Your booking for ${(booking.eventDetails as any).eventName} is confirmed. Payment of ₹${booking.totalAmount} received.`,
+      bookingId: String(booking.id),
+      ticketId:  booking.ticketId,
+      link:      `/bookings/${booking.id}`,
+    });
+
+    // ── ESCROW: Hold funds until event completes 
+    // subtotal = host's 100% ticket value
+    // platformFee = wie's flat ₹1 × qty (already stored in booking)
+    const organizationAmount = parseFloat(booking.subtotal.toString());
+    const platformFee        = parseFloat(booking.platformFee.toString());
+    const totalPaid          = parseFloat(booking.totalAmount.toString());
+
+    // Get host's Razorpay linked account (non-blocking if missing)
+    let hostRazorpayAccountId: string | undefined;
+    try {
+      const hostAccount = await prisma.hostLinkedAccount.findUnique({
+        where: { group_id: booking.groupId },
+      });
+      hostRazorpayAccountId = hostAccount?.razorpay_account_id ?? undefined;
+    } catch {
+      // Host may not have linked account yet — that's ok
+    }
+
+    await SettlementService.createEscrowEntry({
+      bookingId:            String(booking.id),
+      ticketId:             booking.ticketId,
+      groupId:              booking.groupId,
+      totalAmount:          totalPaid,
+      organizationAmount,   // ✅ host's 100% share
+      platformFee,          // ✅ wie's flat fee
+      bankDetails: (booking.eventDetails as any).settlementBankDetails || {
+        bank_acc_holder: process.env.WIE_BANK_ACC_HOLDER || 'WIE Platform',
+        bank_acc_no:     process.env.WIE_BANK_ACC_NO     || '',
+        bank_ifsc:       process.env.WIE_BANK_IFSC       || '',
+        bank_acc_type:   process.env.WIE_BANK_ACC_TYPE   || 'current',
+      },
+      status:               'HELD',
+      host_razorpay_account_id: hostRazorpayAccountId,
+    });
+
+    // Record in internal ledger
+    await LedgerModel.recordPayment({
+      bookingId:   String(booking.id),
+      ticketId:    booking.ticketId,
+      groupId:     booking.groupId,
+      totalAmount: totalPaid,
+      platformFee,
+      hostAmount:  organizationAmount,
+      referenceId: razorpayPaymentId,
+    });
+
+    res.json({
+      success: true,
+      message: 'Payment verified successfully',
+      data: { booking: updatedBooking, qrCode },
+    });
+  } catch (error: any) {
+    console.error('❌ Error verifying payment:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const createSeatedBooking = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -540,170 +705,6 @@ export const checkUserBooking = async (req: Request, res: Response) => {
   }
 };
 
-export const verifyPayment = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing payment verification parameters',
-      });
-    }
-
-    const booking = await BookingModel.findByRazorpayOrderId(razorpayOrderId);
-    if (!booking) {
-      return res.status(404).json({ success: false, message: 'Booking not found' });
-    }
-
-    if (booking.userId !== userId) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
-    }
-
-    // Verify Razorpay signature
-    const isValid = RazorpayService.verifySignature(
-      razorpayOrderId,
-      razorpayPaymentId,
-      razorpaySignature,
-      process.env.RAZORPAY_KEY_SECRET!
-    );
-
-    if (!isValid) {
-      await BookingModel.update(booking.id, {
-        paymentStatus: 'FAILED',
-        bookingStatus: 'CANCELLED',
-      });
-      await PaymentTransactionModel.updateByRazorpayOrderId(razorpayOrderId, {
-        status:           'FAILED',
-        errorDescription: 'Invalid payment signature',
-      });
-      return res.status(400).json({
-        success: false,
-        message: 'Payment verification failed',
-      });
-    }
-
-    const razorpay = RazorpayService.getInstance(
-      process.env.RAZORPAY_KEY_ID!,
-      process.env.RAZORPAY_KEY_SECRET!
-    );
-
-    const paymentDetails = await RazorpayService.getPaymentDetails(
-      razorpay,
-      razorpayPaymentId
-    );
-
-    // Generate QR code
-    const qrCode = await generateQRCode({
-      bookingId: booking.bookingId,
-      userId:    booking.userId,
-      ticketId:  booking.ticketId,
-      eventName: (booking.eventDetails as any).eventName,
-      eventDate: (booking.eventDetails as any).eventDate,
-      quantity:  booking.quantity,
-    });
-
-    // Confirm booking
-    const updatedBooking = await BookingModel.update(booking.id, {
-      paymentStatus:    'COMPLETED',
-      bookingStatus:    'CONFIRMED',
-      razorpayPaymentId,
-      razorpaySignature,
-      paymentMethod:    paymentDetails.method,
-      qrCode,
-    });
-
-    await PaymentTransactionModel.updateByRazorpayOrderId(razorpayOrderId, {
-      status:           'COMPLETED',
-      razorpayPaymentId,
-      method:           paymentDetails.method,
-      bank:             paymentDetails.bank    || undefined,
-      wallet:           paymentDetails.wallet  || undefined,
-      vpa:              paymentDetails.vpa     || undefined,
-      email:            paymentDetails.email   || undefined,
-      contact:          paymentDetails.contact ? String(paymentDetails.contact) : undefined,
-      webhookData:      paymentDetails as any,
-    });
-
-    // Update ticket stats
-    await safeUpdateTicketStats(booking.ticketId, 'totalBookings', 1);
-    await safeUpdateTicketStats(booking.ticketId, 'totalTicketsSold', booking.quantity);
-    await safeUpdateTicketStats(
-      booking.ticketId,
-      'revenue',
-      parseFloat(booking.subtotal.toString()) // only ticket value (host's share) as revenue
-    );
-    await createNotification({
-      userId,
-      type:      'payment_success',
-      title:     'Booking Confirmed!',
-      message:   `Your booking for ${(booking.eventDetails as any).eventName} is confirmed. Payment of ₹${booking.totalAmount} received.`,
-      bookingId: String(booking.id),
-      ticketId:  booking.ticketId,
-      link:      `/bookings/${booking.id}`,
-    });
-
-    // ── ESCROW: Hold funds until event completes 
-    // subtotal = host's 100% ticket value
-    // platformFee = wie's flat ₹1 × qty (already stored in booking)
-    const organizationAmount = parseFloat(booking.subtotal.toString());
-    const platformFee        = parseFloat(booking.platformFee.toString());
-    const totalPaid          = parseFloat(booking.totalAmount.toString());
-
-    // Get host's Razorpay linked account (non-blocking if missing)
-    let hostRazorpayAccountId: string | undefined;
-    try {
-      const hostAccount = await prisma.hostLinkedAccount.findUnique({
-        where: { group_id: booking.groupId },
-      });
-      hostRazorpayAccountId = hostAccount?.razorpay_account_id ?? undefined;
-    } catch {
-      // Host may not have linked account yet — that's ok
-    }
-
-    await SettlementService.createEscrowEntry({
-      bookingId:            String(booking.id),
-      ticketId:             booking.ticketId,
-      groupId:              booking.groupId,
-      totalAmount:          totalPaid,
-      organizationAmount,   // ✅ host's 100% share
-      platformFee,          // ✅ wie's flat fee
-      bankDetails: (booking.eventDetails as any).settlementBankDetails || {
-        bank_acc_holder: process.env.WIE_BANK_ACC_HOLDER || 'WIE Platform',
-        bank_acc_no:     process.env.WIE_BANK_ACC_NO     || '',
-        bank_ifsc:       process.env.WIE_BANK_IFSC       || '',
-        bank_acc_type:   process.env.WIE_BANK_ACC_TYPE   || 'current',
-      },
-      status:               'HELD',
-      host_razorpay_account_id: hostRazorpayAccountId,
-    });
-
-    // Record in internal ledger
-    await LedgerModel.recordPayment({
-      bookingId:   String(booking.id),
-      ticketId:    booking.ticketId,
-      groupId:     booking.groupId,
-      totalAmount: totalPaid,
-      platformFee,
-      hostAmount:  organizationAmount,
-      referenceId: razorpayPaymentId,
-    });
-
-    res.json({
-      success: true,
-      message: 'Payment verified successfully',
-      data: { booking: updatedBooking, qrCode },
-    });
-  } catch (error: any) {
-    console.error('❌ Error verifying payment:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
 export const getUserBookings = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;

@@ -124,6 +124,7 @@ export interface RehostedEventInfo {
   location:      string;
   venue:         string;
 }
+
 export const getAllLiveEvents = async (): Promise<GetAllLiveEventsResponse> => {
   return new Promise((resolve, reject) => {
     const client = getClient();    

@@ -41,6 +41,12 @@ export default function BookingDetailPage() {
     loadBooking();
   }, [bookingId]);
 
+  useEffect(() => {
+    const handleFocus = () => loadBooking();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [bookingId]);
+  
   const loadBooking = async () => {
     try {
       setLoading(true);
@@ -144,8 +150,7 @@ export default function BookingDetailPage() {
   const isCancelled = booking.bookingStatus === 'CANCELLED';
   const hasRefund = booking.refundAmount && booking.refundAmount > 0;
   const refundCompleted = booking.refundStatus === 'COMPLETED' && booking.refundProcessedAt;
-  const isAdminCancelled = booking.cancellationReason?.toLowerCase().includes('event cancelled') || booking.cancellationReason?.toLowerCase().includes('cancelled by host');
-
+  const isAdminCancelled = booking.cancellationReason?.toLowerCase().includes('event cancelled') || booking.cancellationReason?.toLowerCase().includes('cancelled by host') || booking.cancellationReason?.toLowerCase().includes('event cancelled by host');
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">

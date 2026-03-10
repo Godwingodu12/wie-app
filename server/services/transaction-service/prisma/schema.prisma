@@ -211,7 +211,10 @@ enum PaymentStatus {
   FAILED
   REFUNDED
   PARTIALLY_REFUNDED
-
+  REFUND_PENDING
+  REFUND_PROCESSING
+  NOT_APPLICABLE  
+  REFUND_FAILED
   @@schema("transactions")
 }
 
@@ -230,10 +233,9 @@ enum RefundStatus {
   PROCESSING
   COMPLETED
   FAILED
-
+  NOT_APPLICABLE 
   @@schema("transactions")
 }
-
 enum InteractionType {
   LIKE
   SHARE

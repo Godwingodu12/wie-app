@@ -6724,6 +6724,67 @@ export const snapshotAndLockTicket = async (ticket, {
     return null;
   }
 };
+export const snapshotAndLockSubEvent = async (parentTicket, subEvent, {
+  cancelled_by,
+  cancellation_reason = '',
+  refund_percentage   = 100,
+  cancellation_tier   = 'full_refund',
+  total_refund_amount = 0,
+} = {}) => {
+  try {
+    const metrics  = subEvent.lifecycle_metrics ?? {};
+    const snapshot = {
+      like:               metrics.like               ?? subEvent.like               ?? 0,
+      share:              metrics.share              ?? subEvent.share              ?? 0,
+      totalBookings:      metrics.totalBookings      ?? subEvent.totalBookings      ?? 0,
+      totalTicketsSold:   metrics.totalTicketsSold   ?? subEvent.totalTicketsSold   ?? 0,
+      revenue:            metrics.revenue            ?? subEvent.revenue            ?? 0,
+      total_cancellation: metrics.total_cancellation ?? subEvent.total_cancellation ?? 0,
+      total_refund_amount,
+    };
+
+    const audit = new TicketAudit({
+      original_ticket_id: parentTicket._id,
+      parent_ticket_id:   parentTicket._id,
+      userId:             parentTicket.userId  ?? null,
+      groupId:            parentTicket.groupId ?? null,
+      version:            subEvent.version ?? 1,
+      is_sub_event:       true,
+      sub_event_id:       subEvent._id,
+      event_structure: {
+        event_name:        subEvent.event_name        || '',
+        event_category:    subEvent.event_category    || parentTicket.event_category    || '',
+        event_subcategory: subEvent.event_subcategory || parentTicket.event_subcategory || '',
+        event_type:        subEvent.event_type        || parentTicket.event_type        || '',
+        event_description: subEvent.event_description || parentTicket.event_description || '',
+        event_banner:      subEvent.event_banner      || parentTicket.event_banner      || '',
+        event_logo:        subEvent.event_logo        || parentTicket.event_logo        || '',
+        location:          subEvent.location          || parentTicket.location          || '',
+        location_type:     subEvent.location_type     || parentTicket.location_type     || '',
+        venue:             subEvent.venue             || parentTicket.venue             || '',
+        payment_type:      subEvent.payment_type      || parentTicket.payment_type      || '',
+        event_dates:       subEvent.event_dates       || [],
+        ticket_types:      subEvent.ticket_types      || parentTicket.ticket_types      || [],
+        sub_events_count:  0,
+      },
+      metrics_snapshot:   snapshot,
+      cancelled_at:       subEvent.cancelled_at || new Date(),
+      cancelled_by:       cancelled_by || subEvent.cancelled_by || null,
+      cancellation_reason,
+      refund_percentage,
+      cancellation_tier,
+      is_locked:          true,
+    });
+
+    await audit.save();
+    console.log(`✅ Sub-event audit saved: ${subEvent._id} (parent: ${parentTicket._id})`);
+    return audit;
+  } catch (err) {
+    console.error(`⚠️ snapshotAndLockSubEvent failed for ${subEvent._id}:`, err.message);
+    console.error('   Detail:', err);
+    return null;
+  }
+};
 // Creates a brand-new V2 ticket from a cancelled V1's structure.
 // Resets ALL lifecycle metrics to zero. Links audit trail.
 export const rehostMainEventV2 = async (cancelledTicket, userId) => {
