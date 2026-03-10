@@ -107,3 +107,29 @@ export const getBookingsForEvent = async (ticketId) => {
     );
   });
 };
+
+export const cancelEventBookings = (eventId, { cancellationReason, refundPercentage, cancellationTier, isHostCancellation }) => {
+  return new Promise((resolve, reject) => {
+    const grpcClient = getClient(); 
+    grpcClient.CancelEventBookings(
+      {
+        eventId:            String(eventId),
+        cancellationReason: cancellationReason || '',
+        refundPercentage:   refundPercentage   ?? 100,
+        cancellationTier:   cancellationTier   || 'full_refund',
+        isHostCancellation: isHostCancellation ?? true,
+      },
+      (err, response) => {
+        if (err) {
+          console.error('❌ [Booking gRPC] cancelEventBookings error:', err.message);
+          return reject(err);
+        }
+        if (!response.success) {
+          console.error('❌ [Booking gRPC] cancelEventBookings failed:', response.error);
+          return reject(new Error(response.error || 'cancelEventBookings failed'));
+        }
+        resolve(response);
+      }
+    );
+  });
+};
