@@ -62,9 +62,16 @@ const subEventSchema = new mongoose.Schema({
   event_type: { type: String, required: true,enum: ['private', 'public']},
   subevent: { type: String, required: true, enum: ['1','2','5']},
   event_language: {
-      type: [String],
-      enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other'],
-      default: []
+    type: [String],
+    enum: [
+      "English", "Hindi", "Malayalam", "Tamil", "Kannada", "Telugu", "Marathi", "Gujarati", "Punjabi", "Urdu", "Bengali",
+      "Odia", "Assamese", "Sanskrit", "Konkani", "Maithili", "Manipuri", "Nepali", "Sinhala",
+      "Spanish", "French", "German", "Italian", "Dutch", "Greek", "Polish", "Swedish", "Norwegian", "Danish", "Finnish",
+      "Portuguese", "Romanian", "Hungarian", "Czech", "Slovak", "Ukrainian", "Bulgarian", "Serbian", "Croatian",
+      "Russian", "Turkish", "Chinese (Mandarin)", "Chinese (Cantonese)", "Japanese", "Korean", "Thai", "Vietnamese", "Indonesian", "Malay", "Filipino",
+      "Arabic", "Persian (Farsi)", "Hebrew", "Swahili", "Zulu", "Afrikaans", "Other"
+    ],
+    default: []
   },
   location_type: {type: String, enum: ['offline', 'online', 'recorded'], required: false},
   location: { 
@@ -176,7 +183,6 @@ const subEventSchema = new mongoose.Schema({
   total_capacity: { type: String, required: false },
   booking_start_date: { type: String, required: false },
   booking_end_date: { type: String, required: false },
-  like: {type: Number,required: false,default: 0},
   // Status
   event_status: {
     type: String,
@@ -194,6 +200,26 @@ const subEventSchema = new mongoose.Schema({
   totalTicketsSold: { type: Number, required: false, default: 0 }, 
   revenue: { type: Number, required: false, default: 0 },
   total_cancellation: { type: Number, required: false, default: 0 },
+  // Versioning for sub-events
+  version: { type: Number, default: 1 },
+  rehosted_from: { type: mongoose.Schema.Types.ObjectId, default: null }, // _id of old cancelled sub-event
+  // Sub-event audit history stored inline (no cross-table join needed)
+  audit_history: [{
+    version:          { type: Number },
+    cancelled_at:     { type: Date },
+    cancellation_reason: { type: String },
+    metrics_snapshot: { type: mongoose.Schema.Types.Mixed }, // frozen lifecycle_metrics
+  }],
+  // Sub-event lifecycle metrics (reset on rehost)
+  lifecycle_metrics: {
+    like:               { type: Number, default: 0 },
+    share:              { type: Number, default: 0 },
+    totalBookings:      { type: Number, default: 0 },
+    totalTicketsSold:   { type: Number, default: 0 },
+    revenue:            { type: Number, default: 0 },
+    total_cancellation: { type: Number, default: 0 },
+    total_refund_amount: { type: Number, default: 0 },
+  },
 }, { timestamps: true });
 // Main Ticket Schema (Event)
 const ticketSchema = new mongoose.Schema({
@@ -204,7 +230,14 @@ const ticketSchema = new mongoose.Schema({
   event_type: { type: String, required: false },
   event_language: {
     type: [String],
-    enum: ['English','Hindi','Malayalam','Tamil','Kannada','Telugu','Marathi','Gujarati','Punjabi','Urdu','Bengali','Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Russian','Turkish','Korean', 'Portuguese', 'Arabic','Indonesian','Vietnamese','Other'],
+    enum: [
+      "English", "Hindi", "Malayalam", "Tamil", "Kannada", "Telugu", "Marathi", "Gujarati", "Punjabi", "Urdu", "Bengali",
+      "Odia", "Assamese", "Sanskrit", "Konkani", "Maithili", "Manipuri", "Nepali", "Sinhala",
+      "Spanish", "French", "German", "Italian", "Dutch", "Greek", "Polish", "Swedish", "Norwegian", "Danish", "Finnish",
+      "Portuguese", "Romanian", "Hungarian", "Czech", "Slovak", "Ukrainian", "Bulgarian", "Serbian", "Croatian",
+      "Russian", "Turkish", "Chinese (Mandarin)", "Chinese (Cantonese)", "Japanese", "Korean", "Thai", "Vietnamese", "Indonesian", "Malay", "Filipino",
+      "Arabic", "Persian (Farsi)", "Hebrew", "Swahili", "Zulu", "Afrikaans", "Other"
+    ],
     default: []
   },
   min_age_allowed: { type: Number, required: true },
@@ -343,7 +376,15 @@ const ticketSchema = new mongoose.Schema({
   isMain:                   { type: Boolean, default: true },
   updated_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   updated_at: { type: Date, default: Date.now },
-  
+  lifecycle_metrics: {
+    like:                    { type: Number, default: 0 },
+    share:                   { type: Number, default: 0 },
+    totalBookings:           { type: Number, default: 0 },
+    totalTicketsSold:        { type: Number, default: 0 },
+    revenue:                 { type: Number, default: 0 },
+    total_cancellation:      { type: Number, default: 0 },
+    total_refund_amount:     { type: Number, default: 0 },
+  },
   // Form Progress Tracking
   form_progress: {
     basic_info: { type: Boolean, default: false },
@@ -357,6 +398,10 @@ const ticketSchema = new mongoose.Schema({
   terms_accepted: { type: Boolean, default: false },
   terms_accepted_at: { type: Date },
   company_terms_version: { type: String }, // Track which version of terms was accepted
+  version: { type: Number, default: 1 },                            // increments on each rehost
+  parent_event_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket', default: null }, // previous cancelled version
+  original_event_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket', default: null }, // very first V1 always
+  is_locked: { type: Boolean, default: false },
 }, {
   timestamps: true
 });
