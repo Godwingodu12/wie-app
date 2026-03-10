@@ -32,25 +32,38 @@ export default function BookingsPage() {
   useEffect(() => {
     loadBookings();
   }, [filter]);
-
+  
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('cancelled')) {
+      setFilter('cancelled');
+    }
+  }, []);
   const loadBookings = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Always fetch cancelled separately from dedicated API
       const [regularRes, cancelledRes] = await Promise.all([
-        getUserBookings({ limit: 50, status: filter !== 'all' && filter !== 'cancelled' ? filter.toUpperCase() : undefined }),
+        getUserBookings({
+          limit: 50,
+          status: filter !== 'all' && filter !== 'cancelled' ? filter.toUpperCase() : undefined,
+        }),
         getUserCancelledBookings(),
       ]);
 
-      // For non-cancelled tabs show regular bookings (excluding CANCELLED ones from regular API)
+      // Filter out CANCELLED from regular list (they come from cancelledRes)
       const regularBookings = (regularRes.data.bookings || []).filter(
         (b: Booking) => b.bookingStatus !== 'CANCELLED'
       );
+
       setBookings(regularBookings);
-      setCancelledBookings(cancelledRes.data.cancelledBookings || []);
-      setPendingRefundsCount(cancelledRes.data.pendingRefunds || 0);
+
+      const cancelled = cancelledRes.data.cancelledBookings || [];
+      setCancelledBookings(cancelled);
+      setPendingRefundsCount(
+        cancelled.filter((b: any) => b.refundStatus && b.refundStatus !== 'COMPLETED' && b.refundAmount > 0).length
+      );
     } catch (err: any) {
       setError(err.message || 'Failed to load bookings');
       console.error(err);
