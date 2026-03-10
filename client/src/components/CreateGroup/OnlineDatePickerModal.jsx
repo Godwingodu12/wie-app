@@ -277,8 +277,14 @@ const OnlineDatePickerModal = ({ isOpen, onClose, onSave, initialDates, darkMode
 
         if (useSameTime && isTimeField) {
             updatedDates = updatedDates.map(d => ({ ...d, [field]: value }));
-        } else if (useSameDetails && isDetailField) {
-            updatedDates = updatedDates.map(d => ({ ...d, [field]: value }));
+        } else if (isDetailField) {
+            if (useSameDetails) {
+                updatedDates = updatedDates.map(d => ({ ...d, [field]: value }));
+            } else {
+                if (updatedDates[index]) {
+                    updatedDates[index] = { ...updatedDates[index], [field]: value };
+                }
+            }
         } else if (updatedDates[index]) {
             updatedDates[index] = { ...updatedDates[index], [field]: value };
         }
