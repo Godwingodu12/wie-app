@@ -14,8 +14,7 @@ import MediaIcon from "../../assets/Event/MediaIcon.svg?react";
 import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
 import FileInput from "../../components/CreateGroup/FileInput.jsx";
 import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
-// IMPORT the necessary utility function
-import { getTicketImageUrl } from "../../utils/imageUtils"; // Assuming imageUtils path
+import { getTicketImageUrl } from "../../utils/imageUtils"; 
 import getInitialTheme from "../../components/CreateGroup/getIntialTheme.jsx";
 import FullScreenViewer from "../../components/CreateGroup/FullScreenViewer.jsx";
 import FileMediaInput from "../../components/CreateGroup/FileMediaInput.jsx";
@@ -795,103 +794,100 @@ const handleSubmit = async (e) => {
                 />
                 <FileMediaInput
                   id="event_banner"
-                  label="Event Banner*"
-                  aspectRatio={16 / 9}
+                  label="Event Banner* (Desktop)"
+                  aspectRatio={1920 / 720}
                   onFileChange={handleSingleFileChange}
                   onRemove={removeSingleFile}
                   preview={previews.event_banner}
-
                   error={errors.event_banner}
                   acceptedFiles=".jpg,.jpeg,.png,.gif,.webp"
                   maxSizeMB={1.5}
-                  info="Required. 2:1 ratio recommended. JPG, JPEG, PNG, GIF, or WEBP format."
+                  info="Required. 1920×720 recommended for desktop. JPG, JPEG, PNG, GIF, or WEBP format."
                   onPreviewClick={() => {
-                              if (previews.event_banner) {
-                                 const fileData = previews.event_banner;
-                        // For single images (logo/banner), preview directly holds the URL/Data URI string
-                        const fileUrl = fileData.data || fileData.url || fileData;
-                        const fileName = fileData.name || "Event Banner";
-                        const mimeType = fileData.mimeType || "image/jpeg";
-                        
-                                 openViewer(fileUrl, mimeType, fileName);
-                              }
-                           }}
+                  if (previews.event_banner) {
+                      const fileData = previews.event_banner;
+                      const fileUrl = fileData.data || fileData.url || fileData;
+                      const fileName = fileData.name || "Event Banner";
+                      const mimeType = fileData.mimeType || "image/jpeg";
+                      openViewer(fileUrl, mimeType, fileName);
+                  }
+                }}
                 />
                 <FileMediaInput
-  id="event_portrait"
-  label="Portrait image (for mobile app)"
-  aspectRatio={3 / 4} // 900x1200 is 3:4
-  resolution="400px by 400px"
-  onFileChange={handleSingleFileChange}
-  onRemove={removeSingleFile}
-  preview={previews.event_portrait}
-  error={errors.event_portrait}
-  acceptedFiles=".jpg,.jpeg,.png,.webp"
-  maxSizeMB={1.5}
-  info="Resolution: (900px by 1200px). Recommended for mobile app views."
-  onPreviewClick={() => {
-    if (previews.event_portrait) {
-      const url = previews.event_portrait.data || previews.event_portrait.url || previews.event_portrait;
-      openViewer(url, "image/jpeg", "Portrait Image");
-    }
-  }}
-/>
-</div>
-<div className="mt-8">
-  <div className=" justify-between items-center mb-4  pb-2">
-    <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
-    Image galleries
-    <InfoTooltip note="Max 10 videos. Max Size :1.5MB, Only .jpeg, .jpg files allowed Resolution: (900px by 1200px)" />
-    </label>
-</div>
-  <div className=" rounded-xl border border-dashed border-gray-600 p-3">
-    <div className="flex gap-2 justify-end">
-    <button 
-    type="button" 
-    onClick={() => handleReorderToggle('event_images')} // Call the function here
-    className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 transition-colors ${
-      isReorderingImages 
-        ? "bg-green-600 text-white border-green-500 hover:bg-green-700" 
-        : "bg-[#2B2B2B] text-gray-300 hover:bg-[#333]"
-    }`}
-  >
-    <span className="text-lg">⠿</span> 
-    {isReorderingImages ? "Done Re-ordering" : "Drag and Re-order"}
-  </button>
-  
-  <button 
-    type="button" 
-    onClick={() => document.getElementById('image_upload').click()} 
-    className="px-3 py-1 bg-indigo-600 text-xs rounded text-white hover:bg-indigo-700"
-  >
-    Browse file
-  </button>
-    
+                  id="event_portrait"
+                  label="Portrait Image (Mobile App)"
+                  aspectRatio={4 / 5}
+                  resolution="1080px by 1350px"
+                  onFileChange={handleSingleFileChange}
+                  onRemove={removeSingleFile}
+                  preview={previews.event_portrait}
+                  error={errors.event_portrait}
+                  acceptedFiles=".jpg,.jpeg,.png,.webp"
+                  maxSizeMB={1.5}
+                  info="Resolution: (1080px × 1350px). Recommended for mobile app views."
+                  onPreviewClick={() => {
+                    if (previews.event_portrait) {
+                      const url = previews.event_portrait.data || previews.event_portrait.url || previews.event_portrait;
+                      openViewer(url, "image/jpeg", "Portrait Image");
+                    }
+                  }}
+                />
+              </div>
+            <div className="mt-8">
+              <div className=" justify-between items-center mb-4  pb-2">
+                <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                Image galleries
+                <InfoTooltip note="Max 10 videos. Max Size :1.5MB, Only .jpeg, .jpg files allowed Resolution: (900px by 1200px)" />
+                </label>
+            </div>
+              <div className=" rounded-xl border border-dashed border-gray-600 p-3">
+                <div className="flex gap-2 justify-end">
+                <button 
+                type="button" 
+                onClick={() => handleReorderToggle('event_images')} // Call the function here
+                className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 transition-colors ${
+                  isReorderingImages 
+                    ? "bg-green-600 text-white border-green-500 hover:bg-green-700" 
+                    : "bg-[#2B2B2B] text-gray-300 hover:bg-[#333]"
+                }`}
+              >
+                <span className="text-lg">⠿</span> 
+                {isReorderingImages ? "Done Re-ordering" : "Drag and Re-order"}
+              </button>
+              
+              <button 
+                type="button" 
+                onClick={() => document.getElementById('image_upload').click()} 
+                className="px-3 py-1 bg-indigo-600 text-xs rounded text-white hover:bg-indigo-700"
+              >
+                Browse file
+              </button>
+                
 
-    </div>
-      <DndContext 
-    collisionDetection={closestCenter} 
-    onDragEnd={(e) => handleDragEnd(e, 'event_images')}
-  >
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 p-6  ">
-    <SortableContext items={previews.event_images.map(img => img.id)} strategy={rectSortingStrategy}>
-        {previews.event_images.map((img) => (
-          <SortablePhoto
-          key={img.id}
-          id={img.id}                
-          img={img}
-          isReordering={isReorderingImages}
-          onRemove={(id) => removeImageFromList(id, "event_images")}
-         />
-        ))}
-      </SortableContext>
-      <input id="image_upload" type="file" multiple accept="image/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_images')} />
-    </div>
-  </DndContext>
-  </div>
+                </div>
+                  <DndContext 
+                collisionDetection={closestCenter} 
+                onDragEnd={(e) => handleDragEnd(e, 'event_images')}
+              >
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 p-6  ">
+                <SortableContext items={previews.event_images.map(img => img.id)} strategy={rectSortingStrategy}>
+                    {previews.event_images.map((img) => (
+                      <SortablePhoto
+                      key={img.id}
+                      id={img.id}                
+                      img={img}
+                      isReordering={isReorderingImages}
+                      onRemove={(id) => removeImageFromList(id, "event_images")}
+                    />
+                    ))}
+                  </SortableContext>
+                  <input id="image_upload" type="file" multiple accept="image/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_images')} />
+                </div>
+              </DndContext>
+              </div>
 
 
-</div>
+            </div>
             <div className="mt-10">
               <div className="flex justify-between items-center mb-4 pb-2">
                 <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">

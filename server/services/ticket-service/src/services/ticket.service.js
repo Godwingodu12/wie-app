@@ -1165,10 +1165,12 @@ export const createTicketBasicInfo = async (req, res) => {
 
     // 4. Event Language Validation
     const validLanguages = [
-      'English', 'Hindi', 'Malayalam', 'Tamil', 'Kannada', 'Telugu',
-      'Marathi', 'Gujarati', 'Punjabi', 'Urdu', 'Bengali', 'Spanish',
-      'French', 'German', 'Chinese', 'Japanese', 'Russian', 'Turkish',
-      'Korean', 'Portuguese', 'Arabic', 'Indonesian', 'Vietnamese', 'Other'
+      "English", "Hindi", "Malayalam", "Tamil", "Kannada", "Telugu", "Marathi", "Gujarati", "Punjabi", "Urdu", "Bengali",
+      "Odia", "Assamese", "Sanskrit", "Konkani", "Maithili", "Manipuri", "Nepali", "Sinhala",
+      "Spanish", "French", "German", "Italian", "Dutch", "Greek", "Polish", "Swedish", "Norwegian", "Danish", "Finnish",
+      "Portuguese", "Romanian", "Hungarian", "Czech", "Slovak", "Ukrainian", "Bulgarian", "Serbian", "Croatian",
+      "Russian", "Turkish", "Chinese (Mandarin)", "Chinese (Cantonese)", "Japanese", "Korean", "Thai", "Vietnamese", "Indonesian", "Malay", "Filipino",
+      "Arabic", "Persian (Farsi)", "Hebrew","Swahili", "Zulu", "Afrikaans","Other"
     ];
 
     let languageArray = [];

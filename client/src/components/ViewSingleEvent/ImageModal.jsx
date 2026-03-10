@@ -132,13 +132,29 @@ const ImageModal = ({
           <img
             src={imagePath}
             alt={imageInfo?.name || "Event Image"}
-            className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-lg"
+            className="rounded-xl shadow-lg"
+            style={
+              imageInfo?.type === "banner"
+                ? {
+                    width: "100%",
+                    maxWidth: "100%",
+                    aspectRatio: "1920 / 720",
+                    height: "auto",
+                    objectFit: "fill",   // shows full image, no cropping
+                  }
+                : {
+                    maxWidth: "100%",
+                    maxHeight: "85vh",
+                    width: "auto",
+                    height: "auto",
+                    objectFit: "contain",
+                  }
+            }
             onError={(e) => {
               console.error("Failed to load image:", imagePath);
               e.target.src = "https://via.placeholder.com/800x600?text=Image+Not+Found";
             }}
           />
-
           {/* Image Info Label */}
           {imageInfo && (
             <div

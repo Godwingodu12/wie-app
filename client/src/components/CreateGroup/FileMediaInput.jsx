@@ -64,8 +64,32 @@ const FileMediaInput = ({
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
 
-      canvas.width = croppedAreaPixels.width;
-      canvas.height = croppedAreaPixels.height;
+      // Output resolution based on aspect ratio:
+      // 1920×720  → banner (aspectRatio = 16/9 ≈ 2.67)  — actually use 1920×720
+      // 1080×1350 → portrait (aspectRatio = 4/5 = 0.8)
+      // 1:1       → logo/square
+      let outputWidth, outputHeight;
+
+      if (Math.abs(aspectRatio - 16 / 9) < 0.1) {
+        // Banner: 1920×720
+        outputWidth  = 1920;
+        outputHeight = 720;
+      } else if (Math.abs(aspectRatio - 4 / 5) < 0.1) {
+        // Portrait: 1080×1350
+        outputWidth  = 1080;
+        outputHeight = 1350;
+      } else if (Math.abs(aspectRatio - 3 / 4) < 0.1) {
+        // Legacy 3:4 fallback
+        outputWidth  = 1080;
+        outputHeight = 1350;
+      } else {
+        // Default square (logo): 800×800
+        outputWidth  = 800;
+        outputHeight = 800;
+      }
+
+      canvas.width  = outputWidth;
+      canvas.height = outputHeight;
 
       ctx.drawImage(
         image,
@@ -75,17 +99,16 @@ const FileMediaInput = ({
         croppedAreaPixels.height,
         0,
         0,
-        croppedAreaPixels.width,
-        croppedAreaPixels.height
+        outputWidth,
+        outputHeight
       );
 
       canvas.toBlob((blob) => {
         const croppedFile = new File([blob], "cropped_image.jpg", { type: "image/jpeg" });
-        // Manually construct an event object to keep compatibility with your existing onFileChange
         const syntheticEvent = { target: { files: [croppedFile] } };
         onFileChange(syntheticEvent, id);
-        setImageToCrop(null); // Close modal
-      }, "image/jpeg");
+        setImageToCrop(null);
+      }, "image/jpeg", 0.92); 
     } catch (e) {
       console.error("Crop error:", e);
     }
@@ -96,7 +119,16 @@ const FileMediaInput = ({
       {/* CROP MODAL */}
       {imageToCrop && (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/90 p-4">
-          <div className="relative w-full max-w-2xl h-[400px] bg-[#1a1a1a] rounded-t-xl overflow-hidden">
+          {/* Dynamic height based on aspect ratio — portrait needs more height */}
+          <div
+            className="relative w-full bg-[#1a1a1a] rounded-t-xl overflow-hidden"
+            style={{
+              maxWidth: aspectRatio >= 1 ? "860px" : "480px",
+              height: aspectRatio >= 1
+                ? "420px"   // landscape/square: 1920×720 (2.67:1) and 1:1
+                : "600px",  // portrait: 1080×1350 (0.8:1) — needs tall container
+            }}
+          >
             <Cropper
               image={imageToCrop}
               crop={crop}
@@ -107,7 +139,10 @@ const FileMediaInput = ({
               onCropComplete={onCropComplete}
             />
           </div>
-          <div className="w-full max-w-2xl bg-[#2b2b2b] p-4 rounded-b-xl flex items-center justify-between">
+          <div
+            className="w-full bg-[#2b2b2b] p-4 rounded-b-xl flex items-center justify-between"
+            style={{ maxWidth: aspectRatio >= 1 ? "860px" : "480px" }}
+          >
             <div className="flex items-center gap-4 flex-1 mr-4">
               <span className="text-xs text-gray-400">Zoom</span>
               <input
@@ -116,7 +151,7 @@ const FileMediaInput = ({
                 min={1}
                 max={3}
                 step={0.1}
-                onChange={(e) => setZoom(e.target.value)}
+                onChange={(e) => setZoom(Number(e.target.value))}
                 className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
               />
             </div>
@@ -139,7 +174,6 @@ const FileMediaInput = ({
           </div>
         </div>
       )}
-
       <label className="flex items-center text-sm font-medium text-black dark:text-gray-400 mb-3">
         {label}
         {info && <InfoTooltip note={info} />}
