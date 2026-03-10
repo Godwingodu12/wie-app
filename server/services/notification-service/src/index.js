@@ -7,7 +7,7 @@ import { connectDB } from './config/database.js';
 import { connectRabbitMQ, startConsumers } from './rabbit/index.js';
 import { initializeSocket, getIO } from './socket/socket.js';
 import notificationRoutes from './routes/notification.routes.js';
-import { startEventCancellationConsumer } from './consumers/eventCancellationConsumer.js';
+import { startEventCancellationConsumer,startBookingCancellationUpdateConsumer } from './consumers/eventCancellationConsumer.js';
 import { startEventRehostConsumer, startRefundSuccessConsumer } from './consumers/eventRehostConsumer.js';
 // Load environment variables
 dotenv.config();
@@ -197,6 +197,7 @@ const startServer = async () => {
       await connectRabbitMQ();
       await startConsumers();
       await startEventCancellationConsumer();
+      await startBookingCancellationUpdateConsumer();
       await startEventRehostConsumer();
       await startRefundSuccessConsumer();
     } catch (rabbitError) {
