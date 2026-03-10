@@ -519,88 +519,65 @@ export const getAllEventsWithDistance = async (
     });
   }
 };
-
-export const getTicket = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const getTicket = async (req: Request, res: Response): Promise<void> => {
   try {
     const { ticketId } = req.params;
-    
+
     if (!ticketId) {
-      res.status(400).json({
-        success: false,
-        message: 'Ticket ID is required',
-      });
+      res.status(400).json({ success: false, message: 'Ticket ID is required' });
       return;
     }
 
-    // Fetch all live events (now includes sub-events as separate entries)
-    const allTickets = await getAllLiveEvents();
-    const events = Array.isArray(allTickets) ? allTickets : (allTickets?.tickets || []);
-    
-    // Find the event (can be main or sub-event)
-    const eventData = events.find((event: any) => {
-      const match = event._id?.toString() === ticketId || event.id?.toString() === ticketId;
-      return match;
-    });
-    
-    if (!eventData) {
-      // Try to fetch directly from ticket service
-      try {
-        const ticket = await getTicketById(ticketId);
-        
-        // Check if ticket is null
-        if (!ticket) {
-          res.status(404).json({
-            success: false,
-            message: 'Event not found',
-          });
-          return;
-        }
+    let ticket: any = null;
+    try {
+      ticket = await getTicketById(ticketId);
+    } catch (grpcErr: any) {
+      console.warn('⚠️ [getTicket] getTicketById gRPC failed:', grpcErr.message);
+    }
 
+    if (ticket) {
+      res.status(200).json({
+        success: true,
+        message: 'Ticket fetched successfully',
+        data: {
+          event: ticket,
+          isSubEvent:  ticket.isSubEvent  || false,
+          parentEvent: ticket.parentEventId
+            ? { _id: ticket.parentEventId, event_name: (ticket as any).parentEventName }
+            : null,
+        },
+      });
+      return;
+    }
+    try {
+      const allTickets = await getAllLiveEvents();
+      const events     = Array.isArray(allTickets) ? allTickets : (allTickets?.tickets || []);
+      const eventData  = events.find((e: any) =>
+        e._id?.toString() === ticketId || e.id?.toString() === ticketId
+      );
+
+      if (eventData) {
         res.status(200).json({
           success: true,
           message: 'Ticket fetched successfully',
           data: {
-            event: ticket,
-            isSubEvent: ticket.isSubEvent || false,
-            parentEvent: ticket.parentEventId ? {
-              _id: ticket.parentEventId,
-              event_name: ticket.parentEventName,
-            } : null,
+            event:       eventData,
+            isSubEvent:  eventData.isSubEvent  || false,
+            parentEvent: eventData.parentEventId
+              ? { _id: eventData.parentEventId, event_name: eventData.parentEventName }
+              : null,
           },
         });
         return;
-      } catch (ticketError) {
-        console.error('❌ [Controller] Error fetching ticket:', ticketError);
-        res.status(404).json({
-          success: false,
-          message: 'Event not found',
-        });
-        return;
       }
+    } catch (liveErr: any) {
+      console.warn('⚠️ [getTicket] getAllLiveEvents failed (non-fatal):', liveErr.message);
     }
+    res.status(404).json({ success: false, message: 'Event not found' });
 
-    res.status(200).json({
-      success: true,
-      message: 'Ticket fetched successfully',
-      data: {
-        event: eventData,
-        isSubEvent: eventData.isSubEvent || false,
-        parentEvent: eventData.parentEventId ? {
-          _id: eventData.parentEventId,
-          event_name: eventData.parentEventName,
-        } : null,
-      },
-    });
   } catch (error: any) {
     console.error('❌ Error in getTicket controller:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch ticket',
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch ticket', error: error.message });
   }
 };
 const locationMatches = (event: any, locationText: string): boolean => {
