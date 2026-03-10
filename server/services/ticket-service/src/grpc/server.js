@@ -261,6 +261,8 @@ const mapTicketToProto = (ticket) => {
     groupId: ticket.groupId?.toString() || '',
     userId: ticket.userId?.toString() || '',
     event_status: ticket.event_status || 'pending',
+    cancelled_at: ticket.cancelled_at ? ticket.cancelled_at.toISOString?.() || String(ticket.cancelled_at) : '',
+    cancellation_reason: ticket.cancellation_reason || '',
     updated_by: ticket.updated_by?.toString() || '',
     updated_at: ticket.updated_at?.toISOString() || '',
     form_progress: ticket.form_progress ? {
