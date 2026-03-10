@@ -8,6 +8,7 @@ service BookingService {
   rpc GetMonthlyBookingChart(MonthlyBookingChartRequest) returns (MonthlyBookingChartResponse);
   rpc GetBookingsForEvent(GetBookingsForEventRequest) returns (GetBookingsForEventResponse);
   rpc GetRefundStatus(GetRefundStatusRequest) returns (GetRefundStatusResponse);
+  rpc CancelEventBookings(CancelEventBookingsRequest) returns (CancelEventBookingsResponse);
 }
 
 message BookingStatsByDateRequest {
@@ -83,4 +84,17 @@ message GetRefundStatusResponse {
   string refundId          = 9;
   string processedAt       = 10;
   string refundInitiatedAt = 11;
+}
+message CancelEventBookingsRequest {
+  string eventId             = 1;
+  string cancellationReason  = 2;
+  double refundPercentage    = 3;
+  string cancellationTier    = 4;
+  bool   isHostCancellation  = 5;
+}
+
+message CancelEventBookingsResponse {
+  bool   success      = 1;
+  string error        = 2;
+  int32  updatedCount = 3;
 }
