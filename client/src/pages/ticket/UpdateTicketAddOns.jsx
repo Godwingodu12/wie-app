@@ -4271,145 +4271,146 @@ const handleReorderToggle = (targetField) => {
                       Event Media
                     </h2>
                     <div className="gap-8">
-    <FileMediaInput
-      id="event_banner"
-      label="Event Banner*"
-                                    aspectRatio={1 / 1}
-      info="Required. 2:1 ratio recommended. JPG, PNG, WEBP."
-      preview={previews.event_banner}
-      onFileChange={handleMediaFileChange}
-      onRemove={removeSingleFile}
-      darkMode={darkMode}
-      acceptedFiles=".jpg,.jpeg,.png,.webp"
-      maxSizeMB={1.5}
-      ref={(el) => (errorFieldRefs.current.event_banner = el)}
-    />
-    
-    <FileMediaInput
-      id="event_portrait"
-      label="Portrait image (for mobile app)"
-      aspectRatio={3 / 4}
-      info="Resolution: (900px by 1200px)"
-      preview={previews.event_portrait}
-      onFileChange={handleMediaFileChange}
-      onRemove={removeSingleFile}
-      darkMode={darkMode}
-      acceptedFiles=".jpg,.jpeg,.png,.webp"
-      maxSizeMB={1.5}
-    />
-  </div>
+                      <FileMediaInput
+                        id="event_banner"
+                        label="Event Banner* (Desktop)"
+                        aspectRatio={1920 / 720}
+                        info="Required. 1920×720 recommended for desktop. JPG, JPEG, PNG, WEBP format."
+                        preview={previews.event_banner}
+                        onFileChange={handleMediaFileChange}
+                        onRemove={removeSingleFile}
+                        darkMode={darkMode}
+                        acceptedFiles=".jpg,.jpeg,.png,.webp"
+                        maxSizeMB={1.5}
+                        ref={(el) => (errorFieldRefs.current.event_banner = el)}
+                      />
+
+                      <FileMediaInput
+                        id="event_portrait"
+                        label="Portrait Image (Mobile App)"
+                        aspectRatio={4 / 5}
+                        resolution="1080px by 1350px"
+                        info="Resolution: (1080px × 1350px). Recommended for mobile app views."
+                        preview={previews.event_portrait}
+                        onFileChange={handleMediaFileChange}
+                        onRemove={removeSingleFile}
+                        darkMode={darkMode}
+                        acceptedFiles=".jpg,.jpeg,.png,.webp"
+                        maxSizeMB={1.5}
+                      />
+                    </div>
                     {/* --- IMAGE GALLERY --- */}
-  <div className="mt-8">
-    <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-      <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
-        Image galleries
-        <InfoTooltip note="Max 10 images. 1.5MB max." />
-      </label>
-    </div>
-    <div className="p-3 rounded-xl border border-dashed border-gray-600">
-      <div className="flex gap-2">
-        <button type="button" onClick={() => handleReorderToggle('event_images')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingImages ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
-          <span className="text-lg">⠿</span> {isReorderingImages ? "Done" : "Drag and Re-order"}
-        </button>
-<button 
-  type="button" 
-  disabled={previews.event_images?.length >= 10} // Disable if 10 reached
-  onClick={() => document.getElementById('image_upload_addon').click()} 
-  className={`px-3 py-1 text-xs rounded text-white transition-all ${
-    previews.event_images?.length >= 10 
-      ? "bg-gray-500 cursor-not-allowed opacity-50" 
-      : "bg-indigo-600 hover:bg-indigo-700"
-  }`}
->
-  {previews.event_images?.length >= 10 ? "Limit Reached" : "Browse file"}
-</button>      </div>
-<DndContext 
-  sensors={sensors} 
-  collisionDetection={closestCenter} 
-  onDragEnd={(e) => handleDragEnd(e, 'event_images')}
->
-  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
-    <SortableContext 
-      // Mapping to just the ID strings is crucial for dnd-kit
-      items={previews.event_images?.map(img => img.id) || []} 
-      strategy={rectSortingStrategy}
-    >
-      {previews.event_images?.map((img) => (
-        <SortablePhoto
-          key={img.id} 
-          img={img} 
-          isReordering={isReorderingImages} 
-          onRemove={(id) => removeImageFromList(id, 'event_images')}
-          targetField="event_images" 
-        />
-      ))}
-    </SortableContext>
-    {/* Hidden file input */}
-    <input 
-       id="image_upload_addon" 
-       type="file" 
-       multiple 
-       className="hidden" 
-       onChange={(e) => handleMultipleFileChange(e, 'event_images')} 
-    />
-  </div>
-</DndContext>
-    </div>
+                    <div className="mt-8">
+                      <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                        <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                          Image galleries
+                          <InfoTooltip note="Max 10 images. 1.5MB max." />
+                        </label>
+                      </div>
+                      <div className="p-3 rounded-xl border border-dashed border-gray-600">
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => handleReorderToggle('event_images')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingImages ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
+                            <span className="text-lg">⠿</span> {isReorderingImages ? "Done" : "Drag and Re-order"}
+                          </button>
+                  <button 
+                    type="button" 
+                    disabled={previews.event_images?.length >= 10} // Disable if 10 reached
+                    onClick={() => document.getElementById('image_upload_addon').click()} 
+                    className={`px-3 py-1 text-xs rounded text-white transition-all ${
+                      previews.event_images?.length >= 10 
+                        ? "bg-gray-500 cursor-not-allowed opacity-50" 
+                        : "bg-indigo-600 hover:bg-indigo-700"
+                    }`}
+                  >
+                    {previews.event_images?.length >= 10 ? "Limit Reached" : "Browse file"}
+                  </button>      </div>
+                  <DndContext 
+                    sensors={sensors} 
+                    collisionDetection={closestCenter} 
+                    onDragEnd={(e) => handleDragEnd(e, 'event_images')}
+                  >
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
+                      <SortableContext 
+                        // Mapping to just the ID strings is crucial for dnd-kit
+                        items={previews.event_images?.map(img => img.id) || []} 
+                        strategy={rectSortingStrategy}
+                      >
+                        {previews.event_images?.map((img) => (
+                          <SortablePhoto
+                            key={img.id} 
+                            img={img} 
+                            isReordering={isReorderingImages} 
+                            onRemove={(id) => removeImageFromList(id, 'event_images')}
+                            targetField="event_images" 
+                          />
+                        ))}
+                      </SortableContext>
+                      {/* Hidden file input */}
+                      <input 
+                        id="image_upload_addon" 
+                        type="file" 
+                        multiple 
+                        className="hidden" 
+                        onChange={(e) => handleMultipleFileChange(e, 'event_images')} 
+                      />
+                    </div>
+                  </DndContext>
+                      </div>
 
-  </div>
+                    </div>
 
-  {/* --- VIDEO GALLERY --- */}
-  <div className="mt-10">
-    <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-      <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
-        Video sneak peek
-        <InfoTooltip note="Max 5 videos." />
-      </label>
-    </div>
-    <div className="p-3 rounded-xl border border-dashed border-gray-600 ">
-            <div className="flex gap-2">
-        <button type="button" onClick={() => handleReorderToggle('event_videos')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingVideos ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
-          <span className="text-lg">⠿</span> {isReorderingVideos ? "Done" : "Drag and Re-order"}
-        </button>
-<button 
-  type="button" 
-  disabled={previews.event_videos?.length >= 5} // Disable if 5 reached
-  onClick={() => document.getElementById('video_upload_addon').click()} 
-  className={`px-3 py-1 text-xs rounded text-white transition-all ${
-    previews.event_videos?.length >= 5 
-      ? "bg-gray-500 cursor-not-allowed opacity-50" 
-      : "bg-indigo-600 hover:bg-indigo-700"
-  }`}
->
-  {previews.event_videos?.length >= 5 ? "Limit Reached" : "Browse file"}
-</button>      </div>
-<DndContext 
-  sensors={sensors} 
-  collisionDetection={closestCenter} 
-  onDragEnd={(e) => handleDragEnd(e, 'event_videos')}
->
-  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
-    <SortableContext 
-      items={previews.event_videos?.map(vid => vid.id) || []} 
-      strategy={rectSortingStrategy}
-    >
-      {previews.event_videos?.map((vid) => (
-        <SortablePhoto
-          key={vid.id} 
-          img={vid} 
-          isReordering={isReorderingVideos} 
-          onRemove={(id) => removeImageFromList(id, 'event_videos')}
-          targetField="event_videos" 
-        />
-      ))}
-    </SortableContext>
-    <input id="video_upload_addon" type="file" multiple accept="video/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_videos')} />
-  </div>
-</DndContext>
-    </div>
+                    {/* --- VIDEO GALLERY --- */}
+                    <div className="mt-10">
+                      <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                        <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                          Video sneak peek
+                          <InfoTooltip note="Max 5 videos." />
+                        </label>
+                      </div>
+                      <div className="p-3 rounded-xl border border-dashed border-gray-600 ">
+                              <div className="flex gap-2">
+                          <button type="button" onClick={() => handleReorderToggle('event_videos')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingVideos ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
+                            <span className="text-lg">⠿</span> {isReorderingVideos ? "Done" : "Drag and Re-order"}
+                          </button>
+                  <button 
+                    type="button" 
+                    disabled={previews.event_videos?.length >= 5} // Disable if 5 reached
+                    onClick={() => document.getElementById('video_upload_addon').click()} 
+                    className={`px-3 py-1 text-xs rounded text-white transition-all ${
+                      previews.event_videos?.length >= 5 
+                        ? "bg-gray-500 cursor-not-allowed opacity-50" 
+                        : "bg-indigo-600 hover:bg-indigo-700"
+                    }`}
+                  >
+                    {previews.event_videos?.length >= 5 ? "Limit Reached" : "Browse file"}
+                  </button>      </div>
+                  <DndContext 
+                    sensors={sensors} 
+                    collisionDetection={closestCenter} 
+                    onDragEnd={(e) => handleDragEnd(e, 'event_videos')}
+                  >
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
+                      <SortableContext 
+                        items={previews.event_videos?.map(vid => vid.id) || []} 
+                        strategy={rectSortingStrategy}
+                      >
+                        {previews.event_videos?.map((vid) => (
+                          <SortablePhoto
+                            key={vid.id} 
+                            img={vid} 
+                            isReordering={isReorderingVideos} 
+                            onRemove={(id) => removeImageFromList(id, 'event_videos')}
+                            targetField="event_videos" 
+                          />
+                        ))}
+                      </SortableContext>
+                      <input id="video_upload_addon" type="file" multiple accept="video/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_videos')} />
+                    </div>
+                  </DndContext>
+                      </div>
 
 
-  </div>
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-12">
