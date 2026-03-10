@@ -71,7 +71,9 @@ function PopularEventBanner({
 
   const ev = events[active];
 
-  const bannerSrc = (ev as any).event_portrait || ev.event_banner;
+  // Desktop: event_banner, Mobile: event_portrait (fallback to event_banner)
+  const desktopSrc = (ev as any).event_banner || null;
+  const mobileSrc  = (ev as any).event_portrait || (ev as any).event_banner || null;
 
   return (
     <div className="mb-6">
@@ -93,24 +95,50 @@ function PopularEventBanner({
       {/* Banner */}
       <div
         className="relative w-full overflow-hidden cursor-pointer group"
-        style={{ height: 240, borderRadius: 16 }}
+        style={{ borderRadius: 16 }}
         onClick={() => router.push(`/events/${ev._id}`)}
       >
-        {bannerSrc ? (
-          <img
-            src={bannerSrc}
-            alt={ev.event_name}
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
-          />
-        ) : (
-          <div
-            className="w-full h-full"
-            style={{
-              background: 'linear-gradient(135deg, #1C2024 0%, #2D3139 100%)',
-            }}
-          />
-        )}
+        {/* Desktop banner — hidden on mobile */}
+        <div
+          className="hidden sm:block w-full"
+          style={{ aspectRatio: '1920 / 720' }}
+        >
+          {desktopSrc ? (
+            <img
+              src={desktopSrc}
+              alt={ev.event_name}
+              className="w-full h-full transition-transform duration-700 group-hover:scale-[1.01]"
+              style={{ objectFit: 'fill', display: 'block', width: '100%', height: '100%' }}
+            />
+          ) : (
+            <div
+              className="w-full h-full"
+              style={{ background: 'linear-gradient(135deg, #1C2024 0%, #2D3139 100%)' }}
+            />
+          )}
+        </div>
 
+        {/* Mobile portrait — hidden on desktop */}
+        <div
+          className="block sm:hidden w-full"
+          style={{ aspectRatio: '4 / 5' }}
+        >
+          {mobileSrc ? (
+            <img
+              src={mobileSrc}
+              alt={ev.event_name}
+              className="w-full h-full transition-transform duration-700 group-hover:scale-[1.01]"
+              style={{ objectFit: 'fill', display: 'block', width: '100%', height: '100%' }}
+            />
+          ) : (
+            <div
+              className="w-full h-full"
+              style={{ background: 'linear-gradient(135deg, #1C2024 0%, #2D3139 100%)' }}
+            />
+          )}
+        </div>
+
+        {/* Gradient overlay */}
         <div
           className="absolute inset-0"
           style={{
@@ -119,6 +147,7 @@ function PopularEventBanner({
           }}
         />
 
+        {/* Event info */}
         <div className="absolute bottom-4 left-4 right-14">
           <p className="text-white font-bold text-base line-clamp-1">{ev.event_name}</p>
           <p className="text-white/60 text-xs mt-0.5">
@@ -132,8 +161,9 @@ function PopularEventBanner({
           </p>
         </div>
 
+        {/* Dot indicators */}
         <div className="absolute bottom-4 right-4 flex gap-1.5">
-           {events.slice(0, 6).map((ev, i) => (
+          {events.slice(0, 6).map((ev, i) => (
             <button
               key={`dot-${ev._id ?? i}-${i}`}
               onClick={(e) => { e.stopPropagation(); setActive(i); reset(); }}
