@@ -433,6 +433,7 @@ export const getWieUserChats = async (req, res) => {
     });
   }
 };
+
 export const sendWieMessage = async (req, res) => {
   try {
     const { chatId, content } = req.body;
@@ -725,8 +726,8 @@ export const sendWieMessage = async (req, res) => {
             lastSeen: senderIsOnline ? new Date().toISOString() : (senderInfo?.last_seen_at || null)
           },
           type: receiverType, // ✅ Use calculated type for receiver
-          status: receiverStatus, // ✅ Use calculated status for receiver
-          unreadCount: receiverUnreadCount,
+          status: receiverStatus,
+          unreadCount: receiverViewingChat ? 0 : receiverUnreadCount,  
           timestamp: new Date(),
           isFirstMessage: isFirstMessage,
           autoRead: receiverViewingChat
@@ -744,7 +745,7 @@ export const sendWieMessage = async (req, res) => {
         
         io.to(receiverId).emit('chat-unread-update', {
           chatId: chatId.toString(),
-          unreadCount: receiverUnreadCount 
+          unreadCount: receiverViewingChat ? 0 : receiverUnreadCount
         });
 
         // Update RECEIVER's chat list
@@ -771,12 +772,11 @@ export const sendWieMessage = async (req, res) => {
           },
           type: receiverType, // ✅ Use calculated type
           status: receiverStatus, // ✅ Use calculated status
-          unreadCount: receiverUnreadCount,
+          unreadCount: receiverViewingChat ? 0 : receiverUnreadCount,  
           isFirstMessage: isFirstMessage
         });
         
-        // ✅ Emit request count update only if receiver sees this as a request
-        if (receiverType === 'request' && receiverStatus === 'pending') {
+        if (receiverType === 'request' && receiverStatus === 'pending' && !receiverViewingChat) {
           io.to(receiverId).emit('request-count-update', {
             chatId: chatId.toString(),
             unreadCount: receiverUnreadCount,
@@ -843,6 +843,7 @@ export const sendWieMessage = async (req, res) => {
     });
   }
 };
+
 export const getWieChatMessages = async (req, res) => {
   try {
     const { chatId } = req.params;
