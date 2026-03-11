@@ -1,4 +1,4 @@
-  'use client';
+'use client';
 import { useEffect, useState, useRef, Fragment } from 'react';
 import axios from 'axios';
 import { useSelector } from 'react-redux';
@@ -6,24 +6,24 @@ import { RootState } from '@/features/store';
 import { useRouter } from 'next/navigation'; 
 import { useChat } from '@/context/ChatContext';
 import {
-  getWieChatMessages,
-  sendWieMessage,
-  deleteMessagesForMe,
-  deleteMessagesForEveryone,
-  deleteChatForMe,
-  acceptMessageRequest,
-  declineMessageRequest,
-  markMessagesAsRead,
-  blockUser,
-  unblockUser,
-  reportUser,
-  checkBlockStatus
+  getWieChatMessages,sendWieMessage,deleteMessagesForMe,deleteMessagesForEveryone,
+  deleteChatForMe,acceptMessageRequest,declineMessageRequest,markMessagesAsRead,blockUser,unblockUser,reportUser,
+  checkBlockStatus,sendImageMessage,sendVideoMessage,sendAudioMessage,sendDocumentMessage,sendLocationMessage,
+  sendProfileMessage,sendEventMessage,
 } from '@/services/chatService';
 import socketService from '@/services/socketService';
 import EmojiPicker from '@/components/chat/EmojiPicker';
 import VoiceRecorder from '@/components/chat/VoiceRecorder';
 import VoiceMessageDisplay from '@/components/chat/VoiceMessageDisplay';
-import { MessageCircle, Send, Loader2, ArrowLeft, MoreVertical, X, Check, CheckCheck, Mic, Smile, Ban } from 'lucide-react';
+import MediaPickerModal from '@/components/chat/Mediapickermodal';           
+import LocationPickerModal from '@/components/chat/Locationpickermodal';    
+import ProfilePickerModal from '@/components/chat/Profilepickermodal';       
+import EventPickerModal from '@/components/chat/Eventpickermodal';           
+import {
+  isMediaMessage,
+  renderMediaMessage,
+} from '@/components/chat/Mediamessagerenderer';                             
+import { MessageCircle, Send, Loader2, ArrowLeft, MoreVertical, X, Check, CheckCheck, Mic, Smile, Ban, Paperclip } from 'lucide-react';
 import Image from 'next/image';
 import { format, isToday, isYesterday } from 'date-fns';
 import { useTheme } from "@/components/home/ThemeContext";
@@ -38,7 +38,7 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
   const user = authState?.user;
   const router = useRouter();
   const { themeStyles, isDark } = useTheme();
-  const { currentChat, messages, setMessages, addMessage, removeChat, setCurrentChat, acceptRequest, declineRequest, typingUsers, updateUnreadCount, loadChatById, updateChatList,clearRequestCount } = useChat();
+  const { currentChat, messages, setMessages, addMessage,replaceMessage, removeMessage, removeChat, setCurrentChat, acceptRequest, declineRequest, typingUsers, updateUnreadCount, loadChatById, updateChatList,clearRequestCount } = useChat();
   // ✅ Immediate fallback if no chat selected, before any other logic runs
   if (!currentChat) {
     return (
@@ -76,6 +76,11 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
   const [showDeleteMenu, setShowDeleteMenu] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [sendingVoice, setSendingVoice] = useState(false);
+  const [showMediaPicker, setShowMediaPicker]= useState(false);    
+  const [showLocationModal, setShowLocationModal]= useState(false);    
+  const [showProfileModal, setShowProfileModal]= useState(false);      
+  const [showEventModal, setShowEventModal]= useState(false);    
+  const [isSendingMedia, setIsSendingMedia]= useState(false); 
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -84,10 +89,12 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
   const [isReporting, setIsReporting] = useState(false);
   const [isBlocking, setIsBlocking] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isUploading,     setIsUploading]     = useState(false);
+  const [uploadProgress,  setUploadProgress]  = useState<Record<string, number>>({});
   const [blockStatus, setBlockStatus] = useState<{
     iBlockedThem: boolean;
     theyBlockedMe: boolean;
-  } | null>(null);
+  } | null>(null);    
 
   const isOtherUserTyping = currentChat ? typingUsers[currentChat._id] || false : false;
 
@@ -253,6 +260,267 @@ const handleEmojiSelect = (emoji: string) => {
     }
   };
 
+                                                                          
+  const handleGalleryFiles = async (files: File[]) => {                        
+    if (!currentChat || isSendingMedia) return;                                 
+    setIsSendingMedia(true);                                                   
+
+    const images = files.filter(f => f.type.startsWith('image/'));              
+    const videos = files.filter(f => f.type.startsWith('video/'));              
+
+    const tempImageId = images.length > 0 ? `temp_img_${Date.now()}` : null;
+    const tempVideoIds: string[] = videos.map((_, i) => `temp_vid_${Date.now()}_${i}`);
+
+    if (images.length > 0 && tempImageId) {
+      const localPreviews = images.map(f => URL.createObjectURL(f));
+      // Inject optimistic message so images show immediately
+      addMessage({
+        _id: tempImageId,
+        sender: user?.id || '',
+        messageType: 'image',
+        content: '📷 Image',
+        chat_images: localPreviews,          // blob: URLs for instant display
+        _localPreviews: localPreviews,       // also stored here as backup
+        _isOptimistic: true,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    videos.forEach((f, i) => {
+      addMessage({
+        _id: tempVideoIds[i],
+        sender: user?.id || '',
+        messageType: 'video',
+        content: '🎥 Video',
+        chat_videos: [{ url: URL.createObjectURL(f) }],
+        _isOptimistic: true,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    try {
+      if (images.length > 0 && tempImageId) {
+        // Build FormData for image upload
+        const imageFormData = new FormData();
+        images.forEach(f => imageFormData.append('images', f));
+
+        const response = await sendImageMessage(
+          currentChat._id,
+          imageFormData,
+          (percent) => setUploadProgress(prev => ({ ...prev, [tempImageId]: percent }))
+        );
+        setUploadProgress(prev => { const n = { ...prev }; delete n[tempImageId]; return n; });
+
+        if (response.success && response.message) {
+          replaceOrAddMessage(tempImageId, {
+            ...response.message,
+            chat_images:   response.message.chat_images   || [],
+            chat_videos:   response.message.chat_videos   || [],
+            chat_audio:    response.message.chat_audio    || [],
+            chat_files:    response.message.chat_files    || [],
+            stickerData:   response.message.stickerData,
+            locationData:  response.message.locationData,
+            contactData:   response.message.contactData,
+            profileData:   response.message.profileData,
+            eventData:     response.message.eventData,
+            _isOptimistic: false,
+          });
+        }
+      }
+
+      for (let i = 0; i < videos.length; i++) {
+        const videoFormData = new FormData();
+        videoFormData.append('video', videos[i]);
+
+        const res = await sendVideoMessage(
+          currentChat._id,
+          videoFormData,
+          (percent) => setUploadProgress(prev => ({ ...prev, [tempVideoIds[i]]: percent }))
+        );
+        setUploadProgress(prev => { const n = { ...prev }; delete n[tempVideoIds[i]]; return n; });
+
+        if (res.success && res.message) {
+          replaceOrAddMessage(tempVideoIds[i], {
+            ...res.message,
+            chat_videos:   res.message.chat_videos || [],
+            _isOptimistic: false,
+          });
+        }
+      }
+    } catch (err: any) {
+      // Remove optimistic messages on failure
+      if (tempImageId) removeOptimisticMessage(tempImageId);
+      tempVideoIds.forEach(id => removeOptimisticMessage(id));
+
+      const msg = err?.response?.data?.message || 'Failed to send media';
+      setToast({ message: msg, type: 'error' });
+    } finally {
+      setIsSendingMedia(false);
+    }
+  };    
+  const replaceOrAddMessage = (tempId: string | null, realMessage: any) => {   
+    if (tempId && typeof replaceMessage === 'function') {                       
+      replaceMessage(tempId, realMessage);                                      
+    } else {                                                                    
+      addMessage(realMessage);                                                  
+    }                                                                          
+  };                                                                            
+  const removeOptimisticMessage = (tempId: string) => {                        
+    if (typeof removeMessage === 'function') {                                  
+      removeMessage(tempId);                                                    
+    }                                                                           
+  }; 
+
+  const handleDocumentFile = async (file: File) => {                           
+    if (!currentChat || isSendingMedia) return;                                 
+    setIsSendingMedia(true);                                                    
+    const tempId = `temp_doc_${Date.now()}`;
+    const ext    = file.name.split('.').pop()?.toLowerCase() || 'file';
+
+    addMessage({
+      _id:         tempId,
+      sender:      user?.id || '',
+      messageType: 'file',
+      content:     `📎 ${file.name}`,
+      chat_files:  [{ url: URL.createObjectURL(file), name: file.name, size: file.size, extension: ext }],
+      _isOptimistic: true,
+      timestamp:   new Date().toISOString(),
+    });
+
+    try {
+          const docFormData = new FormData();
+          docFormData.append('document', file);
+
+          const res = await sendDocumentMessage(
+            currentChat._id,
+            docFormData,
+            (percent) => setUploadProgress(prev => ({ ...prev, [tempId]: percent }))
+          );
+          setUploadProgress(prev => { const n = { ...prev }; delete n[tempId]; return n; });
+      if (res.success && res.message) {
+        replaceOrAddMessage(tempId, {
+          ...res.message,
+          chat_files:  res.message.chat_files || [],
+          _isOptimistic: false,
+        });
+      }
+    } catch (err: any) {
+      removeOptimisticMessage(tempId);
+      setToast({ message: err?.response?.data?.message || 'Failed to send document', type: 'error' });
+    } finally {
+      setIsSendingMedia(false);
+    }
+  };                                                                            
+
+
+  const handleAudioFile = async (file: File) => {                                
+    if (!currentChat || isSendingMedia) return;                                 
+    setIsSendingMedia(true);                                                   
+    const tempId = `temp_audio_${Date.now()}`;
+
+    addMessage({
+      _id:         tempId,
+      sender:      user?.id || '',
+      messageType: 'audio',
+      content:     '🎵 Audio',
+      chat_audio:  [{ url: URL.createObjectURL(file), originalName: file.name, size: file.size }],
+      _isOptimistic: true,
+      timestamp:   new Date().toISOString(),
+    });
+
+    try {
+          const audioFormData = new FormData();
+          audioFormData.append('audio', file);
+
+          const res = await sendAudioMessage(
+            currentChat._id,
+            audioFormData,
+            (percent) => setUploadProgress(prev => ({ ...prev, [tempId]: percent }))
+          );
+          setUploadProgress(prev => { const n = { ...prev }; delete n[tempId]; return n; });
+      if (res.success && res.message) {
+        replaceOrAddMessage(tempId, {
+          ...res.message,
+          chat_audio: res.message.chat_audio || [],
+          _isOptimistic: false,
+        });
+      }
+    } catch (err: any) {
+      removeOptimisticMessage(tempId);
+      setToast({ message: err?.response?.data?.message || 'Failed to send audio', type: 'error' });
+    } finally {
+      setIsSendingMedia(false);
+    }
+  };                                                                          
+
+  const handleLocationSend = async (data: {                                  
+    latitude: number; longitude: number;                                      
+    address?: string; name?: string;                                          
+    isLive: boolean; liveExpiry?: string;                                     
+  }) => {                                                                     
+    if (!currentChat || isSendingMedia) return;                               
+    setIsSendingMedia(true);                                                  
+    try {                                                                     
+      const res = await sendLocationMessage(                                  
+        currentChat._id,                                                      
+        data.latitude,                                                        
+        data.longitude,                                                       
+        data.address                                                          
+      );                                                                      
+      if (res.success) addMessage(res.message);                               
+    } catch (err: any) {                                                      
+      setToast({ message: 'Failed to send location', type: 'error' });        
+    } finally {                                                               
+      setIsSendingMedia(false);                                               
+    }                                                                        
+  };                                                                          
+
+  const handleProfileSend = async (profile: {                                
+    profileUserId: string; name: string; username: string;                    
+    avatar?: string; bio?: string; is_verified: boolean;                      
+  }) => {                                                                     
+    if (!currentChat || isSendingMedia) return;                               
+    setIsSendingMedia(true);                                                  
+    try {            
+      const res = await sendProfileMessage(currentChat._id, profile.profileUserId, {
+                        name:        profile.name,
+                        username:    profile.username,
+                        avatar:      profile.avatar,
+                        bio:         profile.bio,
+                        is_verified: profile.is_verified,
+                      });                                                         
+      if (res.success) addMessage(res.message);                               
+    } catch (err: any) {                                                     
+      setToast({ message: 'Failed to send profile', type: 'error' });         
+    } finally {                                                               
+      setIsSendingMedia(false);                                               
+    }                                                                         
+  };                                                                          
+
+  const handleEventSend = async (event: {
+      eventId: string; title: string; description?: string;
+      startDate?: string; endDate?: string; venue?: string;
+      image?: string; ticketUrl?: string;
+    }) => {
+      if (!currentChat || isSendingMedia) return;
+      setIsSendingMedia(true);
+      try {
+        const res = await sendEventMessage(currentChat._id, event.eventId, {
+          title:       event.title,
+          description: event.description,
+          startDate:   event.startDate,
+          endDate:     event.endDate,
+          venue:       event.venue,
+          image:       event.image,
+          ticketUrl:   event.ticketUrl,
+        });
+        if (res.success) addMessage(res.message);                               
+    } catch (err: any) {                                                      
+      setToast({ message: 'Failed to send event', type: 'error' });           
+    } finally {                                                               
+      setIsSendingMedia(false);                                               
+    }                                                                         
+  };                                                                         
   const parseVoiceMessage = (content: string) => {
     try {
       const parsed = JSON.parse(content);
@@ -276,22 +544,23 @@ const handleEmojiSelect = (emoji: string) => {
     try {
       const response = await getWieChatMessages(currentChat._id);
       if (response.success) {
-        const parsedMessages = (response.messages || []).map((msg: ChatMessage) => {
-          if (msg.messageType === 'voice' && msg.voiceData) {
-            return msg;
-          }
+        const parsedMessages = (response.messages || []).map((msg: any): ChatMessage => {
+          const base = { ...msg };
 
-          if (msg.content?.startsWith('{') && msg.content.includes('"type":"voice"')) {
+          if (base.messageType === 'voice' && base.voiceData) {
+            return base;
+          }
+          if (base.content?.startsWith('{') && base.content.includes('"type":"voice"')) {
             try {
-              const parsed = JSON.parse(msg.content);
+              const parsed = JSON.parse(base.content);
               if (parsed.type === 'voice' && parsed.audio && parsed.duration) {
                 return {
-                  ...msg,
+                  ...base,  // ✅ keep all rich fields
                   messageType: 'voice',
                   voiceData: {
                     audioBase64: parsed.audio,
-                    duration: parsed.duration,
-                    mimeType: parsed.mimeType || 'audio/webm;codecs=opus'
+                    duration:    parsed.duration,
+                    mimeType:    parsed.mimeType || 'audio/webm;codecs=opus'
                   },
                   content: '🎤 Voice message'
                 };
@@ -301,7 +570,7 @@ const handleEmojiSelect = (emoji: string) => {
             }
           }
 
-          return msg;
+          return base; 
         });
 
         setMessages(parsedMessages);
@@ -811,7 +1080,7 @@ const toggleMessageSelection = (messageId: string) => {
   if (messages.length === 0) return;
 
   const unreadMessages = messages.filter(
-    (msg) => msg.sender !== user.id && !msg.readBy.includes(user.id)
+    (msg) => msg.sender !== user.id && !msg.readBy?.includes(user.id)
   );
 
   if (unreadMessages.length === 0) {
@@ -1701,14 +1970,24 @@ const toggleMessageSelection = (messageId: string) => {
                   isSender={isSender}
                   timestamp={message.timestamp}
                 />
-              ) : (
-                <div
-                  className="break-words text-[15px] leading-relaxed"
-                  style={{ color: isSender ? '#fff' : themeStyles.text }}
-                >
-                  {message.content}
-                </div>
-              )}
+                ) : (
+                 isMediaMessage(message) ? (
+                    renderMediaMessage(
+                      message,
+                      isSender,
+                      themeStyles,
+                      isDark,
+                      message._isOptimistic ? uploadProgress[message._id as string] : undefined
+                    )
+                  ) : (
+                    <div
+                      className="break-words text-[15px] leading-relaxed"
+                      style={{ color: isSender ? '#fff' : themeStyles.text }}
+                    >
+                      {message.content}
+                    </div>
+                  )
+                )}
 
               {/* Status area for both Voice and Text */}
               <div className="flex justify-end mt-1 items-center gap-1.5 opacity-80">
@@ -1773,77 +2052,100 @@ const toggleMessageSelection = (messageId: string) => {
               </div>
             </div>
           ) : (
-
-          <form onSubmit={handleSendMessage} className="p-4 flex items-center gap-2 relative flex-shrink-0"
+          <form
+            onSubmit={handleSendMessage}
+            className="p-4 flex items-center gap-2 relative flex-shrink-0"
           >
-  {/* Voice Recorder - Logic preserved, styled to overlay nicely */}
-  {showVoiceRecorder && (
-    <div className="absolute inset-x-0 bottom-full mb-2 px-4">
-      <VoiceRecorder
-        onSendVoice={handleSendVoice}
-        onCancel={() => setShowVoiceRecorder(false)}
-        disabled={sendingVoice}
-      />
-    </div>
-  )}
+            {/*  Voice Recorder overlay */}
+            {showVoiceRecorder && (
+              <div className="absolute inset-x-0 bottom-full mb-2 px-4">
+                <VoiceRecorder
+                  onSendVoice={handleSendVoice}
+                  onCancel={() => setShowVoiceRecorder(false)}
+                  disabled={sendingVoice}
+                />
+              </div>
+            )}
 
-  {/* Main Input Capsule */}
-  <div
-    className="flex-1 flex items-center gap-3 px-4 py-1.5 rounded-full transition-all"
-    style={{ background: themeStyles.cardBg }}
-  >
-    {/* Emoji Picker Button */}
-    <button
-      type="button"
-      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-      className="transition"
-      style={{ color: themeStyles.textSecondary }}
-    >
-      <Smile size={22} />
-    </button>
+            {/*  Media Picker Modal  */}
+            {/* Positioned relative to the form so it floats above it  */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowMediaPicker(!showMediaPicker)}
+                className="p-2 rounded-full transition-colors flex-shrink-0"
+                style={{ color: showMediaPicker ? '#5494FF' : themeStyles.textSecondary }}
+                disabled={isSendingMedia}
+              >
+                <Paperclip size={22} />
+              </button>
 
-    <input
-      ref={inputRef}
-      type="text"
-      value={messageInput}
-      onChange={(e) => handleTyping(e.target.value)}
-      placeholder="Message"
-      className="flex-1 bg-transparent border-none outline-none text-[16px] py-1.5"
-      style={{
-        color: themeStyles.text,
-        // Use inline style for placeholder color by setting CSS custom property
-      }}
-      disabled={sending || sendingVoice || showVoiceRecorder}
-    />
+              <MediaPickerModal
+                isOpen={showMediaPicker}
+                onClose={() => setShowMediaPicker(false)}
+                onSelectGallery={(files) => { setShowMediaPicker(false); handleGalleryFiles(files); }}
+                onSelectCamera={() => { setShowMediaPicker(false); /* camera handled by OS via gallery input */ }}
+                onSelectLocation={() => { setShowMediaPicker(false); setShowLocationModal(true); }}
+                onSelectProfile={() => { setShowMediaPicker(false); setShowProfileModal(true); }}
+                onSelectDocument={(file) => { setShowMediaPicker(false); handleDocumentFile(file); }}
+                onSelectAudio={(file) => { setShowMediaPicker(false); handleAudioFile(file); }}
+                onSelectPoll={() => setShowMediaPicker(false)}
+                onSelectEvents={() => { setShowMediaPicker(false); setShowEventModal(true); }}
+              />
+            </div>
 
+            {/* ── Main Input Capsule */}
+            <div
+              className="flex-1 flex items-center gap-3 px-4 py-1.5 rounded-full transition-all"
+              style={{ background: themeStyles.cardBg }}
+            >
+              {/* Emoji Picker Button */}
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="transition"
+                style={{ color: themeStyles.textSecondary }}
+              >
+                <Smile size={22} />
+              </button>
 
-  </div>
+              <input
+                ref={inputRef}
+                type="text"
+                value={messageInput}
+                onChange={(e) => handleTyping(e.target.value)}
+                placeholder="Message"
+                className="flex-1 bg-transparent border-none outline-none text-[16px] py-1.5"
+                style={{ color: themeStyles.text }}
+                disabled={sending || sendingVoice || showVoiceRecorder || isSendingMedia}
+              />
+            </div>
 
-  {/* Circular Action Button (Send or Mic) */}
-  <button
-    type={messageInput.trim() ? "submit" : "button"}
-    onClick={!messageInput.trim() ? () => setShowVoiceRecorder(true) : undefined}
-    disabled={sending || sendingVoice}
-    style={{ background: 'linear-gradient(147.67deg, #2979FF 13.16%, #6B9CF0 54.09%, #9DC1FF 100.03%)' }}
-    className="p-3 rounded-full text-white shadow-lg hover:opacity-90 transition-all active:scale-95 flex-shrink-0"
-  >
-    {sending || sendingVoice ? (
-      <Loader2 className="animate-spin" size={20} />
-    ) : messageInput.trim() ? (
-      <Send size={20} />
-    ) : (
-      <Mic size={20} />
-    )}
-  </button>
+            {/* ── Send / Mic / Loading button  */}
+            <button
+              type={messageInput.trim() ? 'submit' : 'button'}
+              onClick={!messageInput.trim() && !isSendingMedia ? () => setShowVoiceRecorder(true) : undefined}
+              disabled={sending || sendingVoice || isSendingMedia}
+              style={{ background: 'linear-gradient(147.67deg, #2979FF 13.16%, #6B9CF0 54.09%, #9DC1FF 100.03%)' }}
+              className="p-3 rounded-full text-white shadow-lg hover:opacity-90 transition-all active:scale-95 flex-shrink-0"
+            >
+              {sending || sendingVoice || isSendingMedia ? (
+                <Loader2 className="animate-spin" size={20} />
+              ) : messageInput.trim() ? (
+                <Send size={20} />
+              ) : (
+                <Mic size={20} />
+              )}
+            </button>
 
-  {/* Emoji Picker - Positioned above */}
-  <EmojiPicker
-    isOpen={showEmojiPicker}
-    onClose={() => setShowEmojiPicker(false)}
-    onEmojiSelect={handleEmojiSelect}
-    position="top"
-  />
-</form>
+            {/* ── Emoji Picker  */}
+            <EmojiPicker
+              isOpen={showEmojiPicker}
+              onClose={() => setShowEmojiPicker(false)}
+              onEmojiSelect={handleEmojiSelect}
+              position="top"
+            />
+          </form>
           )}
         </>
       ) : (
@@ -1862,6 +2164,26 @@ const toggleMessageSelection = (messageId: string) => {
         type={toast?.type}
         visible={!!toast}
         onClose={() => setToast(null)}
+      />
+      {/* Location Modal */}
+      <LocationPickerModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        onSend={handleLocationSend}
+      />
+
+      {/* Profile Picker Modal */}
+      <ProfilePickerModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        onSend={handleProfileSend}
+      />
+
+      {/* Event Picker Modal */}
+      <EventPickerModal
+        isOpen={showEventModal}
+        onClose={() => setShowEventModal(false)}
+        onSend={handleEventSend}
       />
     </div>
   );

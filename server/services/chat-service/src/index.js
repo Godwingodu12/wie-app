@@ -18,7 +18,7 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 5004;
 
 const allowedOrigins = [
-  process.env.CORS_ORIGIN || 'http://localhost:5173',
+  process.env.CORS_ORIGIN      || 'http://localhost:5173',
   process.env.USER_CORS_ORIGIN || 'http://localhost:3000'
 ];
 
@@ -32,24 +32,39 @@ app.use(cors({
   },
   credentials: true
 }));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+
+// ── Health check
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
+  res.status(200).json({
+    status: 'OK',
     service: 'chat-service',
     timestamp: new Date().toISOString()
   });
 });
 
-app.use('/api/chat', chatRoutes);
-app.use('/api/wie-chat', wieChatRoutes);
+// ── Routes
+app.use('/api/chat',       chatRoutes);
+app.use('/api/wie-chat',   wieChatRoutes);
 app.use('/api/chat-block', blockRoutes);
 app.use('/api/chat-report', reportRoutes);
+
+// ── Global error handler
 app.use((err, req, res, next) => {
   console.error('❌ Error:', err);
+
+  // Multer errors (file size / type)
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ success: false, message: 'File too large' });
+  }
+  if (err.message?.includes('Only') || err.message?.includes('File type')) {
+    return res.status(415).json({ success: false, message: err.message });
+  }
+
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal server error'
@@ -57,10 +72,7 @@ app.use((err, req, res, next) => {
 });
 
 app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found'
-  });
+  res.status(404).json({ success: false, message: 'Route not found' });
 });
 
 const startServer = async () => {
@@ -68,14 +80,14 @@ const startServer = async () => {
     await connectDB();
     console.log('✅ Database connected');
 
-    // Initialize both socket servers
-    initializeSocket(server);    
+    initializeSocket(server);
     initializeWieSocket(server);
+
     server.listen(PORT, () => {
       console.log(`✅ Chat Service running on port ${PORT}`);
-      console.log(`📍 HTTP: http://localhost:${PORT}`);
+      console.log(`📍 HTTP:         http://localhost:${PORT}`);
       console.log(`📍 Admin Socket: /socket.io`);
-      console.log(`📍 WIE Socket: /wie-socket.io`);
+      console.log(`📍 WIE Socket:   /wie-socket.io`);
     });
 
     try {
@@ -91,14 +103,8 @@ const startServer = async () => {
   }
 };
 
-process.on('SIGINT', async () => {
-  console.log('\n🛑 Shutting down gracefully...');
-  process.exit(0);
-});
+process.on('SIGINT',  async () => { console.log('\n🛑 Shutting down gracefully...'); process.exit(0); });
+process.on('SIGTERM', async () => { console.log('\n🛑 Shutting down gracefully...'); process.exit(0); });
 
-process.on('SIGTERM', async () => {
-  console.log('\n🛑 Shutting down gracefully...');
-  process.exit(0);
-});
 startServer();
 export default app;

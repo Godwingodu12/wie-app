@@ -11,20 +11,57 @@ export interface ChatUser {
   lastSeen?: string;
   last_seen_at?: string;
 }
+export interface ChatVideoItem {
+  url: string;
+  originalName?: string;
+  size?: number;
+  thumbnail?: string;
+}
+
+export interface ChatAudioItem {
+  url: string;
+  originalName?: string;
+  size?: number;
+}
+
+export interface ChatFileItem {
+  url: string;
+  name?: string;
+  size?: number;
+  extension?: string;
+}
 export interface ChatMessage {
   _id: string;
   sender: string;
   content: string;
   timestamp: string;
-  createdAt: string;
-  readBy: string[];
-  deliveredTo: string[];
-  voiceData?: VoiceData;
-  isRead: boolean;
+  createdAt?: string;
+  readBy?: string[];
+  deliveredTo?: string[];
+  isRead?: boolean;
   isSender?: boolean;
   deletedForEveryone?: boolean;
   deletedFor?: string[];
-  messageType?: 'text' | 'voice' | 'image' | 'video' | 'file';
+
+  // Message type — extended to cover all media kinds
+  messageType?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'audio'
+               | 'location' | 'profile' | 'event' | 'sticker' | 'contact';
+
+  // Rich media fields
+  voiceData?: VoiceData;
+  chat_images?: string[];
+  chat_videos?: ChatVideoItem[];
+  chat_audio?: ChatAudioItem[];
+  chat_files?: ChatFileItem[];
+  stickerData?: Record<string, any>;
+  locationData?: Record<string, any>;
+  contactData?: Record<string, any>;
+  profileData?: Record<string, any>;
+  eventData?: Record<string, any>;
+
+  // Optimistic-UI helpers (client-only, never persisted)
+  _localPreviews?: string[];
+  _isOptimistic?: boolean;
 }
 export interface VoiceData {
   audioBase64: string;

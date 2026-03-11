@@ -3,6 +3,7 @@ import { getFollowerIds,getRelationship } from '../grpc/followClient.js';
 import { getWieUserById, getWieUsersByIds, searchWieUsers } from '../grpc/wieUserClient.js';
 import { determineChatPermission } from '../services/permission.service.js';
 import { getIO, emitToChat,getUserOnlineStat } from '../socket/wieSocket.js';
+import { uploadChatImage, deleteChatImage, replaceChatImage } from '../utils/cloudinaryHelper.js';
 import { isBlocked } from '../services/block.service.js';
 const formatUserForChat = (user) => {
   if (!user) {
@@ -912,27 +913,30 @@ export const getWieChatMessages = async (req, res) => {
     const endIndex = totalMessages - ((parseInt(page) - 1) * parseInt(limit));
     const paginatedMessages = filteredMessages.slice(startIndex, endIndex);
     
+    const RICH_FIELDS = [
+      'chat_images', 'chat_videos', 'chat_audio', 'chat_files',
+      'stickerData', 'voiceData', 'locationData', 'contactData',
+      'profileData', 'eventData'
+    ];
+
     const messagesWithAllFields = paginatedMessages.map(msg => {
       const messageData = {
-        _id: msg._id,
-        sender: msg.sender,
-        content: msg.content,
-        messageType: msg.messageType || 'text',
-        timestamp: msg.timestamp || msg.createdAt,
-        createdAt: msg.createdAt || msg.timestamp,
-        readBy: msg.readBy || [],
-        isRead: msg.isRead || false,
-        deliveredTo: msg.deliveredTo || [],
+        _id:                msg._id,
+        sender:             msg.sender,
+        content:            msg.content,
+        messageType:        msg.messageType || 'text',
+        timestamp:          msg.timestamp   || msg.createdAt,
+        createdAt:          msg.createdAt   || msg.timestamp,
+        readBy:             msg.readBy      || [],
+        isRead:             msg.isRead      || false,
+        deliveredTo:        msg.deliveredTo || [],
         deletedForEveryone: msg.deletedForEveryone || false
       };
 
-      if (msg.messageType === 'voice' && msg.voiceData) {
-        messageData.voiceData = {
-          audioBase64: msg.voiceData.audioBase64,
-          duration: msg.voiceData.duration,
-          mimeType: msg.voiceData.mimeType || 'audio/webm;codecs=opus'
-        };
-      }
+      // ✅ Carry ALL rich-media fields so the frontend renderer gets real URLs
+      RICH_FIELDS.forEach(field => {
+        if (msg[field] != null) messageData[field] = msg[field];
+      });
 
       return messageData;
     });
@@ -2266,7 +2270,7 @@ export const getUnreadUsersCount = async (req, res) => {
     }
     res.status(200).json({
       success: true,
-      unreadUsersCount: uniqueUsersWithUnreadMessages // Number of unique users, not messages
+      unreadUsersCount: uniqueUsersWithUnreadMessages
     });
   } catch (error) {
     console.error('❌ Error in getUnreadUsersCount:', error);
@@ -2276,3 +2280,4 @@ export const getUnreadUsersCount = async (req, res) => {
     });
   }
 };
+

@@ -16,6 +16,8 @@ interface ChatContextType {
   requestCounts: { [chatId: string]: number };
   setCurrentChat: (chat: Chat | null) => void;
   addMessage: (message: ChatMessage) => void;
+  replaceMessage: (tempId: string, msg: any) => void;
+  removeMessage:  (tempId: string) => void;
   updateChatList: (chat: Chat) => void;
   removeChat: (chatId: string) => void;
   setMessages: (messagesOrUpdater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
@@ -249,7 +251,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
   const addMessage = useCallback((message: ChatMessage) => {
-    // ✅ Parse voice message if needed
     const parsedMessage = parseVoiceMessage(message);
     
     setInternalMessages((prev) => {
@@ -258,6 +259,19 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return [...prev, parsedMessage];
     });
   }, []);
+  const replaceMessage = (tempId: string, realMsg: any) => {
+    setMessages(prev =>
+      prev.map(m => (m._id === tempId || m._id?.toString() === tempId)
+        ? { ...realMsg }           
+        : m
+      )
+    );
+  };
+
+  const removeMessage = (tempId: string) => {
+    setMessages(prev => prev.filter(m => m._id !== tempId && m._id?.toString() !== tempId));
+  };
+  
   const setMessages = useCallback((messagesOrUpdater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
     setInternalMessages(messagesOrUpdater);
   }, []);
@@ -479,20 +493,29 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // ✅ Handle message in current chat window
         if (isCurrentChatOpen && !isOwnMessage && data.message) {
+          const rawNotif = data.message;
           let newMessage: ChatMessage = {
-            _id: data.message._id,
-            sender: data.message.sender,
-            content: data.message.content || data.lastMessage?.content,
-            messageType: data.message.messageType || 'text',
-            voiceData: data.message.voiceData || null,
-            timestamp: data.message.timestamp || new Date().toISOString(),
-            createdAt: data.message.timestamp || new Date().toISOString(),
-            readBy: data.message.readBy || [],
-            deliveredTo: data.message.deliveredTo || [],
-            isRead: data.message.isRead || false,
+            _id: rawNotif._id,
+            sender: rawNotif.sender,
+            content: rawNotif.content || data.lastMessage?.content,
+            messageType: rawNotif.messageType || 'text',
+            voiceData: rawNotif.voiceData ?? undefined,
+            chat_images:  rawNotif.chat_images  ?? undefined,
+            chat_videos:  rawNotif.chat_videos  ?? undefined,
+            chat_audio:   rawNotif.chat_audio   ?? undefined,
+            chat_files:   rawNotif.chat_files   ?? undefined,
+            stickerData:  rawNotif.stickerData  ?? undefined,
+            locationData: rawNotif.locationData ?? undefined,
+            contactData:  rawNotif.contactData  ?? undefined,
+            profileData:  rawNotif.profileData  ?? undefined,
+            eventData:    rawNotif.eventData    ?? undefined,
+            timestamp: rawNotif.timestamp || new Date().toISOString(),
+            createdAt: rawNotif.timestamp || new Date().toISOString(),
+            readBy: rawNotif.readBy || [],
+            deliveredTo: rawNotif.deliveredTo || [],
+            isRead: rawNotif.isRead || false,
             isSender: false
           };
-          
           newMessage = parseVoiceMessage(newMessage);
           addMessage(newMessage);
         }
@@ -1015,33 +1038,60 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           );
         }
       };
+
       const handleNewMessage = (data: any) => {
         if (internalCurrentChat && data.chatId === internalCurrentChat._id) {
-          let newMessage: ChatMessage = {
-            _id: data.message._id,
-            sender: data.message.sender,
-            content: data.message.content,
-            messageType: data.message.messageType || 'text',
-            voiceData: data.message.voiceData || null,
-            timestamp: data.message.timestamp || data.message.createdAt,
-            createdAt: data.message.createdAt || data.message.timestamp,
-            readBy: data.message.readBy || [],
-            deliveredTo: data.message.deliveredTo || [],
-            isRead: data.message.isRead || false,
-            isSender: data.message.sender === user?.id
+          const rawMsg = data.message || data;
+
+          const newMessage: ChatMessage = {
+            _id:         rawMsg._id,
+            sender:      rawMsg.sender,
+            content:     rawMsg.content,
+            messageType: rawMsg.messageType || 'text',
+            timestamp:   rawMsg.timestamp   || rawMsg.createdAt || new Date().toISOString(),
+            createdAt:   rawMsg.createdAt   || rawMsg.timestamp || new Date().toISOString(),
+            readBy:      rawMsg.readBy      || [],
+            deliveredTo: rawMsg.deliveredTo || [],
+            isRead:      rawMsg.isRead      || false,
+            isSender:    rawMsg.sender === user?.id,
+
+            voiceData:    rawMsg.voiceData    ?? undefined,
+            chat_images:  rawMsg.chat_images  ?? undefined,
+            chat_videos:  rawMsg.chat_videos  ?? undefined,
+            chat_audio:   rawMsg.chat_audio   ?? undefined,
+            chat_files:   rawMsg.chat_files   ?? undefined,
+            stickerData:  rawMsg.stickerData  ?? undefined,
+            locationData: rawMsg.locationData ?? undefined,
+            contactData:  rawMsg.contactData  ?? undefined,
+            profileData:  rawMsg.profileData  ?? undefined,
+            eventData:    rawMsg.eventData    ?? undefined,
           };
-          // ✅ Parse voice message if needed
-          newMessage = parseVoiceMessage(newMessage);
+
+          const finalMessage = (
+            newMessage.messageType !== 'voice' &&
+            newMessage.content?.startsWith('{') &&
+            newMessage.content.includes('"type":"voice"')
+          ) ? parseVoiceMessage(newMessage) : newMessage;
 
           setInternalMessages((prev) => {
-            const exists = prev.some((m) => m._id === newMessage._id);
-            if (exists) {
-              return prev;
+            if (prev.some(m => m._id === finalMessage._id)) return prev;
+            const optimisticIdx = prev.findIndex(
+              m =>
+                m._isOptimistic === true &&
+                m.sender        === finalMessage.sender &&
+                m.messageType   === finalMessage.messageType &&
+                m.content       === finalMessage.content
+            );
+            if (optimisticIdx !== -1) {
+              const updated = [...prev];
+              updated[optimisticIdx] = { ...finalMessage, _isOptimistic: false };
+              return updated;
             }
-            return [...prev, newMessage];
+            return [...prev, finalMessage];
           });
         }
       };
+
       const handleUserBlockedYou = (data: { blockerId: string; blockerName?: string; chatIds: string[]; timestamp: string }) => {  
         // Update chats to mark them as blocked
         setInternalChats((prev) => {
@@ -1322,6 +1372,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         requestCounts,
         setCurrentChat,
         addMessage,
+        removeMessage,
+        replaceMessage,
         updateChatList,
         removeChat,
         setMessages,
@@ -1354,6 +1406,8 @@ export const useChat = () => {
       requestCounts: {},
       setCurrentChat: () => {},
       addMessage: () => {},
+      replaceMessage: () => {},
+      removeMessage: () => {},
       updateChatList: () => {},
       removeChat: () => {},
       setMessages: () => {},
