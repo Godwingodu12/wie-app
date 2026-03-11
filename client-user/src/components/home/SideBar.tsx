@@ -135,9 +135,18 @@ const SideBar: React.FC = () => {
   useEffect(() => {
     if (!user || !token) return;
 
-    // ✅ Listen for custom event from ChatContext
     const handleUnreadCountChange = (event: CustomEvent) => {
-      // ✅ CRITICAL: Refresh from API to get accurate USER count
+      const isOnMessagePage = typeof window !== 'undefined' && 
+        window.location.pathname.startsWith('/message');
+      if (isOnMessagePage) {
+        getUnreadUsersCount()
+          .then((res) => {
+            setUnreadUsersCount(res.unreadUsersCount || 0);
+          })
+          .catch(() => {});
+        return;
+      }
+
       getUnreadUsersCount()
         .then((res) => {
           setUnreadUsersCount(res.unreadUsersCount || 0);
@@ -153,7 +162,9 @@ const SideBar: React.FC = () => {
     const socket = socketService.getSocket();
     if (socket) {
       const handleNewMessageNotification = (data: any) => {
-        // ✅ Always refresh from API to get accurate count
+        const isOnMessagePage = typeof window !== 'undefined' && 
+          window.location.pathname.startsWith('/message');
+        if (isOnMessagePage) return;
         getUnreadUsersCount()
           .then((res) => {
             setUnreadUsersCount(res.unreadUsersCount || 0);
@@ -162,6 +173,7 @@ const SideBar: React.FC = () => {
             console.error('Failed to refresh unread users count:', error);
           });
       };
+
 
       const handleMessagesRead = (data: any) => {
         // ✅ Always refresh from API to get accurate count
@@ -175,7 +187,9 @@ const SideBar: React.FC = () => {
       };
 
       const handleChatUnreadUpdate = (data: any) => {
-        // ✅ Always refresh from API to get accurate count
+        const isOnMessagePage = typeof window !== 'undefined' && 
+          window.location.pathname.startsWith('/message');
+        if (isOnMessagePage) return;
         getUnreadUsersCount()
           .then((res) => {
             setUnreadUsersCount(res.unreadUsersCount || 0);
