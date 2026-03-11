@@ -67,6 +67,10 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [imageError, setImageError] = useState(false);
   const markedAsReadRef = useRef<Set<string>>(new Set());
+  const isInitialLoad = useRef(true);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const hasMarkedAsRead = useRef(false);
   const [isTyping, setIsTyping] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -91,6 +95,8 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isUploading,     setIsUploading]     = useState(false);
   const [uploadProgress,  setUploadProgress]  = useState<Record<string, number>>({});
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [blockStatus, setBlockStatus] = useState<{
     iBlockedThem: boolean;
     theyBlockedMe: boolean;
@@ -605,74 +611,74 @@ const handleEmojiSelect = (emoji: string) => {
     }
   };
   
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
-const handleSendMessage = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!messageInput.trim() || !currentChat || sending) return;
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageInput.trim() || !currentChat || sending) return;
 
-  const content = messageInput.trim();
-  const isFirstMessage = messages.length === 0;
-  
-  setMessageInput('');
-  setSending(true);
+    const content = messageInput.trim();
+    const isFirstMessage = messages.length === 0;
+    
+    setMessageInput('');
+    setSending(true);
 
-  try {
-    const response = await sendWieMessage(currentChat._id, content);
-    if (response.success) {
-      addMessage(response.message);
-      const chatToUpdate: Chat = {
-        _id: response.chat?._id || currentChat._id,
-        participant: response.chat?.participant || currentChat.participant!,
-        lastMessage: {
-          content: response.message.content,
-          sender: response.message.sender,
-          timestamp: response.message.timestamp,
-          deliveredTo: response.message.deliveredTo || [],
-          readBy: response.message.readBy || [],
-          isRead: false
-        },
-        unreadCount: 0,
-        type: response.chat?.type || currentChat.type || 'direct', // ✅ Use response type
-        status: response.chat?.status || currentChat.status || 'accepted', // ✅ Use response status
-        updatedAt: response.message.timestamp || new Date().toISOString()
-      };
-      // Update chat list
-      updateChatList(chatToUpdate);
+    try {
+      const response = await sendWieMessage(currentChat._id, content);
+      if (response.success) {
+        addMessage(response.message);
+        const chatToUpdate: Chat = {
+          _id: response.chat?._id || currentChat._id,
+          participant: response.chat?.participant || currentChat.participant!,
+          lastMessage: {
+            content: response.message.content,
+            sender: response.message.sender,
+            timestamp: response.message.timestamp,
+            deliveredTo: response.message.deliveredTo || [],
+            readBy: response.message.readBy || [],
+            isRead: false
+          },
+          unreadCount: 0,
+          type: response.chat?.type || currentChat.type || 'direct', // ✅ Use response type
+          status: response.chat?.status || currentChat.status || 'accepted', // ✅ Use response status
+          updatedAt: response.message.timestamp || new Date().toISOString()
+        };
+        // Update chat list
+        updateChatList(chatToUpdate);
 
-      // If first message, also update current chat state
-      if (isFirstMessage) {
-        setCurrentChat(chatToUpdate);
-        
-        // Dispatch events
-        if (typeof window !== 'undefined') {
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('force-reload-chats'));
-            window.dispatchEvent(new CustomEvent('new-chat-added', {
-              detail: { chatId: chatToUpdate._id, chat: chatToUpdate }
-            }));
-          }, 100);
+        // If first message, also update current chat state
+        if (isFirstMessage) {
+          setCurrentChat(chatToUpdate);
+          
+          // Dispatch events
+          if (typeof window !== 'undefined') {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('force-reload-chats'));
+              window.dispatchEvent(new CustomEvent('new-chat-added', {
+                detail: { chatId: chatToUpdate._id, chat: chatToUpdate }
+              }));
+            }, 100);
+          }
         }
       }
-    }
-  } catch (error: any) {
-    setMessageInput(content);
-    if (error.response?.status === 403) {
-      alert(error.response?.data?.message || 'Cannot send message to this user');
+    } catch (error: any) {
+      setMessageInput(content);
+      if (error.response?.status === 403) {
+        alert(error.response?.data?.message || 'Cannot send message to this user');
 
-      if (error.response?.data?.message?.includes('blocked')) {
-        const updatedChat = { ...currentChat, isBlocked: true };
-        setCurrentChat(updatedChat);
+        if (error.response?.data?.message?.includes('blocked')) {
+          const updatedChat = { ...currentChat, isBlocked: true };
+          setCurrentChat(updatedChat);
+        }
+      } else {
+        console.error('Send message error:', error);
       }
-    } else {
-      console.error('Send message error:', error);
+    } finally {
+      setSending(false);
     }
-  } finally {
-    setSending(false);
-  }
-};
+  };
 
   const handleTyping = (value: string) => {
     setMessageInput(value);
@@ -1052,13 +1058,11 @@ const toggleMessageSelection = (messageId: string) => {
       setIsTransitioning(true);
       hasMarkedAsRead.current = false;
       markedAsReadRef.current.clear();
+      isInitialLoad.current = true; 
 
       socketService.joinChat(currentChat._id);
-
-      // ✅ Load messages immediately, no delay
       loadMessages();
       
-      // ✅ Set transition state after load starts
       const timer = setTimeout(() => {
         setIsTransitioning(false);
       }, 100);
@@ -1071,7 +1075,18 @@ const toggleMessageSelection = (messageId: string) => {
   }, [currentChat?._id]);
 
   useEffect(() => {
-    scrollToBottom();
+    if (messages.length === 0) return;
+
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          scrollToBottom('instant');
+        });
+      });
+    } else {
+      scrollToBottom('smooth');
+    }
   }, [messages.length]);
 
 
@@ -1826,7 +1841,14 @@ const toggleMessageSelection = (messageId: string) => {
 
       {/* Messages */}
       <div
-        className="flex-1 overflow-y-auto p-4 min-h-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] flex flex-col"
+        ref={messagesContainerRef}
+        onScroll={() => {
+          const el = messagesContainerRef.current;
+          if (!el) return;
+          const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+          setShowScrollBtn(distFromBottom > 120);
+        }}
+        className="flex-1 overflow-y-auto p-4 min-h-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] flex flex-col relative"
         style={{ backgroundColor: themeStyles.sidebarBg }}
       >
         {loading ? (
@@ -1915,9 +1937,20 @@ const toggleMessageSelection = (messageId: string) => {
           e.preventDefault();
           handleMessageLongPress(message._id);
         }}
-        className={`flex items-end gap-2 mb-2 ${isSender ? 'justify-end' : 'justify-start'} ${
-          selectionMode && !isDeleted ? 'cursor-pointer' : ''
-        }`}
+        className={`flex items-end gap-2 mb-2 px-2 rounded-lg transition-colors duration-150 ${
+          isSender ? 'justify-end' : 'justify-start'
+        } ${selectionMode && !isDeleted ? 'cursor-pointer' : ''}`}
+        style={{
+          backgroundColor: isSelected
+            ? isDark
+              ? 'rgba(136, 96, 217, 0.18)'
+              : 'rgba(84, 148, 255, 0.12)'
+            : 'transparent',
+          marginLeft:  '-8px',
+          marginRight: '-8px',
+          paddingLeft:  '8px',
+          paddingRight: '8px',
+        }}
       >
         {/* Received Message Avatar */}
         {!isSender && (
@@ -1942,8 +1975,6 @@ const toggleMessageSelection = (messageId: string) => {
         {/* Message Bubble */}
         <div
           className={`max-w-[75%] rounded-[18px] transition-all duration-200 ${
-            isSelected ? 'ring-2 ring-[#8860D9] scale-[0.98]' : ''
-          } ${isSender ? '' : ''} ${
             isVoice && !isDeleted ? 'px-3 py-3' : 'px-4 py-2'
           }`}
           style={
@@ -2024,8 +2055,24 @@ const toggleMessageSelection = (messageId: string) => {
                 </div>
               </div>
             )}
-            <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} />
           </div>
+        )}
+        {/* ── Scroll to bottom button ── */}
+        {showScrollBtn && (
+          <button
+            type="button"
+            onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+            className="sticky bottom-4 left-full -translate-x-full w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-110 active:scale-95 z-30"
+            style={{
+              background: 'linear-gradient(147.67deg, #2979FF 13.16%, #6B9CF0 54.09%, #9DC1FF 100.03%)',
+              color: '#fff',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14M5 12l7 7 7-7"/>
+            </svg>
+          </button>
         )}
       </div>
       {(currentChat.status === 'accepted' || currentChat.type === 'direct' || currentChat.type === 'request') ? (
