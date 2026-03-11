@@ -281,4 +281,191 @@ export const getMyReports = async (page = 1, limit = 20) => {
   });
   return response.data;
 };
+
+export const sendImageMessage = async (
+  chatId: string,
+  formData: FormData,
+  onProgress?: (percent: number) => void
+) => {
+  const response = await chatApi.post(`/${chatId}/send-image`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 600000, // 10 min for large files
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) {
+        onProgress(Math.round((e.loaded * 100) / e.total));
+      }
+    },
+  });
+  return response.data;
+};
+
+export const sendVideoMessage = async (
+  chatId: string,
+  formData: FormData,
+  onProgress?: (percent: number) => void
+) => {
+  const response = await chatApi.post(`/${chatId}/send-video`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 600000,
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) {
+        onProgress(Math.round((e.loaded * 100) / e.total));
+      }
+    },
+  });
+  return response.data;
+};
+
+export const sendAudioMessage = async (
+  chatId: string,
+  formData: FormData,
+  onProgress?: (percent: number) => void
+) => {
+  const response = await chatApi.post(`/${chatId}/send-audio`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 600000,
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) {
+        onProgress(Math.round((e.loaded * 100) / e.total));
+      }
+    },
+  });
+  return response.data;
+};
+
+export const sendDocumentMessage = async (
+  chatId: string,
+  formData: FormData,
+  onProgress?: (percent: number) => void
+) => {
+  const response = await chatApi.post(`/${chatId}/send-document`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 600000,
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) {
+        onProgress(Math.round((e.loaded * 100) / e.total));
+      }
+    },
+  });
+  return response.data;
+};
+
+export const sendStickerMessage = async (
+  chatId: string,
+  url: string,
+  stickerId?: string,
+  pack?: string
+) => {
+  const response = await chatApi.post(`/${chatId}/send-sticker`, { url, stickerId, pack });
+  return response.data;
+};
+
+export const sendLocationMessage = async (
+  chatId: string,
+  latitude: number,
+  longitude: number,
+  address?: string,
+  name?: string,
+  isLive = false,
+  liveExpiry?: string
+) => {
+  const response = await chatApi.post(`/${chatId}/send-location`, {
+    latitude,
+    longitude,
+    address,
+    name,
+    isLive,
+    liveExpiry,
+  });
+  return response.data;
+};
+
+export const updateLiveLocation = async (
+  chatId: string,
+  messageId: string,
+  latitude: number,
+  longitude: number
+) => {
+  const response = await chatApi.patch(`/${chatId}/live-location/${messageId}`, {
+    latitude,
+    longitude,
+  });
+  return response.data;
+};
+
+export const sendContactMessage = async (
+  chatId: string,
+  name: string,
+  phone: string | string[],
+  email?: string | string[],
+  avatar?: string,
+  vCard?: string
+) => {
+  const response = await chatApi.post(`/${chatId}/send-contact`, {
+    name,
+    phone,
+    email,
+    avatar,
+    vCard,
+  });
+  return response.data;
+};
+
+export const sendProfileMessage = async (
+  chatId: string,
+  profileUserId: string,
+  extras?: {
+    name?: string;
+    username?: string;
+    avatar?: string;
+    bio?: string;
+    is_verified?: boolean;
+  }
+) => {
+  const response = await chatApi.post(`/${chatId}/send-profile`, {
+    profileUserId,
+    ...extras,
+  });
+  return response.data;
+};
+
+export const sendEventMessage = async (
+  chatId: string,
+  eventId: string,
+  extras?: {
+    title?: string;
+    description?: string;
+    startDate?: string;
+    endDate?: string;
+    venue?: string;
+    image?: string;
+    ticketUrl?: string;
+  }
+) => {
+  const title = extras?.title || 'Event';   
+
+  const response = await chatApi.post(`/${chatId}/send-event`, {
+    eventId,
+    title,
+    description: extras?.description || null,
+    startDate:   extras?.startDate   || null,
+    endDate:     extras?.endDate     || null,
+    venue:       extras?.venue       || null,
+    image:       extras?.image       || null,
+    ticketUrl:   extras?.ticketUrl   || null,
+  });
+  return response.data;
+};
+
+export const getChatMedia = async (
+  chatId: string,
+  type?: 'image' | 'video' | 'audio' | 'file' | 'sticker',
+  page = 1,
+  limit = 20
+) => {
+  const response = await chatApi.get(`/${chatId}/media`, {
+    params: { type, page, limit },
+  });
+  return response.data;
+};
 export default chatApi;
