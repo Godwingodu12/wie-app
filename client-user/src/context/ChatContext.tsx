@@ -522,7 +522,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // ✅ Update chats list
         setInternalChats((prev) => {
           const existingChat = prev.find(c => c._id === data.chatId);
-          const newUnreadCount = data.unreadCount ?? 0;
+          const isThisChatOpen = internalCurrentChat?._id === data.chatId;
+          const newUnreadCount = isThisChatOpen ? 0 : (data.unreadCount ?? 0);
           const existingParticipant = existingChat?.participant;
 
           // ✅ CRITICAL: Use backend's type/status directly
@@ -594,9 +595,9 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           saveToStorage(STORAGE_KEYS.CHATS, newChats);
           return newChats;
         });
-        // ... rest of the function stays the same
         setUnreadCounts((prev) => {
-          const newCount = data.unreadCount ?? 0;
+          const isThisChatOpen = internalCurrentChat?._id === data.chatId;
+          const newCount = isThisChatOpen ? 0 : (data.unreadCount ?? 0);
           const updated = {
             ...prev,
             [data.chatId]: newCount
@@ -1197,11 +1198,13 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
       };
       const handleChatUnreadUpdate = (data: { chatId: string; unreadCount: number }) => {        
-        // ✅ Update unreadCounts state
+        const isThisChatOpen = internalCurrentChat?._id === data.chatId;
+        const effectiveCount = isThisChatOpen ? 0 : data.unreadCount;
+
         setUnreadCounts((prev) => {
           const updated = {
             ...prev,
-            [data.chatId]: data.unreadCount
+            [data.chatId]: effectiveCount
           };
           
           if (typeof window !== 'undefined') {
@@ -1219,11 +1222,10 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return updated;
         });
         
-        // ✅ Update chat list
         setInternalChats((prev) => {
           const updated = prev.map((chat) =>
             chat._id === data.chatId
-              ? { ...chat, unreadCount: data.unreadCount }
+              ? { ...chat, unreadCount: effectiveCount }
               : chat
           );
           saveToStorage(STORAGE_KEYS.CHATS, updated);
