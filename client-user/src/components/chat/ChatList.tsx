@@ -142,73 +142,67 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
     return () => clearTimeout(timer);
   }, [setChats]);
 
-const handleChatSelect = async (chat: Chat) => {
-  // ✅ Set current chat first
-  setCurrentChat(chat);
-
-  // ✅ Clear unread count for regular messages
-  const currentUnreadCount = chat.unreadCount || 0;
-  if (currentUnreadCount > 0) {
+  const handleChatSelect = async (chat: Chat) => {
+    setCurrentChat(chat);
     updateUnreadCount(chat._id, 0);
-    
+
     if (typeof window !== 'undefined') {
-      const newTotal = getTotalUnreadCount() - currentUnreadCount;
       window.dispatchEvent(new CustomEvent('unread-count-changed', {
         detail: {
           chatId: chat._id,
           unreadCount: 0,
-          totalUnread: newTotal >= 0 ? newTotal : 0
+          totalUnread: 0  
         }
       }));
     }
-  }
-  onChatSelect(chat);
-};
 
-useEffect(() => {
-  const handleMessageDeleted = async (event: CustomEvent) => {
-    const { chatId, lastMessage, totalMessages } = event.detail;
-    
-    if (totalMessages === 0) {
-      // ✅ No messages left - remove chat from list
-      setChats((prev: Chat[]) => prev.filter((c: Chat) => c._id !== chatId));
+    onChatSelect(chat);
+  };
+
+  useEffect(() => {
+    const handleMessageDeleted = async (event: CustomEvent) => {
+      const { chatId, lastMessage, totalMessages } = event.detail;
       
-      // If this was the current chat, clear it
-      if (currentChat?._id === chatId) {
-        setCurrentChat(null);
-      }
-    } else if (lastMessage) {
-      // ✅ Update chat with new last message
-      setChats((prev: Chat[]) => prev.map((chat: Chat) => {
-        if (chat._id === chatId) {
-          return {
-            ...chat,
-            lastMessage: {
-              content: lastMessage.content,
-              sender: lastMessage.sender,
-              timestamp: lastMessage.timestamp,
-              deliveredTo: lastMessage.deliveredTo || [],
-              readBy: lastMessage.readBy,
-              isRead: lastMessage.isRead
-            },
-            updatedAt: lastMessage.timestamp
-          };
+      if (totalMessages === 0) {
+        // ✅ No messages left - remove chat from list
+        setChats((prev: Chat[]) => prev.filter((c: Chat) => c._id !== chatId));
+        
+        // If this was the current chat, clear it
+        if (currentChat?._id === chatId) {
+          setCurrentChat(null);
         }
-        return chat;
-      }));
-    }
-  };
+      } else if (lastMessage) {
+        // ✅ Update chat with new last message
+        setChats((prev: Chat[]) => prev.map((chat: Chat) => {
+          if (chat._id === chatId) {
+            return {
+              ...chat,
+              lastMessage: {
+                content: lastMessage.content,
+                sender: lastMessage.sender,
+                timestamp: lastMessage.timestamp,
+                deliveredTo: lastMessage.deliveredTo || [],
+                readBy: lastMessage.readBy,
+                isRead: lastMessage.isRead
+              },
+              updatedAt: lastMessage.timestamp
+            };
+          }
+          return chat;
+        }));
+      }
+    };
 
-  if (typeof window !== 'undefined') {
-    window.addEventListener('message-deleted' as any, handleMessageDeleted as any);
-  }
-
-  return () => {
     if (typeof window !== 'undefined') {
-      window.removeEventListener('message-deleted' as any, handleMessageDeleted as any);
+      window.addEventListener('message-deleted' as any, handleMessageDeleted as any);
     }
-  };
-}, [currentChat, setChats, setCurrentChat]);
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('message-deleted' as any, handleMessageDeleted as any);
+      }
+    };
+  }, [currentChat, setChats, setCurrentChat]);
 
   useEffect(() => {
     const handleForceReload = async () => {
