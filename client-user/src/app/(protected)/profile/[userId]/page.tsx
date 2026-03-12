@@ -34,7 +34,8 @@ import {
   isFollowing,
   getFollowStats,
   getDetailedFollowStatus,
-  cancelFollowRequest
+  cancelFollowRequest,
+  isFollowedBy
 } from "@/services/followService";
 import ProfileTabs from "@/components/profile/ProfileTabs";
 import { useAuth } from "@/hooks/useAuth";
@@ -141,6 +142,7 @@ export default function UserProfilePage() {
   const [suggestedUsers, setSuggestedUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFollowingUser, setIsFollowingUser] = useState(false);
+  const [isFollowedByTarget, setIsFollowedByTarget] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [stats, setStats] = useState({ followers: 0, following: 0 });
   const [followStatus, setFollowStatus] = useState<{
@@ -224,15 +226,17 @@ const fetchUserData = async () => {
         }
       }
       setResolvedUserId(targetId);
-      const [userData, detailedStatus, userStats] = await Promise.all([
+      const [userData, detailedStatus, userStats, followedByThem] = await Promise.all([
         getUserById(targetId),
         getDetailedFollowStatus(targetId),
         getFollowStats(targetId),
+        isFollowedBy(targetId),
       ]);
       setUser(userData);
       setFollowStatus(detailedStatus);
       setIsFollowingUser(detailedStatus.isFollowing);
       setStats(userStats);
+      setIsFollowedByTarget(followedByThem);
     } catch (error) {
       console.error("Failed to fetch user:", error);
       setUser(null);
@@ -668,7 +672,9 @@ const handleFollowToggle = async () => {
                         ? "Requested"
                         : followStatus.isFollowing
                           ? "Following"
-                          : "Follow"
+                          : isFollowedByTarget
+                            ? "Follow Back"
+                            : "Follow"
                   }
                   active={!followStatus.isFollowing && !followStatus.isPending}
                   onClick={handleFollowToggle}

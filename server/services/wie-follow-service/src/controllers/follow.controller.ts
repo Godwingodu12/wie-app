@@ -377,7 +377,26 @@ export const checkIsFollowing = async (req: AuthRequest, res: Response): Promise
   }
 
 };
+export const checkIsFollowedBy = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const currentUserId = req.userId!;
+    const targetUserId  = req.params.targetUserId;
 
+    if (!targetUserId) {
+      res.status(400).json({ success: false, message: 'Target user ID is required' });
+      return;
+    }
+
+    const result = await followService.isFollowing(targetUserId, currentUserId);
+    res.status(200).json({ success: true, isFollowedBy: result });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check followed-by status',
+      error: error.message,
+    });
+  }
+};
 export const getSentFollowRequests = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.params.userId;

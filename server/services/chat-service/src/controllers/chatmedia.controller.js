@@ -10,10 +10,7 @@ import {
   uploadChatDocument
 } from '../utils/cloudinaryHelper.js';
 
-/**
- * Core helper shared by all send-* handlers.
- * Saves the message to DB, fires HTTP 201, then emits socket events.
- */
+
 const sendMediaMessage = async ({ res, chat, userId, messageObj, receiverInfo, senderInfo }) => {
   const userIdStr  = userId.toString();
   const receiverId = chat.participants.find(id => id !== userIdStr);
@@ -204,10 +201,16 @@ export const sendImageMessage = async (req, res) => {
     }
 
     const files  = req.files || [req.file];
+    const VALID_MODES = ['view_once', 'allow_replay', 'keep'];
+    const viewMode = VALID_MODES.includes(req.body.viewMode) ? req.body.viewMode : 'keep';
     const imgUrls = await Promise.all(
       files.map(f => uploadChatImage(f.buffer, { originalName: f.originalname, mimeType: f.mimetype }))
     );
-
+    const imagesWithMode = imgUrls.map(result => ({
+      url:      result.url,
+      viewMode,
+      viewedBy: [],
+    }));
     const [senderInfo, receiverInfo] = await Promise.allSettled([
       getWieUserById(userIdStr),
       getWieUserById(chat.participants.find(id => id !== userIdStr))
@@ -215,9 +218,10 @@ export const sendImageMessage = async (req, res) => {
 
     const messageObj = {
       sender:      userIdStr,
-      content:     caption?.trim() || '📷 Image',
+      content:     viewMode !== 'keep' ? '📷 Photo' : (caption?.trim() || '📷 Image'),
       messageType: 'image',
-      chat_images: imgUrls
+      chat_images: imagesWithMode,
+      viewMode,
     };
 
     await sendMediaMessage({ res, chat, userId, messageObj, senderInfo, receiverInfo });
@@ -228,10 +232,6 @@ export const sendImageMessage = async (req, res) => {
   }
 };
 
-/**
- * POST /api/wie-chat/:chatId/send-video
- * Multipart field: "video" (single file, up to 100 MB)
- */
 export const sendVideoMessage = async (req, res) => {
   try {
     const { chatId }  = req.params;
@@ -257,16 +257,20 @@ export const sendVideoMessage = async (req, res) => {
       getWieUserById(chat.participants.find(id => id !== userIdStr))
     ]).then(r => r.map(s => s.status === 'fulfilled' ? s.value : null));
 
+    const viewMode = req.body.viewMode || 'keep';
     const messageObj = {
       sender:      userIdStr,
-      content:     caption?.trim() || '🎥 Video',
+      content:     viewMode !== 'keep' ? '🎥 Video' : (caption?.trim() || '🎥 Video'),
       messageType: 'video',
       chat_videos: [{
         url:      videoResult.url,
         duration: videoResult.duration,
         size:     videoResult.bytes,
-        mimeType: req.file.mimetype
-      }]
+        mimeType: req.file.mimetype,
+        viewMode,
+        viewedBy: [],
+      }],
+      viewMode,
     };
 
     await sendMediaMessage({ res, chat, userId, messageObj, senderInfo, receiverInfo });
@@ -276,7 +280,6 @@ export const sendVideoMessage = async (req, res) => {
       res.status(500).json({ success: false, message: 'Failed to send video' });
   }
 };
-
 
 export const sendAudioMessage = async (req, res) => {
   try {
@@ -711,5 +714,41 @@ export const getChatMedia = async (req, res) => {
   } catch (error) {
     console.error('getChatMedia error:', error);
     res.status(500).json({ success: false, message: 'Failed to get media' });
+  }
+};
+
+export const markMediaViewed = async (req, res) => {
+  try {
+    const { chatId, messageId } = req.params;
+    const { finalView = true }  = req.body;
+    const userId = (req.user._id || req.user.id).toString();
+
+    const chat = await WieChat.findById(chatId);
+    if (!chat) return res.status(404).json({ success: false, message: 'Chat not found' });
+
+    const message = chat.messages.id(messageId);
+    if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+
+    ['chat_images', 'chat_videos'].forEach(field => {
+      (message[field] || []).forEach(item => {
+        if (item.viewMode && item.viewMode !== 'keep') {
+          if (!item.viewedBy.includes(userId)) {
+            item.viewedBy.push(userId);
+          }
+        }
+      });
+    });
+
+    await chat.save();
+    const io = req.app.get('io');
+    if (io) {
+      io.to(chatId).emit('media_viewed', { chatId, messageId, viewedBy: userId });
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('markMediaViewed error:', error);
+    if (!res.headersSent)
+      res.status(500).json({ success: false, message: 'Failed to mark media as viewed' });
   }
 };

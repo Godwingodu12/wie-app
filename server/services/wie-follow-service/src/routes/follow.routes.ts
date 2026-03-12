@@ -21,4 +21,5 @@ router.get('/detailed-status/:targetUserId', followController.getDetailedFollowS
 router.get('/follow-request/status/:fromUserId', followController.checkFollowRequestStatus);
 router.get('/get-send-follow-request/:userId', followController.getSentFollowRequests);
 router.post('/auto-accept-requests', followController.autoAcceptPendingRequests);
+router.get('/is-followed-by/:targetUserId', followController.checkIsFollowedBy);
 export default router;

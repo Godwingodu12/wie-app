@@ -52,7 +52,15 @@ export const isFollowing = async (targetUserId: string): Promise<boolean> => {
     return false;
   }
 };
-
+export const isFollowedBy = async (targetUserId: string): Promise<boolean> => {
+  try {
+    const res = await followApi.get(`/is-followed-by/${targetUserId}`);
+    return res.data.isFollowedBy;
+  } catch (error) {
+    console.error('Check followed-by error:', error);
+    return false;
+  }
+};
 export const getFollowers = async (userId: string, page = 1, limit = 20): Promise<any> => {
   const res = await followApi.get(`/followers/${userId}`, {
     params: { page, limit },
@@ -136,6 +144,7 @@ export default {
   followUser,
   unfollowUser,
   isFollowing,
+  isFollowedBy,
   getFollowers,
   getFollowing,
   getOtherFollowers,

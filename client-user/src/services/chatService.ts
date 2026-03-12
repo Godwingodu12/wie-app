@@ -170,9 +170,11 @@ export const getWieChatMessages = async (
   });
   return res.data;
 };
-// Send Message
-export const sendWieMessage = async (chatId: string, content: string): Promise<any> => {
-  const res = await chatApi.post('/send', { chatId, content });
+
+export const sendWieMessage = async (chatId: string, content: string, replyTo?: {
+  messageId: string; sender: string; content: string; messageType: string;
+}) => {
+  const res = await chatApi.post(`/send/`, {chatId, content, replyTo });
   return res.data;
 };
 export const markMessagesAsRead = async (chatId: string) => {
@@ -285,15 +287,15 @@ export const getMyReports = async (page = 1, limit = 20) => {
 export const sendImageMessage = async (
   chatId: string,
   formData: FormData,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  viewMode?: 'view_once' | 'allow_replay' | 'keep'
 ) => {
+  if (viewMode && viewMode !== 'keep') formData.append('viewMode', viewMode);
   const response = await chatApi.post(`/${chatId}/send-image`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 600000, // 10 min for large files
+    timeout: 600000,
     onUploadProgress: (e) => {
-      if (onProgress && e.total) {
-        onProgress(Math.round((e.loaded * 100) / e.total));
-      }
+      if (onProgress && e.total) onProgress(Math.round((e.loaded * 100) / e.total));
     },
   });
   return response.data;
@@ -302,17 +304,26 @@ export const sendImageMessage = async (
 export const sendVideoMessage = async (
   chatId: string,
   formData: FormData,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  viewMode?: 'view_once' | 'allow_replay' | 'keep'
 ) => {
+  if (viewMode && viewMode !== 'keep') formData.append('viewMode', viewMode);
   const response = await chatApi.post(`/${chatId}/send-video`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 600000,
     onUploadProgress: (e) => {
-      if (onProgress && e.total) {
-        onProgress(Math.round((e.loaded * 100) / e.total));
-      }
+      if (onProgress && e.total) onProgress(Math.round((e.loaded * 100) / e.total));
     },
   });
+  return response.data;
+};
+
+export const markMediaViewed = async (
+  chatId: string,
+  messageId: string,
+  finalView: boolean = true
+) => {
+  const response = await chatApi.post(`/${chatId}/messages/${messageId}/viewed`, { finalView });
   return response.data;
 };
 

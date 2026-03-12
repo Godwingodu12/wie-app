@@ -436,7 +436,7 @@ export const getWieUserChats = async (req, res) => {
 
 export const sendWieMessage = async (req, res) => {
   try {
-    const { chatId, content } = req.body;
+    const { chatId, content, replyTo } = req.body;
     const userId = req.user._id || req.user.id;
     const userIdStr = userId.toString();
 
@@ -555,11 +555,17 @@ export const sendWieMessage = async (req, res) => {
     const messageObj = {
       sender: userIdStr,
       content: messageContent,
-      messageType: messageType,  // ✅ Explicitly set this
+      messageType: messageType,
       readBy: receiverViewingChat ? [userIdStr, receiverId] : [userIdStr], 
       isRead: receiverViewingChat,
       deliveredTo: receiverOnline ? [receiverId] : [],
-      timestamp: new Date()
+      timestamp: new Date(),
+      ...(replyTo && replyTo.messageId ? { replyTo: {
+        messageId: replyTo.messageId,
+        sender: replyTo.sender,
+        content: replyTo.content,
+        messageType: replyTo.messageType || 'text'
+      }} : {})
     };
     if (messageType === 'voice' && voiceData && voiceData.duration > 0) {
       messageObj.voiceData = voiceData;
@@ -613,8 +619,9 @@ export const sendWieMessage = async (req, res) => {
       deliveredTo: savedMessage.deliveredTo || [],
       isRead: savedMessage.isRead,
       isSender: true,
-      receiverOnline
-    };
+      receiverOnline,
+      ...(savedMessage.replyTo ? { replyTo: savedMessage.replyTo } : {})
+    };  
 
     if (savedMessage.voiceData && savedMessage.messageType === 'voice') {
       messageDataForSender.voiceData = {
@@ -656,7 +663,6 @@ export const sendWieMessage = async (req, res) => {
       try {
         const io = getIO();
         
-        // ✅ Build message data for socket with all fields
         const messageData = {
           _id: savedMessage._id.toString(),
           sender: userIdStr,
@@ -666,7 +672,8 @@ export const sendWieMessage = async (req, res) => {
           createdAt: savedMessage.timestamp,
           readBy: savedMessage.readBy || [],
           deliveredTo: savedMessage.deliveredTo || [],
-          isRead: savedMessage.isRead || false
+          isRead: savedMessage.isRead || false,
+          ...(savedMessage.replyTo ? { replyTo: savedMessage.replyTo } : {})
         };
 
         // ✅ Add voiceData if exists
@@ -917,7 +924,7 @@ export const getWieChatMessages = async (req, res) => {
     const RICH_FIELDS = [
       'chat_images', 'chat_videos', 'chat_audio', 'chat_files',
       'stickerData', 'voiceData', 'locationData', 'contactData',
-      'profileData', 'eventData'
+      'profileData', 'eventData', 'replyTo'
     ];
 
     const messagesWithAllFields = paginatedMessages.map(msg => {
@@ -934,15 +941,12 @@ export const getWieChatMessages = async (req, res) => {
         deletedForEveryone: msg.deletedForEveryone || false
       };
 
-      // ✅ Carry ALL rich-media fields so the frontend renderer gets real URLs
       RICH_FIELDS.forEach(field => {
         if (msg[field] != null) messageData[field] = msg[field];
       });
-
       return messageData;
     });
 
-    // ✅ CRITICAL: Determine type/status based on who is viewing
     let chatType = chat.type || 'direct';
     let chatStatus = chat.status || 'accepted';
     let isReceiverOfRequest = false;

@@ -59,6 +59,7 @@ router.patch('/:chatId/live-location/:messageId', wieMediaController.updateLiveL
 router.post('/:chatId/send-contact',    wieMediaController.sendContactMessage);
 router.post('/:chatId/send-profile',    wieMediaController.sendProfileMessage);
 router.post('/:chatId/send-event',      wieMediaController.sendEventMessage);
+router.post('/:chatId/messages/:messageId/viewed', wieMediaController.markMediaViewed);
 router.get('/:chatId/media',            wieMediaController.getChatMedia);
 
 export default router;
