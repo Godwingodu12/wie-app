@@ -25,7 +25,7 @@ const FileMediaInput = ({
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-
+  const [lockAspect, setLockAspect] = useState(true);
   const getPreviewUrl = () => {
     if (!preview) return null;
     if (typeof preview === "string") return preview;
@@ -116,60 +116,95 @@ const FileMediaInput = ({
 
   return (
     <div className="w-full mb-6">
-      {/* CROP MODAL */}
       {imageToCrop && (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/90 p-4">
-          {/* Dynamic height based on aspect ratio — portrait needs more height */}
           <div
             className="relative w-full bg-[#1a1a1a] rounded-t-xl overflow-hidden"
             style={{
               maxWidth: aspectRatio >= 1 ? "860px" : "480px",
-              height: aspectRatio >= 1
-                ? "420px"   // landscape/square: 1920×720 (2.67:1) and 1:1
-                : "600px",  // portrait: 1080×1350 (0.8:1) — needs tall container
+              height: aspectRatio >= 1 ? "420px" : "600px",
             }}
           >
             <Cropper
               image={imageToCrop}
               crop={crop}
               zoom={zoom}
-              aspect={aspectRatio}
+              aspect={lockAspect ? aspectRatio : undefined}
               onCropChange={setCrop}
               onZoomChange={setZoom}
               onCropComplete={onCropComplete}
             />
           </div>
+
           <div
-            className="w-full bg-[#2b2b2b] p-4 rounded-b-xl flex items-center justify-between"
+            className="w-full bg-[#2b2b2b] p-4 rounded-b-xl flex flex-col gap-3"
             style={{ maxWidth: aspectRatio >= 1 ? "860px" : "480px" }}
           >
-            <div className="flex items-center gap-4 flex-1 mr-4">
-              <span className="text-xs text-gray-400">Zoom</span>
-              <input
-                type="range"
-                value={zoom}
-                min={1}
-                max={3}
-                step={0.1}
-                onChange={(e) => setZoom(Number(e.target.value))}
-                className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-              />
-            </div>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setImageToCrop(null)}
-                className="px-4 py-2 text-sm text-white bg-gray-700 rounded-lg hover:bg-gray-600 flex items-center gap-2"
-              >
-                <FiX /> Cancel
-              </button>
-              <button
-                type="button"
-                onClick={createCroppedImage}
-                className="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 flex items-center gap-2 font-semibold"
-              >
-                <FiCheck /> Save Crop
-              </button>
+            {/* Unlock hint shown only when locked */}
+            {lockAspect && (
+              <div className="flex items-center justify-between bg-[#1e1e1e] rounded-lg px-3 py-2">
+                <span className="text-xs text-gray-400">
+                  🔒 Crop is locked to the recommended ratio. Unlock to crop freely from all sides.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setLockAspect(false)}
+                  className="ml-3 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg whitespace-nowrap transition-colors"
+                >
+                  Unlock Crop
+                </button>
+              </div>
+            )}
+
+            {/* Unlocked hint */}
+            {!lockAspect && (
+              <div className="flex items-center justify-between bg-[#1e1e1e] rounded-lg px-3 py-2">
+                <span className="text-xs text-gray-400">
+                  🔓 Free crop enabled — drag any side or corner to resize.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setLockAspect(true)}
+                  className="ml-3 px-3 py-1.5 text-xs font-semibold text-white bg-gray-600 hover:bg-gray-500 rounded-lg whitespace-nowrap transition-colors"
+                >
+                  Reset Ratio
+                </button>
+              </div>
+            )}
+
+            {/* Zoom + Action buttons */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 flex-1">
+                <span className="text-xs text-gray-400 whitespace-nowrap">Zoom</span>
+                <input
+                  type="range"
+                  value={zoom}
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                />
+              </div>
+              <div className="flex gap-3 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImageToCrop(null);
+                    setLockAspect(true); // reset for next time
+                  }}
+                  className="px-4 py-2 text-sm text-white bg-gray-700 rounded-lg hover:bg-gray-600 flex items-center gap-2"
+                >
+                  <FiX /> Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={createCroppedImage}
+                  className="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 flex items-center gap-2 font-semibold"
+                >
+                  <FiCheck /> Save Crop
+                </button>
+              </div>
             </div>
           </div>
         </div>
