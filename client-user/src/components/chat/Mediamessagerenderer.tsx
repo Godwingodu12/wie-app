@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useCallback,useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   MapPin, Navigation, FileText, Music, User,
@@ -17,18 +17,43 @@ export const isMediaMessage = (msg: any): boolean => {
   ].includes(msg.messageType);
 };
 
+export interface RenderMediaOptions {
+  uploadProgress?: number;
+  currentUserId?: string;
+  chatId?: string;
+  onMarkViewed?: (messageId: string, finalView?: boolean) => void;
+  replayedSet?: Set<string>;
+  addToReplayed?: (id: string) => void;
+}
+
 export const renderMediaMessage = (
   message: any,
   isSender: boolean,
   themeStyles: any,
   isDark: boolean,
-  uploadProgress?: number,   
+  options: RenderMediaOptions | number = {},
 ): React.ReactNode => {
+  // backwards-compat: old callers may pass a number for uploadProgress
+  const opts: RenderMediaOptions =
+    typeof options === 'number' ? { uploadProgress: options } : options;
+  const { uploadProgress, currentUserId, onMarkViewed, replayedSet, addToReplayed } = opts;
   switch (message.messageType) {
     case 'image':
-      return <ImageMessage msg={message} isSender={isSender} isDark={isDark} themeStyles={themeStyles} uploadProgress={uploadProgress} />;
+      return (
+        <ImageMessage
+          msg={message} isSender={isSender} isDark={isDark} themeStyles={themeStyles}
+          uploadProgress={uploadProgress} currentUserId={currentUserId}
+          onMarkViewed={onMarkViewed} replayedSet={replayedSet} addToReplayed={addToReplayed}
+        />
+      );
     case 'video':
-      return <VideoMessage msg={message} isSender={isSender} isDark={isDark} themeStyles={themeStyles} uploadProgress={uploadProgress} />;
+      return (
+        <VideoMessage
+          msg={message} isSender={isSender} isDark={isDark} themeStyles={themeStyles}
+          uploadProgress={uploadProgress} currentUserId={currentUserId}
+          onMarkViewed={onMarkViewed} replayedSet={replayedSet} addToReplayed={addToReplayed}
+        />
+      );
     case 'audio':
       return <AudioFileMessage msg={message} isSender={isSender} isDark={isDark} themeStyles={themeStyles} />;
     case 'file':
@@ -73,7 +98,6 @@ async function triggerDownload(url: string, filename: string) {
   }
 }
 
-// ─── Download button ───────────────────────────────────────────────────────────
 function DownloadBtn({
   url,
   filename,
@@ -114,16 +138,40 @@ function DownloadBtn({
     </button>
   );
 }
+function CaptionText({
+  content,
+  isSender,
+  themeStyles,
+}: {
+  content?: string;
+  isSender: boolean;
+  themeStyles: any;
+}) {
+  if (!content || content.startsWith('📷') || content.startsWith('🎥') ||
+      content.startsWith('📎') || content.startsWith('🎵') ||
+      content.startsWith('🎤') || content === '📍 Location' ||
+      content === '👤 Contact' || content === '👤 Profile' ||
+      content === '🎟️ Event') return null;
 
-// ─── Lightbox ──────────────────────────────────────────────────────────────────
+  return (
+    <p
+      className="text-[13px] leading-snug mt-1.5 break-words"
+      style={{ color: isSender ? 'rgba(255,255,255,0.92)' : themeStyles.text }}
+    >
+      {content}
+    </p>
+  );
+}
 function Lightbox({
   images,
   startIndex,
   onClose,
+  hideDownload = false,
 }: {
   images: string[];
   startIndex: number;
   onClose: () => void;
+  hideDownload?: boolean;
 }) {
   const [cur, setCur] = useState(startIndex);
   const prev = (e: React.MouseEvent) => { e.stopPropagation(); setCur(i => (i - 1 + images.length) % images.length); };
@@ -186,259 +234,651 @@ function Lightbox({
         {images.length > 1 && (
           <p className="text-white/50 text-xs">{cur + 1} / {images.length}</p>
         )}
-        <DownloadBtn url={images[cur]} filename={`image_${cur + 1}.jpg`} isSender={false} />
+        {!hideDownload && (
+          <DownloadBtn url={images[cur]} filename={`image_${cur + 1}.jpg`} isSender={false} />
+        )}
       </div>
     </div>
   );
 }
 
-function ImageMessage({ msg, isSender, isDark, themeStyles, uploadProgress }: any) {
-  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-  const [errored, setErrored]         = useState<number[]>([]);
+const ViewOnceCircle = ({ color = '#fff', size = 22 }: { color?: string; size?: number }) => (
+  <div
+    className="rounded-full border-2 flex items-center justify-center font-bold flex-shrink-0"
+    style={{ width: size, height: size, borderColor: color, color, fontSize: size * 0.45 }}
+  >
+    1
+  </div>
+);
+//  View Mode Selector Sheet 
+export type MediaViewMode = 'view_once' | 'allow_replay' | 'keep';
 
-  // Support all possible field names the backend/socket might use
-  const images: string[] = (
-    msg.chat_images?.length         ? msg.chat_images  :
-    msg.mediaUrls?.length           ? msg.mediaUrls    :
-    []
-  ).filter(Boolean);
+interface ViewModeSelectorSheetProps {
+  files: File[];
+  onConfirm: (viewMode: MediaViewMode, caption: string) => void;
+  onClose: () => void;
+  isDark: boolean;
+  caption?: string;
+  onCaptionChange?: (val: string) => void;
+}
 
-  // Optimistic local preview (set before upload finishes — see ChatWindow patch)
-  const localPreviews: string[] = msg._localPreviews || [];
+export function ViewModeSelectorSheet({
+  files,
+  onConfirm,
+  onClose,
+  isDark,
+  caption = '',
+  onCaptionChange,
+}: ViewModeSelectorSheetProps) {
+  const [selectedMode, setSelectedMode] = React.useState<MediaViewMode>('keep');
+  const [localCaption, setLocalCaption] = React.useState(caption);
+  const captionRef = React.useRef<HTMLInputElement>(null);
 
-  // Use local previews if we don't have Cloudinary URLs yet
-  const displayImages = images.length > 0 ? images : localPreviews;
+  const handleCaptionChange = (val: string) => {
+    setLocalCaption(val);
+    onCaptionChange?.(val);
+  };
+  const [previewUrls, setPreviewUrls] = React.useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = React.useState(0);
 
-  if (displayImages.length === 0) {
-    return <span className="text-sm italic opacity-50">📷 Sending image…</span>;
-  }
+  // Generate blob preview URLs for selected files
+  React.useEffect(() => {
+    const urls = files.map(f => URL.createObjectURL(f));
+    setPreviewUrls(urls);
+    setPreviewIndex(0);
+    return () => urls.forEach(u => URL.revokeObjectURL(u));
+  }, [files]);
 
-  const count      = displayImages.length;
-  const isUploading = images.length === 0 && localPreviews.length > 0;
+  if (!files.length || !previewUrls.length) return null;
 
-  // Grid sizing
-  const cellW = count === 1 ? 220 : count === 2 ? 106 : 70;
-  const cellH = count === 1 ? 165 : count === 2 ? 80  : 70;
+  const isVideo = files[previewIndex]?.type?.startsWith('video/');
+
+  const MODES: {
+    id: MediaViewMode;
+    label: string;
+    sublabel: string;
+    icon: React.ReactNode;
+    color: string;
+  }[] = [
+    {
+      id: 'view_once',
+      label: 'View Once',
+      sublabel: 'Disappears after opening',
+      color: '#F472B6',
+      icon: (
+        <div
+          className="rounded-full border-[2px] flex items-center justify-center font-bold"
+          style={{ width: 22, height: 22, borderColor: 'currentColor', fontSize: 10 }}
+        >
+          1
+        </div>
+      ),
+    },
+    {
+      id: 'allow_replay',
+      label: 'Allow Replay',
+      sublabel: 'Can be replayed once',
+      color: '#60A5FA',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M1 4v6h6"/>
+          <path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
+        </svg>
+      ),
+    },
+    {
+      id: 'keep',
+      label: 'Keep in Chat',
+      sublabel: 'Stays in conversation',
+      color: '#34D399',
+      icon: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+        </svg>
+      ),
+    },
+  ];
 
   return (
-    <>
-      {lightboxIdx !== null && images.length > 0 && (
-        <Lightbox
-          images={images}
-          startIndex={lightboxIdx}
-          onClose={() => setLightboxIdx(null)}
-        />
-      )}
+    <div
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-end"
+      style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}
+    >
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        className="absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center"
+        style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}
+      >
+        <X size={18} color="#fff" />
+      </button>
 
-      <div>
-        {/* Upload progress spinner overlay */}
-        {isUploading && (
-          <div className="flex items-center gap-1.5 mb-1 opacity-60">
-            <Loader2 size={12} className="animate-spin" />
-            <span className="text-[11px]">Uploading…</span>
+      {/* ── Full-size preview ── */}
+      <div className="flex-1 w-full flex flex-col items-center justify-center px-4 pb-4 min-h-0">
+        {/* Thumbnail strip (if multiple files) */}
+        {files.length > 1 && (
+          <div className="flex gap-2 mb-3 flex-wrap justify-center">
+            {previewUrls.map((url, i) => (
+              <button
+                key={i}
+                onClick={() => setPreviewIndex(i)}
+                className="relative overflow-hidden rounded-lg flex-shrink-0"
+                style={{
+                  width: 48, height: 48,
+                  border: i === previewIndex
+                    ? '2px solid #5494FF'
+                    : '2px solid transparent',
+                  opacity: i === previewIndex ? 1 : 0.55,
+                }}
+              >
+                {files[i]?.type?.startsWith('video/')
+                  ? <video src={url} className="w-full h-full object-cover" preload="metadata" />
+                  : <img src={url} alt="" className="w-full h-full object-cover" />
+                }
+              </button>
+            ))}
           </div>
         )}
 
-        {/* Image grid */}
-        <div className="flex flex-wrap gap-[3px]" style={{ maxWidth: `${count === 1 ? 220 : 215}px` }}>
-          {displayImages.slice(0, 4).map((url, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => !isUploading && images.length > 0 && setLightboxIdx(i)}
-              className="relative overflow-hidden flex-shrink-0 focus:outline-none"
+        {/* Main preview */}
+        <div
+          className="relative rounded-2xl overflow-hidden flex items-center justify-center"
+          style={{
+            maxWidth: '100%',
+            maxHeight: 'calc(100vh - 340px)',
+            width: '100%',
+            background: 'rgba(255,255,255,0.04)',
+          }}
+        >
+          {isVideo ? (
+            <video
+              key={previewUrls[previewIndex]}
+              src={previewUrls[previewIndex]}
+              controls
+              className="rounded-2xl"
+              style={{ maxHeight: 'calc(100vh - 340px)', maxWidth: '100%', display: 'block' }}
+            />
+          ) : (
+            <img
+              key={previewUrls[previewIndex]}
+              src={previewUrls[previewIndex]}
+              alt="Preview"
+              className="rounded-2xl"
               style={{
-                width:  `${cellW}px`,
-                height: `${cellH}px`,
-                borderRadius: count === 1 ? '14px' : '10px',
-                cursor: isUploading ? 'default' : 'pointer',
+                maxHeight: 'calc(100vh - 340px)',
+                maxWidth: '100%',
+                objectFit: 'contain',
+                display: 'block',
               }}
+            />
+          )}
+
+          {/* File count badge */}
+          {files.length > 1 && (
+            <div
+              className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[11px] font-bold text-white"
+              style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
             >
-              {errored.includes(i) ? (
-                <div
-                  className="w-full h-full flex items-center justify-center text-2xl"
-                  style={{ backgroundColor: isDark ? '#333' : '#e5e7eb' }}
-                >
-                  🖼️
-                </div>
-              ) : (
-                <img
-                  src={url}
-                  alt={`image-${i + 1}`}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  onError={() => setErrored(prev => [...prev, i])}
-                />
-              )}
+              {previewIndex + 1} / {files.length}
+            </div>
+          )}
+        </div>
+      </div>
 
-              {/* +N overlay on 4th cell */}
-              {i === 3 && count > 4 && (
-                <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-bold text-xl">
-                  +{count - 4}
-                </div>
-              )}
+      {/* ── Bottom sheet ── */}
+      <div
+        className="w-full rounded-t-[24px] px-5 pt-5 pb-8 flex flex-col gap-4"
+        style={{
+          backgroundColor: isDark ? '#18181b' : '#ffffff',
+          border: `0.5px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
+        }}
+      >
+        {/* Mode options */}
+        <div className="flex gap-3">
+          {MODES.map(mode => {
+            const isActive = selectedMode === mode.id;
+            return (
+              <button
+                key={mode.id}
+                onClick={() => setSelectedMode(mode.id)}
+                className="flex-1 flex flex-col items-center gap-2 py-3.5 rounded-2xl transition-all"
+                style={{
+                  backgroundColor: isActive
+                    ? `${mode.color}22`
+                    : isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                  border: `1.5px solid ${isActive ? mode.color : 'transparent'}`,
+                  color: isActive ? mode.color : isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)',
+                }}
+              >
+                {/* Icon */}
+                <span style={{ color: isActive ? mode.color : isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)' }}>
+                  {mode.icon}
+                </span>
 
-              {/* Upload progress overlay */}
-              {isUploading && (
-                <div
-                  className="absolute inset-0 flex flex-col items-center justify-center"
-                  style={{ backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 'inherit' }}
+                {/* Label */}
+                <span
+                  className="text-[11px] font-semibold text-center leading-tight"
+                  style={{ color: isActive ? mode.color : isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)' }}
                 >
-                  {uploadProgress !== undefined && uploadProgress < 100 ? (
-                    <>
-                      <svg width="44" height="44" viewBox="0 0 44 44">
-                        <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="3.5"/>
-                        <circle
-                          cx="22" cy="22" r="18"
-                          fill="none"
-                          stroke="#fff"
-                          strokeWidth="3.5"
-                          strokeLinecap="round"
-                          strokeDasharray={`${2 * Math.PI * 18}`}
-                          strokeDashoffset={`${2 * Math.PI * 18 * (1 - uploadProgress / 100)}`}
-                          style={{ transform: 'rotate(-90deg)', transformOrigin: 'center', transition: 'stroke-dashoffset 0.3s ease' }}
-                        />
-                      </svg>
-                      <span className="text-white text-[11px] font-bold mt-1">{uploadProgress}%</span>
-                    </>
-                  ) : (
-                    <Loader2 size={18} className="animate-spin text-white" />
-                  )}
-                </div>
-              )}
-            </button>
-          ))}
+                  {mode.label}
+                </span>
+
+                {/* Sublabel */}
+                <span
+                  className="text-[9px] text-center leading-tight"
+                  style={{ color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.35)' }}
+                >
+                  {mode.sublabel}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Caption */}
-        {msg.content && !['📷 Image', '📷 Sending image…'].includes(msg.content) && (
-          <p className="text-[13px] mt-1.5 leading-relaxed" style={{ color: isSender ? '#fff' : themeStyles.text }}>
-            {msg.content}
-          </p>
-        )}
+        {/* Caption input */}
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-full"
+          style={{
+            backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
+            border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+          }}
+        >
+          <input
+            ref={captionRef}
+            type="text"
+            value={localCaption}
+            onChange={(e) => handleCaptionChange(e.target.value)}
+            placeholder="Add a caption..."
+            maxLength={500}
+            className="flex-1 bg-transparent border-none outline-none text-[14px]"
+            style={{ color: isDark ? '#fff' : '#111' }}
+          />
+          {localCaption.length > 0 && (
+            <button
+              type="button"
+              onClick={() => handleCaptionChange('')}
+              className="flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity"
+            >
+              <X size={14} color={isDark ? '#fff' : '#333'} />
+            </button>
+          )}
+        </div>
+
+        <button
+          onClick={() => onConfirm(selectedMode, localCaption)}
+          className="w-full py-3.5 rounded-full text-[15px] font-bold text-white transition-opacity hover:opacity-90 active:scale-[0.98]"
+          style={{
+            background: 'linear-gradient(147.67deg, #2979FF 13.16%, #6B9CF0 54.09%, #9DC1FF 100.03%)',
+          }}
+        >
+          Send {files.length > 1 ? `${files.length} Files` : isVideo ? 'Video' : 'Photo'}
+        </button>
       </div>
+    </div>
+  );
+}
+const getViewMode = (msg: any): 'view_once' | 'allow_replay' | 'keep' => {
+  return (
+    msg.viewMode ||
+    msg.chat_images?.[0]?.viewMode ||
+    msg.chat_videos?.[0]?.viewMode ||
+    'keep'
+  );
+};
+
+const isViewedByUser = (msg: any, userId?: string): boolean => {
+  if (!userId) return false;
+  const imgViewed = msg.chat_images?.[0]?.viewedBy?.includes(userId);
+  const vidViewed = msg.chat_videos?.[0]?.viewedBy?.includes(userId);
+  return !!(imgViewed || vidViewed);
+};
+
+interface MediaMsgProps {
+  msg: any;
+  isSender: boolean;
+  isDark: boolean;
+  themeStyles: any;
+  uploadProgress?: number;
+  currentUserId?: string;
+  onMarkViewed?: (messageId: string, finalView?: boolean) => void;
+  replayedSet?: Set<string>;
+  addToReplayed?: (id: string) => void;
+}
+
+function ImageMessage({
+  msg, isSender, isDark, themeStyles, uploadProgress,
+  currentUserId, onMarkViewed, replayedSet, addToReplayed,
+}: MediaMsgProps) {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [isViewing, setIsViewing]       = useState(false);
+  const viewMode    = getViewMode(msg);
+  const isEphemeral = viewMode === 'view_once' || viewMode === 'allow_replay';
+  const viewed      = isViewedByUser(msg, currentUserId);
+
+  const handleOpen = () => {
+    if (!isEphemeral || isSender) { setLightboxOpen(true); return; }
+    if (viewed && !isViewing) return;
+
+    // Set isViewing BEFORE calling onMarkViewed so the re-render
+    // from viewedBy update doesn't collapse to "Opened" mid-open
+    setIsViewing(true);
+    setLightboxOpen(true);
+
+    if (viewMode === 'allow_replay') {
+      const alreadyReplayed = replayedSet?.has(msg._id);
+      if (alreadyReplayed) {
+        onMarkViewed?.(msg._id, true);
+      } else {
+        addToReplayed?.(msg._id);
+        onMarkViewed?.(msg._id, false);
+      }
+    } else {
+      onMarkViewed?.(msg._id, true);
+    }
+  };
+
+  const handleClose = () => {
+    setLightboxOpen(false);
+    setIsViewing(false);
+  };
+
+  const images: string[] = (() => {
+    if (msg._localPreviews?.length) return msg._localPreviews;
+    const raw = msg.chat_images || [];
+    return raw.map((img: any) => (typeof img === 'string' ? img : img.url)).filter(Boolean);
+  })();
+
+  // ── Ephemeral receiver states ──────────────────────────────────────────
+  if (isEphemeral && !isSender) {
+    // Actively viewing — render the "Opened" chip AND the lightbox on top
+    if (isViewing && images.length > 0) {
+      return (
+        <>
+          {/* Chip stays in the bubble while lightbox is open */}
+          <div className="flex items-center gap-2 py-1 px-1">
+            <ViewOnceCircle color={themeStyles.textSecondary} size={20} />
+            <span className="text-[13px]" style={{ color: themeStyles.textSecondary }}>
+              {viewMode === 'allow_replay' ? 'Replayed' : 'Opened'}
+            </span>
+          </div>
+          {/* Full-screen lightbox rendered via portal-like fixed positioning */}
+          <Lightbox images={images} startIndex={0} onClose={handleClose} hideDownload />
+        </>
+      );
+    }
+
+    // Already consumed — show status chip only
+    if (viewed) {
+      return (
+        <div className="flex items-center gap-2 py-1 px-1">
+          <ViewOnceCircle color={themeStyles.textSecondary} size={20} />
+          <span className="text-[13px]" style={{ color: themeStyles.textSecondary }}>
+            {viewMode === 'allow_replay' ? 'Replayed' : 'Opened'}
+          </span>
+        </div>
+      );
+    }
+
+    // Not yet viewed — tap prompt
+    return (
+      <button
+        onClick={handleOpen}
+        className="flex items-center gap-2 py-1 px-1 hover:opacity-80 transition-opacity"
+      >
+        <ViewOnceCircle color="#fff" size={22} />
+        <span className="text-[13px] text-white font-medium">
+          {viewMode === 'view_once' ? 'Tap to view photo' : 'Tap to view · replay once'}
+        </span>
+      </button>
+    );
+  }
+
+  if (isEphemeral && isSender) {
+    const allViewers: string[] = (msg.chat_images || []).flatMap(
+      (img: any) => Array.isArray(img?.viewedBy) ? img.viewedBy : []
+    );
+    const receiverViewed = allViewers.some(
+      (id: string) => id !== currentUserId && id !== '' && id !== undefined
+    );
+    return (
+      <div className="flex items-center gap-2 py-1 px-1">
+        <ViewOnceCircle color="rgba(255,255,255,0.9)" size={22} />
+        <div className="flex flex-col">
+          <span className="text-[13px] text-white font-medium">
+            {viewMode === 'view_once' ? 'View once' : 'View once · replay'}
+          </span>
+          <span className="text-[10px] text-white/60">
+            {receiverViewed ? 'Opened' : 'Not yet opened'}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Normal (keep) image display ────────────────────────────────────────
+  if (!images.length) return null;
+
+  return (
+    <>
+      <div
+        className={`grid gap-1 cursor-pointer ${
+          images.length === 1 ? '' : 'grid-cols-2'
+        }`}
+        onClick={handleOpen}
+      >
+        {images.slice(0, 4).map((src, i) => (
+          <div
+            key={i}
+            className="relative overflow-hidden rounded-lg"
+            style={{ maxWidth: 220, maxHeight: 220 }}
+          >
+            <img
+              src={src}
+              alt="chat"
+              className="w-full h-full object-cover block"
+              style={{ maxHeight: 220 }}
+            />
+            {uploadProgress !== undefined && uploadProgress < 100 && i === 0 && (
+              <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-1">
+                <svg width="44" height="44" viewBox="0 0 44 44">
+                  <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="3.5"/>
+                  <circle
+                    cx="22" cy="22" r="18" fill="none" stroke="#fff" strokeWidth="3.5"
+                    strokeDasharray={`${2 * Math.PI * 18}`}
+                    strokeDashoffset={`${2 * Math.PI * 18 * (1 - (uploadProgress || 0) / 100)}`}
+                    style={{ transform: 'rotate(-90deg)', transformOrigin: 'center' }}
+                  />
+                </svg>
+                <span className="text-white text-[11px] font-bold">{uploadProgress}%</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {lightboxOpen && (
+        <Lightbox images={images} startIndex={0} onClose={handleClose} />
+      )}
+      <CaptionText content={msg.content} isSender={isSender} themeStyles={themeStyles} />
     </>
   );
 }
 
-function VideoMessage({ msg, isSender, isDark, themeStyles, uploadProgress }: any) {
-  const [showFullscreen, setShowFullscreen] = useState(false);
+function VideoMessage({
+  msg, isSender, isDark, themeStyles, uploadProgress,
+  currentUserId, onMarkViewed, replayedSet, addToReplayed,
+}: MediaMsgProps) {
+  const [playing, setPlaying]       = useState(false);
+  const [isViewing, setIsViewing]   = useState(false);
+  const videoRef                    = useRef<HTMLVideoElement>(null);
+  const viewMode                    = getViewMode(msg);
+  const isEphemeral                 = viewMode === 'view_once' || viewMode === 'allow_replay';
+  const viewed                      = isViewedByUser(msg, currentUserId);
 
-  const video       = msg.chat_videos?.[0];
-  const videoUrl    = video?.url || msg._localVideoUrl || null;
+  const videos: any[] = msg.chat_videos || [];
+  const videoSrc      = videos[0]?.url || '';
 
-  if (!videoUrl) return <span className="text-sm italic opacity-50">🎥 Sending video…</span>;
+  const handlePlay = () => {
+    if (!isEphemeral || isSender) { setPlaying(true); return; }
+    if (viewed && !isViewing) return;
 
-  const isLocal     = videoUrl.startsWith('blob:');
-  const filename    = video?.originalName || 'video.mp4';
-  const durationSec = video?.duration || 0;
-  const sizeMB      = video?.size ? (video.size / 1048576).toFixed(1) : null;
-  const fmt         = (s: number) =>
-    `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+    // Set isViewing BEFORE onMarkViewed so re-render from viewedBy
+    // update doesn't collapse to "Opened" before the player shows
+    setIsViewing(true);
+    setPlaying(true);
 
-  return (
-    <>
-      {/* ── Fullscreen modal with download ── */}
-      {showFullscreen && (
-        <div
-          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/95"
-          onClick={() => setShowFullscreen(false)}
-        >
-          <button
-            type="button"
-            onClick={() => setShowFullscreen(false)}
-            className="absolute top-4 right-4 bg-white/10 rounded-full p-2 text-white hover:bg-white/25 transition z-10"
-          >
-            <X size={20} />
-          </button>
+    if (viewMode === 'allow_replay') {
+      const alreadyReplayed = replayedSet?.has(msg._id);
+      onMarkViewed?.(msg._id, !!alreadyReplayed);
+      if (!alreadyReplayed) addToReplayed?.(msg._id);
+    } else {
+      onMarkViewed?.(msg._id, true);
+    }
+  };
 
-          <div
-            className="flex flex-col items-center gap-4"
-            onClick={e => e.stopPropagation()}
-          >
-            <video
-              src={videoUrl}
-              controls
-              autoPlay
-              playsInline
-              style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: '12px' }}
-            />
-            {!isLocal && (
-              <DownloadBtn url={videoUrl} filename={filename} isSender={false} />
-            )}
-          </div>
-        </div>
-      )}
+  const handleClose = () => {
+    setIsViewing(false);
+    setPlaying(false);
+  };
 
-      {/* ── Inline preview (click to open fullscreen) ── */}
-      <div style={{ maxWidth: '242px' }}>
-        <div
-          className="relative overflow-hidden cursor-pointer"
-          style={{ borderRadius: '14px', width: '242px' }}
-          onClick={() => !isLocal && setShowFullscreen(true)}
-        >
-          <video
-            src={videoUrl}
-            playsInline
-            preload="metadata"
-            style={{
-              display: 'block',
-              width: '100%',
-              maxHeight: '190px',
-              borderRadius: '14px',
-              pointerEvents: 'none',  // prevent native controls inline
-            }}
-          />
-
-          {/* Play overlay */}
-          {!isLocal && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/35 transition-colors">
-              <div className="w-12 h-12 rounded-full bg-black/55 flex items-center justify-center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              </div>
-            </div>
-          )}
-
-          {isLocal && (
-            <div
-              className="absolute inset-0 flex flex-col items-center justify-center"
-              style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
-            >
-              {uploadProgress !== undefined && uploadProgress < 100 ? (
-                <>
-                  <svg width="48" height="48" viewBox="0 0 48 48">
-                    <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="4"/>
-                    <circle
-                      cx="24" cy="24" r="20"
-                      fill="none"
-                      stroke="#fff"
-                      strokeWidth="4"
-                      strokeLinecap="round"
-                      strokeDasharray={`${2 * Math.PI * 20}`}
-                      strokeDashoffset={`${2 * Math.PI * 20 * (1 - uploadProgress / 100)}`}
-                      style={{ transform: 'rotate(-90deg)', transformOrigin: 'center', transition: 'stroke-dashoffset 0.3s ease' }}
-                    />
-                  </svg>
-                  <span className="text-white text-[12px] font-bold mt-1">{uploadProgress}%</span>
-                </>
-              ) : (
-                <Loader2 size={22} className="animate-spin text-white" />
-              )}
-            </div>
-          )}
-        </div>
-
-        {(durationSec > 0 || sizeMB) && (
-          <div className="flex items-center mt-1 px-0.5">
-            <span className="text-[10px] opacity-50" style={{ color: isSender ? '#fff' : themeStyles.textSecondary }}>
-              {durationSec ? fmt(durationSec) : ''}
-              {sizeMB ? ` · ${sizeMB} MB` : ''}
+  // ── Ephemeral receiver states ──────────────────────────────────────────
+  if (isEphemeral && !isSender) {
+    // Actively viewing — show fullscreen player
+    if (isViewing && videoSrc) {
+      return (
+        <>
+          {/* Status chip stays in bubble while player is open */}
+          <div className="flex items-center gap-2 py-1 px-1">
+            <ViewOnceCircle color={themeStyles.textSecondary} size={20} />
+            <span className="text-[13px]" style={{ color: themeStyles.textSecondary }}>
+              {viewMode === 'allow_replay' ? 'Replayed' : 'Opened'}
             </span>
           </div>
-        )}
+          {/* Fullscreen video player */}
+          <div
+            className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center"
+            onClick={handleClose}
+          >
+            <button
+              className="absolute top-5 right-5 w-9 h-9 rounded-full bg-white/10 flex items-center justify-center z-10"
+              onClick={handleClose}
+            >
+              <X size={18} color="#fff" />
+            </button>
+            <video
+              src={videoSrc}
+              controls
+              autoPlay
+              controlsList="nodownload"
+              onContextMenu={e => e.preventDefault()}
+              className="max-w-full max-h-[85vh] rounded-xl"
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+        </>
+      );
+    }
+
+    // Already consumed — show status chip only
+    if (viewed) {
+      return (
+        <div className="flex items-center gap-2 py-1 px-1">
+          <ViewOnceCircle color={themeStyles.textSecondary} size={20} />
+          <span className="text-[13px]" style={{ color: themeStyles.textSecondary }}>
+            {viewMode === 'allow_replay' ? 'Replayed' : 'Opened'}
+          </span>
+        </div>
+      );
+    }
+
+    // Not yet viewed — tap prompt
+    return (
+      <button
+        onClick={handlePlay}
+        className="flex items-center gap-2 py-1 px-1 hover:opacity-80 transition-opacity"
+      >
+        <ViewOnceCircle color="#fff" size={22} />
+        <span className="text-[13px] text-white font-medium">
+          {viewMode === 'view_once' ? 'Tap to view video' : 'Tap to view · replay once'}
+        </span>
+      </button>
+    );
+  }
+
+  if (isEphemeral && isSender) {
+    const allViewers: string[] = (msg.chat_videos || []).flatMap(
+      (vid: any) => Array.isArray(vid?.viewedBy) ? vid.viewedBy : []
+    );
+    const receiverViewed = allViewers.some(
+      (id: string) => id !== currentUserId && id !== '' && id !== undefined
+    );
+    return (
+      <div className="flex items-center gap-2 py-1 px-1">
+        <ViewOnceCircle color="rgba(255,255,255,0.9)" size={22} />
+        <div className="flex flex-col">
+          <span className="text-[13px] text-white font-medium">
+            {viewMode === 'view_once' ? 'View once' : 'View once · replay'}
+          </span>
+          <span className="text-[10px] text-white/60">
+            {receiverViewed ? 'Opened' : 'Not yet opened'}
+          </span>
+        </div>
       </div>
-    </>
+    );
+  }
+
+  if (!videoSrc) return null;
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-lg cursor-pointer"
+      style={{ maxWidth: 260 }}
+    >
+      {playing ? (
+        <video
+          ref={videoRef}
+          src={videoSrc}
+          controls
+          autoPlay
+          {...(isEphemeral ? { controlsList: 'nodownload', onContextMenu: (e: React.MouseEvent) => e.preventDefault() } : {})}
+          className="w-full rounded-lg"
+          style={{ maxHeight: 320 }}
+        />
+      ) : (
+        <div
+          onClick={handlePlay}
+          className="relative flex items-center justify-center bg-black rounded-lg overflow-hidden"
+          style={{ minWidth: 180, minHeight: 120, maxWidth: 260, maxHeight: 260 }}
+        >
+          <video
+            src={videoSrc}
+            className="w-full h-full object-cover opacity-70"
+            preload="metadata"
+          />
+          <div className="absolute w-12 h-12 rounded-full bg-black/60 flex items-center justify-center">
+            <svg className="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </div>
+          {uploadProgress !== undefined && uploadProgress < 100 && (
+            <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-1">
+              <svg width="44" height="44" viewBox="0 0 44 44">
+                <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="3.5"/>
+                <circle
+                  cx="22" cy="22" r="18" fill="none" stroke="#fff" strokeWidth="3.5"
+                  strokeDasharray={`${2 * Math.PI * 18}`}
+                  strokeDashoffset={`${2 * Math.PI * 18 * (1 - (uploadProgress || 0) / 100)}`}
+                  style={{ transform: 'rotate(-90deg)', transformOrigin: 'center' }}
+                />
+              </svg>
+              <span className="text-white text-[11px] font-bold">{uploadProgress}%</span>
+            </div>
+          )}
+        </div>
+      )}
+       <CaptionText content={msg.content} isSender={isSender} themeStyles={themeStyles} />
+    </div>
   );
 }
 
@@ -497,13 +937,11 @@ function AudioFileMessage({ msg, isSender, isDark, themeStyles }: any) {
       {!isLocal && (
         <DownloadBtn url={url} filename={filename} isSender={isSender} />
       )}
+      <CaptionText content={msg.content} isSender={isSender} themeStyles={themeStyles} />
     </div>
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// FILE / DOCUMENT
-// ══════════════════════════════════════════════════════════════════════════════
 const EXT_COLORS: Record<string, string> = {
   pdf: '#F87171', doc: '#60A5FA', docx: '#60A5FA',
   xls: '#34D399', xlsx: '#34D399', csv: '#34D399',
@@ -660,6 +1098,7 @@ function FileMessage({ msg, isSender, isDark, themeStyles }: any) {
           />
         </div>
       </div>
+      <CaptionText content={msg.content} isSender={isSender} themeStyles={themeStyles} />
     </>
   );
 }
@@ -1338,6 +1777,142 @@ function EventMessage({
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 12h14M12 5l7 7-7 7"/>
           </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+// ─── Caption Sheet for Doc / Audio ────────────────────────────────────────────
+export function CaptionSheet({
+  file,
+  isDark,
+  themeStyles,
+  onClose,
+  onSend,
+}: {
+  file: File;
+  isDark: boolean;
+  themeStyles: any;
+  onClose: () => void;
+  onSend: (caption: string) => void;
+}) {
+  const [caption, setCaption] = React.useState('');
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 150);
+  }, []);
+
+  const ext     = file.name.split('.').pop()?.toLowerCase() || 'file';
+  const isAudio = file.type.startsWith('audio/');
+  const sizeStr = file.size > 1_048_576
+    ? `${(file.size / 1_048_576).toFixed(1)} MB`
+    : `${(file.size / 1024).toFixed(0)} KB`;
+
+  const EXT_COLORS: Record<string, string> = {
+    pdf: '#F87171', doc: '#60A5FA', docx: '#60A5FA',
+    xls: '#34D399', xlsx: '#34D399', csv: '#34D399',
+    mp3: '#FB923C', wav: '#FB923C', m4a: '#FB923C', ogg: '#FB923C',
+  };
+  const color = EXT_COLORS[ext] || '#9CA3AF';
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-end"
+      style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full rounded-t-[24px] px-5 pt-5 pb-8 flex flex-col gap-4"
+        style={{
+          backgroundColor: isDark ? '#18181b' : '#ffffff',
+          border: `0.5px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* File preview row */}
+        <div
+          className="flex items-center gap-3 p-3 rounded-2xl"
+          style={{
+            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+          }}
+        >
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: `${color}22` }}
+          >
+            {isAudio
+              ? <Music size={22} style={{ color }} />
+              : <FileText size={22} style={{ color }} />
+            }
+          </div>
+          <div className="flex-1 min-w-0">
+            <p
+              className="text-[14px] font-semibold truncate"
+              style={{ color: isDark ? '#fff' : '#111' }}
+            >
+              {file.name}
+            </p>
+            <p
+              className="text-[11px] mt-0.5 uppercase font-bold"
+              style={{ color }}
+            >
+              {ext} · {sizeStr}
+            </p>
+          </div>
+        </div>
+
+        {/* Caption input */}
+        <div
+          className="flex items-center gap-2 px-4 py-3 rounded-full"
+          style={{
+            backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
+            border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+          }}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(caption); } }}
+            placeholder="Add a caption..."
+            maxLength={500}
+            className="flex-1 bg-transparent border-none outline-none text-[14px]"
+            style={{ color: isDark ? '#fff' : '#111' }}
+          />
+          {caption.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setCaption('')}
+              className="flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity"
+            >
+              <X size={14} color={isDark ? '#fff' : '#333'} />
+            </button>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-full text-[14px] font-semibold transition-opacity hover:opacity-75"
+            style={{
+              backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+              color: isDark ? 'rgba(255,255,255,0.7)' : '#555',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSend(caption)}
+            className="flex-1 py-3 rounded-full text-[14px] font-bold text-white transition-opacity hover:opacity-90 active:scale-[0.98]"
+            style={{
+              background: 'linear-gradient(147.67deg, #2979FF 13.16%, #6B9CF0 54.09%, #9DC1FF 100.03%)',
+            }}
+          >
+            Send
+          </button>
         </div>
       </div>
     </div>
