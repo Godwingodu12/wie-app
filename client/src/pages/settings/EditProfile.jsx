@@ -118,15 +118,24 @@ const EditProfile = () => {
     if (file) {
       const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
       if (!validTypes.includes(file.type)) {
-        alert("Please select a valid image file (JPEG, PNG, or GIF)");
+        setAlert({
+          show: true,
+          type: "error",
+          message: "Invalid File Type",
+          description: "Please select a valid image file (JPEG, JPG, PNG, or GIF). Formats like AVIF, WEBP, etc. are not supported.",
+        });
         return;
       }
 
       if (file.size > 5 * 1024 * 1024) {
-        alert("Image size should be less than 5MB");
+        setAlert({
+          show: true,
+          type: "error",
+          message: "File Too Large",
+          description: "Image size should be less than 5MB.",
+        });
         return;
       }
-
       setSelectedImage(file);
 
       const reader = new FileReader();
