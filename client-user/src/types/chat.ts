@@ -11,17 +11,33 @@ export interface ChatUser {
   lastSeen?: string;
   last_seen_at?: string;
 }
+
+// ── View-once mode shared by image and video items ─────────────────────────
+export type MediaViewMode = 'view_once' | 'allow_replay' | 'keep';
+
+export interface ChatImageItem {
+  url: string;
+  viewMode?: MediaViewMode;
+  viewedBy?: string[];
+}
+
 export interface ChatVideoItem {
   url: string;
   originalName?: string;
   size?: number;
+  duration?: number;
+  mimeType?: string;
   thumbnail?: string;
+  viewMode?: MediaViewMode;
+  viewedBy?: string[];
 }
 
 export interface ChatAudioItem {
   url: string;
   originalName?: string;
   size?: number;
+  duration?: number;
+  mimeType?: string;
 }
 
 export interface ChatFileItem {
@@ -30,6 +46,7 @@ export interface ChatFileItem {
   size?: number;
   extension?: string;
 }
+
 export interface ChatMessage {
   _id: string;
   sender: string;
@@ -43,13 +60,21 @@ export interface ChatMessage {
   deletedForEveryone?: boolean;
   deletedFor?: string[];
 
-  // Message type — extended to cover all media kinds
+  // Message type
   messageType?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'audio'
                | 'location' | 'profile' | 'event' | 'sticker' | 'contact';
 
+  // View-once mode at message level (mirrors the item-level value for convenience)
+  viewMode?: MediaViewMode;
+  replyTo?: {
+      messageId: string;
+      sender: string;
+      content: string;
+      messageType: string;
+  };
   // Rich media fields
   voiceData?: VoiceData;
-  chat_images?: string[];
+  chat_images?: ChatImageItem[];   // ← was string[], now ChatImageItem[]
   chat_videos?: ChatVideoItem[];
   chat_audio?: ChatAudioItem[];
   chat_files?: ChatFileItem[];
@@ -63,17 +88,20 @@ export interface ChatMessage {
   _localPreviews?: string[];
   _isOptimistic?: boolean;
 }
+
 export interface VoiceData {
   audioBase64: string;
   duration: number;
   mimeType: string;
 }
+
 export interface VoiceMessageData {
   type: 'voice';
-  audio: string; // base64 encoded audio
+  audio: string;
   duration: number;
   mimeType: string;
 }
+
 export interface Chat {
   _id: string;
   participant: ChatUser | null;
@@ -81,20 +109,25 @@ export interface Chat {
     content: string;
     sender: string;
     timestamp: string;
-          deliveredTo: string[];
-
+    deliveredTo: string[];
     readBy?: string[];
     isRead?: boolean;
+    // view-once preview support
+    viewMode?: MediaViewMode;
+    messageType?: string;
+    chat_images?: ChatImageItem[];
+    chat_videos?: ChatVideoItem[];
   } | null;
   unreadCount: number;
   type?: 'direct' | 'request' | 'group';
   status?: 'pending' | 'accepted' | 'declined';
   updatedAt: string;
-  isBlocked?: boolean; 
+  isBlocked?: boolean;
   isBlockedBy?: 'you' | 'them';
-  blockerId?: string; 
-  blockedId?: string; 
+  blockerId?: string;
+  blockedId?: string;
 }
+
 export interface MessageRequest {
   _id: string;
   participant: ChatUser | null;
@@ -102,14 +135,13 @@ export interface MessageRequest {
     content: string;
     sender: string;
     timestamp: string;
-      deliveredTo: string[];
-
+    deliveredTo: string[];
   } | null;
   type: 'request';
   status: 'pending';
   updatedAt: string;
   messageCount: number;
-  unreadCount: number; 
+  unreadCount: number;
 }
 
 export interface UnreadCounts {
