@@ -12,7 +12,14 @@ export const uploadChatImage = async (buffer, options = {}) => {
       resourceType: 'image',
       ...options,
     });
-    return result.url;
+    return {
+      url:           result.url,
+      width:         result.width,
+      height:        result.height,
+      format:        result.format,
+      bytes:         result.bytes,
+      original_name: result.original_name || options.originalName,
+    };
   } catch (error) {
     console.error('Error uploading chat image:', error);
     throw new Error(`Failed to upload chat image: ${error.message}`);
@@ -49,10 +56,11 @@ export const uploadChatVideo = async (buffer, options = {}) => {
       ? uploadLargeToCloudinary
       : uploadToCloudinary;
 
+    const { mimeType: _ignored, ...safeOptions } = options;
     const result = await uploadFn(buffer, {
       folder:       'WIE_CHAT/chat_videos',
       resourceType: 'video',
-      ...options,
+      ...safeOptions,
     });
     return {
       url:      result.url,
