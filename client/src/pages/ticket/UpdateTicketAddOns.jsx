@@ -1142,6 +1142,19 @@ const handleMultipleFileChange = async (e, targetField) => {
           "total_capacity",
           "Maximum capacity is required for offline events."
         );
+        if (
+          formData.location_type === "offline" &&
+          hasSeatingLayout &&
+          generatedSeatingLayout &&
+          formData.payment_type === "paid" &&
+          formData.ticket_types.length > 0 &&
+          Object.keys(seatAssignments).length === 0
+        ) {
+          addError(
+            "seatAssignments",
+            "Seat assignment is required. Please assign seats to ticket types before saving."
+          );
+        }
     } else {
       if (!formData.total_capacity || isNaN(parseInt(formData.total_capacity)))
         addError(
@@ -5216,6 +5229,45 @@ const handleReorderToggle = (targetField) => {
                                           </button>
                                         )}
                                     </div>
+                                    {formData.payment_type === "paid" &&
+                                      formData.ticket_types.length > 0 &&
+                                      generatedSeatingLayout &&
+                                      Object.keys(seatAssignments).length === 0 && (
+                                        <div
+                                          ref={(el) => (errorFieldRefs.current.seatAssignments = el)}
+                                          className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border-2 border-red-500 dark:border-red-600 rounded-lg p-3 mb-3 animate-fade-in"
+                                        >
+                                          <svg
+                                            className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={2}
+                                              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                                            />
+                                          </svg>
+                                          <div>
+                                            <p className="text-sm font-bold text-red-600 dark:text-red-400">
+                                              ⚠ Seat Assignment Required
+                                            </p>
+                                            <p className="text-xs text-red-500 dark:text-red-400 mt-0.5">
+                                              You must assign seats to ticket types before saving. Click the{" "}
+                                              <span className="font-semibold">"Assign Seats"</span> button
+                                              above to assign seats to your ticket types.
+                                            </p>
+                                          </div>
+                                        </div>
+                                      )}
+                                    {/* Also show inline error if form was submitted without assignment */}
+                                    {errors.seatAssignments && (
+                                      <p className="text-red-500 text-xs font-medium mt-1">
+                                        {errors.seatAssignments}
+                                      </p>
+                                    )}
                                     <div className="border-2 border-green-500 dark:border-green-600 rounded-lg overflow-hidden">
                                       <SeatingLayoutPreview
                                         seatingLayout={generatedSeatingLayout}
