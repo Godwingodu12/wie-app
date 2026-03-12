@@ -9,7 +9,7 @@ import {
   getWieChatMessages,sendWieMessage,deleteMessagesForMe,deleteMessagesForEveryone,
   deleteChatForMe,acceptMessageRequest,declineMessageRequest,markMessagesAsRead,blockUser,unblockUser,reportUser,
   checkBlockStatus,sendImageMessage,sendVideoMessage,sendAudioMessage,sendDocumentMessage,sendLocationMessage,
-  sendProfileMessage,sendEventMessage,
+  sendProfileMessage,sendEventMessage,markMediaViewed,
 } from '@/services/chatService';
 import socketService from '@/services/socketService';
 import EmojiPicker from '@/components/chat/EmojiPicker';
@@ -18,11 +18,14 @@ import VoiceMessageDisplay from '@/components/chat/VoiceMessageDisplay';
 import MediaPickerModal from '@/components/chat/Mediapickermodal';           
 import LocationPickerModal from '@/components/chat/Locationpickermodal';    
 import ProfilePickerModal from '@/components/chat/Profilepickermodal';       
-import EventPickerModal from '@/components/chat/Eventpickermodal';           
+import EventPickerModal from '@/components/chat/Eventpickermodal';              
 import {
   isMediaMessage,
   renderMediaMessage,
-} from '@/components/chat/Mediamessagerenderer';                             
+  ViewModeSelectorSheet,
+  CaptionSheet,
+  type MediaViewMode
+} from '@/components/chat/Mediamessagerenderer';
 import { MessageCircle, Send, Loader2, ArrowLeft, MoreVertical, X, Check, CheckCheck, Mic, Smile, Ban, Paperclip } from 'lucide-react';
 import Image from 'next/image';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -85,6 +88,13 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
   const [showProfileModal, setShowProfileModal]= useState(false);      
   const [showEventModal, setShowEventModal]= useState(false);    
   const [isSendingMedia, setIsSendingMedia]= useState(false); 
+  const [pendingGalleryFiles, setPendingGalleryFiles] = useState<File[] | null>(null);
+  const [pendingCaption, setPendingCaption] = useState('');
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [pendingDocFile, setPendingDocFile] = useState<File | null>(null);
+  const [pendingAudioFile, setPendingAudioFile] = useState<File | null>(null);
+  const [mediaViewMode, setMediaViewMode] = useState<'view_once' | 'allow_replay' | 'keep'>('keep');
+  const [replayedMessages, setReplayedMessages] = useState<Set<string>>(new Set());
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -97,6 +107,10 @@ export default function ChatWindow({ onBack }: ChatWindowProps) {
   const [uploadProgress,  setUploadProgress]  = useState<Record<string, number>>({});
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const isFetchingMore = useRef(false);
   const [blockStatus, setBlockStatus] = useState<{
     iBlockedThem: boolean;
     theyBlockedMe: boolean;
@@ -266,28 +280,36 @@ const handleEmojiSelect = (emoji: string) => {
     }
   };
 
-                                                                          
-  const handleGalleryFiles = async (files: File[]) => {                        
-    if (!currentChat || isSendingMedia) return;                                 
-    setIsSendingMedia(true);                                                   
+  const handleGalleryFiles = (files: File[]) => {
+    if (!currentChat || isSendingMedia) return;
+    setPendingGalleryFiles(files);
+    setMediaViewMode('keep');
+  };
 
-    const images = files.filter(f => f.type.startsWith('image/'));              
-    const videos = files.filter(f => f.type.startsWith('video/'));              
+  const confirmGalleryWithMode = async (viewMode: MediaViewMode, caption?: string) => {
+    if (!pendingGalleryFiles || !currentChat || isSendingMedia) return;
+    const files = pendingGalleryFiles;
+    setPendingGalleryFiles(null);
+    setPendingCaption('');
+    setIsSendingMedia(true);
+
+    const images = files.filter(f => f.type.startsWith('image/'));
+    const videos = files.filter(f => f.type.startsWith('video/'));
 
     const tempImageId = images.length > 0 ? `temp_img_${Date.now()}` : null;
     const tempVideoIds: string[] = videos.map((_, i) => `temp_vid_${Date.now()}_${i}`);
 
     if (images.length > 0 && tempImageId) {
       const localPreviews = images.map(f => URL.createObjectURL(f));
-      // Inject optimistic message so images show immediately
       addMessage({
         _id: tempImageId,
         sender: user?.id || '',
         messageType: 'image',
-        content: '📷 Image',
-        chat_images: localPreviews,          // blob: URLs for instant display
-        _localPreviews: localPreviews,       // also stored here as backup
+        content: caption?.trim() ? caption.trim() : (viewMode !== 'keep' ? '📷 Photo' : '📷 Image'),
+        chat_images: localPreviews.map(url => ({ url, viewMode, viewedBy: [] as string[] })),
+        _localPreviews: localPreviews,
         _isOptimistic: true,
+        viewMode,
         timestamp: new Date().toISOString(),
       });
     }
@@ -297,73 +319,80 @@ const handleEmojiSelect = (emoji: string) => {
         _id: tempVideoIds[i],
         sender: user?.id || '',
         messageType: 'video',
-        content: '🎥 Video',
-        chat_videos: [{ url: URL.createObjectURL(f) }],
+        content: caption?.trim() ? caption.trim() : '🎥 Video',
+        chat_videos: [{ url: URL.createObjectURL(f), viewMode, viewedBy: [] as string[] }],
         _isOptimistic: true,
+        viewMode,
         timestamp: new Date().toISOString(),
       });
     });
 
     try {
       if (images.length > 0 && tempImageId) {
-        // Build FormData for image upload
         const imageFormData = new FormData();
         images.forEach(f => imageFormData.append('images', f));
-
+        if (caption?.trim()) imageFormData.append('caption', caption.trim());
         const response = await sendImageMessage(
-          currentChat._id,
-          imageFormData,
-          (percent) => setUploadProgress(prev => ({ ...prev, [tempImageId]: percent }))
+          currentChat._id, imageFormData,
+          (percent) => setUploadProgress(prev => ({ ...prev, [tempImageId]: percent })),
+          viewMode
         );
         setUploadProgress(prev => { const n = { ...prev }; delete n[tempImageId]; return n; });
-
         if (response.success && response.message) {
-          replaceOrAddMessage(tempImageId, {
-            ...response.message,
-            chat_images:   response.message.chat_images   || [],
-            chat_videos:   response.message.chat_videos   || [],
-            chat_audio:    response.message.chat_audio    || [],
-            chat_files:    response.message.chat_files    || [],
-            stickerData:   response.message.stickerData,
-            locationData:  response.message.locationData,
-            contactData:   response.message.contactData,
-            profileData:   response.message.profileData,
-            eventData:     response.message.eventData,
-            _isOptimistic: false,
-          });
+          replaceOrAddMessage(tempImageId, { ...response.message, _isOptimistic: false });
         }
       }
 
       for (let i = 0; i < videos.length; i++) {
         const videoFormData = new FormData();
         videoFormData.append('video', videos[i]);
-
+        if (caption?.trim()) videoFormData.append('caption', caption.trim());
         const res = await sendVideoMessage(
-          currentChat._id,
-          videoFormData,
-          (percent) => setUploadProgress(prev => ({ ...prev, [tempVideoIds[i]]: percent }))
+          currentChat._id, videoFormData,
+          (percent) => setUploadProgress(prev => ({ ...prev, [tempVideoIds[i]]: percent })),
+          viewMode
         );
         setUploadProgress(prev => { const n = { ...prev }; delete n[tempVideoIds[i]]; return n; });
-
         if (res.success && res.message) {
-          replaceOrAddMessage(tempVideoIds[i], {
-            ...res.message,
-            chat_videos:   res.message.chat_videos || [],
-            _isOptimistic: false,
-          });
+          replaceOrAddMessage(tempVideoIds[i], { ...res.message, _isOptimistic: false });
         }
       }
     } catch (err: any) {
-      // Remove optimistic messages on failure
       if (tempImageId) removeOptimisticMessage(tempImageId);
       tempVideoIds.forEach(id => removeOptimisticMessage(id));
-
-      const msg = err?.response?.data?.message || 'Failed to send media';
-      setToast({ message: msg, type: 'error' });
+      setToast({ message: err?.response?.data?.message || 'Failed to send media', type: 'error' });
     } finally {
       setIsSendingMedia(false);
     }
-  };    
+  };   
+
+  const handleMarkMediaViewed = async (messageId: string, finalView: boolean = true) => {
+    if (!currentChat) return;
+    try {
+      await markMediaViewed(currentChat._id, messageId, finalView);
+      // Update local message so viewedBy reflects immediately
+      setMessages(prev =>
+        prev.map(m => {
+          if (m._id !== messageId) return m;
+          const addViewer = (items: any[]) =>
+            (items || []).map(item => ({
+              ...item,
+              viewedBy: (item.viewedBy || []).includes(user?.id || '')
+                ? item.viewedBy || []
+                : (item.viewedBy || []).concat(user?.id || ''),
+            }));
+          return {
+            ...m,
+            chat_images: m.chat_images ? addViewer(m.chat_images) : m.chat_images,
+            chat_videos: m.chat_videos ? addViewer(m.chat_videos) : m.chat_videos,
+          };
+        })
+      );
+    } catch (e) {
+      console.error('markMediaViewed failed:', e);
+    }
+  };
+
   const replaceOrAddMessage = (tempId: string | null, realMessage: any) => {   
     if (tempId && typeof replaceMessage === 'function') {                       
       replaceMessage(tempId, realMessage);                                      
@@ -377,9 +406,9 @@ const handleEmojiSelect = (emoji: string) => {
     }                                                                           
   }; 
 
-  const handleDocumentFile = async (file: File) => {                           
+  const handleDocumentFile = async (file: File, caption?: string) => {                           
     if (!currentChat || isSendingMedia) return;                                 
-    setIsSendingMedia(true);                                                    
+    setIsSendingMedia(true);
     const tempId = `temp_doc_${Date.now()}`;
     const ext    = file.name.split('.').pop()?.toLowerCase() || 'file';
 
@@ -387,7 +416,7 @@ const handleEmojiSelect = (emoji: string) => {
       _id:         tempId,
       sender:      user?.id || '',
       messageType: 'file',
-      content:     `📎 ${file.name}`,
+      content:     caption?.trim() ? caption.trim() : `📎 ${file.name}`,
       chat_files:  [{ url: URL.createObjectURL(file), name: file.name, size: file.size, extension: ext }],
       _isOptimistic: true,
       timestamp:   new Date().toISOString(),
@@ -397,6 +426,7 @@ const handleEmojiSelect = (emoji: string) => {
           const docFormData = new FormData();
           docFormData.append('document', file);
 
+          if (caption?.trim()) docFormData.append('caption', caption.trim());
           const res = await sendDocumentMessage(
             currentChat._id,
             docFormData,
@@ -418,8 +448,7 @@ const handleEmojiSelect = (emoji: string) => {
     }
   };                                                                            
 
-
-  const handleAudioFile = async (file: File) => {                                
+  const handleAudioFile = async (file: File, caption?: string) => {                                
     if (!currentChat || isSendingMedia) return;                                 
     setIsSendingMedia(true);                                                   
     const tempId = `temp_audio_${Date.now()}`;
@@ -438,6 +467,7 @@ const handleEmojiSelect = (emoji: string) => {
           const audioFormData = new FormData();
           audioFormData.append('audio', file);
 
+          if (caption?.trim()) audioFormData.append('caption', caption.trim());
           const res = await sendAudioMessage(
             currentChat._id,
             audioFormData,
@@ -541,32 +571,49 @@ const handleEmojiSelect = (emoji: string) => {
       return null;
     }
   };
+  const getReplyPreviewText = (msg: ChatMessage): string => {
+    if (!msg) return '';
+    if (msg.deletedForEveryone) return 'Deleted message';
+    switch (msg.messageType) {
+      case 'voice': return '🎤 Voice message';
+      case 'image': return '📷 Photo';
+      case 'video': return '🎥 Video';
+      case 'audio': return '🎵 Audio';
+      case 'file':  return `📎 ${(msg as any).chat_files?.[0]?.name || 'File'}`;
+      case 'location': return '📍 Location';
+      case 'profile':  return '👤 Profile';
+      case 'event':    return '🎟️ Event';
+      default: return msg.content || '';
+    }
+  };
 
-  const loadMessages = async () => {
+  const loadMessages = async (pageNum = 1, prepend = false) => {
     if (!currentChat) return;
-    setLoading(true);
-    hasMarkedAsRead.current = false;
+
+    if (pageNum === 1) {
+      setLoading(true);
+      hasMarkedAsRead.current = false;
+    } else {
+      setLoadingMore(true);
+    }
 
     try {
-      const response = await getWieChatMessages(currentChat._id);
+      const response = await getWieChatMessages(currentChat._id, pageNum, 50);
       if (response.success) {
         const parsedMessages = (response.messages || []).map((msg: any): ChatMessage => {
           const base = { ...msg };
-
-          if (base.messageType === 'voice' && base.voiceData) {
-            return base;
-          }
+          if (base.messageType === 'voice' && base.voiceData) return base;
           if (base.content?.startsWith('{') && base.content.includes('"type":"voice"')) {
             try {
               const parsed = JSON.parse(base.content);
               if (parsed.type === 'voice' && parsed.audio && parsed.duration) {
                 return {
-                  ...base,  // ✅ keep all rich fields
+                  ...base,
                   messageType: 'voice',
                   voiceData: {
                     audioBase64: parsed.audio,
-                    duration:    parsed.duration,
-                    mimeType:    parsed.mimeType || 'audio/webm;codecs=opus'
+                    duration: parsed.duration,
+                    mimeType: parsed.mimeType || 'audio/webm;codecs=opus'
                   },
                   content: '🎤 Voice message'
                 };
@@ -575,13 +622,32 @@ const handleEmojiSelect = (emoji: string) => {
               console.error('Failed to parse voice message:', e);
             }
           }
-
-          return base; 
+          return base;
         });
 
-        setMessages(parsedMessages);
+        setHasMore(response.hasMore ?? false);
 
-        // ✅ Update participant info if available
+        if (prepend) {
+          // Preserve scroll position when prepending older messages
+          const container = messagesContainerRef.current;
+          const prevScrollHeight = container?.scrollHeight ?? 0;
+
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m._id));
+            const newOnes = parsedMessages.filter((m: ChatMessage) => !existingIds.has(m._id));
+            return [...newOnes, ...prev];
+          });
+
+          // Restore scroll so user stays at same position
+          requestAnimationFrame(() => {
+            if (container) {
+              container.scrollTop = container.scrollHeight - prevScrollHeight;
+            }
+          });
+        } else {
+          setMessages(parsedMessages);
+        }
+
         if (response.chat?.participant) {
           const updatedChat = {
             ...currentChat,
@@ -608,6 +674,8 @@ const handleEmojiSelect = (emoji: string) => {
       console.error('Failed to load messages:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+      isFetchingMore.current = false;
     }
   };
   
@@ -618,15 +686,21 @@ const handleEmojiSelect = (emoji: string) => {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageInput.trim() || !currentChat || sending) return;
-
     const content = messageInput.trim();
     const isFirstMessage = messages.length === 0;
-    
+    const replyData = replyingTo ? {
+      messageId: replyingTo._id,
+      sender: replyingTo.sender,
+      content: getReplyPreviewText(replyingTo),
+      messageType: replyingTo.messageType || 'text',
+    } : undefined;
+
     setMessageInput('');
+    setReplyingTo(null);
     setSending(true);
 
     try {
-      const response = await sendWieMessage(currentChat._id, content);
+      const response = await sendWieMessage(currentChat._id, content, replyData);
       if (response.success) {
         addMessage(response.message);
         const chatToUpdate: Chat = {
@@ -743,24 +817,31 @@ const handleEmojiSelect = (emoji: string) => {
       return 'Offline';
     }
   };
+  const handleReplyToMessage = (message: ChatMessage) => {
+    if (message.deletedForEveryone) return;
+    setReplyingTo(message);
+    setSelectionMode(false);
+    setSelectedMessages(new Set());
+    // Focus input
+    setTimeout(() => inputRef.current?.focus(), 100);
+  };
+  const toggleMessageSelection = (messageId: string) => {
+    // Find the message to check its status
+    const message = messages.find(m => m._id === messageId);
 
-const toggleMessageSelection = (messageId: string) => {
-  // Find the message to check its status
-  const message = messages.find(m => m._id === messageId);
+    // If the message is deleted, don't allow selection
+    if (message?.deletedForEveryone) return;
 
-  // If the message is deleted, don't allow selection
-  if (message?.deletedForEveryone) return;
-
-  setSelectedMessages((prev: Set<string>) => {
-    const newSet = new Set<string>(prev);
-    if (newSet.has(messageId)) {
-      newSet.delete(messageId);
-    } else {
-      newSet.add(messageId);
-    }
-    return newSet;
-  });
-};
+    setSelectedMessages((prev: Set<string>) => {
+      const newSet = new Set<string>(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      return newSet;
+    });
+  };
 
   const exitSelectionMode = () => {
     setSelectionMode(false);
@@ -1031,6 +1112,23 @@ const toggleMessageSelection = (messageId: string) => {
 
   const getMessageStatus = (message: ChatMessage) => {
     if (message.sender !== user?.id) return null;
+    if ((message as any)._isOptimistic) {
+      return (
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="rgba(255,255,255,0.75)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      );
+    }
 
     const isRead = message.readBy && message.readBy.length > 1 &&
                   message.readBy.some(id => id !== user?.id);
@@ -1039,16 +1137,13 @@ const toggleMessageSelection = (messageId: string) => {
     if (isRead) {
       return (
         <div className="flex items-center gap-1">
-          {/* Double check in purple when seen */}
           <CheckCheck size={15} style={{ color: '#8860D9' }} />
           <span className="text-[10px] font-medium" style={{ color: '#8860D9' }}>Seen</span>
         </div>
       );
     } else if (isDelivered) {
-      // Double check in white when delivered but not seen
       return <CheckCheck size={15} className="text-white" />;
     } else {
-      // Single check in white when sent
       return <Check size={15} className="text-white" />;
     }
   };
@@ -1058,10 +1153,12 @@ const toggleMessageSelection = (messageId: string) => {
       setIsTransitioning(true);
       hasMarkedAsRead.current = false;
       markedAsReadRef.current.clear();
-      isInitialLoad.current = true; 
+      isInitialLoad.current = true;
+      setPage(1);
+      setHasMore(false);
 
       socketService.joinChat(currentChat._id);
-      loadMessages();
+      loadMessages(1, false);
       
       const timer = setTimeout(() => {
         setIsTransitioning(false);
@@ -1820,6 +1917,19 @@ const toggleMessageSelection = (messageId: string) => {
     </div>
 
     <div className="flex items-center gap-2">
+        <button
+        onClick={() => {
+          if (selectedMessages.size === 1) {
+            const msgId = Array.from(selectedMessages)[0];
+            const msg = messages.find(m => m._id === msgId);
+            if (msg) handleReplyToMessage(msg);
+          }
+        }}
+        disabled={selectedMessages.size !== 1}
+        className="px-4 py-1.5 text-xs font-medium bg-white/5 text-white rounded-full hover:bg-white/10 transition-all border border-white/10 disabled:opacity-50"
+      >
+        Reply
+      </button>
       <button
         onClick={handleDeleteForMe}
         disabled={selectedMessages.size === 0}
@@ -1847,6 +1957,13 @@ const toggleMessageSelection = (messageId: string) => {
           if (!el) return;
           const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
           setShowScrollBtn(distFromBottom > 120);
+
+          if (el.scrollTop < 80 && hasMore && !isFetchingMore.current && !loadingMore) {
+            isFetchingMore.current = true;
+            const nextPage = page + 1;
+            setPage(nextPage);
+            loadMessages(nextPage, true);
+          }
         }}
         className="flex-1 overflow-y-auto p-4 min-h-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] flex flex-col relative"
         style={{ backgroundColor: themeStyles.sidebarBg }}
@@ -1884,163 +2001,218 @@ const toggleMessageSelection = (messageId: string) => {
             </div>
           ) : (
           <div className="mt-auto space-y-4">
-{messages.map((message, index) => {
-  const isSender = message.sender === user?.id;
-  const isSelected = selectedMessages.has(message._id);
-  const isDeleted = message.deletedForEveryone;
-  const isVoice = message.messageType === 'voice' && message.voiceData?.audioBase64;
-
-  // Date logic
-  const messageDate = new Date(message.timestamp);
-  const prevMessage = index > 0 ? messages[index - 1] : null;
-  const prevMessageDate = prevMessage ? new Date(prevMessage.timestamp) : null;
-
-  // Only show separator if the date has changed
-  const showDateSeparator = !prevMessageDate ||
-    messageDate.toDateString() !== prevMessageDate.toDateString();
-
-  const getDateLabel = (date: Date) => {
-    if (isToday(date)) return 'Today';
-    if (isYesterday(date)) return 'Yesterday';
-    return format(date, 'MMMM d, yyyy');
-  };
-
-  const isLastInGroup = index === messages.length - 1 || messages[index + 1].sender !== message.sender;
-
-  return (
-    <Fragment key={message._id}>
-      {/* Date Separator: Fixed within a container to prevent overlapping stacking */}
-      {showDateSeparator && (
-        <div className="relative w-full flex justify-center h-10 my-4 pointer-events-none z-20">
-          <div
-            className={`sticky top-2 transition-opacity duration-500 ease-in-out `}
-          >
-            <span
-              className="text-[9px] px-3 py-1.5 rounded-lg backdrop-blur-md border uppercase tracking-widest shadow-2xl"
-              style={{
-                backgroundColor: isDark ? '#1A1A1A' : themeStyles.cardBg,
-                color: isDark ? '#E5E7EB' : themeStyles.text,
-                borderColor: themeStyles.border
-              }}
-            >
-              {getDateLabel(messageDate)}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Message Row */}
-      <div
-        onClick={() => !isDeleted && selectionMode && toggleMessageSelection(message._id)}
-        onContextMenu={(e) => {
-          if (isDeleted) return;
-          e.preventDefault();
-          handleMessageLongPress(message._id);
-        }}
-        className={`flex items-end gap-2 mb-2 px-2 rounded-lg transition-colors duration-150 ${
-          isSender ? 'justify-end' : 'justify-start'
-        } ${selectionMode && !isDeleted ? 'cursor-pointer' : ''}`}
-        style={{
-          backgroundColor: isSelected
-            ? isDark
-              ? 'rgba(136, 96, 217, 0.18)'
-              : 'rgba(84, 148, 255, 0.12)'
-            : 'transparent',
-          marginLeft:  '-8px',
-          marginRight: '-8px',
-          paddingLeft:  '8px',
-          paddingRight: '8px',
-        }}
-      >
-        {/* Received Message Avatar */}
-        {!isSender && (
-          <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 mb-1">
-            {isLastInGroup ? (
-              profilePictureUrl && !imageError ? (
-                <Image src={profilePictureUrl} alt="Avatar" width={32} height={32} className="object-cover" />
-              ) : (
-                <div
-                  className="w-full h-full flex items-center justify-center text-[10px] text-white"
-                  style={{ backgroundColor: isDark ? '#4B5563' : '#9CA3AF' }}
-                >
-                  {currentChat.participant?.name?.charAt(0).toUpperCase()}
-                </div>
-              )
-            ) : (
-              <div className="w-8" />
-            )}
-          </div>
-        )}
-
-        {/* Message Bubble */}
-        <div
-          className={`max-w-[75%] rounded-[18px] transition-all duration-200 ${
-            isVoice && !isDeleted ? 'px-3 py-3' : 'px-4 py-2'
-          }`}
-          style={
-            isSender
-              ? { background: isDeleted ? 'rgba(50, 50, 50, 0.4)' : 'rgb(84, 148, 255)' }
-              : {
-                  background: isDark
-                    ? 'linear-gradient(270deg, rgba(32, 32, 32, 0.6) -8.43%, rgba(96, 96, 96, 0.6) 100%)'
-                    : themeStyles.cardBg
-                }
-          }
-        >
-          {isDeleted ? (
-            <div className="flex items-center gap-2 py-1 italic text-gray-400 text-[13px] select-none">
-               <X size={14} />
-               <span>This message was deleted</span>
-            </div>
-          ) : (
-            <div className="flex flex-col">
-              {isVoice ? (
-                <VoiceMessageDisplay
-                  audioURL={message.voiceData!.audioBase64}
-                  duration={message.voiceData!.duration}
-                  isSender={isSender}
-                  timestamp={message.timestamp}
-                />
-                ) : (
-                 isMediaMessage(message) ? (
-                    renderMediaMessage(
-                      message,
-                      isSender,
-                      themeStyles,
-                      isDark,
-                      message._isOptimistic ? uploadProgress[message._id as string] : undefined
-                    )
-                  ) : (
-                    <div
-                      className="break-words text-[15px] leading-relaxed"
-                      style={{ color: isSender ? '#fff' : themeStyles.text }}
-                    >
-                      {message.content}
-                    </div>
-                  )
-                )}
-
-              {/* Status area for both Voice and Text */}
-              <div className="flex justify-end mt-1 items-center gap-1.5 opacity-80">
-                <span
-                  className="text-[10px]"
-                  style={{ color: isSender ? 'rgba(255,255,255,0.8)' : themeStyles.textSecondary }}
-                >
-                  {format(messageDate, 'HH:mm')}
+            {loadingMore && (
+              <div className="flex items-center justify-center py-3">
+                <Loader2 className="animate-spin text-[#8860D9]" size={22} />
+                <span className="ml-2 text-xs" style={{ color: themeStyles.textSecondary }}>
+                  Loading...
                 </span>
-                {isSender && (
-                  <div className="flex items-center">
-                    {getMessageStatus(message)}
-                  </div>
-                )}
               </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </Fragment>
-  );
-})}
+            )}
+            {messages.map((message, index) => {
+              const isSender = message.sender === user?.id;
+              const isSelected = selectedMessages.has(message._id);
+              const isDeleted = message.deletedForEveryone;
+              const isVoice = message.messageType === 'voice' && message.voiceData?.audioBase64;
+
+              // Date logic
+              const messageDate = new Date(message.timestamp);
+              const prevMessage = index > 0 ? messages[index - 1] : null;
+              const prevMessageDate = prevMessage ? new Date(prevMessage.timestamp) : null;
+
+              // Only show separator if the date has changed
+              const showDateSeparator = !prevMessageDate ||
+                messageDate.toDateString() !== prevMessageDate.toDateString();
+
+              const getDateLabel = (date: Date) => {
+                if (isToday(date)) return 'Today';
+                if (isYesterday(date)) return 'Yesterday';
+                return format(date, 'MMMM d, yyyy');
+              };
+
+              const isLastInGroup = index === messages.length - 1 || messages[index + 1].sender !== message.sender;
+
+              return (
+                <Fragment key={message._id}>
+                  {/* Date Separator: Fixed within a container to prevent overlapping stacking */}
+                  {showDateSeparator && (
+                    <div className="relative w-full flex justify-center h-10 my-4 pointer-events-none z-20">
+                      <div
+                        className={`sticky top-2 transition-opacity duration-500 ease-in-out `}
+                      >
+                        <span
+                          className="text-[9px] px-3 py-1.5 rounded-lg backdrop-blur-md border uppercase tracking-widest shadow-2xl"
+                          style={{
+                            backgroundColor: isDark ? '#1A1A1A' : themeStyles.cardBg,
+                            color: isDark ? '#E5E7EB' : themeStyles.text,
+                            borderColor: themeStyles.border
+                          }}
+                        >
+                          {getDateLabel(messageDate)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Message Row */}
+                  <div
+                    id={`msg-${message._id}`}
+                    onClick={() => !isDeleted && selectionMode && toggleMessageSelection(message._id)}
+                    onContextMenu={(e) => {
+                      if (isDeleted) return;
+                      e.preventDefault();
+                      handleMessageLongPress(message._id);
+                    }}
+                    onDoubleClick={() => {
+                      if (!isDeleted) handleReplyToMessage(message);
+                    }}
+                    className={`flex items-end gap-2 mb-2 px-2 rounded-lg transition-colors duration-150 ${
+                      isSender ? 'justify-end' : 'justify-start'
+                    } ${selectionMode && !isDeleted ? 'cursor-pointer' : ''}`}
+                    style={{
+                      backgroundColor: isSelected
+                        ? isDark
+                          ? 'rgba(136, 96, 217, 0.18)'
+                          : 'rgba(84, 148, 255, 0.12)'
+                        : 'transparent',
+                      marginLeft:  '-8px',
+                      marginRight: '-8px',
+                      paddingLeft:  '8px',
+                      paddingRight: '8px',
+                    }}
+                  >
+                    {/* Received Message Avatar */}
+                    {!isSender && (
+                      <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 mb-1">
+                        {isLastInGroup ? (
+                          profilePictureUrl && !imageError ? (
+                            <Image src={profilePictureUrl} alt="Avatar" width={32} height={32} className="object-cover" />
+                          ) : (
+                            <div
+                              className="w-full h-full flex items-center justify-center text-[10px] text-white"
+                              style={{ backgroundColor: isDark ? '#4B5563' : '#9CA3AF' }}
+                            >
+                              {currentChat.participant?.name?.charAt(0).toUpperCase()}
+                            </div>
+                          )
+                        ) : (
+                          <div className="w-8" />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Message Bubble */}
+                    <div
+                      className={`max-w-[75%] rounded-[18px] transition-all duration-200 ${
+                        isVoice && !isDeleted ? 'px-3 py-3' : 'px-4 py-2'
+                      }`}
+                      style={
+                        isSender
+                          ? { background: isDeleted ? 'rgba(50, 50, 50, 0.4)' : 'rgb(84, 148, 255)' }
+                          : {
+                              background: isDark
+                                ? 'linear-gradient(270deg, rgba(32, 32, 32, 0.6) -8.43%, rgba(96, 96, 96, 0.6) 100%)'
+                                : themeStyles.cardBg
+                            }
+                      }
+                    >
+                      {isDeleted ? (
+                        <div className="flex items-center gap-2 py-1 italic text-gray-400 text-[13px] select-none">
+                          <X size={14} />
+                          <span>This message was deleted</span>
+                        </div>
+                      ) : (
+              <div className="flex flex-col">
+              {/* Quoted reply */}
+              {(message as any).replyTo && (
+                <div
+                  className="flex gap-2 mb-2 rounded-xl px-3 py-2 cursor-pointer"
+                  style={{
+                    backgroundColor: isSender
+                      ? 'rgba(0,0,0,0.18)'
+                      : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                    borderLeft: '3px solid #8860D9',
+                  }}
+                  onClick={() => {
+                    // Scroll to original message
+                    const el = document.getElementById(`msg-${(message as any).replyTo.messageId}`);
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      el.style.transition = 'background 0.3s';
+                      el.style.background = isDark ? 'rgba(136,96,217,0.25)' : 'rgba(136,96,217,0.15)';
+                      setTimeout(() => { el.style.background = 'transparent'; }, 1200);
+                    }
+                  }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-semibold mb-0.5" style={{ color: '#8860D9' }}>
+                      {(message as any).replyTo.sender === user?.id
+                        ? 'You'
+                        : currentChat.participant?.name}
+                    </p>
+                    <p
+                      className="text-[12px] truncate"
+                      style={{ color: isSender ? 'rgba(255,255,255,0.7)' : themeStyles.textSecondary }}
+                    >
+                      {(message as any).replyTo.content}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {isVoice ? (
+                            <VoiceMessageDisplay
+                              audioURL={message.voiceData!.audioBase64}
+                              duration={message.voiceData!.duration}
+                              isSender={isSender}
+                              timestamp={message.timestamp}
+                            />
+                            ) : (
+                            isMediaMessage(message) ? (
+                                renderMediaMessage(message, isSender, themeStyles, isDark, {
+                                  uploadProgress: message._isOptimistic ? uploadProgress[message._id as string] : undefined,
+                                  currentUserId: user?.id,
+                                  chatId: currentChat._id,
+                                  onMarkViewed: handleMarkMediaViewed,
+                                  replayedSet: replayedMessages,
+                                  addToReplayed: (id: string) =>
+                                    setReplayedMessages(prev => {
+                                      const next = new Set<string>();
+                                      prev.forEach(v => next.add(v));
+                                      next.add(id);
+                                      return next;
+                                    }),
+                                })
+                              ) : (
+                                <div
+                                  className="break-words text-[15px] leading-relaxed"
+                                  style={{ color: isSender ? '#fff' : themeStyles.text }}
+                                >
+                                  {message.content}
+                                </div>
+                              )
+                            )}
+
+                          {/* Status area for both Voice and Text */}
+                          <div className="flex justify-end mt-1 items-center gap-1.5 opacity-80">
+                            <span
+                              className="text-[10px]"
+                              style={{ color: isSender ? 'rgba(255,255,255,0.8)' : themeStyles.textSecondary }}
+                            >
+                              {format(messageDate, 'HH:mm')}
+                            </span>
+                            {isSender && (
+                              <div className="flex items-center">
+                                {getMessageStatus(message)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Fragment>
+              );
+            })}
             {isOtherUserTyping && (
               <div className="flex justify-start">
                 <div className="bg-[#1a1a1a] border border-[#2D2F39] rounded-lg px-4 py-3 max-w-[70%]">
@@ -2077,6 +2249,35 @@ const toggleMessageSelection = (messageId: string) => {
       </div>
       {(currentChat.status === 'accepted' || currentChat.type === 'direct' || currentChat.type === 'request') ? (
         <>
+          {/* Reply Preview Bar */}
+          {replyingTo && !currentChat.isBlocked && !blockStatus?.iBlockedThem && !blockStatus?.theyBlockedMe && (
+            <div
+              className="flex items-center gap-3 px-4 py-2 border-t"
+              style={{
+                backgroundColor: isDark ? 'rgba(136,96,217,0.12)' : 'rgba(136,96,217,0.07)',
+                borderColor: themeStyles.border,
+              }}
+            >
+              {/* Purple left bar */}
+              <div className="w-1 self-stretch rounded-full flex-shrink-0" style={{ backgroundColor: '#8860D9' }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-semibold mb-0.5" style={{ color: '#8860D9' }}>
+                  {replyingTo.sender === user?.id ? 'You' : currentChat.participant?.name}
+                </p>
+                <p className="text-[12px] truncate" style={{ color: themeStyles.textSecondary }}>
+                  {getReplyPreviewText(replyingTo)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReplyingTo(null)}
+                className="flex-shrink-0 p-1 rounded-full hover:opacity-70 transition-opacity"
+                style={{ color: themeStyles.textSecondary }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
           {currentChat.isBlocked || blockStatus?.iBlockedThem || blockStatus?.theyBlockedMe ? (
             <div
               className="p-4 border-t"
@@ -2131,11 +2332,11 @@ const toggleMessageSelection = (messageId: string) => {
                 isOpen={showMediaPicker}
                 onClose={() => setShowMediaPicker(false)}
                 onSelectGallery={(files) => { setShowMediaPicker(false); handleGalleryFiles(files); }}
-                onSelectCamera={() => { setShowMediaPicker(false); /* camera handled by OS via gallery input */ }}
+                onSelectCamera={() => { setShowMediaPicker(false); }}
                 onSelectLocation={() => { setShowMediaPicker(false); setShowLocationModal(true); }}
                 onSelectProfile={() => { setShowMediaPicker(false); setShowProfileModal(true); }}
-                onSelectDocument={(file) => { setShowMediaPicker(false); handleDocumentFile(file); }}
-                onSelectAudio={(file) => { setShowMediaPicker(false); handleAudioFile(file); }}
+                onSelectDocument={(file) => { setShowMediaPicker(false); setPendingDocFile(file); }}
+                onSelectAudio={(file) => { setShowMediaPicker(false); setPendingAudioFile(file); }}
                 onSelectPoll={() => setShowMediaPicker(false)}
                 onSelectEvents={() => { setShowMediaPicker(false); setShowEventModal(true); }}
               />
@@ -2212,6 +2413,47 @@ const toggleMessageSelection = (messageId: string) => {
         visible={!!toast}
         onClose={() => setToast(null)}
       />
+      {pendingGalleryFiles && pendingGalleryFiles.length > 0 && (
+        <ViewModeSelectorSheet
+          files={pendingGalleryFiles}
+          isDark={isDark}
+          caption={pendingCaption}
+          onCaptionChange={setPendingCaption}
+          onClose={() => { setPendingGalleryFiles(null); setPendingCaption(''); }}
+          onConfirm={(viewMode, caption) => {
+            setPendingGalleryFiles(null);
+            confirmGalleryWithMode(viewMode, caption);
+          }}
+        />
+      )}
+      {/* Caption Sheet for Document */}
+      {pendingDocFile && (
+        <CaptionSheet
+          file={pendingDocFile}
+          isDark={isDark}
+          themeStyles={themeStyles}
+          onClose={() => setPendingDocFile(null)}
+          onSend={(caption) => {
+            const f = pendingDocFile;
+            setPendingDocFile(null);
+            handleDocumentFile(f, caption);
+          }}
+        />
+      )}
+      {/* Caption Sheet for Audio */}
+      {pendingAudioFile && (
+        <CaptionSheet
+          file={pendingAudioFile}
+          isDark={isDark}
+          themeStyles={themeStyles}
+          onClose={() => setPendingAudioFile(null)}
+          onSend={(caption) => {
+            const f = pendingAudioFile;
+            setPendingAudioFile(null);
+            handleAudioFile(f, caption);
+          }}
+        />
+      )}
       {/* Location Modal */}
       <LocationPickerModal
         isOpen={showLocationModal}
