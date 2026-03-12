@@ -509,6 +509,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             contactData:  rawNotif.contactData  ?? undefined,
             profileData:  rawNotif.profileData  ?? undefined,
             eventData:    rawNotif.eventData    ?? undefined,
+            replyTo:      rawNotif.replyTo      ?? undefined,
             timestamp: rawNotif.timestamp || new Date().toISOString(),
             createdAt: rawNotif.timestamp || new Date().toISOString(),
             readBy: rawNotif.readBy || [],
@@ -967,6 +968,30 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
       };
+      const handleMediaViewed = ({ chatId, messageId, viewedBy }: {
+        chatId: string; messageId: string; viewedBy: string;
+      }) => {
+        if (!internalCurrentChat || internalCurrentChat._id !== chatId) return;
+
+        setInternalMessages((prev) =>
+          prev.map((m) => {
+            if (m._id !== messageId) return m;
+            const addViewer = (items: any[]) =>
+              (items || []).map((item) => {
+                const existing: string[] = item.viewedBy || [];
+                const merged = existing.includes(viewedBy)
+                  ? existing
+                  : existing.concat(viewedBy);
+                return { ...item, viewedBy: merged };
+              });
+            return {
+              ...m,
+              chat_images: m.chat_images ? addViewer(m.chat_images) : m.chat_images,
+              chat_videos: m.chat_videos ? addViewer(m.chat_videos) : m.chat_videos,
+            };
+          })
+        );
+      };
       const handleChatCleared = (data: any) => {
         if (internalCurrentChat && data.chatId === internalCurrentChat._id) {
           setInternalMessages([]);
@@ -1055,7 +1080,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             deliveredTo: rawMsg.deliveredTo || [],
             isRead:      rawMsg.isRead      || false,
             isSender:    rawMsg.sender === user?.id,
-
+            replyTo:     rawMsg.replyTo ?? undefined,
             voiceData:    rawMsg.voiceData    ?? undefined,
             chat_images:  rawMsg.chat_images  ?? undefined,
             chat_videos:  rawMsg.chat_videos  ?? undefined,
@@ -1336,6 +1361,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       socket.on('new-message-request', handleNewMessageRequest);
       socket.on('messages-deleted-for-everyone', handleMessagesDeletedForEveryone);
       socket.on('messages-deleted-for-me', handleMessagesDeletedForMe);
+      socket.on('media_viewed', handleMediaViewed);
+
       return () => {
         socket.off('connect', handleConnect);
         socket.off('disconnect', handleDisconnect);
@@ -1360,6 +1387,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         socket.off('new-message-request', handleNewMessageRequest);
         socket.off('messages-deleted-for-everyone', handleMessagesDeletedForEveryone);
         socket.off('messages-deleted-for-me', handleMessagesDeletedForMe);
+        socket.off('media_viewed', handleMediaViewed);        
       };
     }, [token, user, internalCurrentChat?._id]); 
   return (
