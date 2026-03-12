@@ -39,17 +39,22 @@ const wieMessageSchema = new mongoose.Schema({
     url:         String   
   },
 
-  // ── Images (array – multi-image send) 
-  chat_images: [{ type: String }],
-
-  // ── Videos 
-  chat_videos: [{
-    url:      String,
-    duration: Number,
-    size:     Number,
-    mimeType: String,
-    thumbnail: String
+  chat_images: [{
+    url:      { type: String },
+    viewMode: { type: String, enum: ['view_once', 'allow_replay', 'keep'], default: 'keep' },
+    viewedBy: [{ type: String }],
   }],
+
+  chat_videos: [
+    {
+      url:          { type: String },
+      originalName: String,
+      size:         Number,
+      thumbnail:    String,
+      viewMode:     { type: String, enum: ['view_once', 'allow_replay', 'keep'], default: 'keep' },
+      viewedBy:     [{ type: String }],
+    }
+  ],
 
   // ── Audio files 
   chat_audio: [{
@@ -187,7 +192,19 @@ const wieChatSchema = new mongoose.Schema({
   timestamps: true,
   strict:     false
 });
-
+wieChatSchema.pre('validate', function (next) {
+  for (const msg of this.messages) {
+    if (!Array.isArray(msg.chat_images)) continue;
+    msg.chat_images = msg.chat_images.map(img => {
+      if (typeof img === 'string') {
+        return { url: img, viewMode: 'keep', viewedBy: [] };
+      }
+      if (!Array.isArray(img.viewedBy)) img.viewedBy = [];
+      return img;
+    });
+  }
+  next();
+});
 wieChatSchema.index({ participants: 1, isActive: 1 });
 wieChatSchema.index({ participants: 1, type: 1 });
 wieChatSchema.index({ updatedAt: -1 });
