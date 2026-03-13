@@ -272,6 +272,22 @@ const autoAcceptPendingRequests = async (call: any, callback: any) => {
     });
   }
 };
+const checkIsFollowedBy = async (call: any, callback: any) => {
+  try {
+    const { userId, targetUserId } = call.request;
+
+    if (!userId || !targetUserId) {
+      return callback({
+        code: grpc.status.INVALID_ARGUMENT,
+        message: 'userId and targetUserId are required',
+      });
+    }
+    const result = await followService.isFollowing(targetUserId, userId);
+    callback(null, { isFollowedBy: result, error: '' });
+  } catch (error: any) {
+    callback(null, { isFollowedBy: false, error: error.message });
+  }
+};
 export const startGrpcServer = (port: number = 50058) => {
   const server = new grpc.Server();
   
@@ -291,6 +307,7 @@ export const startGrpcServer = (port: number = 50058) => {
     CancelFollowRequest: cancelFollowRequest,
     GetFollowStatus: getFollowStatus,
     AutoAcceptPendingRequests: autoAcceptPendingRequests, 
+    CheckIsFollowedBy: checkIsFollowedBy,
   });
 
   server.bindAsync(
