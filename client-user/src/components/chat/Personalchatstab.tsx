@@ -9,7 +9,7 @@ import Image from 'next/image';
 import { format } from 'date-fns';
 import { Check, CheckCheck } from 'lucide-react';
 import { useTheme } from '@/components/home/ThemeContext';
-
+import { getLastMessagePreview } from '@/components/chat/ChatList';
 interface PersonalChatsTabProps {
   chats: Chat[];
   searchQuery: string;
@@ -139,6 +139,7 @@ export default function PersonalChatsTab({
                   </div>
                 )}
 
+                {/* Message Content */}
                 <p
                   className="truncate max-w-[180px]"
                   style={{ color: unreadCount > 0 ? themeStyles.text : themeStyles.textSecondary, fontWeight: unreadCount > 0 ? 500 : 400 }}
@@ -146,10 +147,11 @@ export default function PersonalChatsTab({
                   {isTyping ? (
                     <span className="text-blue-400 italic">typing...</span>
                   ) : (
-                    chat.lastMessage?.content || ''
+                    getLastMessagePreview(chat, user?.id) || ''
                   )}
                 </p>
 
+                {/* Time beside message */}
                 <span className={`text-[11px] whitespace-nowrap ml-2 ${unreadCount > 0 ? "text-blue-400 font-medium" : "text-[#606060]"}`}>
                   {chat.lastMessage?.timestamp ? format(new Date(chat.lastMessage.timestamp), 'h:mm a') : ''}
                 </span>
