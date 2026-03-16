@@ -2160,59 +2160,157 @@ const handleEmojiSelect = (emoji: string) => {
                 </div>
               )}
               {isVoice ? (
-                            <VoiceMessageDisplay
-                              audioURL={message.voiceData!.audioBase64}
-                              duration={message.voiceData!.duration}
-                              isSender={isSender}
-                              timestamp={message.timestamp}
-                            />
-                            ) : (
-                            isMediaMessage(message) ? (
-                                renderMediaMessage(message, isSender, themeStyles, isDark, {
-                                  uploadProgress: message._isOptimistic ? uploadProgress[message._id as string] : undefined,
-                                  currentUserId: user?.id,
-                                  chatId: currentChat._id,
-                                  onMarkViewed: handleMarkMediaViewed,
-                                  replayedSet: replayedMessages,
-                                  addToReplayed: (id: string) =>
-                                    setReplayedMessages(prev => {
-                                      const next = new Set<string>();
-                                      prev.forEach(v => next.add(v));
-                                      next.add(id);
-                                      return next;
-                                    }),
-                                })
-                              ) : (
-                                <div
-                                  className="break-words text-[15px] leading-relaxed"
-                                  style={{ color: isSender ? '#fff' : themeStyles.text }}
-                                >
-                                  {message.content}
-                                </div>
-                              )
-                            )}
+                <VoiceMessageDisplay
+                  audioURL={message.voiceData!.audioBase64}
+                  duration={message.voiceData!.duration}
+                  isSender={isSender}
+                  timestamp={message.timestamp}
+                />
+              ) : isMediaMessage(message) ? (
+                renderMediaMessage(message, isSender, themeStyles, isDark, {
+                  uploadProgress: message._isOptimistic ? uploadProgress[message._id as string] : undefined,
+                  currentUserId: user?.id,
+                  chatId: currentChat._id,
+                  onMarkViewed: handleMarkMediaViewed,
+                  replayedSet: replayedMessages,
+                  addToReplayed: (id: string) =>
+                    setReplayedMessages(prev => {
+                      const next = new Set<string>();
+                      prev.forEach(v => next.add(v));
+                      next.add(id);
+                      return next;
+                    }),
+                })
+                ) : (message.messageType as string) === 'flux_mention' || (message.messageType as string) === 'flux_remention' ? (
+                  (() => {
+                    let meta: any = {};
+                    try { meta = JSON.parse(message.content); } catch {}
 
-                          {/* Status area for both Voice and Text */}
-                          <div className="flex justify-end mt-1 items-center gap-1.5 opacity-80">
-                            <span
-                              className="text-[10px]"
-                              style={{ color: isSender ? 'rgba(255,255,255,0.8)' : themeStyles.textSecondary }}
-                            >
-                              {format(messageDate, 'HH:mm')}
-                            </span>
-                            {isSender && (
-                              <div className="flex items-center">
-                                {getMessageStatus(message)}
-                              </div>
+                    const isRemention  = message.messageType === 'flux_remention';
+                    const isSenderView = message.sender === user?.id;
+                    const label = isSenderView
+                      ? (meta.senderLabel ?? (isRemention ? 'You added a mentioned Flux' : 'You mentioned a Flux'))
+                      : (meta.text        ?? (isRemention ? `${meta.reMentionerName ?? 'Someone'} reshared your Flux` : `${meta.mentionerName ?? 'Someone'} mentioned a Flux`));
+
+                    const fluxId      = meta.fluxId;
+                    const fluxOwnerId = meta.fluxOwnerId;
+                    const thumbUrl    = meta.fluxMediaUrl;
+                    const isVideo     = meta.fluxMediaType === 'video';
+
+                    const handleViewFlux = () => {
+                      if (!fluxId) return;
+                      const url = fluxOwnerId
+                        ? `/post/flux-view?fluxId=${fluxId}&userId=${fluxOwnerId}`
+                        : `/post/flux-view?fluxId=${fluxId}`;
+                      router.push(url);
+                    };
+
+                    return (
+                      <div
+                        style={{
+                          borderRadius:  12,
+                          overflow:      'hidden',
+                          border:        '1px solid rgba(136,96,217,0.35)',
+                          maxWidth:      220,
+                          background:    isSender
+                            ? 'rgba(0,0,0,0.25)'
+                            : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                        }}
+                      >
+                        {/* Thumbnail */}
+                        {thumbUrl && (
+                          <div style={{ position: 'relative', width: '100%', height: 120, overflow: 'hidden' }}>
+                            {isVideo ? (
+                              <video
+                                src={thumbUrl}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                muted
+                                playsInline
+                              />
+                            ) : (
+                              <img
+                                src={thumbUrl}
+                                alt="flux"
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
                             )}
+                            {/* Purple overlay badge */}
+                            <div style={{
+                              position:   'absolute',
+                              top:         6,
+                              left:        6,
+                              background: 'rgba(136,96,217,0.85)',
+                              borderRadius: 8,
+                              padding:    '2px 7px',
+                              fontSize:    10,
+                              color:       '#fff',
+                              fontWeight:  600,
+                            }}>
+                              {isRemention ? '↩ Reshared Flux' : '📖 Flux Mention'}
+                            </div>
                           </div>
+                        )}
+
+                        {/* Label + button */}
+                        <div style={{ padding: '8px 10px 10px' }}>
+                          <p style={{
+                            color:      isSender ? '#fff' : themeStyles.text,
+                            fontSize:   12,
+                            fontWeight: 500,
+                            marginBottom: 8,
+                            lineHeight:  1.4,
+                          }}>
+                            {label}
+                          </p>
+                          <button
+                            onClick={handleViewFlux}
+                            style={{
+                              width:        '100%',
+                              padding:      '6px 0',
+                              borderRadius:  20,
+                              border:        '1px solid rgba(136,96,217,0.6)',
+                              background:   'rgba(136,96,217,0.18)',
+                              color:         '#8860D9',
+                              fontSize:      12,
+                              fontWeight:    600,
+                              cursor:        'pointer',
+                            }}
+                          >
+                            View Flux
+                          </button>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    );
+                  })()
+              ) : (
+                <div
+                  className="break-words text-[15px] leading-relaxed"
+                  style={{ color: isSender ? '#fff' : themeStyles.text }}
+                >
+                  {message.content}
+                </div>
+              )}
+                  {/* Status area for both Voice and Text */}
+                  <div className="flex justify-end mt-1 items-center gap-1.5 opacity-80">
+                    <span
+                      className="text-[10px]"
+                      style={{ color: isSender ? 'rgba(255,255,255,0.8)' : themeStyles.textSecondary }}
+                    >
+                      {format(messageDate, 'HH:mm')}
+                    </span>
+                    {isSender && (
+                      <div className="flex items-center">
+                        {getMessageStatus(message)}
+                      </div>
+                    )}
                   </div>
-                </Fragment>
-              );
-            })}
+                </div>
+              )}
+            </div>
+          </div>
+        </Fragment>
+      );
+    })}
             {isOtherUserTyping && (
               <div className="flex justify-start">
                 <div className="bg-[#1a1a1a] border border-[#2D2F39] rounded-lg px-4 py-3 max-w-[70%]">
