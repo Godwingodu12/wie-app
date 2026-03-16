@@ -25,7 +25,8 @@ const wieMessageSchema = new mongoose.Schema({
       'live_location',
       'contact',
       'profile',
-      'event'
+      'event',
+      'flux_mention'
     ],
     default:  'text',
     required: true
