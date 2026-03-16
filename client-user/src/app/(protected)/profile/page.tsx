@@ -29,7 +29,8 @@ import SideBar from "@/components/home/SideBar";
 import { useSidebar } from "@/context/SidebarContext";
 import { useTheme } from "@/components/home/ThemeContext";
 import ProfileTabs from "@/components/profile/ProfileTabs";
-
+import { getMyFluxes, getUserDiaries } from "@/services/mediaService";
+import type { Flux, Diary } from "@/services/mediaService";
 function ProfileContent() {
   const { isCollapsed, isMobile } = useSidebar();
   const { themeStyles } = useTheme();
@@ -106,7 +107,9 @@ function ProfileContent() {
   const [showFollowingModal, setShowFollowingModal] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
   const highlightsRef = useRef<HTMLDivElement>(null);
-
+  const [myFluxes,    setMyFluxes]    = useState<Flux[]>([]);
+  const [myDiaries,   setMyDiaries]   = useState<Diary[]>([]);
+  const [mediaLoading, setMediaLoading] = useState(true);
   const scrollHighlights = (direction: "left" | "right") => {
     if (highlightsRef.current) {
       const scrollAmount = 250; // Scroll by ~3 items
@@ -145,11 +148,28 @@ function ProfileContent() {
       }
     };
 
-    if (user?.id) {
+   if (user?.id) {
       fetchUserData();
+      fetchMyMedia(user.id);
     }
   }, [dispatch, user?.id]);
 
+  const fetchMyMedia = async (uid: string) => {
+    setMediaLoading(true);
+    try {
+      const [fluxes, diaries] = await Promise.all([
+        getMyFluxes().catch(() => [] as Flux[]),
+        getUserDiaries(uid).catch(() => [] as Diary[]),
+      ]);
+      setMyFluxes(fluxes   ?? []);
+      setMyDiaries(diaries ?? []);
+    } catch {
+      setMyFluxes([]);
+      setMyDiaries([]);
+    } finally {
+      setMediaLoading(false);
+    }
+  };
   const handleLogout = async () => {
     try {
       setLoggingOut(true);
@@ -397,32 +417,77 @@ function ProfileContent() {
                     }}
                   />
 
-                  {/* Gradient Ring Wrapper */}
+{/* Avatar with flux ring — click ring to view flux */}
                   <div
-                    className={`w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-[124px] lg:h-[124px] rounded-full overflow-hidden border-[3px] border-[#1C1C1E] relative transition-all duration-300 shadow-xl -mt-4 sm:-mt-6`}
+                    onClick={() => {
+                      if (myFluxes.length > 0 && displayUser.id) {
+                        router.push(`/post/flux-view?fluxId=${myFluxes[0]._id}`);
+                      }
+                    }}
+                    style={{
+                      padding:        myFluxes.length > 0 ? 3 : 0,
+                      borderRadius:   "50%",
+                      background:     myFluxes.length > 0
+                        ? "linear-gradient(135deg,#8860D9 0%,#B3B8E2 40%,#2979FF 100%)"
+                        : "transparent",
+                      cursor:         myFluxes.length > 0 ? "pointer" : "default",
+                      display:        "inline-block",
+                      marginTop:      "-16px",
+                      transition:     "all 0.3s ease",
+                    }}
                   >
-                    {uploadingImage && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
-                        <Loader2 className="w-8 h-8 animate-spin text-white" />
-                      </div>
-                    )}
-                    {tempProfilePicture || displayUser.profile_picture ? (
-                      <Image
-                        src={tempProfilePicture || displayUser.profile_picture!}
-                        alt="Profile"
-                        fill
-                        className="object-cover"
-                        key={tempProfilePicture || displayUser.profile_picture} // Force re-render on change
-                      />
-                    ) : (
-                      <Image
-                        src={ProfileImage}
-                        alt="Default Profile"
-                        fill
-                        className="object-cover"
-                      />
-                    )}
+                    <div
+                      className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-[124px] lg:h-[124px] rounded-full overflow-hidden relative transition-all duration-300 shadow-xl"
+                      style={{
+                        border: myFluxes.length > 0 ? "3px solid #0A0A0C" : "3px solid #1C1C1E",
+                      }}
+                    >
+                      {uploadingImage && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+                          <Loader2 className="w-8 h-8 animate-spin text-white" />
+                        </div>
+                      )}
+                      {tempProfilePicture || displayUser.profile_picture ? (
+                        <Image
+                          src={tempProfilePicture || displayUser.profile_picture!}
+                          alt="Profile"
+                          fill
+                          className="object-cover"
+                          key={tempProfilePicture || displayUser.profile_picture}
+                        />
+                      ) : (
+                        <Image
+                          src={ProfileImage}
+                          alt="Default Profile"
+                          fill
+                          className="object-cover"
+                        />
+                      )}
+                    </div>
                   </div>
+
+                  {/* Flux count badge */}
+                  {myFluxes.length > 1 && (
+                    <div style={{
+                      position:       "absolute",
+                      bottom:         4,
+                      right:          4,
+                      width:          20,
+                      height:         20,
+                      borderRadius:   "50%",
+                      background:     "linear-gradient(135deg,#8860D9,#B3B8E2)",
+                      display:        "flex",
+                      alignItems:     "center",
+                      justifyContent: "center",
+                      fontSize:       10,
+                      fontWeight:     700,
+                      color:          "#fff",
+                      border:         "2px solid #0A0A0C",
+                      zIndex:         2,
+                    }}>
+                      {myFluxes.length}
+                    </div>
+                  )}
 
                   {/* Small Plus Icon on Avatar - Now opens modal */}
                   <button
@@ -470,7 +535,14 @@ function ProfileContent() {
 
                         {/* Menu Items */}
                         <div className="flex flex-col gap-4 p-8 pt-10">
-                          <button className="text-left text-[15px] font-medium transition-colors hover:opacity-80" style={{ color: themeStyles.text }}>
+                          <button
+                            onClick={() => {
+                              setShowActionModal(false);
+                              router.push("/post/flux");
+                            }}
+                            className="text-left text-[15px] font-medium transition-colors hover:opacity-80"
+                            style={{ color: themeStyles.text }}
+                          >
                             Add story
                           </button>
                           <button className="text-left text-[15px] font-medium transition-colors hover:opacity-80" style={{ color: themeStyles.text }}>
@@ -645,55 +717,159 @@ function ProfileContent() {
               </div>
             </div>
 
-            {/* Highlights Section with Arrows */}
+            {/* ── My Diaries / Highlights row ── */}
             <div className="w-full flex justify-center items-center mb-8 md:mb-10 relative">
               {/* Left Arrow */}
               <button
                 onClick={() => scrollHighlights("left")}
-                className="absolute left-0 z-10 w-8 h-8 sm:w-9 sm:h-9 hidden lg:flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+                className="absolute left-0 z-10 w-8 h-8 hidden lg:flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
               >
                 <ChevronLeft size={18} />
               </button>
 
-              {/* Scrollable Container */}
               <div
                 ref={highlightsRef}
                 className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 w-full max-w-[280px] sm:max-w-lg md:max-w-4xl scrollbar-hide px-8 sm:px-4 md:px-0"
               >
-                {/* Add Highlight */}
-                <div className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group flex-shrink-0">
+              {/* Add diary button — always first */}
+                <div
+                  className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group flex-shrink-0"
+                  onClick={() => router.push("/profile/diary/new")}
+                >
                   <div
-                    className="flex items-center justify-center transition-all group-hover:scale-105 w-[70px] h-[100px] rounded-xl border border-white/50 bg-[#3838380D] backdrop-blur-[4px]"
+                    className="flex items-center justify-center transition-all group-hover:scale-105 w-[70px] h-[100px] rounded-xl backdrop-blur-[4px]"
+                    style={{
+                      border:     "1.5px dashed rgba(255,255,255,0.3)",
+                      background: "rgba(255,255,255,0.03)",
+                    }}
                   >
-                    <Plus size={24} className="text-gray-400" />
+                    <Plus size={22} style={{ color: "rgba(255,255,255,0.4)" }} />
                   </div>
-                  <span className="text-xs text-gray-400">Add</span>
+                  <span className="text-xs" style={{ color: themeStyles.textSecondary }}>New</span>
                 </div>
 
-                {/* Highlight Items */}
-                {highlights.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group flex-shrink-0"
-                  >
-                    <div
-                      className="relative overflow-hidden backdrop-blur-[4px] transition-all group-hover:scale-105 w-[70px] h-[100px] rounded-xl border border-white/50 bg-[#3838380D]"
-                    >
-                      <img
-                        src={item.img}
-                        alt={item.label}
-                        className="w-full h-full object-cover"
+                {/* Diary items */}
+                {mediaLoading ? (
+                  Array(3).fill(null).map((_, i) => (
+                    <div key={i} className="flex flex-col items-center gap-2 min-w-[70px] flex-shrink-0">
+                      <div
+                        className="w-[70px] h-[100px] rounded-xl animate-pulse"
+                        style={{ background: themeStyles.pillBg }}
                       />
+                      <div className="w-12 h-3 rounded animate-pulse" style={{ background: themeStyles.pillBg }} />
                     </div>
-                    <span className="text-xs text-gray-400">{item.label}</span>
+                  ))
+                ) : myDiaries.length > 0 ? (
+                  myDiaries.map((diary) => {
+                    // Determine cover: priority = coverImage → first flux mediaUrl → emoji
+                    const coverSrc = diary.coverImage
+                      || diary.fluxes?.[0]?.mediaUrl
+                      || null;
+
+                    return (
+                      <div
+                        key={diary._id}
+                        className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group flex-shrink-0"
+                        onClick={() => router.push(`/profile/diary/${diary._id}`)}
+                      >
+                        {/* Rectangular box with cover image */}
+                        <div
+                          className="relative w-[70px] h-[100px] rounded-xl overflow-hidden transition-all group-hover:scale-105"
+                          style={{
+                            border:     "1.5px solid rgba(255,255,255,0.12)",
+                            background: themeStyles.pillBg,
+                            boxShadow:  "0 4px 12px rgba(0,0,0,0.4)",
+                          }}
+                        >
+                          {/* Cover image or gradient fallback */}
+                          {coverSrc ? (
+                            <img
+                              src={coverSrc}
+                              alt={diary.title}
+                              style={{
+                                width:      "100%",
+                                height:     "100%",
+                                objectFit:  "cover",
+                                display:    "block",
+                              }}
+                            />
+                          ) : (
+                            <div style={{
+                              width:           "100%",
+                              height:          "100%",
+                              background:      "linear-gradient(135deg,#8860D9,#B3B8E2)",
+                              display:         "flex",
+                              alignItems:      "center",
+                              justifyContent:  "center",
+                              fontSize:        28,
+                            }}>
+                              📔
+                            </div>
+                          )}
+
+                          {/* Dark gradient overlay at bottom */}
+                          <div style={{
+                            position:   "absolute",
+                            bottom:     0, left: 0, right: 0,
+                            height:     "45%",
+                            background: "linear-gradient(0deg,rgba(0,0,0,0.7) 0%,transparent 100%)",
+                          }} />
+
+                          {/* Story count badge */}
+                          {(diary.fluxCount ?? 0) > 0 && (
+                            <div style={{
+                              position:        "absolute",
+                              bottom:          5,
+                              left:            "50%",
+                              transform:       "translateX(-50%)",
+                              background:      "rgba(0,0,0,0.55)",
+                              borderRadius:    8,
+                              padding:         "2px 6px",
+                              fontSize:        9,
+                              color:           "#fff",
+                              fontWeight:      700,
+                              whiteSpace:      "nowrap",
+                              letterSpacing:   "0.02em",
+                            }}>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Diary title */}
+                        <span
+                          className="text-xs text-center truncate w-full"
+                          style={{ color: themeStyles.textSecondary, maxWidth: 70 }}
+                        >
+                          {diary.title}
+                        </span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  /* No diaries — clean empty state */
+                  <div
+                    className="flex flex-col items-center justify-center min-w-[70px] h-[100px] rounded-xl"
+                    style={{
+                      background: "rgba(255,255,255,0.02)",
+                      border:     "1px dashed rgba(255,255,255,0.1)",
+                      padding:    "0 12px",
+                      opacity:    0.6,
+                    }}
+                  >
+                    <span
+                      className="text-[10px] text-center mt-1"
+                      style={{ color: themeStyles.textSecondary, lineHeight: 1.3 }}
+                    >
+                      No<br />highlights
+                    </span>
                   </div>
-                ))}
+                )}
               </div>
 
               {/* Right Arrow */}
               <button
                 onClick={() => scrollHighlights("right")}
-                className="absolute right-0 z-10 w-8 h-8 sm:w-9 sm:h-9 hidden lg:flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+                className="absolute right-0 z-10 w-8 h-8 hidden lg:flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
               >
                 <ChevronRight size={18} />
               </button>

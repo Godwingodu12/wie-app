@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getProfile } from "@/services/wieUserService";
-
 // Assets
 import UserDemoIcon from "@/assets/Home/UserDemoIcon.svg";
 import DummyPost from "@/assets/Home/dummypost.png";
@@ -14,7 +13,8 @@ import ShareCountIcon from "@/assets/Home/ShareCount.svg";
 import SaveIcon from "@/assets/Home/ShareIcon.svg";
 import QrCode from "@/assets/Home/QrCode.png";
 import ProfileImage from "@/assets/profile/ProfileImage.jpg";
-
+import { getFluxFeed, getMyFluxes } from "@/services/mediaService";
+import type { FeedFluxGroup, Flux } from "@/services/mediaService";
 // Icons
 import {
   MoreHorizontal,
@@ -58,16 +58,6 @@ interface Post {
   hashtags: string[];
   likedBy: { name: string; avatar: string }[];
 }
-
-// --- Dummy Data ---
-const dummyStories: Story[] = [
-  { id: "1", username: "Your story", avatar: ProfileImage.src, hasStory: false, isOwn: true },
-  { id: "2", username: "Gokul",    avatar: ProfileImage.src, hasStory: true },
-  { id: "3", username: "Sangeeth", avatar: ProfileImage.src, hasStory: true },
-  { id: "4", username: "Ajeesh",   avatar: ProfileImage.src, hasStory: true },
-  { id: "5", username: "Sangeeth", avatar: ProfileImage.src, hasStory: true },
-  { id: "6", username: "Sangeeth", avatar: ProfileImage.src, hasStory: true },
-];
 
 const dummyPosts: Post[] = [
   {
@@ -126,10 +116,12 @@ const suggestedReels = [1, 2, 3, 4, 5, 6];
 export default function HomePage() {
   const { isCollapsed, isMobile } = useSidebar();
   const { themeStyles, isDark } = useTheme();
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [userProfile,   setUserProfile]   = useState<any>(null);
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(new Set());
+  const [myFluxes,      setMyFluxes]      = useState<Flux[]>([]);
+  const [feedGroups,    setFeedGroups]    = useState<FeedFluxGroup[]>([]);
+  const [fluxLoading,   setFluxLoading]   = useState(true);
   const router = useRouter();
-
   const storiesRef = useRef<HTMLDivElement>(null);
 
   const scrollStories = (direction: "left" | "right") => {
@@ -142,16 +134,34 @@ export default function HomePage() {
   const marginLeft = isMobile ? "0" : "281px";
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const profile = await getProfile();
-        setUserProfile(profile);
-      } catch (e) {
-        console.error("Error fetching profile:", e);
-      }
-    };
-    fetchProfile();
-  }, []);
+      const fetchProfile = async () => {
+        try {
+          const profile = await getProfile();
+          setUserProfile(profile);
+        } catch (e) {
+          console.error("Error fetching profile:", e);
+        }
+      };
+
+      const fetchFluxes = async () => {
+        try {
+          const [mine, feed] = await Promise.all([
+            getMyFluxes(),
+            getFluxFeed(),
+          ]);
+          setMyFluxes(mine);
+          // Filter out self from feed groups to avoid duplicate
+          setFeedGroups(feed.filter((g) => !g.isSelf));
+        } catch (e) {
+          console.error("Error fetching fluxes:", e);
+        } finally {
+          setFluxLoading(false);
+        }
+      };
+
+      fetchProfile();
+      fetchFluxes();
+    }, []);
 
   const toggleDescription = (postId: string) => {
     setExpandedPosts((prev) => {
@@ -183,111 +193,165 @@ export default function HomePage() {
       <main className="transition-all duration-300 ease-in-out" style={{ marginLeft }}>
         <div className="w-full max-w-[1600px] mx-auto flex justify-center xl:justify-between gap-10 pt-4 px-4 md:px-12 xl:px-20">
 
-          {/* ================= LEFT / CENTER FEED ================= */}
+          {/* LEFT / CENTER FEED  */}
           <div className="flex-1 max-w-[700px] min-w-0 flex flex-col gap-8">
 
-            {/* Stories Section */}
-            <div className="relative -mx-4 md:-mx-12 xl:-mx-20 flex items-center lg:ml-12">
-              {(() => {
-                const myStory = dummyStories.find((s) => s.isOwn) || dummyStories[0];
-                const otherStories = dummyStories.filter((s) => s.id !== myStory.id);
+            {/* ── Stories / Flux Section — always render "Your story", others only if present ── */}
+            {!fluxLoading && (
+              <div className="relative -mx-4 md:-mx-12 xl:-mx-20 flex items-center lg:ml-12">
 
-                return (
-                  <>
-                    {/* Static My Story */}
-                    <div className="pl-4 md:pl-12 xl:pl-20 flex-shrink-0">
-                      <div className="flex flex-col items-center gap-1.5 cursor-pointer w-[72px]">
-                        <div
-                          className="relative w-[70px] h-[70px] rounded-full flex items-center justify-center p-[3px]"
-                          style={{ background: "transparent" }}
-                        >
-                          <div className="w-full h-full rounded-full bg-[#1a1a1a] overflow-hidden relative">
-                            {/*
-                              ✅ FIX — "width or height modified but not the other":
-                              When using fill, we must NOT set width/height via props.
-                              When using fixed width/height, we must NOT use fill.
-                              Here we use fill with a positioned parent, which is correct.
-                            */}
-                            <Image
-                              src={ProfileImage}
-                              alt={myStory.username}
-                              fill
-                              sizes="70px"
-                              className="object-cover"
-                            />
+                {/* ── My Story bubble — always shown ── */}
+                <div className="pl-4 md:pl-12 xl:pl-20 flex-shrink-0">
+                  <button
+                    onClick={() =>
+                      myFluxes.length > 0
+                        ? router.push(`/post/flux-view?fluxId=${myFluxes[0]._id}`)
+                        : router.push("/post/flux")
+                    }
+                    className="flex flex-col items-center gap-1.5 cursor-pointer group"
+                    style={{ width: 72 }}
+                  >
+                    <div
+                      className="relative overflow-hidden transition-all group-hover:scale-105"
+                      style={{
+                        width:        70,
+                        height:       100,
+                        borderRadius: 12,
+                        padding:      myFluxes.length > 0 ? 2 : 0,
+                        background:   myFluxes.length > 0
+                          ? "linear-gradient(147.67deg,#8860D9 13%,#B3B8E2 100%)"
+                          : "transparent",
+                        border: myFluxes.length > 0
+                          ? "none"
+                          : "1.5px dashed rgba(255,255,255,0.25)",
+                      }}
+                    >
+                      <div style={{
+                        width:        "100%",
+                        height:       "100%",
+                        borderRadius: myFluxes.length > 0 ? 10 : 12,
+                        overflow:     "hidden",
+                        position:     "relative",
+                        background:   "#1a1a1a",
+                      }}>
+                        {/* Profile picture always as background */}
+                        <Image
+                          src={userProfile?.profile_picture ?? ProfileImage}
+                          alt="my story"
+                          fill
+                          sizes="70px"
+                          className="object-cover"
+                          style={{ opacity: myFluxes.length > 0 ? 1 : 0.6 }}
+                          unoptimized={!!userProfile?.profile_picture}
+                        />
+
+                        {/* + badge when no flux */}
+                        {myFluxes.length === 0 && (
+                          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center pb-2">
+                            <div
+                              className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                              style={{ background: "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)" }}
+                            >
+                              +
+                            </div>
                           </div>
-                          <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-[#2979FF] border-[3px] border-[#0a0a0a] flex items-center justify-center text-white font-bold text-sm">
-                            +
+                        )}
+
+                        {/* Flux count badge */}
+                        {myFluxes.length > 1 && (
+                          <div
+                            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold"
+                            style={{ background: "rgba(0,0,0,0.6)" }}
+                          >
+                            {myFluxes.length}
                           </div>
-                        </div>
-                        <span
-                          className="text-[11px] text-center truncate w-full"
-                          style={{ color: themeStyles.textSecondary }}
-                        >
-                          {myStory.username}
-                        </span>
+                        )}
                       </div>
                     </div>
 
-                    {/* Scrollable Other Stories */}
-                    <div className="flex-1 min-w-0 relative group">
-                      <button
-                        onClick={() => scrollStories("left")}
-                        className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-[28px] h-[28px] rounded-[8px] border border-white/10 backdrop-blur-md hidden lg:flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 p-[6px]"
-                        style={{ backgroundColor: themeStyles.pillBg }}
-                      >
-                        <ChevronLeft className="w-[16px] h-[16px]" style={{ color: themeStyles.text }} />
-                      </button>
-                      <button
-                        onClick={() => scrollStories("right")}
-                        className="absolute right-4 md:right-12 xl:right-20 top-1/2 -translate-y-1/2 z-20 w-[28px] h-[28px] rounded-[8px] border border-white/10 backdrop-blur-md hidden lg:flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 p-[6px]"
-                        style={{ backgroundColor: themeStyles.pillBg }}
-                      >
-                        <ChevronRight className="w-[16px] h-[16px]" style={{ color: themeStyles.text }} />
-                      </button>
+                    <span className="text-[11px] text-center truncate w-full" style={{ color: themeStyles.textSecondary }}>
+                      Your Flux
+                    </span>
+                  </button>
+                </div>
 
-                      <div
-                        ref={storiesRef}
-                        className="flex gap-4 overflow-x-auto scrollbar-hide py-2 pl-4 pr-4 md:pr-12 xl:pr-20 scroll-smooth"
-                      >
-                        {otherStories.map((story) => (
-                          <div
-                            key={story.id}
-                            className="flex flex-col items-center gap-1.5 cursor-pointer flex-shrink-0 w-[72px]"
+                {/* ── Other users' flux bubbles — only if feed has data ── */}
+                {feedGroups.length > 0 && (
+                  <div className="flex-1 min-w-0 relative group">
+                    <button
+                      onClick={() => scrollStories("left")}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-[28px] h-[28px] rounded-[8px] border border-white/10 backdrop-blur-md hidden lg:flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 p-[6px]"
+                      style={{ backgroundColor: themeStyles.pillBg }}
+                    >
+                      <ChevronLeft className="w-[16px] h-[16px]" style={{ color: themeStyles.text }} />
+                    </button>
+                    <button
+                      onClick={() => scrollStories("right")}
+                      className="absolute right-4 md:right-12 xl:right-20 top-1/2 -translate-y-1/2 z-20 w-[28px] h-[28px] rounded-[8px] border border-white/10 backdrop-blur-md hidden lg:flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 p-[6px]"
+                      style={{ backgroundColor: themeStyles.pillBg }}
+                    >
+                      <ChevronRight className="w-[16px] h-[16px]" style={{ color: themeStyles.text }} />
+                    </button>
+
+                    <div
+                      ref={storiesRef}
+                      className="flex gap-4 overflow-x-auto scrollbar-hide py-2 pl-4 pr-4 md:pr-12 xl:pr-20 scroll-smooth"
+                    >
+                      {feedGroups.map((group) => {
+                        const firstFlux  = group.fluxes[0];
+                        const userAvatar = group.user?.profile_picture ?? null;
+                        const username   = group.user?.username ?? group._id;
+                        const fluxId     = firstFlux?._id ?? "";
+
+                        return (
+                          <button
+                            key={group._id}
+                            onClick={() =>
+                              router.push(`/post/flux-view?fluxId=${fluxId}&userId=${group._id}`)
+                            }
+                            className="flex flex-col items-center gap-1.5 cursor-pointer flex-shrink-0 group/item"
+                            style={{ width: 72 }}
                           >
                             <div
-                              className="relative w-[70px] h-[70px] rounded-full flex items-center justify-center p-[3px]"
+                              className="relative overflow-hidden transition-all group-hover/item:scale-105"
                               style={{
-                                background:
-                                  "linear-gradient(147.67deg, #2979FF 13.16%, #6B9CF0 54.09%, #9DC1FF 100.03%)",
+                                width: 70, height: 100, borderRadius: 12, padding: 2,
+                                background: "linear-gradient(147.67deg,#2979FF 13%,#6B9CF0 54%,#9DC1FF 100%)",
                               }}
                             >
-                              <div className="w-full h-full rounded-full bg-[#1a1a1a] overflow-hidden relative">
-                                {/* ✅ FIX — fill + sizes instead of conflicting width/height + CSS resize */}
+                              <div style={{
+                                width: "100%", height: "100%", borderRadius: 10,
+                                overflow: "hidden", position: "relative", background: "#1a1a1a",
+                              }}>
                                 <Image
-                                  src={ProfileImage}
-                                  alt={story.username}
+                                  src={firstFlux?.mediaUrl || userAvatar || ProfileImage}
+                                  alt={username}
                                   fill
                                   sizes="70px"
                                   className="object-cover"
+                                  unoptimized={!!(firstFlux?.mediaUrl || userAvatar)}
                                 />
+                                {(group.fluxes.length ?? 0) > 1 && (
+                                  <div
+                                    className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold"
+                                    style={{ background: "rgba(0,0,0,0.6)" }}
+                                  >
+                                    {group.fluxes.length}
+                                  </div>
+                                )}
                               </div>
                             </div>
-                            <span
-                              className="text-[11px] text-center truncate w-full"
-                              style={{ color: themeStyles.textSecondary }}
-                            >
-                              {story.username}
+                            <span className="text-[11px] text-center truncate w-full" style={{ color: themeStyles.textSecondary }}>
+                              {username}
                             </span>
-                          </div>
-                        ))}
-                      </div>
+                          </button>
+                        );
+                      })}
                     </div>
-                  </>
-                );
-              })()}
-            </div>
-
+                  </div>
+                )}
+              </div>
+            )}
             {/* ✅ Event Categories — now a standalone component */}
             <EventCategoryList />
 

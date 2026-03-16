@@ -3,13 +3,15 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { Chat, MessageRequest } from '@/types/chat';
 import { getMessageRequests } from '@/services/chatService';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/features/store';
 import Image from 'next/image';
 import { format } from 'date-fns';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/components/home/ThemeContext';
 import messageIcon from '@/assets/chat/messageIcon.png';
 import { useChat } from '@/context/ChatContext';
-
+import { getLastMessagePreview } from '@/components/chat/ChatList';
 interface RequestsTabProps {
   searchQuery: string;
   onChatSelect: (chat: Chat) => void;
@@ -26,10 +28,11 @@ export default function RequestsTab({
   onImageError,
 }: RequestsTabProps) {
   const { themeStyles, isDark } = useTheme();
+  const { user } = useSelector((state: RootState) => state.auth);
+  const { unreadCounts, typingUsers } = useChat();
   const { requestCounts, updateRequestCount, clearRequestCount } = useChat();
   const [requests, setRequests] = useState<Chat[]>([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
-
   const fetchRequests = async () => {
     setIsLoadingRequests(true);
     try {
@@ -307,7 +310,7 @@ export default function RequestsTab({
         const hasProfilePicture = chat.participant?.profile_picture && !imageErrors.has(chat._id);
         const unreadCount = chat.unreadCount || 0;
         const hasUnread = unreadCount > 0;
-
+        const isTyping = typingUsers[chat._id] || false;
         return (
           <div
             key={requestKey} 
@@ -358,17 +361,20 @@ export default function RequestsTab({
               </div>
 
               <div className="flex items-center text-sm text-gray-500 truncate">
+                {/* Message Content */}
                 <p
                   className="truncate max-w-[180px]"
-                  style={{ 
-                    color: hasUnread ? themeStyles.text : themeStyles.textSecondary, 
-                    fontWeight: hasUnread ? 500 : 400 
-                  }}
+                  style={{ color: unreadCount > 0 ? themeStyles.text : themeStyles.textSecondary, fontWeight: unreadCount > 0 ? 500 : 400 }}
                 >
-                  {chat.lastMessage?.content || 'Sent you a message'}
+                  {isTyping ? (
+                    <span className="text-blue-400 italic">typing...</span>
+                  ) : (
+                    getLastMessagePreview(chat, user?.id) || ''
+                  )}
                 </p>
 
-                <span className={`text-[11px] whitespace-nowrap ml-2 font-medium ${hasUnread ? 'text-blue-400' : 'text-gray-400'}`}>
+                {/* Time beside message */}
+                <span className={`text-[11px] whitespace-nowrap ml-2 ${unreadCount > 0 ? "text-blue-400 font-medium" : "text-[#606060]"}`}>
                   {chat.lastMessage?.timestamp ? format(new Date(chat.lastMessage.timestamp), 'h:mm a') : ''}
                 </span>
               </div>

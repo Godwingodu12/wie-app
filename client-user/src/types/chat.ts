@@ -62,7 +62,7 @@ export interface ChatMessage {
 
   // Message type
   messageType?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'audio'
-               | 'location' | 'profile' | 'event' | 'sticker' | 'contact';
+               | 'location' | 'profile' | 'event' | 'sticker' | 'contact'| 'flux_mention' | 'flux_remention';
 
   // View-once mode at message level (mirrors the item-level value for convenience)
   viewMode?: MediaViewMode;

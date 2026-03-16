@@ -11,6 +11,7 @@ import chatRoutes from './routes/chat.routes.js';
 import wieChatRoutes from './routes/wiechat.routes.js';
 import blockRoutes from './routes/block.routes.js';
 import reportRoutes from './routes/report.routes.js';
+import { startChatGrpcServer } from './grpc/server.js';
 dotenv.config();
 
 const app = express();
@@ -52,6 +53,7 @@ app.use('/api/chat',       chatRoutes);
 app.use('/api/wie-chat',   wieChatRoutes);
 app.use('/api/chat-block', blockRoutes);
 app.use('/api/chat-report', reportRoutes);
+startChatGrpcServer(process.env.GRPC || 50056);
 
 // ── Global error handler
 app.use((err, req, res, next) => {
@@ -89,7 +91,6 @@ const startServer = async () => {
       console.log(`📍 Admin Socket: /socket.io`);
       console.log(`📍 WIE Socket:   /wie-socket.io`);
     });
-
     try {
       await connectRabbitMQ();
       await startConsumers();

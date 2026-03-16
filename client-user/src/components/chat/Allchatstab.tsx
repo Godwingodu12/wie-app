@@ -9,6 +9,7 @@ import Image from 'next/image';
 import { format } from 'date-fns';
 import { Check, CheckCheck } from 'lucide-react';
 import { useTheme } from '@/components/home/ThemeContext';
+import { getLastMessagePreview } from '@/components/chat/ChatList';
 
 interface AllChatsTabProps {
   chats: Chat[];
@@ -143,7 +144,7 @@ export default function AllChatsTab({
                   {isTyping ? (
                     <span className="text-blue-400 italic">typing...</span>
                   ) : (
-                    chat.lastMessage?.content || ''
+                    getLastMessagePreview(chat, user?.id) || ''
                   )}
                 </p>
 
