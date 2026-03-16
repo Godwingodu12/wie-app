@@ -20,10 +20,45 @@ interface ChatListProps {
   onChatSelect: (chat: Chat) => void;
 }
 
-export function getLastMessagePreview(chat: any): React.ReactNode {
+export function getLastMessagePreview(chat: any, currentUserId?: string): string {
   const lm = chat.lastMessage;
-  if (!lm) return null;
+  if (!lm) return '';
 
+  const content: string = lm.content ?? '';
+  const messageType: string = lm.messageType ?? '';
+  const isSender: boolean = lm.sender === currentUserId;
+
+  // Always try to parse JSON first
+  let parsed: any = null;
+  if (content.trimStart().startsWith('{')) {
+    try { parsed = JSON.parse(content); } catch {}
+  }
+
+  // Detect flux_mention
+  const isFluxMention =
+    messageType === 'flux_mention' ||
+    (parsed?.fluxId && parsed?.mentionerName && !parsed?.reMentionerName) ||
+    parsed?.senderLabel === 'You mentioned a Flux';
+
+  // Detect flux_remention
+  const isFluxRemention =
+    messageType === 'flux_remention' ||
+    (parsed?.fluxId && parsed?.reMentionerName) ||
+    parsed?.senderLabel === 'You added a mentioned Flux';
+
+  if (isFluxMention) {
+    if (isSender) return '📖 You mentioned a Flux';
+    const name = parsed?.mentionerName ?? '';
+    return name ? `📖 ${name} mentioned a Flux` : '📖 mentioned a Flux';
+  }
+
+  if (isFluxRemention) {
+    if (isSender) return '↩ You added a mentioned Flux';
+    const name = parsed?.reMentionerName ?? parsed?.mentionerName ?? '';
+    return name ? `↩ ${name} reshared your Flux` : '↩ reshared a Flux';
+  }
+
+  // View once
   const isViewOnce =
     lm.viewMode === 'view_once' ||
     lm.viewMode === 'allow_replay' ||
@@ -31,27 +66,15 @@ export function getLastMessagePreview(chat: any): React.ReactNode {
     lm.chat_images?.[0]?.viewMode === 'allow_replay' ||
     lm.chat_videos?.[0]?.viewMode === 'view_once' ||
     lm.chat_videos?.[0]?.viewMode === 'allow_replay';
+  if (isViewOnce) return lm.messageType === 'image' ? '📷 Photo' : '🎥 Video';
 
-  if (isViewOnce) {
-    const isPhoto = lm.messageType === 'image';
-    return (
-      <span className="flex items-center gap-1">
-        {/* ① circle — signals view-once */}
-        <span
-          className="inline-flex items-center justify-center w-4 h-4 rounded-full border font-bold text-[10px] flex-shrink-0"
-          style={{ borderColor: 'currentColor' }}
-        >
-          1
-        </span>
-        {isPhoto ? 'Photo' : 'Video'}
-      </span>
-    );
+  // If content is JSON but not a known type, extract text field
+  if (parsed && typeof parsed === 'object') {
+    return parsed.text ?? parsed.content ?? '📎 Attachment';
   }
 
-  // Default: plain text content
-  return <>{lm.content}</>;
+  return content;
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function ChatList({ onChatSelect }: ChatListProps) {
   const { user } = useSelector((state: RootState) => state.auth);
