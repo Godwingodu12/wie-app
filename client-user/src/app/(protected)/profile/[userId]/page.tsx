@@ -27,6 +27,8 @@ import {
   getSuggestedUsers,
   searchUsers,
 } from "@/services/wieUserService";
+import { getUserFluxes, getUserDiaries } from "@/services/mediaService";
+import type { Flux, Diary }from "@/services/mediaService";
 import OtherFollowModal from "@/components/profile/OtherFollowModal";
 import {
   followUser,
@@ -43,53 +45,7 @@ import { useTheme } from "@/components/home/ThemeContext";
 import { useChat } from '@/context/ChatContext';
 import { createOrGetWieChat } from '@/services/chatService';
 import { User } from "@/types";
-const HIGHLIGHTS = [
-  {
-    id: 1,
-    label: "Travel",
-    img: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=150&h=150&fit=crop",
-  },
-  {
-    id: 2,
-    label: "Fooding",
-    img: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=150&h=150&fit=crop",
-  },
-  {
-    id: 3,
-    label: "Friends",
-    img: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=150&h=150&fit=crop",
-  },
-  {
-    id: 4,
-    label: "Architect",
-    img: "https://images.unsplash.com/photo-1487958449943-2429e8be8625?w=150&h=150&fit=crop",
-  },
-  {
-    id: 5,
-    label: "Car",
-    img: "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=150&h=150&fit=crop",
-  },
-  {
-    id: 6,
-    label: "Random",
-    img: "https://images.unsplash.com/photo-1496449903678-68ddcb189a24?w=150&h=150&fit=crop",
-  },
-  {
-    id: 7,
-    label: "Mask",
-    img: "https://images.unsplash.com/photo-1595152772835-219674b2a8a6?w=150&h=150&fit=crop",
-  },
-  {
-    id: 8,
-    label: "Films",
-    img: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=150&h=150&fit=crop",
-  },
-  {
-    id: 9,
-    label: "Me",
-    img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
-  },
-];
+
 
 const ActionButton = ({
   label,
@@ -168,8 +124,11 @@ export default function UserProfilePage() {
   const [showFollowingModal, setShowFollowingModal] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
 
-  const [posts, setPosts] = useState<any[]>([]);
+  const [posts,        setPosts]        = useState<any[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
+  const [userFluxes,   setUserFluxes]   = useState<Flux[]>([]);
+  const [userDiaries,  setUserDiaries]  = useState<Diary[]>([]);
+  const [fluxLoading,  setFluxLoading]  = useState(false);
   const highlightsRef = useRef<HTMLDivElement>(null);
 
   const scrollHighlights = (direction: "left" | "right") => {
@@ -193,11 +152,30 @@ export default function UserProfilePage() {
     }
   }, [identifier, isOwnProfile]);
 
-  useEffect(() => {
+useEffect(() => {
     if (resolvedUserId) {
       fetchUserPosts(activeTab);
     }
   }, [resolvedUserId, activeTab]);
+
+  const fetchUserFluxAndDiary = async (uid: string) => {
+    setFluxLoading(true);
+    try {
+      const [fluxes, diaries] = await Promise.all([
+        getUserFluxes(uid).catch(() => [] as Flux[]),
+        getUserDiaries(uid).catch(() => [] as Diary[]),
+      ]);
+      setUserFluxes(fluxes  ?? []);
+      setUserDiaries(diaries ?? []);
+    } catch (e) {
+      // Silently fail — backend returns empty arrays for unauthorized access
+      setUserFluxes([]);
+      setUserDiaries([]);
+    } finally {
+      setFluxLoading(false);
+    }
+  };
+
 const fetchUserData = async () => {
     try {
       setLoading(true);
@@ -226,6 +204,7 @@ const fetchUserData = async () => {
         }
       }
       setResolvedUserId(targetId);
+      fetchUserFluxAndDiary(targetId);
       const [userData, detailedStatus, userStats, followedByThem] = await Promise.all([
         getUserById(targetId),
         getDetailedFollowStatus(targetId),
@@ -577,26 +556,108 @@ const handleFollowToggle = async () => {
             {/* Profile Info Section - Centered */}
             <div className="flex flex-col items-center w-full px-0 sm:px-4 md:px-8 lg:px-10 mb-6 sm:mb-8">
               <div className="flex flex-col items-center gap-1.5 sm:gap-2 mb-6 sm:mb-8 w-full max-w-lg">
-                {/* Avatar */}
+                {/* Avatar — flux ring + click to view */}
                 <div className="relative">
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-[124px] lg:h-[124px] rounded-full overflow-hidden border-[3px] border-[#1C1C1E] relative transition-all duration-300 shadow-xl">
-                    {user.profile_picture ? (
-                      <Image
-                        src={user.profile_picture}
-                        alt={user.name || "User"}
-                        fill
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] flex items-center justify-center">
-                        <span className="text-3xl sm:text-4xl md:text-5xl font-bold text-white">
-                          {user.name?.charAt(0)?.toUpperCase() ||
-                            user.username?.charAt(0)?.toUpperCase() ||
-                            "U"}
-                        </span>
-                      </div>
-                    )}
+                  <div
+                    onClick={() => {
+                      if (userFluxes.length > 0 && resolvedUserId) {
+                        router.push(
+                          `/post/flux-view?fluxId=${userFluxes[0]._id}&userId=${resolvedUserId}`
+                        );
+                      }
+                    }}
+                    style={{
+                      padding:      userFluxes.length > 0 ? 3 : 0,
+                      borderRadius: "50%",
+                      // Animated gradient ring when has flux
+                      background:   userFluxes.length > 0
+                        ? "linear-gradient(135deg,#8860D9 0%,#B3B8E2 40%,#2979FF 80%,#8860D9 100%)"
+                        : "transparent",
+                      backgroundSize: "200% 200%",
+                      cursor:       userFluxes.length > 0 ? "pointer" : "default",
+                      display:      "inline-block",
+                      transition:   "all 0.3s ease",
+                      animation:    userFluxes.length > 0 ? "gradient-spin 3s linear infinite" : "none",
+                    }}
+                  >
+                    <div
+                      className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-[124px] lg:h-[124px] rounded-full overflow-hidden relative transition-all duration-300 shadow-xl"
+                      style={{
+                        border: userFluxes.length > 0
+                          ? "3px solid #0A0A0C"
+                          : "3px solid #1C1C1E",
+                      }}
+                    >
+                      {user.profile_picture ? (
+                        <Image
+                          src={user.profile_picture}
+                          alt={user.name || "User"}
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] flex items-center justify-center">
+                          <span className="text-3xl sm:text-4xl md:text-5xl font-bold text-white">
+                            {user.name?.charAt(0)?.toUpperCase() ||
+                              user.username?.charAt(0)?.toUpperCase() ||
+                              "U"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Animated ring pulse while flux loading */}
+                  {fluxLoading && (
+                    <div
+                      style={{
+                        position:     "absolute",
+                        inset:        -4,
+                        borderRadius: "50%",
+                        border:       "2px solid rgba(136,96,217,0.4)",
+                        animation:    "ring-pulse 1.2s ease-in-out infinite",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  )}
+
+                  {/* Flux count badge */}
+                  {userFluxes.length > 1 && (
+                    <div
+                      style={{
+                        position:        "absolute",
+                        bottom:          2,
+                        right:           2,
+                        width:           20,
+                        height:          20,
+                        borderRadius:    "50%",
+                        background:      "linear-gradient(135deg,#8860D9,#B3B8E2)",
+                        display:         "flex",
+                        alignItems:      "center",
+                        justifyContent:  "center",
+                        fontSize:        10,
+                        fontWeight:      700,
+                        color:           "#fff",
+                        border:          "2px solid #0A0A0C",
+                        zIndex:          2,
+                      }}
+                    >
+                      {userFluxes.length}
+                    </div>
+                  )}
+
+                  <style>{`
+                    @keyframes ring-pulse {
+                      0%,100% { opacity: 0.3; transform: scale(1);    }
+                      50%     { opacity: 0.8; transform: scale(1.05); }
+                    }
+                    @keyframes gradient-spin {
+                      0%   { background-position: 0% 50%;   }
+                      50%  { background-position: 100% 50%; }
+                      100% { background-position: 0% 50%;   }
+                    }
+                  `}</style>
                 </div>
 
                 {/* Name & Handle */}
@@ -705,9 +766,12 @@ const handleFollowToggle = async () => {
               </div>
             </div>
             {/* Only show content if user is public OR user is following */}
-            {(user.accountPrivacy === 'public' || followStatus.isFollowing) ? (
+            {(() => {
+              const privacy = (user as any).account_privacy ?? (user as any).accountPrivacy ?? 'public';
+              return privacy === 'public' || followStatus.isFollowing;
+            })() ? (
               <>
-            {/* Highlights Section with Arrows */}
+            {/* ── Diary / Highlights Section ── */}
             <div className="w-full flex justify-center items-center mb-8 md:mb-10 relative">
               {/* Left Arrow */}
               <button
@@ -717,30 +781,89 @@ const handleFollowToggle = async () => {
                 <ChevronLeft size={18} />
               </button>
 
-              {/* Scrollable Container */}
               <div
                 ref={highlightsRef}
                 className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 w-full max-w-[280px] sm:max-w-lg md:max-w-4xl scrollbar-hide px-8 sm:px-4 md:px-0"
               >
-                {HIGHLIGHTS.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group flex-shrink-0"
-                  >
-                    <div
-                      className="relative overflow-hidden backdrop-blur-[4px] transition-all group-hover:scale-105 w-[70px] h-[100px] rounded-xl border border-white/50 bg-[#3838380D]"
-                    >
-                      <img
-                        src={item.img}
-                        alt={item.label}
-                        className="w-full h-full object-cover"
+                {fluxLoading ? (
+                  /* Loading skeleton */
+                  Array(4).fill(null).map((_, i) => (
+                    <div key={i} className="flex flex-col items-center gap-2 min-w-[70px] flex-shrink-0">
+                      <div
+                        className="w-[70px] h-[100px] rounded-xl animate-pulse"
+                        style={{ background: themeStyles.pillBg }}
                       />
+                      <div className="w-12 h-3 rounded animate-pulse" style={{ background: themeStyles.pillBg }} />
                     </div>
-                    <span className="text-xs text-gray-400">{item.label}</span>
+                  ))
+                ) : userDiaries.length > 0 ? (
+                  /* Real diary items */
+                  userDiaries.map((diary) => (
+                    <div
+                      key={diary._id}
+                      className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group flex-shrink-0"
+                      onClick={() => {
+                        // Navigate to diary view (future implementation)
+                        console.log("View diary:", diary._id);
+                      }}
+                    >
+                      <div className="relative w-[70px] h-[100px] rounded-xl overflow-hidden border border-white/20 transition-all group-hover:scale-105"
+                        style={{ background: themeStyles.pillBg }}
+                      >
+                        {diary.coverImage ? (
+                          <img
+                            src={diary.coverImage}
+                            alt={diary.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : diary.fluxes?.[0]?.mediaUrl ? (
+                          <img
+                            src={diary.fluxes[0].mediaUrl}
+                            alt={diary.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center"
+                            style={{ background: "linear-gradient(135deg,#8860D9,#B3B8E2)" }}
+                          >
+                            <span style={{ fontSize: 24 }}>📔</span>
+                          </div>
+                        )}
+                        {/* Flux count badge on diary */}
+                        {diary.fluxCount > 0 && (
+                          <div style={{
+                            position:       "absolute",
+                            bottom:         4,
+                            right:          4,
+                            background:     "rgba(0,0,0,0.6)",
+                            borderRadius:   6,
+                            padding:        "1px 5px",
+                            fontSize:       9,
+                            color:          "#fff",
+                            fontWeight:     600,
+                          }}>
+                            {diary.fluxCount}
+                          </div>
+                        )}
+                      </div>
+                      <span
+                        className="text-xs text-center truncate w-full"
+                        style={{ color: themeStyles.textSecondary }}
+                      >
+                        {diary.title}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  /* No diaries */
+                  <div className="flex flex-col items-center justify-center py-4 px-6 opacity-40">
+                    <span style={{ fontSize: 28 }}>📔</span>
+                    <span className="text-xs mt-2" style={{ color: themeStyles.textSecondary }}>
+                      No diaries yet
+                    </span>
                   </div>
-                ))}
+                )}
               </div>
-
               {/* Right Arrow */}
               <button
                 onClick={() => scrollHighlights("right")}
