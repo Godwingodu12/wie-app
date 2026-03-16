@@ -78,6 +78,8 @@ export type NotificationType =
   | 'ticket_verified'
   | 'qr_code_generated'
   | 'following'
+  | 'flux_mention'
+  | 'flux_remention'
   | string;
 
 export interface Notification {
