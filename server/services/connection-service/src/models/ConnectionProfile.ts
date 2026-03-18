@@ -75,6 +75,19 @@ export interface IConnectionProfile extends Document {
     averageMatchScore: number;
     lastActiveAt?: Date;
   };
+  faceVerification?: {
+    status: string;
+    embeddingsRegistered: boolean;
+    registeredAt?: Date;
+    verifiedAt?: Date;
+    profileLocked: boolean;
+    similarity?: number;
+    failedAttempts: number;
+    lastFailedAt?: Date;
+    appealPending: boolean;
+    appealReason?: string;
+    appealRequestedAt?: Date;
+  };
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
@@ -259,6 +272,23 @@ const ConnectionProfileSchema = new Schema<IConnectionProfile>(
       connectionsAccepted: { type: Number, default: 0 },
       averageMatchScore: { type: Number, default: 0 },
       lastActiveAt: Date,
+    },
+    faceVerification: {
+      status: {
+        type: String,
+        enum: ['not_started', 'pending_verification', 'verified', 'locked', 'appeal_pending'],
+        default: 'not_started',
+      },
+      embeddingsRegistered: { type: Boolean, default: false },
+      registeredAt:         { type: Date },
+      verifiedAt:           { type: Date },
+      profileLocked:        { type: Boolean, default: false },
+      similarity:           { type: Number },
+      failedAttempts:       { type: Number, default: 0 },
+      lastFailedAt:         { type: Date },
+      appealPending:        { type: Boolean, default: false },
+      appealReason:         { type: String },
+      appealRequestedAt:    { type: Date },
     },
     deletedAt: Date,
   },
