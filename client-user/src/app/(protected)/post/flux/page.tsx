@@ -7,11 +7,11 @@ import { X, Upload, Loader2, Users } from "lucide-react";
 import SideBar from "@/components/home/SideBar";
 import { useSidebar } from "@/context/SidebarContext";
 import { useTheme } from "@/components/home/ThemeContext";
-
+import { FILTER_PRESETS } from "@/components/post/FluxRightPanel";
 import FluxTopOptions from "@/components/post/FluxTopOptions";
 import FluxRightPanel from "@/components/post/FluxRightPanel";
 import FluxMusicBar   from "@/components/post/FluxMusicBar";
-
+import StoryTextCanvas, { TextLayer } from "@/components/post/actions/StoryTextCanvas";
 import { createFlux } from "@/services/mediaService";
 import type { FluxVisibility } from "@/types/media";
 import FluxToolbar from "@/components/post/FluxToolbar";
@@ -67,7 +67,45 @@ export default function FluxPage() {
   // ── Shared audio ref — single source of truth for playback 
   const sharedAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [showTextCanvas, setShowTextCanvas] = useState(false);
+  const [textLayers,     setTextLayers]     = useState<TextLayer[]>([]);
+  const [textBg,         setTextBg]         = useState<string | null>(null);
+  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+  const [selectedFilterValue, setSelectedFilterValue] = useState<string>("none");
+  const [stickerLayers, setStickerLayers] = useState<any[]>([]);
+const dragLayerRef = useRef<{
+    id: string; mx: number; my: number; lx: number; ly: number;
+  } | null>(null);
 
+const handleLayerPointerDown = (e: React.PointerEvent, layerId: string) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const layer = textLayers.find(l => l.id === layerId);
+    if (!layer) return;
+    setSelectedLayerId(layerId);
+    setActiveTool("text");
+    dragLayerRef.current = {
+      id: layerId,
+      mx: e.clientX,
+      my: e.clientY,
+      lx: layer.x,
+      ly: layer.y,
+    };
+  };
+
+  const handleLayerPointerMove = (e: React.PointerEvent) => {
+    if (!dragLayerRef.current) return;
+    const { id, mx, my, lx, ly } = dragLayerRef.current;
+    const rect = previewRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const nx = Math.max(5, Math.min(95, lx + ((e.clientX - mx) / rect.width)  * 100));
+    const ny = Math.max(5, Math.min(95, ly + ((e.clientY - my) / rect.height) * 100));
+    setTextLayers(prev =>
+      prev.map(l => l.id === id ? { ...l, x: nx, y: ny } : l)
+    );
+  };
+
+  const handleLayerPointerUp = () => { dragLayerRef.current = null; };
 const playSharedAudio = (previewUrl: string) => {
     console.log("🎵 Playing:", previewUrl);
 
@@ -214,32 +252,135 @@ const playSharedAudio = (previewUrl: string) => {
       prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
     );
   };
+// Undo / Redo history
+  type HistorySnapshot = {
+    textLayers:    TextLayer[];
+    textBg:        string | null;
+    stickerLayers: any[];
+    selectedFilter: string;
+    selectedFilterValue: string;
+    selectedLocation: string | null;
+  };
+  const historyRef  = useRef<HistorySnapshot[]>([]);
+  const futureRef   = useRef<HistorySnapshot[]>([]);
+  const skipSnapshot = useRef(false);
 
-  // ── Post flux 
-const handlePost = async (target: "story" | "close_friends") => {
+  const takeSnapshot = useCallback(() => {
+    if (skipSnapshot.current) return;
+    historyRef.current.push({
+      textLayers:          [...textLayers],
+      textBg,
+      stickerLayers:       [...stickerLayers],
+      selectedFilter,
+      selectedFilterValue,
+      selectedLocation,
+    });
+    futureRef.current = [];
+    if (historyRef.current.length > 40) historyRef.current.shift();
+  }, [textLayers, textBg, stickerLayers, selectedFilter, selectedFilterValue, selectedLocation]);
+
+  const handleUndo = () => {
+    const prev = historyRef.current.pop();
+    if (!prev) return;
+    futureRef.current.push({
+      textLayers, textBg, stickerLayers,
+      selectedFilter, selectedFilterValue, selectedLocation,
+    });
+    skipSnapshot.current = true;
+    setTextLayers(prev.textLayers);
+    setTextBg(prev.textBg);
+    setStickerLayers(prev.stickerLayers);
+    setSelectedFilter(prev.selectedFilter);
+    setSelectedFilterValue(prev.selectedFilterValue);
+    setSelectedLocation(prev.selectedLocation);
+    setTimeout(() => { skipSnapshot.current = false; }, 0);
+  };
+
+  const handleRedo = () => {
+    const next = futureRef.current.pop();
+    if (!next) return;
+    historyRef.current.push({
+      textLayers, textBg, stickerLayers,
+      selectedFilter, selectedFilterValue, selectedLocation,
+    });
+    skipSnapshot.current = true;
+    setTextLayers(next.textLayers);
+    setTextBg(next.textBg);
+    setStickerLayers(next.stickerLayers);
+    setSelectedFilter(next.selectedFilter);
+    setSelectedFilterValue(next.selectedFilterValue);
+    setSelectedLocation(next.selectedLocation);
+    setTimeout(() => { skipSnapshot.current = false; }, 0);
+  };
+
+  // ── Sticker drag
+  const stickerDragRef = useRef<{
+    id: string; mx: number; my: number; lx: number; ly: number;
+  } | null>(null);
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
+
+  const handleStickerPointerDown = (e: React.PointerEvent, stickerId: string) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const s = stickerLayers.find(x => x.id === stickerId);
+    if (!s) return;
+    setSelectedStickerId(stickerId);
+    stickerDragRef.current = { id: stickerId, mx: e.clientX, my: e.clientY, lx: s.x, ly: s.y };
+  };
+
+  const handleStickerPointerMove = (e: React.PointerEvent) => {
+    if (!stickerDragRef.current) return;
+    const { id, mx, my, lx, ly } = stickerDragRef.current;
+    const rect = previewRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const nx = Math.max(5, Math.min(95, lx + ((e.clientX - mx) / rect.width)  * 100));
+    const ny = Math.max(5, Math.min(95, ly + ((e.clientY - my) / rect.height) * 100));
+    setStickerLayers(prev => prev.map(s => s.id === id ? { ...s, x: nx, y: ny } : s));
+  };
+
+  const handleStickerPointerUp = () => { stickerDragRef.current = null; };
+
+  const deleteSticker = (id: string) => {
+    takeSnapshot();
+    setStickerLayers(prev => prev.filter(s => s.id !== id));
+    setSelectedStickerId(null);
+  };
+  const handlePost = async (target: "story" | "close_friends") => {
     const sourceMediaUrl = searchParams.get("mediaUrl");
-    if (!mediaFile && !sourceMediaUrl) return;
+    const hasRealMedia   = mediaFile || (sourceMediaUrl && sourceMediaUrl.startsWith("http"));
+    const hasTextContent = textLayers.filter(l => l.text?.trim()).length > 0 || textBg;
+
+    if (!hasRealMedia && !hasTextContent) return;
+
     try {
       setUploading(true);
       setUploadError(null);
-      const vis: FluxVisibility = target === "close_friends" ? "close_friends" : visibility;
-      await createFlux((mediaFile ?? sourceMediaUrl)!, {
-        caption:    selectedLocation || undefined,  
-        visibility: 'public',
-        musicId:          selectedSongId         || undefined,
-        musicTitle:       selectedSongTitle       || undefined,
-        musicArtist:      selectedSongArtist      || undefined,
-        musicPreviewUrl:  selectedSongPreview     || undefined,
-        musicAlbumArt:    selectedSongAlbumArt    || undefined,
-        // Location — full structured data + canvas position
-        locationLabel:        selectedLocation    || undefined,
-        locationPlaceId:      locationPlaceId     || undefined,
-        locationLat:          locationLat         ?? undefined,
-        locationLng:          locationLng         ?? undefined,
-        locationCategory:     locationCategory    || undefined,
-        locationStickerX:     locationPos.x,
-        locationStickerY:     locationPos.y,
+
+      const mediaArg = mediaFile
+        ?? (sourceMediaUrl?.startsWith("http") ? sourceMediaUrl : null);
+
+      await createFlux(mediaArg as any, {
+        caption:           selectedLocation || undefined,
+        visibility:        'public',
+        musicId:           selectedSongId         || undefined,
+        musicTitle:        selectedSongTitle       || undefined,
+        musicArtist:       selectedSongArtist      || undefined,
+        musicPreviewUrl:   selectedSongPreview     || undefined,
+        musicAlbumArt:     selectedSongAlbumArt    || undefined,
+        locationLabel:     selectedLocation        || undefined,
+        locationPlaceId:   locationPlaceId         || undefined,
+        locationLat:       locationLat             ?? undefined,
+        locationLng:       locationLng             ?? undefined,
+        locationCategory:  locationCategory        || undefined,
+        locationStickerX:  locationPos.x,
+        locationStickerY:  locationPos.y,
         locationStickerTheme: locationTheme,
+        // Text story fields
+        textLayers:        textLayers.filter(l => l.text?.trim()),
+        textBg:            textBg     || undefined,
+        filterName:        FILTER_PRESETS.find(f => f.id === selectedFilter)?.name  || undefined,
+        filterValue:       selectedFilterValue !== "none" ? selectedFilterValue : undefined,
+        stickers:          stickerLayers.length > 0 ? stickerLayers : undefined,
         onUploadProgress: (e) => {
           setUploadPct(Math.round(((e.loaded ?? 0) * 100) / (e.total ?? 1)));
         },
@@ -288,24 +429,27 @@ const handlePost = async (target: "story" | "close_friends") => {
           </div>
         </div>
 
-        {/* ── Three-column layout ──────────────────────────── */}
+        {/* Three-column layout  */}
         <div
           className="flex flex-1 items-start gap-4 px-6 pb-6"
           style={{ overflow: "visible", minHeight: 0 }}
         >
-        {/* ── LEFT: Toolbar ─────────────────────────────── */}
+        {/* LEFT: Toolbar  */}
         <div className="flex-shrink-0 flex flex-col items-center pt-2">
-            <FluxToolbar
+          <FluxToolbar
             activeTool={activeTool}
-            onSelect={handleToolSelect}
-            onUndo={() => {}}
-            onRedo={() => {}}
-            />
+            onSelect={(tool) => {
+              takeSnapshot();
+              setActiveTool(tool);
+            }}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+          />
         </div>
 
-            {/* ── CENTER: Preview + Music bar ───────────────── */}
+            {/* CENTER: Preview + Music bar */}
           <div className="flex flex-col items-center gap-3 flex-shrink-0">
-            {/* Media preview frame — reduced to fit alongside panel */}
+            {/* Media preview frame */}
             <div
               ref={previewRef}
               className="relative overflow-hidden flex items-center justify-center"
@@ -313,330 +457,440 @@ const handlePost = async (target: "story" | "close_friends") => {
                 width: 340,
                 height: 520,
                 borderRadius: 12,
-                background: "rgba(255,255,255,0.04)",
+                background: textBg
+                  ? textBg
+                  : activeTool === "text"
+                    ? "#1a1a2e"
+                    : "rgba(255,255,255,0.04)",
                 border: isDragging
                   ? "2px dashed #8860D9"
-                  : "1px solid rgba(255,255,255,0.08)",
-                transition: "border-color 0.2s",
+                  : activeTool === "text" && !mediaPreview
+                    ? "1px solid rgba(136,96,217,0.3)"
+                    : "1px solid rgba(255,255,255,0.08)",
+                transition: "background 0.3s, border-color 0.2s",
               }}
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleDrop}
+              onPointerDown={(e) => {
+                if ((e.target as HTMLElement).closest('[data-text-layer="true"]')) return;
+                setSelectedLayerId(null);
+              }}
             >
-              {mediaPreview ? (
+              {/* Media */}
+              {mediaPreview && (
                 <>
-                  {mediaType === "image" ? (
-                    <Image
+                  {mediaType === "image" &&
+                  !mediaPreview.startsWith("linear") &&
+                  !mediaPreview.startsWith("radial") &&
+                  !mediaPreview.includes("gradient") ? (
+                  <Image
                       src={mediaPreview}
                       alt="Flux preview"
                       fill
                       className="object-cover"
+                      style={{ filter: selectedFilterValue !== "none" ? selectedFilterValue : undefined }}
                     />
-                  ) : (
+                  ) : mediaType === "video" ? (
                     <video
                       src={mediaPreview}
                       className="w-full h-full object-cover"
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
+                      autoPlay loop muted playsInline
+                      style={{ filter: selectedFilterValue !== "none" ? selectedFilterValue : undefined }}
                     />
-                  )}
+                  ) : null}
+                </>
+              )}
 
-                  {/* Filter overlay */}
-                  {selectedFilter === "bw" && (
-                    <div
-                      className="absolute inset-0"
-                      style={{ background: "rgba(0,0,0,0.5)", mixBlendMode: "color" }}
-                    />
-                  )}
+              {/* Text-only background indicator when no media */}
+              {!mediaPreview && textBg && (
+                <div
+                  style={{
+                    position:       "absolute",
+                    top:            12,
+                    right:          12,
+                    zIndex:         20,
+                    display:        "flex",
+                    alignItems:     "center",
+                    gap:            6,
+                    padding:        "4px 10px",
+                    borderRadius:   20,
+                    background:     "rgba(0,0,0,0.5)",
+                    backdropFilter: "blur(8px)",
+                    border:         "1px solid rgba(255,255,255,0.15)",
+                  }}
+                >
+                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 10 }}>Text Story</span>
+                </div>
+              )}
+              {/*Add Media button (top-left, shown when text canvas used)*/}
+              {textBg && !mediaPreview && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    position:       "absolute",
+                    top:            12,
+                    left:           12,
+                    zIndex:         20,
+                    width:          32,
+                    height:         32,
+                    borderRadius:   "50%",
+                    background:     "rgba(255,255,255,0.15)",
+                    backdropFilter: "blur(8px)",
+                    border:         "1px solid rgba(255,255,255,0.25)",
+                    display:        "flex",
+                    alignItems:     "center",
+                    justifyContent: "center",
+                    cursor:         "pointer",
+                    color:          "#fff",
+                    fontSize:       20,
+                    lineHeight:     1,
+                  }}
+                  title="Add media"
+                >
+                  +
+                </button>
+              )}
+              {/* Text layers — draggable + resizable */}
+              {textLayers.filter(l => l.text?.trim()).length > 0 && (
+                <div
+                  style={{ position: "absolute", inset: 0, zIndex: 8, overflow: "hidden" }}
+                  onPointerMove={handleLayerPointerMove}
+                  onPointerUp={handleLayerPointerUp}
+                  onPointerCancel={handleLayerPointerUp}
+                >
+                  <style>{`
+                    @keyframes txt-fade    { from{opacity:0} to{opacity:1} }
+                    @keyframes txt-slideUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+                    @keyframes txt-zoom    { from{opacity:0;transform:scale(0.3)} to{opacity:1;transform:scale(1)} }
+                    @keyframes txt-bounce  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+                    @keyframes txt-pulse   { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+                  `}</style>
 
-                    {/* Location sticker — draggable + tap to cycle themes */}
-                    {selectedLocation && (() => {
-                    const THEMES = [
-                        // 0 — Dark glass (default)
-                        {
-                        background:     'rgba(0,0,0,0.62)',
-                        backdropFilter: 'blur(12px)',
-                        border:         '1px solid rgba(255,255,255,0.18)',
-                        color:          '#ffffff',
-                        textTransform:  'none'  as const,
-                        fontWeight:     600,
-                        fontStyle:      'normal' as const,
-                        textShadow:     'none',
-                        letterSpacing:  0.2,
-                        },
-                        // 1 — Solid white
-                        {
-                        background:     '#ffffff',
-                        backdropFilter: 'none',
-                        border:         'none',
-                        color:          '#1a1a2e',
-                        textTransform:  'none'  as const,
-                        fontWeight:     700,
-                        fontStyle:      'normal' as const,
-                        textShadow:     'none',
-                        letterSpacing:  0.3,
-                        },
-                        // 2 — Gradient purple
-                        {
-                        background:     'linear-gradient(135deg,#8860D9,#B3B8E2)',
-                        backdropFilter: 'none',
-                        border:         'none',
-                        color:          '#ffffff',
-                        textTransform:  'none'  as const,
-                        fontWeight:     700,
-                        fontStyle:      'normal' as const,
-                        textShadow:     '0 1px 3px rgba(0,0,0,0.3)',
-                        letterSpacing:  0.2,
-                        },
-                        // 3 — Transparent outlined
-                        {
-                        background:     'transparent',
-                        backdropFilter: 'none',
-                        border:         '2px solid rgba(255,255,255,0.85)',
-                        color:          '#ffffff',
-                        textTransform:  'none'  as const,
-                        fontWeight:     600,
-                        fontStyle:      'normal' as const,
-                        textShadow:     '0 1px 4px rgba(0,0,0,0.6)',
-                        letterSpacing:  0.3,
-                        },
-                        // 4 — Vivid pink
-                        {
-                        background:     'linear-gradient(135deg,#f953c6,#b91d73)',
-                        backdropFilter: 'none',
-                        border:         'none',
-                        color:          '#ffffff',
-                        textTransform:  'uppercase' as const,
-                        fontWeight:     800,
-                        fontStyle:      'normal' as const,
-                        textShadow:     '0 1px 3px rgba(0,0,0,0.25)',
-                        letterSpacing:  1.2,
-                        },
-                        // 5 — Minimal / no background
-                        {
-                        background:     'transparent',
-                        backdropFilter: 'none',
-                        border:         'none',
-                        color:          '#ffffff',
-                        textTransform:  'none'  as const,
-                        fontWeight:     500,
-                        fontStyle:      'italic' as const,
-                        textShadow:     '0 1px 6px rgba(0,0,0,0.8)',
-                        letterSpacing:  0.4,
-                        },
-                    ];
+                  {textLayers.filter(l => l.text?.trim()).map(layer => {
+                    const isSelected = selectedLayerId === layer.id;
+                    const PREVIEW_SCALE = 0.55;
 
-                    const theme = THEMES[locationTheme % THEMES.length];
+                    const getAnim = (): string => {
+                      switch (layer.animation) {
+                        case "fade":    return "txt-fade 0.6s ease forwards";
+                        case "slideUp": return "txt-slideUp 0.5s ease forwards";
+                        case "zoom":    return "txt-zoom 0.4s ease forwards";
+                        case "bounce":  return "txt-bounce 1.2s ease-in-out infinite";
+                        case "pulse":   return "txt-pulse 1.5s ease-in-out infinite";
+                        default:        return "none";
+                      }
+                    };
+
+                    const getEffect = (): React.CSSProperties => {
+                      switch (layer.effect) {
+                        case "neon":      return { textShadow: `0 0 6px ${layer.color}, 0 0 14px ${layer.color}` };
+                        case "gradient":  return { background: "linear-gradient(45deg,#ff6b6b,#f7d794,#a8edea)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" };
+                        case "shadow":    return { textShadow: "2px 2px 8px rgba(0,0,0,0.9)" };
+                        case "highlight": return { background: "rgba(0,0,0,0.7)", padding: "3px 8px", borderRadius: 4 };
+                        default:          return {};
+                      }
+                    };
 
                     return (
-                        <div
+                      <div
+                        key={layer.id}
+                        data-text-layer="true"
                         style={{
-                            position:    'absolute',
-                            left:        `${locationPos.x}%`,
-                            top:         `${locationPos.y}%`,
-                            transform:   'translate(-50%, -50%)',
-                            cursor:      'grab',
-                            userSelect:  'none',
-                            touchAction: 'none',
-                            zIndex:      10,
+                          position:      "absolute",
+                          left:          `${layer.x}%`,
+                          top:           `${layer.y}%`,
+                          transform:     "translate(-50%, -50%)",
+                          color:         layer.color,
+                          fontFamily:    layer.font,
+                          fontSize:      Math.max(10, Math.round(layer.fontSize * PREVIEW_SCALE)),
+                          textAlign:     layer.align,
+                          width:         Math.round(200 * PREVIEW_SCALE),
+                          whiteSpace:    "pre-wrap",
+                          wordBreak:     "break-word",
+                          lineHeight:    1.3,
+                          fontWeight:    600,
+                          animation:     getAnim(),
+                          cursor:        "grab",
+                          touchAction:   "none",
+                          userSelect:    "none",
+                          outline:       isSelected ? "1.5px dashed rgba(136,96,217,0.9)" : "none",
+                          outlineOffset: 4,
+                          borderRadius:  3,
+                          zIndex:        isSelected ? 12 : 8,
+                          ...getEffect(),
                         }}
-                        onMouseDown={(e) => {
-                            // Only drag on the wrapper div, not the remove button
-                            if ((e.target as HTMLElement).closest('button')) return;
-                            e.preventDefault();
-                            const rect = previewRef.current?.getBoundingClientRect();
-                            if (!rect) return;
-                            locationDragRef.current = {
-                            startX:    e.clientX,
-                            startY:    e.clientY,
-                            startPosX: locationPos.x,
-                            startPosY: locationPos.y,
-                            };
-                            const onMove = (me: MouseEvent) => {
-                            if (!locationDragRef.current) return;
-                            const dx = ((me.clientX - locationDragRef.current.startX) / rect.width)  * 100;
-                            const dy = ((me.clientY - locationDragRef.current.startY) / rect.height) * 100;
-                            setLocationPos({
-                                x: Math.min(90, Math.max(10, locationDragRef.current.startPosX + dx)),
-                                y: Math.min(90, Math.max(10, locationDragRef.current.startPosY + dy)),
-                            });
-                            };
-                            const onUp = () => {
-                            locationDragRef.current = null;
-                            window.removeEventListener('mousemove', onMove);
-                            window.removeEventListener('mouseup',  onUp);
-                            };
-                            window.addEventListener('mousemove', onMove);
-                            window.addEventListener('mouseup',   onUp);
-                        }}
-                        >
-                        {/* Sticker pill — tap to cycle theme */}
-                        <div
-                            onClick={() => setLocationTheme((t) => (t + 1) % THEMES.length)}
-                            style={{
-                            display:        'flex',
-                            alignItems:     'center',
-                            gap:            5,
-                            padding:        '5px 10px 5px 7px',
-                            borderRadius:   20,
-                            background:     theme.background,
-                            backdropFilter: theme.backdropFilter,
-                            border:         theme.border,
-                            whiteSpace:     'nowrap',
-                            cursor:         'pointer',
-                            boxShadow:      '0 2px 12px rgba(0,0,0,0.35)',
-                            transition:     'all 0.2s ease',
-                            }}
-                        >
-                            {/* Location icon */}
-                            <Image
-                            src={LocationIcon}
-                            alt="location"
-                            width={12}
-                            height={12}
-                            style={{
-                                flexShrink: 0,
-                                filter: theme.color === '#1a1a2e'
-                                ? 'invert(0)'       // dark icon on white bg
-                                : 'brightness(0) invert(1)', // white icon on dark bg
-                            }}
-                            />
+                        onPointerDown={(e) => handleLayerPointerDown(e, layer.id)}
+                      >
+                        {layer.text}
 
-                            {/* Location name */}
-                            <span
-                            style={{
-                                color:          theme.color,
-                                fontSize:       12,
-                                fontWeight:     theme.fontWeight,
-                                fontStyle:      theme.fontStyle,
-                                textTransform:  theme.textTransform,
-                                textShadow:     theme.textShadow,
-                                letterSpacing:  theme.letterSpacing,
-                                lineHeight:     1.2,
-                            }}
-                            >
-                            {selectedLocation}
-                            </span>
-
-                            {/* Remove × */}
+                        {isSelected && (
+                          <>
                             <button
-                            onClick={(e) => {
+                              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                              onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedLocation(null);
-                                setLocationTheme(0);
-                            }}
-                            style={{
-                                marginLeft:     4,
-                                background:     'rgba(255,255,255,0.2)',
-                                border:         'none',
-                                borderRadius:   '50%',
-                                width:          14,
-                                height:         14,
-                                display:        'flex',
-                                alignItems:     'center',
-                                justifyContent: 'center',
-                                cursor:         'pointer',
-                                padding:        0,
-                                color:          'rgba(255,255,255,0.85)',
-                                fontSize:       9,
-                                lineHeight:     1,
-                                flexShrink:     0,
-                            }}
-                            >
-                            ✕
-                            </button>
-                        </div>
+                                takeSnapshot();
+                                setTextLayers(prev => prev.filter(l => l.id !== layer.id));
+                                setSelectedLayerId(null);
+                              }}
+                              style={{
+                                position: "absolute", top: -10, right: -10,
+                                width: 18, height: 18, borderRadius: "50%",
+                                background: "#FF3B30", border: "1.5px solid #fff",
+                                color: "#fff", fontSize: 9, cursor: "pointer",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                zIndex: 20, touchAction: "none", padding: 0,
+                              }}
+                            >✕</button>
 
-                        {/* Tap hint */}
-                        <div style={{
-                            textAlign:     'center',
-                            marginTop:     3,
-                            fontSize:      9,
-                            color:         'rgba(255,255,255,0.3)',
-                            pointerEvents: 'none',
-                            letterSpacing: 0.2,
-                        }}>
-                            tap to change style · drag to move
-                        </div>
-                        </div>
-                    );
-                    })()}
+                            <button
+                              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTextLayers(prev => prev.map(l =>
+                                  l.id === layer.id ? { ...l, fontSize: Math.max(12, l.fontSize - 4) } : l
+                                ));
+                              }}
+                              style={{
+                                position: "absolute", bottom: -22, left: 4,
+                                width: 22, height: 22, borderRadius: "50%",
+                                background: "rgba(0,0,0,0.8)", border: "1.5px solid rgba(255,255,255,0.6)",
+                                color: "#fff", fontSize: 15, cursor: "pointer",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                zIndex: 20, touchAction: "none", padding: 0, lineHeight: 1,
+                              }}
+                            >−</button>
 
-                  {/* Mention tags overlay */}
-                  {selectedMentions.length > 0 && (
-                    <div
-                      className="absolute top-3 left-3 flex items-center gap-1 px-3 py-1 rounded-full text-white text-[11px] font-medium"
-                      style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)" }}
-                    >
-                      <Users size={11} />
-                      {selectedMentions.length} mentioned
-                    </div>
-                  )}
-
-                  {/* Upload progress */}
-                  {uploading && (
-                    <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-4">
-                      <Loader2 size={32} className="animate-spin text-[#8860D9]" />
-                      <div className="w-40 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{ width: `${uploadPct}%`, background: GRADIENT }}
-                        />
+                            <button
+                              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTextLayers(prev => prev.map(l =>
+                                  l.id === layer.id ? { ...l, fontSize: Math.min(120, l.fontSize + 4) } : l
+                                ));
+                              }}
+                              style={{
+                                position: "absolute", bottom: -22, right: 4,
+                                width: 22, height: 22, borderRadius: "50%",
+                                background: "rgba(136,96,217,0.9)", border: "1.5px solid rgba(255,255,255,0.6)",
+                                color: "#fff", fontSize: 15, cursor: "pointer",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                zIndex: 20, touchAction: "none", padding: 0, lineHeight: 1,
+                              }}
+                            >+</button>
+                          </>
+                        )}
                       </div>
-                      <p className="text-white/60 text-[12px]">{uploadPct}%</p>
-                    </div>
-                  )}
+                    );
+                  })}
+                </div>
+              )}
+              {/* Sticker layers — draggable */}
+              {stickerLayers.length > 0 && (
+                <div
+                  style={{ position: "absolute", inset: 0, zIndex: 9 }}
+                  onPointerMove={handleStickerPointerMove}
+                  onPointerUp={handleStickerPointerUp}
+                >
+                  {stickerLayers.map(s => {
+                    const isSel = selectedStickerId === s.id;
+                    return (
+                      <div
+                        key={s.id}
+                        style={{
+                          position:   "absolute",
+                          left:       `${s.x}%`,
+                          top:        `${s.y}%`,
+                          transform:  `translate(-50%,-50%) scale(${s.scale}) rotate(${s.rotate}deg)`,
+                          cursor:     "grab",
+                          touchAction:"none",
+                          userSelect: "none",
+                          zIndex:     isSel ? 12 : 9,
+                        }}
+                        onPointerDown={(e) => handleStickerPointerDown(e, s.id)}
+                        onClick={(e) => { e.stopPropagation(); setSelectedStickerId(isSel ? null : s.id); }}
+                        data-text-layer="true"
+                      >
+                        <img
+                          src={s.url}
+                          alt="sticker"
+                          style={{
+                            width:     56,
+                            height:    56,
+                            objectFit: "contain",
+                            display:   "block",
+                            outline:   isSel ? "2px dashed rgba(136,96,217,0.9)" : "none",
+                            borderRadius: 4,
+                          }}
+                          draggable={false}
+                        />
+                        {/* Delete button — shows when selected */}
+                        {isSel && (
+                          <button
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); deleteSticker(s.id); }}
+                            style={{
+                              position:       "absolute",
+                              top:            -8,
+                              right:          -8,
+                              width:          18,
+                              height:         18,
+                              borderRadius:   "50%",
+                              background:     "#FF3B30",
+                              border:         "1.5px solid #fff",
+                              display:        "flex",
+                              alignItems:     "center",
+                              justifyContent: "center",
+                              cursor:         "pointer",
+                              color:          "#fff",
+                              fontSize:       10,
+                              lineHeight:     1,
+                              zIndex:         13,
+                            }}
+                          >✕</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Filter overlay */}
+              {selectedFilter === "bw" && (
+                <div
+                  className="absolute inset-0"
+                  style={{ background: "rgba(0,0,0,0.5)", mixBlendMode: "color" }}
+                />
+              )}
 
-                  {/* Remove media button */}
-                  {!uploading && (
-                    <button
-                      onClick={() => {
-                        setMediaFile(null);
-                        setMediaPreview(null);
-                        setMediaType(null);
-                      }}
-                      className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center bg-black/50 hover:bg-black/70 transition-all"
-                    >
-                      <Image src={Delete} alt="remove" width={12} height={12} />
-                    </button>
-                  )}
-                </>
-              ) : (
-                /* Empty drop zone */
+              {/* Location sticker */}
+              {selectedLocation && (() => {
+                const THEMES = [
+                  { background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.18)', color: '#ffffff', textTransform: 'none' as const, fontWeight: 600, fontStyle: 'normal' as const, textShadow: 'none', letterSpacing: 0.2 },
+                  { background: '#ffffff', backdropFilter: 'none', border: 'none', color: '#1a1a2e', textTransform: 'none' as const, fontWeight: 700, fontStyle: 'normal' as const, textShadow: 'none', letterSpacing: 0.3 },
+                  { background: 'linear-gradient(135deg,#8860D9,#B3B8E2)', backdropFilter: 'none', border: 'none', color: '#ffffff', textTransform: 'none' as const, fontWeight: 700, fontStyle: 'normal' as const, textShadow: '0 1px 3px rgba(0,0,0,0.3)', letterSpacing: 0.2 },
+                  { background: 'transparent', backdropFilter: 'none', border: '2px solid rgba(255,255,255,0.85)', color: '#ffffff', textTransform: 'none' as const, fontWeight: 600, fontStyle: 'normal' as const, textShadow: '0 1px 4px rgba(0,0,0,0.6)', letterSpacing: 0.3 },
+                  { background: 'linear-gradient(135deg,#f953c6,#b91d73)', backdropFilter: 'none', border: 'none', color: '#ffffff', textTransform: 'uppercase' as const, fontWeight: 800, fontStyle: 'normal' as const, textShadow: '0 1px 3px rgba(0,0,0,0.25)', letterSpacing: 1.2 },
+                  { background: 'transparent', backdropFilter: 'none', border: 'none', color: '#ffffff', textTransform: 'none' as const, fontWeight: 500, fontStyle: 'italic' as const, textShadow: '0 1px 6px rgba(0,0,0,0.8)', letterSpacing: 0.4 },
+                ];
+                const theme = THEMES[locationTheme % THEMES.length];
+                return (
+                  <div
+                    style={{ position: 'absolute', left: `${locationPos.x}%`, top: `${locationPos.y}%`, transform: 'translate(-50%, -50%)', cursor: 'grab', userSelect: 'none', touchAction: 'none', zIndex: 10 }}
+                    onMouseDown={(e) => {
+                      if ((e.target as HTMLElement).closest('button')) return;
+                      e.preventDefault();
+                      const rect = previewRef.current?.getBoundingClientRect();
+                      if (!rect) return;
+                      locationDragRef.current = {
+                        startX: e.clientX, startY: e.clientY,
+                        startPosX: locationPos.x, startPosY: locationPos.y,
+                      };
+                      const onMove = (me: MouseEvent) => {
+                        if (!locationDragRef.current) return;
+                        const dx = ((me.clientX - locationDragRef.current.startX) / rect.width) * 100;
+                        const dy = ((me.clientY - locationDragRef.current.startY) / rect.height) * 100;
+                        setLocationPos({
+                          x: Math.min(90, Math.max(10, locationDragRef.current.startPosX + dx)),
+                          y: Math.min(90, Math.max(10, locationDragRef.current.startPosY + dy)),
+                        });
+                      };
+                      const onUp = () => {
+                        locationDragRef.current = null;
+                        window.removeEventListener('mousemove', onMove);
+                        window.removeEventListener('mouseup', onUp);
+                      };
+                      window.addEventListener('mousemove', onMove);
+                      window.addEventListener('mouseup', onUp);
+                    }}
+                  >
+                    <div onClick={() => setLocationTheme((t) => (t + 1) % THEMES.length)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px 5px 7px', borderRadius: 20, background: theme.background, backdropFilter: theme.backdropFilter, border: theme.border, whiteSpace: 'nowrap', cursor: 'pointer', boxShadow: '0 2px 12px rgba(0,0,0,0.35)', transition: 'all 0.2s ease' }}>
+                      <Image src={LocationIcon} alt="location" width={12} height={12} style={{ flexShrink: 0, filter: theme.color === '#1a1a2e' ? 'invert(0)' : 'brightness(0) invert(1)' }} />
+                      <span style={{ color: theme.color, fontSize: 12, fontWeight: theme.fontWeight, fontStyle: theme.fontStyle, textTransform: theme.textTransform, textShadow: theme.textShadow, letterSpacing: theme.letterSpacing, lineHeight: 1.2 }}>{selectedLocation}</span>
+                      <button onClick={(e) => { e.stopPropagation(); setSelectedLocation(null); setLocationTheme(0); }} style={{ marginLeft: 4, background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, color: 'rgba(255,255,255,0.85)', fontSize: 9, lineHeight: 1, flexShrink: 0 }}>✕</button>
+                    </div>
+                    <div style={{ textAlign: 'center', marginTop: 3, fontSize: 9, color: 'rgba(255,255,255,0.3)', pointerEvents: 'none', letterSpacing: 0.2 }}>tap to change style · drag to move</div>
+                  </div>
+                );
+              })()}
+
+              {/* Mention tags overlay */}
+              {selectedMentions.length > 0 && (
+                <div className="absolute top-3 left-3 flex items-center gap-1 px-3 py-1 rounded-full text-white text-[11px] font-medium" style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)", zIndex: 15 }}>
+                  <Users size={11} />
+                  {selectedMentions.length} mentioned
+                </div>
+              )}
+
+              {/* Upload progress */}
+              {uploading && (
+                <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-4" style={{ zIndex: 30 }}>
+                  <Loader2 size={32} className="animate-spin text-[#8860D9]" />
+                  <div className="w-40 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${uploadPct}%`, background: GRADIENT }} />
+                  </div>
+                  <p className="text-white/60 text-[12px]">{uploadPct}%</p>
+                </div>
+              )}
+
+              {/* Remove + Edit/Replace media buttons */}
+              {!uploading && (mediaPreview || textBg) && (
+                <div style={{
+                  position: "absolute",
+                  top:      12,
+                  right:    12,
+                  zIndex:   20,
+                  display:  "flex",
+                  flexDirection: "column",
+                  gap:      6,
+                }}>
+                  {/* Delete button */}
+                  <button
+                    onClick={() => {
+                      setMediaFile(null);
+                      setMediaPreview(null);
+                      setMediaType(null);
+                      setTextLayers([]);
+                      setTextBg(null);
+                    }}
+                    className="w-7 h-7 rounded-full flex items-center justify-center bg-black/50 hover:bg-black/70 transition-all"
+                    title="Remove"
+                  >
+                    <Image src={Delete} alt="remove" width={12} height={12} />
+                  </button>
+
+                  {/* Edit / replace media button */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-7 h-7 rounded-full flex items-center justify-center bg-black/50 hover:bg-black/70 transition-all"
+                    title="Replace media"
+                    style={{ color: "#fff" }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {/* Empty drop zone — shown when no media AND no text */}
+              {!mediaPreview && !textBg && (
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="flex flex-col items-center gap-4 text-white/30 hover:text-white/50 transition-colors group"
                 >
-                  <div
-                    className="w-14 h-14 rounded-full flex items-center justify-center transition-all group-hover:scale-110"
-                    style={{
-                      background: "rgba(255,255,255,0.06)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                    }}
-                  >
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center transition-all group-hover:scale-110" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
                     <Upload size={22} />
                   </div>
                   <div className="text-center">
                     <p className="text-[14px] font-medium">Drop media here</p>
-                    <p className="text-[11px] mt-1 text-white/20">
-                      or click to browse · photo, video
-                    </p>
+                    <p className="text-[11px] mt-1 text-white/20">or click to browse · photo, video</p>
                   </div>
                 </button>
               )}
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,video/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleFile(f);
-                }}
-              />
+              <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             </div>
 
             {/* Music bar — reduced width to match preview */}
@@ -699,6 +953,9 @@ const handlePost = async (target: "story" | "close_friends") => {
                 }}
               >
                 <FluxRightPanel
+                  mediaPreview={mediaPreview}
+                  mediaType={mediaType}
+
                   activeTool={activeTool}
                   selectedSong={selectedSongId}
                   selectedLocation={selectedLocation}
@@ -726,13 +983,80 @@ const handlePost = async (target: "story" | "close_friends") => {
                     }
                     setActiveTool(null);
                   }}
-                  onMentionToggle={handleMentionToggle}
-                  onFilterSelect={setSelectedFilter}
-                  onStickerSelect={() => {}}
+                  onMentionToggle={(id, name, username) => {
+                    setSelectedMentions(prev =>
+                      prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
+                    );
+                  }}
+                  onFilterSelect={(id, value) => {
+                    setSelectedFilter(id);
+                    setSelectedFilterValue(value);
+                  }}
+                  onStickerSelect={(s) => {
+                    takeSnapshot();
+                    setStickerLayers(prev => [...prev, {
+                      id:     `stk_${Date.now()}`,
+                      type:   s.type,
+                      url:    s.url,
+                      x:      50, y: 50,
+                      scale:  1,  rotate: 0,
+                      width:  s.width, height: s.height,
+                    }]);
+                  }}
                   onFontChange={() => {}}
                   onColorChange={() => {}}
                   onAnimationChange={() => {}}
                   onEffectChange={() => {}}
+                  onCreateText={() => {
+                    takeSnapshot();
+                    if (textLayers.length === 0) {
+                      const id = `txt_${Date.now()}`;
+                      const newLayer: TextLayer = {
+                        id, text: "", x: 50, y: 50, scale: 1, rotate: 0,
+                        color: "#ffffff", font: "Inter", align: "center",
+                        fontSize: 32, effect: "none" as const,
+                        animation: "none" as const, highlight: "none" as const,
+                      };
+                      setTextLayers([newLayer]);
+                      setSelectedLayerId(id);
+                      if (!textBg) setTextBg("#1a1a2e");
+                    } else {
+                      setShowTextCanvas(true);
+                    }
+                  }}
+                  textLayers={textLayers}
+                  selectedLayerId={selectedLayerId}
+                  onSelectLayer={setSelectedLayerId}
+                  onUpdateLayer={(id, updates) => {
+                    if (updates._delete) {
+                      takeSnapshot();
+                      setTextLayers(prev => prev.filter(l => l.id !== id));
+                      setSelectedLayerId(null);
+                      return;
+                    }
+                    // Handle new layer from "+ Add new text"
+                    if (updates.__new__) {
+                      takeSnapshot();
+                      const newLayer: TextLayer = {
+                        id:        updates.id,
+                        text:      "",
+                        x:         50, y: 50, scale: 1, rotate: 0,
+                        color:     "#ffffff", font: "Inter", align: "center",
+                        fontSize:  32,
+                        effect:    "none" as const,
+                        animation: "none" as const,
+                        highlight: "none" as const,
+                      };
+                      setTextLayers(prev => [...prev, newLayer]);
+                      setSelectedLayerId(updates.id);
+                      if (!textBg) setTextBg("#1a1a2e");
+                      return;
+                    }
+                    // Normal update
+                    if (updates.text === undefined) takeSnapshot();
+                    setTextLayers(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
+                    if (!textBg) setTextBg("#1a1a2e");
+                  }}
                 />
               </div>
             )}
@@ -755,7 +1079,7 @@ const handlePost = async (target: "story" | "close_friends") => {
 
               <button
                 onClick={() => handlePost("story")}
-                disabled={!mediaFile || uploading}
+                disabled={(!mediaFile && !textBg && textLayers.filter(l=>l.text?.trim()).length === 0) || uploading}
                 className="flex items-center justify-center gap-2 text-white text-[13px] font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{
                   flex: 1,
@@ -777,6 +1101,21 @@ const handlePost = async (target: "story" | "close_friends") => {
           </div>
         </div>
       </main>
+      {showTextCanvas && (
+        <StoryTextCanvas
+          initialLayers={textLayers}
+          initialBg={textBg ?? undefined}
+          onClose={() => setShowTextCanvas(false)}
+          onDone={(layers, bg) => {
+            setTextLayers(layers.filter(l => l.text.trim()));
+            setTextBg(bg);
+            setSelectedLayerId(layers.length > 0 ? layers[layers.length - 1].id : null);
+            setShowTextCanvas(false);
+          }}
+          onLayerChange={(layers) => setTextLayers(layers)}
+          onBgChange={(bg) => setTextBg(bg)}
+        />
+      )}
     </div>
   );
 }

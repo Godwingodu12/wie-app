@@ -2,41 +2,147 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Search, X, Play, Heart, Check, VolumeX } from "lucide-react";
 import Image from "next/image";
-import { searchMusic, getTrendingMusic } from "@/services/mediaService";
+import { searchMusic, getTrendingMusic,mentionFlux } from "@/services/mediaService";
+import { getFollowing }  from "@/services/followService";
+import { searchUsers }   from "@/services/wieUserService";
+import { useAuth }       from "@/hooks/useAuth";
 import { searchLocations, getLocationDetails, categoryIcon } from '@/services/locationService';
 import type { PlaceSuggestion } from '@/services/locationService';
 import type { SpotifyTrack } from "@/types/media";
 import type { FluxTool } from "@/types/flux";
-// ── Dummy data 
-const SONGS = [
-  { id: "1", title: "Pon Veene Duet",   artist: "M G Sreekumer", duration: "2:30", liked: false },
-  { id: "2", title: "Kaderum Komba",    artist: "Jakes Bejoy",   duration: "2:30", liked: true  },
-  { id: "3", title: "Pon Veene Duet",   artist: "M G Sreekumer", duration: "2:30", liked: false },
-  { id: "4", title: "Pon Veene Duet",   artist: "M G Sreekumer", duration: "2:30", liked: false },
-  { id: "5", title: "Pon Veene Duet",   artist: "M G Sreekumer", duration: "2:30", liked: false },
-  { id: "6", title: "Pon Veene Duet",   artist: "M G Sreekumer", duration: "2:30", liked: false },
+interface MUser {
+  id:       string;
+  name:     string;
+  username: string;
+  avatar:   string | null;
+}
+export interface StickerItem {
+  id: string; type: string; url: string;
+  width: number; height: number; title: string;
+}
+
+export const FILTER_PRESETS = [
+  { id: "normal",  name: "Normal",  value: "none" },
+  { id: "warm",    name: "Warm",    value: "brightness(1.1) saturate(1.4) sepia(0.15)" },
+  { id: "cool",    name: "Cool",    value: "contrast(1.15) hue-rotate(200deg) saturate(0.9)" },
+  { id: "vintage", name: "Vintage", value: "sepia(0.55) contrast(0.88) brightness(0.95)" },
+  { id: "bw",      name: "B&W",     value: "grayscale(1) contrast(1.1)" },
+  { id: "bright",  name: "Bright",  value: "brightness(1.3) saturate(1.1)" },
+  { id: "fade",    name: "Fade",    value: "brightness(1.1) saturate(0.7) contrast(0.85)" },
+  { id: "vivid",   name: "Vivid",   value: "saturate(1.8) contrast(1.1)" },
+  { id: "drama",   name: "Drama",   value: "contrast(1.4) brightness(0.9) saturate(1.2)" },
 ];
 
-const LOCATIONS = [
-  "Vismaya Cinemas, Perinthalmanna",
-  "Plaza Movies, Perinthalmanna",
-  "Parambikkulam Tiger Reserve",
-  "Nagarhole Tiger Reserve",
-  "Kabani Tiger Reserve",
-  "Periyar Tiger Reserve",
-];
+function FilterPanel({
+  selectedFilter,
+  onSelect,
+  mediaPreview,
+  mediaType,
+}: {
+  selectedFilter: string;
+  onSelect:       (id: string, value: string) => void;
+  mediaPreview:   string | null;
+  mediaType:      "image" | "video" | null;
+}) {
+  const current = FILTER_PRESETS.find(f => f.id === selectedFilter) ?? FILTER_PRESETS[0];
+  const startX  = useRef(0);
 
-const FILTERS = [
-  { id: "none",  label: "None",            color: null },
-  { id: "star1", label: "Star pattern",    color: "#6B3FA0" },
-  { id: "bw",    label: "Black and white", color: "#222" },
-  { id: "star2", label: "Star pattern",    color: "#5B2D8E" },
-  { id: "star3", label: "Star pattern",    color: "#4A1A7A" },
-  { id: "star4", label: "Star pattern",    color: "#7B3FB5" },
-];
+  const handleTouchStart = (e: React.TouchEvent) => { startX.current = e.touches[0].clientX; };
+  const handleTouchEnd   = (e: React.TouchEvent) => {
+    const diff = startX.current - e.changedTouches[0].clientX;
+    const idx  = FILTER_PRESETS.findIndex(f => f.id === selectedFilter);
+    if (diff > 50 && idx < FILTER_PRESETS.length - 1) onSelect(FILTER_PRESETS[idx + 1].id, FILTER_PRESETS[idx + 1].value);
+    else if (diff < -50 && idx > 0)                    onSelect(FILTER_PRESETS[idx - 1].id, FILTER_PRESETS[idx - 1].value);
+  };
 
-const FILTER_TABS = ["Patterns", "Colours", "Gradient", "Gradient", "Gradient"];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 10 }}>
+      <p style={{ color: "#fff", fontSize: 14, fontWeight: 600, textAlign: "center", flexShrink: 0 }}>
+        Filters · <span style={{ color: "#8860D9" }}>{current.name}</span>
+      </p>
 
+      {/* Live preview */}
+      {mediaPreview && (
+        <div
+          style={{ width: "100%", height: 160, borderRadius: 10, overflow: "hidden", flexShrink: 0, position: "relative" }}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          {mediaType === "video" ? (
+            <video src={mediaPreview} style={{ width: "100%", height: "100%", objectFit: "cover", filter: current.value }} muted autoPlay loop playsInline />
+          ) : (
+            <img src={mediaPreview} style={{ width: "100%", height: "100%", objectFit: "cover", filter: current.value, transition: "filter 0.3s ease" }} alt="preview" />
+          )}
+          <div style={{
+            position: "absolute", bottom: 8, left: "50%", transform: "translateX(-50%)",
+            background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)",
+            padding: "3px 12px", borderRadius: 20,
+            color: "#fff", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
+          }}>
+            {current.name}
+          </div>
+          <p style={{ position: "absolute", bottom: -18, width: "100%", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 9 }}>
+            swipe to change
+          </p>
+        </div>
+      )}
+
+      {!mediaPreview && (
+        <div style={{
+          width: "100%", height: 80, borderRadius: 10, flexShrink: 0,
+          background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.1)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <p style={{ color: "rgba(255,255,255,0.2)", fontSize: 11 }}>Add media to preview filters</p>
+        </div>
+      )}
+
+      {/* Filter thumbnails */}
+      <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, paddingTop: 8 }}>
+          {FILTER_PRESETS.map(f => {
+            const isActive = selectedFilter === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => onSelect(f.id, f.value)}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                  background: "transparent", border: "none", cursor: "pointer", padding: 2,
+                }}
+              >
+                <div style={{
+                  width: "100%", aspectRatio: "1", borderRadius: 8, overflow: "hidden",
+                  border: isActive ? "2px solid #8860D9" : "2px solid rgba(255,255,255,0.1)",
+                  background: "#111",
+                  boxShadow: isActive ? "0 0 8px rgba(136,96,217,0.6)" : "none",
+                  transition: "border 0.15s, box-shadow 0.15s",
+                }}>
+                  {mediaPreview && !mediaPreview.startsWith("linear") && !mediaPreview.startsWith("radial") ? (
+                    <img
+                      src={mediaPreview}
+                      alt={f.name}
+                      style={{ width: "100%", height: "100%", objectFit: "cover", filter: f.value }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: "100%", height: "100%",
+                      background: `linear-gradient(135deg, rgba(136,96,217,0.4), rgba(179,184,226,0.3))`,
+                      filter: f.value,
+                    }} />
+                  )}
+                </div>
+                <span style={{ color: isActive ? "#fff" : "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: isActive ? 700 : 400 }}>
+                  {f.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 const STICKER_EMOJIS = ["🍀", "🎩", "🏅", "☘️", "🌈", "📅", "🛢️", "🎫", "🍺", "🧝", "⛑️", "🎈", "❤️", "🪙", "🪄", "🎺", "🎟️", "🎟️", "🎟️", "🎟️"];
 
 const FONT_STYLES = ["SF Pro", "Roboto", "Road Rage", "SF Pro", "SF Pro"];
@@ -323,85 +429,6 @@ function MusicPanel({
   );
 }
 
-function FilterPanel({
-  selectedFilter,
-  onSelect,
-}: {
-  selectedFilter: string;
-  onSelect: (id: string) => void;
-}) {
-  const [tab, setTab] = useState(0);
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Filter tab bar */}
-      <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide pb-1">
-        {FILTER_TABS.map((t, i) => (
-          <button
-            key={i}
-            onClick={() => setTab(i)}
-            className="flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-medium transition-all"
-            style={{
-              background: tab === i ? "rgba(255,255,255,0.15)" : "transparent",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.15)",
-            }}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {/* Filter list */}
-      <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col gap-3">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => onSelect(f.id)}
-            className="flex items-center gap-4 p-2 rounded-xl transition-all text-left"
-            style={{
-              border:
-                selectedFilter === f.id
-                  ? "2px solid #8860D9"
-                  : "2px solid transparent",
-            }}
-          >
-            <div
-              className="w-11 h-11 rounded-full flex-shrink-0 flex items-center justify-center"
-              style={{
-                background:
-                  f.color ||
-                  "rgba(255,255,255,0.08)",
-                border:
-                  selectedFilter === f.id
-                    ? "2px solid #fff"
-                    : "1px solid rgba(255,255,255,0.2)",
-              }}
-            >
-              {f.id === "none" && (
-                <span className="text-white/50 text-[18px]">∅</span>
-              )}
-            </div>
-            <span className="text-white text-[14px]">{f.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Bottom bar */}
-      <div className="flex items-center justify-between pt-4 mt-2 border-t border-white/10">
-        <button className="text-white/50 hover:text-white transition-colors">
-          <span className="text-[20px]">🗑️</span>
-        </button>
-        <button
-          className="px-5 py-2 rounded-full text-white text-[13px] font-semibold"
-          style={{ background: "rgba(255,255,255,0.1)" }}
-        >
-          Done
-        </button>
-      </div>
-    </div>
-  );
-}
 type LocationSelectDetails = {
   placeId?:  string;
   lat?:      number;
@@ -759,90 +786,175 @@ function MentionPanel({
   onToggle,
 }: {
   selectedMentions: string[];
-  onToggle: (id: string) => void;
+  onToggle: (id: string, name: string, username: string) => void;
 }) {
-  const [query, setQuery] = useState("");
-  const filtered = FOLLOWERS.filter(
-    (f) =>
-      f.name.toLowerCase().includes(query.toLowerCase()) ||
-      f.username.toLowerCase().includes(query.toLowerCase())
-  );
+  const { user }    = useAuth(true);
+  const [query,     setQuery]     = useState("");
+  const [following, setFollowing] = useState<MUser[]>([]);
+  const [searchRes, setSearchRes] = useState<MUser[]>([]);
+  const [loadingF,  setLoadingF]  = useState(false);
+  const [loadingS,  setLoadingS]  = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // Load following on mount
+  useEffect(() => {
+    if (!user?.id) return;
+    setLoadingF(true);
+    getFollowing(user.id)
+      .then((res: any) => {
+        const list: MUser[] = (res.following ?? res.data ?? []).map((u: any) => ({
+          id:       u._id   ?? u.id,
+          name:     u.name  ?? u.fullName ?? u.username ?? "",
+          username: u.username ?? "",
+          avatar:   u.profilePicture ?? u.profile_picture ?? null,
+        }));
+        setFollowing(list);
+      })
+      .catch(() => setFollowing([]))
+      .finally(() => setLoadingF(false));
+  }, [user?.id]);
+
+  // Debounced search — restricted to following
+  useEffect(() => {
+    clearTimeout(searchTimer.current);
+    if (!query.trim()) { setSearchRes([]); return; }
+    setLoadingS(true);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const res = await searchUsers(query.trim());
+        const found: MUser[] = (res.users ?? res.data ?? []).map((u: any) => ({
+          id:       u._id   ?? u.id,
+          name:     u.name  ?? u.fullName ?? u.username ?? "",
+          username: u.username ?? "",
+          avatar:   u.profilePicture ?? u.profile_picture ?? null,
+        }));
+        const followingIds = new Set(following.map(f => f.id));
+        setSearchRes(found.filter(u => followingIds.has(u.id)));
+      } catch {
+        setSearchRes([]);
+      } finally {
+        setLoadingS(false);
+      }
+    }, 350);
+    return () => clearTimeout(searchTimer.current);
+  }, [query, following]);
+
+  const displayList = query.trim() ? searchRes : following;
+  const loading     = query.trim() ? loadingS : loadingF;
+  const pickedUsers = following.filter(u => selectedMentions.includes(u.id));
+  const PILL        = "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)";
 
   return (
-    <div className="flex flex-col h-full">
-      <h3 className="text-white font-semibold text-[16px] text-center mb-4">
-        Add mentions
-      </h3>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 10 }}>
+      <p style={{ color: "#fff", fontSize: 14, fontWeight: 600, textAlign: "center", flexShrink: 0 }}>
+        Mention people
+      </p>
 
       {/* Selected chips */}
-      {selectedMentions.length > 0 && (
-        <div className="flex items-center gap-2 mb-4 overflow-x-auto scrollbar-hide pb-1">
-          <button className="text-white/40 flex-shrink-0">{"<"}</button>
-          {selectedMentions.map((id) => {
-            const user = FOLLOWERS.find((f) => f.id === id);
-            if (!user) return null;
-            return (
-              <div key={id} className="flex flex-col items-center gap-1 flex-shrink-0">
-                <div className="relative">
-                  <div
-                    className="w-10 h-10 rounded-full"
-                    style={{ background: "linear-gradient(135deg,#6B3FA0,#2979FF)" }}
-                  />
-                  <button
-                    onClick={() => onToggle(id)}
-                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white/20 flex items-center justify-center"
-                  >
-                    <X size={8} className="text-white" />
-                  </button>
+      {pickedUsers.length > 0 && (
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none", flexShrink: 0, paddingBottom: 4 }}>
+          {pickedUsers.map(u => (
+            <div key={u.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flexShrink: 0 }}>
+              <div style={{ position: "relative" }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: "50%",
+                  background: "linear-gradient(135deg,#6B3FA0,#2979FF)", overflow: "hidden",
+                }}>
+                  {u.avatar && <img src={u.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                 </div>
-                <span className="text-white/60 text-[10px]">{user.name}</span>
+                <button
+                  onClick={() => onToggle(u.id, u.name, u.username)}
+                  style={{
+                    position: "absolute", top: -3, right: -3,
+                    width: 14, height: 14, borderRadius: "50%",
+                    background: "#FF3B30", border: "1px solid #fff",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", color: "#fff", fontSize: 8, padding: 0,
+                  }}
+                >✕</button>
               </div>
-            );
-          })}
-          <button className="text-white/40 flex-shrink-0">{">"}</button>
+              <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 9, maxWidth: 40, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                @{u.username}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
       {/* Search */}
-      <div
-        className="flex items-center gap-2 px-4 py-2.5 mb-4 rounded-xl"
-        style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}
-      >
-        <Search size={14} className="text-white/40" />
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "8px 12px", borderRadius: 10, flexShrink: 0,
+        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+      }}>
+        <Search size={13} color="rgba(255,255,255,0.35)" style={{ flexShrink: 0 }} />
         <input
-          className="flex-1 bg-transparent text-white text-[13px] outline-none placeholder:text-white/40"
-          placeholder="Search here.."
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search people you follow…"
+          style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 12 }}
         />
+        {query && (
+          <button onClick={() => setQuery("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+            <X size={11} color="rgba(255,255,255,0.4)" />
+          </button>
+        )}
       </div>
 
+      <p style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, textAlign: "center", flexShrink: 0 }}>
+        Only people you follow can be mentioned
+      </p>
+
       {/* User list */}
-      <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col gap-2">
-        {filtered.map((user) => {
-          const isSelected = selectedMentions.includes(user.id);
+      <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none", display: "flex", flexDirection: "column", gap: 2 }}>
+        {loading && (
+          <div style={{ display: "flex", justifyContent: "center", paddingTop: 20 }}>
+            <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid #8860D9", borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
+            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          </div>
+        )}
+        {!loading && displayList.length === 0 && (
+          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, textAlign: "center", paddingTop: 20 }}>
+            {query ? "No matching people in your following" : "You are not following anyone yet"}
+          </p>
+        )}
+        {!loading && displayList.map(u => {
+          const isSel = selectedMentions.includes(u.id);
           return (
             <button
-              key={user.id}
-              onClick={() => onToggle(user.id)}
-              className="flex items-center gap-3 p-2 rounded-xl text-left transition-all"
+              key={u.id}
+              onClick={() => onToggle(u.id, u.name, u.username)}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "8px 8px", borderRadius: 10, width: "100%",
+                textAlign: "left", cursor: "pointer",
+                background: isSel ? "rgba(136,96,217,0.2)" : "transparent",
+                border: isSel ? "1px solid rgba(136,96,217,0.4)" : "1px solid transparent",
+                transition: "background 0.15s",
+              }}
             >
-              <div
-                className="w-10 h-10 rounded-full flex-shrink-0"
-                style={{ background: "linear-gradient(135deg,#6B3FA0,#2979FF)" }}
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-[14px] font-semibold">{user.name}</p>
-                <p className="text-white/50 text-[12px]">{user.username}</p>
+              <div style={{
+                width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                background: "linear-gradient(135deg,#6B3FA0,#2979FF)", overflow: "hidden",
+              }}>
+                {u.avatar && <img src={u.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
               </div>
-              <div
-                className="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all"
-                style={{
-                  background: isSelected ? GRADIENT : "transparent",
-                  borderColor: isSelected ? "transparent" : "rgba(255,255,255,0.3)",
-                }}
-              >
-                {isSelected && <Check size={12} className="text-white" />}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ color: "#fff", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {u.name}
+                </p>
+                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  @{u.username}
+                </p>
+              </div>
+              <div style={{
+                width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: isSel ? PILL : "rgba(255,255,255,0.08)",
+                border: isSel ? "none" : "1px solid rgba(255,255,255,0.2)",
+                transition: "background 0.15s",
+              }}>
+                {isSel && <Check size={10} color="#fff" />}
               </div>
             </button>
           );
@@ -852,56 +964,103 @@ function MentionPanel({
   );
 }
 
-function StickerPanel({ onSelect }: { onSelect: (emoji: string) => void }) {
-  const [tab, setTab]     = useState<"foryou" | "trending">("foryou");
-  const [query, setQuery] = useState("");
+function StickerPanel({ onSelect }: { onSelect: (s: StickerItem) => void }) {
+  const [tab,     setTab]     = useState<"trending" | "search">("trending");
+  const [query,   setQuery]   = useState("");
+  const [stickers,setStickers]= useState<StickerItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  const loadTrending = () => {
+    setLoading(true);
+    import("@/services/mediaService")
+      .then(m => m.getTrendingStickers())
+      .then(setStickers).catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadTrending(); }, []);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) { loadTrending(); return; }
+    debounceRef.current = setTimeout(() => {
+      setLoading(true);
+      import("@/services/mediaService")
+        .then(m => m.searchStickers(query.trim()))
+        .then(setStickers).catch(() => {})
+        .finally(() => setLoading(false));
+    }, 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query]);
+
+  const PILL = "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)";
 
   return (
-    <div className="flex flex-col h-full">
-      <h3 className="text-white font-semibold text-[16px] text-center mb-4">
-        Add stickers
-      </h3>
-      <div
-        className="flex items-center gap-2 px-4 py-2.5 mb-4 rounded-xl"
-        style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}
-      >
-        <Search size={14} className="text-white/40" />
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 10 }}>
+      <p style={{ color: "#fff", fontSize: 14, fontWeight: 600, textAlign: "center", flexShrink: 0 }}>Add sticker</p>
+
+      {/* Search */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "8px 12px", borderRadius: 10, flexShrink: 0,
+        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+      }}>
+        <Search size={13} color="rgba(255,255,255,0.35)" style={{ flexShrink: 0 }} />
         <input
-          className="flex-1 bg-transparent text-white text-[13px] outline-none placeholder:text-white/40"
-          placeholder="Search your stickers"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={e => { setQuery(e.target.value); setTab("search"); }}
+          placeholder="Search GIFs & stickers…"
+          style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 12 }}
         />
+        {query && (
+          <button onClick={() => { setQuery(""); setTab("trending"); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+            <X size={11} color="rgba(255,255,255,0.4)" />
+          </button>
+        )}
       </div>
-      <div className="flex gap-2 mb-4">
-        {(["foryou", "trending"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className="px-4 py-1.5 rounded-full text-[12px] font-medium transition-all"
-            style={{
-              background: tab === t ? "rgba(255,255,255,0.15)" : "transparent",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.15)",
-            }}
-          >
-            {t === "foryou" ? "For you" : "Trending"}
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+        {(["trending", "search"] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 500,
+            cursor: "pointer", border: "none",
+            background: tab === t ? PILL : "rgba(255,255,255,0.08)",
+            color: "#fff",
+          }}>
+            {t === "trending" ? "🔥 Trending" : "🔍 Search"}
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto scrollbar-hide">
-        <div className="grid grid-cols-4 gap-3">
-          {STICKER_EMOJIS.map((emoji, i) => (
-            <button
-              key={i}
-              onClick={() => onSelect(emoji)}
-              className="aspect-square rounded-xl flex items-center justify-center text-[28px] transition-all hover:scale-110 hover:bg-white/10"
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
+
+      {/* Grid */}
+      <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none" }}>
+        {loading ? (
+          <div style={{ display: "flex", justifyContent: "center", paddingTop: 24 }}>
+            <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid #8860D9", borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
+          </div>
+        ) : stickers.length === 0 ? (
+          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, textAlign: "center", paddingTop: 20 }}>No stickers found</p>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+            {stickers.map(s => (
+              <button
+                key={s.id}
+                onClick={() => onSelect(s)}
+                style={{
+                  aspectRatio: "1", borderRadius: 10, overflow: "hidden",
+                  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)",
+                  cursor: "pointer", padding: 0,
+                }}
+              >
+                <img src={s.url} alt={s.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
@@ -911,154 +1070,386 @@ function TextPanel({
   onColorChange,
   onAnimationChange,
   onEffectChange,
+  onCreateText,
+  textLayers,
+  selectedLayerId,
+  onSelectLayer,
+  onUpdateLayer,
 }: {
-  onFontChange: (f: string) => void;
-  onColorChange: (c: string) => void;
+  onFontChange:      (f: string) => void;
+  onColorChange:     (c: string) => void;
   onAnimationChange: (a: string) => void;
-  onEffectChange: (e: string) => void;
+  onEffectChange:    (e: string) => void;
+  onCreateText:      () => void;
+  textLayers:        any[];
+  selectedLayerId:   string | null;
+  onSelectLayer:     (id: string) => void;
+  onUpdateLayer:     (id: string, updates: any) => void;
 }) {
-  const [selectedFont,      setSelectedFont]      = useState(0);
-  const [selectedColor,     setSelectedColor]     = useState(0);
-  const [selectedAnimation, setSelectedAnimation] = useState(0);
-  const [selectedEffect,    setSelectedEffect]    = useState(0);
+  // Always read fresh from textLayers — never cache in local var
+  const getSelected = () => textLayers.find(l => l.id === selectedLayerId) ?? null;
+  const selected = getSelected();
+
+  const FONTS = ["Inter", "Poppins", "Courier New", "Georgia", "Impact"];
+  const FONT_LABELS = ["Inter", "Poppins", "Typewriter", "Serif", "Bold"];
+  const COLORS_LIST = [
+    "#ffffff","#000000","#FF3B30","#FF9500","#FFCC00",
+    "#34C759","#007AFF","#5856D6","#FF2D55","#AF52DE",
+    "#ff6b6b","#feca57","#48dbfb","#ff9ff3","#54a0ff",
+  ];
+  const ANIMS = [
+    { id: "none",    label: "None"   },
+    { id: "fade",    label: "Fade"   },
+    { id: "slideUp", label: "Slide↑" },
+    { id: "zoom",    label: "Zoom"   },
+    { id: "bounce",  label: "Bounce" },
+    { id: "pulse",   label: "Pulse"  },
+  ];
+  const EFFECTS = [
+    { id: "none",      label: "None"      },
+    { id: "neon",      label: "Neon"      },
+    { id: "gradient",  label: "Gradient"  },
+    { id: "shadow",    label: "Shadow"    },
+    { id: "highlight", label: "Highlight" },
+  ];
+
+  const update = (updates: any) => {
+    if (!selected) return;
+    onUpdateLayer(selected.id, updates);
+  };
 
   return (
-    <div className="flex flex-col gap-6 h-full">
-      {/* Font styles */}
+    <div
+      className="flex flex-col gap-4 h-full overflow-y-auto"
+      style={{ scrollbarWidth: "none" }}
+    >
+      {/* ── Live text textarea */}
       <div>
-        <p className="text-white text-[14px] font-semibold mb-3">Font styles</p>
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-          {FONT_STYLES.map((f, i) => (
-            <button
-              key={i}
-              onClick={() => { setSelectedFont(i); onFontChange(f); }}
-              className="flex-shrink-0 px-4 py-2 rounded-full text-[12px] font-medium transition-all"
-              style={{
-                background: selectedFont === i ? "rgba(255,255,255,0.18)" : "transparent",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.2)",
-                fontFamily: f === "Road Rage" ? "serif" : "sans-serif",
-                fontWeight: f === "Road Rage" ? 800 : 500,
-              }}
-            >
-              {f}
-            </button>
-          ))}
+        <p className="text-white text-[12px] font-semibold mb-2 opacity-60">
+          {textLayers.length === 0 ? "Add text" : selected ? "Editing layer" : "Select a layer below"}
+        </p>
+        <textarea
+          value={selected?.text ?? ""}
+          onChange={(e) => {
+            if (!selected) { onCreateText(); return; }
+            update({ text: e.target.value });
+          }}
+          onFocus={() => { if (textLayers.length === 0) onCreateText(); }}
+          placeholder="Tap here to start typing…"
+          rows={3}
+          style={{
+            width:        "100%",
+            background:   selected ? "rgba(136,96,217,0.08)" : "rgba(255,255,255,0.06)",
+            border:       `1px solid ${selected ? "rgba(136,96,217,0.6)" : "rgba(255,255,255,0.12)"}`,
+            borderRadius: 10,
+            color:        "#fff",
+            fontSize:     13,
+            padding:      "8px 10px",
+            outline:      "none",
+            resize:       "none",
+            fontFamily:   selected?.font ?? "Inter",
+            boxSizing:    "border-box",
+            transition:   "border-color 0.2s, background 0.2s",
+          }}
+        />
+        {!selected && textLayers.length > 0 && (
+          <p style={{ color: "rgba(136,96,217,0.7)", fontSize: 10, marginTop: 4 }}>
+            👆 Click a text on the preview or select a layer below
+          </p>
+        )}
+        {textLayers.length === 0 && (
+          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 10, marginTop: 4 }}>
+            Click the textarea above or press + Add Text
+          </p>
+        )}
+      </div>
+
+      {/* ── Font size */}
+      <div style={{ opacity: selected ? 1 : 0.35, pointerEvents: selected ? "auto" : "none" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+          <p className="text-white text-[12px] font-semibold opacity-60">Size</p>
+          <span style={{ color: "#8860D9", fontSize: 12, fontWeight: 700 }}>
+            {selected?.fontSize ?? 32}px
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            onClick={() => update({ fontSize: Math.max(12, (selected?.fontSize ?? 32) - 4) })}
+            style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >−</button>
+          <input
+            type="range" min={12} max={80}
+            value={selected?.fontSize ?? 32}
+            onChange={(e) => update({ fontSize: Number(e.target.value) })}
+            style={{ flex: 1, accentColor: "#8860D9" }}
+          />
+          <button
+            onClick={() => update({ fontSize: Math.min(80, (selected?.fontSize ?? 32) + 4) })}
+            style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >+</button>
         </div>
       </div>
 
-      {/* Font colors */}
-      <div>
-        <p className="text-white text-[14px] font-semibold mb-3">Font colours</p>
-        <div className="flex gap-3 flex-wrap">
-          {FONT_COLORS.map((color, i) => (
-            <button
-              key={i}
-              onClick={() => { setSelectedColor(i); onColorChange(color); }}
-              className="transition-all hover:scale-110"
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: "50%",
-                background: color.startsWith("conic") ? color : color,
-                border: selectedColor === i ? "2px solid #fff" : "2px solid transparent",
-                outline: selectedColor === i ? "2px solid rgba(255,255,255,0.4)" : "none",
-              }}
-            >
-              {i === 0 && (
-                <span className="text-[14px] text-white/60">✎</span>
-              )}
-            </button>
-          ))}
+      {/* ── Font */}
+      <div style={{ opacity: selected ? 1 : 0.35, pointerEvents: selected ? "auto" : "none" }}>
+        <p className="text-white text-[12px] font-semibold mb-2 opacity-60">Font</p>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none" }}>
+          {FONTS.map((f, i) => {
+            const isActive = selected?.font === f;
+            return (
+              <button
+                key={f}
+                onClick={() => { onFontChange(f); update({ font: f }); }}
+                style={{
+                  flexShrink:   0,
+                  padding:      "6px 12px",
+                  borderRadius: 20,
+                  fontSize:     11,
+                  fontFamily:   f,
+                  cursor:       "pointer",
+                  border:       "none",
+                  background:   isActive ? "rgba(136,96,217,0.5)" : "rgba(255,255,255,0.08)",
+                  color:        "#fff",
+                  outline:      isActive ? "2px solid #8860D9" : "none",
+                  outlineOffset: 1,
+                  whiteSpace:   "nowrap",
+                  transition:   "background 0.15s",
+                }}
+              >
+                {FONT_LABELS[i]}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Animations */}
-      <div>
-        <p className="text-white text-[14px] font-semibold mb-3">Animations</p>
-        <div className="flex gap-2 flex-wrap">
-          {ANIMATIONS.map((a, i) => (
-            <button
-              key={i}
-              onClick={() => { setSelectedAnimation(i); onAnimationChange(a); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all"
-              style={{
-                background: selectedAnimation === i ? "rgba(255,255,255,0.18)" : "transparent",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.2)",
-              }}
-            >
-              {i === 0 && "⊘"} {i === 1 && "→"} {i === 2 && "←"} {i === 3 && "↓"} {i === 4 && "↑"}
-              {a}
-            </button>
-          ))}
+      {/* ── Color */}
+      <div style={{ opacity: selected ? 1 : 0.35, pointerEvents: selected ? "auto" : "none" }}>
+        <p className="text-white text-[12px] font-semibold mb-2 opacity-60">Text Color</p>
+        <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+          {COLORS_LIST.map((c) => {
+            const isActive = selected?.color === c;
+            return (
+              <button
+                key={c}
+                onClick={() => { onColorChange(c); update({ color: c }); }}
+                style={{
+                  width:        28,
+                  height:       28,
+                  borderRadius: "50%",
+                  background:   c,
+                  border:       isActive ? "3px solid #fff" : "2px solid rgba(255,255,255,0.15)",
+                  cursor:       "pointer",
+                  boxShadow:    isActive ? "0 0 0 2px #8860D9" : "none",
+                  transition:   "box-shadow 0.15s, border 0.15s",
+                }}
+              />
+            );
+          })}
         </div>
       </div>
 
-      {/* Text effects */}
-      <div>
-        <p className="text-white text-[14px] font-semibold mb-3">Text effects</p>
-        <div className="flex gap-2 flex-wrap">
-          {TEXT_EFFECTS.map((e, i) => (
-            <button
-              key={i}
-              onClick={() => { setSelectedEffect(i); onEffectChange(e); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all"
-              style={{
-                background: selectedEffect === i ? GRADIENT : "transparent",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.2)",
-              }}
-            >
-              {i === 0 && "⊘"} {i === 1 && "✦"} {i === 2 && "▣"} {i === 3 && "◉"} {i === 4 && "↑"}
-              {e}
-            </button>
-          ))}
+      {/* ── Alignment */}
+      <div style={{ opacity: selected ? 1 : 0.35, pointerEvents: selected ? "auto" : "none" }}>
+        <p className="text-white text-[12px] font-semibold mb-2 opacity-60">Align</p>
+        <div style={{ display: "flex", gap: 6 }}>
+          {(["left", "center", "right"] as const).map(a => {
+            const isActive = (selected?.align ?? "center") === a;
+            return (
+              <button
+                key={a}
+                onClick={() => update({ align: a })}
+                style={{
+                  flex:         1,
+                  padding:      "7px 0",
+                  borderRadius: 8,
+                  background:   isActive ? "rgba(136,96,217,0.45)" : "rgba(255,255,255,0.08)",
+                  border:       isActive ? "1px solid #8860D9" : "1px solid rgba(255,255,255,0.1)",
+                  color:        isActive ? "#fff" : "rgba(255,255,255,0.55)",
+                  fontSize:     16,
+                  cursor:       "pointer",
+                  transition:   "background 0.15s, border 0.15s",
+                  fontWeight:   isActive ? 700 : 400,
+                }}
+              >
+                {a === "left" ? "⬅" : a === "center" ? "↔" : "➡"}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Bottom bar */}
-      <div className="flex items-center justify-between pt-4 mt-auto border-t border-white/10">
-        <button className="text-white/50 hover:text-white">
-          <span className="text-[20px]">🗑️</span>
-        </button>
-        <button className="text-white/50 hover:text-white">
-          <span className="text-[20px]">☰</span>
-        </button>
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-[14px]"
-          style={{ background: GRADIENT }}
-        >
-          T
+      {/* ── Animation */}
+      <div style={{ opacity: selected ? 1 : 0.35, pointerEvents: selected ? "auto" : "none" }}>
+        <p className="text-white text-[12px] font-semibold mb-2 opacity-60">Animation</p>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {ANIMS.map(a => {
+            const isActive = (selected?.animation ?? "none") === a.id;
+            return (
+              <button
+                key={a.id}
+                onClick={() => { onAnimationChange(a.id); update({ animation: a.id }); }}
+                style={{
+                  padding:      "5px 10px",
+                  borderRadius: 20,
+                  fontSize:     11,
+                  cursor:       "pointer",
+                  border:       isActive ? "1px solid #8860D9" : "1px solid rgba(255,255,255,0.12)",
+                  background:   isActive ? "rgba(136,96,217,0.5)" : "rgba(255,255,255,0.07)",
+                  color:        "#fff",
+                  transition:   "background 0.15s, border 0.15s",
+                  fontWeight:   isActive ? 700 : 400,
+                }}
+              >
+                {a.label}
+              </button>
+            );
+          })}
         </div>
+      </div>
+
+      {/* ── Effect */}
+      <div style={{ opacity: selected ? 1 : 0.35, pointerEvents: selected ? "auto" : "none" }}>
+        <p className="text-white text-[12px] font-semibold mb-2 opacity-60">Effect</p>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {EFFECTS.map(ef => {
+            const isActive = (selected?.effect ?? "none") === ef.id;
+            return (
+              <button
+                key={ef.id}
+                onClick={() => { onEffectChange(ef.id); update({ effect: ef.id }); }}
+                style={{
+                  padding:      "5px 10px",
+                  borderRadius: 20,
+                  fontSize:     11,
+                  cursor:       "pointer",
+                  border:       isActive ? "1px solid #8860D9" : "1px solid rgba(255,255,255,0.12)",
+                  background:   isActive ? "rgba(136,96,217,0.5)" : "rgba(255,255,255,0.07)",
+                  color:        "#fff",
+                  transition:   "background 0.15s, border 0.15s",
+                  fontWeight:   isActive ? 700 : 400,
+                }}
+              >
+                {ef.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Delete selected layer */}
+      {selected && (
         <button
-          className="px-5 py-2 rounded-full text-white text-[13px] font-semibold"
-          style={{ background: "rgba(255,255,255,0.1)" }}
+          onClick={() => {
+            onUpdateLayer(selected.id, { _delete: true });
+          }}
+          style={{
+            padding: "6px 0", borderRadius: 8,
+            background: "rgba(255,59,48,0.15)", border: "1px solid rgba(255,59,48,0.3)",
+            color: "#FF3B30", fontSize: 12, cursor: "pointer", fontWeight: 600,
+          }}
         >
-          Done
+          🗑 Delete this text
+        </button>
+      )}
+
+      {/* ── Layer list */}
+      {textLayers.length > 0 && (
+        <div>
+          <p className="text-white text-[12px] font-semibold mb-2 opacity-60">
+            Layers ({textLayers.length})
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {textLayers.map((l, i) => {
+              const isActive = selectedLayerId === l.id;
+              return (
+                <button
+                  key={l.id}
+                  onClick={() => onSelectLayer(l.id)}
+                  style={{
+                    padding:      "7px 10px",
+                    borderRadius: 8,
+                    background:   isActive ? "rgba(136,96,217,0.3)" : "rgba(255,255,255,0.06)",
+                    border:       isActive ? "1px solid #8860D9" : "1px solid rgba(255,255,255,0.08)",
+                    color:        "#fff",
+                    fontSize:     11,
+                    textAlign:    "left",
+                    cursor:       "pointer",
+                    overflow:     "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace:   "nowrap",
+                    display:      "flex",
+                    alignItems:   "center",
+                    gap:          6,
+                  }}
+                >
+                  <span style={{ opacity: 0.4, fontSize: 9 }}>T</span>
+                  {l.text || `Text layer ${i + 1}`}
+                  {isActive && <span style={{ marginLeft: "auto", color: "#8860D9", fontSize: 9 }}>● editing</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Text + Open Full Editor */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: "auto", paddingTop: 8 }}>
+        <button
+          onClick={() => {
+            const id = `txt_${Date.now()}`;
+            onUpdateLayer("__new__", { __new__: true, id });
+            onCreateText();
+          }}
+          style={{
+            width: "100%", height: 36, borderRadius: 18,
+            background: "rgba(255,255,255,0.1)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+          }}
+        >
+          + Add new text
+        </button>
+        <button
+          onClick={onCreateText}
+          style={{
+            width: "100%", height: 38, borderRadius: 19,
+            background: GRADIENT, border: "none", color: "#fff",
+            fontSize: 13, fontWeight: 700, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}
+        >
+          ✏️ Open Full Editor
         </button>
       </div>
     </div>
   );
 }
-
 //  Main Export 
 
 interface FluxRightPanelProps {
-  activeTool: FluxTool;
-  selectedSong: string | null;
+  activeTool:       FluxTool;
+  selectedSong:     string | null;
   selectedLocation: string | null;
   selectedMentions: string[];
-  selectedFilter: string;
-  onSongSelect: (id: string, title: string, artist: string, previewUrl: string | null, albumArt: string | null) => void;
-  onLocationSelect:  (loc: string, details?: { placeId?: string; lat?: number; lng?: number; category?: string }) => void;
-  onMentionToggle: (id: string) => void;
-  onFilterSelect: (id: string) => void;
-  onStickerSelect: (emoji: string) => void;
-  onFontChange: (f: string) => void;
-  onColorChange: (c: string) => void;
-  onAnimationChange: (a: string) => void;
-  onEffectChange: (e: string) => void;
+  selectedFilter:   string;
+  mediaPreview:     string | null;
+  mediaType:        "image" | "video" | null;
+  onSongSelect:     (id: string, title: string, artist: string, previewUrl: string | null, albumArt: string | null) => void;
+  onLocationSelect: (loc: string, details?: { placeId?: string; lat?: number; lng?: number; category?: string }) => void;
+  onMentionToggle:  (id: string, name: string, username: string) => void;
+  onFilterSelect:   (id: string, value: string) => void;
+  onStickerSelect:  (s: StickerItem) => void;
+  onFontChange:     (f: string) => void;
+  onColorChange:    (c: string) => void;
+  onAnimationChange:(a: string) => void;
+  onEffectChange:   (e: string) => void;
+  onCreateText:     () => void;
+  textLayers:       any[];
+  selectedLayerId:  string | null;
+  onSelectLayer:    (id: string) => void;
+  onUpdateLayer:    (id: string, updates: any) => void;
 }
 
 export default function FluxRightPanel({
@@ -1067,6 +1458,8 @@ export default function FluxRightPanel({
   selectedLocation,
   selectedMentions,
   selectedFilter,
+  mediaPreview,
+  mediaType,
   onSongSelect,
   onLocationSelect,
   onMentionToggle,
@@ -1076,6 +1469,11 @@ export default function FluxRightPanel({
   onColorChange,
   onAnimationChange,
   onEffectChange,
+  onCreateText,
+  textLayers,
+  selectedLayerId,
+  onSelectLayer,
+  onUpdateLayer,
 }: FluxRightPanelProps) {
   if (!activeTool) return null;
 
@@ -1087,10 +1485,12 @@ return (
           onSelect={onSongSelect}
         />
       )}
-      {activeTool === "filter"   && (
+      {activeTool === "filter" && (
         <FilterPanel
           selectedFilter={selectedFilter}
           onSelect={onFilterSelect}
+          mediaPreview={mediaPreview}
+          mediaType={mediaType}
         />
       )}
       {activeTool === "location" && (
@@ -1099,21 +1499,26 @@ return (
           onSelect={(loc, details) => onLocationSelect(loc, details)}
         />
       )}
-      {activeTool === "mention"  && (
+      {activeTool === "mention" && (
         <MentionPanel
           selectedMentions={selectedMentions}
           onToggle={onMentionToggle}
         />
       )}
-      {activeTool === "sticker"  && (
+      {activeTool === "sticker" && (
         <StickerPanel onSelect={onStickerSelect} />
       )}
-      {activeTool === "text"     && (
+      {activeTool === "text" && (
         <TextPanel
           onFontChange={onFontChange}
           onColorChange={onColorChange}
           onAnimationChange={onAnimationChange}
           onEffectChange={onEffectChange}
+          onCreateText={onCreateText}
+          textLayers={textLayers}
+          selectedLayerId={selectedLayerId}
+          onSelectLayer={onSelectLayer}
+          onUpdateLayer={onUpdateLayer}
         />
       )}
     </div>

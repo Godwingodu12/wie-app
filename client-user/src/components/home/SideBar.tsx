@@ -12,6 +12,7 @@ import NotificationsIcon from "@/assets/Home/NotificationsIcon.svg";
 import EventsIcon from "@/assets/Home/EventsIcon.svg";
 import SettingsIcon from "@/assets/Home/SettingsIcon.svg";
 import { getUserNotifications ,markAllNotificationsAsRead} from "@/services/notificationService";
+import { getProfileStatus } from '@/services/connectionService';
 import { getUnreadUsersCount } from "@/services/chatService"; 
 import realtimeNotificationService from "@/services/realtimeNotificationService";
 import { getFollowStats } from "@/services/followService";
@@ -246,8 +247,8 @@ const SideBar: React.FC = () => {
 
   const mobileNavItems = mainNavItems.slice(0, 5);
 
-  const handleNavClick = (path: string) => {
-    if (path === "/notification") {
+  const handleNavClick = async (path: string) => {
+    if (path === '/notification') {
       const opening = !isNotificationOpen;
       setIsNotificationOpen(opening);
       if (opening) {
@@ -257,6 +258,28 @@ const SideBar: React.FC = () => {
         );
       }
       return;
+    }
+    if (path === '/connections') {
+        try {
+          const status = await getProfileStatus();
+    
+          if (!status.hasProfile) {
+            router.push('/connections?step=1');
+            return;
+          }
+          if (status.isComplete) {
+            router.push('/connections?section=purpose-selection');
+            return;
+          }
+          router.push(
+            `/connections?step=${status.resumeStep}&faceVerified=${status.faceVerified ?? false}`
+          );
+          return;
+    
+        } catch {
+          router.push('/connections');
+          return;
+        }
     }
     router.push(path);
   };

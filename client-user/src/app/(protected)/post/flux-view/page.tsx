@@ -30,6 +30,7 @@ import {
   reMentionFlux,
   getFluxById
 } from "@/services/mediaService";
+import { TextLayer } from "@/components/post/actions/StoryTextCanvas";
 
 export interface Flux {
   _id:          string;
@@ -40,6 +41,10 @@ export interface Flux {
   musicArtist?: string;
   createdAt:    string;
   viewCount?:   number;
+  textLayers?:  TextLayer[];
+  textBg?:      string;
+  filterName?:  string;
+  filterValue?: string;
 }
 
 const STORY_DURATION = 15_000; 
@@ -675,6 +680,32 @@ return (
                 label={(current as any).locationLabel}
                 theme={(current as any).locationStickerTheme ?? 0}
               />
+            </div>
+          )}
+          {/* Text layers overlay */}
+          {(current as any)?.textLayers?.length > 0 && (
+            <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 7 }}>
+              {((current as any).textLayers as TextLayer[]).map((layer: any) => (
+                <div
+                  key={layer.id}
+                  style={{
+                    position:   "absolute",
+                    left:       "50%",
+                    top:        "50%",
+                    transform:  `translate(calc(-50% + ${layer.x}px), calc(-50% + ${layer.y}px)) scale(${layer.scale ?? 1}) rotate(${layer.rotate ?? 0}deg)`,
+                    color:      layer.color ?? "#fff",
+                    fontFamily: layer.font  ?? "Inter",
+                    fontSize:   layer.fontSize ?? 32,
+                    textAlign:  layer.align ?? "center",
+                    whiteSpace: "pre-wrap",
+                    wordBreak:  "break-word",
+                    maxWidth:   260,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {layer.text}
+                </div>
+              ))}
             </div>
           )}
           {/* Re-mention button — only shown when viewer is mentioned in this flux */}

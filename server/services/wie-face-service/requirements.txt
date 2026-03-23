@@ -1,0 +1,54 @@
+# WIE Face Verification Service — Complete Python Dependencies
+# File: D:\DEVELOP\wie\server\services\wie-face-service\requirements.txt
+#
+# Python version: 3.11 ONLY
+# Install: pip install -r requirements.txt
+#
+# First-time setup order:
+#   1. pip install setuptools wheel --upgrade
+#   2. pip install cmake
+#   3. pip install dlib-19.24.1-cp311-cp311-win_amd64.whl   (pre-built wheel)
+#   4. pip install ./face_recognition_models                  (local models folder)
+#   5. pip install -r requirements.txt
+#  for running the service:- python -m uvicorn main:app --host 127.0.0.1 --port 8002 --reload
+
+
+# ── Web framework 
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+python-multipart==0.0.9
+aiofiles==23.2.1
+
+
+# ── Face recognition 
+# dlib must be installed separately before this (see setup order above)
+face-recognition==1.3.0
+face-recognition-models==0.3.0
+
+
+# ── Head pose / liveness detection 
+mediapipe==0.10.14
+
+
+# ── Image processing 
+opencv-python==4.9.0.80
+# Pin numpy below 2.0 — opencv/mediapipe/face_recognition are not
+# compatible with numpy 2.x and will crash with _ARRAY_API errors
+numpy>=1.24.0,<2.0.0
+Pillow==10.3.0
+
+
+# ── Dev & tooling 
+pip>=24.0
+setuptools>=70.0.0
+wheel>=0.43.0
+watchdog==4.0.0
+flake8==7.0.0
+coverage==7.4.4
+PyYAML==6.0.1
+cryptography==42.0.5
+
+
+# ── Optional: upgrade to deeper/better models (uncomment to use) ───
+# deepface==0.0.92
+# insightface==0.7.3

@@ -1,22 +1,8 @@
-import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
+import cloudinary from '../config/cloudinary';
 import { Request } from 'express';
 import sharp from 'sharp';
 
-// Configure Cloudinary - Support both CLOUDINARY_URL and individual credentials
-if (process.env.CLOUDINARY_URL) {
-  // If CLOUDINARY_URL is provided, it will auto-configure
-  cloudinary.config({
-    cloudinary_url: process.env.CLOUDINARY_URL,
-  });
-} else {
-  // Fallback to individual credentials
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-  });
-}
 
 // Multer configuration for memory storage
 const storage = multer.memoryStorage();
@@ -45,61 +31,76 @@ export const upload = multer({
 export class UploadService {
   // Upload single photo
   async uploadPhoto(
-    file: Express.Multer.File,
-    userId: string
-  ): Promise<{ url: string; publicId: string }> {
-    try {
-      // Optimize image with sharp
-      const optimizedBuffer = await sharp(file.buffer)
-        .resize(1200, 1200, {
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
-        .jpeg({ quality: 85 })
-        .toBuffer();
-
-      // Upload to Cloudinary
-      return new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          {
-            folder: `wie/connections/${userId}`,
-            resource_type: 'image',
-            transformation: [
-              { width: 1200, height: 1200, crop: 'limit' },
-              { quality: 'auto:good' },
-              { fetch_format: 'auto' },
-            ],
-          },
-          (error, result) => {
-            if (error) {
-              reject(new Error(`Cloudinary upload failed: ${error.message}`));
-            } else if (result) {
-              resolve({
-                url: result.secure_url,
-                publicId: result.public_id,
-              });
+      file: Express.Multer.File,
+      userId: string
+    ): Promise<{ url: string; publicId: string }> {
+      try {
+        // Optimize image with sharp
+        let optimizedBuffer: Buffer;
+        try {
+          optimizedBuffer = await sharp(file.buffer)
+            .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 85 })
+            .toBuffer();
+        } catch (sharpErr: any) {
+          throw new Error(
+            `Image processing failed for "${file.originalname}": ${sharpErr?.message ?? String(sharpErr)}`
+          );
+        }
+  
+        // Upload to Cloudinary
+        return await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              folder:          `wie/connections/${userId}`,
+              resource_type:   'image',
+              transformation:  [
+                { width: 1200, height: 1200, crop: 'limit' },
+                { quality: 'auto:good' },
+                { fetch_format: 'auto' },
+              ],
+            },
+            (error, result) => {
+              if (error) {
+                // Cloudinary error objects have .message but guard anyway
+                reject(new Error(
+                  `Cloudinary upload failed for "${file.originalname}": ${error?.message ?? JSON.stringify(error)}`
+                ));
+              } else if (result) {
+                resolve({ url: result.secure_url, publicId: result.public_id });
+              } else {
+                reject(new Error(`Cloudinary returned no result for "${file.originalname}"`));
+              }
             }
-          }
-        );
-
-        uploadStream.end(optimizedBuffer);
-      });
-    } catch (error: any) {
-      throw new Error(`Photo upload failed: ${error.message}`);
-    }
+          );
+          uploadStream.end(optimizedBuffer);
+        });
+  
+      } catch (error: any) {
+        // Re-throw with a guaranteed string message
+        const msg = error?.message ?? String(error) ?? 'Unknown upload error';
+        throw new Error(msg);
+      }
   }
 
   // Upload multiple photos
   async uploadMultiplePhotos(
-    files: Express.Multer.File[],
-    userId: string
-  ): Promise<Array<{ url: string; publicId: string }>> {
-    try {
-      const uploadPromises = files.map((file) => this.uploadPhoto(file, userId));
-      return await Promise.all(uploadPromises);
-    } catch (error: any) {
-      throw new Error(`Multiple photo upload failed: ${error.message}`);
-    }
+      files: Express.Multer.File[],
+      userId: string
+    ): Promise<Array<{ url: string; publicId: string }>> {
+      const results: Array<{ url: string; publicId: string }> = [];
+  
+      for (const file of files) {
+        try {
+          const uploaded = await this.uploadPhoto(file, userId);
+          results.push(uploaded);
+        } catch (error: any) {
+          // Surface the exact per-file error — don't wrap it
+          const msg = error?.message ?? String(error) ?? `Upload failed for "${file.originalname}"`;
+          throw new Error(msg);
+        }
+      }
+      return results;
   }
 
   // Delete photo from Cloudinary
@@ -194,7 +195,7 @@ export class UploadService {
           },
           (error, result) => {
             if (error) {
-              reject(new Error(`Cloudinary upload failed: ${error.message}`));
+              reject(new Error(`Cloudinary upload failed: ${error?.message ?? JSON.stringify(error)}`))
             } else if (result) {
               resolve({
                 url: result.secure_url,
