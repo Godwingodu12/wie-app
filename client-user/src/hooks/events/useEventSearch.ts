@@ -1,39 +1,55 @@
-import { useState } from 'react';
-import { 
-  getInitialEvents, 
-  searchEventsByName, 
-  searchEventsByLocation, 
-  getCategoryBasedEvents 
-} from '@/services/ticketUserService';
-import { 
-  EventWithLocation, 
-  LocationSearchParams, 
+import { useState } from "react";
+import {
+  getInitialEvents,
+  searchEventsByName,
+  searchEventsByLocation,
+  getCategoryBasedEvents,
+  getCategoryBasedPopularEvents,
+} from "@/services/ticketUserService";
+import {
+  EventWithLocation,
+  LocationSearchParams,
   NameSearchParams,
-  CategorySearchParams
-} from '@/types/ticket';
-import { useAuth } from '@/hooks/useAuth';
+  CategorySearchParams,
+} from "@/types/ticket";
+import { useAuth } from "@/hooks/useAuth";
 
 export const useEventSearch = () => {
   const { user } = useAuth();
-  
+
   // Main results
-  const [eventsByCategory, setEventsByCategory] = useState<Record<string, EventWithLocation[]>>({});
+  const [eventsByCategory, setEventsByCategory] = useState<
+    Record<string, EventWithLocation[]>
+  >({});
   const [categories, setCategories] = useState<string[]>([]);
   const [totalEvents, setTotalEvents] = useState(0);
-  
+
+  // Popular events (shown in specific categories)
+  const [popularEvents, setPopularEvents] = useState<EventWithLocation[]>([]);
+
   // Suggestions (shown when no main results)
-  const [suggestionsByCategory, setSuggestionsByCategory] = useState<Record<string, EventWithLocation[]>>({});
-  const [suggestionCategories, setSuggestionCategories] = useState<string[]>([]);
+  const [suggestionsByCategory, setSuggestionsByCategory] = useState<
+    Record<string, EventWithLocation[]>
+  >({});
+  const [suggestionCategories, setSuggestionCategories] = useState<string[]>(
+    [],
+  );
   const [hasSuggestions, setHasSuggestions] = useState(false);
   const [totalSuggestions, setTotalSuggestions] = useState(0);
-  
+
   // State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [locationSource, setLocationSource] = useState<'gps' | 'manual' | 'saved' | 'country' | 'none'>('none');
+  const [locationSource, setLocationSource] = useState<
+    "gps" | "manual" | "saved" | "country" | "none"
+  >("none");
   const [searchRadius, setSearchRadius] = useState<number | null>(null);
-  const [currentSearchType, setCurrentSearchType] = useState<'initial' | 'name' | 'location' | 'category'>('initial');
-  const [searchedLocationName, setSearchedLocationName] = useState<string | null>(null);
+  const [currentSearchType, setCurrentSearchType] = useState<
+    "initial" | "name" | "location" | "category"
+  >("initial");
+  const [searchedLocationName, setSearchedLocationName] = useState<
+    string | null
+  >(null);
 
   // Clear suggestions
   const clearSuggestions = () => {
@@ -43,25 +59,33 @@ export const useEventSearch = () => {
     setTotalSuggestions(0);
   };
 
+  // Clear popular events
+  const clearPopularEvents = () => {
+    setPopularEvents([]);
+  };
+
   // 1. Fetch initial events (page load)
   const fetchInitialEvents = async () => {
     try {
       setLoading(true);
       setError(null);
-      setCurrentSearchType('initial');
+      setCurrentSearchType("initial");
       clearSuggestions();
 
       const response = await getInitialEvents(user?.id);
-      
+
       setEventsByCategory(response.data.eventsByCategory);
       setCategories(response.data.categories);
       setTotalEvents(response.data.totalEvents);
       setLocationSource(response.data.locationSource);
       setSearchRadius(response.data.searchRadius || null);
-      
+
+      // Fetch general popular events
+      fetchPopularEvents();
+
       return response;
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch events');
+      setError(err.message || "Failed to fetch events");
       throw err;
     } finally {
       setLoading(false);
@@ -73,7 +97,7 @@ export const useEventSearch = () => {
     try {
       setLoading(true);
       setError(null);
-      setCurrentSearchType('name');
+      setCurrentSearchType("name");
       clearSuggestions();
 
       const params: NameSearchParams = {
@@ -82,16 +106,19 @@ export const useEventSearch = () => {
       };
 
       const response = await searchEventsByName(params);
-      
+
       setEventsByCategory(response.data.eventsByCategory);
       setCategories(response.data.categories);
       setTotalEvents(response.data.totalEvents);
-      setLocationSource('none');
+      setLocationSource("none");
       setSearchRadius(null);
-      
+
+      // Fetch popular events for this search query
+      fetchPopularEvents(undefined, 10, searchQuery);
+
       return response;
     } catch (err: any) {
-      setError(err.message || 'Failed to search events');
+      setError(err.message || "Failed to search events");
       throw err;
     } finally {
       setLoading(false);
@@ -99,11 +126,13 @@ export const useEventSearch = () => {
   };
 
   // 3. Search by location (with suggestions if no results)
-  const searchByLocation = async (params: Omit<LocationSearchParams, 'userId'>) => {
+  const searchByLocation = async (
+    params: Omit<LocationSearchParams, "userId">,
+  ) => {
     try {
       setLoading(true);
       setError(null);
-      setCurrentSearchType('location');
+      setCurrentSearchType("location");
       clearSuggestions();
 
       // Store the searched location name
@@ -127,7 +156,7 @@ export const useEventSearch = () => {
       }
       return response;
     } catch (err: any) {
-      setError(err.message || 'Failed to search by location');
+      setError(err.message || "Failed to search by location");
       throw err;
     } finally {
       setLoading(false);
@@ -138,7 +167,7 @@ export const useEventSearch = () => {
     try {
       setLoading(true);
       setError(null);
-      setCurrentSearchType('category');
+      setCurrentSearchType("category");
       clearSuggestions();
 
       const params: CategorySearchParams = {
@@ -147,13 +176,13 @@ export const useEventSearch = () => {
       };
 
       const response = await getCategoryBasedEvents(params);
-      
+
       setEventsByCategory(response.data.eventsByCategory);
       setCategories(response.data.categories);
       setTotalEvents(response.data.totalEvents);
       setLocationSource(response.data.locationSource);
       setSearchRadius(response.data.searchRadius || null);
-      
+
       // Handle suggestions (same category only)
       if (response.data.hasSuggestions) {
         setSuggestionsByCategory(response.data.suggestionsByCategory || {});
@@ -161,10 +190,13 @@ export const useEventSearch = () => {
         setHasSuggestions(true);
         setTotalSuggestions(response.data.totalSuggestions || 0);
       }
-      
+
+      // Fetch popular events for this category
+      fetchPopularEvents(category);
+
       return response;
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch category events');
+      setError(err.message || "Failed to fetch category events");
       throw err;
     } finally {
       setLoading(false);
@@ -175,7 +207,7 @@ export const useEventSearch = () => {
   const searchByCurrentLocation = async () => {
     return new Promise<void>((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error('Geolocation is not supported'));
+        reject(new Error("Geolocation is not supported"));
         return;
       }
 
@@ -192,14 +224,36 @@ export const useEventSearch = () => {
           }
         },
         (err) => reject(new Error(err.message)),
-        { enableHighAccuracy: true, timeout: 10000 }
+        { enableHighAccuracy: true, timeout: 10000 },
       );
     });
+  };
+
+  // 5. Fetch popular events for a category or search query
+  const fetchPopularEvents = async (
+    category?: string,
+    limit = 10,
+    searchQuery?: string,
+  ) => {
+    try {
+      const response = await getCategoryBasedPopularEvents(
+        category,
+        limit,
+        searchQuery,
+      );
+      if (response.success) {
+        setPopularEvents(response.data.events);
+      }
+    } catch (err) {
+      console.error("❌ Failed to fetch popular events:", err);
+      // Don't set error state as this is non-critical
+    }
   };
 
   // Clear all and reset to initial
   const clearAndReset = async () => {
     clearSuggestions();
+    clearPopularEvents();
     setError(null);
     await fetchInitialEvents();
   };
@@ -209,7 +263,7 @@ export const useEventSearch = () => {
     eventsByCategory,
     categories,
     totalEvents,
-    
+
     // Suggestions
     suggestionsByCategory,
     suggestionCategories,
@@ -228,6 +282,8 @@ export const useEventSearch = () => {
     searchByLocation,
     searchByCategory,
     searchByCurrentLocation,
+    fetchPopularEvents,
     clearAndReset,
+    popularEvents,
   };
 };
