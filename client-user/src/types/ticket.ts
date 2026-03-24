@@ -16,7 +16,7 @@ export interface EventDate {
   _id: string;
 }
 export interface EventRules {
-  type: 'text' | 'file';
+  type: "text" | "file";
   content?: string;
   path?: string;
   originalName?: string;
@@ -75,7 +75,7 @@ export interface SubEvent {
   event_type: string;
   subevent: string;
   event_language: string[];
-  location_type: 'online' | 'offline' | 'recorded';
+  location_type: "online" | "offline" | "recorded";
   location: string;
   venue: string;
   seating_arrangement?: string;
@@ -83,7 +83,7 @@ export interface SubEvent {
   max_age_allowed: number;
   kids_friendly: boolean;
   pet_friendly: boolean;
-  event_date_type: 'one-day' | 'multi-day';
+  event_date_type: "one-day" | "multi-day";
   event_dates: EventDate[];
   gate_open_time?: string;
   event_instagram_link?: string;
@@ -96,7 +96,7 @@ export interface SubEvent {
   event_banner?: string;
   event_images: EventImage[];
   hashtag: string[];
-  payment_type: 'free' | 'paid';
+  payment_type: "free" | "paid";
   banking_details?: BankingDetail[];
   guests: Guest[];
   ticket_types: TicketType[];
@@ -106,8 +106,8 @@ export interface SubEvent {
   booking_end_date: string;
   like: number;
   created_by?: string;
-  event_status: 'pending' | 'live' | 'completed' | 'cancelled';
-  seating_layout?: SeatingLayout; 
+  event_status: "pending" | "live" | "completed" | "cancelled";
+  seating_layout?: SeatingLayout;
   _id: string;
   createdAt: string;
   updatedAt: string;
@@ -127,17 +127,17 @@ export interface Event {
   event_name: string;
   event_category: string;
   event_subcategory: string;
-  event_type: 'public' | 'private';
+  event_type: "public" | "private";
   event_language: string[];
   min_age_allowed: number;
   max_age_allowed?: number;
   seating_arrangement?: string | null;
   kids_friendly: boolean;
   pet_friendly: boolean;
-  location_type: 'online' | 'offline' | 'recorded';
+  location_type: "online" | "offline" | "recorded";
   location: string;
   venue: string;
-  event_date_type: 'one-day' | 'multi-day';
+  event_date_type: "one-day" | "multi-day";
   event_dates: EventDate[];
   event_instagram_link?: string;
   gate_open_time?: string;
@@ -154,7 +154,7 @@ export interface Event {
   event_ticket_offer: boolean;
   groupId: string;
   userId: string;
-  event_status: 'pending' | 'live' | 'completed' | 'cancelled';
+  event_status: "pending" | "live" | "completed" | "cancelled";
   updated_by: string;
   updated_at: string;
   terms_accepted: boolean;
@@ -170,7 +170,7 @@ export interface Event {
   event_rules?: EventRules;
   booking_end_date?: string;
   booking_start_date?: string;
-  payment_type?: 'free' | 'paid';
+  payment_type?: "free" | "paid";
   total_capacity?: string;
   exact_map_location?: ExactMapLocation;
   form_progress?: FormProgress;
@@ -233,7 +233,7 @@ export interface Group {
   created_by: string;
   members_count?: number;
   events_count?: number;
-  status: 'active' | 'inactive';
+  status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
 }
@@ -260,8 +260,8 @@ export interface GeolocationError {
 export interface EventFilters {
   category?: string;
   subcategory?: string;
-  location_type?: 'online' | 'offline' | 'recorded';
-  payment_type?: 'free' | 'paid';
+  location_type?: "online" | "offline" | "recorded";
+  payment_type?: "free" | "paid";
   min_distance?: number;
   max_distance?: number;
   date_from?: string;
@@ -318,14 +318,14 @@ export interface CategoryEventsParams {
   location?: string;
   userId?: string;
   countryCode?: string;
-  searchQuery?: string; 
+  searchQuery?: string;
 }
 export interface LocationSearchResponse {
   success: boolean;
   message: string;
   data: {
     locationAvailable: boolean;
-    locationSource: 'gps' | 'manual' | 'none';
+    locationSource: "gps" | "manual" | "none";
     searchLocation?: { latitude: number; longitude: number } | string | null;
     searchedLocationName?: string | null;
     searchRadius: number;
@@ -358,7 +358,7 @@ export interface InitialEventsResponse {
   message: string;
   data: {
     locationAvailable: boolean;
-    locationSource: 'gps' | 'manual' | 'saved' | 'country' | 'none';
+    locationSource: "gps" | "manual" | "saved" | "country" | "none";
     searchLocation?: { latitude: number; longitude: number } | string | null;
     searchRadius?: number | null;
     categories: string[];
@@ -391,7 +391,7 @@ export interface FilterEventsParams {
   longitude?: number;
   searchQuery?: string;
   radius?: number; // in kilometers (1-500)
-  locationType?: 'online' | 'offline' | 'recorded';
+  locationType?: "online" | "offline" | "recorded";
   eventLanguage?: string;
   startDate?: string; // YYYY-MM-DD
   endDate?: string; // YYYY-MM-DD
@@ -405,11 +405,13 @@ export interface FilteredEventsResponse {
   message: string;
   data: {
     locationAvailable: boolean;
-    locationSource: 'gps' | 'manual' | 'saved' | 'country' | 'none';
-    searchLocation?: {
-      latitude: number;
-      longitude: number;
-    } | string;
+    locationSource: "gps" | "manual" | "saved" | "country" | "none";
+    searchLocation?:
+      | {
+          latitude: number;
+          longitude: number;
+        }
+      | string;
     searchRadius?: number | null;
     appliedFilters: {
       category: string | null;
@@ -430,47 +432,53 @@ export interface FilteredEventsResponse {
   };
 }
 export const EVENT_LANGUAGES = [
-  'English',
-  'Hindi',
-  'Malayalam',
-  'Tamil',
-  'Kannada',
-  'Telugu',
-  'Marathi',
-  'Gujarati',
-  'Punjabi',
-  'Urdu',
-  'Bengali',
-  'Spanish',
-  'French',
-  'German',
-  'Chinese',
-  'Japanese',
-  'Russian',
-  'Turkish',
-  'Korean',
-  'Portuguese',
-  'Arabic',
-  'Indonesian',
-  'Vietnamese',
-  'Other',
+  "English",
+  "Hindi",
+  "Malayalam",
+  "Tamil",
+  "Kannada",
+  "Telugu",
+  "Marathi",
+  "Gujarati",
+  "Punjabi",
+  "Urdu",
+  "Bengali",
+  "Spanish",
+  "French",
+  "German",
+  "Chinese",
+  "Japanese",
+  "Russian",
+  "Turkish",
+  "Korean",
+  "Portuguese",
+  "Arabic",
+  "Indonesian",
+  "Vietnamese",
+  "Other",
 ] as const;
-export type EventLanguage = typeof EVENT_LANGUAGES[number];
+export type EventLanguage = (typeof EVENT_LANGUAGES)[number];
 export interface CategoryEventsResponse {
   success: boolean;
   message: string;
   data: {
     locationAvailable: boolean;
-    locationSource: 'gps' | 'manual' | 'saved' | 'country' | 'none';
-    searchLocation?: {
-      latitude: number;
-      longitude: number;
-    } | string | null;
+    locationSource: "gps" | "manual" | "saved" | "country" | "none";
+    searchLocation?:
+      | {
+          latitude: number;
+          longitude: number;
+        }
+      | string
+      | null;
     searchQuery?: string | null;
     searchRadius?: number | null;
     categories: string[];
     eventsByCategory: Record<string, EventWithLocation[]>;
-    eventsByDistanceAndCategory?: Record<string, Record<string, EventWithLocation[]>>;
+    eventsByDistanceAndCategory?: Record<
+      string,
+      Record<string, EventWithLocation[]>
+    >;
     totalEvents: number;
     eventsWithLocation?: number;
     totalEventsBeforeFilter?: number;
@@ -481,6 +489,14 @@ export interface CategoryEventsResponse {
     suggestionsByCategory?: Record<string, EventWithLocation[]>;
     totalSuggestions?: number;
     suggestionRadius?: number;
+  };
+}
+export interface CategoryPopularEventsResponse {
+  success: boolean;
+  message: string;
+  data: {
+    count: number;
+    events: EventWithLocation[];
   };
 }
 export interface SeatInfo {
@@ -504,7 +520,7 @@ export interface SeatingLayout {
     color: string;
     assignedSeats: string[];
     capacity: number;
-    price: number; 
+    price: number;
   }>;
 }
 export interface CreateSeatedBookingRequest {
@@ -522,18 +538,18 @@ export interface SeatDetail {
   color: string;
 }
 export const EVENT_CATEGORIES = [
-  'Sports, Fitness, & Adventure',
-  'Music',
-  'Arts, Culture, & Literature',
-  'Dance',
-  'Business & Innovation',
-  'Food, Lifestyle, & Wellness',
-  'Film, Media, & Gaming',
-  'Travel, Holidays, & Tourism',
-  'Festivals & Celebrations',
-  'Environment, Sustainability, & Agriculture',
-  'Religious & Spiritual Events',
-  'Education & Learning',
+  "Sports, Fitness, & Adventure",
+  "Music",
+  "Arts, Culture, & Literature",
+  "Dance",
+  "Business & Innovation",
+  "Food, Lifestyle, & Wellness",
+  "Film, Media, & Gaming",
+  "Travel, Holidays, & Tourism",
+  "Festivals & Celebrations",
+  "Environment, Sustainability, & Agriculture",
+  "Religious & Spiritual Events",
+  "Education & Learning",
 ] as const;
 export interface RefundTransaction {
   id: string;
@@ -549,11 +565,11 @@ export interface RefundDetails {
   booking: any;
   refundTransactions: RefundTransaction[];
 }
-export type EventCategory = typeof EVENT_CATEGORIES[number];
-export type EventSortBy = 'distance' | 'date' | 'price' | 'popularity';
-export type SortOrder = 'asc' | 'desc';
-export type EventStatus = 'pending' | 'live' | 'completed' | 'cancelled';
-export type LocationType = 'online' | 'offline';
-export type PaymentType = 'free' | 'paid';
-export type EventDateType = 'one-day' | 'multi-day';
-export type EventType = 'public' | 'private';
+export type EventCategory = (typeof EVENT_CATEGORIES)[number];
+export type EventSortBy = "distance" | "date" | "price" | "popularity";
+export type SortOrder = "asc" | "desc";
+export type EventStatus = "pending" | "live" | "completed" | "cancelled";
+export type LocationType = "online" | "offline";
+export type PaymentType = "free" | "paid";
+export type EventDateType = "one-day" | "multi-day";
+export type EventType = "public" | "private";
