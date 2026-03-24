@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, RotateCcw, Calendar } from 'lucide-react';
 import { getCategoryBasedEvents, getFilteredEvents } from '@/services/ticketUserService';
 import { FilterEventsParams, EVENT_CATEGORIES } from '@/types/ticket';
+import { useTheme } from '@/components/home/ThemeContext';
 
 // Sub-category map — extend as needed
 const SUBCATEGORY_MAP: Record<string, string[]> = {
@@ -39,6 +40,7 @@ export default function FilterSearchEvents({
   initialFilters,
   userLocation,
 }: FilterSearchEventsProps) {
+  const { themeStyles, isDark } = useTheme();
   const [selectedCategory, setSelectedCategory] = useState<string>(initialFilters?.category || '');
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>(initialFilters?.subcategory || '');
   const [location, setLocation] = useState<string>(initialFilters?.location || '');
@@ -165,24 +167,28 @@ const handleApply = async () => {
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-[507px] rounded-2xl overflow-hidden shadow-2xl"
-        style={{ background: '#1C2024', border: '1px solid #2D3139' }}
+        className="relative w-full max-w-[507px] rounded-2xl overflow-hidden shadow-2xl transition-colors duration-200"
+        style={{
+          backgroundColor: isDark ? '#1D2022' : '#F3F4F6',
+          backgroundImage: isDark ? themeStyles.cardBg : 'none',
+          border: `1px solid ${themeStyles.border}`,
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4">
-          <h2 className="text-white text-xl font-semibold">Filters</h2>
+          <h2 className="text-xl font-semibold" style={{ color: themeStyles.text }}>Filters</h2>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
           >
-            <X className="w-5 h-5 text-white/70" />
+            <X className="w-5 h-5" style={{ color: themeStyles.textSecondary }} />
           </button>
         </div>
 
         <div className="px-6 pb-6 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hide">
           {/* Categories */}
           <div>
-            <h3 className="text-white text-sm font-semibold mb-3">Categories</h3>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: themeStyles.text }}>Categories</h3>
             <div className="flex flex-wrap gap-2">
               {EVENT_CATEGORIES.map((cat) => {
                 // Show short label
@@ -193,13 +199,19 @@ const handleApply = async () => {
                     key={cat}
                     onClick={() => setSelectedCategory(isActive ? '' : cat)}
                     className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-                    style={{
-                      background: isActive
-                        ? 'linear-gradient(135deg, #5B8DEF 0%, #8860D9 100%)'
-                        : '#2D3139',
-                      color: isActive ? '#fff' : '#9CA3AF',
-                      border: isActive ? 'none' : '1px solid #3D4149',
-                    }}
+                    style={
+                      isActive
+                        ? {
+                            background: 'var(--chat_color, #5494FF)',
+                            color: '#fff',
+                            border: 'none',
+                          }
+                        : {
+                            background: themeStyles.hoverBg,
+                            color: themeStyles.textSecondary,
+                            border: `1px solid ${themeStyles.border}`,
+                          }
+                    }
                   >
                     {shortLabel}
                   </button>
@@ -211,7 +223,7 @@ const handleApply = async () => {
           {/* Sub Categories — only show when a category is selected */}
           {selectedCategory && subcategories.length > 0 && (
             <div>
-              <h3 className="text-white text-sm font-semibold mb-3">Sub categories</h3>
+              <h3 className="text-sm font-semibold mb-3" style={{ color: themeStyles.text }}>Sub categories</h3>
               <div className="flex flex-wrap gap-2">
                 {subcategories.map((sub) => {
                   const isActive = selectedSubcategory === sub;
@@ -220,13 +232,19 @@ const handleApply = async () => {
                       key={sub}
                       onClick={() => setSelectedSubcategory(isActive ? '' : sub)}
                       className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
-                      style={{
-                        background: isActive
-                          ? 'linear-gradient(135deg, #5B8DEF 0%, #8860D9 100%)'
-                          : '#2D3139',
-                        color: isActive ? '#fff' : '#9CA3AF',
-                        border: isActive ? 'none' : '1px solid #3D4149',
-                      }}
+                      style={
+                        isActive
+                          ? {
+                              background: 'var(--chat_color, #5494FF)',
+                              color: '#fff',
+                              border: 'none',
+                            }
+                          : {
+                              background: themeStyles.hoverBg,
+                              color: themeStyles.textSecondary,
+                              border: `1px solid ${themeStyles.border}`,
+                            }
+                      }
                     >
                       {sub}
                     </button>
@@ -238,7 +256,7 @@ const handleApply = async () => {
 
           {/* Location */}
           <div>
-            <h3 className="text-white text-sm font-semibold mb-3">Location</h3>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: themeStyles.text }}>Location</h3>
             <input
               type="text"
               value={location}
@@ -248,8 +266,8 @@ const handleApply = async () => {
                   ? `Current location active — or type to override`
                   : `Enter city, state or country (e.g. Kochi, Kerala)`
               }
-              className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/30 outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
-              style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+              style={{ backgroundColor: themeStyles.hoverBg, border: `1px solid ${themeStyles.border}`, color: themeStyles.text }}
             />
             {/* Show active GPS badge when no manual override */}
             {userLocation && !location.trim() && (
@@ -262,7 +280,7 @@ const handleApply = async () => {
 
           {/* Distance */}
           <div>
-            <h3 className="text-white text-sm font-semibold mb-3">Distance</h3>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: themeStyles.text }}>Distance</h3>
             <input
               type="range"
               min={0}
@@ -272,11 +290,11 @@ const handleApply = async () => {
               onChange={(e) => setDistanceIndex(Number(e.target.value))}
               className="w-full h-1 rounded-full appearance-none cursor-pointer"
               style={{
-                background: `linear-gradient(to right, #8860D9 0%, #8860D9 ${(distanceIndex / DISTANCE_STEPS.length) * 100}%, #3D4149 ${(distanceIndex / DISTANCE_STEPS.length) * 100}%, #3D4149 100%)`,
+                background: `linear-gradient(to right, #8860D9 0%, #8860D9 ${(distanceIndex / DISTANCE_STEPS.length) * 100}%, ${themeStyles.border} ${(distanceIndex / DISTANCE_STEPS.length) * 100}%, ${themeStyles.border} 100%)`,
                 accentColor: '#8860D9',
               }}
             />
-            <div className="flex justify-between text-xs text-white/50 mt-2">
+            <div className="flex justify-between text-xs mt-2" style={{ color: themeStyles.textSecondary }}>
               {DISTANCE_STEPS.map((d) => (
                 <span key={d}>{d}km</span>
               ))}
@@ -291,8 +309,8 @@ const handleApply = async () => {
                   value={customDistance}
                   onChange={(e) => setCustomDistance(e.target.value)}
                   placeholder="Enter custom distance (km)"
-                  className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/30 outline-none focus:ring-1 focus:ring-purple-500/50"
-                  style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+                  className="w-full px-4 py-2.5 rounded-xl text-sm outline-none focus:ring-1 focus:ring-purple-500/50"
+                  style={{ backgroundColor: themeStyles.hoverBg, border: `1px solid ${themeStyles.border}`, color: themeStyles.text }}
                   min={51}
                 />
               </div>
@@ -301,37 +319,39 @@ const handleApply = async () => {
 
           {/* Event Date */}
           <div>
-            <h3 className="text-white text-sm font-semibold mb-3">Event date</h3>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: themeStyles.text }}>Event date</h3>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-white/50 text-xs mb-1.5">From</p>
+                <p className="text-xs mb-1.5" style={{ color: themeStyles.textSecondary }}>From</p>
                 <div className="relative">
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl text-sm text-white/70 outline-none focus:ring-1 focus:ring-purple-500/50 appearance-none"
+                    className="w-full px-4 py-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-purple-500/50 appearance-none"
                     style={{
-                      background: '#2D3139',
-                      border: '1px solid #3D4149',
-                      colorScheme: 'dark',
+                      backgroundColor: themeStyles.hoverBg,
+                      border: `1px solid ${themeStyles.border}`,
+                      color: themeStyles.text,
+                      colorScheme: isDark ? 'dark' : 'light',
                     }}
                   />
                 </div>
               </div>
               <div>
-                <p className="text-white/50 text-xs mb-1.5">To</p>
+                <p className="text-xs mb-1.5" style={{ color: themeStyles.textSecondary }}>To</p>
                 <div className="relative">
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
                     min={startDate}
-                    className="w-full px-4 py-3 rounded-xl text-sm text-white/70 outline-none focus:ring-1 focus:ring-purple-500/50 appearance-none"
+                    className="w-full px-4 py-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-purple-500/50 appearance-none"
                     style={{
-                      background: '#2D3139',
-                      border: '1px solid #3D4149',
-                      colorScheme: 'dark',
+                      backgroundColor: themeStyles.hoverBg,
+                      border: `1px solid ${themeStyles.border}`,
+                      color: themeStyles.text,
+                      colorScheme: isDark ? 'dark' : 'light',
                     }}
                   />
                 </div>
@@ -343,11 +363,12 @@ const handleApply = async () => {
         {/* Footer */}
         <div
           className="flex items-center justify-between px-6 py-4"
-          style={{ borderTop: '1px solid #2D3139' }}
+          style={{ borderTop: `1px solid ${themeStyles.border}` }}
         >
           <button
             onClick={handleReset}
-            className="flex items-center gap-2 text-white/70 hover:text-white text-sm font-medium transition-colors"
+            className="flex items-center gap-2 text-sm font-medium transition-colors"
+            style={{ color: themeStyles.textSecondary }}
           >
             <RotateCcw className="w-4 h-4" />
             Reset all
@@ -355,17 +376,35 @@ const handleApply = async () => {
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white/70 hover:text-white transition-colors"
-              style={{ background: '#2D3139' }}
+              className="flex items-center justify-center text-sm font-semibold transition-colors"
+              style={{
+                width: 132,
+                height: 38,
+                borderRadius: 25,
+                border: `1px solid ${themeStyles.border}`,
+                color: themeStyles.textSecondary,
+                padding: '8px 12px',
+                gap: 10,
+                opacity: 1,
+                background: 'transparent',
+              }}
             >
               Cancel
             </button>
             <button
               onClick={handleApply}
               disabled={isLoading}
-              className="px-8 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
+              className="flex items-center justify-center text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
               style={{
-                background: 'linear-gradient(135deg, #A78BFA 0%, #8860D9 50%, #7C3AED 100%)',
+                width: 132,
+                height: 38,
+                borderRadius: 25,
+                padding: '8px 12px',
+                gap: 10,
+                opacity: 1,
+                background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
+                color: '#fff',
+                border: 'none',
               }}
             >
               {isLoading ? 'Applying...' : 'Apply'}

@@ -2,7 +2,9 @@
 
 import React from "react";
 import Image from "next/image";
-import { PlusSquare, Bell, MessageCircle } from "lucide-react";
+import PostIcon from "@/assets/Home/PostIcon.png";
+import NotificationsIcon from "@/assets/Home/NotificationsIcon.png";
+import MessageIcon from "@/assets/Home/MessageIcon.png";
 import WieUserLogo from "@/assets/Home/WieUserLogo.svg";
 import { useTheme } from "./ThemeContext";
 
@@ -21,7 +23,7 @@ const TopMobBar: React.FC<TopMobBarProps> = ({
   onMessageClick,
   onPostClick
 }) => {
-  const { themeStyles } = useTheme();
+  const { themeStyles, isDark } = useTheme();
 
   // Helper to format count (show "9+" for 10 or more)
   const formatCount = (count: number | undefined): string => {
@@ -67,7 +69,13 @@ const TopMobBar: React.FC<TopMobBarProps> = ({
           onClick={onPostClick}
           className="relative flex items-center justify-center w-8 h-8 rounded-full transition-opacity active:opacity-70"
         >
-          <PlusSquare size={24} style={{ color: themeStyles.text }} />
+          <Image
+            src={PostIcon}
+            alt="Post"
+            width={24}
+            height={24}
+            style={{ filter: themeStyles.iconFilter }}
+          />
         </button>
 
         {/* Notifications */}
@@ -75,7 +83,13 @@ const TopMobBar: React.FC<TopMobBarProps> = ({
           onClick={onNotificationClick}
           className="relative flex items-center justify-center w-8 h-8 rounded-full transition-opacity active:opacity-70"
         >
-          <Bell size={24} style={{ color: themeStyles.text }} />
+          <Image
+            src={NotificationsIcon}
+            alt="Notifications"
+            width={24}
+            height={24}
+            style={{ filter: themeStyles.iconFilter }}
+          />
           {notificationCount > 0 && (
             <span
               className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center font-bold text-[10px] text-white shadow-lg shadow-purple-500/20"
@@ -95,7 +109,13 @@ const TopMobBar: React.FC<TopMobBarProps> = ({
           onClick={onMessageClick}
           className="relative flex items-center justify-center w-8 h-8 rounded-full transition-opacity active:opacity-70"
         >
-          <MessageCircle size={24} style={{ color: themeStyles.text }} />
+          <Image
+            src={MessageIcon}
+            alt="Message"
+            width={24}
+            height={24}
+            style={{ filter: themeStyles.iconFilter }}
+          />
           {messageCount > 0 && (
             <span
               className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center font-bold text-[10px] text-white shadow-lg shadow-purple-500/20"
@@ -113,5 +133,4 @@ const TopMobBar: React.FC<TopMobBarProps> = ({
     </div>
   );
 };
-
 export default TopMobBar;

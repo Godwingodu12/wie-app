@@ -1,48 +1,161 @@
-'use client';
+"use client";
 
-import { useSearchParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { Header } from '@/components/layout/Header';
-import { Card } from '@/components/ui/Card';
-import { useEventSearch } from '@/hooks/events/useEventSearch';
-import { useFilteredEvents } from '@/hooks/events/useFilteredEvents';
-import { MapPin, Navigation, Search, Filter, X, SlidersHorizontal, AlertCircle } from 'lucide-react';
-import { EVENT_CATEGORIES, FilterEventsParams } from '@/types/ticket';
-import { EventCard } from '@/components/events/EventCard';
-import { EventFilterModal } from '@/components/events/EventFilterModal';
+import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import SideBar from "@/components/home/SideBar";
+import { useSidebar } from "@/context/SidebarContext";
+import { useEventSearch } from "@/hooks/events/useEventSearch";
+import { useFilteredEvents } from "@/hooks/events/useFilteredEvents";
+import {
+  MapPin,
+  Navigation,
+  Search,
+  Filter,
+  X,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  RotateCcw,
+} from "lucide-react";
+import Image from "next/image";
+import { useTheme } from "@/components/home/ThemeContext";
+import { EVENT_CATEGORIES, FilterEventsParams, EventWithLocation } from "@/types/ticket";
+import { EventCard } from "@/components/events/EventCard";
+import FilterSearchEvents from "@/components/events/FilterSearchEvents";
+import EventCategoryList from "@/components/events/Eventcategorylist";
+import PopularEventBanner from "@/components/events/PopularEventBanner";
+import EnableLocation from "@/components/events/EnableLocation";
+import SearchIcon from "@/assets/Event/serachIcon.png";
+import FilterButtonIcon from "@/assets/Event/FilterButton.png";
+
+// Reusable EventRow component matching the nearby page design
+function EventRow({
+  title,
+  events,
+  onSeeAll,
+}: {
+  title: string;
+  events: any[];
+  onSeeAll?: () => void;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const { themeStyles, isDark } = useTheme();
+
+  const scroll = (dir: "left" | "right") => {
+    if (rowRef.current) {
+      const scrollAmount = rowRef.current.clientWidth * 0.8;
+      rowRef.current.scrollBy({
+        left: dir === "left" ? -scrollAmount : scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  if (!events || !events.length) return null;
+
+  return (
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-3 px-1">
+        <h3 className="font-semibold text-base" style={{ color: themeStyles.text }}>{title}</h3>
+        {onSeeAll && (
+          <button
+            onClick={onSeeAll}
+            className="text-xs font-medium"
+            style={{
+              background:
+                "linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
+            see all
+          </button>
+        )}
+      </div>
+
+      <div className="relative group/row">
+        <button
+          onClick={() => scroll("left")}
+          className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full flex items-center justify-center opacity-0 group-hover/row:opacity-100 transition-all duration-300 shadow-lg hover:scale-110 active:scale-95"
+          style={{ 
+            background: isDark ? "rgba(30, 30, 30, 0.9)" : "rgba(255, 255, 255, 0.9)", 
+            border: `1px solid ${themeStyles.border}`,
+            backdropFilter: "blur(8px)"
+          }}
+        >
+          <ChevronLeft className="w-5 h-5" style={{ color: themeStyles.text }} />
+        </button>
+
+        <button
+          onClick={() => scroll("right")}
+          className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full flex items-center justify-center opacity-0 group-hover/row:opacity-100 transition-all duration-300 shadow-lg hover:scale-110 active:scale-95"
+          style={{ 
+            background: isDark ? "rgba(30, 30, 30, 0.9)" : "rgba(255, 255, 255, 0.9)", 
+            border: `1px solid ${themeStyles.border}`,
+            backdropFilter: "blur(8px)"
+          }}
+        >
+          <ChevronRight className="w-5 h-5" style={{ color: themeStyles.text }} />
+        </button>
+
+        <div
+          ref={rowRef}
+          className="flex gap-6 overflow-x-auto scrollbar-hide pb-4 px-1"
+        >
+          {events.map((ev, idx) => (
+            <EventCard key={`${ev._id ?? "ev"}-${idx}`} event={ev} showDistance={true} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CategoryEventsPage() {
-  const { user } = useAuth(true);
+  const authData = useAuth(true);
+  const user: any = (authData as any)?.user ?? null;
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const categoryFromUrl = searchParams.get('category');
+  const categoryFromUrl = searchParams.get("category");
+
+  const { isCollapsed, isMobile } = useSidebar();
+
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
-  const [locationInput, setLocationInput] = useState('');
-  const [searchInput, setSearchInput] = useState('');
+  const [searchInput, setSearchInput] = useState("");
   const [hasActiveSearch, setHasActiveSearch] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterEventsParams>({});
   const [isUsingAdvancedFilter, setIsUsingAdvancedFilter] = useState(false);
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [userLocation, setUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
   const {
     eventsByCategory,
     categories,
     totalEvents,
     suggestionsByCategory,
-    suggestionCategories,
     hasSuggestions,
     totalSuggestions,
     loading,
     error,
     locationSource,
-    searchRadius,
     currentSearchType,
     fetchInitialEvents,
     searchByName,
-    searchByLocation,
     searchByCategory,
+    searchByLocation,
     searchByCurrentLocation,
     clearAndReset,
+    popularEvents,
+    fetchPopularEvents,
   } = useEventSearch();
+
+  const { themeStyles, isDark } = useTheme();
 
   const {
     eventsByCategory: filteredEventsByCategory,
@@ -54,20 +167,18 @@ export default function CategoryEventsPage() {
     clearFilters,
   } = useFilteredEvents();
 
-  const displayEventsByCategory = isUsingAdvancedFilter ? filteredEventsByCategory : eventsByCategory;
+  const displayEventsByCategory = isUsingAdvancedFilter
+    ? filteredEventsByCategory
+    : eventsByCategory;
   const displayLoading = isUsingAdvancedFilter ? filterLoading : loading;
   const displayError = isUsingAdvancedFilter ? filterError : error;
-  const shouldIncludeSubEvents =
-    (!!selectedCategory && !isUsingAdvancedFilter) ||
-    (!!activeFilters.category && isUsingAdvancedFilter);
-
   const displayEventsByCategoryWithSubEventLogic = Object.fromEntries(
     Object.entries(displayEventsByCategory).map(([category, events]) => [
       category,
-      shouldIncludeSubEvents
-        ? events
-        : events.filter((event: any) => !('isSubEvent' in event && event.isSubEvent)),
-    ]),
+      (events as any[]).filter(
+        (event: any) => !("isSubEvent" in event && event.isSubEvent)
+      ),
+    ])
   );
 
   // Initial load
@@ -81,48 +192,56 @@ export default function CategoryEventsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryFromUrl]);
-// Periodic refresh of event stats every 30 seconds when page is visible
-useEffect(() => {
-  if (typeof window === 'undefined') return;
-  
-  const refreshInterval = setInterval(() => {
-    if (!document.hidden) {
-      Object.values(displayEventsByCategoryWithSubEventLogic).forEach((events: any) => {
-        events.forEach((event: any) => {
-          event.loadEventStats();
-        });
-      });
-    }
-  }, 10000); // Every 10 seconds
-  return () => clearInterval(refreshInterval);
-}, []);
-  // Handle GPS location search
-  const handleUseCurrentLocation = async () => {
+
+  // Periodic refresh of event stats every 10 seconds when page is visible
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const refreshInterval = setInterval(() => {
+      if (!document.hidden) {
+        Object.values(displayEventsByCategoryWithSubEventLogic).forEach(
+          (events: any) => {
+            events.forEach((event: any) => {
+              if (event.loadEventStats) event.loadEventStats();
+            });
+          }
+        );
+      }
+    }, 10000);
+    return () => clearInterval(refreshInterval);
+  }, [displayEventsByCategoryWithSubEventLogic]);
+
+  // Location Handlers
+  const handleLocationGranted = async (coords: {
+    latitude: number;
+    longitude: number;
+    displayName?: string;
+  }) => {
+    setUserLocation({ latitude: coords.latitude, longitude: coords.longitude });
+    setLocationModalOpen(false);
+    setIsUsingAdvancedFilter(false);
+    setSelectedCategory(undefined);
     try {
-      setIsUsingAdvancedFilter(false);
-      setSelectedCategory(undefined);
-      await searchByCurrentLocation();
-      setLocationInput('');
+      await searchByLocation({ location: "Current Location", ...coords });
       setHasActiveSearch(true);
     } catch (err: any) {
-      alert(err.message || 'Failed to get location');
+      alert(err.message || "Failed to search location");
     }
   };
 
-  // Handle manual location search
-  const handleManualLocationSearch = async () => {
-    if (!locationInput.trim()) return;
+  const handleManualLocation = async (location: string) => {
+    setLocationModalOpen(false);
+    if (!location.trim()) return;
     try {
       setIsUsingAdvancedFilter(false);
       setSelectedCategory(undefined);
-      await searchByLocation({ location: locationInput.trim() });
+      await searchByLocation({ location: location.trim() });
       setHasActiveSearch(true);
     } catch (err: any) {
-      alert(err.message || 'Failed to search location');
+      alert(err.message || "Failed to search location");
     }
   };
 
-  // Handle event name search
+  // Search Handlers
   const handleEventNameSearch = async () => {
     if (!searchInput.trim()) return;
     try {
@@ -131,424 +250,349 @@ useEffect(() => {
       await searchByName(searchInput.trim());
       setHasActiveSearch(true);
     } catch (err: any) {
-      alert(err.message || 'Failed to search events');
+      alert(err.message || "Failed to search events");
     }
   };
 
-  // Handle category click
-  const handleCategoryClick = async (category: string) => {
-    if (isUsingAdvancedFilter) {
-      const newCategory = category === activeFilters.category ? undefined : category;
-      const newFilters = { ...activeFilters, category: newCategory };
-      setActiveFilters(newFilters);
-      try {
-        await filterEvents(newFilters);
-      } catch (err) {
-        console.error('Filter error:', err);
-      }
-    } else {
-      const newCategory = category === selectedCategory ? undefined : category;
-      setSelectedCategory(newCategory);
-      setLocationInput('');
-      setSearchInput('');
-      
-      if (newCategory) {
-        setHasActiveSearch(true);
-        await searchByCategory(newCategory);
-      } else {
-        setHasActiveSearch(false);
-        await fetchInitialEvents();
-      }
-    }
-  };
-
-  // Handle clear all
   const handleClearSearch = async () => {
     setSelectedCategory(undefined);
-    setLocationInput('');
-    setSearchInput('');
+    setSearchInput("");
     setHasActiveSearch(false);
     setIsUsingAdvancedFilter(false);
     setActiveFilters({});
     clearFilters();
-    
     try {
       await clearAndReset();
     } catch (err: any) {
-      alert(err.message || 'Failed to reset search');
+      console.error("Failed to reset search", err);
     }
   };
 
-  // Handle advanced filters
-  const handleApplyAdvancedFilters = async (filters: FilterEventsParams) => {
+  // Advanced Filters Handler
+  const handleApplyAdvancedFilters = async (
+    response: any,
+    filters: FilterEventsParams
+  ) => {
     try {
       setActiveFilters(filters);
       setIsUsingAdvancedFilter(true);
       setHasActiveSearch(true);
-      
+
       if (user?.latitude && user?.longitude && !filters.location) {
         filters.latitude = user.latitude;
         filters.longitude = user.longitude;
       }
-      
+
       await filterEvents(filters);
+
+      // Refresh popular events based on new filters
+      if (filters.category) {
+        fetchPopularEvents(filters.category);
+      } else if (filters.searchQuery) {
+        fetchPopularEvents(undefined, 10, filters.searchQuery);
+      } else {
+        fetchPopularEvents();
+      }
+
       setIsFilterModalOpen(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to apply filters');
+      alert(err.message || "Failed to apply filters");
     }
   };
 
-  const getActiveFiltersCount = () => {
-    if (!isUsingAdvancedFilter) return 0;
-    let count = 0;
-    if (activeFilters.category) count++;
-    if (activeFilters.subcategory) count++;
-    if (activeFilters.location) count++;
-    if (activeFilters.searchQuery) count++;
-    if (activeFilters.radius && activeFilters.radius !== 200) count++;
-    if (activeFilters.locationType) count++;
-    if (activeFilters.eventLanguage) count++;
-    if (activeFilters.startDate || activeFilters.endDate) count++;
-    if (activeFilters.bookingStartDate || activeFilters.bookingEndDate) count++;
-    return count;
-  };
+  const sidebarWidth = isMobile ? 0 : isCollapsed ? 92 : 281;
 
-  const getStatusText = () => {
-    if (isUsingAdvancedFilter && appliedFilters) {
-      const parts: string[] = [];
-      if (appliedFilters.searchQuery) parts.push(`"${appliedFilters.searchQuery}"`);
-      if (appliedFilters.category) parts.push(appliedFilters.category);
-      if (appliedFilters.locationType) parts.push(appliedFilters.locationType);
-      return parts.length > 0 ? `Filtering by: ${parts.join(', ')}` : 'Advanced filters applied';
+  const renderContent = () => {
+    if (displayLoading) {
+      return (
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+        </div>
+      );
     }
-    
-    switch (currentSearchType) {
-      case 'name':
-        return `Searching for events`;
-      case 'location':
-        return locationInput ? `Searching in: ${locationInput}` : 'Searching by location';
-      case 'category':
-        return selectedCategory ? `Category: ${selectedCategory}` : '';
-      default:
-        if (locationSource === 'saved') return 'Showing events near your saved location';
-        if (locationSource === 'country') return `Showing events in ${user?.country_name || 'your country'}`;
-        return '';
+
+    if (displayError) {
+      return (
+        <div className="p-4 rounded-2xl bg-red-900/20 border border-red-900/50 flex items-center justify-center">
+          <p className="text-red-400">{displayError}</p>
+        </div>
+      );
     }
-  };
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Header
-          title="Explore Events"
-          subtitle={
-            isUsingAdvancedFilter
-              ? `${filteredTotalEvents} events found`
-              : totalEvents > 0
-              ? `${totalEvents} events found`
-              : 'Discover events near you'
-          }
+
+    const hasMainResults = Object.keys(displayEventsByCategoryWithSubEventLogic).length > 0;
+    const hasSuggestionResults = Object.keys(suggestionsByCategory).length > 0;
+
+    let elements: JSX.Element[] = [];
+
+    // Popular Events Section (if category is selected or searched)
+    if (popularEvents && popularEvents.length > 0) {
+      const activeCategory = selectedCategory || activeFilters.category;
+      const popularTitle = activeCategory
+        ? `Popular in ${activeCategory}`
+        : searchInput
+          ? `Popular for "${searchInput}"`
+          : "Popular Events";
+
+      elements.push(
+        <PopularEventBanner
+          key="popular-events"
+          title={popularTitle}
+          events={popularEvents}
+          onViewAll={() => {
+            const category = selectedCategory || activeFilters.category;
+            if (category) {
+              router.push(`/events/categories?category=${encodeURIComponent(category)}`);
+            }
+          }}
         />
+      );
+    }
 
-        {/* Quick Search & Advanced Filter Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-          <Card className="bg-green-50 border-green-200">
-            <div className="p-4">
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <Search className="w-4 h-4 text-green-600" />
-                Search by Event Name
-              </h3>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleEventNameSearch()}
-                  placeholder="Search events..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
-                />
-                <button
-                  onClick={handleEventNameSearch}
-                  disabled={displayLoading || !searchInput.trim()}
-                  className="bg-green-600 hover:bg-green-700 text-white font-medium px-4 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+    // Main Results
+    if (hasMainResults) {
+      Object.entries(displayEventsByCategoryWithSubEventLogic).forEach(
+        ([category, events]) => {
+          elements.push(
+            <EventRow
+              key={`main-${category}`}
+              title={`${category} (${(events as any[]).length})`}
+              events={events as any[]}
+              onSeeAll={selectedCategory ? undefined : () => {
+                router.push(`/events/categories?category=${encodeURIComponent(category)}`);
+              }}
+            />
+          );
+        }
+      );
+    }
+
+    // Empty State
+    if (!hasMainResults && !displayLoading) {
+      elements.push(
+        <div
+          key="empty"
+          className="py-12 text-center border rounded-2xl flex flex-col items-center justify-center min-h-[200px]"
+          style={{
+            backgroundColor: themeStyles.cardBg.includes('gradient') ? 'transparent' : themeStyles.cardBg,
+            backgroundImage: themeStyles.cardBg.includes('gradient') ? themeStyles.cardBg : 'none',
+            borderColor: themeStyles.border
+          }}
+        >
+          <AlertCircle className="w-12 h-12 mb-4" style={{ color: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)' }} />
+          <p className="text-lg mb-2" style={{ color: themeStyles.textSecondary }}>
+            {currentSearchType === "location"
+              ? `No events found in this location`
+              : currentSearchType === "category" && selectedCategory
+              ? `No events found for "${selectedCategory}" in your area`
+              : currentSearchType === "name" && searchInput
+              ? `No events found matching "${searchInput}"`
+              : "No events found"}
+          </p>
+          <button
+            onClick={handleClearSearch}
+            className="mt-4 text-purple-400 hover:text-purple-300 font-semibold transition-colors flex items-center gap-2 px-4 py-2"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Clear filters and view all events
+          </button>
+        </div>
+      );
+    }
+
+    // Suggestions Section
+    if (!isUsingAdvancedFilter && hasSuggestions && hasSuggestionResults && !hasMainResults) {
+      elements.push(
+        <div key="suggestions" className="mt-8 pt-8 border-t" style={{ borderTopColor: themeStyles.border }}>
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold flex items-center gap-2" style={{ color: themeStyles.text }}>
+              <AlertCircle className="w-5 h-5 text-purple-400" />
+              Suggested Events Nearby
+            </h3>
+            <p className="text-sm mt-1" style={{ color: themeStyles.textSecondary }}>
+              {`We found ${totalSuggestions} event(s) in nearby areas that might interest you`}
+            </p>
+          </div>
+
+          {Object.entries(suggestionsByCategory).map(([category, events]) => (
+            <EventRow
+              key={`suggestion-${category}`}
+              title={`${category} (${(events as any[]).length} suggested)`}
+              events={events as any[]}
+              onSeeAll={() => {
+                router.push(`/events/categories?category=${encodeURIComponent(category)}`);
+              }}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    return elements;
+  };
+
+  return (
+    <div className="min-h-screen">
+      <style jsx global>{`
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+
+      <SideBar />
+
+      <div
+        className="flex-1 min-h-screen transition-colors duration-300"
+        style={{
+          marginLeft: `${sidebarWidth}px`,
+          backgroundColor: themeStyles.background,
+        }}
+      >
+        <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-8">
+          {/* Header Section */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div
+              className="flex items-center gap-3 w-full px-4"
+              style={{
+                height: 48,
+                borderRadius: 10,
+                background: isDark ? "#38383866" : "#E5E7EB",
+                border: `1px solid ${isDark ? "#3D4149" : "#D1D5DB"}`,
+              }}
+            >
+              {/* Location button */}
+              <button
+                onClick={() => setLocationModalOpen(true)}
+                className="flex items-center gap-1.5 flex-shrink-0 px-2 py-1 rounded-lg transition-all"
+                style={{
+                  background: locationSource !== "none" ? "rgba(136,96,217,0.18)" : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"),
+                  border: "1px solid " + (locationSource !== "none" ? "rgba(136,96,217,0.4)" : (isDark ? "#3D4149" : "#D1D5DB")),
+                  maxWidth: 160,
+                }}
+                title="Set location"
+              >
+                {locationSource === "gps" || userLocation ? (
+                  <Navigation className="w-3 h-3 text-green-400 flex-shrink-0" />
+                ) : locationSource !== "none" ? (
+                  <MapPin className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                ) : (
+                  <MapPin className={`w-3 h-3 flex-shrink-0 ${isDark ? "text-white/30" : "text-black/30"}`} />
+                )}
+                <span
+                  className="text-xs truncate font-medium"
+                  style={{
+                    color: locationSource !== "none" ? (isDark ? "#c4b5fd" : "#8860D9") : (isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.4)"),
+                    maxWidth: 110,
+                  }}
                 >
-                  <Search className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </Card>
+                  {locationSource !== "none" ? "Map Location Active" : "Set location"}
+                </span>
+              </button>
 
-          <Card className="bg-purple-50 border-purple-200">
-            <div className="p-4">
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 text-purple-600" />
-                Advanced Filters
-              </h3>
+              <div className="w-px h-5 flex-shrink-0" style={{ background: isDark ? "#3D4149" : "#D1D5DB" }} />
+
+              <Image
+                src={SearchIcon}
+                alt="Search"
+                width={16}
+                height={16}
+                style={{ opacity: 0.5, flexShrink: 0, filter: isDark ? 'none' : 'invert(1)' }}
+              />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleEventNameSearch()}
+                placeholder="Search events, categories..."
+                className={`flex-1 bg-transparent text-sm outline-none min-w-0 ${isDark ? "text-white placeholder-white/25" : "text-black placeholder-black/40"}`}
+              />
+              {searchInput && (
+                <button
+                  onClick={() => {
+                    setSearchInput("");
+                    if (hasActiveSearch) handleClearSearch();
+                  }}
+                  className={`${isDark ? "text-white/40 hover:text-white/70" : "text-black/40 hover:text-black/60"} text-xs transition-colors flex-shrink-0`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+
               <button
                 onClick={() => setIsFilterModalOpen(true)}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                className={`flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg transition-all relative ${isDark ? "hover:bg-white/10" : "hover:bg-black/5"}`}
+                style={{ border: `1px solid ${isDark ? "#3D4149" : "#D1D5DB"}` }}
               >
-                <Filter className="w-4 h-4" />
-                Open Filter Panel
-                {getActiveFiltersCount() > 0 && (
-                  <span className="bg-white text-purple-600 text-xs px-2 py-0.5 rounded-full ml-2">
-                    {getActiveFiltersCount()}
+                <Image src={FilterButtonIcon} alt="Filter" width={16} height={16} />
+                {Object.keys(activeFilters).length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
                   </span>
                 )}
               </button>
             </div>
-          </Card>
-        </div>
+          </div>
 
-        {/* Location Search */}
-        <Card className="mb-6 bg-blue-50 border-blue-200">
-          <div className="p-4">
-            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-blue-600" />
-              Search by Location
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <button
-                onClick={handleUseCurrentLocation}
-                disabled={displayLoading}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-              >
-                <Navigation className="w-4 h-4" />
-                Use Current Location
-              </button>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={locationInput}
-                  onChange={(e) => setLocationInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleManualLocationSearch()}
-                  placeholder="Enter city, area, or place..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                />
-                <button
-                  onClick={handleManualLocationSearch}
-                  disabled={displayLoading || !locationInput.trim()}
-                  className="bg-gray-600 hover:bg-gray-700 text-white font-medium px-4 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          {/* Active Filter Chips */}
+          {(hasActiveSearch || Object.keys(activeFilters).length > 0) && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {activeFilters.category && (
+                <span
+                  className={`px-3 py-1 rounded-full text-xs ${isDark ? "text-white/80" : "text-black/70"}`}
+                  style={{ background: isDark ? "#2D3139" : "#E5E7EB", border: `1px solid ${isDark ? "#3D4149" : "#D1D5DB"}` }}
                 >
-                  <Search className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Status */}
-        {(hasActiveSearch || locationSource !== 'none') && (
-          <div className="mb-4 flex items-center gap-2 text-sm text-gray-600">
-            <MapPin className="w-4 h-4" />
-            <span>{getStatusText()}</span>
-            {searchRadius && <span className="text-gray-400">• {searchRadius}km radius</span>}
-          </div>
-        )}
-
-        {/* Clear All Button */}
-        {hasActiveSearch && (
-          <div className="mb-6">
-            <button
-              onClick={handleClearSearch}
-              disabled={displayLoading}
-              className="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-            >
-              <X className="h-4 w-4" />
-              Clear All & Show All Events
-            </button>
-          </div>
-        )}
-
-        {/* Category Quick Filter */}
-        <div className="mb-8">
-          <h3 className="text-base font-semibold mb-3 flex items-center gap-2">
-            <Filter className="w-4 h-4" />
-            Filter by Category
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {EVENT_CATEGORIES.map((category) => (
-              <button
-                key={category}
-                onClick={() => handleCategoryClick(category)}
-                disabled={displayLoading}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors disabled:opacity-50 ${
-                  (isUsingAdvancedFilter ? activeFilters.category : selectedCategory) === category
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                }`}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Loading State */}
-        {displayLoading && (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <p className="mt-4 text-gray-600">Loading events...</p>
-          </div>
-        )}
-
-        {/* Error State */}
-        {displayError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-800">{displayError}</p>
-          </div>
-        )}
-
-        {/* Main Results */}
-        {!displayLoading && Object.keys(displayEventsByCategoryWithSubEventLogic).length > 0 && (
-          <div className="space-y-8">
-            {Object.entries(displayEventsByCategoryWithSubEventLogic).map(([category, events]) => (
-              <div key={category}>
-                <h2 className="text-xl font-bold text-gray-900 mb-4">
-                  {category}
-                  <span className="text-sm font-normal text-gray-600 ml-2">
-                    ({events.length} event{events.length !== 1 ? 's' : ''})
-                  </span>
-                </h2>
-                <div className="overflow-x-auto pb-4">
-                  <div className="flex gap-4" style={{ minWidth: 'min-content' }}>
-                    {events.map((event) => (
-                      <div key={event._id} className="w-80 flex-shrink-0">
-                        <EventCard 
-                          event={event} 
-                          showDistance={locationSource === 'gps' || locationSource === 'saved'} 
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {/* Empty State with Suggestions */}
-        {!displayLoading && Object.keys(displayEventsByCategoryWithSubEventLogic).length === 0 && (
-          <Card className="text-center py-12 mb-8">
-            <div className="max-w-md mx-auto">
-              <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 text-lg mb-2">
-                {currentSearchType === 'location' && locationInput
-                  ? `No events found in "${locationInput}"`
-                  : currentSearchType === 'category' && selectedCategory
-                  ? `No events found for "${selectedCategory}" in your area`
-                  : currentSearchType === 'name' && searchInput
-                  ? `No events found matching "${searchInput}"`
-                  : 'No events found'}
-              </p>
-              {currentSearchType === 'location' && locationInput && (
-                <p className="text-gray-500 text-sm mb-4">
-                  There are currently no events scheduled in this location.
-                </p>
+                  {activeFilters.category.split(',')[0].trim()}
+                </span>
+              )}
+              {activeFilters.radius && (
+                <span
+                  className={`px-3 py-1 rounded-full text-xs ${isDark ? "text-white/80" : "text-black/70"}`}
+                  style={{ background: isDark ? "#2D3139" : "#E5E7EB", border: `1px solid ${isDark ? "#3D4149" : "#D1D5DB"}` }}
+                >
+                  {activeFilters.radius} km
+                </span>
+              )}
+              {selectedCategory && (
+                <span
+                  className={`px-3 py-1 rounded-full text-xs ${isDark ? "text-white/80" : "text-black/70"}`}
+                  style={{ background: isDark ? "#2D3139" : "#E5E7EB", border: `1px solid ${isDark ? "#3D4149" : "#D1D5DB"}` }}
+                >
+                  {selectedCategory}
+                </span>
               )}
               <button
                 onClick={handleClearSearch}
-                className="mt-4 text-blue-600 hover:text-blue-700 font-semibold"
+                className={`px-3 py-1 rounded-full text-xs transition-colors border ${isDark ? "text-red-400 hover:text-red-300 bg-[#2D3139] border-[#3D4149]" : "text-red-600 hover:text-red-500 bg-white border-[#D1D5DB]"}`}
               >
-                Clear filters and view all events
+                Clear All
               </button>
             </div>
-          </Card>
-        )}
-        {/* Suggestions Section (only when no main results and has suggestions) */}
-        {!displayLoading && !isUsingAdvancedFilter && hasSuggestions && totalEvents === 0 && Object.keys(suggestionsByCategory).length > 0 && (
-          <div className="mt-8">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5" />
-                {currentSearchType === 'location' && locationInput
-                  ? `Suggested Events Near Your Profile Location`
-                  : currentSearchType === 'category' && selectedCategory
-                  ? `Suggested "${selectedCategory}" Events (within 500km)`
-                  : `Suggested Events Nearby`}
-              </h3>
-              <p className="text-sm text-yellow-700">
-                {currentSearchType === 'location' && locationInput
-                  ? `No events in "${locationInput}", but we found ${totalSuggestions} event(s) near your saved location`
-                  : `We found ${totalSuggestions} event(s) that might interest you`}
-              </p>
-            </div>
-            
-            <div className="space-y-8">
-              {Object.entries(suggestionsByCategory).map(([category, events]) => (
-                <div key={`suggestion-${category}`}>
-                  <h2 className="text-xl font-bold text-gray-700 mb-4">
-                    {category}
-                    <span className="text-sm font-normal text-gray-500 ml-2">
-                      ({events.length} suggested)
-                    </span>
-                  </h2>
-                  <div className="overflow-x-auto pb-4">
-                    <div className="flex gap-4" style={{ minWidth: 'min-content' }}>
-                      {events.map((event) => (
-                        <div key={event._id} className="w-80 flex-shrink-0 opacity-90">
-                          <EventCard event={event} showDistance={true} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+          )}
+
+          {/* Event Categories List */}
+          <div className="mb-6">
+            <EventCategoryList />
           </div>
-        )}
-        {/* Show location name when events are found */}
-        {!displayLoading && currentSearchType === 'location' && locationInput && totalEvents > 0 && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-green-800 font-medium">
-              ✓ Found {totalEvents} event(s) in "{locationInput}"
-            </p>
+
+          {/* Results Sections */}
+          <div className="space-y-6">
+            {renderContent()}
           </div>
-        )}
-        {/* Suggestions Section (only when no main results) */}
-        {!displayLoading && !isUsingAdvancedFilter && hasSuggestions && Object.keys(suggestionsByCategory).length > 0 && (
-          <div className="mt-8">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5" />
-                Suggested Events Nearby (within 500km)
-              </h3>
-              <p className="text-sm text-yellow-700">
-                {currentSearchType === 'category' && selectedCategory
-                  ? `We found ${totalSuggestions} "${selectedCategory}" event(s) in nearby areas`
-                  : `We found ${totalSuggestions} event(s) in nearby areas that might interest you`}
-              </p>
-            </div>
-            
-            <div className="space-y-8">
-              {Object.entries(suggestionsByCategory).map(([category, events]) => (
-                <div key={`suggestion-${category}`}>
-                  <h2 className="text-xl font-bold text-gray-700 mb-4">
-                    {category}
-                    <span className="text-sm font-normal text-gray-500 ml-2">
-                      ({events.length} suggested)
-                    </span>
-                  </h2>
-                  <div className="overflow-x-auto pb-4">
-                    <div className="flex gap-4" style={{ minWidth: 'min-content' }}>
-                      {events.map((event) => (
-                        <div key={event._id} className="w-80 flex-shrink-0 opacity-90">
-                          <EventCard event={event} showDistance={true} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
-      {/* Filter Modal */}
-      <EventFilterModal
+
+      <FilterSearchEvents
         isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
-        onApplyFilters={handleApplyAdvancedFilters}
+        onApply={handleApplyAdvancedFilters}
         initialFilters={activeFilters}
-        loading={filterLoading}
+        userLocation={userLocation}
+      />
+
+      <EnableLocation
+        isOpen={locationModalOpen}
+        onClose={() => setLocationModalOpen(false)}
+        onLocationGranted={handleLocationGranted}
+        onManualLocation={handleManualLocation}
       />
     </div>
   );

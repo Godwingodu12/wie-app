@@ -1,4 +1,4 @@
-import api from './ticketAxios';
+import api from "./ticketAxios";
 import {
   NearbyEventsParams,
   NearbyEventsResponse,
@@ -18,8 +18,9 @@ import {
   LocationSearchParams,
   LocationSearchResponse,
   CategorySearchParams,
-  NearbyEvent
-} from '@/types/ticket';
+  NearbyEvent,
+  CategoryPopularEventsResponse,
+} from "@/types/ticket";
 
 // ADD at the bottom of ticketUserService.ts
 
@@ -41,84 +42,95 @@ export interface AllEventsResponse {
 
 export const getLiveEvents = async (): Promise<LiveEventsResponse> => {
   try {
-    const res = await api.get('/tickets/live-events');
+    const res = await api.get("/tickets/live-events");
     return res.data;
   } catch (err) {
-    console.error('❌ getLiveEvents error:', err);
+    console.error("❌ getLiveEvents error:", err);
     throw err;
   }
 };
-export const getEventById = async (ticketId: string): Promise<EventDetailResponse> => {
+export const getEventById = async (
+  ticketId: string,
+): Promise<EventDetailResponse> => {
   try {
     const res = await api.get(`/tickets/event/${ticketId}`);
     return res.data;
   } catch (err) {
-    console.error('❌ getEventById error:', err);
+    console.error("❌ getEventById error:", err);
     throw err;
   }
 };
 export const getActiveGroups = async (): Promise<ActiveGroupsResponse> => {
   try {
-    const res = await api.get('/tickets/active-groups');
+    const res = await api.get("/tickets/active-groups");
     return res.data;
   } catch (err) {
-    console.error('❌ getActiveGroups error:', err);
+    console.error("❌ getActiveGroups error:", err);
     throw err;
   }
 };
-export const getGroupById = async (groupId: string): Promise<SingleEventResponse> => {
+export const getGroupById = async (
+  groupId: string,
+): Promise<SingleEventResponse> => {
   try {
     const res = await api.get(`/tickets/group/${groupId}`);
     return res.data;
   } catch (err) {
-    console.error('❌ getGroupById error:', err);
+    console.error("❌ getGroupById error:", err);
     throw err;
   }
 };
 export const getNearbyEvents = async (
-  params: NearbyEventsParams
+  params: NearbyEventsParams,
 ): Promise<NearbyEventsResponse> => {
   try {
     // Validate input
     if (!params.latitude && !params.longitude && !params.location) {
-      throw new Error('Either (latitude and longitude) or (location) must be provided');
+      throw new Error(
+        "Either (latitude and longitude) or (location) must be provided",
+      );
     }
     const queryParams = new URLSearchParams();
     if (params.latitude && params.longitude) {
-      queryParams.append('latitude', params.latitude.toString());
-      queryParams.append('longitude', params.longitude.toString());
+      queryParams.append("latitude", params.latitude.toString());
+      queryParams.append("longitude", params.longitude.toString());
     } else if (params.location) {
-      queryParams.append('location', params.location);
+      queryParams.append("location", params.location);
     }
 
     if (params.radius) {
-      queryParams.append('radius', params.radius.toString());
+      queryParams.append("radius", params.radius.toString());
     }
 
-    const res = await api.get(`/tickets/nearby-events?${queryParams.toString()}`);
+    const res = await api.get(
+      `/tickets/nearby-events?${queryParams.toString()}`,
+    );
     return res.data;
   } catch (err) {
-    console.error('❌ getNearbyEvents error:', err);
+    console.error("❌ getNearbyEvents error:", err);
     throw err;
   }
 };
 export const getNearbyEventsByGPS = async (
   latitude: number,
   longitude: number,
-  radius: number = 30
+  radius: number = 30,
 ): Promise<NearbyEventsResponse> => {
   return getNearbyEvents({ latitude, longitude, radius });
 };
 export const getNearbyEventsByLocation = async (
   location: string,
-  radius: number = 30
+  radius: number = 30,
 ): Promise<NearbyEventsResponse> => {
   return getNearbyEvents({ location, radius });
 };
-export const getCurrentLocation = (): Promise<{ latitude: number; longitude: number }> => {
+export const getCurrentLocation = (): Promise<{
+  latitude: number;
+  longitude: number;
+}> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error('Geolocation is not supported by your browser'));
+      reject(new Error("Geolocation is not supported by your browser"));
       return;
     }
 
@@ -136,18 +148,18 @@ export const getCurrentLocation = (): Promise<{ latitude: number; longitude: num
         enableHighAccuracy: true,
         timeout: 10000,
         maximumAge: 0,
-      }
+      },
     );
   });
 };
 export const getNearbyEventsFromCurrentLocation = async (
-  radius: number = 30
+  radius: number = 30,
 ): Promise<NearbyEventsResponse> => {
   try {
     const location = await getCurrentLocation();
     return getNearbyEventsByGPS(location.latitude, location.longitude, radius);
   } catch (err) {
-    console.error('❌ Failed to get current location:', err);
+    console.error("❌ Failed to get current location:", err);
     throw err;
   }
 };
@@ -155,9 +167,9 @@ export const calculateDistance = (
   lat1: number,
   lon1: number,
   lat2: number,
-  lon2: number
+  lon2: number,
 ): number => {
-  const R = 6371; 
+  const R = 6371;
   const dLat = toRadians(lat2 - lat1);
   const dLon = toRadians(lon2 - lon1);
   const a =
@@ -182,137 +194,151 @@ export const formatDistance = (distance: number): string => {
 export const sortEventsByDistance = (events: any[]): any[] => {
   return [...events].sort((a, b) => (a.distance || 0) - (b.distance || 0));
 };
-export const filterEventsByDistance = (events: any[], maxDistance: number): any[] => {
-  return events.filter((event) => event.distance && event.distance <= maxDistance);
+export const filterEventsByDistance = (
+  events: any[],
+  maxDistance: number,
+): any[] => {
+  return events.filter(
+    (event) => event.distance && event.distance <= maxDistance,
+  );
 };
 export const getFilteredEvents = async (
-  params: FilterEventsParams
+  params: FilterEventsParams,
 ): Promise<FilteredEventsResponse> => {
   try {
     const queryParams = new URLSearchParams();
     // Category - preserve special characters like &
     if (params.category) {
-      queryParams.append('category', params.category);
+      queryParams.append("category", params.category);
     }
     if (params.subcategory) {
-      queryParams.append('subcategory', params.subcategory);
+      queryParams.append("subcategory", params.subcategory);
     }
     if (params.location) {
-      queryParams.append('location', params.location);
+      queryParams.append("location", params.location);
     }
     if (params.latitude !== undefined) {
-      queryParams.append('latitude', params.latitude.toString());
+      queryParams.append("latitude", params.latitude.toString());
     }
     if (params.longitude !== undefined) {
-      queryParams.append('longitude', params.longitude.toString());
+      queryParams.append("longitude", params.longitude.toString());
     }
     if (params.searchQuery) {
-      queryParams.append('searchQuery', params.searchQuery);
+      queryParams.append("searchQuery", params.searchQuery);
     }
     if (params.radius !== undefined) {
-      queryParams.append('radius', params.radius.toString());
+      queryParams.append("radius", params.radius.toString());
     }
     if (params.locationType) {
-      queryParams.append('locationType', params.locationType);
+      queryParams.append("locationType", params.locationType);
     }
     if (params.eventLanguage) {
-      queryParams.append('eventLanguage', params.eventLanguage);
+      queryParams.append("eventLanguage", params.eventLanguage);
     }
     if (params.startDate) {
-      queryParams.append('startDate', params.startDate);
+      queryParams.append("startDate", params.startDate);
     }
     if (params.endDate) {
-      queryParams.append('endDate', params.endDate);
+      queryParams.append("endDate", params.endDate);
     }
     if (params.bookingStartDate) {
-      queryParams.append('bookingStartDate', params.bookingStartDate);
+      queryParams.append("bookingStartDate", params.bookingStartDate);
     }
     if (params.bookingEndDate) {
-      queryParams.append('bookingEndDate', params.bookingEndDate);
+      queryParams.append("bookingEndDate", params.bookingEndDate);
     }
     if (params.userId) {
-      queryParams.append('userId', params.userId);
+      queryParams.append("userId", params.userId);
     }
     const queryString = queryParams.toString();
-    const url = queryString 
-      ? `/tickets/filtered-events?${queryString}` 
-      : '/tickets/filtered-events';    
+    const url = queryString
+      ? `/tickets/filtered-events?${queryString}`
+      : "/tickets/filtered-events";
     const res = await api.get(url);
     return res.data;
   } catch (err) {
-    console.error('❌ getFilteredEvents error:', err);
+    console.error("❌ getFilteredEvents error:", err);
     throw err;
   }
 };
 export const getInitialEvents = async (
-  userId?: string
+  userId?: string,
 ): Promise<InitialEventsResponse> => {
   try {
     const queryParams = new URLSearchParams();
-    if (userId) queryParams.append('userId', userId);
-    
+    if (userId) queryParams.append("userId", userId);
+
     const queryString = queryParams.toString();
-    const url = queryString ? `/tickets/initial-events?${queryString}` : '/tickets/initial-events';
-    
+    const url = queryString
+      ? `/tickets/initial-events?${queryString}`
+      : "/tickets/initial-events";
+
     const res = await api.get(url);
     return res.data;
   } catch (err) {
-    console.error('❌ getInitialEvents error:', err);
+    console.error("❌ getInitialEvents error:", err);
     throw err;
   }
 };
 export const searchEventsByName = async (
-  params: NameSearchParams
+  params: NameSearchParams,
 ): Promise<NameSearchResponse> => {
   try {
     const queryParams = new URLSearchParams();
-    queryParams.append('searchQuery', params.searchQuery);
-    if (params.userId) queryParams.append('userId', params.userId);
-    
+    queryParams.append("searchQuery", params.searchQuery);
+    if (params.userId) queryParams.append("userId", params.userId);
+
     const url = `/tickets/search-by-name?${queryParams.toString()}`;
-    
+
     const res = await api.get(url);
     return res.data;
-    } catch (err) {
-    console.error('❌ searchEventsByName error:', err);
+  } catch (err) {
+    console.error("❌ searchEventsByName error:", err);
     throw err;
   }
 };
 export const searchEventsByLocation = async (
-  params: LocationSearchParams
+  params: LocationSearchParams,
 ): Promise<LocationSearchResponse> => {
   try {
     const queryParams = new URLSearchParams();
-    if (params.latitude !== undefined) queryParams.append('latitude', params.latitude.toString());
-    if (params.longitude !== undefined) queryParams.append('longitude', params.longitude.toString());
-    if (params.location) queryParams.append('location', params.location);
-    if (params.radius !== undefined) queryParams.append('radius', params.radius.toString());
-    if (params.userId) queryParams.append('userId', params.userId);
+    if (params.latitude !== undefined)
+      queryParams.append("latitude", params.latitude.toString());
+    if (params.longitude !== undefined)
+      queryParams.append("longitude", params.longitude.toString());
+    if (params.location) queryParams.append("location", params.location);
+    if (params.radius !== undefined)
+      queryParams.append("radius", params.radius.toString());
+    if (params.userId) queryParams.append("userId", params.userId);
     const url = `/tickets/search-by-location?${queryParams.toString()}`;
     const res = await api.get(url);
     return res.data;
   } catch (err) {
-    console.error('❌ searchEventsByLocation error:', err);
+    console.error("❌ searchEventsByLocation error:", err);
     throw err;
   }
 };
 export const getCategoryBasedEvents = async (
-  params: CategorySearchParams
+  params: CategorySearchParams,
 ): Promise<CategoryEventsResponse> => {
   try {
     const queryParams = new URLSearchParams();
-    if (params.category) queryParams.append('category', params.category);
-    if (params.userId) queryParams.append('userId', params.userId);
+    if (params.category) queryParams.append("category", params.category);
+    if (params.userId) queryParams.append("userId", params.userId);
     const queryString = queryParams.toString();
-    const url = queryString ? `/tickets/category-events?${queryString}` : '/tickets/category-events';
+    const url = queryString
+      ? `/tickets/category-events?${queryString}`
+      : "/tickets/category-events";
     const res = await api.get(url);
     return res.data;
   } catch (err) {
-    console.error('❌ getCategoryBasedEvents error:', err);
+    console.error("❌ getCategoryBasedEvents error:", err);
     throw err;
   }
 };
-export const getPopularEvents = async (limit = 10): Promise<{
+export const getPopularEvents = async (
+  limit = 10,
+): Promise<{
   success: boolean;
   data: { count: number; events: NearbyEvent[] };
 }> => {
@@ -320,81 +346,112 @@ export const getPopularEvents = async (limit = 10): Promise<{
     const res = await api.get(`/tickets/popular-events?limit=${limit}`);
     return res.data;
   } catch (err) {
-    console.error('❌ getPopularEvents error:', err);
+    console.error("❌ getPopularEvents error:", err);
     throw err;
   }
 };
 
-// ── Saved location preference ──
+export const getCategoryBasedPopularEvents = async (
+  category?: string,
+  limit = 10,
+  searchQuery?: string,
+): Promise<CategoryPopularEventsResponse> => {
+  try {
+    const queryParams = new URLSearchParams();
+    if (category) queryParams.append("category", category);
+    if (searchQuery) queryParams.append("searchQuery", searchQuery);
+    queryParams.append("limit", limit.toString());
+
+    const res = await api.get(
+      `/tickets/category-popular-events?${queryParams.toString()}`,
+    );
+    return res.data;
+  } catch (err) {
+    console.error("❌ getCategoryBasedPopularEvents error:", err);
+    throw err;
+  }
+};
+
 export const saveUserLocationPreference = async (payload: {
   userId: string;
   displayName: string;
   latitude?: number | null;
   longitude?: number | null;
-  source: 'gps' | 'manual';
+  source: "gps" | "manual";
 }): Promise<void> => {
   try {
-    await api.post('/tickets/user-location', payload);
+    await api.post("/tickets/user-location", payload);
   } catch (err: any) {
-    console.error('❌ saveUserLocationPreference error:', err?.response?.data ?? err);
+    console.error(
+      "❌ saveUserLocationPreference error:",
+      err?.response?.data ?? err,
+    );
   }
 };
-
 export const getSavedUserLocationPreference = async (
-  userId: string
+  userId: string,
 ): Promise<{
   displayName: string;
   latitude: number | null;
   longitude: number | null;
-  source: 'gps' | 'manual';
+  source: "gps" | "manual";
 } | null> => {
   try {
     const res = await api.get(`/tickets/user-location?userId=${userId}`);
     return res.data?.data ?? null;
   } catch (err: any) {
-    console.error('❌ getSavedUserLocationPreference error:', err?.response?.data ?? err);
+    console.error(
+      "❌ getSavedUserLocationPreference error:",
+      err?.response?.data ?? err,
+    );
     return null;
   }
 };
-export const getCancelledEvents = async (userId?: string): Promise<{
+export const getCancelledEvents = async (
+  userId?: string,
+): Promise<{
   success: boolean;
   data: { events: any[]; count: number };
 }> => {
   try {
-    const query = userId ? `?userId=${userId}` : '';
+    const query = userId ? `?userId=${userId}` : "";
     const res = await api.get(`/tickets/cancelled-events${query}`);
     return res.data;
   } catch (err) {
-    console.error('❌ getCancelledEvents error:', err);
+    console.error("❌ getCancelledEvents error:", err);
     throw err;
   }
 };
 
-export const getRehostedEvents = async (userId?: string): Promise<{
+export const getRehostedEvents = async (
+  userId?: string,
+): Promise<{
   success: boolean;
   data: { events: any[]; count: number };
 }> => {
   try {
-    const query = userId ? `?userId=${userId}` : '';
+    const query = userId ? `?userId=${userId}` : "";
     const res = await api.get(`/tickets/rehosted-events${query}`);
     return res.data;
   } catch (err) {
-    console.error('❌ getRehostedEvents error:', err);
+    console.error("❌ getRehostedEvents error:", err);
     throw err;
   }
 };
 
 export const getAllEventsWithDistance = async (
-  params: { latitude?: number; longitude?: number; location?: string } = {}
+  params: { latitude?: number; longitude?: number; location?: string } = {},
 ): Promise<any> => {
   try {
     const queryParams = new URLSearchParams();
-    if (params.latitude !== undefined) queryParams.append('latitude', params.latitude.toString());
-    if (params.longitude !== undefined) queryParams.append('longitude', params.longitude.toString());
-    if (params.location) queryParams.append('location', params.location);
+    if (params.latitude !== undefined)
+      queryParams.append("latitude", params.latitude.toString());
+    if (params.longitude !== undefined)
+      queryParams.append("longitude", params.longitude.toString());
+    if (params.location) queryParams.append("location", params.location);
 
     const query = queryParams.toString();
-    const res = await api.get(`/tickets/all-events${query ? `?${query}` : ''}`);
+    const res = await api.get(`/tickets/all-events${query ? `?${query}` : ""}`);
 
     return {
       data: {
@@ -404,7 +461,7 @@ export const getAllEventsWithDistance = async (
       },
     };
   } catch (err) {
-    console.error('❌ getAllEventsWithDistance error:', err);
+    console.error("❌ getAllEventsWithDistance error:", err);
     throw err;
   }
 };

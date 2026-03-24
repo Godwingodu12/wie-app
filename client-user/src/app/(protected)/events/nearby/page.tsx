@@ -27,6 +27,8 @@ import { useSidebar } from '@/context/SidebarContext';
 import { EventCard } from '@/components/events/EventCard';
 import EventCategoryList from '@/components/events/Eventcategorylist';
 import FilterSearchEvents from '@/components/events/FilterSearchEvents';
+import PopularEventBanner from '@/components/events/PopularEventBanner';
+import { useTheme } from '@/components/home/ThemeContext';
 // Asset imports — adjust paths if your assets differ
 import SearchIcon from '@/assets/Event/serachIcon.png';
 import FilterButtonIcon from '@/assets/Event/FilterButton.png';
@@ -43,159 +45,24 @@ function bandLabel(band: number): string {
   return band === 9999 ? 'All Events' : `Within ${band} km`;
 }
 
-function PopularEventBanner({
-  events,
-  onViewAll,
-}: {
-  events: NearbyEvent[];
-  onViewAll: () => void;
-}) {
-  const router = useRouter();
-  const [active, setActive] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const reset = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setActive((p) => (p + 1) % events.length);
-    }, 3000);
-  }, [events.length]);
-
-  useEffect(() => {
-    if (events.length < 2) return;
-    reset();
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [reset]);
-
-  if (!events.length) return null;
-
-  const ev = events[active];
-
-  // Desktop: event_banner, Mobile: event_portrait (fallback to event_banner)
-  const desktopSrc = (ev as any).event_banner || null;
-  const mobileSrc  = (ev as any).event_portrait || (ev as any).event_banner || null;
-
-  return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-white font-semibold text-lg">Popular event</h2>
-        <button
-          onClick={onViewAll}
-          className="text-xs font-medium text-transparent bg-clip-text"
-          style={{
-            backgroundImage:
-              'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
-            WebkitBackgroundClip: 'text',
-          }}
-        >
-          see all
-        </button>
-      </div>
-
-      {/* Banner */}
-      <div
-        className="relative w-full overflow-hidden cursor-pointer group"
-        style={{ borderRadius: 16 }}
-        onClick={() => router.push(`/events/${ev._id}`)}
-      >
-        {/* Desktop banner — hidden on mobile */}
-        <div
-          className="hidden sm:block w-full"
-          style={{ aspectRatio: '1920 / 720' }}
-        >
-          {desktopSrc ? (
-            <img
-              src={desktopSrc}
-              alt={ev.event_name}
-              className="w-full h-full transition-transform duration-700 group-hover:scale-[1.01]"
-              style={{ objectFit: 'fill', display: 'block', width: '100%', height: '100%' }}
-            />
-          ) : (
-            <div
-              className="w-full h-full"
-              style={{ background: 'linear-gradient(135deg, #1C2024 0%, #2D3139 100%)' }}
-            />
-          )}
-        </div>
-
-        {/* Mobile portrait — hidden on desktop */}
-        <div
-          className="block sm:hidden w-full"
-          style={{ aspectRatio: '4 / 5' }}
-        >
-          {mobileSrc ? (
-            <img
-              src={mobileSrc}
-              alt={ev.event_name}
-              className="w-full h-full transition-transform duration-700 group-hover:scale-[1.01]"
-              style={{ objectFit: 'fill', display: 'block', width: '100%', height: '100%' }}
-            />
-          ) : (
-            <div
-              className="w-full h-full"
-              style={{ background: 'linear-gradient(135deg, #1C2024 0%, #2D3139 100%)' }}
-            />
-          )}
-        </div>
-
-        {/* Gradient overlay */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)',
-          }}
-        />
-
-        {/* Event info */}
-        <div className="absolute bottom-4 left-4 right-14">
-          <p className="text-white font-bold text-base line-clamp-1">{ev.event_name}</p>
-          <p className="text-white/60 text-xs mt-0.5">
-            {ev.event_dates?.[0]?.start_date
-              ? new Date(ev.event_dates[0].start_date).toLocaleDateString('en-US', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })
-              : ''}
-          </p>
-        </div>
-
-        {/* Dot indicators */}
-        <div className="absolute bottom-4 right-4 flex gap-1.5">
-          {events.slice(0, 6).map((ev, i) => (
-            <button
-              key={`dot-${ev._id ?? i}-${i}`}
-              onClick={(e) => { e.stopPropagation(); setActive(i); reset(); }}
-              className="transition-all"
-              style={{
-                width: i === active ? 16 : 6,
-                height: 6,
-                borderRadius: 3,
-                background: i === active ? '#8860D9' : 'rgba(255,255,255,0.4)',
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function EventRow({
   title,
   events,
   onSeeAll,
+  isGrid = false,
   likedIds = new Set<string>(),
   savedIds  = new Set<string>(),
 }: {
   title: string;
   events: EventWithLocation[];
   onSeeAll?: () => void;
+  isGrid?: boolean;
   likedIds?: Set<string>;
   savedIds?:  Set<string>;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
+  const { themeStyles } = useTheme();
 
   const scroll = (dir: 'left' | 'right') => {
     rowRef.current?.scrollBy({ left: dir === 'left' ? -400 : 400, behavior: 'smooth' });
@@ -206,7 +73,7 @@ function EventRow({
   return (
     <div className="mb-8">
       <div className="flex items-center justify-between mb-3 px-1">
-        <h3 className="text-white font-semibold text-base">{title}</h3>
+        <h3 className="font-semibold text-base" style={{ color: themeStyles.text }}>{title}</h3>
         {onSeeAll && (
           <button
             onClick={onSeeAll}
@@ -223,27 +90,34 @@ function EventRow({
       </div>
 
       <div className="relative group">
-        {/* Left arrow */}
-        <button
-          onClick={() => scroll('left')}
-          className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{ background: '#2D3139', border: '1px solid #3D4149' }}
-        >
-          <ChevronLeft className="w-4 h-4 text-white" />
-        </button>
+        {!isGrid && (
+          <>
+            {/* Left arrow */}
+            <button
+              onClick={() => scroll('left')}
+              className="absolute -left-3 top-[145px] -translate-y-1/2 z-10 w-7 h-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ background: themeStyles.hoverBg, border: `1px solid ${themeStyles.border}` }}
+            >
+              <ChevronLeft className="w-4 h-4" style={{ color: themeStyles.text }} />
+            </button>
 
-        {/* Right arrow */}
-        <button
-          onClick={() => scroll('right')}
-          className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{ background: '#2D3139', border: '1px solid #3D4149' }}
-        >
-          <ChevronRight className="w-4 h-4 text-white" />
-        </button>
+            {/* Right arrow */}
+            <button
+              onClick={() => scroll('right')}
+              className="absolute -right-3 top-[145px] -translate-y-1/2 z-10 w-7 h-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ background: themeStyles.hoverBg, border: `1px solid ${themeStyles.border}` }}
+            >
+              <ChevronRight className="w-4 h-4" style={{ color: themeStyles.text }} />
+            </button>
+          </>
+        )}
 
         <div
           ref={rowRef}
-          className="flex gap-3 overflow-x-auto scrollbar-hide pb-1"
+          className={isGrid 
+            ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6" 
+            : "flex gap-6 overflow-x-auto scrollbar-hide pb-1"
+          }
         >
          {events.map((ev, idx) => (
             <EventCard
@@ -262,19 +136,20 @@ function EventRow({
 
 function CategoryBreak({ category, events }: { category: string; events: EventWithLocation[] }) {
   const router = useRouter();
+  const { themeStyles } = useTheme();
   if (!events.length) return null;
 
   return (
     <div
       className="mb-8 p-4 rounded-2xl"
-      style={{ background: '#1C2024', border: '1px solid #2D3139' }}
+      style={{ background: themeStyles.cardBg.includes('gradient') ? 'transparent' : themeStyles.cardBg, backgroundImage: themeStyles.cardBg.includes('gradient') ? themeStyles.cardBg : 'none', border: `1px solid ${themeStyles.border}` }}
     >
       <div className="flex items-center justify-between mb-3">
         <div>
-          <p className="text-white/50 text-xs uppercase tracking-wider mb-0.5">
+          <p className="text-xs uppercase tracking-wider mb-0.5" style={{ color: themeStyles.textSecondary }}>
             You might also like
           </p>
-          <h3 className="text-white font-semibold text-sm">{category}</h3>
+          <h3 className="font-semibold text-sm" style={{ color: themeStyles.text }}>{category}</h3>
         </div>
         <button
           onClick={() =>
@@ -297,12 +172,16 @@ function CategoryBreak({ category, events }: { category: string; events: EventWi
 }
 
 function UserCancelledSection({ events, router }: { events: any[]; router: any }) {
+  const { themeStyles, isDark } = useTheme();
   if (!events.length) return null;
 
   return (
     <div
       className="mb-6 p-4 rounded-2xl"
-      style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}
+      style={{ 
+        background: isDark ? 'rgba(239,68,68,0.06)' : 'rgba(239,68,68,0.04)', 
+        border: `1px solid ${isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.1)'}` 
+      }}
     >
       {/* Header */}
       <div className="flex items-center gap-2 mb-3">
@@ -314,7 +193,7 @@ function UserCancelledSection({ events, router }: { events: any[]; router: any }
         >
           {events.length} event{events.length > 1 ? 's' : ''}
         </span>
-        <span className="text-white/30 text-[10px] ml-auto">Events you booked were cancelled by host</span>
+        <span className="text-[10px] ml-auto" style={{ color: themeStyles.textSecondary }}>Events you booked were cancelled by host</span>
       </div>
 
       {/* Horizontal scroll row */}
@@ -356,9 +235,9 @@ function UserCancelledSection({ events, router }: { events: any[]; router: any }
 
             {/* Info */}
             <div className="mt-1.5 px-0.5">
-              <p className="text-white/80 font-medium text-xs line-clamp-1">{ev.event_name}</p>
+              <p className="font-medium text-xs line-clamp-1" style={{ color: themeStyles.text }}>{ev.event_name}</p>
               {ev.cancellation_reason && (
-                <p className="text-white/40 text-[10px] mt-0.5 line-clamp-1 italic">
+                <p className="text-[10px] mt-0.5 line-clamp-1 italic" style={{ color: themeStyles.textSecondary }}>
                   "{ev.cancellation_reason}"
                 </p>
               )}
@@ -377,22 +256,22 @@ function UserCancelledSection({ events, router }: { events: any[]; router: any }
                       '#ef4444',
                   }}
                 >
-                  {ev.refundStatus === 'COMPLETED'  ? '✓ Refunded' :
-                   ev.refundStatus === 'PROCESSING' ? '↻ Processing' :
-                   '⏳ Refund Pending'}
-                </span>
-                {ev.refundAmount && (
-                  <span className="text-white/50 text-[10px]">₹{ev.refundAmount}</span>
-                )}
-              </div>
+                    {ev.refundStatus === 'COMPLETED'  ? '✓ Refunded' :
+                     ev.refundStatus === 'PROCESSING' ? '↻ Processing' :
+                     '⏳ Refund Pending'}
+                  </span>
+                  {ev.refundAmount && (
+                    <span className="text-[10px]" style={{ color: themeStyles.textSecondary }}>₹{ev.refundAmount}</span>
+                  )}
+                </div>
             </div>
 
             {/* Track refund button */}
             {ev.refundStatus !== 'COMPLETED' && ev.bookingId && (
               <button
                 onClick={() => router.push(`/bookings/${ev.bookingId}/refund`)}
-                className="mt-2 w-full py-1.5 rounded-lg text-[10px] font-bold text-white"
-                style={{ background: 'rgba(239,68,68,0.25)', border: '1px solid rgba(239,68,68,0.4)' }}
+                className="mt-2 w-full py-1.5 rounded-lg text-[10px] font-bold"
+                style={{ background: 'rgba(239,68,68,0.25)', border: '1px solid rgba(239,68,68,0.4)', color: themeStyles.text }}
               >
                 Track Refund →
               </button>
@@ -406,6 +285,7 @@ function UserCancelledSection({ events, router }: { events: any[]; router: any }
 
 function RehostedEventsSection({ events }: { events: any[] }) {
   const router = useRouter();
+  const { themeStyles } = useTheme();
   if (!events.length) return null;
 
   return (
@@ -416,7 +296,7 @@ function RehostedEventsSection({ events }: { events: any[] }) {
             className="w-2 h-2 rounded-full animate-pulse"
             style={{ background: '#22c55e' }}
           />
-          <h3 className="text-white font-semibold text-base">Back & Live</h3>
+          <h3 className="font-semibold text-base" style={{ color: themeStyles.text }}>Back & Live</h3>
           <span
             className="px-2 py-0.5 rounded-full text-[10px] font-bold"
             style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}
@@ -455,7 +335,7 @@ function RehostedEventsSection({ events }: { events: any[] }) {
               ) : (
                 <div
                   className="w-full h-full"
-                  style={{ background: 'linear-gradient(135deg, #0d2318 0%, #133d26 100%)' }}
+                  style={{ background: themeStyles.cardBg.includes('gradient') ? 'linear-gradient(135deg, #0d2318 0%, #133d26 100%)' : themeStyles.cardBg }}
                 />
               )}
 
@@ -505,7 +385,7 @@ function RehostedEventsSection({ events }: { events: any[] }) {
 
             {/* Info */}
             <div className="mt-2 px-0.5">
-              <p className="text-white font-medium text-xs line-clamp-1">{ev.event_name}</p>
+              <p className="font-medium text-xs line-clamp-1" style={{ color: themeStyles.text }}>{ev.event_name}</p>
               {ev.event_dates?.[0]?.start_date && (
                 <p className="text-green-400/70 text-[10px] mt-0.5">
                   {new Date(ev.event_dates[0].start_date).toLocaleDateString('en-US', {
@@ -516,7 +396,7 @@ function RehostedEventsSection({ events }: { events: any[] }) {
                 </p>
               )}
               {ev.venue && (
-                <p className="text-white/30 text-[10px] mt-0.5 line-clamp-1">{ev.venue}</p>
+                <p className="text-[10px] mt-0.5 line-clamp-1" style={{ color: themeStyles.textSecondary }}>{ev.venue}</p>
               )}
             </div>
 
@@ -548,6 +428,7 @@ export default function NearbyEventsPage() {
   const authData = useAuth(true);
   const userId: string | null = (authData as any)?.user?.id ?? null;  const router = useRouter();
   const { isCollapsed, isMobile } = useSidebar();
+  const { themeStyles, isDark } = useTheme();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -1018,7 +899,7 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
   const sidebarWidth = isMobile ? 0 : isCollapsed ? 92 : 281;
 
   return (
-    <div className="min-h-screen" style={{ background: '#0C1014' }}>
+    <div className="min-h-screen" style={{ backgroundColor: themeStyles.background }}>
       <style jsx global>{`
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
@@ -1028,28 +909,28 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
 
       <main
         className="transition-all duration-300 min-h-screen"
-        style={{ marginLeft: sidebarWidth, paddingBottom: isMobile ? 80 : 40 }}
+        style={{ marginLeft: sidebarWidth, paddingBottom: isMobile ? 80 : 40, backgroundColor: themeStyles.background }}
       >
-        <div className="max-w-[1194px] mx-auto px-4 sm:px-6 pt-6">
+        <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-8">
 
           {/* ── Single Search Bar with location context ── */}
-<div className="mb-4">
-  <div
-    className="flex items-center gap-3 w-full px-4"
-    style={{
-      height: 48,
-      borderRadius: 10,
-      background: '#38383866',
-      border: '1px solid #3D4149',
-    }}
-  >
+          <div className="mb-4">
+            <div
+              className="flex items-center gap-3 w-full px-4"
+              style={{
+                height: 48,
+                borderRadius: 10,
+                backgroundColor: themeStyles.hoverBg,
+                border: `1px solid ${themeStyles.border}`,
+              }}
+            >
     {/* Location pill / icon on left */}
     <button
       onClick={() => setLocationModalOpen(true)}
-      className="flex items-center gap-1.5 flex-shrink-0 px-2 py-1 rounded-lg transition-all hover:bg-white/10"
+      className={`flex items-center gap-1.5 flex-shrink-0 px-2 py-1 rounded-lg transition-all ${isDark ? "hover:bg-white/10" : "hover:bg-black/5"}`}
       style={{
-        background: locationSource !== 'none' ? 'rgba(136,96,217,0.18)' : 'rgba(255,255,255,0.06)',
-        border: '1px solid ' + (locationSource !== 'none' ? 'rgba(136,96,217,0.4)' : '#3D4149'),
+        background: locationSource !== 'none' ? 'rgba(136,96,217,0.18)' : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
+        border: `1px solid ${locationSource !== 'none' ? 'rgba(136,96,217,0.4)' : themeStyles.border}`,
         maxWidth: 160,
       }}
       title="Set location"
@@ -1059,12 +940,12 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
       ) : locationSource === 'manual' ? (
         <MapPin className="w-3 h-3 text-purple-400 flex-shrink-0" />
       ) : (
-        <MapPin className="w-3 h-3 text-white/30 flex-shrink-0" />
+        <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' }} />
       )}
       <span
         className="text-xs truncate"
         style={{
-          color: locationSource !== 'none' ? '#c4b5fd' : 'rgba(255,255,255,0.3)',
+          color: locationSource !== 'none' ? (isDark ? '#c4b5fd' : '#8860D9') : themeStyles.textSecondary,
           maxWidth: 110,
         }}
       >
@@ -1075,7 +956,7 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
     </button>
 
     {/* Divider */}
-    <div className="w-px h-5 flex-shrink-0" style={{ background: '#3D4149' }} />
+    <div className="w-px h-5 flex-shrink-0" style={{ background: themeStyles.border }} />
 
     {/* Search input */}
     <Image
@@ -1083,7 +964,7 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
       alt="Search"
       width={16}
       height={16}
-      style={{ opacity: 0.4, flexShrink: 0 }}
+      style={{ opacity: 0.5, flexShrink: 0, filter: isDark ? 'none' : 'invert(1)' }}
     />
     <input
       type="text"
@@ -1091,7 +972,8 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
       onChange={(e) => setSearchQuery(e.target.value)}
       onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
       placeholder="Search events, location, categories…"
-      className="flex-1 bg-transparent text-white text-sm placeholder-white/25 outline-none min-w-0"
+      className={`flex-1 bg-transparent text-sm outline-none min-w-0 ${isDark ? "placeholder-white/25" : "placeholder-black/40"}`}
+      style={{ color: themeStyles.text, opacity: 1 }}
     />
     {searchQuery && (
       <button
@@ -1100,7 +982,8 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
           setSearchResults(null);
           setHasSearched(false);
         }}
-        className="text-white/40 hover:text-white/70 text-xs transition-colors flex-shrink-0"
+        className="text-xs transition-colors flex-shrink-0"
+        style={{ color: themeStyles.textSecondary }}
       >
         ✕
       </button>
@@ -1109,8 +992,8 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
     {/* Filter button inside bar */}
     <button
       onClick={() => setIsFilterOpen(true)}
-      className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg hover:bg-white/10 transition-all"
-      style={{ border: '1px solid #3D4149' }}
+      className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg transition-all"
+      style={{ border: `1px solid ${themeStyles.border}`, backgroundColor: themeStyles.hoverBg }}
     >
       <Image src={FilterButtonIcon} alt="Filter" width={16} height={16} />
     </button>
@@ -1121,24 +1004,24 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
             <div className="flex flex-wrap gap-2 mb-4">
               {activeFilters.category && (
                 <span
-                  className="px-3 py-1 rounded-full text-xs text-white/80"
-                  style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+                  className="px-3 py-1 rounded-full text-xs"
+                  style={{ background: themeStyles.hoverBg, border: `1px solid ${themeStyles.border}`, color: themeStyles.textSecondary }}
                 >
                   {activeFilters.category.split(',')[0].trim()}
                 </span>
               )}
               {activeFilters.radius && (
                 <span
-                  className="px-3 py-1 rounded-full text-xs text-white/80"
-                  style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+                  className="px-3 py-1 rounded-full text-xs"
+                  style={{ background: themeStyles.hoverBg, border: `1px solid ${themeStyles.border}`, color: themeStyles.textSecondary }}
                 >
                   {activeFilters.radius} km
                 </span>
               )}
               {activeFilters.startDate && (
                 <span
-                  className="px-3 py-1 rounded-full text-xs text-white/80"
-                  style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+                  className="px-3 py-1 rounded-full text-xs"
+                  style={{ background: themeStyles.hoverBg, border: `1px solid ${themeStyles.border}`, color: themeStyles.textSecondary }}
                 >
                   From {activeFilters.startDate}
                 </span>
@@ -1151,7 +1034,7 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
                   setHasSearched(false);
                 }}
                 className="px-3 py-1 rounded-full text-xs text-red-400 hover:text-red-300 transition-colors"
-                style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+                style={{ background: themeStyles.hoverBg, border: `1px solid ${themeStyles.border}` }}
               >
                 Clear filters
               </button>
@@ -1175,16 +1058,17 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
               {/* ── Search Results ── */}
               {searchResults !== null && (
                 <div className="mb-8">
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-white font-semibold text-lg">
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <h2 className="font-semibold text-lg" style={{ color: themeStyles.text }}>
                       Search results
-                      <span className="text-white/40 text-sm font-normal ml-2">
+                      <span className="text-sm font-normal ml-2" style={{ color: themeStyles.textSecondary }}>
                         ({searchResults.length} found)
                       </span>
                     </h2>
                     <button
                       onClick={() => { setSearchResults(null); setHasSearched(false); }}
-                      className="text-xs text-white/40 hover:text-white/70 transition-colors"
+                      className="text-xs transition-colors"
+                      style={{ color: themeStyles.textSecondary }}
                     >
                       Clear
                     </button>
@@ -1195,7 +1079,7 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
                         <EventCard key={`search-${ev._id ?? 'ev'}-${idx}`} event={ev} />
                       ))}                    </div>
                   ) : (
-                    <p className="text-white/40 text-sm py-8 text-center">
+                    <p className="text-sm py-8 text-center" style={{ color: themeStyles.textSecondary }}>
                       No events found for "{searchQuery}"
                     </p>
                   )}
@@ -1219,7 +1103,7 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
                     />
                     ))
                   ) : (
-                    <p className="text-white/40 text-sm py-8 text-center">
+                    <p className="text-sm py-8 text-center" style={{ color: themeStyles.textSecondary }}>
                       No events match your filters.
                     </p>
                   )}
@@ -1266,7 +1150,7 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
 
                   {/* Popular event banner */}
                   <PopularEventBanner
-                    events={popularEvents}
+                    events={popularEvents as unknown as EventWithLocation[]}
                     onViewAll={() => router.push('/events/popular')}
                   />
 
@@ -1280,11 +1164,11 @@ const handleFilterApply = (response: any, filters: FilterEventsParams) => {
                     <div className="py-12 text-center">
                       <div
                         className="inline-flex w-16 h-16 rounded-2xl items-center justify-center mb-4"
-                        style={{ background: '#1C2024', border: '1px solid #2D3139' }}
+                        style={{ background: themeStyles.cardBg.includes('gradient') ? 'transparent' : themeStyles.cardBg, backgroundImage: themeStyles.cardBg.includes('gradient') ? themeStyles.cardBg : 'none', border: `1px solid ${themeStyles.border}` }}
                       >
                         <MapPin className="w-7 h-7 text-purple-400" />
                       </div>
-                      <p className="text-white/60 text-sm mb-4">
+                      <p className="text-sm mb-4" style={{ color: themeStyles.textSecondary }}>
                         Enable location access to find events near you.
                       </p>
                       <button
