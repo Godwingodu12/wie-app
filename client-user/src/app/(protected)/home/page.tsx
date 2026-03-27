@@ -13,7 +13,7 @@ import ShareCountIcon from "@/assets/Home/ShareCount.svg";
 import SaveIcon from "@/assets/Home/ShareIcon.svg";
 import QrCode from "@/assets/Home/QrCode.png";
 import ProfileImage from "@/assets/profile/ProfileImage.jpg";
-import { getFluxFeed, getMyFluxes } from "@/services/mediaService";
+import { getFluxFeed, getMyFluxes, viewFlux } from "@/services/mediaService";
 import type { FeedFluxGroup, Flux } from "@/services/mediaService";
 // Icons
 import {
@@ -123,7 +123,15 @@ export default function HomePage() {
   const [fluxLoading,   setFluxLoading]   = useState(true);
   const router = useRouter();
   const storiesRef = useRef<HTMLDivElement>(null);
-
+  const [viewedFluxIds, setViewedFluxIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem("viewedFluxIds");
+      const parsed: string[] = stored ? JSON.parse(stored) : [];
+      return new Set<string>(parsed.filter((id): id is string => typeof id === "string")); 
+    } catch {
+      return new Set<string>();
+    }
+  });
   const scrollStories = (direction: "left" | "right") => {
     storiesRef.current?.scrollBy({
       left: direction === "left" ? -300 : 300,
@@ -171,13 +179,33 @@ export default function HomePage() {
     });
   };
 
+  const markFluxViewed = async (fluxId: string) => {
+    if (viewedFluxIds.has(fluxId)) return;
+
+    setViewedFluxIds((prev) => {
+      const next = new Set(prev);
+      next.add(fluxId);
+      try {
+        localStorage.setItem("viewedFluxIds", JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+
+    try {
+      await viewFlux(fluxId);
+    } catch (e) {
+      console.warn("markFluxViewed failed silently:", e);
+    }
+  };
+
   const truncateText = (text: string, limit: number) => {
     const words = text.split(" ");
     return words.length > limit
       ? { text: words.slice(0, limit).join(" ") + "...", truncated: true }
       : { text, truncated: false };
   };
-
+  const myFluxViewed =
+    myFluxes.length > 0 && myFluxes.every((f) => viewedFluxIds.has(f._id));
   return (
     <div
       className="h-screen overflow-y-auto scrollbar-hide font-sans selection:bg-[#8860D9] selection:text-white"
@@ -203,14 +231,18 @@ export default function HomePage() {
                 {/* ── My Story bubble — always shown ── */}
                 <div className="pl-4 md:pl-12 xl:pl-20 flex-shrink-0">
                   <button
-                    onClick={() =>
-                      myFluxes.length > 0
-                        ? router.push(`/post/flux-view?fluxId=${myFluxes[0]._id}`)
-                        : router.push("/post/flux")
-                    }
+                    onClick={() => {
+                      if (myFluxes.length > 0) {
+                        markFluxViewed(myFluxes[0]._id);
+                        router.push(`/post/flux-view?fluxId=${myFluxes[0]._id}`);
+                      } else {
+                        router.push("/post/flux");
+                      }
+                    }}
                     className="flex flex-col items-center gap-1.5 cursor-pointer group"
                     style={{ width: 72 }}
                   >
+                  
                     <div
                       className="relative overflow-hidden transition-all group-hover:scale-105"
                       style={{
@@ -218,12 +250,15 @@ export default function HomePage() {
                         height:       100,
                         borderRadius: 12,
                         padding:      myFluxes.length > 0 ? 2 : 0,
-                        background:   myFluxes.length > 0
-                          ? "linear-gradient(147.67deg,#8860D9 13%,#B3B8E2 100%)"
+                        background: myFluxes.length > 0
+                          ? myFluxViewed
+                            ? "linear-gradient(147.67deg,#555 13%,#888 100%)"  
+                            : "linear-gradient(147.67deg,#8860D9 13%,#B3B8E2 100%)" 
                           : "transparent",
                         border: myFluxes.length > 0
                           ? "none"
                           : "1.5px dashed rgba(255,255,255,0.25)",
+
                       }}
                     >
                       <div style={{
@@ -256,19 +291,8 @@ export default function HomePage() {
                             </div>
                           </div>
                         )}
-
-                        {/* Flux count badge */}
-                        {myFluxes.length > 1 && (
-                          <div
-                            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold"
-                            style={{ background: "rgba(0,0,0,0.6)" }}
-                          >
-                            {myFluxes.length}
-                          </div>
-                        )}
                       </div>
                     </div>
-
                     <span className="text-[11px] text-center truncate w-full" style={{ color: themeStyles.textSecondary }}>
                       Your Flux
                     </span>
@@ -302,13 +326,15 @@ export default function HomePage() {
                         const userAvatar = group.user?.profile_picture ?? null;
                         const username   = group.user?.username ?? group._id;
                         const fluxId     = firstFlux?._id ?? "";
-
+                        const allViewed = group.fluxes.every((f) => f._id != null && viewedFluxIds.has(f._id));
+                        const isCloseFriend = group.fluxes.some((f) => f.visibility === "close_friends");
                         return (
                           <button
                             key={group._id}
-                            onClick={() =>
-                              router.push(`/post/flux-view?fluxId=${fluxId}&userId=${group._id}`)
-                            }
+                            onClick={() => {
+                              markFluxViewed(fluxId); 
+                              router.push(`/post/flux-view?fluxId=${fluxId}&userId=${group._id}`);
+                            }}
                             className="flex flex-col items-center gap-1.5 cursor-pointer flex-shrink-0 group/item"
                             style={{ width: 72 }}
                           >
@@ -316,7 +342,11 @@ export default function HomePage() {
                               className="relative overflow-hidden transition-all group-hover/item:scale-105"
                               style={{
                                 width: 70, height: 100, borderRadius: 12, padding: 2,
-                                background: "linear-gradient(147.67deg,#2979FF 13%,#6B9CF0 54%,#9DC1FF 100%)",
+                                background: allViewed
+                                  ? "linear-gradient(147.67deg,#444 13%,#777 100%)"  
+                                  : isCloseFriend
+                                    ? "linear-gradient(147.67deg,#22c55e 13%,#16a34a 100%)"   
+                                    : "linear-gradient(147.67deg,#2979FF 13%,#6B9CF0 54%,#9DC1FF 100%)", 
                               }}
                             >
                               <div style={{
@@ -324,21 +354,13 @@ export default function HomePage() {
                                 overflow: "hidden", position: "relative", background: "#1a1a1a",
                               }}>
                                 <Image
-                                  src={firstFlux?.mediaUrl || userAvatar || ProfileImage}
+                                  src={userAvatar || ProfileImage}
                                   alt={username}
                                   fill
                                   sizes="70px"
                                   className="object-cover"
-                                  unoptimized={!!(firstFlux?.mediaUrl || userAvatar)}
+                                  unoptimized={!!userAvatar}
                                 />
-                                {(group.fluxes.length ?? 0) > 1 && (
-                                  <div
-                                    className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold"
-                                    style={{ background: "rgba(0,0,0,0.6)" }}
-                                  >
-                                    {group.fluxes.length}
-                                  </div>
-                                )}
                               </div>
                             </div>
                             <span className="text-[11px] text-center truncate w-full" style={{ color: themeStyles.textSecondary }}>

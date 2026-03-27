@@ -251,24 +251,27 @@ export const getUserFluxes = async (
 };
 
 // Feed — Following users with active fluxes
-
 export const getFluxFeed = async (viewerId: string): Promise<any[]> => {
   const cacheKey = FEED_CACHE_KEY(viewerId);
 
   const cached = await redisClient.get(cacheKey).catch(() => null);
   if (cached) return JSON.parse(cached);
 
-  // Get who the viewer follows
-  const { followerIds } = await followClient
-    .getFollowerIds(viewerId)
-    .catch(() => ({ followerIds: [] }));
+  //Get the list of users the viewer is FOLLOWING (not followers)
+  // We call GetFollowing to get who viewerId follows.
+  const { followingIds } = await followClient
+    .getFollowingIds(viewerId)
+    .catch(() => ({ followingIds: [] as string[] }));
 
-  const following = followerIds; // getFollowerIds returns who follows viewerId; we need following
-  // Actually use a different approach: get fluxes from users the viewer follows
-  // We'll query fluxes from all users and filter
+  // Always include the viewer's own fluxes
+  const targetUserIds = [...new Set([...followingIds, viewerId])];
+
+  if (targetUserIds.length === 0) return [];
+  // Show ALL non-expired fluxes regardless of when follow relationship started
   const allFluxes = await FluxModel.aggregate([
     {
       $match: {
+        userId: { $in: targetUserIds }, // ✅ scoped to following list only
         expiresAt: { $gt: new Date() },
         isDeleted: false,
         visibility: { $ne: "only_me" },
@@ -292,13 +295,14 @@ export const getFluxFeed = async (viewerId: string): Promise<any[]> => {
           },
         },
         latestAt: { $max: "$createdAt" },
-        hasUnseen: { $sum: 1 },
       },
     },
     { $sort: { latestAt: -1 } },
   ]);
 
-  // Get user details
+  if (allFluxes.length === 0) return [];
+
+  // Get user details for all owners in one batch call
   const ownerIds = allFluxes.map((f: any) => f._id);
   const usersResp = await wieUserClient
     .getUsersByIds(ownerIds)
@@ -309,33 +313,11 @@ export const getFluxFeed = async (viewerId: string): Promise<any[]> => {
     userMap[u.id] = u;
   });
 
-  // Home feed rule:
-  // - Own fluxes: always show (isSelf)
-  // - Everyone else: ONLY show if the viewer is following them
-  //   (public or private — following is REQUIRED for home feed)
-  //   Non-followers can only view via the profile page directly.
-  const feed = [];
-  for (const group of allFluxes) {
-    const ownerId = group._id;
-
-    // Always include own fluxes
-    if (ownerId === viewerId) {
-      feed.push({ ...group, user: userMap[ownerId] || null, isSelf: true });
-      continue;
-    }
-
-    const user = userMap[ownerId];
-    if (!user) continue;
-
-    // Strict follow check — no exceptions for public accounts on home feed
-    const followCheck = await followClient
-      .isFollowing(viewerId, ownerId)
-      .catch(() => ({ isFollowing: false }));
-
-    if (!followCheck.isFollowing) continue;
-
-    feed.push({ ...group, user, isSelf: false });
-  }
+  const feed = allFluxes.map((group: any) => ({
+    ...group,
+    user: userMap[group._id] || null,
+    isSelf: group._id === viewerId,
+  }));
 
   await redisClient
     .set(cacheKey, JSON.stringify(feed), FEED_CACHE_TTL)
@@ -362,7 +344,6 @@ export const viewFlux = async (
 };
 
 //  React to Flux
-
 export const reactToFlux = async (
   fluxId: string,
   userId: string,

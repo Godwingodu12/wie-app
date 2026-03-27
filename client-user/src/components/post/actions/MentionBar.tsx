@@ -29,13 +29,13 @@ export default function MentionBar({
   onAdd,
   onClose,
 }: MentionBarProps) {
-  const { user }                  = useAuth(true);
+  const { user }= useAuth(true);
   const [query,     setQuery]     = useState("");
   const [following, setFollowing] = useState<MUser[]>([]);
   const [searchRes, setSearchRes] = useState<MUser[]>([]);
   const [loadingF,  setLoadingF]  = useState(true);
   const [loadingS,  setLoadingS]  = useState(false);
-  const searchTimer               = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimer= useRef<ReturnType<typeof setTimeout>>();
   const [adding,   setAdding]   = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 

@@ -315,7 +315,72 @@ const loadNotifications = async () => {
         onClose();
         return;
       }
+      // FLUX MENTION (received by mentioned user)
+      if (notification.type === 'flux_mention') {
+        const fluxId  = notification.meta?.fluxId;
+        const ownerId = notification.meta?.fluxOwnerId ?? notification.fromUserId;
+        if (fluxId) {
+          // Receiver sees flux owner's story — include userId
+          const url = ownerId
+            ? `/post/flux-view?fluxId=${fluxId}&userId=${ownerId}`
+            : `/post/flux-view?fluxId=${fluxId}`;
+          router.push(url);
+        }
+        onClose();
+        return;
+      }
 
+      // FLUX MENTION SENT (confirmation to the sender/mentioner)
+      if (notification.type === 'flux_mention_sent') {
+        const fluxId = notification.meta?.fluxId;
+        if (fluxId) {
+          // Sender views their own flux — no userId needed
+          router.push(`/post/flux-view?fluxId=${fluxId}`);
+        }
+        onClose();
+        return;
+      }
+
+      // FLUX RE-MENTION (received by original owner — user A)
+      if (notification.type === 'flux_remention') {
+        const fluxId = notification.meta?.fluxId;
+        if (fluxId) {
+          // Original owner views their own flux
+          router.push(`/post/flux-view?fluxId=${fluxId}`);
+        }
+        onClose();
+        return;
+      }
+
+      // FLUX RE-MENTION SENT (confirmation to re-mentioner — user B)
+      if (notification.type === 'flux_remention_sent') {
+        const fluxId  = notification.meta?.fluxId;
+        const ownerId = notification.meta?.fluxOwnerId ?? notification.fromUserId;
+        if (fluxId) {
+          // Re-mentioner views the original owner's flux
+          const url = ownerId
+            ? `/post/flux-view?fluxId=${fluxId}&userId=${ownerId}`
+            : `/post/flux-view?fluxId=${fluxId}`;
+          router.push(url);
+        }
+        onClose();
+        return;
+      }
+      // FLUX COMMENT — notify flux owner
+      if (notification.type === 'flux_comment') {
+        const fluxId  = notification.meta?.fluxId;
+        if (fluxId) router.push(`/post/flux-view?fluxId=${fluxId}`);
+        onClose();
+        return;
+      }
+
+      // FLUX LIKE — notify flux owner
+      if (notification.type === 'flux_like') {
+        const fluxId = notification.meta?.fluxId;
+        if (fluxId) router.push(`/post/flux-view?fluxId=${fluxId}`);
+        onClose();
+        return;
+      }
       // GENERIC FALLBACK
       // booking_confirmed, payment_success, refund_initiated, etc.
       const bookingId = notification.bookingId || notification.meta?.bookingId;
@@ -358,12 +423,22 @@ const loadNotifications = async () => {
   ).length;
 
   const connectionCount = notifications.filter(
-    (n) =>
-      !n.isRead &&
-      ["like", "comment", "mention", "message_received", "connection"].some(
-        (t) => n.type?.includes(t),
-      ),
-  ).length;
+      (n) => {
+        if (n.isRead) return false;
+        if (
+          n.type === 'flux_mention' ||
+          n.type === 'flux_mention_sent' ||
+          n.type === 'flux_remention' ||
+          n.type === 'flux_remention_sent'||
+          n.type === 'flux_comment' ||
+          n.type === 'flux_like'    ||
+          n.type === 'flux_reply'   
+        ) return true;
+        return ["like", "comment", "mention", "message_received", "connection"].some(
+          (t) => n.type?.includes(t),
+        );
+      }
+    ).length;
   /* Categorization Logic Based on Backend Types */
   const filteredNotifications = notifications.filter((n) => {
     if (filter === "events") {
@@ -374,6 +449,9 @@ const loadNotifications = async () => {
         n.type?.includes("booking") ||
         n.type === "event_cancelled" ||
         n.type === "event_rehosted" ||
+        n.type === 'flux_comment' ||
+        n.type === 'flux_like'    ||
+        n.type === 'flux_reply'   ||
         n.type === "refund_success"
       );
     }
@@ -381,6 +459,12 @@ const loadNotifications = async () => {
       return (n.type?.includes("follow") || n.type === "following");
     }
     if (filter === "connections") {
+      if (
+        n.type === 'flux_mention' ||
+        n.type === 'flux_mention_sent' ||
+        n.type === 'flux_remention' ||
+        n.type === 'flux_remention_sent'
+      ) return true;
       return [
         "like",
         "comment",
@@ -1251,19 +1335,31 @@ const getIconHTML = (type: string | undefined): string => {
     event: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
     ticket: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path><path d="M13 5v2"></path><path d="M13 17v2"></path><path d="M13 11v2"></path></svg>',
     follow: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
+    flux_mention: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8860D9" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>',
+    flux_remention: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B3B8E2" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>',
   };
 
   if (type.includes('event')) return iconMap.event;
   if (type.includes('ticket') || type.includes('booking')) return iconMap.ticket;
   if (type.includes('follow')) return iconMap.follow;
+  if (type === 'flux_mention')         return iconMap.flux_mention;
+  if (type === 'flux_mention_sent')    return iconMap.flux_mention_sent;
+  if (type === 'flux_remention')       return iconMap.flux_remention;
+  if (type === 'flux_remention_sent')  return iconMap.flux_remention_sent;
   return iconMap.ticket;
 };
 const getIcon = (type: string | undefined) => {
   if (!type) return <Bell size={18} />;
   if (type === 'event_cancelled') return <Calendar size={18} style={{ color: '#ef4444' }} />;
   if (type === 'event_rehosted')  return <Calendar size={18} style={{ color: '#22c55e' }} />;
-    if (type === 'refund_success')  return <CheckCircle size={18} style={{ color: '#22c55e' }} />;
-
+  if (type === 'refund_success')  return <CheckCircle size={18} style={{ color: '#22c55e' }} />;
+  if (type === 'flux_mention')         return <MessageCircle size={18} style={{ color: '#8860D9' }} />;
+  if (type === 'flux_mention_sent')    return <MessageCircle size={18} style={{ color: '#8860D9' }} />;
+  if (type === 'flux_remention')       return <MessageCircle size={18} style={{ color: '#B3B8E2' }} />;
+  if (type === 'flux_remention_sent')  return <MessageCircle size={18} style={{ color: '#B3B8E2' }} />;
+  if (type === 'flux_comment') return <MessageCircle size={18} style={{ color: '#8860D9' }} />;
+  if (type === 'flux_like')    return <Heart size={18} style={{ color: '#e53e3e' }} />;
+  if (type === 'flux_reply')   return <MessageCircle size={18} style={{ color: '#2979FF' }} />;
   if (type.includes("event")) return <Calendar size={18} />;
   if (type.includes("ticket") || type.includes("booking"))
     return <Ticket size={18} />;

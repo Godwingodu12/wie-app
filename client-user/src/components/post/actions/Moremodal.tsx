@@ -3,44 +3,63 @@ import React from "react";
 import { X } from "lucide-react";
 
 interface MoreModalProps {
-  onClose:       () => void;
-  onDelete:      () => void;
-  onArchive:     () => void;
-  onSave:        () => void;
-  onHighlight:   () => void;
-  onCopyLink:    () => void;
-  onShare:       () => void;
-  onMention:     () => void;
-  onSettings:    () => void;
-  onComments:    () => void;
+  onClose:          () => void;
+  onDelete:         () => void;
+  onArchive:        () => void;
+  onSave:           () => void;
+  onHighlight:      () => void;
+  onCopyLink:       () => void;
+  onShare:          () => void;
+  onMention:        () => void;
+  onSettings:       () => void;
+  onComments:       () => void;
+  onRemoveMention?: () => void; // soft-remove for mentioned user
+  isOwner:          boolean;    // NEW
+  isMentioned:      boolean;    // NEW
 }
-
-const ITEMS = [
-  { key: "delete",    label: "Delete Story",          danger: true  },
-  { key: "archive",   label: "Archive",               danger: false },
-  { key: "save",      label: "Saved Photo",           danger: false },
-  { key: "highlight", label: "Highlight",             danger: false },
-  { key: "link",      label: "Copy link",             danger: false },
-  { key: "share",     label: "Share",                 danger: false },
-  { key: "mention",   label: "Add Mention",           danger: false },
-  { key: "settings",  label: "Go to Story settings",  danger: false },
-  { key: "comments",  label: "Turn off Commenting",   danger: false },
-];
 
 export default function MoreModal({
   onClose, onDelete, onArchive, onSave, onHighlight,
   onCopyLink, onShare, onMention, onSettings, onComments,
+  onRemoveMention,
+  isOwner,
+  isMentioned,
 }: MoreModalProps) {
+
+  // Build the item list dynamically based on permissions
+  const ITEMS: { key: string; label: string; danger: boolean }[] = [
+    // ── Owner-only options
+    ...(isOwner ? [
+      { key: "delete",    label: "Delete Story",         danger: true  },
+      { key: "archive",   label: "Archive",              danger: false },
+      { key: "save",      label: "Saved Photo",          danger: false },
+      { key: "highlight", label: "Highlight",            danger: false },
+      { key: "mention",   label: "Add Mention",          danger: false },
+      { key: "comments",  label: "Turn off Commenting",  danger: false },
+      { key: "settings",  label: "Go to Story settings", danger: false },
+    ] : []),
+
+    // ── Mentioned-user-only option (soft remove — doesn't affect others)
+    ...(isMentioned && !isOwner ? [
+      { key: "removeMention", label: "Remove from my stories", danger: true },
+    ] : []),
+
+    // ── Visible to everyone
+    { key: "link",  label: "Copy link", danger: false },
+    { key: "share", label: "Share",     danger: false },
+  ];
+
   const handlers: Record<string, () => void> = {
-    delete:    onDelete,
-    archive:   onArchive,
-    save:      onSave,
-    highlight: onHighlight,
-    link:      onCopyLink,
-    share:     onShare,
-    mention:   onMention,
-    settings:  onSettings,
-    comments:  onComments,
+    delete:        onDelete,
+    archive:       onArchive,
+    save:          onSave,
+    highlight:     onHighlight,
+    link:          onCopyLink,
+    share:         onShare,
+    mention:       onMention,
+    settings:      onSettings,
+    comments:      onComments,
+    removeMention: onRemoveMention ?? (() => {}),
   };
 
   return (
@@ -62,7 +81,7 @@ export default function MoreModal({
       <div
         style={{
           width:         430,
-          height:        450,
+          maxHeight:     520,
           borderRadius:  12,
           background:    "#16161A",
           border:        "1px solid rgba(255,255,255,0.07)",
@@ -72,7 +91,7 @@ export default function MoreModal({
           boxShadow:     "0 24px 64px rgba(0,0,0,0.6)",
         }}
       >
-        {/* ── Header */}
+        {/* Header */}
         <div style={{
           display:        "flex",
           alignItems:     "center",
@@ -100,7 +119,7 @@ export default function MoreModal({
           </button>
         </div>
 
-        {/* ── List items */}
+        {/* List */}
         <div style={{ overflowY: "auto", flex: 1, scrollbarWidth: "none" }}>
           {ITEMS.map((item, i) => (
             <button

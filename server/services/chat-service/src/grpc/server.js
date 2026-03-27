@@ -19,7 +19,7 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 
 const chatProto = grpc.loadPackageDefinition(packageDefinition).chat;
 
-// ── SendSystemMessage ──────────────────────────────────────────
+// SendSystemMessage 
 const sendSystemMessage = async (call, callback) => {
   try {
     const {
@@ -129,21 +129,61 @@ const sendSystemMessage = async (call, callback) => {
         timestamp: new Date(),
       };
 
-      io.to(chat._id.toString()).emit('new-message', socketPayload);
-      io.to(receiver_id).emit('new-message-notification', {
+      // Build enriched payload that includes full message metadata
+      const enrichedPayload = {
         ...socketPayload,
+        message: {
+          ...socketPayload.message,
+          messageType: message_type || 'flux_mention',  // ensure correct type
+        },
+      };
+
+      // ── Emit to the chat room (both participants if joined) ──
+      io.to(chat._id.toString()).emit('new-message', enrichedPayload);
+
+      // ── Emit new-message-notification to RECEIVER ──
+      io.to(receiver_id).emit('new-message-notification', {
+        chatId:      chat._id.toString(),
+        message:     enrichedPayload.message,
+        lastMessage: {
+          content:     displayContent,
+          sender:      sender_id,
+          timestamp:   new Date(),
+          messageType: message_type,
+        },
         unreadCount: chat.unreadCounts[receiver_id] || 1,
         participant: { _id: sender_id },
         type:        'direct',
         status:      'accepted',
+        timestamp:   new Date(),
       });
+
       io.to(receiver_id).emit('chat-unread-update', {
         chatId:      chat._id.toString(),
         unreadCount: chat.unreadCounts[receiver_id] || 1,
       });
 
-      // Also notify sender's socket so their chat list updates
-      io.to(sender_id).emit('new-message', socketPayload);
+      // ── Emit new-message-notification to SENDER as well ──
+      // This is critical: sender needs to see the message in their open chat window
+      io.to(sender_id).emit('new-message-notification', {
+        chatId:      chat._id.toString(),
+        message:     enrichedPayload.message,
+        lastMessage: {
+          content:     displayContent,
+          sender:      sender_id,
+          timestamp:   new Date(),
+          messageType: message_type,
+        },
+        unreadCount: 0,  // sender has 0 unread
+        participant: { _id: receiver_id },
+        type:        'direct',
+        status:      'accepted',
+        timestamp:   new Date(),
+        isSender:    true,  // flag so ChatContext knows this is the sender's copy
+      });
+
+      // ── Also emit direct new-message to sender (catches if sender is in the chat room) ──
+      io.to(sender_id).emit('new-message', enrichedPayload);
     } catch (socketErr) {
       console.error('Socket emit failed in gRPC sendSystemMessage:', socketErr.message);
     }
@@ -185,7 +225,7 @@ const getChatByParticipants = async (call, callback) => {
   }
 };
 
-// ── Start server ───────────────────────────────────────────────
+// ── Start server 
 export const startChatGrpcServer = (port = 50056) => {
   const server = new grpc.Server();
 

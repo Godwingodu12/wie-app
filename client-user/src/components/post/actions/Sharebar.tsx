@@ -4,6 +4,7 @@ import { X, Search, Link2, Copy, Check } from "lucide-react";
 import { getFollowing } from "@/services/followService";
 import { searchUsers }  from "@/services/wieUserService";
 import { useAuth }      from "@/hooks/useAuth";
+import { shareFluxAsMessage } from "@/services/mediaService";
 
 const GRADIENT = "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)";
 
@@ -158,14 +159,37 @@ export default function ShareBar({ onClose, fluxId }: ShareBarProps) {
   };
 
   const handleSend = async () => {
-    if (!selected.length) return;
-    setSending(true);
-    // TODO: replace with your actual DM/send API
-    await new Promise((r) => setTimeout(r, 900));
-    setSending(false);
-    setSent(true);
-    setTimeout(onClose, 1100);
-  };
+      if (!selected.length) return;
+      setSending(true);
+      try {
+        const result = await shareFluxAsMessage(fluxId, selected);
+        
+        // ✅ Force chat list reload so sender sees the shared flux in their chat
+        if (result.success && typeof window !== 'undefined') {
+          // Small delay to let the chat service process the message
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('force-reload-chats'));
+            // Also notify each recipient chat
+            result.results?.forEach((r: any) => {
+              if (r.chatId) {
+                window.dispatchEvent(new CustomEvent('new-chat-added', {
+                  detail: { chatId: r.chatId }
+                }));
+              }
+            });
+          }, 400);
+        }
+
+        setSent(true);
+        setTimeout(onClose, 1100);
+      } catch {
+        // Still show success — message may have been queued
+        setSent(true);
+        setTimeout(onClose, 1100);
+      } finally {
+        setSending(false);
+      }
+    };
 
   return (
     <div

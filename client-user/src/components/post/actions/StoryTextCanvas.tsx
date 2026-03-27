@@ -159,18 +159,18 @@ function DraggableTextLayer({ layer, isSelected, onSelect, onChange, containerRe
       <div
         key={`${layer.id}-${layer.animation}`}
         style={{
-          position:    "absolute",
-          left:        "50%",
-          top:         "50%",
-          transform:   `translate(calc(-50% + ${layer.x}px), calc(-50% + ${layer.y}px)) scale(${layer.scale}) rotate(${layer.rotate}deg)`,
-          cursor:      editing ? "text" : "grab",
-          touchAction: "none",
-          zIndex:      isSelected ? 10 : 5,
-          outline:     isSelected && !editing ? "2px dashed rgba(255,255,255,0.6)" : "none",
-          padding:     4,
+          position:     "absolute",
+          left:         `${layer.x}%`,           // ✅ was "50%" with px offset in transform
+          top:          `${layer.y}%`,           // ✅ was "50%"
+          transform:    `translate(-50%, -50%) scale(${layer.scale}) rotate(${layer.rotate}deg)`,
+          cursor:       editing ? "text" : "grab",
+          touchAction:  "none",
+          zIndex:       isSelected ? 10 : 5,
+          outline:      isSelected && !editing ? "2px dashed rgba(255,255,255,0.6)" : "none",
+          padding:      4,
           borderRadius: 4,
-          minWidth:    60,
-          animation:   getAnim(),
+          minWidth:     60,
+          animation:    getAnim(),
           ...getEffectStyle(layer.effect, layer.color),
         }}
         onPointerDown={(e) => {
@@ -181,13 +181,18 @@ function DraggableTextLayer({ layer, isSelected, onSelect, onChange, containerRe
         }}
         onPointerMove={(e) => {
           if (!dragStart.current) return;
-          const dx = e.clientX - dragStart.current.mx;
-          const dy = e.clientY - dragStart.current.my;
           const rect = containerRef.current?.getBoundingClientRect();
           if (!rect) return;
-          const nx = Math.max(-rect.width/2+60, Math.min(rect.width/2-60, dragStart.current.lx + dx));
-          const ny = Math.max(-rect.height/2+40, Math.min(rect.height/2-40, dragStart.current.ly + dy));
-          onChange({ x: Math.abs(nx) < 12 ? 0 : nx, y: Math.abs(ny) < 12 ? 0 : ny });
+          // ✅ Calculate delta as percentage of container size
+          const dx = ((e.clientX - dragStart.current.mx) / rect.width)  * 100;
+          const dy = ((e.clientY - dragStart.current.my) / rect.height) * 100;
+          const nx = Math.max(5, Math.min(95, dragStart.current.lx + dx));
+          const ny = Math.max(5, Math.min(95, dragStart.current.ly + dy));
+          // Snap to center (50%) when within 2%
+          onChange({
+            x: Math.abs(nx - 50) < 2 ? 50 : nx,
+            y: Math.abs(ny - 50) < 2 ? 50 : ny,
+          });
         }}
         onPointerUp={() => { dragStart.current = null; }}
         onDoubleClick={() => { setEditing(true); onSelect(); }}

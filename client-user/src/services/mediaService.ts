@@ -59,7 +59,6 @@ export interface Flux {
   mediaType: FluxMediaType;
   caption?: string;
   visibility: FluxVisibility;
-  duration?: number;
   width?: number;
   height?: number;
   format?: string;
@@ -71,6 +70,10 @@ export interface Flux {
   musicStartAt?: number;
   musicPreviewUrl?: string;
   musicAlbumArt?: string;
+  musicMode?: "music_only" | "lyrics";
+  musicLyricsStyle?: "karaoke" | "line" | "floating";
+  musicTrimStart?: number;
+  musicTrimEnd?: number;
   locationLabel?: string;
   locationPlaceId?: string;
   locationLat?: number;
@@ -79,6 +82,7 @@ export interface Flux {
   locationStickerX?: number;
   locationStickerY?: number;
   locationStickerTheme?: number;
+  duration?: 15 | 30 | 60;
   textLayers?: TextLayer[];
   textBg?: string;
   filterName?: string;
@@ -147,7 +151,6 @@ export interface Diary {
   createdAt: string;
   updatedAt: string;
 }
-
 export interface FluxViewersResponse {
   viewers: {
     id: string;
@@ -159,6 +162,28 @@ export interface FluxViewersResponse {
   reactions: FluxReaction[];
   viewCount: number;
   total: number;
+  // Optional owner info some backends embed in the response
+  owner?: {
+    username?: string;
+    name?: string;
+    profile_picture?: string;
+    profilePicture?: string;
+    avatar?: string;
+  };
+  fluxOwner?: {
+    username?: string;
+    name?: string;
+    profile_picture?: string;
+    profilePicture?: string;
+    avatar?: string;
+  };
+  user?: {
+    username?: string;
+    name?: string;
+    profile_picture?: string;
+    profilePicture?: string;
+    avatar?: string;
+  };
 }
 export interface CreateFluxOptions {
   caption?: string;
@@ -170,6 +195,10 @@ export interface CreateFluxOptions {
   musicStartAt?: number;
   musicPreviewUrl?: string;
   musicAlbumArt?: string;
+  musicMode?: "music_only" | "lyrics";
+  musicLyricsStyle?: "karaoke" | "line" | "floating";
+  musicTrimStart?: number;
+  musicTrimEnd?: number;
   // Location sticker
   locationLabel?: string;
   locationPlaceId?: string;
@@ -178,12 +207,14 @@ export interface CreateFluxOptions {
   locationCategory?: string;
   locationStickerX?: number;
   locationStickerY?: number;
+  duration?: 15 | 30 | 60;
   textLayers?: TextLayer[];
   textBg?: string;
   filterName?: string;
   filterValue?: string;
   locationStickerTheme?: number;
   stickers?: Record<string, any>[];
+  mentions?: string[];
   overlays?: Record<string, any>[];
   onUploadProgress?: (progressEvent: AxiosProgressEvent) => void;
 }
@@ -252,6 +283,7 @@ export const createFlux = async (
       "locationStickerTheme",
       String(fields.locationStickerTheme),
     );
+  if (options.duration) formData.append("duration", String(options.duration));
   // Text story data
   if (fields.textLayers && fields.textLayers.length > 0)
     formData.append("textLayers", JSON.stringify(fields.textLayers));
@@ -262,7 +294,8 @@ export const createFlux = async (
   if (stickers) formData.append("stickers", JSON.stringify(stickers));
   if (fields.overlays)
     formData.append("overlays", JSON.stringify(fields.overlays));
-
+  if (fields.mentions && fields.mentions.length > 0)
+    formData.append("mentions", JSON.stringify(fields.mentions));
   const res = await mediaApi.post<ApiResponse<Flux>>("/flux/create", formData, {
     headers: { "Content-Type": "multipart/form-data" },
     onUploadProgress,
@@ -410,7 +443,30 @@ export const getFluxMentions = async (
   const res = await mediaApi.get(`/flux/${fluxId}/mentions`);
   return res.data;
 };
+/**
+ * GET /flux/:fluxId/permissions — isOwner + isMentioned for current viewer
+ */
+export const getFluxPermissions = async (
+  fluxId: string,
+): Promise<{
+  success: boolean;
+  isOwner: boolean;
+  isMentioned: boolean;
+  ownerId: string;
+}> => {
+  const res = await mediaApi.get(`/flux/${fluxId}/permissions`);
+  return res.data;
+};
 
+/**
+ * DELETE /flux/:fluxId/mention/remove — soft-remove self from mentions (User B only)
+ */
+export const removeMentionSelf = async (
+  fluxId: string,
+): Promise<{ success: boolean; message: string }> => {
+  const res = await mediaApi.delete(`/flux/${fluxId}/mention/remove`);
+  return res.data;
+};
 /**
  * POST /flux/:fluxId/remention — re-mention a flux you are mentioned in.
  */
@@ -439,17 +495,19 @@ export const getReMentions = async (
   const res = await mediaApi.get(`/flux/${fluxId}/rementions`);
   return res.data;
 };
-/**
- * GET /flux/:fluxId/viewers — full viewer list + reactions (owner only).
- * Used by the existing getFluxViewers controller (returns enriched user objects).
- */
+
 export const getFluxViewers = async (
   fluxId: string,
 ): Promise<FluxViewersResponse> => {
-  const res = await mediaApi.get<ApiResponse<FluxViewersResponse>>(
-    `/flux/${fluxId}/viewers`,
-  );
-  return res.data.data;
+  const res = await mediaApi.get(`/flux/${fluxId}/viewers`);
+  // Backend returns { success, total, viewers, viewCount } directly — not nested under .data
+  const body = res.data;
+  return {
+    total:     body.total     ?? body.viewCount ?? 0,
+    viewCount: body.viewCount ?? body.total     ?? 0,
+    viewers:   body.viewers   ?? [],
+    reactions: body.reactions ?? [],
+  };
 };
 
 /**
@@ -641,5 +699,106 @@ export const searchStickers = async (q: string) => {
     height: number;
     title: string;
   }[];
+};
+
+// Close Friends
+const normalizeUser = (u: any) => ({
+  id: u.id ?? u.userId ?? u._id ?? "",
+  username: u.username ?? "",
+  name: u.name ?? u.fullName ?? u.displayName ?? u.username ?? "",
+  profile_picture: u.profilePicture ?? u.profile_picture ?? u.avatar ?? null,
+});
+
+export const getCloseFriends = async () => {
+  const res = await mediaApi.get("/flux/close-friends");
+  const raw = res.data.data ?? [];
+  return raw.map(normalizeUser) as {
+    id: string;
+    username: string;
+    name: string;
+    profile_picture: string | null;
+  }[];
+};
+
+export const getCloseFriendSuggestions = async () => {
+  const res = await mediaApi.get("/flux/close-friends/suggestions");
+  const raw = res.data.data ?? [];
+  return raw.map(normalizeUser) as {
+    id: string;
+    username: string;
+    name: string;
+    profile_picture: string | null;
+  }[];
+};
+
+export const addCloseFriend = async (friendId: string) => {
+  const res = await mediaApi.post("/flux/close-friends/add", { friendId });
+  return res.data;
+};
+
+export const removeCloseFriend = async (friendId: string) => {
+  const res = await mediaApi.post("/flux/close-friends/remove", { friendId });
+  return res.data;
+};
+
+export const shareFluxAsMessage = async (
+  fluxId: string,
+  receiverIds: string[],
+): Promise<{ success: boolean; results: any[] }> => {
+  const res = await mediaApi.post(`/flux/${fluxId}/share`, { receiverIds });
+  return res.data;
+};
+
+export const addFluxComment = async (
+  fluxId: string,
+  text: string,
+): Promise<{ success: boolean; comment: any }> => {
+  const res = await mediaApi.post(`/flux/${fluxId}/comments`, { text });
+  return res.data;
+};
+
+export const getFluxComments = async (
+  fluxId: string,
+): Promise<{ success: boolean; comments: any[]; total: number }> => {
+  const res = await mediaApi.get(`/flux/${fluxId}/comments`);
+  return res.data;
+};
+/**
+ * POST /flux/:fluxId/reply — send a reply to a flux as a chat message.
+ */
+export const replyFluxAsMessage = async (
+  fluxId: string,
+  text: string,
+): Promise<{ success: boolean; message: any }> => {
+  const res = await mediaApi.post(`/flux/${fluxId}/reply`, { text });
+  return res.data;
+};
+
+export const likeFluxComment = async (
+  fluxId: string,
+  commentId: string,
+): Promise<{ success: boolean; liked: boolean }> => {
+  const res = await mediaApi.post(`/flux/${fluxId}/comments/${commentId}/like`);
+  return res.data;
+};
+
+export const toggleFluxLike = async (
+  fluxId: string,
+  emoji?: string,
+): Promise<{ success: boolean; liked: boolean; likeCount: number }> => {
+  const res = await mediaApi.post(`/flux/${fluxId}/like`, { emoji });
+  return res.data;
+};
+
+export const getFluxLikes = async (
+  fluxId: string,
+): Promise<{
+  success: boolean;
+  likes?: any[];
+  total: number;
+  hasLiked?: boolean;
+}> => {
+  const res = await mediaApi.get(`/flux/${fluxId}/likes`);
+  return res.data;
 };
 export default mediaApi;

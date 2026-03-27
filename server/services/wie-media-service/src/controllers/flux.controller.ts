@@ -1,4 +1,5 @@
 import { Response } from "express";
+import mongoose from "mongoose";
 import { AuthRequest } from "../middlewares/auth";
 import FluxModel from "../models/flux.model";
 import * as fluxService from "../services/flux.service";
@@ -11,21 +12,206 @@ import {
   emitMentionEvent,
 } from "../utils/notificationHelper";
 import * as chatClient from "../grpc/clients/chatClient";
+
 export const createFlux = async (
   req: AuthRequest,
   res: Response,
 ): Promise<void> => {
   try {
+    const callerId = req.userId!.toString();
+
+    // Create the flux first (existing service call)
     const flux = await fluxService.createFlux(
-      req.userId!,
+      callerId,
       req.file ?? null,
       req.body,
     );
+
+    // ── Process pre-creation mentions (if any were sent with the flux) ──
+    let mentionedUserIds: string[] = [];
+    try {
+      const raw = req.body.mentions;
+      if (raw) {
+        mentionedUserIds = typeof raw === "string" ? JSON.parse(raw) : raw;
+      }
+    } catch {}
+
+    if (mentionedUserIds.length > 0) {
+      // Run mention processing async — don't block the response
+      processMentionsAfterCreate(
+        flux._id.toString(),
+        callerId,
+        mentionedUserIds,
+      ).catch((err) =>
+        console.error("❌ processMentionsAfterCreate failed:", err),
+      );
+    }
+
     res.status(201).json({ success: true, data: flux });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// Internal helper: process mentions right after flux creation
+async function processMentionsAfterCreate(
+  fluxId: string,
+  callerId: string,
+  mentionedUserIds: string[],
+): Promise<void> {
+  const flux = await FluxModel.findById(fluxId);
+  if (!flux) return;
+
+  // Fetch caller info once
+  const callerResp = await wieUserClient
+    .getUsersByIds([callerId])
+    .catch(() => ({ users: [] }));
+  const callerInfo = (callerResp.users ?? [])[0];
+  const callerName = callerInfo?.name ?? callerInfo?.username ?? "Someone";
+  const callerAvatar =
+    callerInfo?.profile_picture ?? callerInfo?.profilePicture ?? "";
+
+  const allowed: string[] = [];
+
+  for (const targetId of mentionedUserIds) {
+    if (targetId === callerId) continue;
+
+    // Follow check
+    const followResp = await isFollowing(callerId, targetId).catch(() => ({
+      isFollowing: false,
+    }));
+    if (!followResp.isFollowing) continue;
+
+    // Block check
+    const blockResp = await wieUserClient
+      .checkIfBlocked(callerId, targetId)
+      .catch(() => ({ blocked: false }));
+    if (blockResp.blocked) continue;
+
+    // Privacy check
+    const targetPrivacy = await wieUserClient
+      .getAccountPrivacy(targetId)
+      .catch(() => null);
+    if (targetPrivacy?.accountPrivacy === "private") {
+      const mutualResp = await isFollowing(targetId, callerId).catch(() => ({
+        isFollowing: false,
+      }));
+      if (!mutualResp.isFollowing) continue;
+    }
+
+    allowed.push(targetId);
+  }
+
+  if (allowed.length === 0) return;
+
+  // Save mentions to the flux document
+  const now = new Date();
+  const newMentions = allowed.map((userId) => ({ userId, createdAt: now }));
+  flux.mentions = [...(flux.mentions ?? []), ...newMentions] as any;
+  await flux.save();
+
+  // Fetch mentioned users' details
+  const usersResp = await wieUserClient
+    .getUsersByIds(allowed)
+    .catch(() => ({ users: [] }));
+
+  for (const u of usersResp.users ?? []) {
+    const mentionedUserId = (u._id ?? u.id).toString();
+    const mentionedName = u.name ?? u.username ?? "Someone";
+    const receiverFluxUrl = `/post/flux-view?fluxId=${fluxId}&userId=${callerId}`;
+    const senderFluxUrl = `/post/flux-view?fluxId=${fluxId}`;
+
+    // ── Notification to mentioned user ──
+    try {
+      await createNotification({
+        userId: mentionedUserId,
+        type: "flux_mention",
+        title: "You were mentioned in a story",
+        message: `${callerName} mentioned you in their story`,
+        fromUserId: callerId,
+        metadata: {
+          fluxId,
+          fluxMediaUrl: flux.mediaUrl,
+          fluxMediaType: flux.mediaType,
+          mentionerName: callerName,
+          mentionerAvatar: callerAvatar,
+          fluxOwnerId: callerId,
+          targetUrl: receiverFluxUrl,
+        },
+        link: receiverFluxUrl,
+      });
+      console.log(`✅ Mention notification sent to ${mentionedUserId}`);
+    } catch (err) {
+      console.error("❌ receiver notification failed:", err);
+    }
+
+    // ── Notification to caller (sender) ──
+    try {
+      await createNotification({
+        userId: callerId,
+        type: "flux_mention_sent",
+        title: `You mentioned ${mentionedName} in your story`,
+        message: `You mentioned ${mentionedName} in your story`,
+        fromUserId: mentionedUserId,
+        metadata: {
+          fluxId,
+          fluxMediaUrl: flux.mediaUrl,
+          fluxMediaType: flux.mediaType,
+          mentionedName,
+          fluxOwnerId: callerId,
+          targetUrl: senderFluxUrl,
+        },
+        link: senderFluxUrl,
+      });
+    } catch (err) {
+      console.error("❌ sender notification failed:", err);
+    }
+
+    // ── Chat message: caller → mentioned user ──
+    const chatContent = JSON.stringify({
+      text: `${callerName} mentioned a Flux`,
+      senderLabel: "You mentioned a Flux",
+      fluxId,
+      fluxMediaUrl: flux.mediaUrl,
+      fluxMediaType: flux.mediaType,
+      fluxOwnerId: callerId,
+      mentionerName: callerName,
+      fluxUrl: receiverFluxUrl,
+      type: "flux_mention",
+    });
+
+    try {
+      const chatResult = await chatClient.sendSystemMessage({
+        sender_id: callerId,
+        receiver_id: mentionedUserId,
+        message_type: "flux_mention",
+        content: chatContent,
+        metadata_json: JSON.stringify({
+          fluxId,
+          fluxMediaUrl: flux.mediaUrl,
+          fluxMediaType: flux.mediaType,
+          mentionerName: callerName,
+          mentionerAvatar: callerAvatar,
+          fluxOwnerId: callerId,
+          type: "flux_mention",
+        }),
+      });
+      console.log(
+        `✅ Mention chat sent: chatId=${chatResult.chat_id}, msgId=${chatResult.message_id}`,
+      );
+    } catch (err) {
+      console.error("❌ chat system message failed:", err);
+    }
+
+    // ── Emit mention event ──
+    emitMentionEvent({
+      mentionedUserId,
+      mentionerUserId: callerId,
+      fluxId,
+      fluxMediaUrl: flux.mediaUrl,
+    }).catch((err) => console.error("mention event emit failed:", err));
+  }
+}
 
 export const getFluxFeed = async (
   req: AuthRequest,
@@ -116,10 +302,83 @@ export const getFluxViewers = async (
 ): Promise<void> => {
   try {
     const { fluxId } = req.params;
-    const data = await fluxService.getFluxViewers(fluxId, req.userId!);
-    res.json({ success: true, data });
+    const callerId = req.userId!.toString();
+
+    const flux = await FluxModel.findById(fluxId)
+      .select("viewers reactions userId")
+      .lean();
+
+    if (!flux) {
+      res.status(404).json({ success: false, message: "Flux not found" });
+      return;
+    }
+
+    const ownerId = (flux as any).userId?.toString();
+    const isOwner = ownerId === callerId;
+
+    // ✅ FIX: Exclude the owner from the viewers list and count
+    const allViewerIds: string[] = (flux as any).viewers ?? [];
+    const viewerIds = allViewerIds.filter((id) => id.toString() !== ownerId);
+    const total = viewerIds.length;
+    if (!isOwner) {
+      const previewIds = [
+        ...new Set([callerId, ...viewerIds]), // caller first, then others
+      ].slice(0, 3);
+
+      let previewUsers: any[] = [];
+      if (previewIds.length > 0) {
+        const resp = await wieUserClient
+          .getUsersByIds(previewIds)
+          .catch(() => ({ users: [] }));
+        previewUsers = (resp.users ?? []).map((u: any) => ({
+          id: (u._id ?? u.id).toString(),
+          username: u.username ?? "",
+          name: u.name ?? u.username ?? "",
+          profile_picture: u.profile_picture ?? u.profilePicture ?? null,
+          is_verified: u.is_verified ?? false,
+        }));
+      }
+
+      res.status(200).json({
+        success: true,
+        total,
+        viewers: previewUsers,
+        reactions: [],
+        viewCount: total,
+      });
+      return;
+    }
+
+    // Owner: return full enriched viewer list
+    let enrichedViewers: any[] = [];
+    if (viewerIds.length > 0) {
+      const resp = await wieUserClient
+        .getUsersByIds(viewerIds)
+        .catch(() => ({ users: [] }));
+      enrichedViewers = (resp.users ?? []).map((u: any) => ({
+        id: (u._id ?? u.id).toString(),
+        username: u.username ?? "",
+        name: u.name ?? u.username ?? "",
+        profile_picture: u.profile_picture ?? u.profilePicture ?? null,
+        is_verified: u.is_verified ?? false,
+      }));
+    }
+
+    res.status(200).json({
+      success: true,
+      total,
+      viewers: enrichedViewers,
+      reactions: (flux as any).reactions ?? [],
+      viewCount: total,
+      data: {
+        viewers: enrichedViewers,
+        reactions: (flux as any).reactions ?? [],
+        total,
+        viewCount: total,
+      },
+    });
   } catch (error: any) {
-    res.status(403).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -581,7 +840,7 @@ export const mentionFlux = async (
         await createNotification({
           userId: callerId,
           type: "flux_mention_sent",
-          title: "You mentioned someone in your story",
+          title: `You mentioned ${mentionedName} in your story`,
           message: `You mentioned ${mentionedName} in your story`,
           fromUserId: mentionedUserId,
           metadata: {
@@ -752,7 +1011,7 @@ export const reMentionFlux = async (
       await createNotification({
         userId: flux.userId.toString(),
         type: "flux_remention",
-        title: "Someone reshared your story",
+        title: `${callerName} reshared your story`,
         message: `${callerName} reshared your story`,
         fromUserId: callerId,
         metadata: {
@@ -890,6 +1149,111 @@ export const getFluxMentions = async (
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+// GET /flux/:fluxId/permissions — returns isOwner + isMentioned for current user
+export const getFluxPermissions = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const callerId = req.userId?.toString();
+    const { fluxId } = req.params;
+
+    if (!callerId) {
+      res.status(401).json({ success: false, message: "Unauthorized" });
+      return;
+    }
+
+    const flux = await FluxModel.findById(fluxId).lean();
+    if (!flux) {
+      res.status(404).json({ success: false, message: "Flux not found" });
+      return;
+    }
+
+    const isOwner = flux.userId.toString() === callerId;
+
+    const mention = (flux.mentions ?? []).find(
+      (m: any) => m.userId?.toString() === callerId,
+    );
+    // isMentioned = mentioned AND has not soft-removed themselves
+    const isMentioned = !!mention && mention.hasRemoved !== true;
+    res.status(200).json({
+      success: true,
+      isOwner,
+      isMentioned,
+      ownerId: flux.userId.toString(),
+    });
+  } catch (err) {
+    console.error("getFluxPermissions error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+// DELETE /flux/:fluxId/mention/remove — soft-remove mention for current user only
+export const removeMentionSelf = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const callerId = req.userId?.toString();
+    const { fluxId } = req.params;
+
+    if (!callerId) {
+      res.status(401).json({ success: false, message: "Unauthorized" });
+      return;
+    }
+
+    const flux = await FluxModel.findById(fluxId);
+    if (!flux) {
+      res.status(404).json({ success: false, message: "Flux not found" });
+      return;
+    }
+
+    // Owner cannot remove their own flux this way
+    if (flux.userId.toString() === callerId) {
+      res.status(403).json({
+        success: false,
+        message: "Use delete flux to remove your own story",
+      });
+      return;
+    }
+
+    const mention = (flux.mentions ?? []).find(
+      (m: any) => m.userId?.toString() === callerId,
+    );
+
+    if (!mention) {
+      res.status(403).json({
+        success: false,
+        message: "You are not mentioned in this flux",
+      });
+      return;
+    }
+
+    // Soft-remove: only marks hasRemoved for THIS user — flux stays for everyone else
+    await FluxModel.findByIdAndUpdate(
+      fluxId,
+      {
+        $set: { "mentions.$[elem].hasRemoved": true },
+      },
+      {
+        arrayFilters: [{ "elem.userId": callerId }],
+      },
+    );
+
+    // Also remove their re-mention entry if they had one
+    await FluxModel.findByIdAndUpdate(fluxId, {
+      $pull: { reMentions: { userId: callerId } },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Removed from your stories",
+    });
+  } catch (err) {
+    console.error("removeMentionSelf error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
 // GET /flux/:fluxId/rementions
 export const getReMentions = async (
   req: AuthRequest,
@@ -1008,5 +1372,655 @@ export const searchStickers = async (
     res.json({ success: true, stickers });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const CloseFriendSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, index: true },
+    closeFriendId: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { timestamps: false },
+);
+CloseFriendSchema.index({ userId: 1, closeFriendId: 1 }, { unique: true });
+
+const CloseFriendModel =
+  mongoose.models.CloseFriend ??
+  mongoose.model("CloseFriend", CloseFriendSchema);
+
+// ── GET /api/flux/close-friends
+export const getCloseFriends = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const docs = await CloseFriendModel.find({ userId: req.userId }).lean();
+    const ids = docs.map((d: any) => d.closeFriendId);
+
+    if (ids.length === 0) {
+      res.json({ success: true, data: [] });
+      return;
+    }
+
+    // Batch fetch all users in one call
+    const result = await wieUserClient
+      .getUsersByIds(ids)
+      .catch(() => ({ users: [] }));
+    const users: any[] = result?.users ?? [];
+
+    const mapped = users.map((u: any) => ({
+      id: u.id ?? u.userId ?? u._id,
+      username: u.username,
+      name: u.name ?? u.fullName ?? u.displayName ?? u.username,
+      profile_picture:
+        u.profilePicture ?? u.profile_picture ?? u.avatar ?? null,
+    }));
+
+    res.json({ success: true, data: mapped });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── POST /api/flux/close-friends/add
+export const addCloseFriend = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { friendId } = req.body;
+    if (!friendId) {
+      res.status(400).json({ success: false, message: "friendId is required" });
+      return;
+    }
+    // Must be following the person
+    const follows = await isFollowing(req.userId!, friendId).catch(() => false);
+    if (!follows) {
+      res
+        .status(403)
+        .json({ success: false, message: "You must follow this user first" });
+      return;
+    }
+    await CloseFriendModel.updateOne(
+      { userId: req.userId, closeFriendId: friendId },
+      { $setOnInsert: { userId: req.userId, closeFriendId: friendId } },
+      { upsert: true },
+    );
+    res.json({ success: true, message: "Added to close friends" });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── POST /api/flux/close-friends/remove
+export const removeCloseFriend = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { friendId } = req.body;
+    await CloseFriendModel.deleteOne({
+      userId: req.userId,
+      closeFriendId: friendId,
+    });
+    res.json({ success: true, message: "Removed from close friends" });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── GET /api/flux/close-friends/suggestions
+export const getCloseFriendSuggestions = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { getFollowerIds } = await import("../grpc/clients/followClient");
+
+    // getFollowerIds actually returns the IDs of people THIS user follows
+    const { followerIds: followingIds } = await getFollowerIds(
+      req.userId!,
+    ).catch(() => ({ followerIds: [] as string[] }));
+
+    // Exclude already-close-friends
+    const existing = await CloseFriendModel.find({ userId: req.userId }).lean();
+    const existingIds = new Set(existing.map((e: any) => e.closeFriendId));
+
+    const suggestions = followingIds
+      .filter((id: string) => !existingIds.has(id))
+      .slice(0, 20);
+
+    if (suggestions.length === 0) {
+      res.json({ success: true, data: [] });
+      return;
+    }
+
+    // Batch fetch all in one call
+    const result = await wieUserClient
+      .getUsersByIds(suggestions)
+      .catch(() => ({ users: [] }));
+    const users: any[] = result?.users ?? [];
+
+    const mapped = users.map((u: any) => ({
+      id: u.id ?? u.userId ?? u._id,
+      username: u.username,
+      name: u.name ?? u.fullName ?? u.displayName ?? u.username,
+      profile_picture:
+        u.profilePicture ?? u.profile_picture ?? u.avatar ?? null,
+    }));
+
+    res.json({ success: true, data: mapped });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Helper used in feed — check if viewer is a close friend of owner
+export const isCloseFriend = async (
+  ownerId: string,
+  viewerId: string,
+): Promise<boolean> => {
+  const doc = await CloseFriendModel.findOne({
+    userId: ownerId,
+    closeFriendId: viewerId,
+  }).lean();
+  return !!doc;
+};
+
+//  SHARE FLUX (send as chat message)
+export const shareFlux = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const callerId = req.userId?.toString();
+    const { fluxId } = req.params;
+    const { receiverIds }: { receiverIds: string[] } = (req as any).body ?? {};
+
+    if (!callerId) {
+      res.status(401).json({ success: false, message: "Unauthorized" });
+      return;
+    }
+    if (!Array.isArray(receiverIds) || receiverIds.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "receiverIds must be a non-empty array",
+      });
+      return;
+    }
+
+    const flux = await FluxModel.findById(fluxId).lean();
+    if (!flux) {
+      res.status(404).json({ success: false, message: "Flux not found" });
+      return;
+    }
+
+    const callerResp = await wieUserClient
+      .getUsersByIds([callerId])
+      .catch(() => ({ users: [] }));
+    const callerInfo = (callerResp.users ?? [])[0];
+    const callerName = callerInfo?.name ?? callerInfo?.username ?? "Someone";
+    const callerAvatar =
+      callerInfo?.profile_picture ?? callerInfo?.profilePicture ?? "";
+    const fluxUrl = `/post/flux-view?fluxId=${fluxId}&userId=${callerId}`;
+
+    const results: {
+      receiverId: string;
+      chatId?: string;
+      messageId?: string;
+      error?: string;
+    }[] = [];
+
+    for (const receiverId of receiverIds) {
+      const chatContent = JSON.stringify({
+        text: `${callerName} shared a Flux`,
+        senderLabel: "You shared a Flux",
+        fluxId,
+        fluxMediaUrl: (flux as any).mediaUrl,
+        fluxMediaType: (flux as any).mediaType,
+        fluxOwnerId: callerId,
+        sharerName: callerName,
+        fluxUrl,
+        type: "flux_share",
+      });
+
+      try {
+        const chatResult = await chatClient.sendSystemMessage({
+          sender_id: callerId,
+          receiver_id: receiverId,
+          message_type: "flux_share",
+          content: chatContent,
+          metadata_json: JSON.stringify({
+            fluxId,
+            fluxMediaUrl: (flux as any).mediaUrl,
+            fluxMediaType: (flux as any).mediaType,
+            sharerName: callerName,
+            sharerAvatar: callerAvatar,
+            fluxOwnerId: callerId,
+            type: "flux_share",
+          }),
+        });
+        results.push({
+          receiverId,
+          chatId: chatResult.chat_id,
+          messageId: chatResult.message_id,
+        });
+      } catch (err) {
+        console.error(`❌ shareFlux chat failed for ${receiverId}:`, err);
+        results.push({ receiverId, error: "Failed to send" });
+      }
+    }
+
+    res.status(200).json({ success: true, message: "Flux shared", results });
+  } catch (err) {
+    console.error("shareFlux error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+export const likeFluxComment = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const callerId = req.userId?.toString();
+    const { fluxId, commentId } = req.params;
+
+    if (!callerId) {
+      res.status(401).json({ success: false, message: "Unauthorized" });
+      return;
+    }
+
+    const flux = await FluxModel.findById(fluxId);
+    if (!flux) {
+      res.status(404).json({ success: false, message: "Flux not found" });
+      return;
+    }
+
+    const comment = (flux.comments as any[]).find(
+      (c: any) => c._id?.toString() === commentId,
+    );
+    if (!comment) {
+      res.status(404).json({ success: false, message: "Comment not found" });
+      return;
+    }
+
+    const alreadyLiked = (comment.likes ?? []).includes(callerId);
+    if (alreadyLiked) {
+      await FluxModel.findByIdAndUpdate(
+        fluxId,
+        { $pull: { "comments.$[c].likes": callerId } },
+        { arrayFilters: [{ "c._id": comment._id }] },
+      );
+    } else {
+      await FluxModel.findByIdAndUpdate(
+        fluxId,
+        { $addToSet: { "comments.$[c].likes": callerId } },
+        { arrayFilters: [{ "c._id": comment._id }] },
+      );
+    }
+
+    res.status(200).json({ success: true, liked: !alreadyLiked });
+  } catch (err) {
+    console.error("likeFluxComment error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+//  COMMENTS
+export const addFluxComment = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const callerId = req.userId?.toString();
+    const { fluxId } = req.params;
+    const { text }: { text: string } = (req as any).body ?? {};
+
+    if (!callerId) {
+      res.status(401).json({ success: false, message: "Unauthorized" });
+      return;
+    }
+    if (!text?.trim()) {
+      res.status(400).json({ success: false, message: "text is required" });
+      return;
+    }
+
+    const flux = await FluxModel.findById(fluxId);
+    if (!flux) {
+      res.status(404).json({ success: false, message: "Flux not found" });
+      return;
+    }
+
+    const comment = {
+      userId: callerId,
+      text: text.trim(),
+      likes: [],
+      createdAt: new Date(),
+    };
+    await FluxModel.findByIdAndUpdate(fluxId, { $push: { comments: comment } });
+
+    const fluxOwnerId = flux.userId.toString();
+    if (fluxOwnerId !== callerId) {
+      const callerInfo2 = (await wieUserClient.getUsersByIds([callerId]).catch(() => ({ users: [] }))).users?.[0];
+      const commenterName = callerInfo2?.username ?? callerInfo2?.name ?? "Someone";
+
+      await createNotification({
+        userId:     fluxOwnerId,
+        type:       "flux_comment",
+        title:      "New comment on your Flux",
+        message:    `${commenterName} commented: "${text.trim().slice(0, 60)}${text.trim().length > 60 ? "…" : ""}"`,
+        fromUserId: callerId,
+        metadata: {
+          fluxId,
+          commentText: text.trim(),
+          commenterName,
+          commenterAvatar: callerInfo2?.profile_picture ?? null,
+        },
+      }).catch(() => {});
+      emitMentionEvent({
+        mentionedUserId: fluxOwnerId,
+        mentionerUserId: callerId,
+        fluxId,
+        fluxMediaUrl:    (flux as any).mediaUrl ?? null,
+      }).catch((err) => console.error("flux comment emit failed:", err));
+    }
+    // Fetch caller info for response
+    const callerResp = await wieUserClient
+      .getUsersByIds([callerId])
+      .catch(() => ({ users: [] }));
+    const callerInfo = (callerResp.users ?? [])[0];
+
+    res.status(201).json({
+      success: true,
+      comment: {
+        ...comment,
+        name: callerInfo?.name ?? callerInfo?.username ?? "Someone",
+        avatar:
+          callerInfo?.profile_picture ?? callerInfo?.profilePicture ?? null,
+      },
+    });
+  } catch (err) {
+    console.error("addFluxComment error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+export const getFluxComments = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const callerId = req.userId?.toString();
+    const { fluxId } = req.params;
+
+    if (!callerId) {
+      res.status(401).json({ success: false, message: "Unauthorized" });
+      return;
+    }
+
+    const flux = await FluxModel.findById(fluxId).lean();
+    if (!flux) {
+      res.status(404).json({ success: false, message: "Flux not found" });
+      return;
+    }
+
+    const comments: any[] = (flux as any).comments ?? [];
+    const userIds = [
+      ...new Set(
+        comments.map((c: any) => c.userId?.toString()).filter(Boolean),
+      ),
+    ];
+
+    const usersResp =
+      userIds.length > 0
+        ? await wieUserClient
+            .getUsersByIds(userIds)
+            .catch(() => ({ users: [] }))
+        : { users: [] };
+
+    const userMap = new Map(
+      (usersResp.users ?? []).map((u: any) => [
+        (u._id ?? u.id).toString(),
+        {
+          name: u.name ?? u.username,
+          avatar: u.profile_picture ?? u.profilePicture ?? null,
+          username: u.username,
+        },
+      ]),
+    );
+
+    const enriched = comments.map((c: any) => ({
+      _id: c._id?.toString(),
+      userId: c.userId?.toString(),
+      text: c.text,
+      likes: c.likes ?? [],
+      createdAt: c.createdAt,
+      ...(userMap.get(c.userId?.toString()) ?? {}),
+    }));
+
+    res
+      .status(200)
+      .json({ success: true, comments: enriched, total: enriched.length });
+  } catch (err) {
+    console.error("getFluxComments error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+
+// POST /flux/:fluxId/reply — send flux reply as a chat message
+export const replyFlux = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const callerId = req.userId?.toString();
+    const { fluxId } = req.params;
+    const { text }: { text: string } = (req as any).body ?? {};
+
+    if (!callerId) {
+      res.status(401).json({ success: false, message: "Unauthorized" });
+      return;
+    }
+    if (!text?.trim()) {
+      res.status(400).json({ success: false, message: "text is required" });
+      return;
+    }
+
+    const flux = await FluxModel.findOne({
+      _id: fluxId,
+      isDeleted: { $ne: true }, 
+    }).lean();
+    if (!flux) {
+      res.status(404).json({ success: false, message: "Flux not found" });
+      return;
+    }
+
+    const fluxOwnerId = flux.userId.toString();
+
+    if (fluxOwnerId === callerId) {
+      res.status(400).json({ success: false, message: "Cannot reply to your own flux" });
+      return;
+    }
+
+    // Build flux reply message payload for chat service
+    const messageContent = JSON.stringify({
+      type:          "flux_reply",
+      text:          text.trim(),
+      fluxId:        flux._id.toString(),
+      fluxOwnerId,
+      fluxMediaUrl:  (flux as any).mediaUrl  ?? null,
+      fluxMediaType: (flux as any).mediaType ?? "image",
+      fluxTextBg:    (flux as any).textBg    ?? null,
+    });
+
+    // Send via chat gRPC client
+    const chatRes = await chatClient.sendSystemMessage({
+      sender_id:     callerId,
+      receiver_id:   fluxOwnerId,
+      content:       messageContent,
+      message_type:  "flux_reply",
+      metadata_json: JSON.stringify({
+        fluxId:        flux._id.toString(),
+        fluxMediaUrl:  (flux as any).mediaUrl  ?? null,
+        fluxMediaType: (flux as any).mediaType ?? "image",
+        fluxOwnerId,
+        replyText:     text.trim(),
+        type:          "flux_reply",
+      }),
+    });
+
+    res.json({ success: true, message: chatRes });
+  } catch (error: any) {
+    console.error("replyFlux error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+//  FLUX LIKES (react to the flux itself)
+export const toggleFluxLike = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const callerId = req.userId?.toString();
+    const { fluxId } = req.params;
+    const { emoji = "❤️" }: { emoji?: string } = (req as any).body ?? {};
+
+    if (!callerId) {
+      res.status(401).json({ success: false, message: "Unauthorized" });
+      return;
+    }
+
+    const flux = await FluxModel.findById(fluxId);
+    if (!flux) {
+      res.status(404).json({ success: false, message: "Flux not found" });
+      return;
+    }
+
+    // Flux owner cannot like their own flux
+    if (flux.userId.toString() === callerId) {
+      res
+        .status(403)
+        .json({ success: false, message: "Cannot like your own flux" });
+      return;
+    }
+
+    const existingLike = (flux.likes as any[]).find(
+      (l: any) => l.userId?.toString() === callerId,
+    );
+    if (existingLike) {
+      // Unlike
+      await FluxModel.findByIdAndUpdate(fluxId, {
+        $pull: { likes: { userId: callerId } },
+      });
+      res.status(200).json({
+        success: true,
+        liked: false,
+        likeCount: (flux.likes?.length ?? 1) - 1,
+      });
+    } else {
+      // Like
+      await FluxModel.findByIdAndUpdate(fluxId, {
+        $push: { likes: { userId: callerId, emoji, createdAt: new Date() } },
+      });
+      const likerInfoRes = await wieUserClient.getUsersByIds([callerId]).catch(() => ({ users: [] }));
+      const likerInfo = (likerInfoRes.users ?? [])[0];
+      const likerName = likerInfo?.username ?? likerInfo?.name ?? "Someone";
+      await createNotification({
+        userId:     flux.userId.toString(),
+        type:       "flux_like",             // add to enum — see step 5
+        title:      `${likerName} liked your Flux`,
+        message:    `${likerName} liked your Flux ❤️`,
+        fromUserId: callerId,
+        metadata: {
+          fluxId,
+          likerName,
+          likerAvatar: likerInfo?.profile_picture ?? null,
+        },
+      }).catch(() => {});
+      emitMentionEvent({
+        mentionedUserId: flux.userId.toString(),
+        mentionerUserId: callerId,
+        fluxId,
+        fluxMediaUrl:    (flux as any).mediaUrl ?? null,
+      }).catch((err) => console.error("flux like emit failed:", err));
+      res.status(200).json({
+        success: true,
+        liked: true,
+        likeCount: (flux.likes?.length ?? 0) + 1,
+      });
+    }
+  } catch (err) {
+    console.error("toggleFluxLike error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+export const getFluxLikes = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const callerId = req.userId?.toString();
+    const { fluxId } = req.params;
+
+    if (!callerId) {
+      res.status(401).json({ success: false, message: "Unauthorized" });
+      return;
+    }
+
+    const flux = await FluxModel.findById(fluxId).lean();
+    if (!flux) {
+      res.status(404).json({ success: false, message: "Flux not found" });
+      return;
+    }
+
+    const likes: any[] = (flux as any).likes ?? [];
+    const isOwner = (flux as any).userId?.toString() === callerId;
+
+    if (!isOwner) {
+      // Non-owners only get the count + whether they liked it
+      const hasLiked = likes.some(
+        (l: any) => l.userId?.toString() === callerId,
+      );
+      res.status(200).json({ success: true, total: likes.length, hasLiked });
+      return;
+    }
+
+    // Owner gets full list enriched with user info
+    const userIds = likes.map((l: any) => l.userId?.toString()).filter(Boolean);
+    const usersResp =
+      userIds.length > 0
+        ? await wieUserClient
+            .getUsersByIds(userIds)
+            .catch(() => ({ users: [] }))
+        : { users: [] };
+
+    const userMap = new Map(
+      (usersResp.users ?? []).map((u: any) => [
+        (u._id ?? u.id).toString(),
+        {
+          name: u.name ?? u.username,
+          avatar: u.profile_picture ?? u.profilePicture ?? null,
+          username: u.username,
+        },
+      ]),
+    );
+
+    const enriched = likes.map((l: any) => ({
+      userId: l.userId?.toString(),
+      emoji: l.emoji ?? "❤️",
+      createdAt: l.createdAt,
+      ...(userMap.get(l.userId?.toString()) ?? {}),
+    }));
+
+    res
+      .status(200)
+      .json({ success: true, likes: enriched, total: enriched.length });
+  } catch (err) {
+    console.error("getFluxLikes error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };

@@ -159,7 +159,6 @@ const FOLLOWERS = Array.from({ length: 8 }, (_, i) => ({
 
 const GRADIENT = "linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)";
 
-
 function MusicPanel({
   selectedSong,
   onSelect,
@@ -170,58 +169,67 @@ function MusicPanel({
     title: string,
     artist: string,
     previewUrl: string | null,
-    albumArt: string | null
+    albumArt: string | null,
+    mode: "music_only" | "lyrics",
+    lyricsStyle: "karaoke" | "line" | "floating",
+    trimStart: number,
+    trimEnd: number,
   ) => void;
 }) {
-  const [tab,     setTab]     = useState<"foryou" | "trending" | "liked">("trending");
-  const [query,   setQuery]   = useState("");
-  const [tracks,  setTracks]  = useState<SpotifyTrack[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState<string | null>(null);
+  const [tab,          setTab]         = useState<"foryou" | "trending" | "liked">("trending");
+  const [query,        setQuery]       = useState("");
+  const [tracks,       setTracks]      = useState<SpotifyTrack[]>([]);
+  const [loading,      setLoading]     = useState(false);
+  const [error,        setError]       = useState<string | null>(null);
+  const [mode,         setMode]        = useState<"music_only" | "lyrics">("music_only");
+  const [lyricsStyle,  setLyricsStyle] = useState<"karaoke" | "line" | "floating">("line");
+  const [trimStart,    setTrimStart]   = useState(0);
+  const [trimEnd,      setTrimEnd]     = useState(15);
+  const [selectedTrack, setSelectedTrack] = useState<SpotifyTrack | null>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadTrending = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getTrendingMusic();
-      setTracks(data);
-    } catch {
-      setError("Could not load music");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setError(null);
+    try { const data = await getTrendingMusic(); setTracks(data); }
+    catch { setError("Could not load music"); }
+    finally { setLoading(false); }
   };
 
-  // Load on mount
-  useEffect(() => {
-    loadTrending();
-  }, []);
+  useEffect(() => { loadTrending(); }, []);
 
-  // Debounced search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    if (!query.trim()) {
-      loadTrending();
-      return;
-    }
-
+    if (!query.trim()) { loadTrending(); return; }
     debounceRef.current = setTimeout(() => {
-      setLoading(true);
-      setError(null);
+      setLoading(true); setError(null);
       searchMusic(query.trim(), 10)
-        .then(setTracks)
-        .catch(() => setError("Search failed"))
+        .then(setTracks).catch(() => setError("Search failed"))
         .finally(() => setLoading(false));
     }, 400);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query]);
 
   const PILL = "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)";
+
+  const LYRICS_STYLES: { id: "karaoke" | "line" | "floating"; label: string; icon: string; desc: string }[] = [
+    { id: "karaoke",  label: "Karaoke",  icon: "🎤", desc: "Word-by-word highlight" },
+    { id: "line",     label: "Line",     icon: "📝", desc: "One line at a time"     },
+    { id: "floating", label: "Floating", icon: "💫", desc: "Animated movement"      },
+  ];
+
+  const handleTrackSelect = (track: SpotifyTrack) => {
+    setSelectedTrack(track);
+    setTrimStart(0);
+    setTrimEnd(Math.min(15, 30));
+    onSelect(track.id, track.title, track.artist, track.previewUrl, track.albumArt, mode, lyricsStyle, trimStart, trimEnd);
+  };
+
+  // Re-fire onSelect when mode/style/trim changes for already-selected track
+  useEffect(() => {
+    if (!selectedTrack) return;
+    onSelect(selectedTrack.id, selectedTrack.title, selectedTrack.artist, selectedTrack.previewUrl, selectedTrack.albumArt, mode, lyricsStyle, trimStart, trimEnd);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, lyricsStyle, trimStart, trimEnd]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 10 }}>
@@ -232,30 +240,19 @@ function MusicPanel({
       </p>
 
       {/* Search */}
-      <div
-        style={{
-          display: "flex", alignItems: "center", gap: 8,
-          padding: "8px 12px", borderRadius: 10, flexShrink: 0,
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.1)",
-        }}
-      >
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "8px 12px", borderRadius: 10, flexShrink: 0,
+        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+      }}>
         <Search size={13} color="rgba(255,255,255,0.3)" style={{ flexShrink: 0 }} />
         <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          type="text" value={query} onChange={(e) => setQuery(e.target.value)}
           placeholder="Search songs, artists..."
-          style={{
-            flex: 1, background: "transparent", border: "none", outline: "none",
-            color: "#fff", fontSize: 12,
-          }}
+          style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 12 }}
         />
         {query && (
-          <button
-            onClick={() => setQuery("")}
-            style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
-          >
+          <button onClick={() => setQuery("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
             <X size={12} color="rgba(255,255,255,0.4)" />
           </button>
         )}
@@ -264,52 +261,31 @@ function MusicPanel({
       {/* Tabs */}
       <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
         {(["foryou", "trending", "liked"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 500,
-              cursor: "pointer", border: "none",
-              background: tab === t ? PILL : "rgba(255,255,255,0.08)",
-              color: "#fff",
-              outline: tab === t ? "none" : "1px solid rgba(255,255,255,0.14)",
-            }}
-          >
+          <button key={t} onClick={() => setTab(t)} style={{
+            padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 500,
+            cursor: "pointer", border: "none",
+            background: tab === t ? PILL : "rgba(255,255,255,0.08)", color: "#fff",
+            outline: tab === t ? "none" : "1px solid rgba(255,255,255,0.14)",
+          }}>
             {t === "foryou" ? "For you" : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
 
       {/* Track list */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-          msOverflowStyle: "none",
-          scrollbarWidth: "none",
-          paddingRight: 2,
-        }}
-      >
-        <style>{`div::-webkit-scrollbar{display:none}`}</style>
+      <div style={{
+        flex: 1, overflowY: "auto", display: "flex", flexDirection: "column",
+        gap: 2, scrollbarWidth: "none", paddingRight: 2,
+      }}>
+        <style>{`div::-webkit-scrollbar{display:none} @keyframes spin{to{transform:rotate(360deg)}} @keyframes bounce{from{transform:scaleY(0.4)}to{transform:scaleY(1)}}`}</style>
         {error ? (
-          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, textAlign: "center", paddingTop: 24 }}>
-            {error}
-          </p>
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, textAlign: "center", paddingTop: 24 }}>{error}</p>
         ) : loading ? (
           <div style={{ display: "flex", justifyContent: "center", paddingTop: 24 }}>
-            <div style={{
-              width: 18, height: 18, borderRadius: "50%",
-              border: "2px solid #8860D9", borderTopColor: "transparent",
-              animation: "spin 0.8s linear infinite",
-            }} />
+            <div style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid #8860D9", borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
           </div>
         ) : tracks.length === 0 ? (
-          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, textAlign: "center", paddingTop: 24 }}>
-            No results
-          </p>
+          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, textAlign: "center", paddingTop: 24 }}>No results</p>
         ) : (
           tracks.map((track) => {
             const isSelected = selectedSong === track.id;
@@ -317,102 +293,49 @@ function MusicPanel({
             return (
               <button
                 key={track.id}
-                // Direct onClick — this IS a user gesture so audio.play() will work
-                onClick={() => {
-                  console.log("🖱️ Track clicked:", track.title, "previewUrl:", track.previewUrl);
-                  onSelect(track.id, track.title, track.artist, track.previewUrl, track.albumArt);
-                }}
+                onClick={() => handleTrackSelect(track)}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "8px 8px", borderRadius: 10, width: "100%",
                   textAlign: "left", cursor: "pointer",
                   background: isSelected ? "rgba(136,96,217,0.2)" : "transparent",
-                  border: isSelected
-                    ? "1px solid rgba(136,96,217,0.45)"
-                    : "1px solid transparent",
+                  border: isSelected ? "1px solid rgba(136,96,217,0.45)" : "1px solid transparent",
                   transition: "background 0.15s",
                 }}
-                onMouseEnter={(e) => {
-                  if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.05)";
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                }}
+                onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.05)"; }}
+                onMouseLeave={(e) => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
               >
-                {/* Album art */}
-                <div style={{
-                  position: "relative", width: 36, height: 36, borderRadius: 8,
-                  flexShrink: 0, overflow: "hidden",
-                  background: "linear-gradient(135deg,#6B3FA0,#2979FF)",
-                }}>
-                  {track.albumArt && (
-                    <img
-                      src={track.albumArt}
-                      alt={track.title}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
-                  )}
+                <div style={{ position: "relative", width: 36, height: 36, borderRadius: 8, flexShrink: 0, overflow: "hidden", background: "linear-gradient(135deg,#6B3FA0,#2979FF)" }}>
+                  {track.albumArt && <img src={track.albumArt} alt={track.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                   {isSelected && (
-                    <div style={{
-                      position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
+                    <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 12 }}>
                         {[55, 100, 70].map((h, i) => (
-                          <div key={i} style={{
-                            width: 2, borderRadius: 2, background: "#fff",
-                            height: `${h}%`,
-                            animation: "bounce 0.6s ease infinite alternate",
-                            animationDelay: `${i * 0.12}s`,
-                          }} />
+                          <div key={i} style={{ width: 2, borderRadius: 2, background: "#fff", height: `${h}%`, animation: "bounce 0.6s ease infinite alternate", animationDelay: `${i * 0.12}s` }} />
                         ))}
                       </div>
                     </div>
                   )}
-                  {/* No preview badge */}
                   {!hasPreview && (
-                    <div style={{
-                      position: "absolute", bottom: 0, right: 0,
-                      background: "rgba(0,0,0,0.7)", borderRadius: "4px 0 8px 0",
-                      padding: "1px 3px",
-                    }}>
+                    <div style={{ position: "absolute", bottom: 0, right: 0, background: "rgba(0,0,0,0.7)", borderRadius: "4px 0 8px 0", padding: "1px 3px" }}>
                       <VolumeX size={7} color="rgba(255,255,255,0.5)" />
                     </div>
                   )}
                 </div>
-
-                {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{
-                    color: "#fff", fontSize: 12, fontWeight: 500,
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    lineHeight: 1.3,
-                  }}>
-                    {track.title}
-                  </p>
-                  <p style={{
-                    color: "rgba(255,255,255,0.4)", fontSize: 10,
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    marginTop: 1,
-                  }}>
+                  <p style={{ color: "#fff", fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.3 }}>{track.title}</p>
+                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>
                     {track.artist} • {track.duration}
                     {!hasPreview && <span style={{ color: "rgba(255,255,255,0.25)", marginLeft: 4 }}>no preview</span>}
                   </p>
                 </div>
-
-                {/* Select indicator */}
                 <div style={{
                   width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  background: isSelected
-                    ? PILL
-                    : "rgba(255,255,255,0.07)",
+                  background: isSelected ? PILL : "rgba(255,255,255,0.07)",
                   border: isSelected ? "none" : "1px solid rgba(255,255,255,0.14)",
                 }}>
-                  {isSelected
-                    ? <Check size={10} color="#fff" />
-                    : <Heart size={10} color="rgba(255,255,255,0.3)" />
-                  }
+                  {isSelected ? <Check size={10} color="#fff" /> : <Heart size={10} color="rgba(255,255,255,0.3)" />}
                 </div>
               </button>
             );
@@ -420,11 +343,85 @@ function MusicPanel({
         )}
       </div>
 
-      {/* Inline keyframes for spin + bounce */}
-      <style>{`
-        @keyframes spin   { to { transform: rotate(360deg); } }
-        @keyframes bounce { from { transform: scaleY(0.4); } to { transform: scaleY(1); } }
-      `}</style>
+      {/* ── Mode + Options — only shown when a track is selected ── */}
+      {selectedTrack && (
+        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 10 }}>
+
+          {/* Helper text */}
+          <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, textAlign: "center" }}>
+            Choose how your music appears
+          </p>
+
+          {/* Mode toggle */}
+          <div style={{ display: "flex", gap: 6, padding: "3px", borderRadius: 22, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+            {(["music_only", "lyrics"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                style={{
+                  flex: 1, padding: "7px 0", borderRadius: 18, fontSize: 11, fontWeight: 700,
+                  cursor: "pointer", border: "none", transition: "all 0.2s",
+                  background: mode === m ? PILL : "transparent",
+                  color: mode === m ? "#fff" : "rgba(255,255,255,0.45)",
+                }}
+              >
+                {m === "music_only" ? "🎵 Music Only" : "🎤 Lyrics"}
+              </button>
+            ))}
+          </div>
+
+          {/* Lyrics style — only when lyrics mode */}
+          {mode === "lyrics" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, animation: "fadeIn 0.2s ease" }}>
+              <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}`}</style>
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>Lyrics style</p>
+              <div style={{ display: "flex", gap: 5 }}>
+                {LYRICS_STYLES.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setLyricsStyle(s.id)}
+                    style={{
+                      flex: 1, padding: "7px 4px", borderRadius: 10, fontSize: 10, fontWeight: 600,
+                      cursor: "pointer", border: "none", transition: "all 0.15s",
+                      background: lyricsStyle === s.id ? "rgba(136,96,217,0.45)" : "rgba(255,255,255,0.07)",
+                      outline: lyricsStyle === s.id ? "1px solid #8860D9" : "1px solid rgba(255,255,255,0.1)",
+                      color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                    }}
+                  >
+                    <span style={{ fontSize: 14 }}>{s.icon}</span>
+                    <span>{s.label}</span>
+                    <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 400 }}>{s.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Trim slider */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>⏱ Trim segment</p>
+              <span style={{ color: "#8860D9", fontSize: 10, fontWeight: 700 }}>{trimStart}s – {trimEnd}s</span>
+            </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, width: 20 }}>Start</span>
+              <input
+                type="range" min={0} max={25} value={trimStart}
+                onChange={(e) => { const v = Number(e.target.value); setTrimStart(Math.min(v, trimEnd - 5)); }}
+                style={{ flex: 1, accentColor: "#8860D9" }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, width: 20 }}>End</span>
+              <input
+                type="range" min={5} max={30} value={trimEnd}
+                onChange={(e) => { const v = Number(e.target.value); setTrimEnd(Math.max(v, trimStart + 5)); }}
+                style={{ flex: 1, accentColor: "#8860D9" }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -784,9 +781,11 @@ function LocationPanel({
 function MentionPanel({
   selectedMentions,
   onToggle,
+  fluxId,
 }: {
   selectedMentions: string[];
   onToggle: (id: string, name: string, username: string) => void;
+  fluxId?: string;
 }) {
   const { user }    = useAuth(true);
   const [query,     setQuery]     = useState("");
@@ -794,6 +793,9 @@ function MentionPanel({
   const [searchRes, setSearchRes] = useState<MUser[]>([]);
   const [loadingF,  setLoadingF]  = useState(false);
   const [loadingS,  setLoadingS]  = useState(false);
+  const [adding,    setAdding]    = useState(false);
+  const [addError,  setAddError]  = useState<string | null>(null);
+  const [addSuccess,setAddSuccess]= useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // Load following on mount
@@ -839,6 +841,22 @@ function MentionPanel({
     return () => clearTimeout(searchTimer.current);
   }, [query, following]);
 
+  // Save mentions if fluxId is available (post-creation flow)
+  const handleSaveMentions = async () => {
+    if (!selectedMentions.length || !fluxId) return;
+    setAdding(true);
+    setAddError(null);
+    try {
+      await mentionFlux(fluxId, selectedMentions);
+      setAddSuccess(true);
+      setTimeout(() => setAddSuccess(false), 2000);
+    } catch (err: any) {
+      setAddError(err?.response?.data?.message ?? "Failed to save mentions.");
+    } finally {
+      setAdding(false);
+    }
+  };
+
   const displayList = query.trim() ? searchRes : following;
   const loading     = query.trim() ? loadingS : loadingF;
   const pickedUsers = following.filter(u => selectedMentions.includes(u.id));
@@ -860,7 +878,7 @@ function MentionPanel({
                   width: 36, height: 36, borderRadius: "50%",
                   background: "linear-gradient(135deg,#6B3FA0,#2979FF)", overflow: "hidden",
                 }}>
-                  {u.avatar && <img src={u.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                  {u.avatar && <img src={u.avatar} alt={u.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                 </div>
                 <button
                   onClick={() => onToggle(u.id, u.name, u.username)}
@@ -907,10 +925,10 @@ function MentionPanel({
 
       {/* User list */}
       <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none", display: "flex", flexDirection: "column", gap: 2 }}>
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         {loading && (
           <div style={{ display: "flex", justifyContent: "center", paddingTop: 20 }}>
             <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid #8860D9", borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
-            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
           </div>
         )}
         {!loading && displayList.length === 0 && (
@@ -937,7 +955,7 @@ function MentionPanel({
                 width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
                 background: "linear-gradient(135deg,#6B3FA0,#2979FF)", overflow: "hidden",
               }}>
-                {u.avatar && <img src={u.avatar} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                {u.avatar && <img src={u.avatar} alt={u.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ color: "#fff", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -960,6 +978,50 @@ function MentionPanel({
           );
         })}
       </div>
+      {/* Save button — only shown when fluxId exists (edit/post-creation) */}
+      {fluxId && (
+        <div style={{ flexShrink: 0, paddingTop: 6 }}>
+          {addError && (
+            <p style={{ color: "#ff6b6b", fontSize: 10, textAlign: "center", marginBottom: 6 }}>{addError}</p>
+          )}
+          <button
+            onClick={handleSaveMentions}
+            disabled={selectedMentions.length === 0 || adding}
+            style={{
+              width: "100%", height: 40, borderRadius: 20,
+              background: selectedMentions.length > 0 ? PILL : "rgba(255,255,255,0.08)",
+              border: "none", color: "#fff", fontSize: 13, fontWeight: 600,
+              cursor: selectedMentions.length > 0 ? "pointer" : "default",
+              transition: "background 0.2s",
+            }}
+          >
+            {adding ? "Saving…" : addSuccess ? "✓ Saved!" : selectedMentions.length > 0
+              ? `Mention ${selectedMentions.length} person${selectedMentions.length > 1 ? "s" : ""}`
+              : "Select people to mention"}
+          </button>
+        </div>
+      )}
+      {/* Pre-posting confirmation — shown when selecting users before post */}
+      {!fluxId && (
+        <div style={{
+          flexShrink: 0,
+          padding: "8px 10px",
+          borderRadius: 10,
+          background: selectedMentions.length > 0
+            ? "rgba(136,96,217,0.12)"
+            : "rgba(255,255,255,0.04)",
+          border: selectedMentions.length > 0
+            ? "1px solid rgba(136,96,217,0.3)"
+            : "1px solid rgba(255,255,255,0.07)",
+          transition: "all 0.2s",
+        }}>
+          <p style={{ color: selectedMentions.length > 0 ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.25)", fontSize: 10, textAlign: "center", lineHeight: 1.5 }}>
+            {selectedMentions.length > 0
+              ? `✓ ${selectedMentions.length} person${selectedMentions.length > 1 ? "s" : ""} will be mentioned when you post — notifications will be sent automatically`
+              : "Select people above to mention them in your flux"}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1434,9 +1496,10 @@ interface FluxRightPanelProps {
   selectedLocation: string | null;
   selectedMentions: string[];
   selectedFilter:   string;
+  fluxId?: string;
   mediaPreview:     string | null;
   mediaType:        "image" | "video" | null;
-  onSongSelect:     (id: string, title: string, artist: string, previewUrl: string | null, albumArt: string | null) => void;
+  onSongSelect: (id: string, title: string, artist: string, previewUrl: string | null, albumArt: string | null, mode?: "music_only" | "lyrics", lyricsStyle?: "karaoke" | "line" | "floating", trimStart?: number, trimEnd?: number) => void;
   onLocationSelect: (loc: string, details?: { placeId?: string; lat?: number; lng?: number; category?: string }) => void;
   onMentionToggle:  (id: string, name: string, username: string) => void;
   onFilterSelect:   (id: string, value: string) => void;
@@ -1458,6 +1521,7 @@ export default function FluxRightPanel({
   selectedLocation,
   selectedMentions,
   selectedFilter,
+  fluxId,
   mediaPreview,
   mediaType,
   onSongSelect,
@@ -1480,10 +1544,7 @@ export default function FluxRightPanel({
 return (
     <div className="flex flex-col h-full w-full">
       {activeTool === "music"    && (
-        <MusicPanel
-          selectedSong={selectedSong}
-          onSelect={onSongSelect}
-        />
+        <MusicPanel selectedSong={selectedSong} onSelect={onSongSelect} />
       )}
       {activeTool === "filter" && (
         <FilterPanel
@@ -1503,6 +1564,7 @@ return (
         <MentionPanel
           selectedMentions={selectedMentions}
           onToggle={onMentionToggle}
+          fluxId={fluxId} 
         />
       )}
       {activeTool === "sticker" && (
