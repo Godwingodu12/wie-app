@@ -85,6 +85,16 @@ const parseVoiceMessage = (message: any): ChatMessage => {
   
   return message;
 };
+const isFluxShareMessage = (message: any): boolean => {
+  if (message.messageType === 'flux_share') return true;
+  if (message.content?.includes('"type":"flux_share"')) {
+    try {
+      const parsed = JSON.parse(message.content);
+      return parsed?.type === 'flux_share';
+    } catch { return false; }
+  }
+  return false;
+};
 export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const authState = useSelector((state: RootState) => state?.auth) || { token: null, user: null };
   const token = authState.token;
@@ -251,8 +261,22 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
   const addMessage = useCallback((message: ChatMessage) => {
-    const parsedMessage = parseVoiceMessage(message);
-    
+    // First normalize voice messages
+    let parsedMessage = parseVoiceMessage(message);
+
+    // Then normalize flux/system message types from JSON content
+    if (!['flux_share', 'flux_mention', 'flux_remention'].includes(parsedMessage.messageType as string)) {
+      if (parsedMessage.content?.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(parsedMessage.content);
+          if (parsed?.type === 'flux_share')     parsedMessage = { ...parsedMessage, messageType: 'flux_share'     as any };
+          else if (parsed?.type === 'flux_mention')   parsedMessage = { ...parsedMessage, messageType: 'flux_mention'   as any };
+          else if (parsed?.type === 'flux_remention') parsedMessage = { ...parsedMessage, messageType: 'flux_remention' as any };
+          else if (parsed?.type === 'flux_reply') parsedMessage = { ...parsedMessage, messageType: 'flux_reply' as any };
+        } catch {}
+      }
+    }
+
     setInternalMessages((prev) => {
       const exists = prev.some((m) => m._id === parsedMessage._id);
       if (exists) return prev;
@@ -491,34 +515,38 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const messageSender = data.message?.sender || data.lastMessage?.sender;
         const isOwnMessage = messageSender === user?.id;
 
-        // ✅ Handle message in current chat window
-        if (isCurrentChatOpen && !isOwnMessage && data.message) {
+        // ✅ Handle message in current chat window (both sender and receiver)
+        if (isCurrentChatOpen && data.message) {
           const rawNotif = data.message;
-          let newMessage: ChatMessage = {
-            _id: rawNotif._id,
-            sender: rawNotif.sender,
-            content: rawNotif.content || data.lastMessage?.content,
-            messageType: rawNotif.messageType || 'text',
-            voiceData: rawNotif.voiceData ?? undefined,
-            chat_images:  rawNotif.chat_images  ?? undefined,
-            chat_videos:  rawNotif.chat_videos  ?? undefined,
-            chat_audio:   rawNotif.chat_audio   ?? undefined,
-            chat_files:   rawNotif.chat_files   ?? undefined,
-            stickerData:  rawNotif.stickerData  ?? undefined,
-            locationData: rawNotif.locationData ?? undefined,
-            contactData:  rawNotif.contactData  ?? undefined,
-            profileData:  rawNotif.profileData  ?? undefined,
-            eventData:    rawNotif.eventData    ?? undefined,
-            replyTo:      rawNotif.replyTo      ?? undefined,
-            timestamp: rawNotif.timestamp || new Date().toISOString(),
-            createdAt: rawNotif.timestamp || new Date().toISOString(),
-            readBy: rawNotif.readBy || [],
-            deliveredTo: rawNotif.deliveredTo || [],
-            isRead: rawNotif.isRead || false,
-            isSender: false
-          };
-          newMessage = parseVoiceMessage(newMessage);
-          addMessage(newMessage);
+          // Skip if already in messages (sender already added optimistically — but system messages aren't optimistic)
+          const isSystemMessage = ['flux_share', 'flux_mention', 'flux_remention', 'flux_reply'].includes(rawNotif.messageType);          
+          if (!isOwnMessage || isSystemMessage) {
+            let newMessage: ChatMessage = {
+              _id: rawNotif._id,
+              sender: rawNotif.sender,
+              content: rawNotif.content || data.lastMessage?.content,
+              messageType: rawNotif.messageType || 'text',
+              voiceData: rawNotif.voiceData ?? undefined,
+              chat_images:  rawNotif.chat_images  ?? undefined,
+              chat_videos:  rawNotif.chat_videos  ?? undefined,
+              chat_audio:   rawNotif.chat_audio   ?? undefined,
+              chat_files:   rawNotif.chat_files   ?? undefined,
+              stickerData:  rawNotif.stickerData  ?? undefined,
+              locationData: rawNotif.locationData ?? undefined,
+              contactData:  rawNotif.contactData  ?? undefined,
+              profileData:  rawNotif.profileData  ?? undefined,
+              eventData:    rawNotif.eventData    ?? undefined,
+              replyTo:      rawNotif.replyTo      ?? undefined,
+              timestamp: rawNotif.timestamp || new Date().toISOString(),
+              createdAt: rawNotif.timestamp || new Date().toISOString(),
+              readBy: rawNotif.readBy || [],
+              deliveredTo: rawNotif.deliveredTo || [],
+              isRead: rawNotif.isRead || false,
+              isSender: isOwnMessage,
+            };
+            newMessage = parseVoiceMessage(newMessage);
+            addMessage(newMessage);
+          }
         }
         // ✅ Update chats list
         setInternalChats((prev) => {
@@ -1093,11 +1121,30 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             eventData:    rawMsg.eventData    ?? undefined,
           };
 
+          // Normalize flux/system message types
+          const normalizeSystemMessage = (msg: ChatMessage): ChatMessage => {
+            // Already typed correctly
+            if (['flux_share', 'flux_mention', 'flux_remention'].includes(msg.messageType as string)) {
+              return msg;
+            }
+            // Parse from content JSON
+            if (msg.content?.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(msg.content);
+                if (parsed?.type === 'flux_share')    return { ...msg, messageType: 'flux_share'    as any };
+                if (parsed?.type === 'flux_mention')  return { ...msg, messageType: 'flux_mention'  as any };
+                if (parsed?.type === 'flux_remention')return { ...msg, messageType: 'flux_remention'as any };
+                if (parsed?.type === 'flux_reply') return { ...msg, messageType: 'flux_reply' as any };
+              } catch {}
+            }
+            return msg;
+          };
           const finalMessage = (
             newMessage.messageType !== 'voice' &&
             newMessage.content?.startsWith('{') &&
             newMessage.content.includes('"type":"voice"')
-          ) ? parseVoiceMessage(newMessage) : newMessage;
+          ) ? parseVoiceMessage(newMessage)
+            : normalizeSystemMessage(newMessage);
 
           setInternalMessages((prev) => {
             if (prev.some(m => m._id === finalMessage._id)) return prev;
@@ -1362,7 +1409,51 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       socket.on('messages-deleted-for-everyone', handleMessagesDeletedForEveryone);
       socket.on('messages-deleted-for-me', handleMessagesDeletedForMe);
       socket.on('media_viewed', handleMediaViewed);
-
+      const handleForceReload = async () => {
+        if (!internalCurrentChat?._id) return;
+        try {
+          const response = await getWieChatMessages(internalCurrentChat._id, 1, 50);
+          if (response.success && response.messages) {
+            setInternalMessages((prev) => {
+              const existingIds = new Set(prev.map((m) => m._id));
+              const newOnes = (response.messages as any[])
+                .filter((m: any) => !existingIds.has(m._id))
+                .map((m: any) => {
+                  // Already typed as a system message — keep as-is
+                  if (
+                    ['flux_share', 'flux_mention', 'flux_remention','flux_reply'].includes(
+                      m.messageType,
+                    )
+                  ) {
+                    return m as ChatMessage;
+                  }
+                  // Detect system message type from JSON content
+                  if (m.content?.startsWith('{')) {
+                    try {
+                      const parsed = JSON.parse(m.content);
+                      if (
+                        ['flux_share', 'flux_mention', 'flux_remention','flux_reply'].includes(
+                          parsed?.type,
+                        )
+                      ) {
+                        return { ...m, messageType: parsed.type } as ChatMessage;
+                      }
+                    } catch {}
+                  }
+                  // Voice message normalization
+                  return parseVoiceMessage(m as ChatMessage);
+                });
+              if (newOnes.length === 0) return prev;
+              return [...prev, ...newOnes];
+            });
+          }
+        } catch (err) {
+          console.error('[force-reload-chats] failed:', err);
+        }
+      };
+      if (typeof window !== 'undefined') {
+        window.addEventListener('force-reload-chats', handleForceReload as EventListener);
+      }
       return () => {
         socket.off('connect', handleConnect);
         socket.off('disconnect', handleDisconnect);
@@ -1387,7 +1478,10 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         socket.off('new-message-request', handleNewMessageRequest);
         socket.off('messages-deleted-for-everyone', handleMessagesDeletedForEveryone);
         socket.off('messages-deleted-for-me', handleMessagesDeletedForMe);
-        socket.off('media_viewed', handleMediaViewed);        
+        socket.off('media_viewed', handleMediaViewed);      
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('force-reload-chats', handleForceReload as EventListener);
+        }  
       };
     }, [token, user, internalCurrentChat?._id]); 
   return (
