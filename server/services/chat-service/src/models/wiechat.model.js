@@ -26,7 +26,9 @@ const wieMessageSchema = new mongoose.Schema({
       'contact',
       'profile',
       'event',
-      'flux_mention'
+      'flux_mention',
+      'flux_remention',
+      'flux_share','flux_reply'
     ],
     default:  'text',
     required: true
