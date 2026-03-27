@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { X, Upload, Loader2, Users } from "lucide-react";
+import { X, Upload, Loader2, Users,Star } from "lucide-react";
 
 import SideBar from "@/components/home/SideBar";
 import { useSidebar } from "@/context/SidebarContext";
@@ -11,8 +11,9 @@ import { FILTER_PRESETS } from "@/components/post/FluxRightPanel";
 import FluxTopOptions from "@/components/post/FluxTopOptions";
 import FluxRightPanel from "@/components/post/FluxRightPanel";
 import FluxMusicBar   from "@/components/post/FluxMusicBar";
+import CloseFriendsPanel from "@/components/post/actions/CloseFriendsPanel";
 import StoryTextCanvas, { TextLayer } from "@/components/post/actions/StoryTextCanvas";
-import { createFlux } from "@/services/mediaService";
+import { createFlux, reMentionFlux } from "@/services/mediaService";
 import type { FluxVisibility } from "@/types/media";
 import FluxToolbar from "@/components/post/FluxToolbar";
 import type { FluxTool } from "@/types/flux";
@@ -33,7 +34,7 @@ export default function FluxPage() {
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType,    setMediaType]    = useState<"image" | "video" | null>(null);
   const [isDragging,   setIsDragging]   = useState(false);
-
+  const [showCloseFriends, setShowCloseFriends] = useState(false);
   // ── Tool / panel state 
   const [activeTool,        setActiveTool]        = useState<FluxTool>(null);
   const [duration,          setDuration]          = useState<15 | 30 | 60>(15);
@@ -58,12 +59,15 @@ export default function FluxPage() {
   const [uploadPct,  setUploadPct]  = useState(0);
   const [uploadError,setUploadError]= useState<string | null>(null);
 
-// ── History (undo/redo stub) 
+  // ── History (undo/redo stub) 
   const [history, setHistory] = useState<any[]>([]);
   const [future,  setFuture]  = useState<any[]>([]);
   const [selectedSongPreview,  setSelectedSongPreview]  = useState<string | null>(null);
   const [selectedSongAlbumArt, setSelectedSongAlbumArt] = useState<string | null>(null);
-
+  const [musicMode,        setMusicMode]        = useState<"music_only" | "lyrics">("music_only");
+  const [musicLyricsStyle, setMusicLyricsStyle] = useState<"karaoke" | "line" | "floating">("line");
+  const [musicTrimStart,   setMusicTrimStart]   = useState(0);
+  const [musicTrimEnd,     setMusicTrimEnd]     = useState(15);
   // ── Shared audio ref — single source of truth for playback 
   const sharedAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
@@ -172,33 +176,34 @@ const playSharedAudio = (previewUrl: string) => {
     setActiveTool(null);
   };
 
-  // Pre-fill from sourceFlux query params (re-mention flow)
   useEffect(() => {
-    const mediaUrl   = searchParams.get("mediaUrl");
-    const mType      = searchParams.get("mediaType") as "image" | "video" | null;
+    const mediaUrl = searchParams.get("mediaUrl");
+    const mType    = searchParams.get("mediaType") as "image" | "video" | null;
 
-    if (!mediaUrl || !mType) return;
+    // ✅ FIX: Skip media loading if URL is empty (text-only flux)
+    if (!mediaUrl || mediaUrl.trim() === "" || !mType) return;
 
-    // Fetch the remote media and convert to a File object
-    // so the existing preview + upload flow works unchanged
     const loadRemoteFile = async () => {
       try {
         const response = await fetch(mediaUrl);
         const blob     = await response.blob();
         const ext      = mType === "video" ? "mp4" : "jpg";
         const file     = new File([blob], `repost.${ext}`, { type: blob.type });
-
-        handleFile(file);   // this sets mediaFile, mediaPreview, mediaType
+        setMediaFile(file);
+        setMediaType(mType);
+        setMediaPreview(URL.createObjectURL(file));
       } catch {
-        // fallback: just show preview without a File (upload will use URL)
+        // Fallback: show preview without a File object
         setMediaPreview(mediaUrl);
         setMediaType(mType);
       }
     };
-
     loadRemoteFile();
+  }, []);
 
-    // Music
+  // ── Effect 2: Restore all non-media content from params (runs once on mount) ──
+  useEffect(() => {
+    // ── Music ──
     const musicId         = searchParams.get("musicId");
     const musicTitle      = searchParams.get("musicTitle");
     const musicArtist     = searchParams.get("musicArtist");
@@ -211,18 +216,17 @@ const playSharedAudio = (previewUrl: string) => {
       setSelectedSongPreview(musicPreviewUrl);
       playSharedAudio(musicPreviewUrl);
     }
-    if (musicAlbumArt)   setSelectedSongAlbumArt(musicAlbumArt);
+    if (musicAlbumArt) setSelectedSongAlbumArt(musicAlbumArt);
 
-    // Location
-    const locationLabel        = searchParams.get("locationLabel");
-    const locationPlaceIdParam = searchParams.get("locationPlaceId");
-    const locationLatParam     = searchParams.get("locationLat");
-    const locationLngParam     = searchParams.get("locationLng");
-    const locationCategoryParam= searchParams.get("locationCategory");
-    const locationStickerXParam= searchParams.get("locationStickerX");
-    const locationStickerYParam= searchParams.get("locationStickerY");
-    const locationThemeParam   = searchParams.get("locationStickerTheme");
-
+    // ── Location ──
+    const locationLabel         = searchParams.get("locationLabel");
+    const locationPlaceIdParam  = searchParams.get("locationPlaceId");
+    const locationLatParam      = searchParams.get("locationLat");
+    const locationLngParam      = searchParams.get("locationLng");
+    const locationCategoryParam = searchParams.get("locationCategory");
+    const locationStickerXParam = searchParams.get("locationStickerX");
+    const locationStickerYParam = searchParams.get("locationStickerY");
+    const locationThemeParam    = searchParams.get("locationStickerTheme");
     if (locationLabel)         setSelectedLocation(locationLabel);
     if (locationPlaceIdParam)  setLocationPlaceId(locationPlaceIdParam);
     if (locationLatParam)      setLocationLat(parseFloat(locationLatParam));
@@ -231,9 +235,68 @@ const playSharedAudio = (previewUrl: string) => {
     if (locationStickerXParam) setLocationPos(prev => ({ ...prev, x: parseFloat(locationStickerXParam) }));
     if (locationStickerYParam) setLocationPos(prev => ({ ...prev, y: parseFloat(locationStickerYParam) }));
     if (locationThemeParam)    setLocationTheme(parseInt(locationThemeParam));
+    // ── Text layers ──
+    const textLayersParam = searchParams.get("textLayers");
+    const textBgParam     = searchParams.get("textBg");
+    if (textLayersParam) {
+      try {
+        const parsed: TextLayer[] = JSON.parse(decodeURIComponent(textLayersParam));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setTextLayers(parsed);
+          setSelectedLayerId(parsed[0]?.id ?? null);
+
+          // ✅ FIX: Detect text-only flux — mediaUrl is empty or missing
+          const rawMediaUrl = searchParams.get("mediaUrl") ?? "";
+          const isTextOnlyFlux = !rawMediaUrl || rawMediaUrl.trim() === "";
+
+          if (isTextOnlyFlux) {
+            // ✅ Auto-open text right panel so user sees content immediately
+            setActiveTool("text");
+            // ✅ Apply textBg early so preview canvas shows correctly
+            if (textBgParam) {
+              setTextBg(decodeURIComponent(textBgParam));
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse textLayers from URL:", e);
+      }
+    }
+    // ── Text background ──
+    if (textBgParam && !searchParams.get("textLayers")) {
+      // Only set here if not already set above in the text layers block
+      setTextBg(decodeURIComponent(textBgParam));
+    }
+    // ── Stickers ──
+    const stickersParam = searchParams.get("stickers");
+    if (stickersParam) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(stickersParam));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setStickerLayers(parsed);
+        }
+      } catch (e) {
+        console.error("Failed to parse stickers from URL:", e);
+      }
+    }
+
+    // ── Filter ──
+    const filterNameParam  = searchParams.get("filterName");
+    const filterValueParam = searchParams.get("filterValue");
+    if (filterNameParam && filterValueParam) {
+      const preset = FILTER_PRESETS.find(
+        f => f.name === filterNameParam || f.value === filterValueParam,
+      );
+      if (preset) {
+        setSelectedFilter(preset.id);
+        setSelectedFilterValue(preset.value);
+      } else {
+        setSelectedFilter("custom");
+        setSelectedFilterValue(decodeURIComponent(filterValueParam));
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
@@ -243,7 +306,6 @@ const playSharedAudio = (previewUrl: string) => {
 
   const handleToolSelect = (tool: FluxTool) => {
     setActiveTool(tool);
-    // if switching to mention/location from toolbar, sync top options
   };
 
   //  Mention toggle 
@@ -252,7 +314,7 @@ const playSharedAudio = (previewUrl: string) => {
       prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
     );
   };
-// Undo / Redo history
+  // Undo / Redo history
   type HistorySnapshot = {
     textLayers:    TextLayer[];
     textBg:        string | null;
@@ -345,7 +407,7 @@ const playSharedAudio = (previewUrl: string) => {
     setStickerLayers(prev => prev.filter(s => s.id !== id));
     setSelectedStickerId(null);
   };
-  const handlePost = async (target: "story" | "close_friends") => {
+  const handlePost = async (target: "Flux" | "close_friends") => {
     const sourceMediaUrl = searchParams.get("mediaUrl");
     const hasRealMedia   = mediaFile || (sourceMediaUrl && sourceMediaUrl.startsWith("http"));
     const hasTextContent = textLayers.filter(l => l.text?.trim()).length > 0 || textBg;
@@ -362,11 +424,16 @@ const playSharedAudio = (previewUrl: string) => {
       await createFlux(mediaArg as any, {
         caption:           selectedLocation || undefined,
         visibility:        'public',
+        duration:          duration, 
         musicId:           selectedSongId         || undefined,
         musicTitle:        selectedSongTitle       || undefined,
         musicArtist:       selectedSongArtist      || undefined,
         musicPreviewUrl:   selectedSongPreview     || undefined,
         musicAlbumArt:     selectedSongAlbumArt    || undefined,
+        musicMode:         musicMode || undefined,
+        musicLyricsStyle:  musicLyricsStyle || undefined,
+        musicTrimStart:    musicTrimStart || undefined,
+        musicTrimEnd:      musicTrimEnd || undefined,
         locationLabel:     selectedLocation        || undefined,
         locationPlaceId:   locationPlaceId         || undefined,
         locationLat:       locationLat             ?? undefined,
@@ -381,10 +448,19 @@ const playSharedAudio = (previewUrl: string) => {
         filterName:        FILTER_PRESETS.find(f => f.id === selectedFilter)?.name  || undefined,
         filterValue:       selectedFilterValue !== "none" ? selectedFilterValue : undefined,
         stickers:          stickerLayers.length > 0 ? stickerLayers : undefined,
+        mentions: selectedMentions.length > 0 ? selectedMentions : undefined,
         onUploadProgress: (e) => {
           setUploadPct(Math.round(((e.loaded ?? 0) * 100) / (e.total ?? 1)));
         },
       });
+      const mentionedFluxId = searchParams.get("mentionedFluxId");
+      if (mentionedFluxId) {
+        try {
+          await reMentionFlux(mentionedFluxId);
+        } catch (err) {
+          console.error("reMentionFlux post-publish call failed:", err);
+        }
+      }
       router.push("/home");
     } catch (err: any) {
       setUploadError(err?.response?.data?.message || "Upload failed");
@@ -406,10 +482,10 @@ const playSharedAudio = (previewUrl: string) => {
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* ── Sidebar ─────────────────────────────────────────── */}
+      {/* Sidebar  */}
       <SideBar />
 
-      {/* ── Main content ────────────────────────────────────── */}
+      {/*  Main content */}
       <main
         className="flex-1 flex flex-col"
         style={{ marginLeft, minHeight: "100vh" }}
@@ -427,6 +503,23 @@ const playSharedAudio = (previewUrl: string) => {
               Add your flux
             </h1>
           </div>
+          {/* Re-mention badge — shown when this is a re-mention flow */}
+          {searchParams.get("mentionedFluxId") && (
+            <div style={{
+              display:        "flex",
+              alignItems:     "center",
+              gap:            6,
+              padding:        "5px 12px",
+              borderRadius:   20,
+              background:     "rgba(136,96,217,0.15)",
+              border:         "1px solid rgba(136,96,217,0.35)",
+            }}>
+              <span style={{ fontSize: 12 }}>↩</span>
+              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: 600 }}>
+                Re-mentioning a flux
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Three-column layout  */}
@@ -457,6 +550,7 @@ const playSharedAudio = (previewUrl: string) => {
                 width: 340,
                 height: 520,
                 borderRadius: 12,
+                // Use textBg as the canvas background when there is no media
                 background: textBg
                   ? textBg
                   : activeTool === "text"
@@ -520,7 +614,7 @@ const playSharedAudio = (previewUrl: string) => {
                     border:         "1px solid rgba(255,255,255,0.15)",
                   }}
                 >
-                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 10 }}>Text Story</span>
+                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 10 }}>Text Flux</span>
                 </div>
               )}
               {/*Add Media button (top-left, shown when text canvas used)*/}
@@ -725,7 +819,6 @@ const playSharedAudio = (previewUrl: string) => {
                           }}
                           draggable={false}
                         />
-                        {/* Delete button — shows when selected */}
                         {isSel && (
                           <button
                             onPointerDown={(e) => e.stopPropagation()}
@@ -893,7 +986,7 @@ const playSharedAudio = (previewUrl: string) => {
               <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             </div>
 
-            {/* Music bar — reduced width to match preview */}
+            {/* Music bar */}
             {selectedSongId && (
               <FluxMusicBar
                 songTitle={selectedSongTitle}
@@ -944,7 +1037,7 @@ const playSharedAudio = (previewUrl: string) => {
                   border: "1px solid rgba(255,255,255,0.08)",
                   backdropFilter: "blur(24px)",
                   padding: "14px 12px",
-                  height: 520,         // matches preview height
+                  height: 520,
                   overflow: "hidden",
                   display: "flex",
                   flexDirection: "column",
@@ -955,23 +1048,23 @@ const playSharedAudio = (previewUrl: string) => {
                 <FluxRightPanel
                   mediaPreview={mediaPreview}
                   mediaType={mediaType}
-
+                  
                   activeTool={activeTool}
                   selectedSong={selectedSongId}
                   selectedLocation={selectedLocation}
                   selectedMentions={selectedMentions}
                   selectedFilter={selectedFilter}
-                  onSongSelect={(id, title, artist, previewUrl, albumArt) => {
-                    if (previewUrl) {
-                      playSharedAudio(previewUrl);
-                    } else {
-                      stopSharedAudio();
-                    }
+                  onSongSelect={(id, title, artist, previewUrl, albumArt, mode, lyricsStyle, trimStart, trimEnd) => {
+                    if (previewUrl) { playSharedAudio(previewUrl); } else { stopSharedAudio(); }
                     setSelectedSongId(id);
                     setSelectedSongTitle(title);
                     setSelectedSongArtist(artist);
                     setSelectedSongPreview(previewUrl ?? null);
                     setSelectedSongAlbumArt(albumArt ?? null);
+                    if (mode)        setMusicMode(mode);
+                    if (lyricsStyle) setMusicLyricsStyle(lyricsStyle);
+                    if (trimStart !== undefined) setMusicTrimStart(trimStart);
+                    if (trimEnd   !== undefined) setMusicTrimEnd(trimEnd);
                   }}
                   onLocationSelect={(loc, details) => {
                     setSelectedLocation(loc);
@@ -1034,7 +1127,6 @@ const playSharedAudio = (previewUrl: string) => {
                       setSelectedLayerId(null);
                       return;
                     }
-                    // Handle new layer from "+ Add new text"
                     if (updates.__new__) {
                       takeSnapshot();
                       const newLayer: TextLayer = {
@@ -1052,7 +1144,6 @@ const playSharedAudio = (previewUrl: string) => {
                       if (!textBg) setTextBg("#1a1a2e");
                       return;
                     }
-                    // Normal update
                     if (updates.text === undefined) takeSnapshot();
                     setTextLayers(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
                     if (!textBg) setTextBg("#1a1a2e");
@@ -1060,41 +1151,69 @@ const playSharedAudio = (previewUrl: string) => {
                 />
               </div>
             )}
-
             {/* Bottom action buttons */}
             <div className="flex items-center gap-3 mt-auto pt-2">
+              {/* Close Friends button */}
               <button
-                onClick={() => setActiveTool(null)}
-                className="flex items-center justify-center text-white text-[13px] font-semibold transition-all hover:opacity-80"
+                onClick={() => setShowCloseFriends(true)}
                 style={{
-                  flex: 1,
-                  height: 48,
-                  borderRadius: 25,
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  height:         48,
+                  borderRadius:   25,
+                  padding:        "0 20px",
+                  background:     "linear-gradient(135deg,#22c55e,#16a34a)",
+                  border:         "none",
+                  color:          "#fff",
+                  fontSize:       12,
+                  fontWeight:     700,
+                  cursor:         "pointer",
+                  display:        "flex",
+                  alignItems:     "center",
+                  gap:            8,
+                  flexShrink:     0,
+                  whiteSpace:     "nowrap",
                 }}
               >
-                Close groups
+                <div style={{
+                  width:           24,
+                  height:          24,
+                  borderRadius:    "50%",
+                  background:      "rgba(255,255,255,0.2)",
+                  display:         "flex",
+                  alignItems:      "center",
+                  justifyContent:  "center",
+                  flexShrink:      0,
+                }}>
+                  <Star size={11} color="#fff" fill="#fff" />
+                </div>
+                Close Friends
               </button>
 
+              {/* Your Flux button */}
               <button
-                onClick={() => handlePost("story")}
+                onClick={() => handlePost("Flux")}
                 disabled={(!mediaFile && !textBg && textLayers.filter(l=>l.text?.trim()).length === 0) || uploading}
-                className="flex items-center justify-center gap-2 text-white text-[13px] font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{
-                  flex: 1,
-                  height: 48,
-                  borderRadius: 25,
-                  background: GRADIENT,
+                  height:          48,
+                  borderRadius:    25,
+                  padding:         "0 20px",
+                  background:      GRADIENT,
+                  border:          "none",
+                  color:           "#fff",
+                  fontSize:        13,
+                  fontWeight:      600,
+                  cursor:          "pointer",
+                  display:         "flex",
+                  alignItems:      "center",
+                  justifyContent:  "center",
+                  gap:             6,
+                  whiteSpace:      "nowrap",
+                  opacity: (!mediaFile && !textBg && textLayers.filter(l=>l.text?.trim()).length === 0) || uploading ? 0.4 : 1,
                 }}
               >
                 {uploading ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  <>
-                    <Users size={15} />
-                    Your story
-                  </>
+                  <><Users size={15} /> Your Flux</>
                 )}
               </button>
             </div>
@@ -1115,6 +1234,27 @@ const playSharedAudio = (previewUrl: string) => {
           onLayerChange={(layers) => setTextLayers(layers)}
           onBgChange={(bg) => setTextBg(bg)}
         />
+      )}
+      {/* Close Friends Panel */}
+      {showCloseFriends && (
+        <>
+          <div
+            onClick={() => setShowCloseFriends(false)}
+            style={{
+              position: "fixed", inset: 0, zIndex: 99,
+              background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            }}
+          />
+          <div style={{
+            position:  "fixed",
+            top:       "50%",
+            left:      "50%",
+            transform: "translate(-50%,-50%)",
+            zIndex:    100,
+          }}>
+            <CloseFriendsPanel onClose={() => setShowCloseFriends(false)} />
+          </div>
+        </>
       )}
     </div>
   );
