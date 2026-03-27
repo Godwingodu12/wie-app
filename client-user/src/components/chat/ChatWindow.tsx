@@ -602,6 +602,8 @@ const handleEmojiSelect = (emoji: string) => {
       if (response.success) {
         const parsedMessages = (response.messages || []).map((msg: any): ChatMessage => {
           const base = { ...msg };
+
+          // Voice message parsing
           if (base.messageType === 'voice' && base.voiceData) return base;
           if (base.content?.startsWith('{') && base.content.includes('"type":"voice"')) {
             try {
@@ -622,6 +624,23 @@ const handleEmojiSelect = (emoji: string) => {
               console.error('Failed to parse voice message:', e);
             }
           }
+
+          // ── Flux / system message type normalization ──
+          // messageType may already be correct (stored correctly in DB after the model fix)
+          if (['flux_share', 'flux_mention', 'flux_remention'].includes(base.messageType)) {
+            return base;
+          }
+          // Fallback: detect from JSON content for legacy messages
+          if (base.content?.startsWith('{')) {
+            try {
+              const parsed = JSON.parse(base.content);
+              if (parsed?.type === 'flux_share')     return { ...base, messageType: 'flux_share'     };
+              if (parsed?.type === 'flux_mention')   return { ...base, messageType: 'flux_mention'   };
+              if (parsed?.type === 'flux_remention') return { ...base, messageType: 'flux_remention' };
+              if (parsed?.type === 'flux_reply')     return { ...base, messageType: 'flux_reply'     };
+            } catch {}
+          }
+
           return base;
         });
 
@@ -2015,12 +2034,10 @@ const handleEmojiSelect = (emoji: string) => {
               const isDeleted = message.deletedForEveryone;
               const isVoice = message.messageType === 'voice' && message.voiceData?.audioBase64;
 
-              // Date logic
               const messageDate = new Date(message.timestamp);
               const prevMessage = index > 0 ? messages[index - 1] : null;
               const prevMessageDate = prevMessage ? new Date(prevMessage.timestamp) : null;
 
-              // Only show separator if the date has changed
               const showDateSeparator = !prevMessageDate ||
                 messageDate.toDateString() !== prevMessageDate.toDateString();
 
@@ -2030,22 +2047,20 @@ const handleEmojiSelect = (emoji: string) => {
                 return format(date, 'MMMM d, yyyy');
               };
 
-              const isLastInGroup = index === messages.length - 1 || messages[index + 1].sender !== message.sender;
+              const isLastInGroup = index === messages.length - 1 ||
+                messages[index + 1].sender !== message.sender;
 
               return (
                 <Fragment key={message._id}>
-                  {/* Date Separator: Fixed within a container to prevent overlapping stacking */}
                   {showDateSeparator && (
                     <div className="relative w-full flex justify-center h-10 my-4 pointer-events-none z-20">
-                      <div
-                        className={`sticky top-2 transition-opacity duration-500 ease-in-out `}
-                      >
+                      <div className="sticky top-2 transition-opacity duration-500 ease-in-out">
                         <span
                           className="text-[9px] px-3 py-1.5 rounded-lg backdrop-blur-md border uppercase tracking-widest shadow-2xl"
                           style={{
                             backgroundColor: isDark ? '#1A1A1A' : themeStyles.cardBg,
-                            color: isDark ? '#E5E7EB' : themeStyles.text,
-                            borderColor: themeStyles.border
+                            color:           isDark ? '#E5E7EB' : themeStyles.text,
+                            borderColor:     themeStyles.border,
                           }}
                         >
                           {getDateLabel(messageDate)}
@@ -2086,7 +2101,13 @@ const handleEmojiSelect = (emoji: string) => {
                       <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 mb-1">
                         {isLastInGroup ? (
                           profilePictureUrl && !imageError ? (
-                            <Image src={profilePictureUrl} alt="Avatar" width={32} height={32} className="object-cover" />
+                            <Image
+                              src={profilePictureUrl}
+                              alt="Avatar"
+                              width={32}
+                              height={32}
+                              className="object-cover"
+                            />
                           ) : (
                             <div
                               className="w-full h-full flex items-center justify-center text-[10px] text-white"
@@ -2112,7 +2133,7 @@ const handleEmojiSelect = (emoji: string) => {
                           : {
                               background: isDark
                                 ? 'linear-gradient(270deg, rgba(32, 32, 32, 0.6) -8.43%, rgba(96, 96, 96, 0.6) 100%)'
-                                : themeStyles.cardBg
+                                : themeStyles.cardBg,
                             }
                       }
                     >
@@ -2122,195 +2143,459 @@ const handleEmojiSelect = (emoji: string) => {
                           <span>This message was deleted</span>
                         </div>
                       ) : (
-              <div className="flex flex-col">
-              {/* Quoted reply */}
-              {(message as any).replyTo && (
-                <div
-                  className="flex gap-2 mb-2 rounded-xl px-3 py-2 cursor-pointer"
-                  style={{
-                    backgroundColor: isSender
-                      ? 'rgba(0,0,0,0.18)'
-                      : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-                    borderLeft: '3px solid #8860D9',
-                  }}
-                  onClick={() => {
-                    // Scroll to original message
-                    const el = document.getElementById(`msg-${(message as any).replyTo.messageId}`);
-                    if (el) {
-                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      el.style.transition = 'background 0.3s';
-                      el.style.background = isDark ? 'rgba(136,96,217,0.25)' : 'rgba(136,96,217,0.15)';
-                      setTimeout(() => { el.style.background = 'transparent'; }, 1200);
-                    }
-                  }}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-semibold mb-0.5" style={{ color: '#8860D9' }}>
-                      {(message as any).replyTo.sender === user?.id
-                        ? 'You'
-                        : currentChat.participant?.name}
-                    </p>
-                    <p
-                      className="text-[12px] truncate"
-                      style={{ color: isSender ? 'rgba(255,255,255,0.7)' : themeStyles.textSecondary }}
-                    >
-                      {(message as any).replyTo.content}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {isVoice ? (
-                <VoiceMessageDisplay
-                  audioURL={message.voiceData!.audioBase64}
-                  duration={message.voiceData!.duration}
-                  isSender={isSender}
-                  timestamp={message.timestamp}
-                />
-              ) : isMediaMessage(message) ? (
-                renderMediaMessage(message, isSender, themeStyles, isDark, {
-                  uploadProgress: message._isOptimistic ? uploadProgress[message._id as string] : undefined,
-                  currentUserId: user?.id,
-                  chatId: currentChat._id,
-                  onMarkViewed: handleMarkMediaViewed,
-                  replayedSet: replayedMessages,
-                  addToReplayed: (id: string) =>
-                    setReplayedMessages(prev => {
-                      const next = new Set<string>();
-                      prev.forEach(v => next.add(v));
-                      next.add(id);
-                      return next;
-                    }),
-                })
-                ) : (message.messageType as string) === 'flux_mention' || (message.messageType as string) === 'flux_remention' ? (
-                  (() => {
-                    let meta: any = {};
-                    try { meta = JSON.parse(message.content); } catch {}
+                        <div className="flex flex-col">
 
-                    const isRemention  = message.messageType === 'flux_remention';
-                    const isSenderView = message.sender === user?.id;
-                    const label = isSenderView
-                      ? (meta.senderLabel ?? (isRemention ? 'You added a mentioned Flux' : 'You mentioned a Flux'))
-                      : (meta.text        ?? (isRemention ? `${meta.reMentionerName ?? 'Someone'} reshared your Flux` : `${meta.mentionerName ?? 'Someone'} mentioned a Flux`));
-
-                    const fluxId      = meta.fluxId;
-                    const fluxOwnerId = meta.fluxOwnerId;
-                    const thumbUrl    = meta.fluxMediaUrl;
-                    const isVideo     = meta.fluxMediaType === 'video';
-
-                    const handleViewFlux = () => {
-                      if (!fluxId) return;
-                      const url = fluxOwnerId
-                        ? `/post/flux-view?fluxId=${fluxId}&userId=${fluxOwnerId}`
-                        : `/post/flux-view?fluxId=${fluxId}`;
-                      router.push(url);
-                    };
-
-                    return (
-                      <div
-                        style={{
-                          borderRadius:  12,
-                          overflow:      'hidden',
-                          border:        '1px solid rgba(136,96,217,0.35)',
-                          maxWidth:      220,
-                          background:    isSender
-                            ? 'rgba(0,0,0,0.25)'
-                            : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                        }}
-                      >
-                        {/* Thumbnail */}
-                        {thumbUrl && (
-                          <div style={{ position: 'relative', width: '100%', height: 120, overflow: 'hidden' }}>
-                            {isVideo ? (
-                              <video
-                                src={thumbUrl}
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                muted
-                                playsInline
-                              />
-                            ) : (
-                              <img
-                                src={thumbUrl}
-                                alt="flux"
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                              />
-                            )}
-                            {/* Purple overlay badge */}
-                            <div style={{
-                              position:   'absolute',
-                              top:         6,
-                              left:        6,
-                              background: 'rgba(136,96,217,0.85)',
-                              borderRadius: 8,
-                              padding:    '2px 7px',
-                              fontSize:    10,
-                              color:       '#fff',
-                              fontWeight:  600,
-                            }}>
-                              {isRemention ? '↩ Reshared Flux' : '📖 Flux Mention'}
+                          {/* ── Quoted reply ── */}
+                          {(message as any).replyTo && (
+                            <div
+                              className="flex gap-2 mb-2 rounded-xl px-3 py-2 cursor-pointer"
+                              style={{
+                                backgroundColor: isSender
+                                  ? 'rgba(0,0,0,0.18)'
+                                  : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                                borderLeft: '3px solid #8860D9',
+                              }}
+                              onClick={() => {
+                                const el = document.getElementById(
+                                  `msg-${(message as any).replyTo.messageId}`
+                                );
+                                if (el) {
+                                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  el.style.transition = 'background 0.3s';
+                                  el.style.background = isDark
+                                    ? 'rgba(136,96,217,0.25)'
+                                    : 'rgba(136,96,217,0.15)';
+                                  setTimeout(() => { el.style.background = 'transparent'; }, 1200);
+                                }
+                              }}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p
+                                  className="text-[11px] font-semibold mb-0.5"
+                                  style={{ color: '#8860D9' }}
+                                >
+                                  {(message as any).replyTo.sender === user?.id
+                                    ? 'You'
+                                    : currentChat.participant?.name}
+                                </p>
+                                <p
+                                  className="text-[12px] truncate"
+                                  style={{
+                                    color: isSender
+                                      ? 'rgba(255,255,255,0.7)'
+                                      : themeStyles.textSecondary,
+                                  }}
+                                >
+                                  {(message as any).replyTo.content}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
 
-                        {/* Label + button */}
-                        <div style={{ padding: '8px 10px 10px' }}>
-                          <p style={{
-                            color:      isSender ? '#fff' : themeStyles.text,
-                            fontSize:   12,
-                            fontWeight: 500,
-                            marginBottom: 8,
-                            lineHeight:  1.4,
-                          }}>
-                            {label}
-                          </p>
-                          <button
-                            onClick={handleViewFlux}
-                            style={{
-                              width:        '100%',
-                              padding:      '6px 0',
-                              borderRadius:  20,
-                              border:        '1px solid rgba(136,96,217,0.6)',
-                              background:   'rgba(136,96,217,0.18)',
-                              color:         '#8860D9',
-                              fontSize:      12,
-                              fontWeight:    600,
-                              cursor:        'pointer',
-                            }}
-                          >
-                            View Flux
-                          </button>
+                          {/* ── Message content switch ── */}
+
+                          {/* Voice */}
+                          {isVoice ? (
+                            <VoiceMessageDisplay
+                              audioURL={message.voiceData!.audioBase64}
+                              duration={message.voiceData!.duration}
+                              isSender={isSender}
+                              timestamp={message.timestamp}
+                            />
+
+                          /* Media (image / video / file / audio / location / profile / event) */
+                          ) : isMediaMessage(message) ? (
+                            renderMediaMessage(message, isSender, themeStyles, isDark, {
+                              uploadProgress: message._isOptimistic
+                                ? uploadProgress[message._id as string]
+                                : undefined,
+                              currentUserId: user?.id,
+                              chatId:        currentChat._id,
+                              onMarkViewed:  handleMarkMediaViewed,
+                              replayedSet:   replayedMessages,
+                              addToReplayed: (id: string) =>
+                                setReplayedMessages(prev => {
+                                  const next = new Set<string>();
+                                  prev.forEach(v => next.add(v));
+                                  next.add(id);
+                                  return next;
+                                }),
+                            })
+                            ) : (message.messageType as string) === 'flux_share' ? (
+                            (() => {
+                              // Parse meta — content may be JSON string or already an object
+                              let meta: any = {};
+                              try {
+                                meta = typeof message.content === 'string' && message.content.startsWith('{')
+                                  ? JSON.parse(message.content)
+                                  : {};
+                              } catch { meta = {}; }
+
+                              // Fallback to metadata_json if available
+                              if (!meta.fluxId && (message as any).metadata) {
+                                try {
+                                  const md = typeof (message as any).metadata === 'string'
+                                    ? JSON.parse((message as any).metadata)
+                                    : (message as any).metadata;
+                                  meta = { ...md, ...meta };
+                                } catch {}
+                              }
+
+                              const fluxId       = meta.fluxId;
+                              const fluxOwnerId  = meta.fluxOwnerId;
+                              const thumbUrl     = meta.fluxMediaUrl;
+                              const isVideo      = meta.fluxMediaType === 'video';
+                              const isSenderView = message.sender === user?.id;
+                              const sharerName   = meta.sharerName ?? currentChat.participant?.name ?? 'Someone';
+                              const label        = isSenderView
+                                ? (meta.senderLabel ?? 'You shared a Flux')
+                                : `${sharerName} shared a Flux`;
+
+                              const handleViewFlux = () => {
+                                if (!fluxId) return;
+                                const url = fluxOwnerId
+                                  ? `/post/flux-view?fluxId=${fluxId}&userId=${fluxOwnerId}`
+                                  : `/post/flux-view?fluxId=${fluxId}`;
+                                router.push(url);
+                              };
+
+                              return (
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    onDoubleClick={(e) => e.stopPropagation()}
+                                    onContextMenu={(e) => e.stopPropagation()}
+                                    style={{
+                                      borderRadius: 12,
+                                      overflow:     'hidden',
+                                      border:       '1px solid rgba(136,96,217,0.35)',
+                                      maxWidth:     220,
+                                      background:   isSenderView
+                                        ? 'rgba(0,0,0,0.25)'
+                                        : isDark
+                                          ? 'rgba(255,255,255,0.06)'
+                                          : 'rgba(0,0,0,0.04)',
+                                    }}
+                                  >
+                                  {/* Thumbnail */}
+                                  {thumbUrl ? (
+                                    <div style={{ position: 'relative', width: '100%', height: 120, overflow: 'hidden' }}>
+                                      {isVideo ? (
+                                        <video src={thumbUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline />
+                                      ) : (
+                                        <img src={thumbUrl} alt="flux preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                      )}
+                                      <div style={{
+                                        position: 'absolute', top: 6, left: 6,
+                                        background: 'rgba(136,96,217,0.85)', borderRadius: 8,
+                                        padding: '2px 7px', fontSize: 10, color: '#fff', fontWeight: 600,
+                                      }}>
+                                        ↗ Shared Flux
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* No thumbnail fallback */
+                                    <div style={{
+                                      width: '100%', height: 80,
+                                      background: 'linear-gradient(135deg,#2a1a4e,#4a2080)',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}>
+                                      <span style={{ fontSize: 28 }}>📖</span>
+                                    </div>
+                                  )}
+
+                                  {/* Label + View button */}
+                                  <div style={{ padding: '8px 10px 10px' }}>
+                                    <p style={{
+                                      color: isSenderView ? '#fff' : themeStyles.text,
+                                      fontSize: 12, fontWeight: 500, marginBottom: 8, lineHeight: 1.4,
+                                    }}>
+                                      {label}
+                                    </p>
+                                    <button
+                                      onClick={handleViewFlux}
+                                      disabled={!fluxId}
+                                      style={{
+                                        width: '100%', padding: '6px 0', borderRadius: 20,
+                                        border: isSenderView
+                                          ? '1px solid rgba(255,255,255,0.35)'
+                                          : isDark
+                                            ? '1px solid rgba(255,255,255,0.2)'
+                                            : '1px solid rgba(0,0,0,0.15)',
+                                        background: isSenderView
+                                          ? 'rgba(255,255,255,0.18)'
+                                          : isDark
+                                            ? 'rgba(255,255,255,0.1)'
+                                            : 'rgba(0,0,0,0.06)',
+                                        color: isSenderView
+                                          ? '#fff'
+                                          : isDark ? '#fff' : '#111',
+                                        fontSize: 12, fontWeight: 600,
+                                        cursor: fluxId ? 'pointer' : 'default',
+                                        opacity: fluxId ? 1 : 0.45,
+                                      }}
+                                    >
+                                      {fluxId ? 'View Flux' : 'Flux expired'}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })()
+                            ) : (message.messageType as string) === 'flux_reply' ? (
+                            (() => {
+                              let meta: any = {};
+                              try {
+                                meta = typeof message.content === 'string' && message.content.startsWith('{')
+                                  ? JSON.parse(message.content)
+                                  : {};
+                              } catch {}
+
+                              const fluxId      = meta.fluxId;
+                              const fluxOwnerId = meta.fluxOwnerId;
+                              const thumbUrl    = meta.fluxMediaUrl;
+                              const isVideo     = meta.fluxMediaType === 'video';
+                              const textBg      = meta.fluxTextBg ?? "linear-gradient(135deg,#1a1a2e,#2d1b4e)";
+                              const replyText   = meta.text ?? "";
+
+                              const handleViewFlux = () => {
+                                if (!fluxId) return;
+                                const url = fluxOwnerId
+                                  ? `/post/flux-view?fluxId=${fluxId}&userId=${fluxOwnerId}`
+                                  : `/post/flux-view?fluxId=${fluxId}`;
+                                router.push(url);
+                              };
+
+                              return (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  onDoubleClick={(e) => e.stopPropagation()}
+                                  onContextMenu={(e) => e.stopPropagation()}
+                                  style={{
+                                    borderRadius: 12,
+                                    overflow:     "hidden",
+                                    border:       "1px solid rgba(136,96,217,0.35)",
+                                    maxWidth:     240,
+                                    background:   isSender
+                                      ? "rgba(0,0,0,0.25)"
+                                      : isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                                  }}
+                                >
+                                  {/* Flux preview */}
+                                  <div
+                                    onClick={handleViewFlux}
+                                    style={{
+                                      position: "relative",
+                                      width:    "100%",
+                                      height:   130,
+                                      overflow: "hidden",
+                                      cursor:   fluxId ? "pointer" : "default",
+                                    }}
+                                  >
+                                    {thumbUrl ? (
+                                      isVideo ? (
+                                        <video src={thumbUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted playsInline />
+                                      ) : (
+                                        <img src={thumbUrl} alt="flux" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                      )
+                                    ) : (
+                                      <div style={{ width: "100%", height: "100%", background: textBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                        <span style={{ fontSize: 24 }}>📖</span>
+                                      </div>
+                                    )}
+                                    {/* Badge */}
+                                    <div style={{
+                                      position:     "absolute",
+                                      top:           6, left: 6,
+                                      background:   "rgba(136,96,217,0.85)",
+                                      borderRadius:  8,
+                                      padding:      "2px 8px",
+                                      fontSize:      10,
+                                      color:         "#fff",
+                                      fontWeight:    600,
+                                    }}>
+                                      ↩ Flux Reply
+                                    </div>
+                                  </div>
+
+                                  {/* Reply text */}
+                                  <div style={{ padding: "8px 10px 10px" }}>
+                                    <p style={{
+                                      color:      isSender ? "#fff" : themeStyles.text,
+                                      fontSize:   13,
+                                      lineHeight: 1.4,
+                                      wordBreak:  "break-word",
+                                    }}>
+                                      {replyText}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })()
+                            /*  Flux Mention / Re-mention  */
+                            ) : (message.messageType as string) === 'flux_mention' ||
+                                (message.messageType as string) === 'flux_remention' ? (
+                              (() => {
+                                let meta: any = {};
+                                try { meta = JSON.parse(message.content); } catch {}
+
+                                const isRemention  = message.messageType === 'flux_remention';
+                                const isSenderView = message.sender === user?.id;
+                                const label        = isSenderView
+                                  ? (meta.senderLabel ?? (isRemention
+                                      ? 'You added a mentioned Flux'
+                                      : 'You mentioned a Flux'))
+                                  : (meta.text ?? (isRemention
+                                      ? `${meta.reMentionerName ?? 'Someone'} reshared your Flux`
+                                      : `${meta.mentionerName  ?? 'Someone'} mentioned a Flux`));
+
+                                const fluxId      = meta.fluxId;
+                                const fluxOwnerId = meta.fluxOwnerId;
+                                const thumbUrl    = meta.fluxMediaUrl;
+                                const isVideo     = meta.fluxMediaType === 'video';
+
+                                const handleViewFlux = () => {
+                                  if (!fluxId) return;
+                                  const url = fluxOwnerId
+                                    ? `/post/flux-view?fluxId=${fluxId}&userId=${fluxOwnerId}`
+                                    : `/post/flux-view?fluxId=${fluxId}`;
+                                  router.push(url);
+                                };
+
+                                return (
+                                    <div
+                                      onClick={(e) => e.stopPropagation()}
+                                      onDoubleClick={(e) => e.stopPropagation()}
+                                      onContextMenu={(e) => e.stopPropagation()}
+                                      style={{
+                                        borderRadius: 12,
+                                        overflow:     'hidden',
+                                        border:       '1px solid rgba(136,96,217,0.35)',
+                                        maxWidth:     220,
+                                        background:   isSender
+                                          ? 'rgba(0,0,0,0.25)'
+                                          : isDark
+                                            ? 'rgba(255,255,255,0.06)'
+                                            : 'rgba(0,0,0,0.04)',
+                                      }}
+                                    >
+                                    {/* Thumbnail */}
+                                    {thumbUrl && (
+                                      <div style={{
+                                        position: 'relative',
+                                        width:    '100%',
+                                        height:   120,
+                                        overflow: 'hidden',
+                                      }}>
+                                        {isVideo ? (
+                                          <video
+                                            src={thumbUrl}
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                            muted
+                                            playsInline
+                                          />
+                                        ) : (
+                                          <img
+                                            src={thumbUrl}
+                                            alt="flux"
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                          />
+                                        )}
+                                        {/* Badge */}
+                                        <div style={{
+                                          position:     'absolute',
+                                          top:           6,
+                                          left:          6,
+                                          background:   'rgba(136,96,217,0.85)',
+                                          borderRadius:  8,
+                                          padding:      '2px 7px',
+                                          fontSize:      10,
+                                          color:         '#fff',
+                                          fontWeight:    600,
+                                        }}>
+                                          {isRemention ? '↩ Reshared Flux' : '📖 Flux Mention'}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Label + View button */}
+                                    <div style={{ padding: '8px 10px 10px' }}>
+                                      <p style={{
+                                        color:        isSender ? '#fff' : themeStyles.text,
+                                        fontSize:     12,
+                                        fontWeight:   500,
+                                        marginBottom: 8,
+                                        lineHeight:   1.4,
+                                      }}>
+                                        {label}
+                                      </p>
+                                        <button
+                                          onClick={handleViewFlux}
+                                          style={{
+                                            width: '100%', padding: '6px 0', borderRadius: 20,
+                                            border: isSenderView
+                                              ? '1px solid rgba(255,255,255,0.35)'
+                                              : isDark
+                                                ? '1px solid rgba(255,255,255,0.2)'
+                                                : '1px solid rgba(0,0,0,0.15)',
+                                            background: isSenderView
+                                              ? 'rgba(255,255,255,0.18)'
+                                              : isDark
+                                                ? 'rgba(255,255,255,0.1)'
+                                                : 'rgba(0,0,0,0.06)',
+                                            color: isSenderView
+                                              ? '#fff'
+                                              : isDark ? '#fff' : '#111',
+                                            fontSize: 12, fontWeight: 600,
+                                            cursor: 'pointer',
+                                          }}
+                                        >
+                                          View Flux
+                                        </button>
+                                    </div>
+                                  </div>
+                                );
+                              })()
+
+                            /* ── Plain text ── */
+                            ) : (
+                              <div
+                                className="break-words text-[15px] leading-relaxed"
+                                style={{ color: isSender ? '#fff' : themeStyles.text }}
+                              >
+                                {/* ✅ Never render raw JSON — show fallback if content looks like a flux JSON object */}
+                                {message.content?.startsWith('{') && (
+                                    message.content.includes('"flux') ||
+                                    message.content.includes('"type":"flux_reply')
+                                  )
+                                  ? null
+                                  : message.content}
+                              </div>
+                            )}
+                          {/* ── Timestamp + read status ── */}
+                          <div className="flex justify-end mt-1 items-center gap-1.5 opacity-80">
+                            <span
+                              className="text-[10px]"
+                              style={{
+                                color: isSender
+                                  ? 'rgba(255,255,255,0.8)'
+                                  : themeStyles.textSecondary,
+                              }}
+                            >
+                              {format(messageDate, 'HH:mm')}
+                            </span>
+                            {isSender && (
+                              <div className="flex items-center">
+                                {getMessageStatus(message)}
+                              </div>
+                            )}
+                          </div>
+
                         </div>
-                      </div>
-                    );
-                  })()
-              ) : (
-                <div
-                  className="break-words text-[15px] leading-relaxed"
-                  style={{ color: isSender ? '#fff' : themeStyles.text }}
-                >
-                  {message.content}
-                </div>
-              )}
-                  {/* Status area for both Voice and Text */}
-                  <div className="flex justify-end mt-1 items-center gap-1.5 opacity-80">
-                    <span
-                      className="text-[10px]"
-                      style={{ color: isSender ? 'rgba(255,255,255,0.8)' : themeStyles.textSecondary }}
-                    >
-                      {format(messageDate, 'HH:mm')}
-                    </span>
-                    {isSender && (
-                      <div className="flex items-center">
-                        {getMessageStatus(message)}
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </Fragment>
-      );
-    })}
+                </Fragment>
+              );
+            })}
             {isOtherUserTyping && (
               <div className="flex justify-start">
                 <div className="bg-[#1a1a1a] border border-[#2D2F39] rounded-lg px-4 py-3 max-w-[70%]">
