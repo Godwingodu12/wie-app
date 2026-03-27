@@ -10,7 +10,18 @@ export interface IFluxReaction {
   emoji: string;
   createdAt: Date;
 }
-
+export interface IFluxComment {
+  _id?: string;
+  userId: string;
+  text: string;
+  likes: string[]; // userIds who liked this comment
+  createdAt: Date;
+}
+export interface IFluxLike {
+  userId: string;
+  emoji: string; // "❤️" default, or any reaction emoji
+  createdAt: Date;
+}
 export interface IFluxReply {
   senderId: string;
   message: string;
@@ -18,6 +29,7 @@ export interface IFluxReply {
 }
 export interface mentionFlux {
   userId: string;
+  hasRemoved?: boolean;
   createdAt: Date;
 }
 export type FluxVisibility =
@@ -70,6 +82,8 @@ export interface IFlux extends Document {
   mentions: mentionFlux[];
   replies: IFluxReply[];
   reMentions: { userId: string; comment: string; createdAt: Date }[];
+  comments: IFluxComment[];
+  likes: IFluxLike[];
   expiresAt: Date;
   status: "active" | "expired" | "archived" | "deleted";
   isArchived: boolean;
@@ -153,6 +167,7 @@ const FluxSchema = new Schema<IFlux>(
       type: [
         {
           userId: { type: String, required: true },
+          hasRemoved: { type: Boolean, default: false },
           createdAt: { type: Date, default: Date.now },
         },
       ],
@@ -163,6 +178,27 @@ const FluxSchema = new Schema<IFlux>(
         {
           userId: { type: String, required: true },
           comment: { type: String, default: "" },
+          createdAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+    comments: {
+      type: [
+        {
+          userId: { type: String, required: true },
+          text: { type: String, required: true, maxlength: 300 },
+          likes: { type: [String], default: [] },
+          createdAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+    likes: {
+      type: [
+        {
+          userId: { type: String, required: true },
+          emoji: { type: String, default: "❤️" },
           createdAt: { type: Date, default: Date.now },
         },
       ],
