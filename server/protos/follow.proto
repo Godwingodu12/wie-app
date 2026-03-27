@@ -19,6 +19,7 @@ service FollowService {
   rpc GetFollowStatus(GetFollowStatusRequest) returns (GetFollowStatusResponse);
   rpc AutoAcceptPendingRequests(AutoAcceptPendingRequestsRequest) returns (AutoAcceptPendingRequestsResponse); 
   rpc CheckIsFollowedBy(CheckIsFollowedByRequest) returns (CheckIsFollowedByResponse); 
+  rpc GetFollowingIds(GetFollowerIdsRequest) returns (GetFollowingIdsResponse);
 }
 
 message AutoAcceptPendingRequestsRequest {
@@ -165,4 +166,7 @@ message CheckIsFollowedByRequest {
 message CheckIsFollowedByResponse {
   bool isFollowedBy = 1;
   string error = 2;
+}
+message GetFollowingIdsResponse {
+  repeated string followingIds = 1;
 }
