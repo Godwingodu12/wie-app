@@ -57,7 +57,16 @@ export function getLastMessagePreview(chat: any, currentUserId?: string): string
     const name = parsed?.reMentionerName ?? parsed?.mentionerName ?? '';
     return name ? `↩ ${name} reshared your Flux` : '↩ reshared a Flux';
   }
+  // Detect flux_share
+  const isFluxShare =
+    messageType === 'flux_share' ||
+    (parsed?.fluxId && parsed?.type === 'flux_share');
 
+  if (isFluxShare) {
+    if (isSender) return '↗ You shared a Flux';
+    const name = parsed?.sharerName ?? '';
+    return name ? `↗ ${name} shared a Flux` : '↗ shared a Flux';
+  }
   // View once
   const isViewOnce =
     lm.viewMode === 'view_once' ||
