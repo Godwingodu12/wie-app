@@ -9,3 +9,5 @@ export type FluxTool =
   | "redo"
   | "more"
   | null;
+
+export type FluxDuration = 15 | 30 | 60;
