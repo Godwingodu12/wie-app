@@ -80,6 +80,9 @@ export type NotificationType =
   | 'following'
   | 'flux_mention'
   | 'flux_remention'
+  | 'flux_comment'
+  | 'flux_like'
+  | 'flux_reply'
   | string;
 
 export interface Notification {
