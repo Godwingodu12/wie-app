@@ -500,7 +500,36 @@ const ConfirmEventView = () => {
         });
       });
     }
+    // Add event_videos if present (for any event type)
+    if (eventData?.event_videos?.length > 0) {
+      eventData.event_videos.forEach((video, index) => {
+        const videoPath = video.video_file_path || video.path || video;
+        const previewPath = video.preview_image_path || video.preview || null;
 
+        allImages.push({
+          path: typeof videoPath === "string" ? videoPath : null,
+          previewImage: typeof previewPath === "string" ? previewPath : null,
+          type: "video",
+          name: video.originalName || video.name || `Event Video ${index + 1}`,
+          originalName: video.originalName || video.name || `Event Video ${index + 1}`,
+        });
+      });
+    }
+    // Add recorded event's direct video_file_path if present
+    if (eventData?.location_type === "recorded" && eventData?.video_file_path &&
+      // Avoid duplicate if already included via event_videos
+      !eventData?.event_videos?.some(
+        (v) => (v.video_file_path || v.path) === eventData.video_file_path
+      )
+    ) {
+      allImages.push({
+        path: eventData.video_file_path,
+        previewImage: eventData.preview_image_path || null,
+        type: "video",
+        name: "Event Recording",
+        originalName: "Event Recording",
+      });
+    }
     if (allImages.length > 0) {
       setCurrentImageIndex(0);
       setShowImageModal(true);
@@ -786,16 +815,34 @@ const ConfirmEventView = () => {
     if (len === 0) return;
     setCurrentTicketIndex((prevIndex) => (prevIndex + 1) % len);
   };
-  const handleNextImage = () => {
-    // Calculate total images: banner + logo + event_images
-    let totalImages = 0;
-    if (eventData?.event_banner) totalImages++;
-    if (eventData?.event_logo) totalImages++;
-    if (eventData?.event_images?.length > 0)
-      totalImages += eventData.event_images.length;
+  // helper — mirrors the IIFE used in the ImageModal prop
+  const getTotalMediaCount = () => {
+    let count = 0;
+    if (eventData?.event_banner) count++;
+    if (eventData?.event_logo) count++;
+    if (eventData?.event_images?.length > 0) count += eventData.event_images.length;
+    if (eventData?.event_videos?.length > 0) count += eventData.event_videos.length;
+    if (
+      eventData?.location_type === "recorded" &&
+      eventData?.video_file_path &&
+      !eventData?.event_videos?.some(
+        (v) => (v.video_file_path || v.path) === eventData.video_file_path
+      )
+    )
+      count++;
+    return count;
+  };
 
-    if (totalImages === 0) return;
-    setCurrentImageIndex((prevIndex) => (prevIndex + 1) % totalImages);
+  const handleNextImage = () => {
+    const total = getTotalMediaCount();
+    if (total === 0) return;
+    setCurrentImageIndex((prev) => (prev + 1) % total);
+  };
+
+  const handlePrevImage = () => {
+    const total = getTotalMediaCount();
+    if (total === 0) return;
+    setCurrentImageIndex((prev) => (prev === 0 ? total - 1 : prev - 1));
   };
   const handleBack = () => {
     navigate(-1);
@@ -855,19 +902,6 @@ const ConfirmEventView = () => {
   };
   const handleUpdateGroupFromModal = () => {
     handleCloseGroupModal();
-  };
-  const handlePrevImage = () => {
-    // Calculate total images: banner + logo + event_images
-    let totalImages = 0;
-    if (eventData?.event_banner) totalImages++;
-    if (eventData?.event_logo) totalImages++;
-    if (eventData?.event_images?.length > 0)
-      totalImages += eventData.event_images.length;
-
-    if (totalImages === 0) return;
-    setCurrentImageIndex((prevIndex) =>
-      prevIndex === 0 ? totalImages - 1 : prevIndex - 1
-    );
   };
   const TypeIcon = eventData.event_type === "private" ? Private : Globe;
   const TypeLabel = eventData.event_type === "private" ? "Private" : "Public";
@@ -2315,6 +2349,37 @@ const ConfirmEventView = () => {
                   type: "event_image",
                   name: img.originalName || `Event Image ${index + 1}`,
                 });
+              });
+            }
+            // Add event_videos
+            if (eventData?.event_videos?.length > 0) {
+              eventData.event_videos.forEach((video, index) => {
+                const videoPath = video.video_file_path || video.path || video;
+                const previewPath = video.preview_image_path || video.preview || null;
+                allImages.push({
+                  path: typeof videoPath === "string" ? videoPath : null,
+                  previewImage: typeof previewPath === "string" ? previewPath : null,
+                  type: "video",
+                  name: video.originalName || video.name || `Event Video ${index + 1}`,
+                  originalName: video.originalName || video.name || `Event Video ${index + 1}`,
+                });
+              });
+            }
+
+            // Add recorded event direct video
+            if (
+              eventData?.location_type === "recorded" &&
+              eventData?.video_file_path &&
+              !eventData?.event_videos?.some(
+                (v) => (v.video_file_path || v.path) === eventData.video_file_path
+              )
+            ) {
+              allImages.push({
+                path: eventData.video_file_path,
+                previewImage: eventData.preview_image_path || null,
+                type: "video",
+                name: "Event Recording",
+                originalName: "Event Recording",
               });
             }
 
