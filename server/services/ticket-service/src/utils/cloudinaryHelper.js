@@ -63,10 +63,9 @@ export const processFileUploads = async (files) => {
       'college_authorisation'
     ];
 
-    // Helper to push upload tasks into the promise array
     const addUploadTask = (file, fieldName, isMultiple = false) => {
       if (!file.buffer || file.buffer.length === 0) return;
-      
+
       const folder = getCloudinaryFolder(fieldName);
       const resourceType = getResourceType(fieldName, file.mimetype);
 
@@ -85,7 +84,18 @@ export const processFileUploads = async (files) => {
           } else {
             uploadedFiles[fieldName] = result.url;
           }
+        })
+        .catch((err) => {
+          // Log but don't crash the entire upload batch for one failed video
+          console.error(`❌ Failed to upload ${fieldName} (${file.originalname}):`, err.message);
+          // For videos with async eager processing, treat as success if URL is unavailable
+          if (resourceType === 'video') {
+            console.warn(`⚠️ Video ${fieldName} may still be processing asynchronously on Cloudinary`);
+          } else {
+            throw err; // Re-throw for non-video failures
+          }
         });
+
       uploadPromises.push(task);
     };
 
