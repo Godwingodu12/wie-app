@@ -239,12 +239,12 @@ const FluxSchema = new Schema<IFlux>(
   },
 );
 
-// ── Indexes ────────────────────────────────────────────────
+// ── Indexes
 FluxSchema.index({ userId: 1, expiresAt: 1 });
 FluxSchema.index({ userId: 1, isArchived: 1 });
 FluxSchema.index({ createdAt: -1 });
 
-// ── Virtuals ───────────────────────────────────────────────
+// ── Virtuals
 
 // viewCount = unique viewers via the flat `viewers` array (O(1) .length)
 FluxSchema.virtual("viewCount").get(function (this: IFlux) {
