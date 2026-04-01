@@ -2,8 +2,13 @@ import { Response } from "express";
 import mongoose from "mongoose";
 import { AuthRequest } from "../middlewares/auth";
 import FluxModel from "../models/flux.model";
+import CloseFriendModel from "../models/close-friend.model";
 import * as fluxService from "../services/flux.service";
-import { isFollowing } from "../grpc/clients/followClient";
+import {
+  isFollowing,
+  getFollowerIds,
+  getFollowingIds,
+} from "../grpc/clients/followClient";
 import * as wieUserClient from "../grpc/clients/wieUserClient";
 import redisClient from "../config/redis";
 import type { FluxVisibility } from "../models/flux.model";
@@ -12,6 +17,7 @@ import {
   emitMentionEvent,
 } from "../utils/notificationHelper";
 import * as chatClient from "../grpc/clients/chatClient";
+const FEED_CACHE_KEY = (viewerId: string) => `flux:feed:${viewerId}`;
 
 export const createFlux = async (
   req: AuthRequest,
@@ -212,13 +218,13 @@ async function processMentionsAfterCreate(
     }).catch((err) => console.error("mention event emit failed:", err));
   }
 }
-
 export const getFluxFeed = async (
   req: AuthRequest,
   res: Response,
 ): Promise<void> => {
   try {
-    const feed = await fluxService.getFluxFeed(req.userId!);
+    const viewerId = req.userId!.toString();
+    const feed = await fluxService.getFluxFeed(viewerId); // ← service version (has Redis cache)
     res.json({ success: true, data: feed });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -230,26 +236,44 @@ export const getFluxById = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const callerId = req.userId?.toString();
     const { fluxId } = req.params;
-
-    if (!callerId) {
-      res.status(401).json({ success: false, message: "Unauthorized" });
-      return;
-    }
+    const viewerId = req.userId!;
 
     const flux = await FluxModel.findById(fluxId).lean();
-    if (!flux) {
+    if (!flux || (flux as any).isDeleted) {
       res.status(404).json({ success: false, message: "Flux not found" });
       return;
     }
 
-    res.status(200).json({ success: true, flux });
-  } catch (err) {
-    console.error("getFluxById error:", err);
-    res.status(500).json({ success: false, message: "Internal server error" });
+    const ownerId = String((flux as any).userId);
+
+    // Enforce close_friends visibility
+    if ((flux as any).visibility === "close_friends" && ownerId !== viewerId) {
+      const isCF = await CloseFriendModel.exists({
+        userId: ownerId, // owner's list
+        closeFriendId: viewerId, // viewer must be in it
+      });
+      if (!isCF) {
+        res.status(403).json({
+          success: false,
+          message: "This flux is for close friends only",
+        });
+        return;
+      }
+    }
+
+    // Enforce only_me
+    if ((flux as any).visibility === "only_me" && ownerId !== viewerId) {
+      res.status(403).json({ success: false, message: "This flux is private" });
+      return;
+    }
+
+    res.json({ success: true, flux });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };
+
 export const getUserFluxes = async (
   req: AuthRequest,
   res: Response,
@@ -1374,21 +1398,6 @@ export const searchStickers = async (
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
-const CloseFriendSchema = new mongoose.Schema(
-  {
-    userId: { type: String, required: true, index: true },
-    closeFriendId: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now },
-  },
-  { timestamps: false },
-);
-CloseFriendSchema.index({ userId: 1, closeFriendId: 1 }, { unique: true });
-
-const CloseFriendModel =
-  mongoose.models.CloseFriend ??
-  mongoose.model("CloseFriend", CloseFriendSchema);
-
 // ── GET /api/flux/close-friends
 export const getCloseFriends = async (
   req: AuthRequest,
@@ -1403,7 +1412,6 @@ export const getCloseFriends = async (
       return;
     }
 
-    // Batch fetch all users in one call
     const result = await wieUserClient
       .getUsersByIds(ids)
       .catch(() => ({ users: [] }));
@@ -1434,19 +1442,26 @@ export const addCloseFriend = async (
       res.status(400).json({ success: false, message: "friendId is required" });
       return;
     }
-    // Must be following the person
-    const follows = await isFollowing(req.userId!, friendId).catch(() => false);
-    if (!follows) {
+
+    const followCheck = await isFollowing(req.userId!, friendId).catch(() => ({
+      isFollowing: false,
+    }));
+    if (!followCheck.isFollowing) {
       res
         .status(403)
         .json({ success: false, message: "You must follow this user first" });
       return;
     }
+
     await CloseFriendModel.updateOne(
       { userId: req.userId, closeFriendId: friendId },
       { $setOnInsert: { userId: req.userId, closeFriendId: friendId } },
       { upsert: true },
     );
+
+    // Bust feed cache so this owner's future close_friends fluxes update immediately
+    await redisClient.del(FEED_CACHE_KEY(req.userId!)).catch(() => {});
+
     res.json({ success: true, message: "Added to close friends" });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -1460,11 +1475,60 @@ export const removeCloseFriend = async (
 ): Promise<void> => {
   try {
     const { friendId } = req.body;
+    if (!friendId) {
+      res.status(400).json({ success: false, message: "friendId is required" });
+      return;
+    }
     await CloseFriendModel.deleteOne({
       userId: req.userId,
       closeFriendId: friendId,
     });
+
+    // Bust feed cache
+    await redisClient.del(FEED_CACHE_KEY(req.userId!)).catch(() => {});
+
     res.json({ success: true, message: "Removed from close friends" });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── POST /api/flux/close-friends/save  ← NEW: bulk replace the entire list
+export const saveCloseFriends = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { friendIds } = req.body;
+
+    if (!Array.isArray(friendIds)) {
+      res
+        .status(400)
+        .json({ success: false, message: "friendIds must be an array" });
+      return;
+    }
+
+    // Wipe the current list and re-insert atomically
+    await CloseFriendModel.deleteMany({ userId: req.userId });
+
+    const docs = (friendIds as string[])
+      .filter((id) => id && id !== req.userId) // never add self
+      .map((id) => ({ userId: req.userId, closeFriendId: id }));
+
+    if (docs.length > 0) {
+      await CloseFriendModel.insertMany(docs, { ordered: false }).catch(
+        () => {},
+      );
+    }
+
+    // Bust the feed cache so the next load reflects the new list
+    await redisClient.del(FEED_CACHE_KEY(req.userId!)).catch(() => {});
+
+    res.json({
+      success: true,
+      message: "Close friends saved",
+      count: docs.length,
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -1476,18 +1540,16 @@ export const getCloseFriendSuggestions = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const { getFollowerIds } = await import("../grpc/clients/followClient");
+    // getFollowerIds: people who follow the current user (viewer)
+    // These are good suggestions because they already follow you
+    const { followerIds } = await getFollowerIds(req.userId!).catch(() => ({
+      followerIds: [] as string[],
+    }));
 
-    // getFollowerIds actually returns the IDs of people THIS user follows
-    const { followerIds: followingIds } = await getFollowerIds(
-      req.userId!,
-    ).catch(() => ({ followerIds: [] as string[] }));
-
-    // Exclude already-close-friends
     const existing = await CloseFriendModel.find({ userId: req.userId }).lean();
     const existingIds = new Set(existing.map((e: any) => e.closeFriendId));
 
-    const suggestions = followingIds
+    const suggestions = followerIds
       .filter((id: string) => !existingIds.has(id))
       .slice(0, 20);
 
@@ -1496,7 +1558,6 @@ export const getCloseFriendSuggestions = async (
       return;
     }
 
-    // Batch fetch all in one call
     const result = await wieUserClient
       .getUsersByIds(suggestions)
       .catch(() => ({ users: [] }));
@@ -1516,7 +1577,7 @@ export const getCloseFriendSuggestions = async (
   }
 };
 
-// Helper used in feed — check if viewer is a close friend of owner
+// ── Helper used by the feed filter
 export const isCloseFriend = async (
   ownerId: string,
   viewerId: string,
@@ -1527,7 +1588,6 @@ export const isCloseFriend = async (
   }).lean();
   return !!doc;
 };
-
 //  SHARE FLUX (send as chat message)
 export const shareFlux = async (
   req: AuthRequest,
@@ -1702,14 +1762,19 @@ export const addFluxComment = async (
 
     const fluxOwnerId = flux.userId.toString();
     if (fluxOwnerId !== callerId) {
-      const callerInfo2 = (await wieUserClient.getUsersByIds([callerId]).catch(() => ({ users: [] }))).users?.[0];
-      const commenterName = callerInfo2?.username ?? callerInfo2?.name ?? "Someone";
+      const callerInfo2 = (
+        await wieUserClient
+          .getUsersByIds([callerId])
+          .catch(() => ({ users: [] }))
+      ).users?.[0];
+      const commenterName =
+        callerInfo2?.username ?? callerInfo2?.name ?? "Someone";
 
       await createNotification({
-        userId:     fluxOwnerId,
-        type:       "flux_comment",
-        title:      "New comment on your Flux",
-        message:    `${commenterName} commented: "${text.trim().slice(0, 60)}${text.trim().length > 60 ? "…" : ""}"`,
+        userId: fluxOwnerId,
+        type: "flux_comment",
+        title: "New comment on your Flux",
+        message: `${commenterName} commented: "${text.trim().slice(0, 60)}${text.trim().length > 60 ? "…" : ""}"`,
         fromUserId: callerId,
         metadata: {
           fluxId,
@@ -1722,7 +1787,7 @@ export const addFluxComment = async (
         mentionedUserId: fluxOwnerId,
         mentionerUserId: callerId,
         fluxId,
-        fluxMediaUrl:    (flux as any).mediaUrl ?? null,
+        fluxMediaUrl: (flux as any).mediaUrl ?? null,
       }).catch((err) => console.error("flux comment emit failed:", err));
     }
     // Fetch caller info for response
@@ -1808,7 +1873,6 @@ export const getFluxComments = async (
   }
 };
 
-
 // POST /flux/:fluxId/reply — send flux reply as a chat message
 export const replyFlux = async (
   req: AuthRequest,
@@ -1830,7 +1894,7 @@ export const replyFlux = async (
 
     const flux = await FluxModel.findOne({
       _id: fluxId,
-      isDeleted: { $ne: true }, 
+      isDeleted: { $ne: true },
     }).lean();
     if (!flux) {
       res.status(404).json({ success: false, message: "Flux not found" });
@@ -1840,34 +1904,36 @@ export const replyFlux = async (
     const fluxOwnerId = flux.userId.toString();
 
     if (fluxOwnerId === callerId) {
-      res.status(400).json({ success: false, message: "Cannot reply to your own flux" });
+      res
+        .status(400)
+        .json({ success: false, message: "Cannot reply to your own flux" });
       return;
     }
 
     // Build flux reply message payload for chat service
     const messageContent = JSON.stringify({
-      type:          "flux_reply",
-      text:          text.trim(),
-      fluxId:        flux._id.toString(),
+      type: "flux_reply",
+      text: text.trim(),
+      fluxId: flux._id.toString(),
       fluxOwnerId,
-      fluxMediaUrl:  (flux as any).mediaUrl  ?? null,
+      fluxMediaUrl: (flux as any).mediaUrl ?? null,
       fluxMediaType: (flux as any).mediaType ?? "image",
-      fluxTextBg:    (flux as any).textBg    ?? null,
+      fluxTextBg: (flux as any).textBg ?? null,
     });
 
     // Send via chat gRPC client
     const chatRes = await chatClient.sendSystemMessage({
-      sender_id:     callerId,
-      receiver_id:   fluxOwnerId,
-      content:       messageContent,
-      message_type:  "flux_reply",
+      sender_id: callerId,
+      receiver_id: fluxOwnerId,
+      content: messageContent,
+      message_type: "flux_reply",
       metadata_json: JSON.stringify({
-        fluxId:        flux._id.toString(),
-        fluxMediaUrl:  (flux as any).mediaUrl  ?? null,
+        fluxId: flux._id.toString(),
+        fluxMediaUrl: (flux as any).mediaUrl ?? null,
         fluxMediaType: (flux as any).mediaType ?? "image",
         fluxOwnerId,
-        replyText:     text.trim(),
-        type:          "flux_reply",
+        replyText: text.trim(),
+        type: "flux_reply",
       }),
     });
 
@@ -1925,14 +1991,16 @@ export const toggleFluxLike = async (
       await FluxModel.findByIdAndUpdate(fluxId, {
         $push: { likes: { userId: callerId, emoji, createdAt: new Date() } },
       });
-      const likerInfoRes = await wieUserClient.getUsersByIds([callerId]).catch(() => ({ users: [] }));
+      const likerInfoRes = await wieUserClient
+        .getUsersByIds([callerId])
+        .catch(() => ({ users: [] }));
       const likerInfo = (likerInfoRes.users ?? [])[0];
       const likerName = likerInfo?.username ?? likerInfo?.name ?? "Someone";
       await createNotification({
-        userId:     flux.userId.toString(),
-        type:       "flux_like",             // add to enum — see step 5
-        title:      `${likerName} liked your Flux`,
-        message:    `${likerName} liked your Flux ❤️`,
+        userId: flux.userId.toString(),
+        type: "flux_like", // add to enum — see step 5
+        title: `${likerName} liked your Flux`,
+        message: `${likerName} liked your Flux ❤️`,
         fromUserId: callerId,
         metadata: {
           fluxId,
@@ -1944,7 +2012,7 @@ export const toggleFluxLike = async (
         mentionedUserId: flux.userId.toString(),
         mentionerUserId: callerId,
         fluxId,
-        fluxMediaUrl:    (flux as any).mediaUrl ?? null,
+        fluxMediaUrl: (flux as any).mediaUrl ?? null,
       }).catch((err) => console.error("flux like emit failed:", err));
       res.status(200).json({
         success: true,
