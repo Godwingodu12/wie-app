@@ -178,12 +178,15 @@ class OtpModel {
    * Delete all expired OTPs (cleanup)
    */
   async deleteAllExpired(): Promise<number> {
-    const result = await prisma.otp.deleteMany({
-      where: {
-        expiresAt: { lte: new Date() },
-      },
-    });
-    return result.count;
+    try {
+      const result = await prisma.otp.deleteMany({
+        where: { expiresAt: { lte: new Date() } },
+      });
+      return result.count;
+    } catch {
+      // Background cleanup — silent on DB unavailability
+      return 0;
+    }
   }
 
   /**
