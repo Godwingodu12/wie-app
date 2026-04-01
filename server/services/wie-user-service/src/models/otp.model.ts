@@ -184,7 +184,6 @@ class OtpModel {
       });
       return result.count;
     } catch {
-      // Background cleanup — silent on DB unavailability
       return 0;
     }
   }
