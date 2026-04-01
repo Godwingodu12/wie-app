@@ -1,10 +1,10 @@
-import prisma from '../lib/prisma';
-import bcrypt from 'bcrypt';
+import prisma from "../lib/prisma";
+import bcrypt from "bcrypt";
 export interface WieUser {
   id: string;
   email?: string | null;
   contact_no?: string | null;
-  password?: string | null;  
+  password?: string | null;
   name?: string | null;
   username?: string | null;
   profile_picture?: string | null;
@@ -27,7 +27,7 @@ export interface WieUser {
   is_verified: boolean;
   google_id?: string | null;
   token_version: number;
-  auth_provider: string;  
+  auth_provider: string;
   allowMessagesFrom?: string | null;
   allowMessageRequests?: boolean | null;
   website?: string | null;
@@ -41,7 +41,7 @@ export interface WieUser {
 export interface CreateUserInput {
   email?: string;
   contact_no?: string;
-  password?: string;  
+  password?: string;
   name?: string;
   username?: string;
   profile_picture?: string;
@@ -59,7 +59,7 @@ export interface CreateUserInput {
   is_blocked?: boolean;
   is_verified?: boolean;
   token_version?: number;
-  google_id?: string;  
+  google_id?: string;
   auth_provider?: string;
 }
 
@@ -78,22 +78,22 @@ const toDatabaseFormat = (user: any): WieUser => {
     role: user.role,
     status: user.status,
     bio: user.bio,
-    location: user.location,    
+    location: user.location,
     following_count: user.followingCount,
     followers_count: user.followersCount,
     location_source: user.locationSource ?? null,
-    posts_count: user.postsCount,      
-    latitude: user.latitude,          
-    longitude: user.longitude, 
-    isOnline: user.isOnline, 
+    posts_count: user.postsCount,
+    latitude: user.latitude,
+    longitude: user.longitude,
+    isOnline: user.isOnline,
     lastSeenAt: user.lastSeenAt,
     is_blocked: user.isBlocked,
     is_verified: user.isVerified,
-    google_id: user.googleId,  
+    google_id: user.googleId,
     token_version: user.tokenVersion,
-    auth_provider: user.authProvider, 
-    allowMessagesFrom: user.allowMessagesFrom,  
-    allowMessageRequests: user.allowMessageRequests,  
+    auth_provider: user.authProvider,
+    allowMessagesFrom: user.allowMessagesFrom,
+    allowMessageRequests: user.allowMessageRequests,
     website: user.website,
     showBadge: user.showBadge,
     showSuggestion: user.showSuggestion,
@@ -104,6 +104,28 @@ const toDatabaseFormat = (user: any): WieUser => {
 };
 
 class WieUserModel {
+  private async withRetry<T>(
+    operation: () => Promise<T>,
+    retries = 2,
+  ): Promise<T> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await operation();
+      } catch (error: any) {
+        const isConnectionError =
+          error?.code === "P1001" ||
+          error?.code === "P1002" ||
+          error?.code === "P1008";
+        if (isConnectionError && attempt < retries) {
+          // Wait 500ms before retry, then 1000ms
+          await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error("Max retries exceeded");
+  }
   async create(userData: CreateUserInput): Promise<WieUser> {
     const user = await prisma.wieUser.create({
       data: {
@@ -116,12 +138,12 @@ class WieUserModel {
         gender: userData.gender || null,
         dob: userData.dob || null,
         countryId: userData.country_id || null,
-        googleId: userData.google_id || null,  
+        googleId: userData.google_id || null,
         lastSeenAt: userData.lastSeenAt || null,
-        accountPrivacy: userData.accountPrivacy || 'public',
-        authProvider: userData.auth_provider || 'local',  
-        status: userData.auth_provider === 'google' ? 'active' : 'pending', 
-        isVerified: userData.auth_provider === 'google' ? true : false,  
+        accountPrivacy: userData.accountPrivacy || "public",
+        authProvider: userData.auth_provider || "local",
+        status: userData.auth_provider === "google" ? "active" : "pending",
+        isVerified: userData.auth_provider === "google" ? true : false,
       },
     });
     return toDatabaseFormat(user);
@@ -129,45 +151,42 @@ class WieUserModel {
 
   async findByIds(userIds: string[]): Promise<any[]> {
     try {
-      const users = await prisma.wieUser.findMany({
-        where: {
-          id: {
-            in: userIds
+      const users = await this.withRetry(() =>
+        prisma.wieUser.findMany({
+          where: { id: { in: userIds }, status: "active" },
+          select: {
+            id: true,
+            email: true,
+            contactNo: true,
+            name: true,
+            username: true,
+            profilePicture: true,
+            gender: true,
+            dob: true,
+            countryId: true,
+            role: true,
+            status: true,
+            bio: true,
+            location: true,
+            latitude: true,
+            longitude: true,
+            isOnline: true,
+            lastSeenAt: true,
+            isBlocked: true,
+            isVerified: true,
+            googleId: true,
+            authProvider: true,
+            createdAt: true,
+            updatedAt: true,
+            allowMessagesFrom: true,
+            allowMessageRequests: true,
+            accountPrivacy: true,
           },
-          status: 'active'
-        },
-        select: {
-          id: true,
-          email: true,
-          contactNo: true,
-          name: true,
-          username: true,
-          profilePicture: true,
-          gender: true,
-          dob: true,
-          countryId: true,
-          role: true,
-          status: true,
-          bio: true,
-          location: true,
-          latitude: true,
-          longitude: true,
-          isOnline: true,
-          lastSeenAt: true,
-          isBlocked: true,
-          isVerified: true,
-          googleId: true,
-          authProvider: true,
-          createdAt: true,
-          updatedAt: true,
-          allowMessagesFrom: true,
-          allowMessageRequests: true,
-          accountPrivacy: true
-        }
-      });
+        }),
+      );
       return users.map(toDatabaseFormat);
     } catch (error) {
-      console.error('Error in findByIds:', error);
+      console.error("Error in findByIds:", error);
       return [];
     }
   }
@@ -175,33 +194,33 @@ class WieUserModel {
   async search(filter: any, limit: number): Promise<any[]> {
     try {
       const whereClause: any = {
-        status: 'active'
+        status: "active",
       };
 
       if (filter.$or && Array.isArray(filter.$or)) {
         whereClause.OR = filter.$or.map((condition: any) => {
           const key = Object.keys(condition)[0];
           const value = condition[key];
-          
-          let searchTerm = '';
-          if (value && typeof value === 'object' && value.$regex) {
+
+          let searchTerm = "";
+          if (value && typeof value === "object" && value.$regex) {
             searchTerm = value.$regex;
-          } else if (typeof value === 'string') {
+          } else if (typeof value === "string") {
             searchTerm = value;
           }
 
           return {
             [key]: {
               contains: searchTerm,
-              mode: 'insensitive' as const
-            }
+              mode: "insensitive" as const,
+            },
           };
         });
       }
 
       if (filter.id && filter.id.$ne) {
         whereClause.id = {
-          not: filter.id.$ne
+          not: filter.id.$ne,
         };
       }
 
@@ -231,13 +250,10 @@ class WieUserModel {
           googleId: true,
           authProvider: true,
           createdAt: true,
-          updatedAt: true
+          updatedAt: true,
         },
         take: limit,
-        orderBy: [
-          { followersCount: 'desc' },
-          { name: 'asc' }
-        ]
+        orderBy: [{ followersCount: "desc" }, { name: "asc" }],
       });
 
       return users.map(toDatabaseFormat);
@@ -289,10 +305,10 @@ class WieUserModel {
       where: search
         ? {
             OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { username: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-              { contactNo: { contains: search, mode: 'insensitive' } },
+              { name: { contains: search, mode: "insensitive" } },
+              { username: { contains: search, mode: "insensitive" } },
+              { email: { contains: search, mode: "insensitive" } },
+              { contactNo: { contains: search, mode: "insensitive" } },
             ],
           }
         : {},
@@ -307,13 +323,10 @@ class WieUserModel {
   }
 
   async findById(id: string): Promise<WieUser | null> {
-    const user = await prisma.wieUser.findUnique({
-      where: { id },
-    });
-    if (user) {
-      const formatted = toDatabaseFormat(user);
-      return formatted;
-    }
+    const user = await this.withRetry(() =>
+      prisma.wieUser.findUnique({ where: { id } }),
+    );
+    if (user) return toDatabaseFormat(user);
     return null;
   }
 
@@ -328,7 +341,10 @@ class WieUserModel {
       }
       return toDatabaseFormat(user);
     } catch (error: any) {
-      console.warn('findByGoogleId Prisma error, trying raw fallback:', error.message);
+      console.warn(
+        "findByGoogleId Prisma error, trying raw fallback:",
+        error.message,
+      );
       try {
         const results = await prisma.$queryRaw<any[]>`
           SELECT * FROM wie_users WHERE google_id = ${google_id} LIMIT 1
@@ -361,7 +377,7 @@ class WieUserModel {
           updatedAt: raw.updated_at,
         });
       } catch (rawErr) {
-        console.error('findByGoogleId raw fallback failed:', rawErr);
+        console.error("findByGoogleId raw fallback failed:", rawErr);
         return null;
       }
     }
@@ -370,7 +386,7 @@ class WieUserModel {
   async findMany(
     page: number,
     limit: number,
-    search?: string
+    search?: string,
   ): Promise<WieUser[]> {
     const skip = (page - 1) * limit;
 
@@ -378,17 +394,17 @@ class WieUserModel {
       where: search
         ? {
             OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { username: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-              { contactNo: { contains: search, mode: 'insensitive' } },
+              { name: { contains: search, mode: "insensitive" } },
+              { username: { contains: search, mode: "insensitive" } },
+              { email: { contains: search, mode: "insensitive" } },
+              { contactNo: { contains: search, mode: "insensitive" } },
             ],
           }
         : {},
       skip,
       take: limit,
       orderBy: {
-        followersCount: 'desc',
+        followersCount: "desc",
       },
     });
 
@@ -398,41 +414,44 @@ class WieUserModel {
   async findByEmailOrContactNo(identifier: string): Promise<WieUser | null> {
     const user = await prisma.wieUser.findFirst({
       where: {
-        OR: [
-          { email: identifier },
-          { contactNo: identifier },
-        ],
+        OR: [{ email: identifier }, { contactNo: identifier }],
       },
     });
     return user ? toDatabaseFormat(user) : null;
   }
 
-  async updateVerificationStatus(id: string, is_verified: boolean): Promise<WieUser> {
+  async updateVerificationStatus(
+    id: string,
+    is_verified: boolean,
+  ): Promise<WieUser> {
     const user = await prisma.wieUser.update({
       where: { id },
-      data: { 
+      data: {
         isVerified: is_verified,
-        status: is_verified ? 'active' : 'pending',
+        status: is_verified ? "active" : "pending",
       },
     });
     return toDatabaseFormat(user);
   }
 
-  async updateProfile(id: string, updates: {
-    name?: string;
-    profile_picture?: string;
-    email?: string;
-    contact_no?: string;
-    username?: string;
-    country_id?: string;
-    website?: string;
-    showBadge?: boolean;
-    showSuggestion?: boolean;
-    bio?: string;
-    accountPrivacy?: string;
-    gender?: string;
-    dob?: Date;
-  }): Promise<WieUser> {
+  async updateProfile(
+    id: string,
+    updates: {
+      name?: string;
+      profile_picture?: string;
+      email?: string;
+      contact_no?: string;
+      username?: string;
+      country_id?: string;
+      website?: string;
+      showBadge?: boolean;
+      showSuggestion?: boolean;
+      bio?: string;
+      accountPrivacy?: string;
+      gender?: string;
+      dob?: Date;
+    },
+  ): Promise<WieUser> {
     const user = await prisma.wieUser.update({
       where: { id },
       data: {
@@ -454,15 +473,18 @@ class WieUserModel {
     return toDatabaseFormat(user);
   }
 
-  async updateAccountPrivacy(id: string, accountPrivacy: string): Promise<WieUser> {
-      const user = await prisma.wieUser.update({
-        where: { id },
-        data: {
-          accountPrivacy: accountPrivacy,
-          updatedAt: new Date(),
-        },
-      });
-      return toDatabaseFormat(user);
+  async updateAccountPrivacy(
+    id: string,
+    accountPrivacy: string,
+  ): Promise<WieUser> {
+    const user = await prisma.wieUser.update({
+      where: { id },
+      data: {
+        accountPrivacy: accountPrivacy,
+        updatedAt: new Date(),
+      },
+    });
+    return toDatabaseFormat(user);
   }
 
   async updateWebsite(id: string, website: string): Promise<WieUser> {
@@ -486,7 +508,10 @@ class WieUserModel {
     });
     return toDatabaseFormat(user);
   }
-  async updateShowSuggestion(id: string, showSuggestion: boolean): Promise<WieUser> {
+  async updateShowSuggestion(
+    id: string,
+    showSuggestion: boolean,
+  ): Promise<WieUser> {
     const user = await prisma.wieUser.update({
       where: { id },
       data: {
@@ -498,14 +523,17 @@ class WieUserModel {
   }
 
   async getAccountPrivacy(id: string): Promise<string> {
-    const user = await prisma.wieUser.findUnique({
-      where: { id },
-      select: {
-        accountPrivacy: true,
-      },
-    });
-    const privacy = user?.accountPrivacy;
-    return privacy === 'private' ? 'private' : 'public';
+    try {
+      const user = await this.withRetry(() =>
+        prisma.wieUser.findUnique({
+          where: { id },
+          select: { accountPrivacy: true },
+        }),
+      );
+      return user?.accountPrivacy === "private" ? "private" : "public";
+    } catch {
+      return "public";
+    }
   }
 
   async linkGoogleAccount(
@@ -514,13 +542,13 @@ class WieUserModel {
       google_id: string;
       profile_picture?: string;
       auth_provider: string;
-    }
+    },
   ): Promise<WieUser> {
     const updateData: any = {
       googleId: googleData.google_id,
       authProvider: googleData.auth_provider,
       isVerified: true,
-      status: 'active',
+      status: "active",
       updatedAt: new Date(),
     };
 
@@ -535,7 +563,11 @@ class WieUserModel {
     return toDatabaseFormat(user);
   }
 
-  async getLocation(id: string): Promise<{ location?: string | null; latitude?: number | null; longitude?: number | null } | null> {
+  async getLocation(id: string): Promise<{
+    location?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+  } | null> {
     const user = await prisma.wieUser.findUnique({
       where: { id },
       select: {
@@ -553,11 +585,18 @@ class WieUserModel {
     };
   }
 
-  async updateLocation(id: string, updates: {
+  async updateLocation(
+    id: string,
+    updates: {
+      location?: string | null;
+      latitude?: number | null;
+      longitude?: number | null;
+    },
+  ): Promise<{
     location?: string | null;
     latitude?: number | null;
     longitude?: number | null;
-  }): Promise<{ location?: string | null; latitude?: number | null; longitude?: number | null }> {
+  }> {
     const user = await prisma.wieUser.update({
       where: { id },
       data: {
@@ -589,23 +628,26 @@ class WieUserModel {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     const user = await prisma.wieUser.update({
       where: { id },
-      data: { 
+      data: {
         password: hashedPassword,
         updatedAt: new Date(),
       },
     });
     if (!user) {
-      throw new Error('Failed to update password');
+      throw new Error("Failed to update password");
     }
     return toDatabaseFormat(user);
   }
 
-  async setPasswordForOAuthUser(id: string, hashedPassword: string): Promise<WieUser> {
+  async setPasswordForOAuthUser(
+    id: string,
+    hashedPassword: string,
+  ): Promise<WieUser> {
     const user = await prisma.wieUser.update({
       where: { id },
       data: {
         password: hashedPassword,
-        authProvider: 'hybrid',
+        authProvider: "hybrid",
         updatedAt: new Date(),
       },
     });
@@ -617,7 +659,7 @@ class WieUserModel {
     const result = await prisma.wieUser.deleteMany({
       where: {
         isVerified: false,
-        status: 'pending',
+        status: "pending",
         createdAt: {
           lt: cutoffDate,
         },
@@ -646,7 +688,7 @@ class WieUserModel {
 
   async decrementFollowing(userId: string) {
     await prisma.wieUser.update({
-      where: { id: userId },  
+      where: { id: userId },
       data: {
         followingCount: { decrement: 1 },
       },
@@ -671,15 +713,11 @@ class WieUserModel {
     });
   }
 
-  async updateOnlineStatus(id: string, isOnline: boolean): Promise<WieUser | null> {
+  async updateOnlineStatus(
+    id: string,
+    isOnline: boolean,
+  ): Promise<WieUser | null> {
     try {
-      const exists = await prisma.wieUser.findUnique({
-        where: { id },
-        select: { id: true },
-      });
-      if (!exists) {
-        return null;
-      }
       const updateData: any = {
         isOnline,
         updatedAt: new Date(),
@@ -687,106 +725,113 @@ class WieUserModel {
       if (!isOnline) {
         updateData.lastSeenAt = new Date();
       }
-      const user = await prisma.wieUser.update({
-        where: { id },
-        data: updateData,
-      });
+      // Use upsert-style update — skip the existence check to halve DB round-trips
+      const user = await this.withRetry(() =>
+        prisma.wieUser.update({
+          where: { id },
+          data: updateData,
+        }),
+      );
       return toDatabaseFormat(user);
     } catch (error: any) {
-      console.warn(`updateOnlineStatus failed for ${id}:`, error.message);
+      // P2025 = record not found — silent, not an error
+      if (error?.code !== "P2025") {
+        console.debug(
+          `updateOnlineStatus skipped for ${id}: ${error?.code ?? error?.message}`,
+        );
+      }
       return null;
     }
   }
-  async getOnlineStatus(id: string): Promise<{ isOnline: boolean; lastSeenAt: Date | null } | null> {
-    const user = await prisma.wieUser.findUnique({
-      where: { id },
-      select: {
-        isOnline: true,
-        lastSeenAt: true,
-      },
-    });
-    if (!user) return null;
-    return {
-      isOnline: user.isOnline,
-      lastSeenAt: user.lastSeenAt,
-    };
+
+  async getOnlineStatus(
+    id: string,
+  ): Promise<{ isOnline: boolean; lastSeenAt: Date | null } | null> {
+    try {
+      const user = await this.withRetry(() =>
+        prisma.wieUser.findUnique({
+          where: { id },
+          select: { isOnline: true, lastSeenAt: true },
+        }),
+      );
+      if (!user) return null;
+      return { isOnline: user.isOnline, lastSeenAt: user.lastSeenAt };
+    } catch {
+      return null;
+    }
   }
-  
+
   async findStaleOnlineUsers(lastUpdateThreshold: Date): Promise<WieUser[]> {
     try {
-      const users = await prisma.wieUser.findMany({
-        where: {
-          isOnline: true,
-          updatedAt: {
-            lt: lastUpdateThreshold
-          }
-        },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          username: true,
-          isOnline: true,
-          lastSeenAt: true,
-          updatedAt: true,
-          contactNo: true,
-          profilePicture: true,
-          gender: true,
-          dob: true,
-          countryId: true,
-          role: true,
-          status: true,
-          bio: true,
-          location: true,
-          latitude: true,
-          longitude: true,
-          isBlocked: true,
-          isVerified: true,
-          googleId: true,
-          authProvider: true,
-          createdAt: true,
-          followingCount: true,
-          followersCount: true,
-          postsCount: true,
-          tokenVersion: true,
-          allowMessagesFrom: true,
-          allowMessageRequests: true
-        }
-      });
-      
+      const users = await this.withRetry(() =>
+        prisma.wieUser.findMany({
+          where: { isOnline: true, updatedAt: { lt: lastUpdateThreshold } },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            username: true,
+            isOnline: true,
+            lastSeenAt: true,
+            updatedAt: true,
+            contactNo: true,
+            profilePicture: true,
+            gender: true,
+            dob: true,
+            countryId: true,
+            role: true,
+            status: true,
+            bio: true,
+            location: true,
+            latitude: true,
+            longitude: true,
+            isBlocked: true,
+            isVerified: true,
+            googleId: true,
+            authProvider: true,
+            createdAt: true,
+            followingCount: true,
+            followersCount: true,
+            postsCount: true,
+            tokenVersion: true,
+            allowMessagesFrom: true,
+            allowMessageRequests: true,
+          },
+        }),
+      );
       return users.map(toDatabaseFormat);
     } catch (error) {
-      console.error('Error finding stale online users:', error);
+      console.error("Error finding stale online users:", error);
       return [];
     }
   }
 
   async saveUserLocation(
-  userId: string,
-  displayName: string,
-  latitude: number | null,
-  longitude: number | null,
-  source: 'gps' | 'manual'
+    userId: string,
+    displayName: string,
+    latitude: number | null,
+    longitude: number | null,
+    source: "gps" | "manual",
   ): Promise<void> {
-  try {
-    // Check user exists first
-    const exists = await prisma.wieUser.findUnique({
-      where: { id: userId },
-      select: { id: true },
-    });
-    if (!exists) {
-      return;
-    }
-    await prisma.wieUser.update({
-      where: { id: userId },
-      data: {
-        location: displayName || null,
-        latitude: latitude ?? undefined,
-        longitude: longitude ?? undefined,
-        locationSource: source,
-        updatedAt: new Date(),
-      },
-    });
+    try {
+      // Check user exists first
+      const exists = await prisma.wieUser.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      });
+      if (!exists) {
+        return;
+      }
+      await prisma.wieUser.update({
+        where: { id: userId },
+        data: {
+          location: displayName || null,
+          latitude: latitude ?? undefined,
+          longitude: longitude ?? undefined,
+          locationSource: source,
+          updatedAt: new Date(),
+        },
+      });
     } catch (error: any) {
       // Don't throw — location save failure should never crash the app
       console.warn(`saveUserLocation failed for ${userId}:`, error.message);
@@ -805,7 +850,7 @@ class WieUserModel {
         location: true,
         latitude: true,
         longitude: true,
-        locationSource: true,    
+        locationSource: true,
       },
     });
     if (!user) return null;
@@ -813,7 +858,7 @@ class WieUserModel {
       location: user.location ?? null,
       latitude: user.latitude ?? null,
       longitude: user.longitude ?? null,
-      locationSource: user.locationSource ?? null,  
+      locationSource: user.locationSource ?? null,
     };
   }
 }
