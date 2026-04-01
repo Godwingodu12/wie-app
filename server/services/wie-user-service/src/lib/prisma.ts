@@ -1,43 +1,44 @@
 import { PrismaClient } from "../generated/prisma";
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-const dbUrl = process.env.DATABASE_URL;
-if (!dbUrl) {
-  console.error("❌ DATABASE_URL not set");
-  process.exit(1);
+declare global {
+  // eslint-disable-next-line no-var
+  var __prisma: PrismaClient | undefined;
 }
-const safeUrl = (() => {
+
+function createPrismaClient(): PrismaClient {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    console.error("❌ DATABASE_URL not set — check your .env file");
+    process.exit(1);
+  }
+
+  // Force-disable prepared statements regardless of URL params
+  // This is required for PgBouncer transaction mode (port 6543)
+  let safeUrl = dbUrl;
   try {
     const url = new URL(dbUrl);
-    // Remove any bad connection_limit and set a safe one
-    url.searchParams.delete("connection_limit");
-    url.searchParams.delete("pgbouncer");
+    url.searchParams.set("statement_cache_size", "0");
     url.searchParams.set("connection_limit", "10");
     url.searchParams.set("pool_timeout", "20");
     url.searchParams.set("connect_timeout", "15");
-    console.log(`🔌 Prisma → ${url.hostname}:${url.port} (limit=10)`);
-    return url.toString();
+    safeUrl = url.toString();
+    console.log(
+      `🔌 Prisma → ${url.hostname}:${url.port} (pool=10, no prepared statements)`,
+    );
   } catch {
-    return dbUrl;
+    // URL parse failed — use as-is
   }
-})();
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+  return new PrismaClient({
     log: ["error"],
     datasources: {
       db: { url: safeUrl },
     },
   });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
 }
 
-process.on("beforeExit", async () => {
-  await prisma.$disconnect();
-});
+// Module-level singleton — survives hot reload via global
+const prisma = global.__prisma ?? createPrismaClient();
+global.__prisma = prisma;
 
+export { prisma };
 export default prisma;
