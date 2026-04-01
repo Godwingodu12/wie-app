@@ -4,12 +4,23 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+// Debug: confirm env is loaded
+const dbUrl = process.env.DATABASE_URL;
+if (!dbUrl) {
+  console.error("❌ DATABASE_URL is not set — check your .env file");
+  process.exit(1);
+}
+
+// Log which host/port is being used (without password)
+try {
+  const url = new URL(dbUrl);
+  console.log(`🔌 Prisma connecting to: ${url.hostname}:${url.port}`);
+} catch {}
+
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: ["error"],
-    // Let Prisma read DATABASE_URL from env automatically
-    // so schema.prisma's directUrl is respected for migrations
   });
 
 if (process.env.NODE_ENV !== "production") {
