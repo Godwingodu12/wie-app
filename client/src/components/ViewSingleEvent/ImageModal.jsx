@@ -10,47 +10,51 @@ const ImageModal = ({
   theme,
   setAppAlert,
 }) => {
-  const imagePath = useMemo(() => {
-    if (!images || images.length === 0 || currentIndex < 0 || currentIndex >= images.length) {
+  // ── Resolves the current item into { path, previewImage, isVideo } ──
+  const mediaData = useMemo(() => {
+    if (
+      !images ||
+      images.length === 0 ||
+      currentIndex < 0 ||
+      currentIndex >= images.length
+    )
       return null;
+
+    const item = images[currentIndex];
+
+    const resolvePath = (p) => {
+      if (
+        typeof p === "string" &&
+        (p.startsWith("http://") || p.startsWith("https://"))
+      )
+        return p;
+      return null;
+    };
+
+    if (typeof item === "object" && item !== null) {
+      return {
+        path: resolvePath(item.path),
+        previewImage: resolvePath(item.previewImage) || null,
+        isVideo: item.type === "video",
+        name: item.name || item.originalName || "Media",
+        type: item.type || "image",
+      };
     }
 
-    const imageObject = images[currentIndex];
-    
-    // Handle if it's an object with path property (banner, logo, event_images)
-    if (typeof imageObject === 'object' && imageObject.path) {
-      const path = imageObject.path;
-      // If it's already a full URL (Cloudinary), return as is
-      if (path.startsWith('http://') || path.startsWith('https://')) {
-        return path;
-      }
+    if (typeof item === "string") {
+      return {
+        path: resolvePath(item),
+        previewImage: null,
+        isVideo: false,
+        name: "Image",
+        type: "image",
+      };
     }
-    
-    // Handle if it's already a string URL
-    if (typeof imageObject === 'string') {
-      if (imageObject.startsWith('http://') || imageObject.startsWith('https://')) {
-        return imageObject;
-      }
-    }
-    
-    // Fallback
+
     return null;
   }, [images, currentIndex]);
 
-  const imageInfo = useMemo(() => {
-    if (!images || !images[currentIndex]) return null;
-    const img = images[currentIndex];
-    
-    if (typeof img === 'object') {
-      return {
-        name: img.name || img.originalName || 'Image',
-        type: img.type || 'image'
-      };
-    }
-    
-    return { name: 'Image', type: 'image' };
-  }, [images, currentIndex]);
-
+  // ── Early-exit guards ──
   if (
     !images ||
     images.length === 0 ||
@@ -60,7 +64,7 @@ const ImageModal = ({
     if (setAppAlert) {
       setAppAlert({
         message: "Missing Data",
-        description: "No images were provided to the viewer.",
+        description: "No media was provided to the viewer.",
         type: "error",
         show: true,
       });
@@ -68,15 +72,15 @@ const ImageModal = ({
     return null;
   }
 
-  if (!imagePath) {
+  if (!mediaData || (!mediaData.path && !mediaData.previewImage)) {
     console.error(
-      "ImageModal: Failed to generate valid image path from data:",
+      "ImageModal: Failed to resolve media from:",
       images?.[currentIndex]
     );
     if (setAppAlert) {
       setAppAlert({
-        message: "Image Load Failed",
-        description: "Could not load image file from the specified path.",
+        message: "Media Load Failed",
+        description: "Could not load the file from the specified path.",
         type: "error",
         show: true,
       });
@@ -86,126 +90,155 @@ const ImageModal = ({
 
   return (
     <div
-      className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md`}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md"
       onClick={onClose}
     >
       <div
         className="relative flex items-center justify-center w-full h-full p-2 sm:p-4"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close Button (Top Right) */}
+        {/* ── Close Button ── */}
         <button
           onClick={onClose}
-          className={`absolute top-2 right-2 sm:top-4 sm:right-4 p-3 rounded-full transition-opacity hover:opacity-80 z-20 
-                      ${
-                        theme.isDark
-                          ? "text-white bg-gray-700"
-                          : "text-gray-900 bg-white"
-                      }`}
-          style={{
-            boxShadow: theme.shadowInset,
-          }}
+          className={`absolute top-2 right-2 sm:top-4 sm:right-4 p-3 rounded-full z-20
+            transition-opacity hover:opacity-80
+            ${theme.isDark ? "text-white bg-gray-700" : "text-gray-900 bg-white"}`}
+          style={{ boxShadow: theme.shadowInset }}
         >
           <X size={24} />
         </button>
 
-        {/* Left Arrow */}
+        {/* ── Left Arrow ── */}
         {images.length > 1 && (
           <button
             onClick={onPrev}
-            className={`absolute left-2 sm:left-4 p-3 rounded-full transition-opacity hover:opacity-80 z-20 
-                        ${
-                          theme.isDark
-                            ? "text-white bg-gray-700"
-                            : "text-gray-900 bg-white"
-                        }`}
-            style={{
-              boxShadow: theme.shadowInset,
-            }}
+            className={`absolute left-2 sm:left-4 p-3 rounded-full z-20
+              transition-opacity hover:opacity-80
+              ${theme.isDark ? "text-white bg-gray-700" : "text-gray-900 bg-white"}`}
+            style={{ boxShadow: theme.shadowInset }}
           >
             <ChevronLeft size={24} />
           </button>
         )}
 
-        {/* Image Display */}
+        {/* ── Main Media Area ── */}
         <div className="max-w-5xl max-h-[95vh] w-full h-full flex flex-col items-center justify-center relative">
-          <img
-            src={imagePath}
-            alt={imageInfo?.name || "Event Image"}
-            className="rounded-xl shadow-lg"
-            style={
-              imageInfo?.type === "banner"
-                ? {
-                    width: "100%",
+
+          {mediaData.isVideo ? (
+            /* ════════════ VIDEO ════════════ */
+            <div className="flex flex-col items-center w-full">
+              {mediaData.path ? (
+                <video
+                  key={mediaData.path}   /* forces remount on index change */
+                  controls
+                  autoPlay={false}
+                  poster={mediaData.previewImage || undefined}
+                  className="rounded-xl shadow-lg"
+                  style={{
                     maxWidth: "100%",
-                    aspectRatio: "1920 / 720",
-                    height: "auto",
-                    objectFit: "fill",   // shows full image, no cropping
-                  }
-                : {
-                    maxWidth: "100%",
-                    maxHeight: "85vh",
+                    maxHeight: "75vh",
                     width: "auto",
-                    height: "auto",
                     objectFit: "contain",
+                    background: "#000",
+                  }}
+                  onError={(e) =>
+                    console.error("Video load error:", mediaData.path)
                   }
-            }
-            onError={(e) => {
-              console.error("Failed to load image:", imagePath);
-              e.target.src = "https://via.placeholder.com/800x600?text=Image+Not+Found";
-            }}
-          />
-          {/* Image Info Label */}
-          {imageInfo && (
-            <div
-              className={`mt-4 p-2 px-4 rounded-xl font-medium text-sm
-                          ${
-                            theme.isDark
-                              ? "text-white bg-gray-700"
-                              : "text-gray-900 bg-white"
-                          }`}
-              style={{
-                boxShadow: theme.shadowInset,
-              }}
-            >
-              {imageInfo.name}
-              {imageInfo.type && (
-                <span className="ml-2 text-xs opacity-60">
-                  ({imageInfo.type})
-                </span>
+                >
+                  <source src={mediaData.path} />
+                  Your browser does not support the video tag.
+                </video>
+              ) : mediaData.previewImage ? (
+                /* Fallback: only preview image available */
+                <div className="flex flex-col items-center gap-3">
+                  <img
+                    src={mediaData.previewImage}
+                    alt={mediaData.name}
+                    className="rounded-xl shadow-lg"
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "70vh",
+                      objectFit: "contain",
+                    }}
+                  />
+                  <p className="text-yellow-400 text-sm">
+                    ⚠ Video file unavailable — showing preview image
+                  </p>
+                </div>
+              ) : (
+                /* No path, no preview */
+                <div
+                  className={`flex flex-col items-center justify-center rounded-xl w-72 h-48
+                    ${theme.isDark ? "bg-gray-800 text-gray-400" : "bg-gray-200 text-gray-600"}`}
+                >
+                  <span className="text-5xl mb-3">🎬</span>
+                  <span className="text-sm">Video unavailable</span>
+                </div>
               )}
             </div>
+          ) : (
+            /* ════════════ IMAGE ════════════ */
+            <img
+              src={mediaData.path}
+              alt={mediaData.name}
+              className="rounded-xl shadow-lg"
+              style={
+                mediaData.type === "banner"
+                  ? {
+                      width: "100%",
+                      maxWidth: "100%",
+                      aspectRatio: "1920 / 720",
+                      height: "auto",
+                      objectFit: "fill",
+                    }
+                  : {
+                      maxWidth: "100%",
+                      maxHeight: "85vh",
+                      width: "auto",
+                      height: "auto",
+                      objectFit: "contain",
+                    }
+              }
+              onError={(e) => {
+                console.error("Image load error:", mediaData.path);
+                e.target.src =
+                  "https://via.placeholder.com/800x600?text=Image+Not+Found";
+              }}
+            />
           )}
 
-          {/* Index Indicator */}
+          {/* ── Name / Type Label ── */}
           <div
-            className={`absolute bottom-2 sm:bottom-4 p-2 px-4 rounded-xl font-medium text-base sm:text-lg 
-                        ${
-                          theme.isDark
-                            ? "text-white bg-gray-700"
-                            : "text-gray-900 bg-white"
-                        }`}
-            style={{
-              boxShadow: theme.shadowInset,
-            }}
+            className={`mt-4 p-2 px-4 rounded-xl font-medium text-sm
+              ${theme.isDark ? "text-white bg-gray-700" : "text-gray-900 bg-white"}`}
+            style={{ boxShadow: theme.shadowInset }}
+          >
+            {mediaData.name}
+            {mediaData.type && (
+              <span className="ml-2 text-xs opacity-60">
+                ({mediaData.type})
+              </span>
+            )}
+          </div>
+
+          {/* ── Index Indicator ── */}
+          <div
+            className={`absolute bottom-2 sm:bottom-4 p-2 px-4 rounded-xl font-medium text-base sm:text-lg
+              ${theme.isDark ? "text-white bg-gray-700" : "text-gray-900 bg-white"}`}
+            style={{ boxShadow: theme.shadowInset }}
           >
             {currentIndex + 1} / {images.length}
           </div>
         </div>
 
-        {/* Right Arrow */}
+        {/* ── Right Arrow ── */}
         {images.length > 1 && (
           <button
             onClick={onNext}
-            className={`absolute right-2 sm:right-4 p-3 rounded-full transition-opacity hover:opacity-80 z-20 
-                        ${
-                          theme.isDark
-                            ? "text-white bg-gray-700"
-                            : "text-gray-900 bg-white"
-                        }`}
-            style={{
-              boxShadow: theme.shadowInset,
-            }}
+            className={`absolute right-2 sm:right-4 p-3 rounded-full z-20
+              transition-opacity hover:opacity-80
+              ${theme.isDark ? "text-white bg-gray-700" : "text-gray-900 bg-white"}`}
+            style={{ boxShadow: theme.shadowInset }}
           >
             <ChevronRight size={24} />
           </button>
@@ -214,4 +247,5 @@ const ImageModal = ({
     </div>
   );
 };
+
 export default ImageModal;

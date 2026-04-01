@@ -503,9 +503,9 @@ export const getFluxViewers = async (
   // Backend returns { success, total, viewers, viewCount } directly — not nested under .data
   const body = res.data;
   return {
-    total:     body.total     ?? body.viewCount ?? 0,
-    viewCount: body.viewCount ?? body.total     ?? 0,
-    viewers:   body.viewers   ?? [],
+    total: body.total ?? body.viewCount ?? 0,
+    viewCount: body.viewCount ?? body.total ?? 0,
+    viewers: body.viewers ?? [],
     reactions: body.reactions ?? [],
   };
 };
@@ -739,6 +739,9 @@ export const addCloseFriend = async (friendId: string) => {
 export const removeCloseFriend = async (friendId: string) => {
   const res = await mediaApi.post("/flux/close-friends/remove", { friendId });
   return res.data;
+};
+export const saveCloseFriends = async (friendIds: string[]): Promise<void> => {
+  await mediaApi.post("/flux/close-friends/save", { friendIds });
 };
 
 export const shareFluxAsMessage = async (

@@ -413,7 +413,19 @@ const playSharedAudio = (previewUrl: string) => {
     const hasTextContent = textLayers.filter(l => l.text?.trim()).length > 0 || textBg;
 
     if (!hasRealMedia && !hasTextContent) return;
-
+    if (target === "close_friends") {
+      // Verify the user actually has a CF list saved before posting
+      try {
+        const { getCloseFriends } = await import("@/services/mediaService");
+        const cfList = await getCloseFriends();
+        if (!cfList || cfList.length === 0) {
+          setUploadError("Add close friends to your list before posting for close friends.");
+          return;
+        }
+      } catch {
+        // If check fails, proceed — don't block post on network error
+      }
+    }
     try {
       setUploading(true);
       setUploadError(null);
@@ -423,7 +435,7 @@ const playSharedAudio = (previewUrl: string) => {
 
       await createFlux(mediaArg as any, {
         caption:           selectedLocation || undefined,
-        visibility:        'public',
+        visibility: target === "close_friends" ? "close_friends" : visibility,
         duration:          duration, 
         musicId:           selectedSongId         || undefined,
         musicTitle:        selectedSongTitle       || undefined,
@@ -1157,32 +1169,34 @@ const playSharedAudio = (previewUrl: string) => {
               <button
                 onClick={() => setShowCloseFriends(true)}
                 style={{
-                  height:         48,
-                  borderRadius:   25,
-                  padding:        "0 20px",
-                  background:     "linear-gradient(135deg,#22c55e,#16a34a)",
-                  border:         "none",
-                  color:          "#fff",
-                  fontSize:       12,
-                  fontWeight:     700,
-                  cursor:         "pointer",
-                  display:        "flex",
-                  alignItems:     "center",
-                  gap:            8,
-                  flexShrink:     0,
-                  whiteSpace:     "nowrap",
+                  height: 48,
+                  borderRadius: 25,
+                  padding: "0 20px",
+                  background: "linear-gradient(135deg,#22c55e,#16a34a)",
+                  border: "none",
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexShrink: 0,
+                  whiteSpace: "nowrap",
                 }}
               >
-                <div style={{
-                  width:           24,
-                  height:          24,
-                  borderRadius:    "50%",
-                  background:      "rgba(255,255,255,0.2)",
-                  display:         "flex",
-                  alignItems:      "center",
-                  justifyContent:  "center",
-                  flexShrink:      0,
-                }}>
+                <div
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: "rgba(255,255,255,0.2)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
                   <Star size={11} color="#fff" fill="#fff" />
                 </div>
                 Close Friends
@@ -1191,29 +1205,42 @@ const playSharedAudio = (previewUrl: string) => {
               {/* Your Flux button */}
               <button
                 onClick={() => handlePost("Flux")}
-                disabled={(!mediaFile && !textBg && textLayers.filter(l=>l.text?.trim()).length === 0) || uploading}
+                disabled={
+                  (!mediaFile &&
+                    !textBg &&
+                    textLayers.filter((l) => l.text?.trim()).length === 0) ||
+                  uploading
+                }
                 style={{
-                  height:          48,
-                  borderRadius:    25,
-                  padding:         "0 20px",
-                  background:      GRADIENT,
-                  border:          "none",
-                  color:           "#fff",
-                  fontSize:        13,
-                  fontWeight:      600,
-                  cursor:          "pointer",
-                  display:         "flex",
-                  alignItems:      "center",
-                  justifyContent:  "center",
-                  gap:             6,
-                  whiteSpace:      "nowrap",
-                  opacity: (!mediaFile && !textBg && textLayers.filter(l=>l.text?.trim()).length === 0) || uploading ? 0.4 : 1,
+                  height: 48,
+                  borderRadius: 25,
+                  padding: "0 20px",
+                  background: GRADIENT,
+                  border: "none",
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  whiteSpace: "nowrap",
+                  opacity:
+                    (!mediaFile &&
+                      !textBg &&
+                      textLayers.filter((l) => l.text?.trim()).length === 0) ||
+                    uploading
+                      ? 0.4
+                      : 1,
                 }}
               >
                 {uploading ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  <><Users size={15} /> Your Flux</>
+                  <>
+                    <Users size={15} /> Your Flux
+                  </>
                 )}
               </button>
             </div>
@@ -1235,24 +1262,35 @@ const playSharedAudio = (previewUrl: string) => {
           onBgChange={(bg) => setTextBg(bg)}
         />
       )}
-      {/* Close Friends Panel */}
       {showCloseFriends && (
         <>
           <div
             onClick={() => setShowCloseFriends(false)}
             style={{
-              position: "fixed", inset: 0, zIndex: 99,
-              background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+              position: "fixed",
+              inset: 0,
+              zIndex: 99,
+              background: "rgba(0,0,0,0.6)",
+              backdropFilter: "blur(4px)",
             }}
           />
-          <div style={{
-            position:  "fixed",
-            top:       "50%",
-            left:      "50%",
-            transform: "translate(-50%,-50%)",
-            zIndex:    100,
-          }}>
-            <CloseFriendsPanel onClose={() => setShowCloseFriends(false)} />
+          <div
+            style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%,-50%)",
+              zIndex: 100,
+            }}
+          >
+            <CloseFriendsPanel
+              onClose={() => setShowCloseFriends(false)}
+              showPostButton={true}
+              onPostForCloseFriends={() => handlePost("close_friends")}
+              onSaved={(friends) => {
+                // optional: you can show a toast here
+              }}
+            />
           </div>
         </>
       )}

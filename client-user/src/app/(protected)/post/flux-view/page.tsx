@@ -421,13 +421,14 @@ export default function FluxViewPage() {
     try {
       const targetUserId = searchParams.get("userId");
       const startId      = searchParams.get("fluxId");
-
-      // 1. Fetch the primary user's fluxes
       const primaryData: Flux[] = targetUserId
         ? await getUserFluxes(targetUserId)
         : await getMyFluxes();
 
-      setFluxes(primaryData);
+      const safeData = targetUserId
+        ? primaryData.filter((f) => (f as any).visibility !== "close_friends" || false)
+        : primaryData; 
+      setFluxes(safeData);
 
       // 2. Set starting index within primary user
       let startIdx = 0;

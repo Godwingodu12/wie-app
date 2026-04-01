@@ -1,4 +1,4 @@
-import prisma from '../lib/prisma';
+import prisma from "../lib/prisma";
 export interface OTP {
   id: string;
   user_id?: string | null;
@@ -31,6 +31,27 @@ const toDatabaseFormat = (otp: any): OTP => {
 };
 
 class OtpModel {
+  private async withRetry<T>(
+    operation: () => Promise<T>,
+    retries = 2,
+  ): Promise<T> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await operation();
+      } catch (error: any) {
+        const isConnectionError =
+          error?.code === "P1001" ||
+          error?.code === "P1002" ||
+          error?.code === "P1008";
+        if (isConnectionError && attempt < retries) {
+          await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error("Max retries exceeded");
+  }
   /**
    * Create a new OTP record
    */
@@ -40,7 +61,7 @@ class OtpModel {
         userId: otpData.user_id || null,
         tempId: otpData.temp_id || null,
         otpValue: otpData.otp_value,
-        otpType: otpData.otp_type || 'signup',
+        otpType: otpData.otp_type || "signup",
         expiresAt: otpData.expires_at,
       },
     });
@@ -50,43 +71,45 @@ class OtpModel {
   /**
    * Find OTP by user_id and otp_value
    */
-  async findByUserAndValue(userId: string, otpValue: string): Promise<OTP | null> {
-    const otp = await prisma.otp.findFirst({
-      where: {
-        userId,
-        otpValue,
-        expiresAt: { gt: new Date() },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findByUserAndValue(
+    userId: string,
+    otpValue: string,
+  ): Promise<OTP | null> {
+    const otp = await this.withRetry(() =>
+      prisma.otp.findFirst({
+        where: { userId, otpValue, expiresAt: { gt: new Date() } },
+        orderBy: { createdAt: "desc" },
+      }),
+    );
     return otp ? toDatabaseFormat(otp) : null;
   }
 
   /**
    * Find OTP by temp_id and otp_value
    */
-  async findByTempIdAndValue(tempId: string, otpValue: string): Promise<OTP | null> {
-    const otp = await prisma.otp.findFirst({
-      where: {
-        tempId,
-        otpValue,
-        expiresAt: { gt: new Date() },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findByTempIdAndValue(
+    tempId: string,
+    otpValue: string,
+  ): Promise<OTP | null> {
+    const otp = await this.withRetry(() =>
+      prisma.otp.findFirst({
+        where: { tempId, otpValue, expiresAt: { gt: new Date() } },
+        orderBy: { createdAt: "desc" },
+      }),
+    );
     return otp ? toDatabaseFormat(otp) : null;
   }
   async findLatestByUser(userId: string): Promise<OTP | null> {
     const otp = await prisma.otp.findFirst({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
     return otp ? toDatabaseFormat(otp) : null;
   }
   async findLatestByTempId(tempId: string): Promise<OTP | null> {
     const otp = await prisma.otp.findFirst({
       where: { tempId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
     return otp ? toDatabaseFormat(otp) : null;
   }
@@ -100,7 +123,7 @@ class OtpModel {
         userId,
         expiresAt: { gt: new Date() },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
     return otps.map(toDatabaseFormat);
   }
@@ -168,7 +191,7 @@ class OtpModel {
    */
   async findAll(): Promise<OTP[]> {
     const otps = await prisma.otp.findMany({
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
     return otps.map(toDatabaseFormat);
   }
@@ -182,7 +205,7 @@ class OtpModel {
         userId: true,
         tempId: true,
       },
-      distinct: ['userId', 'tempId'],
+      distinct: ["userId", "tempId"],
     });
 
     const ids: string[] = [];
@@ -198,7 +221,7 @@ class OtpModel {
    * Check if OTP exists and is valid
    */
   async isValid(identifier: string, otpValue: string): Promise<boolean> {
-    const isTemp = identifier.startsWith('temp_');
+    const isTemp = identifier.startsWith("temp_");
     const otp = await prisma.otp.findFirst({
       where: {
         ...(isTemp ? { tempId: identifier } : { userId: identifier }),
@@ -213,29 +236,29 @@ class OtpModel {
    * Count OTPs for a user or temp ID
    */
   async countByIdentifier(identifier: string): Promise<number> {
-    const isTemp = identifier.startsWith('temp_');
+    const isTemp = identifier.startsWith("temp_");
     const count = await prisma.otp.count({
       where: isTemp ? { tempId: identifier } : { userId: identifier },
     });
     return count;
   }
-  async countAttemptsByIdentifier(identifier: string, minutes: number = 15): Promise<number> {
+  async countAttemptsByIdentifier(
+    identifier: string,
+    minutes: number = 15,
+  ): Promise<number> {
     const cutoffTime = new Date(Date.now() - minutes * 60000);
-    
-    const isTemporary = identifier.startsWith('temp_');
-    
+
+    const isTemporary = identifier.startsWith("temp_");
+
     const count = await prisma.otp.count({
       where: {
-        ...(isTemporary 
-          ? { tempId: identifier } 
-          : { userId: identifier }
-        ),
+        ...(isTemporary ? { tempId: identifier } : { userId: identifier }),
         createdAt: {
           gte: cutoffTime,
         },
       },
     });
-    
+
     return count;
   }
 }

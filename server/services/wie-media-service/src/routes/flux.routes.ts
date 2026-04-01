@@ -25,6 +25,8 @@ router.get(
 );
 router.post("/close-friends/add", fluxController.addCloseFriend);
 router.post("/close-friends/remove", fluxController.removeCloseFriend);
+router.post("/close-friends/save", fluxController.saveCloseFriends);
+
 // User fluxes
 router.get("/user/:userId", fluxController.getUserFluxes);
 // Views

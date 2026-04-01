@@ -1,5 +1,6 @@
 import FluxModel, { IFlux, FluxVisibility } from "../models/flux.model";
 import * as followClient from "../grpc/clients/followClient";
+import CloseFriendModel from "../models/close-friend.model";
 import * as wieUserClient from "../grpc/clients/wieUserClient";
 import redisClient from "../config/redis";
 import { uploadFluxMedia, deleteFluxMedia } from "../utils/cloudinaryHelper";
@@ -39,13 +40,22 @@ export const canViewFlux = async (
   // - flux visibility 'public'    → anyone can view
   // - flux visibility 'followers' → only followers
   // - flux visibility 'close_friends' → only close friends (treat as followers for now)
-  if (visibility === "followers" || visibility === "close_friends") {
+  if (visibility === "followers") {
     const follow = await followClient
       .isFollowing(viewerId, ownerId)
       .catch(() => ({ isFollowing: false }));
     return follow.isFollowing;
   }
-  // visibility === 'public' on a public account → allow everyone
+  if (visibility === "close_friends") {
+    const isCF = await CloseFriendModel.findOne({
+      userId: String(ownerId),
+      closeFriendId: String(viewerId),
+    })
+      .select("_id")
+      .lean()
+      .catch(() => null);
+    return !!isCF;
+  }
   return true;
 };
 
@@ -176,6 +186,7 @@ export const createFlux = async (
   });
 
   await redisClient.del(USER_FLUXES_KEY(userId)).catch(() => {});
+  await redisClient.del(FEED_CACHE_KEY(userId)).catch(() => {});
   return flux;
 };
 
@@ -184,69 +195,34 @@ export const getUserFluxes = async (
   viewerId: string,
   ownerId: string,
 ): Promise<IFlux[]> => {
-  const cacheKey = USER_FLUXES_KEY(ownerId);
-
-  let allFluxes: IFlux[] = [];
-
-  // Try cache first
-  const cached = await redisClient.get(cacheKey).catch(() => null);
-  if (cached) {
-    try {
-      allFluxes = JSON.parse(cached);
-    } catch {
-      allFluxes = [];
-    }
-  } else {
-    // Mark any newly-expired active fluxes before querying
-    await FluxModel.updateMany(
-      {
-        userId: ownerId,
-        expiresAt: { $lt: new Date() },
-        isDeleted: false,
-        status: "active",
-      },
-      { $set: { status: "expired", isArchived: true } },
-    ).catch(() => {});
-
-    // Fetch only active (not yet expired) non-deleted fluxes
-    allFluxes = await FluxModel.find({
+  // Mark expired fluxes
+  await FluxModel.updateMany(
+    {
       userId: ownerId,
+      expiresAt: { $lt: new Date() },
       isDeleted: false,
       status: "active",
-      expiresAt: { $gt: new Date() },
-    })
-      .sort({ createdAt: 1 })
-      .exec();
+    },
+    { $set: { status: "expired", isArchived: true } },
+  ).catch(() => {});
 
-    // Cache the raw active list
-    await redisClient
-      .set(cacheKey, JSON.stringify(allFluxes), FEED_CACHE_TTL)
-      .catch(() => {});
-  }
+  // Always fetch fresh — never cache raw list (CF fluxes would leak across viewers)
+  const allFluxes = await FluxModel.find({
+    userId: ownerId,
+    isDeleted: false,
+    status: "active",
+    expiresAt: { $gt: new Date() },
+  })
+    .sort({ createdAt: 1 })
+    .exec();
 
-  console.log(
-    `[getUserFluxes] viewerId=${viewerId} ownerId=${ownerId} total=${allFluxes.length}`,
-  );
-
-  // Filter by access rules
   const visible: IFlux[] = [];
   for (const f of allFluxes) {
-    // Skip if hidden from this viewer
     const hiddenFrom: string[] = (f as any).hiddenFrom ?? [];
-    if (hiddenFrom.includes(viewerId)) {
-      console.log(`[getUserFluxes] flux ${f._id} hidden from viewer`);
-      continue;
-    }
-
+    if (hiddenFrom.map(String).includes(String(viewerId))) continue;
     const canView = await canViewFlux(viewerId, ownerId, f.visibility);
-    console.log(
-      `[getUserFluxes] flux ${f._id} visibility=${f.visibility} canView=${canView}`,
-    );
-
     if (canView) visible.push(f);
   }
-
-  console.log(`[getUserFluxes] returning ${visible.length} visible fluxes`);
   return visible;
 };
 
@@ -271,10 +247,13 @@ export const getFluxFeed = async (viewerId: string): Promise<any[]> => {
   const allFluxes = await FluxModel.aggregate([
     {
       $match: {
-        userId: { $in: targetUserIds }, // ✅ scoped to following list only
+        userId: { $in: targetUserIds.map(String) },
         expiresAt: { $gt: new Date() },
         isDeleted: false,
         visibility: { $ne: "only_me" },
+        $expr: {
+          $not: { $in: [String(viewerId), { $ifNull: ["$hiddenFrom", []] }] },
+        },
       },
     },
     {
@@ -301,9 +280,46 @@ export const getFluxFeed = async (viewerId: string): Promise<any[]> => {
   ]);
 
   if (allFluxes.length === 0) return [];
+  // ── Step A: Collect owners who have at least one close_friends flux ──
+  const ownersWithCFFlux: string[] = allFluxes
+    .filter((g: any) =>
+      g.fluxes.some((f: any) => f.visibility === "close_friends"),
+    )
+    .map((g: any) => String(g._id));
 
+  // ── Step B: Build cfAllowed — owners whose CF fluxes THIS viewer may see ──
+  const cfAllowed = new Set<string>([viewerId]); // viewer always sees their own
+
+  if (ownersWithCFFlux.length > 0) {
+    const cfDocs = await CloseFriendModel.find({
+      userId: { $in: ownersWithCFFlux },
+      closeFriendId: String(viewerId),
+    })
+      .select("userId")
+      .lean();
+    cfDocs.forEach((doc: any) => cfAllowed.add(String(doc.userId)));
+  }
+
+  // ── Step C: Strip close_friends fluxes the viewer is NOT allowed to see ──
+  const filteredGroups = allFluxes
+    .map((group: any) => {
+      const ownerId = String(group._id);
+      const isViewerSelf = ownerId === viewerId;
+      const canSeeCF = isViewerSelf || cfAllowed.has(ownerId);
+
+      const visibleFluxes = group.fluxes.filter((f: any) => {
+        if (f.visibility === "close_friends") {
+          // STRICT: viewer must be in THIS owner's CF list, or viewer IS the owner
+          return isViewerSelf || cfAllowed.has(ownerId);
+        }
+        return true;
+      });
+      return { ...group, fluxes: visibleFluxes };
+    })
+    .filter((group: any) => group.fluxes.length > 0);
+  if (filteredGroups.length === 0) return [];
   // Get user details for all owners in one batch call
-  const ownerIds = allFluxes.map((f: any) => f._id);
+  const ownerIds = filteredGroups.map((f: any) => f._id);
   const usersResp = await wieUserClient
     .getUsersByIds(ownerIds)
     .catch(() => ({ users: [] }));
@@ -312,21 +328,17 @@ export const getFluxFeed = async (viewerId: string): Promise<any[]> => {
   (usersResp.users || []).forEach((u: any) => {
     userMap[u.id] = u;
   });
-
-  const feed = allFluxes.map((group: any) => ({
+  const feed = filteredGroups.map((group: any) => ({
     ...group,
     user: userMap[group._id] || null,
     isSelf: group._id === viewerId,
   }));
-
   await redisClient
     .set(cacheKey, JSON.stringify(feed), FEED_CACHE_TTL)
     .catch(() => {});
 
   return feed;
 };
-
-// ── View Flux
 export const viewFlux = async (
   fluxId: string,
   viewerId: string,
@@ -334,11 +346,22 @@ export const viewFlux = async (
   const flux = await FluxModel.findById(fluxId);
   if (!flux || flux.isDeleted) return;
 
+  // ── Close friends gate
+  if (flux.visibility === "close_friends" && flux.userId !== viewerId) {
+    const allowed = await CloseFriendModel.exists({
+      userId: flux.userId,
+      closeFriendId: viewerId,
+    })
+      .then((r) => !!r)
+      .catch(() => false);
+
+    if (!allowed) return; // silently reject — don't record the view
+  }
+
   const alreadyViewed = flux.views.some((v) => v.viewerId === viewerId);
   if (!alreadyViewed) {
     flux.views.push({ viewerId, viewedAt: new Date() });
     await flux.save();
-    // Invalidate feed cache
     await redisClient.del(USER_FLUXES_KEY(flux.userId)).catch(() => {});
   }
 };
@@ -396,8 +419,8 @@ export const deleteFlux = async (
   flux.isDeleted = true;
   flux.status = "deleted";
   await flux.save();
-
   await redisClient.del(USER_FLUXES_KEY(userId)).catch(() => {});
+  await redisClient.del(FEED_CACHE_KEY(userId)).catch(() => {});
 };
 
 export const getAllMyFluxes = async (userId: string): Promise<IFlux[]> => {

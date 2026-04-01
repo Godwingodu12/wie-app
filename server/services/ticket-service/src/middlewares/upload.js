@@ -173,7 +173,6 @@ const ticketMediaFileFilter = (req, file, cb) => {
     return cb(new Error('File validation error'), false);
   }
 };
-// Helper function to upload to Cloudinary
 export const uploadToCloudinary = (buffer, options = {}) => {
   return new Promise((resolve, reject) => {
     const {
@@ -182,19 +181,31 @@ export const uploadToCloudinary = (buffer, options = {}) => {
       publicId = randomUUID()
     } = options;
 
+    const isVideo = resourceType === 'video';
+
+    const uploadOptions = {
+      folder,
+      resource_type: resourceType,
+      public_id: publicId,
+    };
+
+    if (isVideo) {
+      // For videos: use eager_async to avoid synchronous processing timeout
+      uploadOptions.eager = [
+        { quality: 'auto', fetch_format: 'auto' }
+      ];
+      uploadOptions.eager_async = true;
+      // Do NOT add top-level transformation for video — Cloudinary rejects large files
+    } else {
+      // For images and other types: synchronous transformation is fine
+      uploadOptions.transformation = [
+        { quality: 'auto:good' },
+        { fetch_format: 'auto' }
+      ];
+    }
+
     const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        folder,
-        resource_type: resourceType,
-        public_id: publicId,
-        transformation: resourceType === 'video' ? [
-          { quality: 'auto' },
-          { fetch_format: 'auto' }
-        ] : [
-          { quality: 'auto:good' },
-          { fetch_format: 'auto' }
-        ]
-      },
+      uploadOptions,
       (error, result) => {
         if (error) {
           console.error('Cloudinary upload error:', error);
@@ -297,7 +308,7 @@ export const getResourceType = (fieldname, mimetype) => {
 const upload = multer({
   storage,
   limits: { 
-    fileSize: 100 * 1024 * 1024, // 100MB
+    fileSize: 200 * 1024 * 1024, // 200MB
     files: 100
   },
   fileFilter: generalFileFilter,
@@ -306,7 +317,7 @@ const upload = multer({
 const ticketMediaUpload = multer({
   storage,
   limits: { 
-    fileSize: 50 * 1024 * 1024, // 50MB
+    fileSize: 250 * 1024 * 1024, // 250MB
     files: 50
   },
   fileFilter: ticketMediaFileFilter,
