@@ -150,7 +150,6 @@ export default function HomePage() {
           console.error("Error fetching profile:", e);
         }
       };
-
       const fetchFluxes = async () => {
         try {
           const [mine, feed] = await Promise.all([
@@ -158,8 +157,9 @@ export default function HomePage() {
             getFluxFeed(),
           ]);
           setMyFluxes(mine);
-          // Filter out self from feed groups to avoid duplicate
-          setFeedGroups(feed.filter((g) => !g.isSelf));
+          setFeedGroups(
+            feed.filter((g) => !g.isSelf && g.fluxes.length > 0)
+          );
         } catch (e) {
           console.error("Error fetching fluxes:", e);
         } finally {
@@ -327,7 +327,9 @@ export default function HomePage() {
                         const username   = group.user?.username ?? group._id;
                         const fluxId     = firstFlux?._id ?? "";
                         const allViewed = group.fluxes.every((f) => f._id != null && viewedFluxIds.has(f._id));
-                        const isCloseFriend = group.fluxes.some((f) => f.visibility === "close_friends");
+                        const isCloseFriend = group.fluxes.some(
+                                                  (f) => f.visibility === "close_friends"
+                                                );                         
                         return (
                           <button
                             key={group._id}
