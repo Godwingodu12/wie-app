@@ -16,7 +16,8 @@ import {
   UserX,
   HeadphonesIcon,
   ShieldCheck,
-  SquareUser
+  SquareUser,
+  Zap
 } from 'lucide-react';
 import { useSidebar } from '@/context/SidebarContext';
 import { useTheme } from '@/components/home/ThemeContext';
@@ -47,6 +48,8 @@ export default function SettingsLayout({
     if (pathname === '/settings/app-experience/notifications') return 'Notifications';
     if (pathname === '/settings/app-experience/help') return 'Help & Support';
     if (pathname === '/settings/app-experience/privacy-center') return 'Privacy Center';
+    if (pathname === '/settings/post') return 'Posts & Flux';
+    if (pathname === '/settings/post/close-friends') return 'Close Friends';
     return 'Settings';
   };
 
@@ -86,6 +89,12 @@ export default function SettingsLayout({
       items: [
         { title: 'Account Privacy', icon: Shield, href: '/settings/privacy' },
         { title: 'Blocked Accounts', icon: UserX, href: '/settings/privacy/blocked' },
+      ]
+    },
+    {
+      title: 'Posts & Flux',
+      items: [
+        { title: 'Close Friends', icon: Zap, href: '/settings/post/close-friends' },
       ]
     },
     {
