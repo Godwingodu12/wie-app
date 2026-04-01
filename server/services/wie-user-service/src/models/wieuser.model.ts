@@ -723,7 +723,6 @@ class WieUserModel {
     try {
       const updateData: any = { isOnline, updatedAt: new Date() };
       if (!isOnline) updateData.lastSeenAt = new Date();
-
       const user = await prisma.wieUser.update({
         where: { id },
         data: updateData,
