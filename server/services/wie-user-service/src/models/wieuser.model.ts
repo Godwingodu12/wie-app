@@ -718,28 +718,15 @@ class WieUserModel {
     isOnline: boolean,
   ): Promise<WieUser | null> {
     try {
-      const updateData: any = {
-        isOnline,
-        updatedAt: new Date(),
-      };
-      if (!isOnline) {
-        updateData.lastSeenAt = new Date();
-      }
-      // Use upsert-style update — skip the existence check to halve DB round-trips
-      const user = await this.withRetry(() =>
-        prisma.wieUser.update({
-          where: { id },
-          data: updateData,
-        }),
-      );
+      const updateData: any = { isOnline, updatedAt: new Date() };
+      if (!isOnline) updateData.lastSeenAt = new Date();
+
+      const user = await prisma.wieUser.update({
+        where: { id },
+        data: updateData,
+      });
       return toDatabaseFormat(user);
-    } catch (error: any) {
-      // P2025 = record not found — silent, not an error
-      if (error?.code !== "P2025") {
-        console.debug(
-          `updateOnlineStatus skipped for ${id}: ${error?.code ?? error?.message}`,
-        );
-      }
+    } catch {
       return null;
     }
   }
