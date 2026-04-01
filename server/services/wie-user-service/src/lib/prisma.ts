@@ -1,26 +1,35 @@
 import { PrismaClient } from "../generated/prisma";
-
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
-
-// Debug: confirm env is loaded
 const dbUrl = process.env.DATABASE_URL;
 if (!dbUrl) {
-  console.error("❌ DATABASE_URL is not set — check your .env file");
+  console.error("❌ DATABASE_URL not set");
   process.exit(1);
 }
-
-// Log which host/port is being used (without password)
-try {
-  const url = new URL(dbUrl);
-  console.log(`🔌 Prisma connecting to: ${url.hostname}:${url.port}`);
-} catch {}
+const safeUrl = (() => {
+  try {
+    const url = new URL(dbUrl);
+    // Remove any bad connection_limit and set a safe one
+    url.searchParams.delete("connection_limit");
+    url.searchParams.delete("pgbouncer");
+    url.searchParams.set("connection_limit", "10");
+    url.searchParams.set("pool_timeout", "20");
+    url.searchParams.set("connect_timeout", "15");
+    console.log(`🔌 Prisma → ${url.hostname}:${url.port} (limit=10)`);
+    return url.toString();
+  } catch {
+    return dbUrl;
+  }
+})();
 
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: ["error"],
+    datasources: {
+      db: { url: safeUrl },
+    },
   });
 
 if (process.env.NODE_ENV !== "production") {
