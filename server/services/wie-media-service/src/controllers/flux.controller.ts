@@ -447,7 +447,73 @@ export const getArchivedFluxes = async (
     res.status(500).json({ success: false, message: error.message });
   }
 };
+// ── POST /api/flux/:fluxId/archive
+export const archiveFlux = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { fluxId } = req.params;
+    const flux = await FluxModel.findOne({
+      _id: fluxId,
+      userId: req.userId,
+      isDeleted: false,
+    });
+    if (!flux) {
+      res
+        .status(404)
+        .json({ success: false, message: "Flux not found or not yours" });
+      return;
+    }
+    flux.isArchived = !flux.isArchived;
+    flux.status = flux.isArchived ? "archived" : "active";
+    await flux.save();
+    await redisClient.del(`flux:user:${req.userId}`).catch(() => {});
+    await redisClient.del(`flux:feed:${req.userId}`).catch(() => {});
+    res.json({
+      success: true,
+      isArchived: flux.isArchived,
+      message: flux.isArchived ? "Flux archived" : "Flux unarchived",
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 
+// ── PATCH /api/flux/:fluxId/comments/toggle
+export const toggleFluxComments = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { fluxId } = req.params;
+    const flux = await FluxModel.findOne({
+      _id: fluxId,
+      userId: req.userId,
+      isDeleted: false,
+    });
+    if (!flux) {
+      res
+        .status(404)
+        .json({ success: false, message: "Flux not found or not yours" });
+      return;
+    }
+    // Toggle commentsDisabled flag — add to model if missing (handled via any cast)
+    const current = (flux as any).commentsDisabled ?? false;
+    (flux as any).commentsDisabled = !current;
+    await flux.save();
+    await redisClient.del(`flux:user:${req.userId}`).catch(() => {});
+    res.json({
+      success: true,
+      commentsDisabled: (flux as any).commentsDisabled,
+      message: (flux as any).commentsDisabled
+        ? "Comments turned off"
+        : "Comments turned on",
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 /**
  * GET /api/flux/mine
  * Returns all non-deleted fluxes for the authenticated user, newest first.
@@ -1751,7 +1817,15 @@ export const addFluxComment = async (
       res.status(404).json({ success: false, message: "Flux not found" });
       return;
     }
-
+    if ((flux as any).commentsDisabled) {
+      res
+        .status(403)
+        .json({
+          success: false,
+          message: "Comments are disabled for this flux",
+        });
+      return;
+    }
     const comment = {
       userId: callerId,
       text: text.trim(),

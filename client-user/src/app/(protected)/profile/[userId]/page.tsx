@@ -802,10 +802,7 @@ const handleFollowToggle = async () => {
                     <div
                       key={diary._id}
                       className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group flex-shrink-0"
-                      onClick={() => {
-                        // Navigate to diary view (future implementation)
-                        console.log("View diary:", diary._id);
-                      }}
+                      onClick={() => router.push(`/profile/diary/view/${diary._id}`)}
                     >
                       <div className="relative w-[70px] h-[100px] rounded-xl overflow-hidden border border-white/20 transition-all group-hover:scale-105"
                         style={{ background: themeStyles.pillBg }}

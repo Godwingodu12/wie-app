@@ -23,7 +23,8 @@ import MoreIconImg  from "@/assets/post/moreIcon.png";
 import {
   getMyFluxes,getUserFluxes,deleteFlux,getFluxViewers,recordFluxView,getFluxMentions,getReMentions,reMentionFlux,
   getFluxPermissions,removeMentionSelf,getFluxById,toggleFluxLike,getFluxLikes,shareFluxAsMessage,replyFluxAsMessage,
-  type Flux,
+  archiveFlux, toggleFluxComments, highlightFlux, saveFluxToDevice, getUserDiaries,
+  type Flux, type Diary,
 } from "@/services/mediaService";
 import {getUserById} from "@/services/wieUserService";
 import { TextLayer } from "@/components/post/actions/StoryTextCanvas";
@@ -376,6 +377,15 @@ export default function FluxViewPage() {
   const [likeAnim,      setLikeAnim]      = useState(false);
   const [replySending, setReplySending] = useState(false);
   const [viewerPreviews, setViewerPreviews] = useState<{ id: string; profile_picture: string | null }[]>([]);
+  const [commentsDisabled, setCommentsDisabled] = useState(false);
+  const [isArchived,       setIsArchived]       = useState(false);
+  const [showHighlight,    setShowHighlight]    = useState(false);
+  const [userDiaries,      setUserDiaries]      = useState<Diary[]>([]);
+  const [highlightLoading, setHighlightLoading] = useState(false);
+  const [highlightDone,    setHighlightDone]    = useState(false);
+  const [newDiaryTitle,    setNewDiaryTitle]    = useState("");
+  const [savingToDevice,   setSavingToDevice]   = useState(false);
+  const [toastMsg,         setToastMsg]         = useState<string | null>(null);
   const anyModal = showShare || showMention || showViewers || showMore || showComments;
   const STORY_DURATION = ((current as any)?.duration ?? 15) * 1_000;
   // ── Helper: extract owner id string from any flux shape ──
@@ -714,7 +724,8 @@ const goPrev = useCallback(() => {
     const ownerId  = getFluxOwnerId(current);
     const ownerFlag = ownerId === viewerId;
     setIsOwner(ownerFlag);
-
+    setCommentsDisabled((current as any)?.commentsDisabled ?? false);
+    setIsArchived((current as any)?.isArchived ?? false);
     if (ownerFlag) {
       // Viewing own flux — use logged-in user's own profile
       setFluxOwnerProfile({
@@ -785,7 +796,65 @@ const goPrev = useCallback(() => {
       .catch(() => {});
 
   }, [current?._id, user?.id, loading]);
-    
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 2500);
+  };
+
+  const handleArchive = async () => {
+    if (!current) return;
+    try {
+      const res = await archiveFlux(current._id);
+      setIsArchived(res.isArchived);
+      showToast(res.message);
+    } catch {
+      showToast("Failed to archive");
+    }
+  };
+
+  const handleToggleComments = async () => {
+    if (!current) return;
+    try {
+      const res = await toggleFluxComments(current._id);
+      setCommentsDisabled(res.commentsDisabled);
+      showToast(res.message);
+    } catch {
+      showToast("Failed to toggle comments");
+    }
+  };
+
+  const handleSaveToDevice = async () => {
+    if (!current?.mediaUrl) return;
+    setSavingToDevice(true);
+    try {
+      await saveFluxToDevice(current.mediaUrl);
+      showToast("Saved to device");
+    } catch {
+      showToast("Save failed — try again");
+    }
+    setSavingToDevice(false);
+  };
+
+  const handleHighlight = async (diaryId?: string, title?: string) => {
+    if (!current) return;
+    setHighlightLoading(true);
+    try {
+      const res = await highlightFlux(current._id, diaryId, title);
+      if (res.action === "pick") {
+        setUserDiaries(res.diaries ?? []);
+        setShowHighlight(true);
+      } else {
+        setHighlightDone(true);
+        setShowHighlight(false);
+        showToast(res.action === "created" ? "Diary created!" : "Added to diary!");
+        setTimeout(() => setHighlightDone(false), 2000);
+      }
+    } catch {
+      showToast("Failed to add to diary");
+    }
+    setHighlightLoading(false);
+  };
   // ── Delete 
   const handleDelete = async () => {
     if (!current) return;
@@ -1293,6 +1362,7 @@ return (
             </div>
           )}
           {/* Reply bar — sends as chat message with flux reference */}
+          {!isOwner && (
           <div style={{
             position:   "absolute",
             bottom:     0, left: 0, right: 0,
@@ -1351,8 +1421,8 @@ return (
               )}
             </div>
           </div>
+          )}
         </div>
-
         {/* ── Bottom bar ── */}
         <div style={{
           width:          360,
@@ -1591,17 +1661,19 @@ return (
         <MoreModal
           onClose={() => setShowMore(false)}
           onDelete={() => { handleDelete(); setShowMore(false); }}
-          onArchive={() => {}}
-          onSave={() => {}}
-          onHighlight={() => {}}
+          onArchive={() => { handleArchive(); setShowMore(false); }}
+          onSave={handleSaveToDevice}
+          onHighlight={() => { setShowMore(false); handleHighlight(); }}
           onCopyLink={handleCopyLink}
           onShare={() => { setShowMore(false); setShowShare(true); }}
-          onMention={() => { setShowMore(false); setShowMention(true); }}
-          onSettings={() => {}}
+          onSettings={() => { setShowMore(false); router.push("/settings/post"); }}
           onComments={() => {}}
+          onToggleComments={() => { handleToggleComments(); setShowMore(false); }}
           onRemoveMention={() => { handleRemoveMention(); setShowMore(false); }}
           isOwner={isOwner}
           isMentioned={isMentioned}
+          commentsDisabled={commentsDisabled}
+          isArchived={isArchived}
         />
       )}
       {/* ── ShareBar / MentionBar  — right side panel ── */}
@@ -1676,6 +1748,173 @@ return (
             isOwner={isOwner}
             onClose={() => setShowComments(false)}
           />
+        </>
+      )}
+      {/* ── Toast notification ── */}
+      {toastMsg && (
+        <div style={{
+          position:       "fixed",
+          top:            32,
+          left:           "50%",
+          transform:      "translateX(-50%)",
+          zIndex:         300,
+          padding:        "10px 22px",
+          borderRadius:   24,
+          background:     "rgba(30,30,35,0.95)",
+          border:         "1px solid rgba(255,255,255,0.12)",
+          backdropFilter: "blur(12px)",
+          color:          "#fff",
+          fontSize:       13,
+          fontWeight:     600,
+          whiteSpace:     "nowrap",
+          boxShadow:      "0 4px 24px rgba(0,0,0,0.5)",
+        }}>
+          {toastMsg}
+        </div>
+      )}
+      {/* ── Highlight / Add to diary picker ── */}
+      {showHighlight && (
+        <>
+          <div
+            onClick={() => setShowHighlight(false)}
+            style={{
+              position: "fixed", inset: 0, zIndex: 200,
+              background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            }}
+          />
+          <div style={{
+            position:      "fixed",
+            top:           "50%",
+            left:          "50%",
+            transform:     "translate(-50%,-50%)",
+            zIndex:        201,
+            width:         360,
+            maxHeight:     "75vh",
+            borderRadius:  16,
+            background:    "#16161A",
+            border:        "1px solid rgba(255,255,255,0.08)",
+            display:       "flex",
+            flexDirection: "column",
+            overflow:      "hidden",
+            boxShadow:     "0 24px 64px rgba(0,0,0,0.8)",
+          }}>
+            {/* Header */}
+            <div style={{
+              padding:      "16px 20px 12px",
+              borderBottom: "1px solid rgba(255,255,255,0.07)",
+              flexShrink:   0,
+            }}>
+              <p style={{ color: "#fff", fontSize: 15, fontWeight: 700, margin: 0 }}>
+                Add to Diary
+              </p>
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 4 }}>
+                Choose a diary or create a new one
+              </p>
+            </div>
+
+            {/* Existing diaries */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
+              {userDiaries.map((d) => (
+                <button
+                  key={d._id}
+                  onClick={() => handleHighlight(d._id)}
+                  disabled={highlightLoading}
+                  style={{
+                    display:    "flex",
+                    alignItems: "center",
+                    gap:        14,
+                    width:      "100%",
+                    padding:    "12px 20px",
+                    background: "transparent",
+                    border:     "none",
+                    cursor:     "pointer",
+                    borderBottom: "1px solid rgba(255,255,255,0.04)",
+                  }}
+                  onMouseEnter={(e) =>
+                    ((e.currentTarget as HTMLButtonElement).style.background =
+                      "rgba(255,255,255,0.04)")
+                  }
+                  onMouseLeave={(e) =>
+                    ((e.currentTarget as HTMLButtonElement).style.background = "transparent")
+                  }
+                >
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 8, overflow: "hidden",
+                    background: "linear-gradient(135deg,#2a2a35,#3d3950)", flexShrink: 0,
+                  }}>
+                    {(d as any).coverImage && (
+                      <img
+                        src={(d as any).coverImage}
+                        alt="diary"
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, textAlign: "left" }}>
+                    <p style={{ color: "#fff", fontSize: 14, fontWeight: 600, margin: 0 }}>
+                      {(d as any).title}
+                    </p>
+                    <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>
+                      {(d as any).fluxes?.length ?? 0} stories
+                    </p>
+                  </div>
+                  <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 18 }}>›</span>
+                </button>
+              ))}
+            </div>
+
+            {/* New diary input */}
+            <div style={{
+              padding:      "12px 20px 20px",
+              borderTop:    "1px solid rgba(255,255,255,0.07)",
+              flexShrink:   0,
+            }}>
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginBottom: 8, fontWeight: 600 }}>
+                OR CREATE NEW
+              </p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  value={newDiaryTitle}
+                  onChange={(e) => setNewDiaryTitle(e.target.value.slice(0, 20))}
+                  placeholder="Diary name…"
+                  style={{
+                    flex:         1,
+                    height:       40,
+                    borderRadius: 10,
+                    background:   "rgba(255,255,255,0.07)",
+                    border:       "1px solid rgba(255,255,255,0.1)",
+                    color:        "#fff",
+                    fontSize:     13,
+                    padding:      "0 12px",
+                    outline:      "none",
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    if (newDiaryTitle.trim()) {
+                      handleHighlight(undefined, newDiaryTitle.trim());
+                    }
+                  }}
+                  disabled={!newDiaryTitle.trim() || highlightLoading}
+                  style={{
+                    height:       40,
+                    padding:      "0 16px",
+                    borderRadius: 10,
+                    border:       "none",
+                    background:   newDiaryTitle.trim()
+                      ? "linear-gradient(135deg,#8860D9,#9575CD)"
+                      : "rgba(255,255,255,0.08)",
+                    color:        "#fff",
+                    fontSize:     13,
+                    fontWeight:   600,
+                    cursor:       newDiaryTitle.trim() ? "pointer" : "not-allowed",
+                  }}
+                >
+                  {highlightLoading ? "…" : "Create"}
+                </button>
+              </div>
+            </div>
+          </div>
         </>
       )}
     </div>

@@ -655,17 +655,20 @@ class WieUserModel {
   }
 
   async deleteUnverifiedUsers(olderThanMinutes: number): Promise<number> {
-    const cutoffDate = new Date(Date.now() - olderThanMinutes * 60000);
-    const result = await prisma.wieUser.deleteMany({
-      where: {
-        isVerified: false,
-        status: "pending",
-        createdAt: {
-          lt: cutoffDate,
+    try {
+      const cutoffDate = new Date(Date.now() - olderThanMinutes * 60000);
+      const result = await prisma.wieUser.deleteMany({
+        where: {
+          isVerified: false,
+          status: "pending",
+          createdAt: { lt: cutoffDate },
         },
-      },
-    });
-    return result.count;
+      });
+      return result.count;
+    } catch {
+      // Background cleanup — silent on DB unavailability
+      return 0;
+    }
   }
 
   async incrementFollowers(userId: string) {
@@ -720,7 +723,6 @@ class WieUserModel {
     try {
       const updateData: any = { isOnline, updatedAt: new Date() };
       if (!isOnline) updateData.lastSeenAt = new Date();
-
       const user = await prisma.wieUser.update({
         where: { id },
         data: updateData,
@@ -750,45 +752,43 @@ class WieUserModel {
 
   async findStaleOnlineUsers(lastUpdateThreshold: Date): Promise<WieUser[]> {
     try {
-      const users = await this.withRetry(() =>
-        prisma.wieUser.findMany({
-          where: { isOnline: true, updatedAt: { lt: lastUpdateThreshold } },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            username: true,
-            isOnline: true,
-            lastSeenAt: true,
-            updatedAt: true,
-            contactNo: true,
-            profilePicture: true,
-            gender: true,
-            dob: true,
-            countryId: true,
-            role: true,
-            status: true,
-            bio: true,
-            location: true,
-            latitude: true,
-            longitude: true,
-            isBlocked: true,
-            isVerified: true,
-            googleId: true,
-            authProvider: true,
-            createdAt: true,
-            followingCount: true,
-            followersCount: true,
-            postsCount: true,
-            tokenVersion: true,
-            allowMessagesFrom: true,
-            allowMessageRequests: true,
-          },
-        }),
-      );
+      const users = await prisma.wieUser.findMany({
+        where: { isOnline: true, updatedAt: { lt: lastUpdateThreshold } },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          username: true,
+          isOnline: true,
+          lastSeenAt: true,
+          updatedAt: true,
+          contactNo: true,
+          profilePicture: true,
+          gender: true,
+          dob: true,
+          countryId: true,
+          role: true,
+          status: true,
+          bio: true,
+          location: true,
+          latitude: true,
+          longitude: true,
+          isBlocked: true,
+          isVerified: true,
+          googleId: true,
+          authProvider: true,
+          createdAt: true,
+          followingCount: true,
+          followersCount: true,
+          postsCount: true,
+          tokenVersion: true,
+          allowMessagesFrom: true,
+          allowMessageRequests: true,
+        },
+      });
       return users.map(toDatabaseFormat);
-    } catch (error) {
-      console.error("Error finding stale online users:", error);
+    } catch {
+      // Background task — silent on DB unavailability
       return [];
     }
   }

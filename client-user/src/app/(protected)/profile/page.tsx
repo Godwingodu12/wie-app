@@ -718,161 +718,147 @@ function ProfileContent() {
             </div>
 
             {/* ── My Diaries / Highlights row ── */}
-            <div className="w-full flex justify-center items-center mb-8 md:mb-10 relative">
-              {/* Left Arrow */}
-              <button
-                onClick={() => scrollHighlights("left")}
-                className="absolute left-0 z-10 w-8 h-8 hidden lg:flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
-              >
-                <ChevronLeft size={18} />
-              </button>
-
-              <div
-                ref={highlightsRef}
-                className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 w-full max-w-[280px] sm:max-w-lg md:max-w-4xl scrollbar-hide px-8 sm:px-4 md:px-0"
-              >
-              {/* Add diary button — always first */}
-                <div
-                  className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group flex-shrink-0"
+            <div className="w-full mb-8 md:mb-10">
+              <div className="flex items-center justify-between mb-3 px-1">
+                <span style={{ color: themeStyles.textSecondary, fontSize: 13, fontWeight: 600 }}>
+                  Highlights
+                </span>
+                <button
                   onClick={() => router.push("/profile/diary/new")}
+                  style={{ color: "#8860D9", fontSize: 12, fontWeight: 600, background: "none", border: "none", cursor: "pointer" }}
                 >
-                  <div
-                    className="flex items-center justify-center transition-all group-hover:scale-105 w-[70px] h-[100px] rounded-xl backdrop-blur-[4px]"
-                    style={{
-                      border:     "1.5px dashed rgba(255,255,255,0.3)",
-                      background: "rgba(255,255,255,0.03)",
-                    }}
-                  >
-                    <Plus size={22} style={{ color: "rgba(255,255,255,0.4)" }} />
-                  </div>
-                  <span className="text-xs" style={{ color: themeStyles.textSecondary }}>New</span>
-                </div>
-
-                {/* Diary items */}
-                {mediaLoading ? (
-                  Array(3).fill(null).map((_, i) => (
-                    <div key={i} className="flex flex-col items-center gap-2 min-w-[70px] flex-shrink-0">
-                      <div
-                        className="w-[70px] h-[100px] rounded-xl animate-pulse"
-                        style={{ background: themeStyles.pillBg }}
-                      />
-                      <div className="w-12 h-3 rounded animate-pulse" style={{ background: themeStyles.pillBg }} />
-                    </div>
-                  ))
-                ) : myDiaries.length > 0 ? (
-                  myDiaries.map((diary) => {
-                    // Determine cover: priority = coverImage → first flux mediaUrl → emoji
-                    const coverSrc = diary.coverImage
-                      || diary.fluxes?.[0]?.mediaUrl
-                      || null;
-
-                    return (
-                      <div
-                        key={diary._id}
-                        className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group flex-shrink-0"
-                        onClick={() => router.push(`/profile/diary/${diary._id}`)}
-                      >
-                        {/* Rectangular box with cover image */}
-                        <div
-                          className="relative w-[70px] h-[100px] rounded-xl overflow-hidden transition-all group-hover:scale-105"
-                          style={{
-                            border:     "1.5px solid rgba(255,255,255,0.12)",
-                            background: themeStyles.pillBg,
-                            boxShadow:  "0 4px 12px rgba(0,0,0,0.4)",
-                          }}
-                        >
-                          {/* Cover image or gradient fallback */}
-                          {coverSrc ? (
-                            <img
-                              src={coverSrc}
-                              alt={diary.title}
-                              style={{
-                                width:      "100%",
-                                height:     "100%",
-                                objectFit:  "cover",
-                                display:    "block",
-                              }}
-                            />
-                          ) : (
-                            <div style={{
-                              width:           "100%",
-                              height:          "100%",
-                              background:      "linear-gradient(135deg,#8860D9,#B3B8E2)",
-                              display:         "flex",
-                              alignItems:      "center",
-                              justifyContent:  "center",
-                              fontSize:        28,
-                            }}>
-                              📔
-                            </div>
-                          )}
-
-                          {/* Dark gradient overlay at bottom */}
-                          <div style={{
-                            position:   "absolute",
-                            bottom:     0, left: 0, right: 0,
-                            height:     "45%",
-                            background: "linear-gradient(0deg,rgba(0,0,0,0.7) 0%,transparent 100%)",
-                          }} />
-
-                          {/* Story count badge */}
-                          {(diary.fluxCount ?? 0) > 0 && (
-                            <div style={{
-                              position:        "absolute",
-                              bottom:          5,
-                              left:            "50%",
-                              transform:       "translateX(-50%)",
-                              background:      "rgba(0,0,0,0.55)",
-                              borderRadius:    8,
-                              padding:         "2px 6px",
-                              fontSize:        9,
-                              color:           "#fff",
-                              fontWeight:      700,
-                              whiteSpace:      "nowrap",
-                              letterSpacing:   "0.02em",
-                            }}>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Diary title */}
-                        <span
-                          className="text-xs text-center truncate w-full"
-                          style={{ color: themeStyles.textSecondary, maxWidth: 70 }}
-                        >
-                          {diary.title}
-                        </span>
-                      </div>
-                    );
-                  })
-                ) : (
-                  /* No diaries — clean empty state */
-                  <div
-                    className="flex flex-col items-center justify-center min-w-[70px] h-[100px] rounded-xl"
-                    style={{
-                      background: "rgba(255,255,255,0.02)",
-                      border:     "1px dashed rgba(255,255,255,0.1)",
-                      padding:    "0 12px",
-                      opacity:    0.6,
-                    }}
-                  >
-                    <span
-                      className="text-[10px] text-center mt-1"
-                      style={{ color: themeStyles.textSecondary, lineHeight: 1.3 }}
-                    >
-                      No<br />highlights
-                    </span>
-                  </div>
-                )}
+                  + New
+                </button>
               </div>
 
-              {/* Right Arrow */}
-              <button
-                onClick={() => scrollHighlights("right")}
-                className="absolute right-0 z-10 w-8 h-8 hidden lg:flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
-              >
-                <ChevronRight size={18} />
-              </button>
+              <div className="relative flex items-center">
+                <button
+                  onClick={() => scrollHighlights("left")}
+                  className="absolute left-0 z-10 w-7 h-7 hidden lg:flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+                  style={{ flexShrink: 0 }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                <div
+                  ref={highlightsRef}
+                  className="flex gap-3 overflow-x-auto pb-2 w-full scrollbar-hide px-1"
+                >
+                  {/* Add new diary button */}
+                  <div
+                    className="flex flex-col items-center gap-1.5 min-w-[70px] cursor-pointer group flex-shrink-0"
+                    onClick={() => router.push("/profile/diary/new")}
+                  >
+                    <div
+                      className="flex items-center justify-center transition-all group-hover:scale-105 w-[70px] h-[100px] rounded-xl"
+                      style={{
+                        border:     "1.5px dashed rgba(255,255,255,0.25)",
+                        background: "rgba(255,255,255,0.03)",
+                      }}
+                    >
+                      <Plus size={22} style={{ color: "rgba(255,255,255,0.4)" }} />
+                    </div>
+                    <span className="text-[11px]" style={{ color: themeStyles.textSecondary }}>New</span>
+                  </div>
+
+                  {/* Diary items */}
+                  {mediaLoading ? (
+                    Array(3).fill(null).map((_, i) => (
+                      <div key={i} className="flex flex-col items-center gap-2 min-w-[70px] flex-shrink-0">
+                        <div className="w-[70px] h-[100px] rounded-xl animate-pulse" style={{ background: themeStyles.pillBg }} />
+                        <div className="w-12 h-3 rounded animate-pulse" style={{ background: themeStyles.pillBg }} />
+                      </div>
+                    ))
+                  ) : myDiaries.length > 0 ? (
+                    myDiaries.map((diary) => {
+                      const coverSrc = (diary as any).coverImage || diary.fluxes?.[0]?.mediaUrl || null;
+                      const isCF     = (diary as any).isCloseFriends;
+                      const isPinned = (diary as any).isPinned;
+
+                      return (
+                        <div
+                          key={diary._id}
+                          className="flex flex-col items-center gap-1.5 min-w-[70px] cursor-pointer group flex-shrink-0"
+                          onClick={() => router.push(`/profile/diary/${diary._id}`)}
+                        >
+                          <div
+                            className="relative w-[70px] h-[100px] rounded-xl overflow-hidden transition-all group-hover:scale-105"
+                            style={{
+                              border:     isCF
+                                ? "2px solid #22c55e"
+                                : "1.5px solid rgba(255,255,255,0.1)",
+                              background: themeStyles.pillBg,
+                              boxShadow:  "0 4px 12px rgba(0,0,0,0.4)",
+                            }}
+                          >
+                            {coverSrc ? (
+                              <img src={coverSrc} alt={diary.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            ) : (
+                              <div style={{
+                                width: "100%", height: "100%",
+                                background: "linear-gradient(135deg,#8860D9,#B3B8E2)",
+                                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28,
+                              }}>📔</div>
+                            )}
+                            {/* Gradient overlay */}
+                            <div style={{
+                              position: "absolute", bottom: 0, left: 0, right: 0, height: "40%",
+                              background: "linear-gradient(0deg,rgba(0,0,0,0.7) 0%,transparent 100%)",
+                            }} />
+                            {/* CF badge */}
+                            {isCF && (
+                              <div style={{
+                                position: "absolute", top: 4, right: 4,
+                                width: 14, height: 14, borderRadius: "50%",
+                                background: "#22c55e",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: 8, color: "#fff",
+                              }}>⭐</div>
+                            )}
+                            {/* Pin badge */}
+                            {isPinned && (
+                              <div style={{
+                                position: "absolute", top: 4, left: 4,
+                                width: 14, height: 14, borderRadius: "50%",
+                                background: "rgba(136,96,217,0.9)",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: 8,
+                              }}>📌</div>
+                            )}
+                            {/* Story count */}
+                            {((diary as any).fluxCount ?? diary.fluxes?.length ?? 0) > 0 && (
+                              <div style={{
+                                position: "absolute", bottom: 4, left: "50%",
+                                transform: "translateX(-50%)",
+                                background: "rgba(0,0,0,0.6)",
+                                borderRadius: 6, padding: "1px 5px",
+                                fontSize: 9, color: "#fff", fontWeight: 700, whiteSpace: "nowrap",
+                              }}>
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-center truncate" style={{ color: themeStyles.textSecondary, maxWidth: 70 }}>
+                            {diary.title}
+                          </span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="flex items-center justify-center py-4 px-6 opacity-40 min-w-[120px]">
+                      <span className="text-xs text-center" style={{ color: themeStyles.textSecondary }}>
+                        No highlights yet
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => scrollHighlights("right")}
+                  className="absolute right-0 z-10 w-7 h-7 hidden lg:flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
             {/* Profile Tabs - Posts, Reels, Feed, Tags */}
             {displayUser.id && (

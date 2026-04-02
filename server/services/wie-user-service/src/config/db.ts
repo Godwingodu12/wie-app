@@ -11,9 +11,7 @@ class Database {
     try {
       const connectionString =
         process.env.DIRECT_URL || process.env.DATABASE_URL!;
-
       const cleanUrl = connectionString.split("?")[0];
-
       this.pool = new Pool({
         connectionString: cleanUrl,
         ssl: { rejectUnauthorized: false },

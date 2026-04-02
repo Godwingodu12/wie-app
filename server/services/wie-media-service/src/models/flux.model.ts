@@ -88,7 +88,7 @@ export interface IFlux extends Document {
   status: "active" | "expired" | "archived" | "deleted";
   isArchived: boolean;
   isDeleted: boolean;
-
+  commentsDisabled: boolean;
   createdAt: Date;
   updatedAt: Date;
 
@@ -231,6 +231,7 @@ const FluxSchema = new Schema<IFlux>(
     },
     isArchived: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
+    commentsDisabled: { type: Boolean, default: false },
   },
   {
     timestamps: true,
