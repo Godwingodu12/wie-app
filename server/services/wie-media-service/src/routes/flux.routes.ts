@@ -45,6 +45,8 @@ router.post(
   "/:fluxId/comments/:commentId/like",
   fluxController.likeFluxComment,
 );
+router.post("/:fluxId/archive", fluxController.archiveFlux);
+router.patch("/:fluxId/comments/toggle", fluxController.toggleFluxComments);
 router.post("/:fluxId/reply", fluxController.replyFlux);
 // Share
 router.post("/:fluxId/share", fluxController.shareFlux);
