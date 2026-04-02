@@ -17,6 +17,7 @@ export interface IDiaryFlux {
   locationStickerX?:    number;
   locationStickerY?:    number;
   locationStickerTheme?: number;
+  isCloseFriends?: boolean;
 }
 export interface IDiary extends Document {
   userId: string;
@@ -25,6 +26,8 @@ export interface IDiary extends Document {
   coverCloudinaryPublicId?: string;
   fluxes: IDiaryFlux[];
   visibility: 'public' | 'followers' | 'close_friends' | 'only_me';
+  isCloseFriends: boolean;  
+  isPinned: boolean;
   isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -48,6 +51,7 @@ const DiaryFluxSchema = new Schema<IDiaryFlux>(
     locationStickerX:     { type: Number },
     locationStickerY:     { type: Number },
     locationStickerTheme: { type: Number },
+    isCloseFriends:       { type: Boolean, default: false },
   },
   { _id: false }
 );
@@ -65,6 +69,8 @@ const DiarySchema = new Schema<IDiary>(
       default: 'followers',
     },
     isDeleted: { type: Boolean, default: false },
+    isCloseFriends: { type: Boolean, default: false },
+    isPinned:       { type: Boolean, default: false },
   },
   {
     timestamps: true,
