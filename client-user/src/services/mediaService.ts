@@ -220,10 +220,10 @@ export interface CreateFluxOptions {
 }
 
 export interface CreateDiaryOptions {
-  title: string;
+  title:       string;
   visibility?: FluxVisibility;
-  coverFile?: File;
-  fluxIds?: string[];
+  coverFile?:  File;           
+  fluxIds?:    string[];
 }
 
 export interface EditDiaryOptions {
@@ -364,6 +364,65 @@ export const getArchivedFluxes = async (): Promise<Flux[]> => {
   const res = await mediaApi.get<ApiResponse<Flux[]>>("/flux/archive");
   return res.data.data;
 };
+
+/**
+ * POST /flux/:fluxId/archive — toggle archive on a flux (owner only).
+ */
+export const archiveFlux = async (
+  fluxId: string,
+): Promise<{ isArchived: boolean; message: string }> => {
+  const res = await mediaApi.post(`/flux/${fluxId}/archive`);
+  return res.data;
+};
+
+/**
+ * PATCH /flux/:fluxId/comments/toggle — owner toggles comments on/off.
+ */
+export const toggleFluxComments = async (
+  fluxId: string,
+): Promise<{ commentsDisabled: boolean; message: string }> => {
+  const res = await mediaApi.patch(`/flux/${fluxId}/comments/toggle`);
+  return res.data;
+};
+
+/**
+ * POST /diary/highlight — add flux to a diary or auto-create one.
+ * Returns action: 'added' | 'created' | 'pick' (user needs to choose diary)
+ */
+export const highlightFlux = async (
+  fluxId: string,
+  diaryId?: string,
+  newDiaryTitle?: string,
+): Promise<{
+  success: boolean;
+  action: "added" | "created" | "pick";
+  data?: Diary;
+  diaries?: Diary[];
+}> => {
+  const res = await mediaApi.post("/diary/highlight", {
+    fluxId,
+    diaryId,
+    newDiaryTitle,
+  });
+  return res.data;
+};
+
+/**
+ * Save a flux image to device by downloading it.
+ */
+export const saveFluxToDevice = async (mediaUrl: string): Promise<void> => {
+  const response = await fetch(mediaUrl);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `flux-${Date.now()}.${blob.type.includes("video") ? "mp4" : "jpg"}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
 export const getFluxById = async (
   fluxId: string,
 ): Promise<{
@@ -528,27 +587,23 @@ export const getFluxViewList = async (
 // ─────────────────────────────────────────────────────────────────────────────
 // Diary
 // ─────────────────────────────────────────────────────────────────────────────
-
 export const createDiary = async (
   options: CreateDiaryOptions,
 ): Promise<Diary> => {
   const formData = new FormData();
   formData.append("title", options.title);
   if (options.visibility) formData.append("visibility", options.visibility);
-  if (options.coverFile) formData.append("cover", options.coverFile);
+  if (options.coverFile)  formData.append("cover",      options.coverFile);
   if (options.fluxIds?.length)
     formData.append("fluxIds", JSON.stringify(options.fluxIds));
-
+ 
   const res = await mediaApi.post<ApiResponse<Diary>>(
     "/diary/create",
     formData,
-    {
-      headers: { "Content-Type": "multipart/form-data" },
-    },
+    { headers: { "Content-Type": "multipart/form-data" } },
   );
   return res.data.data;
 };
-
 export const getUserDiaries = async (userId: string): Promise<Diary[]> => {
   const res = await mediaApi.get<ApiResponse<Diary[]>>(`/diary/user/${userId}`);
   return res.data.data;
@@ -600,7 +655,29 @@ export const removeFluxFromDiary = async (
 export const deleteDiary = async (diaryId: string): Promise<void> => {
   await mediaApi.delete(`/diary/${diaryId}`);
 };
+/**
+ * PATCH /diary/:diaryId/reorder — reorder fluxes inside a diary
+ */
+export const reorderDiaryFluxes = async (
+  diaryId: string,
+  orderedFluxIds: string[],
+): Promise<Diary> => {
+  const res = await mediaApi.patch<ApiResponse<Diary>>(
+    `/diary/${diaryId}/reorder`,
+    { orderedFluxIds },
+  );
+  return res.data.data;
+};
 
+/**
+ * PATCH /diary/:diaryId/pin — toggle pin a diary on profile
+ */
+export const togglePinDiary = async (
+  diaryId: string,
+): Promise<{ isPinned: boolean; data: Diary }> => {
+  const res = await mediaApi.patch(`/diary/${diaryId}/pin`);
+  return res.data;
+};
 // ─────────────────────────────────────────────────────────────────────────────
 // Music (iTunes)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -803,5 +880,53 @@ export const getFluxLikes = async (
 }> => {
   const res = await mediaApi.get(`/flux/${fluxId}/likes`);
   return res.data;
+};
+
+// Story / Flux Settings 
+export interface StorySettings {
+  audience:            "public" | "followers" | "close_friends" | "only_me";
+  hideFrom:            string[];
+  allowReplies:        "everyone" | "followers_back" | "off";
+  allowReactions:      boolean;
+  allowMessageReplies: boolean;
+  allowShareToStory:   boolean;
+  allowShareAsMessage: boolean;
+  allowExternalShare:  boolean;
+  saveToDevice:        boolean;
+  saveToArchive:       boolean;
+  autosaveDrafts:      boolean;
+  duration:            24 | 48 | "custom";
+  showAnalytics:       boolean;
+  restrictScreenshots: boolean;
+}
+
+/**
+ * GET /flux/settings — fetch the current user's flux / story settings.
+ */
+export const getStorySettings = async (): Promise<StorySettings> => {
+  const res = await mediaApi.get<{ success: boolean; data: StorySettings }>("/flux/settings");
+  return res.data.data;
+};
+
+/**
+ * PATCH /flux/settings — persist updated flux / story settings.
+ */
+export const updateStorySettings = async (
+  settings: Partial<StorySettings>,
+): Promise<StorySettings> => {
+  const res = await mediaApi.patch<{ success: boolean; data: StorySettings }>(
+    "/flux/settings",
+    settings,
+  );
+  return res.data.data;
+};
+
+/**
+ * PATCH /flux/settings/hide-from — update the "hide story from" user list.
+ */
+export const updateHideFromList = async (
+  userIds: string[],
+): Promise<void> => {
+  await mediaApi.patch("/flux/settings/hide-from", { userIds });
 };
 export default mediaApi;
