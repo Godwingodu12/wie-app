@@ -151,25 +151,42 @@ export default function HomePage() {
         }
       };
       const fetchFluxes = async () => {
-        try {
-          const [mine, feed] = await Promise.all([
-            getMyFluxes(),
-            getFluxFeed(),
-          ]);
-          setMyFluxes(mine);
-          setFeedGroups(
-            feed.filter((g) => !g.isSelf && g.fluxes.length > 0)
-          );
-        } catch (e) {
-          console.error("Error fetching fluxes:", e);
-        } finally {
-          setFluxLoading(false);
-        }
-      };
+      try {
+        const [mine, feed] = await Promise.all([
+          getMyFluxes(),
+          getFluxFeed(),
+        ]);
+        setMyFluxes(mine);
 
-      fetchProfile();
-      fetchFluxes();
-    }, []);
+        const activeFeed = feed.filter((g) => !g.isSelf && g.fluxes.length > 0);
+        setFeedGroups(activeFeed);
+        const activeIds = new Set<string>([
+          ...mine.map((f: any) => f._id),
+          ...feed.flatMap((g: any) => g.fluxes.map((f: any) => f._id)),
+        ]);
+        setViewedFluxIds((prev) => {
+          // Only keep viewed IDs that are still active (prune expired ones)
+          const pruned = new Set<string>(
+            [...prev].filter((id) => activeIds.has(id)),
+          );
+          try {
+            localStorage.setItem(
+              "viewedFluxIds",
+              JSON.stringify(Array.from(pruned)),
+            );
+          } catch {}
+          return pruned;
+        });
+      } catch (e) {
+        console.error("Error fetching fluxes:", e);
+      } finally {
+        setFluxLoading(false);
+      }
+    };
+
+    fetchProfile();
+    fetchFluxes();
+  }, []);
 
   const toggleDescription = (postId: string) => {
     setExpandedPosts((prev) => {
