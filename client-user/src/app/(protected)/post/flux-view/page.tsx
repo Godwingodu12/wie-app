@@ -23,7 +23,7 @@ import MoreIconImg  from "@/assets/post/moreIcon.png";
 import {
   getMyFluxes,getUserFluxes,deleteFlux,getFluxViewers,recordFluxView,getFluxMentions,getReMentions,reMentionFlux,
   getFluxPermissions,removeMentionSelf,getFluxById,toggleFluxLike,getFluxLikes,shareFluxAsMessage,replyFluxAsMessage,
-  archiveFlux, toggleFluxComments, highlightFlux, saveFluxToDevice, getUserDiaries,
+  archiveFlux, toggleFluxComments, highlightFlux, saveFluxToDevice, getUserDiaries,toggleFluxPersistent,
   type Flux, type Diary,
 } from "@/services/mediaService";
 import {getUserById} from "@/services/wieUserService";
@@ -386,6 +386,8 @@ export default function FluxViewPage() {
   const [newDiaryTitle,    setNewDiaryTitle]    = useState("");
   const [savingToDevice,   setSavingToDevice]   = useState(false);
   const [toastMsg,         setToastMsg]         = useState<string | null>(null);
+  const [isPersistent,    setIsPersistent]    = useState(false);
+  const [diaryPreview,    setDiaryPreview]    = useState<{ id: string; coverImage: string | null; title: string } | null>(null);
   const anyModal = showShare || showMention || showViewers || showMore || showComments;
   const STORY_DURATION = ((current as any)?.duration ?? 15) * 1_000;
   // ── Helper: extract owner id string from any flux shape ──
@@ -726,6 +728,8 @@ const goPrev = useCallback(() => {
     setIsOwner(ownerFlag);
     setCommentsDisabled((current as any)?.commentsDisabled ?? false);
     setIsArchived((current as any)?.isArchived ?? false);
+    setIsPersistent((current as any)?.isPersistent ?? false);
+    setDiaryPreview(null);
     if (ownerFlag) {
       // Viewing own flux — use logged-in user's own profile
       setFluxOwnerProfile({
@@ -823,6 +827,16 @@ const goPrev = useCallback(() => {
       showToast("Failed to toggle comments");
     }
   };
+  const handleTogglePersistent = async () => {
+    if (!current) return;
+    try {
+      const res = await toggleFluxPersistent(current._id);
+      setIsPersistent(res.isPersistent);
+      showToast(res.message);
+    } catch (e: any) {
+      showToast(e?.response?.data?.message ?? "Failed to toggle persistence");
+    }
+  };
 
   const handleSaveToDevice = async () => {
     if (!current?.mediaUrl) return;
@@ -845,10 +859,16 @@ const goPrev = useCallback(() => {
         setUserDiaries(res.diaries ?? []);
         setShowHighlight(true);
       } else {
-        setHighlightDone(true);
         setShowHighlight(false);
-        showToast(res.action === "created" ? "Diary created!" : "Added to diary!");
-        setTimeout(() => setHighlightDone(false), 2000);
+        // Show diary cover preview near the like button
+        if (res.data) {
+          setDiaryPreview({
+            id:         res.data._id,
+            coverImage: (res.data as any).coverImage ?? null,
+            title:      (res.data as any).title ?? "Diary",
+          });
+        }
+        showToast(res.action === "created" ? "Diary created! ✓" : "Added to diary! ✓");
       }
     } catch {
       showToast("Failed to add to diary");
@@ -1424,6 +1444,29 @@ return (
           )}
         </div>
         {/* ── Bottom bar ── */}
+
+        {/* ── Persistent badge ── */}
+        {isPersistent && (
+          <div style={{
+            width:          360,
+            display:        "flex",
+            alignItems:     "center",
+            gap:            6,
+            padding:        "2px 4px",
+          }}>
+            <span style={{
+              fontSize:     10,
+              color:        "rgba(255,255,255,0.5)",
+              background:   "rgba(136,96,217,0.15)",
+              border:       "1px solid rgba(136,96,217,0.3)",
+              borderRadius: 10,
+              padding:      "2px 8px",
+              fontWeight:   600,
+            }}>
+              ♾ Persistent story
+            </span>
+          </div>
+        )}
         <div style={{
           width:          360,
           display:        "flex",
@@ -1513,6 +1556,46 @@ return (
           )}
           {/* Right: action buttons — Like | Comment | Share | Mention | More */}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {/* 📔 Diary preview — shown after adding to diary */}
+            {diaryPreview && (
+              <button
+                onClick={() => {
+                  const path = isOwner
+                    ? `/profile/diary/${diaryPreview.id}`
+                    : `/profile/diary/view/${diaryPreview.id}`;
+                  router.push(path);
+                }}
+                style={{
+                  width:        28,
+                  height:       28,
+                  borderRadius: 6,
+                  overflow:     "hidden",
+                  border:       "1.5px solid rgba(136,96,217,0.6)",
+                  background:   "linear-gradient(135deg,#2a2a35,#3d3950)",
+                  cursor:       "pointer",
+                  flexShrink:   0,
+                  position:     "relative",
+                }}
+                title={`View diary: ${diaryPreview.title}`}
+              >
+                {diaryPreview.coverImage ? (
+                  <img
+                    src={diaryPreview.coverImage}
+                    alt="diary"
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                ) : (
+                  <div style={{
+                    width: "100%", height: "100%",
+                    background: "linear-gradient(135deg,#8860D9,#B3B8E2)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 12,
+                  }}>
+                    📔
+                  </div>
+                )}
+              </button>
+            )}
             {/* ❤️ Like — hidden for owner */}
             {!isOwner && (
               <button
@@ -1534,6 +1617,7 @@ return (
             )}
 
             {/* 💬 Comment */}
+            {(!commentsDisabled || isOwner) && (
             <button
               onClick={() => {
                 setShowComments((v) => !v);
@@ -1548,12 +1632,18 @@ return (
                 border: `1px solid ${showComments ? "rgba(136,96,217,0.5)" : "rgba(255,255,255,0.1)"}`,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 cursor: "pointer", transition: "background 0.15s",
+                position: "relative",
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
               </svg>
+              {/* Off indicator for owner */}
+              {commentsDisabled && isOwner && (
+                <div style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "1.5px solid #0A0A0C" }} />
+              )}
             </button>
+            )}
 
             {/* ↗ Share */}
             <button
@@ -1618,6 +1708,7 @@ return (
             </button>
           </div>
         </div>
+
       </div>{/* end center column */}
 
       {/* ── Right arrow ── */}
@@ -1669,11 +1760,13 @@ return (
           onSettings={() => { setShowMore(false); router.push("/settings/post"); }}
           onComments={() => {}}
           onToggleComments={() => { handleToggleComments(); setShowMore(false); }}
+          onTogglePersistent={() => { handleTogglePersistent(); setShowMore(false); }}
           onRemoveMention={() => { handleRemoveMention(); setShowMore(false); }}
           isOwner={isOwner}
           isMentioned={isMentioned}
           commentsDisabled={commentsDisabled}
           isArchived={isArchived}
+          isPersistent={isPersistent}
         />
       )}
       {/* ── ShareBar / MentionBar  — right side panel ── */}
