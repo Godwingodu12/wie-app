@@ -220,10 +220,10 @@ export interface CreateFluxOptions {
 }
 
 export interface CreateDiaryOptions {
-  title:       string;
+  title: string;
   visibility?: FluxVisibility;
-  coverFile?:  File;           
-  fluxIds?:    string[];
+  coverFile?: File;
+  fluxIds?: string[];
 }
 
 export interface EditDiaryOptions {
@@ -364,7 +364,15 @@ export const getArchivedFluxes = async (): Promise<Flux[]> => {
   const res = await mediaApi.get<ApiResponse<Flux[]>>("/flux/archive");
   return res.data.data;
 };
-
+/**
+ * PATCH /flux/:fluxId/persistent — toggle no-expiry "pinned story"
+ */
+export const toggleFluxPersistent = async (
+  fluxId: string,
+): Promise<{ isPersistent: boolean; message: string }> => {
+  const res = await mediaApi.patch(`/flux/${fluxId}/persistent`);
+  return res.data;
+};
 /**
  * POST /flux/:fluxId/archive — toggle archive on a flux (owner only).
  */
@@ -593,10 +601,10 @@ export const createDiary = async (
   const formData = new FormData();
   formData.append("title", options.title);
   if (options.visibility) formData.append("visibility", options.visibility);
-  if (options.coverFile)  formData.append("cover",      options.coverFile);
+  if (options.coverFile) formData.append("cover", options.coverFile);
   if (options.fluxIds?.length)
     formData.append("fluxIds", JSON.stringify(options.fluxIds));
- 
+
   const res = await mediaApi.post<ApiResponse<Diary>>(
     "/diary/create",
     formData,
@@ -882,21 +890,21 @@ export const getFluxLikes = async (
   return res.data;
 };
 
-// Story / Flux Settings 
+// Story / Flux Settings
 export interface StorySettings {
-  audience:            "public" | "followers" | "close_friends" | "only_me";
-  hideFrom:            string[];
-  allowReplies:        "everyone" | "followers_back" | "off";
-  allowReactions:      boolean;
+  audience: "public" | "followers" | "close_friends" | "only_me";
+  hideFrom: string[];
+  allowReplies: "everyone" | "followers_back" | "off";
+  allowReactions: boolean;
   allowMessageReplies: boolean;
-  allowShareToStory:   boolean;
+  allowShareToStory: boolean;
   allowShareAsMessage: boolean;
-  allowExternalShare:  boolean;
-  saveToDevice:        boolean;
-  saveToArchive:       boolean;
-  autosaveDrafts:      boolean;
-  duration:            24 | 48 | "custom";
-  showAnalytics:       boolean;
+  allowExternalShare: boolean;
+  saveToDevice: boolean;
+  saveToArchive: boolean;
+  autosaveDrafts: boolean;
+  duration: 24 | 48 | "custom";
+  showAnalytics: boolean;
   restrictScreenshots: boolean;
 }
 
@@ -904,7 +912,9 @@ export interface StorySettings {
  * GET /flux/settings — fetch the current user's flux / story settings.
  */
 export const getStorySettings = async (): Promise<StorySettings> => {
-  const res = await mediaApi.get<{ success: boolean; data: StorySettings }>("/flux/settings");
+  const res = await mediaApi.get<{ success: boolean; data: StorySettings }>(
+    "/flux/settings",
+  );
   return res.data.data;
 };
 
@@ -924,9 +934,7 @@ export const updateStorySettings = async (
 /**
  * PATCH /flux/settings/hide-from — update the "hide story from" user list.
  */
-export const updateHideFromList = async (
-  userIds: string[],
-): Promise<void> => {
+export const updateHideFromList = async (userIds: string[]): Promise<void> => {
   await mediaApi.patch("/flux/settings/hide-from", { userIds });
 };
 export default mediaApi;
