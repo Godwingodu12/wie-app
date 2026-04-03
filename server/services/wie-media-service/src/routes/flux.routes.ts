@@ -13,6 +13,7 @@ router.get("/feed", fluxController.getFluxFeed);
 router.get("/mine", fluxController.getMyFluxes);
 router.get("/all-mine", fluxController.getAllMyFluxes);
 router.get("/archive", fluxController.getArchivedFluxes);
+router.patch("/:fluxId/persistent", fluxController.toggleFluxPersistent);
 // Stickers (must be before /:fluxId)
 router.get("/stickers/trending", fluxController.getTrendingStickers);
 router.get("/stickers/search", fluxController.searchStickers);
