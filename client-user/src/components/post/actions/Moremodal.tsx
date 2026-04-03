@@ -2,6 +2,7 @@
 import React from "react";
 import { X } from "lucide-react";
 
+// FIND the interface and REPLACE:
 interface MoreModalProps {
   onClose:              () => void;
   onDelete:             () => void;
@@ -14,57 +15,72 @@ interface MoreModalProps {
   onComments:           () => void;
   onRemoveMention?:     () => void;
   onToggleComments?:    () => void;
+  onTogglePersistent?:  () => void;  
   isOwner:              boolean;
   isMentioned:          boolean;
   commentsDisabled?:    boolean;
   isArchived?:          boolean;
+  isPersistent?:        boolean;     
 }
 
 export default function MoreModal({
   onClose, onDelete, onArchive, onSave, onHighlight,
   onCopyLink, onShare, onSettings, onComments,
-  onRemoveMention, onToggleComments,
+  onRemoveMention, onToggleComments, onTogglePersistent,
   isOwner, isMentioned,
   commentsDisabled = false,
   isArchived = false,
+  isPersistent = false,
 }: MoreModalProps) {
 
   const ITEMS: { key: string; label: string; danger?: boolean; sub?: string }[] = [
     ...(isOwner ? [
-      { key: "delete",          label: "Delete story",                    danger: true  },
-      { key: "archive",         label: isArchived ? "Unarchive" : "Archive story"       },
-      { key: "save",            label: "Save to device",
-        sub: "Download this flux to your device"                                         },
-      { key: "highlight",       label: "Add to diary",
-        sub: "Save this flux to a diary highlight"                                       },
-      { key: "toggleComments",  label: commentsDisabled
-          ? "Turn on commenting"
-          : "Turn off commenting",
+      { key: "delete",
+        label: "Delete story",
+        danger: true },
+      { key: "archive",
+        label: isArchived ? "Unarchive story" : "Archive story",
+        sub: isArchived ? "Make visible again" : "Move to archive, hide from feed" },
+      { key: "persistent",
+        label: isPersistent ? "Remove persistence ♾" : "Make persistent ♾",
+        sub: isPersistent
+          ? "Story will expire normally after 24h"
+          : "Story stays visible until you delete it (max 5)" },
+      { key: "save",
+        label: "Save to device",
+        sub: "Download this flux to your device" },
+      { key: "highlight",
+        label: "Add to diary",
+        sub: "Save this flux to a diary highlight" },
+      { key: "toggleComments",
+        label: commentsDisabled ? "Turn on commenting" : "Turn off commenting",
         sub: commentsDisabled
           ? "Allow people to comment on this flux"
-          : "No one can comment on this flux"                                            },
-      { key: "settings",        label: "Go to flux settings"                            },
+          : "No one can comment on this flux" },
+      { key: "settings",
+        label: "Go to flux settings" },
     ] : []),
 
     ...(isMentioned && !isOwner ? [
-      { key: "removeMention",   label: "Remove from my stories",          danger: true  },
+      { key: "removeMention", label: "Remove from my stories", danger: true },
     ] : []),
 
-    { key: "link",              label: "Copy link"                                      },
-    { key: "share",             label: "Share"                                          },
+    { key: "link",  label: "Copy link" },
+    { key: "share", label: "Share" },
   ];
 
   const handlers: Record<string, () => void> = {
-    delete:         onDelete,
-    archive:        onArchive,
-    save:           onSave,
-    highlight:      onHighlight,
-    toggleComments: onToggleComments ?? (() => {}),
-    settings:       onSettings,
-    removeMention:  onRemoveMention ?? (() => {}),
-    link:           onCopyLink,
-    share:          onShare,
-    comments:       onComments,
+      delete:           onDelete,
+      archive:          onArchive,
+      persistent:       onTogglePersistent ?? (() => {}),
+      save:             onSave,
+      highlight:        onHighlight,
+      toggleComments:   onToggleComments ?? (() => {}),
+      settings:         onSettings,
+      removeMention:    onRemoveMention ?? (() => {}),
+      link:             onCopyLink,
+      share:            onShare,
+      comments:         onComments,
   };
 
   return (

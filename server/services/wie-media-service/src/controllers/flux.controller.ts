@@ -18,6 +18,7 @@ import {
 } from "../utils/notificationHelper";
 import * as chatClient from "../grpc/clients/chatClient";
 const FEED_CACHE_KEY = (viewerId: string) => `flux:feed:${viewerId}`;
+const USER_FLUXES_KEY = (userId: string) => `flux:user:${userId}`;
 
 export const createFlux = async (
   req: AuthRequest,
@@ -26,14 +27,23 @@ export const createFlux = async (
   try {
     const callerId = req.userId!.toString();
 
-    // Create the flux first (existing service call)
     const flux = await fluxService.createFlux(
       callerId,
       req.file ?? null,
       req.body,
     );
 
-    // ── Process pre-creation mentions (if any were sent with the flux) ──
+    const createdAt = new Date(flux.createdAt);
+    const expiresAt = new Date(flux.expiresAt);
+    const diffHours =
+      (expiresAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+    if (diffHours < 23.9) {
+      console.warn(
+        `[createFlux] ⚠️  expiresAt is less than 24h from createdAt! ` +
+          `diffHours=${diffHours}. Check server clock and schema defaults.`,
+      );
+    }
+    await fluxService.invalidateFollowerFeedCaches(callerId).catch(() => {});
     let mentionedUserIds: string[] = [];
     try {
       const raw = req.body.mentions;
@@ -41,9 +51,7 @@ export const createFlux = async (
         mentionedUserIds = typeof raw === "string" ? JSON.parse(raw) : raw;
       }
     } catch {}
-
     if (mentionedUserIds.length > 0) {
-      // Run mention processing async — don't block the response
       processMentionsAfterCreate(
         flux._id.toString(),
         callerId,
@@ -52,7 +60,6 @@ export const createFlux = async (
         console.error("❌ processMentionsAfterCreate failed:", err),
       );
     }
-
     res.status(201).json({ success: true, data: flux });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -441,13 +448,35 @@ export const getArchivedFluxes = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const fluxes = await fluxService.getArchivedFluxes(req.userId!);
-    res.json({ success: true, data: fluxes });
+    const [expired, active] = await Promise.all([
+      // Expired: normally archived (24h stories that have passed)
+      FluxModel.find({
+        userId: req.userId,
+        isArchived: true,
+        isPersistent: { $ne: true },
+        isDeleted: false,
+      })
+        .sort({ createdAt: -1 })
+        .exec(),
+
+      // Active: persistent no-expiry stories still live
+      FluxModel.find({
+        userId: req.userId,
+        isPersistent: true,
+        isDeleted: false,
+        isArchived: false,
+      })
+        .sort({ createdAt: -1 })
+        .exec(),
+    ]);
+    res.status(200).json({ success: true, data: { expired, active } });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 // ── POST /api/flux/:fluxId/archive
+// REPLACE archiveFlux entirely:
 export const archiveFlux = async (
   req: AuthRequest,
   res: Response,
@@ -465,15 +494,103 @@ export const archiveFlux = async (
         .json({ success: false, message: "Flux not found or not yours" });
       return;
     }
+
+    // Persistent (no-expiry) fluxes cannot be auto-archived — user must delete them
+    if ((flux as any).isPersistent && !flux.isArchived) {
+      res.status(400).json({
+        success: false,
+        message:
+          "Persistent stories cannot be archived — delete or remove persistence first",
+      });
+      return;
+    }
+
     flux.isArchived = !flux.isArchived;
     flux.status = flux.isArchived ? "archived" : "active";
+
+    // If unarchiving a persistent flux, restore it as active with no expiry
+    if (!flux.isArchived && (flux as any).isPersistent) {
+      flux.expiresAt = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000); // 100 years
+    }
+
     await flux.save();
     await redisClient.del(`flux:user:${req.userId}`).catch(() => {});
     await redisClient.del(`flux:feed:${req.userId}`).catch(() => {});
+
     res.json({
       success: true,
       isArchived: flux.isArchived,
       message: flux.isArchived ? "Flux archived" : "Flux unarchived",
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── PATCH /api/flux/:fluxId/persistent — toggle no-expiry (pinned story)
+export const toggleFluxPersistent = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { fluxId } = req.params;
+    const flux = await FluxModel.findOne({
+      _id: fluxId,
+      userId: req.userId,
+      isDeleted: false,
+    });
+    if (!flux) {
+      res
+        .status(404)
+        .json({ success: false, message: "Flux not found or not yours" });
+      return;
+    }
+
+    // Count existing persistent fluxes (soft limit: 5)
+    if (!(flux as any).isPersistent) {
+      const persistentCount = await FluxModel.countDocuments({
+        userId: req.userId,
+        isPersistent: true,
+        isDeleted: false,
+      });
+      if (persistentCount >= 5) {
+        res.status(400).json({
+          success: false,
+          message:
+            "You can have at most 5 persistent stories. Remove persistence from another first.",
+        });
+        return;
+      }
+    }
+
+    (flux as any).isPersistent = !(flux as any).isPersistent;
+
+    if ((flux as any).isPersistent) {
+      // Set expiry far in the future so feed query ($gt: new Date()) still works
+      flux.expiresAt = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000);
+      flux.isArchived = false;
+      flux.status = "active";
+    } else {
+      // Restore normal 24h expiry from original createdAt
+      flux.expiresAt = new Date(flux.createdAt.getTime() + 24 * 60 * 60 * 1000);
+      // If that's already past, archive it now
+      if (flux.expiresAt < new Date()) {
+        flux.isArchived = true;
+        flux.status = "archived";
+      }
+    }
+
+    await flux.save();
+    await redisClient.del(`flux:user:${req.userId}`).catch(() => {});
+    await redisClient.del(`flux:feed:${req.userId}`).catch(() => {});
+
+    res.json({
+      success: true,
+      isPersistent: (flux as any).isPersistent,
+      expiresAt: flux.expiresAt,
+      message: (flux as any).isPersistent
+        ? "Story is now persistent (no expiry)"
+        : "Story reverted to normal 24h expiry",
     });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -523,19 +640,27 @@ export const getMyFluxes = async (
   res: Response,
 ): Promise<void> => {
   try {
-    // Mark any newly-expired fluxes before fetching
-    await FluxModel.updateMany(
+    const userId = req.userId!.toString();
+
+    // Mark newly-expired fluxes before fetching
+    const expiredResult = await FluxModel.updateMany(
       {
-        userId: req.userId,
+        userId,
         expiresAt: { $lt: new Date() },
         isDeleted: false,
         status: "active",
       },
       { $set: { status: "expired", isArchived: true } },
-    ).catch(() => {});
+    ).catch(() => ({ modifiedCount: 0 }));
+
+    // ── FIX: if any fluxes just expired, bust the owner's own feed cache ──
+    if (expiredResult.modifiedCount > 0) {
+      await redisClient.del(FEED_CACHE_KEY(userId)).catch(() => {});
+      await redisClient.del(USER_FLUXES_KEY(userId)).catch(() => {});
+    }
 
     const fluxes = await FluxModel.find({
-      userId: req.userId,
+      userId,
       expiresAt: { $gt: new Date() },
       isDeleted: false,
       status: "active",
@@ -1818,12 +1943,10 @@ export const addFluxComment = async (
       return;
     }
     if ((flux as any).commentsDisabled) {
-      res
-        .status(403)
-        .json({
-          success: false,
-          message: "Comments are disabled for this flux",
-        });
+      res.status(403).json({
+        success: false,
+        message: "Comments are disabled for this flux",
+      });
       return;
     }
     const comment = {

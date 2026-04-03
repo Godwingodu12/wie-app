@@ -9,6 +9,26 @@ const FEED_CACHE_TTL = 300; // 5 min
 const FEED_CACHE_KEY = (userId: string) => `flux:feed:${userId}`;
 const USER_FLUXES_KEY = (userId: string) => `flux:user:${userId}`;
 
+export const invalidateFollowerFeedCaches = async (
+  ownerId: string,
+): Promise<void> => {
+  try {
+    // Get everyone who follows this owner (their feed must refresh)
+    const { followerIds } = await followClient
+      .getFollowerIds(ownerId)
+      .catch(() => ({ followerIds: [] as string[] }));
+    // Also invalidate the owner's own feed cache
+    const allAffected = [...new Set([...followerIds, ownerId])];
+    await Promise.all(
+      allAffected.map((id) =>
+        redisClient.del(FEED_CACHE_KEY(id)).catch(() => {}),
+      ),
+    );
+  } catch {
+    // Non-fatal — cache will expire on its own after FEED_CACHE_TTL
+  }
+};
+
 export const canViewFlux = async (
   viewerId: string,
   ownerId: string,
@@ -89,7 +109,7 @@ export const createFlux = async (
     mediaUrl?: string; // pre-existing URL (re-mention flow)
   },
 ): Promise<IFlux> => {
-  // ── Determine media source ─────────────────────────────────────────────
+  // ── Determine media source
   let mediaUrl: string | undefined;
   let mediaType: "image" | "video" = "image";
   let cloudinaryPublicId = "text_flux";
@@ -135,6 +155,9 @@ export const createFlux = async (
     throw new Error("Flux must have media or text content");
   }
 
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + TWENTY_FOUR_HOURS_MS);
   const flux = await FluxModel.create({
     userId,
     mediaUrl,
@@ -144,12 +167,10 @@ export const createFlux = async (
     caption: body.caption,
     visibility: body.visibility || "public",
     status: "active",
-    duration,
-    width,
-    height,
-    format,
-    bytes,
-
+    isDeleted: false,
+    isArchived: false,
+    createdAt: now,
+    expiresAt,
     // Music
     musicId: body.musicId,
     musicTitle: body.musicTitle,
@@ -157,7 +178,6 @@ export const createFlux = async (
     musicStartAt: body.musicStartAt,
     musicPreviewUrl: body.musicPreviewUrl,
     musicAlbumArt: body.musicAlbumArt,
-
     // Location
     locationLabel: body.locationLabel,
     locationPlaceId: body.locationPlaceId,
@@ -183,13 +203,23 @@ export const createFlux = async (
     textBg: body.textBg || null,
     filterName: body.filterName || "Normal",
     filterValue: body.filterValue || "none",
+
+    duration,
+    width,
+    height,
+    format,
+    bytes,
   });
 
+  // ── Invalidate caches ──
+  // Owner's own caches
   await redisClient.del(USER_FLUXES_KEY(userId)).catch(() => {});
   await redisClient.del(FEED_CACHE_KEY(userId)).catch(() => {});
+  // All followers' feed caches — so they see the new flux immediately
+  await invalidateFollowerFeedCaches(userId).catch(() => {});
+
   return flux;
 };
-
 //  Get Active Fluxes for a User
 export const getUserFluxes = async (
   viewerId: string,
@@ -250,6 +280,8 @@ export const getFluxFeed = async (viewerId: string): Promise<any[]> => {
         userId: { $in: targetUserIds.map(String) },
         expiresAt: { $gt: new Date() },
         isDeleted: false,
+        isArchived: false,
+        status: "active",
         visibility: { $ne: "only_me" },
         $expr: {
           $not: { $in: [String(viewerId), { $ifNull: ["$hiddenFrom", []] }] },
@@ -339,30 +371,49 @@ export const getFluxFeed = async (viewerId: string): Promise<any[]> => {
 
   return feed;
 };
+
 export const viewFlux = async (
   fluxId: string,
   viewerId: string,
 ): Promise<void> => {
-  const flux = await FluxModel.findById(fluxId);
-  if (!flux || flux.isDeleted) return;
-
-  // ── Close friends gate
-  if (flux.visibility === "close_friends" && flux.userId !== viewerId) {
+  const flux = await FluxModel.findById(fluxId).lean();
+  // Guard: flux must exist, be active, not deleted, and not yet expired
+  if (!flux) return;
+  if (flux.isDeleted || flux.status !== "active") return;
+  if (new Date() > new Date(flux.expiresAt)) return; // skip silently if expired
+  // ── Close friends gate ──
+  if (
+    flux.visibility === "close_friends" &&
+    flux.userId.toString() !== viewerId
+  ) {
     const allowed = await CloseFriendModel.exists({
       userId: flux.userId,
       closeFriendId: viewerId,
     })
       .then((r) => !!r)
       .catch(() => false);
-
-    if (!allowed) return; // silently reject — don't record the view
+    if (!allowed) return;
   }
 
-  const alreadyViewed = flux.views.some((v) => v.viewerId === viewerId);
+  // ── Deduplicate using the flat `viewers` array (fast .includes check) ──
+  const alreadyViewed =
+    Array.isArray(flux.viewers) &&
+    flux.viewers.map(String).includes(String(viewerId));
+
   if (!alreadyViewed) {
-    flux.views.push({ viewerId, viewedAt: new Date() });
-    await flux.save();
-    await redisClient.del(USER_FLUXES_KEY(flux.userId)).catch(() => {});
+    // ── Atomically update BOTH arrays in one DB round-trip ──
+    // `viewers`  = flat string array → used by viewCount virtual & dedup
+    // `views`    = detailed subdoc array → used for analytics (who viewed when)
+    await FluxModel.findByIdAndUpdate(
+      fluxId,
+      {
+        $addToSet: { viewers: String(viewerId) }, // ← FIX: was missing
+        $push: { views: { viewerId: String(viewerId), viewedAt: new Date() } },
+      },
+      { new: false },
+    );
+    // Invalidate owner's user-level cache so fresh viewCount appears
+    await redisClient.del(USER_FLUXES_KEY(String(flux.userId))).catch(() => {});
   }
 };
 
@@ -444,16 +495,6 @@ export const getAllMyFluxes = async (userId: string): Promise<IFlux[]> => {
 
   console.log(`[getAllMyFluxes] userId=${userId} found=${fluxes.length}`);
   return fluxes;
-};
-
-export const getArchivedFluxes = async (userId: string): Promise<IFlux[]> => {
-  return FluxModel.find({
-    userId,
-    isArchived: true,
-    isDeleted: false,
-  })
-    .sort({ createdAt: -1 })
-    .exec();
 };
 
 export const archiveExpiredFluxes = async (): Promise<number> => {

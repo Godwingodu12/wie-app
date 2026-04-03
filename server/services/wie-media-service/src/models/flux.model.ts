@@ -89,6 +89,7 @@ export interface IFlux extends Document {
   isArchived: boolean;
   isDeleted: boolean;
   commentsDisabled: boolean;
+  isPersistent: boolean;
   createdAt: Date;
   updatedAt: Date;
 
@@ -232,6 +233,7 @@ const FluxSchema = new Schema<IFlux>(
     isArchived: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     commentsDisabled: { type: Boolean, default: false },
+    isPersistent: { type: Boolean, default: false },
   },
   {
     timestamps: true,
@@ -239,14 +241,27 @@ const FluxSchema = new Schema<IFlux>(
     toObject: { virtuals: true },
   },
 );
+FluxSchema.pre("save", function (next) {
+  if (this.isNew) {
+    const base = this.createdAt ?? new Date();
+    const expected = new Date(base.getTime() + 24 * 60 * 60 * 1000);
 
+    // Only override if expiresAt is missing or already in the past
+    if (!this.expiresAt || this.expiresAt <= base) {
+      this.expiresAt = expected;
+    }
+  }
+  next();
+});
 // ── Indexes
 FluxSchema.index({ userId: 1, expiresAt: 1 });
 FluxSchema.index({ userId: 1, isArchived: 1 });
 FluxSchema.index({ createdAt: -1 });
-
+FluxSchema.index(
+  { userId: 1, status: 1, expiresAt: 1, isDeleted: 1, isArchived: 1 },
+  { name: "feed_query_idx" },
+);
 // ── Virtuals
-
 // viewCount = unique viewers via the flat `viewers` array (O(1) .length)
 FluxSchema.virtual("viewCount").get(function (this: IFlux) {
   return this.viewers.length;
