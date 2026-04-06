@@ -13,6 +13,14 @@ import { isLocalAuthUser } from "../utils/password";
 import UserMuteModel, { MuteOptions } from "../models/userMute.model";
 import { getGoogleAuthUrl, getGoogleUserInfo } from "../utils/google-oauth";
 import {
+  getAppleAuthUrl as buildAppleAuthUrl,
+  getAppleUserInfo,
+} from "../utils/apple-oauth";
+import {
+  getMicrosoftAuthUrl as buildMicrosoftAuthUrl,
+  getMicrosoftUserInfo,
+} from "../utils/microsoft-oauth";
+import {
   uploadProfileImage,
   replaceProfileImage,
 } from "../utils/cloudinaryHelper";
@@ -377,22 +385,21 @@ export const googleCallback = async (
     );
   }
 };
+
 export const getMicrosoftAuthUrl = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
   try {
-    const clientId = process.env.MICROSOFT_CLIENT_ID;
-    const redirectUri = process.env.MICROSOFT_REDIRECT_URI;
-    const scope = encodeURIComponent("User.Read");
-    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri || "")}&response_mode=query&scope=${scope}&state=12345`;
+    // Mobile apps pass ?mobile=true when requesting the auth URL
+    const isMobile = req.query.mobile === "true";
+    const authUrl = buildMicrosoftAuthUrl(isMobile);
     res.status(200).json({
       success: true,
       message: "Microsoft OAuth URL generated",
       data: { authUrl },
     });
   } catch (error: any) {
-    console.error("Microsoft Auth URL Error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to generate Microsoft OAuth URL",
@@ -400,15 +407,13 @@ export const getMicrosoftAuthUrl = async (
     });
   }
 };
+
 export const getAppleAuthUrl = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
   try {
-    const clientId = process.env.APPLE_CLIENT_ID;
-    const redirectUri = process.env.APPLE_REDIRECT_URI;
-    const scope = encodeURIComponent("name email");
-    const authUrl = `https://appleid.apple.com/auth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri || "")}&response_mode=form_post&scope=${scope}&state=12345`;
+    const authUrl = buildAppleAuthUrl();
     res.status(200).json({
       success: true,
       message: "Apple OAuth URL generated",
@@ -421,6 +426,226 @@ export const getAppleAuthUrl = async (
       message: "Failed to generate Apple OAuth URL",
       error: error.message,
     });
+  }
+};
+
+export const microsoftCallback = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { code, error: oauthError } = req.query;
+
+    if (oauthError) {
+      res.redirect(
+        `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Microsoft login was cancelled or failed")}`,
+      );
+      return;
+    }
+
+    if (!code || typeof code !== "string") {
+      res.redirect(
+        `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Authorization code is required")}`,
+      );
+      return;
+    }
+
+    const msUser = await getMicrosoftUserInfo(code);
+
+    if (!msUser.email) {
+      res.redirect(
+        `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Could not retrieve email from Microsoft account")}`,
+      );
+      return;
+    }
+
+    // ── Same account-linking logic as Google ──
+    let user = await WIEUSER.findByMicrosoftId(msUser.id);
+
+    if (!user) {
+      const existingUser = await WIEUSER.findByEmail(msUser.email);
+      if (existingUser) {
+        if (
+          existingUser.auth_provider === "local" ||
+          !existingUser.auth_provider
+        ) {
+          user = await WIEUSER.linkMicrosoftAccount(existingUser.id, {
+            microsoft_id: msUser.id,
+            profile_picture:
+              msUser.picture || existingUser.profile_picture || undefined,
+            auth_provider: "hybrid",
+          });
+        } else if (
+          existingUser.auth_provider === "microsoft" ||
+          existingUser.auth_provider === "hybrid"
+        ) {
+          user = existingUser;
+        } else {
+          res.redirect(
+            `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("An account with this email already exists with a different login method.")}`,
+          );
+          return;
+        }
+      } else {
+        user = await WIEUSER.create({
+          email: msUser.email,
+          name: msUser.name,
+          profile_picture: msUser.picture,
+          microsoft_id: msUser.id,
+          auth_provider: "microsoft",
+          password: undefined,
+        });
+      }
+    } else {
+      if (msUser.picture && user.profile_picture !== msUser.picture) {
+        user = await WIEUSER.updateProfile(user.id, {
+          profile_picture: msUser.picture,
+        });
+      }
+    }
+
+    if (user.is_blocked) {
+      res.redirect(
+        `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Your account has been blocked. Please contact support.")}`,
+      );
+      return;
+    }
+
+    await WIEUSER.updateOnlineStatus(user.id, true);
+    const token = generateToken(user);
+
+    const userData = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      username: user.username,
+      profile_picture: user.profile_picture,
+      role: user.role,
+      status: user.status,
+      is_verified: user.is_verified,
+      auth_provider: user.auth_provider,
+    };
+    const encodedUser = encodeURIComponent(JSON.stringify(userData));
+    const isMobile = req.query.mobile === "true";
+    if (isMobile) {
+      // Deep link back into the mobile app
+      const mobileScheme = process.env.MOBILE_APP_SCHEME || "wiehive";
+      res.redirect(
+        `${mobileScheme}://auth/microsoft/callback?token=${token}&user=${encodedUser}`,
+      );
+    } else {
+      // Web redirect (existing behaviour)
+      res.redirect(
+        `${process.env.CORS_ORIGIN}/auth/microsoft/callback?token=${token}&user=${encodedUser}`,
+      );
+    }
+  } catch (error: any) {
+    console.error("Microsoft Callback Error:", error);
+    res.redirect(
+      `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Microsoft authentication failed")}`,
+    );
+  }
+};
+
+export const appleCallback = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    // Apple sends data as POST body (form_post response_mode)
+    const { code, error: oauthError, user: userPayload } = req.body;
+
+    if (oauthError) {
+      res.redirect(
+        `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Apple login was cancelled or failed")}`,
+      );
+      return;
+    }
+
+    if (!code) {
+      res.redirect(
+        `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Authorization code is required")}`,
+      );
+      return;
+    }
+
+    const appleUser = await getAppleUserInfo(code, userPayload);
+
+    if (!appleUser.email) {
+      res.redirect(
+        `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Could not retrieve email from Apple account")}`,
+      );
+      return;
+    }
+
+    // ── Same account-linking logic as Google ──
+    let user = await WIEUSER.findByAppleId(appleUser.id);
+
+    if (!user) {
+      const existingUser = await WIEUSER.findByEmail(appleUser.email);
+      if (existingUser) {
+        if (
+          existingUser.auth_provider === "local" ||
+          !existingUser.auth_provider
+        ) {
+          user = await WIEUSER.linkAppleAccount(existingUser.id, {
+            apple_id: appleUser.id,
+            auth_provider: "hybrid",
+          });
+        } else if (
+          existingUser.auth_provider === "apple" ||
+          existingUser.auth_provider === "hybrid"
+        ) {
+          user = existingUser;
+        } else {
+          res.redirect(
+            `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("An account with this email already exists with a different login method.")}`,
+          );
+          return;
+        }
+      } else {
+        user = await WIEUSER.create({
+          email: appleUser.email,
+          name: appleUser.name,
+          apple_id: appleUser.id,
+          auth_provider: "apple",
+          password: undefined,
+        });
+      }
+    }
+
+    if (user.is_blocked) {
+      res.redirect(
+        `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Your account has been blocked. Please contact support.")}`,
+      );
+      return;
+    }
+
+    await WIEUSER.updateOnlineStatus(user.id, true);
+    const token = generateToken(user);
+
+    const userData = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      username: user.username,
+      profile_picture: user.profile_picture,
+      role: user.role,
+      status: user.status,
+      is_verified: user.is_verified,
+      auth_provider: user.auth_provider,
+    };
+
+    const encodedUser = encodeURIComponent(JSON.stringify(userData));
+    // Apple callback redirects to same pattern as Google
+    res.redirect(
+      `${process.env.CORS_ORIGIN}/auth/apple/callback?token=${token}&user=${encodedUser}`,
+    );
+  } catch (error: any) {
+    console.error("Apple Callback Error:", error);
+    res.redirect(
+      `${process.env.CORS_ORIGIN}/login?error=${encodeURIComponent("Apple authentication failed")}`,
+    );
   }
 };
 export const checkCanSetPassword = async (
@@ -495,11 +720,12 @@ export const setPasswordForGoogleUser = async (
     }
 
     // Check if user is eligible to set password
-    if (user.auth_provider !== "google" || user.password) {
+    const oauthOnlyProviders = ["google", "apple", "microsoft"];
+    if (!oauthOnlyProviders.includes(user.auth_provider) || user.password) {
       res.status(400).json({
         message: user.password
           ? "Password already set. Use change password instead."
-          : "Only Google users can set a password this way.",
+          : "Only social login users can set a password this way.",
       });
       return;
     }
@@ -642,7 +868,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
       await WIEUSER.incrementTokenVersion(userId);
     } catch (tokenErr) {
       // Non-fatal — still log out even if token version fails
-      console.warn('incrementTokenVersion failed during logout:', tokenErr);
+      console.warn("incrementTokenVersion failed during logout:", tokenErr);
     }
 
     res.status(200).json({
@@ -843,7 +1069,10 @@ export const updateProfile = async (
   }
 };
 
-export const updatePersonalDetails = async (req: Request, res: Response): Promise<void> => {
+export const updatePersonalDetails = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     if (!req.user) {
       res.status(401).json({ message: "Unauthorized: User not authenticated" });
@@ -866,14 +1095,18 @@ export const updatePersonalDetails = async (req: Request, res: Response): Promis
     if (email) {
       const existingUserEmail = await WIEUSER.findByEmail(email);
       if (existingUserEmail && existingUserEmail.id !== userId) {
-        res.status(400).json({ message: "Email is already in use by another user" });
+        res
+          .status(400)
+          .json({ message: "Email is already in use by another user" });
         return;
       }
     }
     if (contact_no) {
       const existingUserPhone = await WIEUSER.findByContactNo(contact_no);
       if (existingUserPhone && existingUserPhone.id !== userId) {
-        res.status(400).json({ message: "Contact number is already in use by another user" });
+        res.status(400).json({
+          message: "Contact number is already in use by another user",
+        });
         return;
       }
     }
@@ -910,9 +1143,10 @@ export const updatePersonalDetails = async (req: Request, res: Response): Promis
     });
   } catch (error: any) {
     console.error("Update personal details error:", error);
-    res
-      .status(500)
-      .json({ message: "Failed to update personal details", error: error.message });
+    res.status(500).json({
+      message: "Failed to update personal details",
+      error: error.message,
+    });
   }
 };
 
@@ -971,7 +1205,6 @@ export const getProfile = async (
         showSuggestion: user.showSuggestion,
         created_at: user.created_at,
         updated_at: user.updated_at,
-
       },
     });
   } catch (error: any) {
@@ -981,7 +1214,6 @@ export const getProfile = async (
       .json({ message: "Failed to get profile", error: error.message });
   }
 };
-
 export const getUserProfile = async (userId: string) => {
   try {
     const user = await WIEUSER.findById(userId);
@@ -1552,9 +1784,11 @@ export const updateHeartbeat = async (
     });
   } catch (error: any) {
     // P1001 = DB unreachable — don't log full stack, just warn
-    if (error?.code === 'P1001') {
+    if (error?.code === "P1001") {
       console.warn("⚠️ Heartbeat skipped — DB temporarily unreachable");
-      res.status(200).json({ success: true, message: "Heartbeat skipped (DB unavailable)" });
+      res
+        .status(200)
+        .json({ success: true, message: "Heartbeat skipped (DB unavailable)" });
       return;
     }
     console.error("Heartbeat error:", error.message);
@@ -1574,8 +1808,10 @@ export const cleanupStaleOnlineUsers = async (): Promise<void> => {
     }
   } catch (error: any) {
     // P1001 = DB unreachable — suppress full stack trace, just warn
-    if (error?.code === 'P1001') {
-      console.warn("⚠️ Stale user cleanup skipped — DB temporarily unreachable");
+    if (error?.code === "P1001") {
+      console.warn(
+        "⚠️ Stale user cleanup skipped — DB temporarily unreachable",
+      );
       return;
     }
     console.error("❌ Error cleaning up stale users:", error.message);
@@ -2027,7 +2263,10 @@ export const updateShowSuggestion = async (
       return;
     }
 
-    const updatedUser = await WIEUSER.updateShowSuggestion(userId, show_suggestion);
+    const updatedUser = await WIEUSER.updateShowSuggestion(
+      userId,
+      show_suggestion,
+    );
 
     res.status(200).json({
       success: true,
