@@ -26,6 +26,8 @@ export interface WieUser {
   is_blocked: boolean;
   is_verified: boolean;
   google_id?: string | null;
+  apple_id?: string | null;
+  microsoft_id?: string | null;
   token_version: number;
   auth_provider: string;
   allowMessagesFrom?: string | null;
@@ -60,6 +62,8 @@ export interface CreateUserInput {
   is_verified?: boolean;
   token_version?: number;
   google_id?: string;
+  apple_id?: string;
+  microsoft_id?: string;
   auth_provider?: string;
 }
 
@@ -363,6 +367,8 @@ class WieUserModel {
           isBlocked: raw.is_blocked,
           isVerified: raw.is_verified,
           googleId: raw.google_id,
+          appleId: raw.apple_id,
+          microsoftId: raw.microsoft_id,
           authProvider: raw.auth_provider,
           isOnline: raw.is_online,
           followersCount: raw.followers_count,
@@ -381,6 +387,144 @@ class WieUserModel {
         return null;
       }
     }
+  }
+  async findByAppleId(apple_id: string): Promise<WieUser | null> {
+    try {
+      const user = await prisma.wieUser.findUnique({
+        where: { appleId: apple_id },
+      });
+      if (!user) return null;
+      if (Array.isArray((user as any).locationSource)) {
+        (user as any).locationSource = null;
+      }
+      return toDatabaseFormat(user);
+    } catch (error: any) {
+      console.warn(
+        "findByAppleId Prisma error, trying raw fallback:",
+        error.message,
+      );
+      try {
+        const results = await prisma.$queryRaw<any[]>`
+          SELECT * FROM wie_users WHERE apple_id = ${apple_id} LIMIT 1
+        `;
+        if (!results.length) return null;
+        const raw = results[0];
+        return toDatabaseFormat({
+          ...raw,
+          locationSource: null,
+          contactNo: raw.contact_no,
+          profilePicture: raw.profile_picture,
+          countryId: raw.country_id,
+          isBlocked: raw.is_blocked,
+          isVerified: raw.is_verified,
+          googleId: raw.google_id,
+          appleId: raw.apple_id,
+          microsoftId: raw.microsoft_id,
+          authProvider: raw.auth_provider,
+          isOnline: raw.is_online,
+          followersCount: raw.followers_count,
+          followingCount: raw.following_count,
+          postsCount: raw.posts_count,
+          tokenVersion: raw.token_version,
+          allowMessageRequests: raw.allow_message_requests,
+          allowMessagesFrom: raw.allow_messages_from,
+          lastSeenAt: raw.last_seen_at,
+          accountPrivacy: raw.account_privacy,
+          createdAt: raw.created_at,
+          updatedAt: raw.updated_at,
+        });
+      } catch (rawErr) {
+        console.error("findByAppleId raw fallback failed:", rawErr);
+        return null;
+      }
+    }
+  }
+
+  async findByMicrosoftId(microsoft_id: string): Promise<WieUser | null> {
+    try {
+      const user = await prisma.wieUser.findUnique({
+        where: { microsoftId: microsoft_id },
+      });
+      if (!user) return null;
+      if (Array.isArray((user as any).locationSource)) {
+        (user as any).locationSource = null;
+      }
+      return toDatabaseFormat(user);
+    } catch (error: any) {
+      console.warn(
+        "findByMicrosoftId Prisma error, trying raw fallback:",
+        error.message,
+      );
+      try {
+        const results = await prisma.$queryRaw<any[]>`
+          SELECT * FROM wie_users WHERE microsoft_id = ${microsoft_id} LIMIT 1
+        `;
+        if (!results.length) return null;
+        const raw = results[0];
+        return toDatabaseFormat({
+          ...raw,
+          locationSource: null,
+          contactNo: raw.contact_no,
+          profilePicture: raw.profile_picture,
+          countryId: raw.country_id,
+          isBlocked: raw.is_blocked,
+          isVerified: raw.is_verified,
+          googleId: raw.google_id,
+          appleId: raw.apple_id,
+          microsoftId: raw.microsoft_id,
+          authProvider: raw.auth_provider,
+          isOnline: raw.is_online,
+          followersCount: raw.followers_count,
+          followingCount: raw.following_count,
+          postsCount: raw.posts_count,
+          tokenVersion: raw.token_version,
+          allowMessageRequests: raw.allow_message_requests,
+          allowMessagesFrom: raw.allow_messages_from,
+          lastSeenAt: raw.last_seen_at,
+          accountPrivacy: raw.account_privacy,
+          createdAt: raw.created_at,
+          updatedAt: raw.updated_at,
+        });
+      } catch (rawErr) {
+        console.error("findByMicrosoftId raw fallback failed:", rawErr);
+        return null;
+      }
+    }
+  }
+
+  async linkAppleAccount(
+    userId: string,
+    data: { apple_id: string; auth_provider: string },
+  ): Promise<WieUser> {
+    const user = await prisma.wieUser.update({
+      where: { id: userId },
+      data: {
+        appleId: data.apple_id,
+        authProvider: data.auth_provider,
+      },
+    });
+    return toDatabaseFormat(user);
+  }
+
+  async linkMicrosoftAccount(
+    userId: string,
+    data: {
+      microsoft_id: string;
+      profile_picture?: string;
+      auth_provider: string;
+    },
+  ): Promise<WieUser> {
+    const user = await prisma.wieUser.update({
+      where: { id: userId },
+      data: {
+        microsoftId: data.microsoft_id,
+        ...(data.profile_picture
+          ? { profilePicture: data.profile_picture }
+          : {}),
+        authProvider: data.auth_provider,
+      },
+    });
+    return toDatabaseFormat(user);
   }
 
   async findMany(

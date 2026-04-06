@@ -1,37 +1,44 @@
-import React, { useState, useEffect } from 'react';
-import { Eye, EyeOff, Lock, CheckCircle } from 'lucide-react';
-import { checkCanSetPassword, setPasswordForGoogleUser } from '@/services/wieUserService';
+import React, { useState } from 'react';
+import { Eye, EyeOff, Lock, CheckCircle, AlertCircle } from 'lucide-react';
+import { setPasswordForGoogleUser } from '@/services/wieUserService';
 import { useRouter } from "next/navigation";
+import { useTheme } from '@/components/home/ThemeContext';
+
 export default function SetPasswordComponent() {
   const router = useRouter();
-  const [canSetPassword, setCanSetPassword] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { themeStyles, isDark } = useTheme();
+  const [loading, setLoading] = useState(false); // Changed default to false as we don't check status here anymore
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    checkPasswordStatus();
-  }, []);
-    const checkPasswordStatus = async () => {
-        try {
-            const response = await checkCanSetPassword();
-            setCanSetPassword(response.canSetPassword);
-            setLoading(false);
-        } catch (err) {
-            console.error('Error checking password status:', err);
-            setLoading(false);
-        }
-    };
-    const handleSubmit = async (e: React.FormEvent<HTMLButtonElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
-    if (password.length < 6) {
-        setError('Password must be at least 6 characters');
+    if (password.length < 8) {
+        setError('Password must be at least 8 characters');
+        return;
+    }
+
+    const specialCharCount = (password.match(/[^A-Za-z0-9]/g) || []).length;
+    if (specialCharCount < 2) {
+        setError('Password must contain at least 2 special characters');
+        return;
+    }
+
+    const alphaCount = (password.match(/[a-zA-Z]/g) || []).length;
+    if (alphaCount < 2) {
+        setError('Password must contain at least 2 alphabets');
+        return;
+    }
+
+    const numCount = (password.match(/[0-9]/g) || []).length;
+    if (numCount < 2) {
+        setError('Password must contain at least 2 numbers');
         return;
     }
 
@@ -40,8 +47,9 @@ export default function SetPasswordComponent() {
         return;
     }
 
+    setLoading(true);
+
     try {
-        // Use service API instead of fetch()
         const response = await setPasswordForGoogleUser({
         password,
         confirmPassword,
@@ -53,62 +61,66 @@ export default function SetPasswordComponent() {
         setConfirmPassword('');
 
         setTimeout(() => {
-            router.push("/profile?password-set=1");
+            router.push("/settings/privacy?success=Password set successfully");
         }, 2000);
         } else {
         setError(response.message || 'Failed to set password');
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error(err);
-        setError('An error occurred. Please try again.');
+        const errorMessage = err.response?.data?.message || 'An error occurred. Please try again.';
+        setError(errorMessage);
+    } finally {
+        setLoading(false);
     }
-    };
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!canSetPassword) {
-    return (
-      <div className="max-w-md mx-auto p-6 bg-gray-50 rounded-lg border border-gray-200">
-        <div className="flex items-center gap-3 text-gray-600">
-          <CheckCircle className="w-5 h-5" />
-          <p>Password is already set for your account.</p>
-        </div>
-      </div>
-    );
-  }
+  };
 
   return (
-    <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-lg">
+    <div
+      className="max-w-2xl mx-auto py-6"
+    >
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
-          <Lock className="w-6 h-6 text-blue-600" />
-          <h2 className="text-2xl font-bold text-gray-800">Set Password</h2>
+          <div
+            className="p-2 rounded-lg"
+            style={{ background: isDark ? 'rgba(37, 99, 235, 0.2)' : '#EFF6FF' }}
+          >
+            <Lock className={`w-6 h-6 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+          </div>
+          <h2 className="text-2xl font-bold" style={{ color: themeStyles.text }}>
+            Set Password
+          </h2>
         </div>
-        <p className="text-gray-600 text-sm">
+        <p className="text-sm" style={{ color: themeStyles.textSecondary }}>
           You signed up with Google. Set a password to enable email/password login.
         </p>
       </div>
 
-      <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-            {error}
+          <div className="p-4 border rounded-lg flex items-start gap-3"
+             style={{
+               backgroundColor: isDark ? 'rgba(127, 29, 29, 0.1)' : '#FEF2F2',
+               borderColor: isDark ? 'rgba(127, 29, 29, 0.3)' : '#FECACA'
+             }}>
+            <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isDark ? 'text-red-400' : 'text-red-600'}`} />
+            <p className={`text-sm ${isDark ? 'text-red-300' : 'text-red-700'}`}>{error}</p>
           </div>
         )}
 
         {success && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-            {success}
+          <div className="p-4 border rounded-lg flex items-start gap-3"
+             style={{
+               backgroundColor: isDark ? 'rgba(6, 78, 59, 0.1)' : '#ECFDF5',
+               borderColor: isDark ? 'rgba(6, 78, 59, 0.3)' : '#A7F3D0'
+             }}>
+            <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isDark ? 'text-green-400' : 'text-green-600'}`} />
+            <p className={`text-sm ${isDark ? 'text-green-300' : 'text-green-700'}`}>{success}</p>
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium mb-2" style={{ color: themeStyles.text }}>
             New Password
           </label>
           <div className="relative">
@@ -116,13 +128,21 @@ export default function SetPasswordComponent() {
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter password (min 6 characters)"
+              className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              style={{
+                background: isDark ? '#27272A' : '#FFFFFF',
+                border: `1px solid ${themeStyles.border}`,
+                color: themeStyles.text
+              }}
+              placeholder="Enter password (min 8 characters)"
+              disabled={loading}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-80 transition-opacity"
+              style={{ color: themeStyles.textSecondary }}
+              disabled={loading}
             >
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
@@ -130,29 +150,41 @@ export default function SetPasswordComponent() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium mb-2" style={{ color: themeStyles.text }}>
             Confirm Password
           </label>
           <input
             type={showPassword ? 'text' : 'password'}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-3 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+            style={{
+              background: isDark ? '#27272A' : '#FFFFFF',
+              border: `1px solid ${themeStyles.border}`,
+              color: themeStyles.text
+            }}
             placeholder="Confirm your password"
+            disabled={loading}
           />
         </div>
 
-        <button
-          onClick={handleSubmit}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-        >
-          Set Password
-        </button>
-      </div>
-
-      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-sm text-blue-800">
-          <strong>After setting a password:</strong> You can login using either Google or email/password.
+        <div className="flex gap-3 pt-4">
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+          >
+            {loading ? 'Setting Password...' : 'Set Password'}
+          </button>
+        </div>
+      </form>
+      <div className="mt-6 p-4 border rounded-lg"
+          style={{
+            backgroundColor: isDark ? 'rgba(30, 58, 138, 0.1)' : '#EFF6FF',
+            borderColor: isDark ? 'rgba(30, 58, 138, 0.3)' : '#BFDBFE'
+          }}>
+        <p className={`text-sm ${isDark ? 'text-blue-200' : 'text-blue-800'}`}>
+          <strong>After setting a password:</strong> You can login using either your social account (Google / Apple / Microsoft) or email/password.
         </p>
       </div>
     </div>
