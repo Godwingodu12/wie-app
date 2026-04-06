@@ -44,13 +44,16 @@ model WieUser {
   dob                  DateTime?  @db.Date
   gender               String?    @db.VarChar(20)
   locationSource       String?    @default("none") @map("location_source") @db.VarChar(10)
+  showBadge            Boolean    @default(true) @map("show_badge")
+  showSuggestion       Boolean    @default(true) @map("show_suggestion")
+  website              String?
+  appleId              String?    @unique @map("apple_id") @db.VarChar(255)
+  microsoftId          String?    @unique @map("microsoft_id") @db.VarChar(255)
   otps                 Otp[]
   mutedMe              UserMute[] @relation("MutedRelation")
   mutedByMe            UserMute[] @relation("MuterRelation")
-  website              String?    @db.VarChar(255)
-  showBadge            Boolean    @default(false) @map("show_badge")
-  showSuggestion       Boolean    @default(false) @map("show_suggestion")
   country              Country?   @relation(fields: [countryId], references: [id])
+
   @@map("wie_users")
   @@schema("public")
 }
