@@ -72,8 +72,11 @@ class Database {
     try {
       if (!this.pool) return false;
       const result = await this.pool.query("SELECT 1");
-      return result.rowCount === 1;
+      const ok = result.rowCount === 1;
+      this.isConnected = ok;
+      return ok;
     } catch {
+      this.isConnected = false;
       return false;
     }
   }
