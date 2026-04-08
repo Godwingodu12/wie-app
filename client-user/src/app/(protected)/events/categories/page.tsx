@@ -79,8 +79,8 @@ function EventRow({
         <button
           onClick={() => scroll("left")}
           className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full flex items-center justify-center opacity-0 group-hover/row:opacity-100 transition-all duration-300 shadow-lg hover:scale-110 active:scale-95"
-          style={{ 
-            background: isDark ? "rgba(30, 30, 30, 0.9)" : "rgba(255, 255, 255, 0.9)", 
+          style={{
+            background: isDark ? "rgba(30, 30, 30, 0.9)" : "rgba(255, 255, 255, 0.9)",
             border: `1px solid ${themeStyles.border}`,
             backdropFilter: "blur(8px)"
           }}
@@ -91,8 +91,8 @@ function EventRow({
         <button
           onClick={() => scroll("right")}
           className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full flex items-center justify-center opacity-0 group-hover/row:opacity-100 transition-all duration-300 shadow-lg hover:scale-110 active:scale-95"
-          style={{ 
-            background: isDark ? "rgba(30, 30, 30, 0.9)" : "rgba(255, 255, 255, 0.9)", 
+          style={{
+            background: isDark ? "rgba(30, 30, 30, 0.9)" : "rgba(255, 255, 255, 0.9)",
             border: `1px solid ${themeStyles.border}`,
             backdropFilter: "blur(8px)"
           }}
@@ -319,7 +319,9 @@ export default function CategoryEventsPage() {
       );
     }
 
-    const hasMainResults = Object.keys(displayEventsByCategoryWithSubEventLogic).length > 0;
+    const hasMainResults = Object.values(displayEventsByCategoryWithSubEventLogic).some(
+      (events) => (events as any[]).length > 0
+    );
     const hasSuggestionResults = Object.keys(suggestionsByCategory).length > 0;
 
     let elements: JSX.Element[] = [];
@@ -448,14 +450,15 @@ export default function CategoryEventsPage() {
       >
         <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-8">
           {/* Header Section */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div className="flex flex-row md:items-center justify-between gap-4 mb-8">
             <div
-              className="flex items-center gap-3 w-full px-4"
+              className="flex items-center gap-2 sm:gap-3 w-full px-3 sm:px-4"
               style={{
                 height: 48,
                 borderRadius: 10,
                 background: isDark ? "#38383866" : "#E5E7EB",
                 border: `1px solid ${isDark ? "#3D4149" : "#D1D5DB"}`,
+                flexWrap: 'nowrap',
               }}
             >
               {/* Location button */}
@@ -465,7 +468,8 @@ export default function CategoryEventsPage() {
                 style={{
                   background: locationSource !== "none" ? "rgba(136,96,217,0.18)" : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"),
                   border: "1px solid " + (locationSource !== "none" ? "rgba(136,96,217,0.4)" : (isDark ? "#3D4149" : "#D1D5DB")),
-                  maxWidth: 160,
+                  maxWidth: isMobile ? 120 : 160,
+                  order: 'unset',
                 }}
                 title="Set location"
               >
@@ -480,55 +484,59 @@ export default function CategoryEventsPage() {
                   className="text-xs truncate font-medium"
                   style={{
                     color: locationSource !== "none" ? (isDark ? "#c4b5fd" : "#8860D9") : (isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.4)"),
-                    maxWidth: 110,
+                    maxWidth: isMobile ? 70 : 110,
                   }}
                 >
-                  {locationSource !== "none" ? "Map Location Active" : "Set location"}
+                  {locationSource !== "none" ? (isMobile ? "Active" : "Map Location Active") : (isMobile ? "Location" : "Set location")}
                 </span>
               </button>
 
-              <div className="w-px h-5 flex-shrink-0" style={{ background: isDark ? "#3D4149" : "#D1D5DB" }} />
+              <div className="hidden sm:block w-px h-5 flex-shrink-0" style={{ background: isDark ? "#3D4149" : "#D1D5DB", order: 'unset' }} />
 
-              <Image
-                src={SearchIcon}
-                alt="Search"
-                width={16}
-                height={16}
-                style={{ opacity: 0.5, flexShrink: 0, filter: isDark ? 'none' : 'invert(1)' }}
-              />
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleEventNameSearch()}
-                placeholder="Search events, categories..."
-                className={`flex-1 bg-transparent text-sm outline-none min-w-0 ${isDark ? "text-white placeholder-white/25" : "text-black placeholder-black/40"}`}
-              />
-              {searchInput && (
-                <button
-                  onClick={() => {
-                    setSearchInput("");
-                    if (hasActiveSearch) handleClearSearch();
-                  }}
-                  className={`${isDark ? "text-white/40 hover:text-white/70" : "text-black/40 hover:text-black/60"} text-xs transition-colors flex-shrink-0`}
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-
-              <button
-                onClick={() => setIsFilterModalOpen(true)}
-                className={`flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg transition-all relative ${isDark ? "hover:bg-white/10" : "hover:bg-black/5"}`}
-                style={{ border: `1px solid ${isDark ? "#3D4149" : "#D1D5DB"}` }}
-              >
-                <Image src={FilterButtonIcon} alt="Filter" width={16} height={16} />
-                {Object.keys(activeFilters).length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
-                  </span>
+              <div className="flex items-center gap-2 flex-1 min-w-0" style={{ order: 'unset' }}>
+                <Image
+                  src={SearchIcon}
+                  alt="Search"
+                  width={16}
+                  height={16}
+                  style={{ opacity: 0.5, flexShrink: 0, filter: isDark ? 'none' : 'invert(1)' }}
+                />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleEventNameSearch()}
+                  placeholder="Search events, categories..."
+                  className={`flex-1 bg-transparent text-sm outline-none min-w-0 ${isDark ? "text-white placeholder-white/25" : "text-black placeholder-black/40"}`}
+                />
+                {searchInput && (
+                  <button
+                    onClick={() => {
+                      setSearchInput("");
+                      if (hasActiveSearch) handleClearSearch();
+                    }}
+                    className={`${isDark ? "text-white/40 hover:text-white/70" : "text-black/40 hover:text-black/60"} text-xs transition-colors flex-shrink-0`}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 )}
-              </button>
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0" style={{ order: 'unset' }}>
+                <button
+                  onClick={() => setIsFilterModalOpen(true)}
+                  className={`flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg transition-all relative ${isDark ? "hover:bg-white/10" : "hover:bg-black/5"}`}
+                  style={{ border: `1px solid ${isDark ? "#3D4149" : "#D1D5DB"}` }}
+                >
+                  <Image src={FilterButtonIcon} alt="Filter" width={16} height={16} />
+                  {Object.keys(activeFilters).length > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
