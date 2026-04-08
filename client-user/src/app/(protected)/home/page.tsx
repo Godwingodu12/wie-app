@@ -127,7 +127,7 @@ export default function HomePage() {
     try {
       const stored = localStorage.getItem("viewedFluxIds");
       const parsed: string[] = stored ? JSON.parse(stored) : [];
-      return new Set<string>(parsed.filter((id): id is string => typeof id === "string")); 
+      return new Set<string>(parsed.filter((id): id is string => typeof id === "string"));
     } catch {
       return new Set<string>();
     }
@@ -165,7 +165,6 @@ export default function HomePage() {
           ...feed.flatMap((g: any) => g.fluxes.map((f: any) => f._id)),
         ]);
         setViewedFluxIds((prev) => {
-          // Only keep viewed IDs that are still active (prune expired ones)
           const pruned = new Set<string>(
             [...prev].filter((id) => activeIds.has(id)),
           );
@@ -259,7 +258,7 @@ export default function HomePage() {
                     className="flex flex-col items-center gap-1.5 cursor-pointer group"
                     style={{ width: 72 }}
                   >
-                  
+
                     <div
                       className="relative overflow-hidden transition-all group-hover:scale-105"
                       style={{
@@ -269,8 +268,8 @@ export default function HomePage() {
                         padding:      myFluxes.length > 0 ? 2 : 0,
                         background: myFluxes.length > 0
                           ? myFluxViewed
-                            ? "linear-gradient(147.67deg,#555 13%,#888 100%)"  
-                            : "linear-gradient(147.67deg,#8860D9 13%,#B3B8E2 100%)" 
+                            ? "linear-gradient(147.67deg,#555 13%,#888 100%)"
+                            : "linear-gradient(147.67deg,#8860D9 13%,#B3B8E2 100%)"
                           : "transparent",
                         border: myFluxes.length > 0
                           ? "none"
@@ -346,12 +345,12 @@ export default function HomePage() {
                         const allViewed = group.fluxes.every((f) => f._id != null && viewedFluxIds.has(f._id));
                         const isCloseFriend = group.fluxes.some(
                                                   (f) => f.visibility === "close_friends"
-                                                );                         
+                                                );
                         return (
                           <button
                             key={group._id}
                             onClick={() => {
-                              markFluxViewed(fluxId); 
+                              markFluxViewed(fluxId);
                               router.push(`/post/flux-view?fluxId=${fluxId}&userId=${group._id}`);
                             }}
                             className="flex flex-col items-center gap-1.5 cursor-pointer flex-shrink-0 group/item"
@@ -362,10 +361,10 @@ export default function HomePage() {
                               style={{
                                 width: 70, height: 100, borderRadius: 12, padding: 2,
                                 background: allViewed
-                                  ? "linear-gradient(147.67deg,#444 13%,#777 100%)"  
+                                  ? "linear-gradient(147.67deg,#444 13%,#777 100%)"
                                   : isCloseFriend
-                                    ? "linear-gradient(147.67deg,#22c55e 13%,#16a34a 100%)"   
-                                    : "linear-gradient(147.67deg,#2979FF 13%,#6B9CF0 54%,#9DC1FF 100%)", 
+                                    ? "linear-gradient(147.67deg,#22c55e 13%,#16a34a 100%)"
+                                    : "linear-gradient(147.67deg,#2979FF 13%,#6B9CF0 54%,#9DC1FF 100%)",
                               }}
                             >
                               <div style={{
@@ -407,17 +406,16 @@ export default function HomePage() {
                     {/* Header */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-[38px] h-[38px] rounded-full overflow-hidden bg-[#222]">
-                          {/* ✅ FIX — explicit width + height (no fill), no CSS size override */}
+                        <div className="w-[38px] h-[38px] rounded-full overflow-hidden bg-[#222] shrink-0 border border-white/5">
                           <Image
                             src={post.user.avatar}
                             alt={post.user.name}
                             width={38}
                             height={38}
-                            className="object-cover"
+                            className="w-full h-full object-cover"
                           />
                         </div>
-                        <div className="flex flex-col">
+                        <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-1">
                             <span
                               className="text-[14px] font-semibold leading-none"
@@ -438,11 +436,13 @@ export default function HomePage() {
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2.5">
-                        <button className="w-[62px] h-[26px] rounded-[25px] flex items-center justify-center text-[11px] font-semibold text-white bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)]">
+                      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                        <button className="px-3 h-[26px] rounded-[25px] flex items-center justify-center text-[10px] sm:text-[11px] font-semibold text-white bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] active:scale-95 transition-transform">
                           Follow
                         </button>
-                        <MoreHorizontal className="w-5 h-5 cursor-pointer" style={{ color: themeStyles.text }} />
+                        <button className="p-1 hover:bg-white/5 rounded-full transition-colors">
+                          <MoreHorizontal className="w-5 h-5 cursor-pointer" style={{ color: themeStyles.text }} />
+                        </button>
                       </div>
                     </div>
 
@@ -528,10 +528,9 @@ export default function HomePage() {
 
                     {/* Liked By */}
                     <div className="px-1 flex items-center gap-2">
-                      <div className="flex -space-x-1.5">
+                      <div className="flex -space-x-1.5 shrink-0">
                         {[0, 1, 2].map((i) => (
-                          <div key={i} className="w-4 h-4 rounded-full border border-black relative bg-gray-700 overflow-hidden">
-                            {/* ✅ FIX — fill + sizes for these tiny avatar circles */}
+                          <div key={i} className="w-4 h-4 rounded-full border border-black relative bg-gray-700 overflow-hidden shrink-0">
                             <Image src={ProfileImage} alt="" fill sizes="16px" className="rounded-full object-cover" />
                           </div>
                         ))}
