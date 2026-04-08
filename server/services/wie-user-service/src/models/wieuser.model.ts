@@ -867,10 +867,12 @@ class WieUserModel {
     try {
       const updateData: any = { isOnline, updatedAt: new Date() };
       if (!isOnline) updateData.lastSeenAt = new Date();
-      const user = await prisma.wieUser.update({
-        where: { id },
-        data: updateData,
-      });
+      const user = await this.withRetry(() =>
+        prisma.wieUser.update({
+          where: { id },
+          data: updateData,
+        }),
+      );
       return toDatabaseFormat(user);
     } catch {
       return null;
@@ -896,43 +898,44 @@ class WieUserModel {
 
   async findStaleOnlineUsers(lastUpdateThreshold: Date): Promise<WieUser[]> {
     try {
-      const users = await prisma.wieUser.findMany({
-        where: { isOnline: true, updatedAt: { lt: lastUpdateThreshold } },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          username: true,
-          isOnline: true,
-          lastSeenAt: true,
-          updatedAt: true,
-          contactNo: true,
-          profilePicture: true,
-          gender: true,
-          dob: true,
-          countryId: true,
-          role: true,
-          status: true,
-          bio: true,
-          location: true,
-          latitude: true,
-          longitude: true,
-          isBlocked: true,
-          isVerified: true,
-          googleId: true,
-          authProvider: true,
-          createdAt: true,
-          followingCount: true,
-          followersCount: true,
-          postsCount: true,
-          tokenVersion: true,
-          allowMessagesFrom: true,
-          allowMessageRequests: true,
-        },
-      });
+      const users = await this.withRetry(() =>
+        prisma.wieUser.findMany({
+          where: { isOnline: true, updatedAt: { lt: lastUpdateThreshold } },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            username: true,
+            isOnline: true,
+            lastSeenAt: true,
+            updatedAt: true,
+            contactNo: true,
+            profilePicture: true,
+            gender: true,
+            dob: true,
+            countryId: true,
+            role: true,
+            status: true,
+            bio: true,
+            location: true,
+            latitude: true,
+            longitude: true,
+            isBlocked: true,
+            isVerified: true,
+            googleId: true,
+            authProvider: true,
+            createdAt: true,
+            followingCount: true,
+            followersCount: true,
+            postsCount: true,
+            tokenVersion: true,
+            allowMessagesFrom: true,
+            allowMessageRequests: true,
+          },
+        }),
+      );
       return users.map(toDatabaseFormat);
     } catch {
-      // Background task — silent on DB unavailability
       return [];
     }
   }
