@@ -1,34 +1,48 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Header } from '@/components/layout/Header';
+import Header from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { getBookingById, cancelBooking, Booking } from '@/services/transactionService';
+import SideBar from "@/components/home/SideBar";
+import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
+import { useTheme } from '@/components/home/ThemeContext';
 import {
-  ArrowLeft,
   Calendar,
   MapPin,
+  ChevronLeft,
   Ticket,
-  Clock,
-  User,
-  Mail,
-  Phone,
-  Download,
-  XCircle,
-  CheckCircle,
+  ChevronRight,
   Loader2,
+  CheckCircle,
+  XCircle,
   AlertCircle,
+  Download,
   RefreshCw,
-  IndianRupee,
+  Clock,
+  ArrowRight
 } from 'lucide-react';
+import { format } from 'date-fns';
+import CalendarIcon from '@/assets/Event/CalenderIcon.svg';
+import LocationIcon from '@/assets/Event/LocationIcon.svg';
 
-export default function BookingDetailPage() {
+export default function BookingDetailPage({ params }: { params: { bookingId: string } }) {
+  const bookingId = params.bookingId;
+  return (
+    <SidebarProvider>
+      <BookingDetailContent bookingId={bookingId} />
+    </SidebarProvider>
+  );
+}
+
+function BookingDetailContent({ bookingId }: { bookingId: string }) {
   useAuth(true);
-  const params = useParams();
   const router = useRouter();
-  const bookingId = params.bookingId as string;
+  const { isCollapsed, isMobile } = useSidebar();
+  const { themeStyles, isDark } = useTheme();
 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,12 +55,6 @@ export default function BookingDetailPage() {
     loadBooking();
   }, [bookingId]);
 
-  useEffect(() => {
-    const handleFocus = () => loadBooking();
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [bookingId]);
-  
   const loadBooking = async () => {
     try {
       setLoading(true);
@@ -69,7 +77,6 @@ export default function BookingDetailPage() {
     setIsCancelling(true);
     try {
       await cancelBooking(bookingId, cancellationReason);
-      alert('Booking cancelled successfully');
       setShowCancelModal(false);
       loadBooking();
     } catch (err: any) {
@@ -81,406 +88,354 @@ export default function BookingDetailPage() {
 
   const downloadQRCode = () => {
     if (!booking?.qrCode) return;
-
     const link = document.createElement('a');
     link.href = booking.qrCode;
-    link.download = `ticket-${booking.bookingId}.png`;
+    link.download = `ticket-${bookingId.slice(-6)}.png`;
     link.click();
-  };
-
-  const handleTrackRefund = () => {
-    router.push(`/bookings/${bookingId}/refund`);
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const getRefundStatusBadge = (status?: string) => {
-    if (!status) return null;
-    
-    const badges: any = {
-      PROCESSING: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Processing' },
-      COMPLETED: { bg: 'bg-green-100', text: 'text-green-800', label: 'Completed' },
-      FAILED: { bg: 'bg-red-100', text: 'text-red-800', label: 'Failed' },
-    };
-    const badge = badges[status] || badges.PROCESSING;
-    return (
-      <span className={`px-3 py-1 rounded-full text-sm font-semibold ${badge.bg} ${badge.text}`}>
-        {badge.label}
-      </span>
-    );
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
-      </div>
-    );
-  }
-
-  if (error || !booking) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Card className="p-8 text-center">
-            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Booking Not Found</h2>
-            <p className="text-gray-600 mb-6">{error || 'The booking you are looking for does not exist.'}</p>
-            <button
-              onClick={() => router.back()}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-            >
-              Go Back
-            </button>
-          </Card>
+      <div
+        className="min-h-screen flex flex-col transition-colors duration-300"
+        style={{ background: themeStyles.background, color: themeStyles.text }}
+      >
+        <SideBar />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-12 h-12 text-[#8860D9] animate-spin" />
         </div>
       </div>
     );
   }
 
+  if (!booking) {
+    return (
+      <div
+        className="min-h-screen flex flex-col transition-colors duration-300"
+        style={{ background: themeStyles.background, color: themeStyles.text }}
+      >
+        <SideBar />
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+          <div className="p-4 bg-rose-500/10 rounded-full mb-6">
+            <AlertCircle className="w-12 h-12 text-rose-500" />
+          </div>
+          <h2 className="text-2xl font-bold mb-2">Booking Not Found</h2>
+          <p className="mb-8 max-w-sm" style={{ color: themeStyles.textSecondary }}>
+            We couldn't find the booking you're looking for. It might have been deleted or doesn't exist.
+          </p>
+          <Button
+            onClick={() => router.push('/bookings')}
+            className="bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] hover:opacity-90 text-white px-8 rounded-xl h-12 transition-all shadow-xl shadow-[#8860D9]/20"
+          >
+            Back to All Bookings
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const isConfirmed = booking.bookingStatus === 'CONFIRMED';
   const isCancelled = booking.bookingStatus === 'CANCELLED';
-  const hasRefund = booking.refundAmount && booking.refundAmount > 0;
-  const refundCompleted = booking.refundStatus === 'COMPLETED' && booking.refundProcessedAt;
-  const isAdminCancelled = booking.cancellationReason?.toLowerCase().includes('event cancelled') || booking.cancellationReason?.toLowerCase().includes('cancelled by host') || booking.cancellationReason?.toLowerCase().includes('event cancelled by host');
+  const isAdminCancelled = booking.cancellationReason?.toLowerCase().includes('event cancelled') ||
+                          booking.cancellationReason?.toLowerCase().includes('host');
+
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case 'CONFIRMED': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+      case 'CANCELLED': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+      case 'PENDING': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      default: return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Back Button */}
-        <button
-          onClick={() => router.push('/bookings')}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back to Bookings
-        </button>
+    <div
+      className="min-h-screen relative overflow-hidden transition-colors duration-300 pb-20"
+      style={{ background: isDark ? '#0C1014' : themeStyles.background, color: themeStyles.text }}
+    >
+      {/* Clean dark bg — no colour overlay */}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: isDark ? 'radial-gradient(ellipse at top right, rgba(255,255,255,0.02) 0%, transparent 60%)' : 'radial-gradient(ellipse at top right, rgba(0,0,0,0.03) 0%, transparent 60%)' }} />
 
-        {/* Header */}
-        <Card className="p-6 mb-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{booking.eventDetails.eventName}</h1>
-              <p className="text-gray-600 mt-2">Booking ID: {booking.bookingId}</p>
-            </div>
-            <span
-              className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                booking.bookingStatus === 'CONFIRMED'
-                  ? 'bg-green-100 text-green-800'
-                  : booking.bookingStatus === 'PENDING'
-                  ? 'bg-yellow-100 text-yellow-800'
-                  : 'bg-red-100 text-red-800'
-              }`}
+      <SideBar />
+
+      <div className={`transition-all duration-300 relative z-10`} style={{ marginLeft: isMobile ? "0" : (isCollapsed ? "92px" : "281px") }}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
+          <div className="flex flex-row items-center justify-between gap-4 mb-8">
+            <button
+              onClick={() => router.push('/bookings')}
+              className={`flex items-center gap-2 transition-all group`}
+              style={{ color: themeStyles.textSecondary }}
             >
-              {booking.bookingStatus}
-            </span>
+              <div className={`p-2 rounded-xl ${isDark ? 'bg-white/5' : 'bg-black/5'} group-hover:opacity-70 transition-all`}>
+                <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+              </div>
+              <span className="font-bold text-sm tracking-tight transition-colors">My Bookings</span>
+            </button>
           </div>
-        </Card>
-        {/* Admin/host cancelled event banner */}
-        {isCancelled && isAdminCancelled && (
-          <div className="mb-4 p-4 rounded-xl flex items-start gap-3 bg-red-50 border border-red-200">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-semibold text-red-800 text-sm">This event was cancelled by the host</p>
-              <p className="text-red-700 text-xs mt-0.5">
-                {hasRefund
-                  ? `A refund of ₹${booking.refundAmount} has been initiated and will be credited within 5–7 business days.`
-                  : 'This was a free event — no refund needed.'}
-              </p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-8">
+              {/* Event Main Section */}
+              <Card className="p-0 overflow-hidden border-white/5">
+                <div className="p-5 sm:p-8">
+                  <div className="flex flex-wrap justify-between items-start gap-4 mb-6 sm:mb-8">
+                    <div className="w-full">
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight">
+                            {booking.eventDetails.eventName}
+                          </h1>
+                          <div className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-widest border ${getStatusStyle(booking.bookingStatus)}`}>
+                            {booking.bookingStatus}
+                          </div>
+                        </div>
+                        <div className={`px-4 py-1.5 rounded-xl border ${isDark ? 'bg-white/5 border-white/5 text-gray-400' : 'bg-black/5 border-black/5 text-gray-500'} font-mono text-xs font-bold`}>
+                          #{bookingId.slice(-8).toUpperCase()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4 sm:gap-y-6">
+                    <div className="space-y-4 sm:space-y-5">
+                      {/* Date */}
+                      <div className="flex items-center justify-between sm:justify-start gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-xl ${isDark ? 'bg-white/10' : 'bg-black/5'} shrink-0`}>
+                            <Calendar className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-white' : 'text-black'}`} />
+                          </div>
+                          <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest ${isDark ? 'text-white' : 'text-black opacity-60'}`}>Date</p>
+                        </div>
+                        <p className={`font-bold text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} sm:ml-auto`}>
+                          {booking.eventDetails.eventDate}
+                        </p>
+                      </div>
+
+                      {/* Time */}
+                      <div className="flex items-center justify-between sm:justify-start gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-xl ${isDark ? 'bg-white/10' : 'bg-black/5'} shrink-0`}>
+                            <Clock className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-white' : 'text-black'}`} />
+                          </div>
+                          <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest ${isDark ? 'text-white' : 'text-black opacity-60'}`}>Time</p>
+                        </div>
+                        <p className={`font-bold text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} sm:ml-auto`}>
+                          {booking.eventDetails.eventTime}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 sm:space-y-5">
+                      {/* Location */}
+                      <div className="flex items-center justify-between sm:justify-start gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-xl ${isDark ? 'bg-white/10' : 'bg-black/5'} shrink-0`}>
+                            <MapPin className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-white' : 'text-black'}`} />
+                          </div>
+                          <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest ${isDark ? 'text-white' : 'text-black opacity-60'}`}>Location</p>
+                        </div>
+                        <p className={`font-bold text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} sm:ml-auto break-words max-w-[200px] sm:max-w-none text-right`}>
+                          {booking.eventDetails.venue || 'TBA'}
+                        </p>
+                      </div>
+
+                      {/* Tickets */}
+                      <div className="flex items-center justify-between sm:justify-start gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-xl ${isDark ? 'bg-white/10' : 'bg-black/5'} shrink-0`}>
+                            <Ticket className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-white' : 'text-black'}`} />
+                          </div>
+                          <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest ${isDark ? 'text-white' : 'text-black opacity-60'}`}>Tickets</p>
+                        </div>
+                        <p className={`font-bold text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} sm:ml-auto`}>
+                          {booking.quantity} {booking.ticketType || 'Adults'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {isAdminCancelled && (
+                  <div className="bg-rose-500/5 border-t border-rose-500/10 p-6 flex items-start gap-4">
+                    <AlertCircle className="w-6 h-6 text-rose-500 flex-shrink-0" />
+                    <div>
+                      <h4 className="font-bold text-rose-500">Event Cancelled by Host</h4>
+                      <p className={`text-sm ${themeStyles.textSecondary} mt-1`}>
+                        This event has been cancelled. A full refund has been initiated and will reflect in your account within 5-7 business days.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              {/* Payment Info */}
+              <Card className="p-5 sm:p-8">
+                <h2 className="text-lg sm:text-xl font-bold mb-6 flex items-center gap-2">
+                  Payment Summary
+                </h2>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center text-xs sm:text-sm">
+                    <span className={`${themeStyles.textSecondary} opacity-70`}>Subtotal ({booking.quantity} tickets)</span>
+                    <span className="font-bold font-mono">₹{booking.subtotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs sm:text-sm">
+                    <span className={`${themeStyles.textSecondary} opacity-70`}>GST (18%)</span>
+                    <span className="font-bold font-mono">₹{booking.tax.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs sm:text-sm pb-4">
+                    <span className={`${themeStyles.textSecondary} opacity-70`}>Platform Fee</span>
+                    <span className="font-bold font-mono">₹{booking.platformFee.toLocaleString()}</span>
+                  </div>
+                  <div className={`pt-6 border-t ${themeStyles.border} flex items-center justify-between`}>
+                    <span className="text-sm sm:text-lg font-bold">Total Amount Paid</span>
+                    <span className="text-2xl sm:text-3xl font-bold text-[#8860D9] font-mono text-right">
+                      ₹{booking.totalAmount.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </Card>
+
+              {isCancelled && !isAdminCancelled && (
+                <Card className="p-5 sm:p-8 border-rose-500/20 bg-rose-500/5">
+                  <h2 className="text-lg sm:text-xl font-bold text-rose-500 mb-4 flex items-center gap-2">
+                    <XCircle className="w-6 h-6 shrink-0" />
+                    Cancellation Details
+                  </h2>
+                  <div className="space-y-4">
+                    <div>
+                      <p className={`text-[10px] font-bold uppercase tracking-widest ${themeStyles.textSecondary} opacity-60 mb-1`}>Reason</p>
+                      <p className="font-bold text-sm sm:text-base leading-relaxed">{booking.cancellationReason || 'No reason provided'}</p>
+                    </div>
+                  </div>
+                </Card>
+              )}
             </div>
-            {hasRefund && booking.refundStatus !== 'COMPLETED' && (
-              <button
-                onClick={handleTrackRefund}
-                className="text-xs font-semibold text-red-600 hover:text-red-800 whitespace-nowrap"
-              >
-                Track Refund →
-              </button>
-            )}
-          </div>
-        )}
-        <div className="grid md:grid-cols-3 gap-6">
-          {/* Main Details */}
-          <div className="md:col-span-2 space-y-6">
-            {/* Event Details */}
-            <Card>
-              <div className="p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Event Details</h2>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="font-semibold text-gray-900">Date & Time</p>
-                      <p className="text-gray-600">
-                        {booking.eventDetails.eventDate} {booking.eventDetails.eventTime}
-                      </p>
-                    </div>
-                  </div>
 
-                  {booking.eventDetails.venue && (
-                    <div className="flex items-center gap-3">
-                      <MapPin className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="font-semibold text-gray-900">Venue</p>
-                        <p className="text-gray-600">{booking.eventDetails.venue}</p>
+            <div className="space-y-8">
+              {/* Ticket/QR Section */}
+              {isConfirmed && booking.qrCode && (
+                <Card className="p-0 overflow-hidden border-indigo-500/20">
+                  <div className="p-8 pb-4 text-center">
+                    <div className="relative group mx-auto max-w-[200px] mb-6">
+                      <div className="absolute -inset-2 bg-gradient-to-tr from-[#8860D9] to-fuchsia-500 rounded-xl blur-lg opacity-20 group-hover:opacity-40 transition-opacity" />
+                      <div className="relative bg-white p-3 rounded-xl border border-black/5">
+                        <img
+                          src={booking.qrCode}
+                          alt="Ticket QR Code"
+                          className="w-full aspect-square object-contain"
+                        />
                       </div>
                     </div>
-                  )}
-
-                  <div className="flex items-center gap-3">
-                    <Ticket className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="font-semibold text-gray-900">Ticket Type</p>
-                      <p className="text-gray-600">
-                        {booking.ticketType} × {booking.quantity}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* Payment Details */}
-            <Card>
-              <div className="p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Payment Details</h2>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal</span>
-                    <span className="font-semibold">₹{booking.subtotal}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Tax</span>
-                    <span className="font-semibold">₹{booking.tax}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Platform Fee</span>
-                    <span className="font-semibold">₹{booking.platformFee}</span>
-                  </div>
-                  <div className="border-t pt-2 mt-2 flex justify-between">
-                    <span className="text-lg font-bold text-gray-900">Total Amount</span>
-                    <span className="text-lg font-bold text-gray-900">₹{booking.totalAmount}</span>
-                  </div>
-                  {booking.paymentMethod && (
-                    <p className="text-sm text-gray-600 mt-2 capitalize">
-                      Payment Method: {booking.paymentMethod}
+                    <h3 className="font-bold text-lg sm:text-xl mb-1">Entry Ticket</h3>
+                    <p className={`text-[10px] font-bold uppercase tracking-widest ${themeStyles.textSecondary} opacity-60`}>
+                      Scan this at the venue entry
                     </p>
-                  )}
-                </div>
-              </div>
-            </Card>
-
-            {/* Refund Details - Show if cancelled and has refund */}
-            {isCancelled && hasRefund && (
-              <Card>
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-gray-900">Refund Details</h2>
-                    {getRefundStatusBadge(booking.refundStatus)}
                   </div>
-
-                  {refundCompleted ? (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <div className="flex items-start gap-3">
-                        <CheckCircle className="w-6 h-6 text-green-600 mt-0.5" />
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-green-900 mb-2">Refund Completed</h3>
-                          <div className="space-y-2 text-sm text-green-800">
-                            <div className="flex justify-between">
-                              <span>Event:</span>
-                              <span className="font-semibold">{booking.eventDetails.eventName}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Tickets:</span>
-                              <span className="font-semibold">{booking.quantity} × {booking.ticketType}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Refund Amount:</span>
-                              <span className="font-semibold text-lg">₹{booking.refundAmount}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Processed On:</span>
-                              <span className="font-semibold">{formatDate(booking.refundProcessedAt)}</span>
-                            </div>
-                            <div className="mt-3 pt-3 border-t border-green-200 text-xs text-green-700">
-                              Platform fee of ₹{booking.platformFee} was non-refundable
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                  <div className="p-5 sm:p-8 pt-4">
+                    <Button
+                      onClick={downloadQRCode}
+                      className="w-full h-14 bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] hover:opacity-90 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl shadow-[#8860D9]/20 transition-all border-none"
+                    >
+                      <Download className="w-6 h-6" />
+                      Save Ticket
+                    </Button>
+                    <div className="mt-4 flex items-center justify-center gap-2 py-3 bg-black/5 dark:bg-white/5 rounded-xl border border-white/5">
+                      <CheckCircle className="w-5 h-5 text-emerald-500" />
+                      <span className="text-xs font-bold uppercase tracking-widest text-emerald-500">Verified QR Code</span>
                     </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3 text-gray-700">
-                        <IndianRupee className="w-5 h-5 text-gray-400" />
-                        <div className="flex-1">
-                          <p className="font-semibold">Refund Amount</p>
-                          <p className="text-2xl font-bold text-gray-900">₹{booking.refundAmount}</p>
-                        </div>
-                      </div>
-
-                      {booking.refundInitiatedAt && (
-                        <div className="flex items-center gap-3 text-gray-700">
-                          <Clock className="w-5 h-5 text-gray-400" />
-                          <div>
-                            <p className="font-semibold">Initiated On</p>
-                            <p className="text-gray-600">{formatDate(booking.refundInitiatedAt)}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-                        <p className="font-semibold mb-1">Processing Time</p>
-                        <p>Your refund is being processed and will be credited to your account within 5-7 business days.</p>
-                        <p className="mt-2 text-xs">Note: Platform fee of ₹{booking.platformFee} is non-refundable.</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )}
-            {/* Cancellation Details */}
-            {isCancelled && (
-              <Card>
-                <div className="p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <h2 className="text-xl font-bold text-gray-900">Cancellation Details</h2>
-                    {isAdminCancelled && (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                        By Host
-                      </span>
-                    )}
                   </div>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-700">Cancelled By</p>
-                      <p className="text-gray-600">{isAdminCancelled ? 'Event Host' : 'You'}</p>
-                    </div>
-                    {booking.cancelledAt && (
-                      <div>
-                        <p className="text-sm font-semibold text-gray-700">Cancelled On</p>
-                        <p className="text-gray-600">{formatDate(booking.cancelledAt)}</p>
-                      </div>
-                    )}
-                    {booking.cancellationReason && (
-                      <div>
-                        <p className="text-sm font-semibold text-gray-700">Reason</p>
-                        <p className="text-gray-600">{booking.cancellationReason}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            )}
-          </div>
+                </Card>
+              )}
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* QR Code */}
-            {booking.bookingStatus === 'CONFIRMED' && booking.qrCode && (
-              <Card>
-                <div className="p-6 text-center">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Your Ticket</h3>
-                  <img
-                    src={booking.qrCode}
-                    alt="QR Code"
-                    className="w-full max-w-[250px] mx-auto mb-4 border-2 border-gray-200 rounded-lg"
-                  />
-                  <button
-                    onClick={downloadQRCode}
-                    className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download Ticket
-                  </button>
-                  {booking.isVerified && (
-                    <div className="mt-3 flex items-center justify-center gap-2 text-green-600">
-                      <CheckCircle className="w-5 h-5" />
-                      <span className="text-sm font-semibold">Verified</span>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )}
-
-            {/* Track Refund Button - Show if cancelled and has refund but not completed */}
-            {isCancelled && hasRefund && !refundCompleted && (
-              <Card>
-                <div className="p-6">
-                  <button
-                    onClick={handleTrackRefund}
-                    className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold"
-                  >
-                    <RefreshCw className="w-5 h-5" />
-                    Track Refund Status
-                  </button>
-                </div>
-              </Card>
-            )}
-
-            {/* Cancel Booking Button */}
-            {booking.bookingStatus === 'CONFIRMED' && (
-              <Card>
-                <div className="p-6">
+              {/* Action Buttons */}
+              <div className="space-y-4">
+                {isConfirmed && (
                   <button
                     onClick={() => setShowCancelModal(true)}
-                    className="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2"
+                    className={`w-full group flex items-center justify-between p-6 rounded-xl ${isDark ? 'bg-white/[0.03]' : 'bg-black/5'} hover:bg-[#8860D9]/10 hover:border hover:border-[#8860D9]/30 transition-all`}
                   >
-                    <XCircle className="w-4 h-4" />
-                    Cancel Booking
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-[#8860D9]/10 text-[#8860D9] group-hover:scale-110 transition-transform">
+                        <XCircle className="w-6 h-6" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-lg tracking-tight">Cancel Ticket</p>
+                        <p className={`text-xs opacity-60`} style={{ color: themeStyles.textSecondary }}>Request a refund</p>
+                      </div>
+                    </div>
+                    <ChevronRight className={`w-5 h-5 opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all`} />
                   </button>
-                </div>
-              </Card>
-            )}
+                )}
+
+                <button
+                  onClick={() => router.push('/events/nearby')}
+                  className={`w-full group flex items-center justify-between p-5 rounded-xl transition-all hover:opacity-70`}
+                  style={{ background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)' }}
+                >
+                  <div className="flex items-center gap-4">
+                    <img
+                      src={CalendarIcon.src}
+                      className="w-6 h-6 flex-shrink-0"
+                      style={{ filter: 'brightness(0) saturate(100%) invert(42%) sepia(74%) saturate(3025%) rotate(245deg) brightness(98%) contrast(98%)' }}
+                    />
+                    <div className="text-left">
+                      <p className="font-bold">More Events</p>
+                      <p className="text-xs opacity-50" style={{ color: themeStyles.textSecondary }}>Discover what's next</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 opacity-30 group-hover:opacity-60 group-hover:translate-x-1 transition-all" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Cancel Modal */}
-        {showCancelModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <Card className="max-w-md w-full">
-              <div className="p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Cancel Booking</h2>
-                <p className="text-gray-600 mb-4">
-                  Are you sure you want to cancel this booking? This action cannot be undone.
-                </p>
-                <p className="text-sm text-gray-600 mb-4">
-                  Note: Platform fee of ₹{booking.platformFee} is non-refundable. You will receive ₹{booking.subtotal} as refund.
-                </p>
+      {/* Modern Cancel Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <Card className={`max-w-md w-full p-6 sm:p-8 border-white/10 shadow-2xl animate-in zoom-in-95 duration-300 ${isDark ? 'bg-[#1a1a1a]' : 'bg-white'}`}>
+            <div className="flex items-center gap-4 sm:gap-5 mb-6 sm:mb-8">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#8860D9]/10 rounded-xl flex items-center justify-center shrink-0">
+                <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-[#8860D9]" />
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight" style={{ color: themeStyles.text }}>Cancel Ticket?</h2>
+            </div>
+            <p className={`${themeStyles.textSecondary} text-sm sm:text-base mb-6 leading-relaxed`}>
+              Are you sure you want to cancel this booking? You will receive a refund of <span className="font-bold text-[#8860D9]">₹{booking.subtotal.toLocaleString()}</span>. Platform fees are non-refundable.
+            </p>
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest opacity-60 mb-2">Reason (Required)</label>
                 <textarea
                   value={cancellationReason}
                   onChange={(e) => setCancellationReason(e.target.value)}
-                  placeholder="Please provide a reason for cancellation..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4"
-                  rows={4}
+                  placeholder="e.g. Change of plans..."
+                  className={`w-full px-5 py-4 rounded-xl border ${themeStyles.border} bg-black/5 dark:bg-white/5 focus:ring-2 focus:ring-[#8860D9] focus:outline-none transition-all resize-none h-32`}
                 />
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowCancelModal(false)}
-                    className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
-                    disabled={isCancelling}
-                  >
-                    Keep Booking
-                  </button>
-                  <button
-                    onClick={handleCancelBooking}
-                    disabled={isCancelling}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400"
-                  >
-                    {isCancelling ? 'Cancelling...' : 'Cancel Booking'}
-                  </button>
-                </div>
               </div>
-            </Card>
-          </div>
-        )}
-      </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                <Button
+                  onClick={() => setShowCancelModal(false)}
+                  className={`flex-1 h-12 sm:h-14 rounded-xl font-bold bg-transparent border-black/10 dark:border-white/10 text-gray-400 hover:bg-black/5 dark:hover:bg-white/5`}
+                  disabled={isCancelling}
+                >
+                  No, Keep it
+                </Button>
+                <Button
+                  onClick={handleCancelBooking}
+                  disabled={isCancelling || !cancellationReason.trim()}
+                  className="flex-1 h-12 sm:h-14 bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] hover:opacity-90 text-white rounded-xl font-bold shadow-xl shadow-[#8860D9]/20"
+                >
+                  {isCancelling ? <Loader2 className="w-5 h-5 animate-spin" /> : "Yes, Cancel"}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
