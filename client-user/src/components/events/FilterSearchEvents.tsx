@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, RotateCcw, Calendar } from 'lucide-react';
-import { getCategoryBasedEvents, getFilteredEvents } from '@/services/ticketUserService';
+import { getFilteredEvents } from '@/services/ticketUserService';
 import { FilterEventsParams, EVENT_CATEGORIES } from '@/types/ticket';
 import { useTheme } from '@/components/home/ThemeContext';
 
@@ -71,90 +71,87 @@ export default function FilterSearchEvents({
     setStartDate('');
     setEndDate('');
   };
-const handleApply = async () => {
-  setIsLoading(true);
-  try {
-    const params: FilterEventsParams = {};
-    if (selectedCategory)    params.category = selectedCategory;
-    if (selectedSubcategory) params.subcategory = selectedSubcategory;
-    if (startDate)           params.startDate = startDate;
-    if (endDate)             params.endDate = endDate;
 
-    if (location.trim()) {
-      // Manual location typed — use location search
-      params.location = location.trim();
-      if (currentDistance) params.radius = currentDistance;
+  const handleApply = async () => {
+    setIsLoading(true);
+    try {
+      const params: FilterEventsParams = {};
+      if (selectedCategory)    params.category = selectedCategory;
+      if (selectedSubcategory) params.subcategory = selectedSubcategory;
+      if (startDate)           params.startDate = startDate;
+      if (endDate)             params.endDate = endDate;
 
-      const { searchEventsByLocation } = await import('@/services/ticketUserService');
-      const locRes = await searchEventsByLocation({
-        location: params.location,
-        radius: params.radius ?? 500,
+      if (location.trim()) {
+        params.location = location.trim();
+        if (currentDistance) params.radius = currentDistance;
+
+        const { searchEventsByLocation } = await import('@/services/ticketUserService');
+        const locRes = await searchEventsByLocation({
+          location: params.location,
+          radius: params.radius ?? 500,
+        });
+
+        const raw = [
+          ...Object.values(locRes.data?.eventsByCategory ?? {}).flat(),
+          ...Object.values(locRes.data?.suggestionsByCategory ?? {}).flat(),
+        ] as any[];
+
+        const seen = new Set<string>();
+        const deduped = raw.filter((ev) => {
+          const id = ev._id?.toString() || '';
+          if (!id || seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
+
+        const syntheticResponse = {
+          ...locRes,
+          data: {
+            ...locRes.data,
+            eventsByCategory: deduped.length > 0 ? { 'Events Near Location': deduped } : {},
+          },
+        };
+
+        onApply(syntheticResponse, params);
+        onClose();
+        return;
+      }
+
+      if (userLocation) {
+        params.latitude  = userLocation.latitude;
+        params.longitude = userLocation.longitude;
+        if (currentDistance) params.radius = currentDistance;
+      }
+
+      const response = await getFilteredEvents(params);
+
+      const byCategory = response.data?.eventsByCategory ?? {};
+      const globalSeen = new Set<string>();
+      const dedupedByCategory: Record<string, any[]> = {};
+      Object.entries(byCategory).forEach(([cat, evs]) => {
+        const filtered = (evs as any[]).filter((ev) => {
+          const id = ev._id?.toString() || '';
+          if (!id || globalSeen.has(id)) return false;
+          globalSeen.add(id);
+          return true;
+        });
+        if (filtered.length > 0) dedupedByCategory[cat] = filtered;
       });
 
-      // Deduplicate across all categories + suggestions
-      const raw = [
-        ...Object.values(locRes.data?.eventsByCategory ?? {}).flat(),
-        ...Object.values(locRes.data?.suggestionsByCategory ?? {}).flat(),
-      ] as any[];
-
-      const seen = new Set<string>();
-      const deduped = raw.filter((ev) => {
-        const id = ev._id?.toString() || '';
-        if (!id || seen.has(id)) return false;
-        seen.add(id);
-        return true;
-      });
-
-      // Rebuild as single "All Results" category for the page to render
-      const syntheticResponse = {
-        ...locRes,
-        data: {
-          ...locRes.data,
-          eventsByCategory: deduped.length > 0 ? { 'Events Near Location': deduped } : {},
-        },
+      const dedupedResponse = {
+        ...response,
+        data: { ...response.data, eventsByCategory: dedupedByCategory },
       };
 
-      onApply(syntheticResponse, params);
+      onApply(dedupedResponse, params);
       onClose();
-      return;
+    } catch (error) {
+      console.error('Filter apply error:', error);
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    // GPS-based or category/date only
-    if (userLocation) {
-      params.latitude  = userLocation.latitude;
-      params.longitude = userLocation.longitude;
-      if (currentDistance) params.radius = currentDistance;
-    }
-
-    const response = await getFilteredEvents(params);
-
-    // Deduplicate within filtered results too
-    const byCategory = response.data?.eventsByCategory ?? {};
-    const globalSeen = new Set<string>();
-    const dedupedByCategory: Record<string, any[]> = {};
-    Object.entries(byCategory).forEach(([cat, evs]) => {
-      const filtered = (evs as any[]).filter((ev) => {
-        const id = ev._id?.toString() || '';
-        if (!id || globalSeen.has(id)) return false;
-        globalSeen.add(id);
-        return true;
-      });
-      if (filtered.length > 0) dedupedByCategory[cat] = filtered;
-    });
-
-    const dedupedResponse = {
-      ...response,
-      data: { ...response.data, eventsByCategory: dedupedByCategory },
-    };
-
-    onApply(dedupedResponse, params);
-    onClose();
-  } catch (error) {
-    console.error('Filter apply error:', error);
-  } finally {
-    setIsLoading(false);
-  }
-};
   if (!isOpen) return null;
 
   return (
@@ -165,7 +162,7 @@ const handleApply = async () => {
         onClick={onClose}
       />
 
-      {/* Modal */}
+      {/* Modal content */}
       <div
         className="relative w-full max-w-[507px] rounded-2xl overflow-hidden shadow-2xl transition-colors duration-200"
         style={{
@@ -175,23 +172,22 @@ const handleApply = async () => {
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4">
-          <h2 className="text-xl font-semibold" style={{ color: themeStyles.text }}>Filters</h2>
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <h2 className="text-lg font-semibold" style={{ color: themeStyles.text }}>Filters</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
           >
             <X className="w-5 h-5" style={{ color: themeStyles.textSecondary }} />
           </button>
         </div>
 
-        <div className="px-6 pb-6 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-hide">
+        <div className="px-4 pb-4 space-y-4 max-h-[60vh] overflow-y-auto scrollbar-hide">
           {/* Categories */}
           <div>
             <h3 className="text-sm font-semibold mb-3" style={{ color: themeStyles.text }}>Categories</h3>
             <div className="flex flex-wrap gap-2">
               {EVENT_CATEGORIES.map((cat) => {
-                // Show short label
                 const shortLabel = cat.split(',')[0].split('&')[0].trim().split(' ').slice(0, 1).join(' ');
                 const isActive = selectedCategory === cat;
                 return (
@@ -220,7 +216,7 @@ const handleApply = async () => {
             </div>
           </div>
 
-          {/* Sub Categories — only show when a category is selected */}
+          {/* Sub Categories */}
           {selectedCategory && subcategories.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold mb-3" style={{ color: themeStyles.text }}>Sub categories</h3>
@@ -267,9 +263,12 @@ const handleApply = async () => {
                   : `Enter city, state or country (e.g. Kochi, Kerala)`
               }
               className="w-full px-4 py-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
-              style={{ backgroundColor: themeStyles.hoverBg, border: `1px solid ${themeStyles.border}`, color: themeStyles.text }}
+              style={{ 
+                backgroundColor: themeStyles.hoverBg, 
+                border: `1px solid ${themeStyles.border}`, 
+                color: themeStyles.text 
+              }}
             />
-            {/* Show active GPS badge when no manual override */}
             {userLocation && !location.trim() && (
               <div className="flex items-center gap-1.5 mt-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -301,7 +300,6 @@ const handleApply = async () => {
               <span>Any</span>
             </div>
 
-            {/* Custom km input when "Any" */}
             {isAny && (
               <div className="mt-3">
                 <input
@@ -310,7 +308,11 @@ const handleApply = async () => {
                   onChange={(e) => setCustomDistance(e.target.value)}
                   placeholder="Enter custom distance (km)"
                   className="w-full px-4 py-2.5 rounded-xl text-sm outline-none focus:ring-1 focus:ring-purple-500/50"
-                  style={{ backgroundColor: themeStyles.hoverBg, border: `1px solid ${themeStyles.border}`, color: themeStyles.text }}
+                  style={{ 
+                    backgroundColor: themeStyles.hoverBg, 
+                    border: `1px solid ${themeStyles.border}`, 
+                    color: themeStyles.text 
+                  }}
                   min={51}
                 />
               </div>
@@ -319,8 +321,8 @@ const handleApply = async () => {
 
           {/* Event Date */}
           <div>
-            <h3 className="text-sm font-semibold mb-3" style={{ color: themeStyles.text }}>Event date</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <h3 className="text-sm font-semibold mb-2" style={{ color: themeStyles.text }}>Event date</h3>
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <p className="text-xs mb-1.5" style={{ color: themeStyles.textSecondary }}>From</p>
                 <div className="relative">
@@ -362,30 +364,27 @@ const handleApply = async () => {
 
         {/* Footer */}
         <div
-          className="flex items-center justify-between px-6 py-4"
+          className="flex flex-row items-center justify-between px-4 py-3 gap-2"
           style={{ borderTop: `1px solid ${themeStyles.border}` }}
         >
           <button
             onClick={handleReset}
-            className="flex items-center gap-2 text-sm font-medium transition-colors"
+            className="flex items-center gap-1.5 text-xs font-medium transition-colors order-1"
             style={{ color: themeStyles.textSecondary }}
           >
-            <RotateCcw className="w-4 h-4" />
-            Reset all
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 w-auto order-2">
             <button
               onClick={onClose}
-              className="flex items-center justify-center text-sm font-semibold transition-colors"
+              className="flex items-center justify-center text-[10px] sm:text-xs font-semibold transition-colors w-[80px] sm:w-[110px]"
               style={{
-                width: 132,
-                height: 38,
+                height: 32,
                 borderRadius: 25,
                 border: `1px solid ${themeStyles.border}`,
                 color: themeStyles.textSecondary,
-                padding: '8px 12px',
-                gap: 10,
-                opacity: 1,
+                padding: '4px 8px',
                 background: 'transparent',
               }}
             >
@@ -394,20 +393,17 @@ const handleApply = async () => {
             <button
               onClick={handleApply}
               disabled={isLoading}
-              className="flex items-center justify-center text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
+              className="flex items-center justify-center text-[10px] sm:text-xs font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50 w-[80px] sm:w-[110px]"
               style={{
-                width: 132,
-                height: 38,
+                height: 32,
                 borderRadius: 25,
-                padding: '8px 12px',
-                gap: 10,
-                opacity: 1,
+                padding: '4px 8px',
                 background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)',
                 color: '#fff',
                 border: 'none',
               }}
             >
-              {isLoading ? 'Applying...' : 'Apply'}
+              {isLoading ? '...' : 'Apply'}
             </button>
           </div>
         </div>

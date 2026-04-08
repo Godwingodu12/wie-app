@@ -59,7 +59,7 @@ export default function EventCategoryList() {
   };
 
   return (
-    <div className="relative mx-[30px]">
+    <div className="relative mx-4 md:mx-[30px]">
       {/* Header */}
       <div className="flex justify-between items-end mb-3 px-1">
         <h2
@@ -86,7 +86,7 @@ export default function EventCategoryList() {
             absolute -left-3 top-1/2 -translate-y-1/2 z-20
             w-[28px] h-[28px] rounded-[8px]
             border border-white/10 backdrop-blur-md
-            flex items-center justify-center
+            hidden sm:flex items-center justify-center
             transition-opacity duration-200
             p-[6px]
             "
@@ -106,7 +106,7 @@ export default function EventCategoryList() {
             absolute -right-3 top-1/2 -translate-y-1/2 z-20
             w-[28px] h-[28px] rounded-[8px]
             border border-white/10 backdrop-blur-md
-            flex items-center justify-center
+            hidden sm:flex items-center justify-center
             transition-opacity duration-200
             p-[6px]
             "

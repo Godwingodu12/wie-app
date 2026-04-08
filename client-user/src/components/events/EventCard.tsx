@@ -5,6 +5,7 @@ import { EventWithLocation } from '@/types/ticket';
 import { getEventStats, toggleLike, unlikeEvent } from '@/services/transactionService';
 import { useAuth } from '@/hooks/useAuth';
 import { Calendar, MapPin, Heart } from 'lucide-react';
+import { useTheme } from '@/components/home/ThemeContext';
 
 interface EventCardProps {
   event: EventWithLocation;
@@ -23,6 +24,7 @@ export function EventCard({
 }: EventCardProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const { themeStyles, isDark } = useTheme();
   const [isLiked, setIsLiked] = useState(isLikedProp ?? false);
   const [likeCount, setLikeCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -113,20 +115,21 @@ export function EventCard({
           : 'cursor-pointer hover:scale-[1.02]'
       }`}
       style={{
-        width: 170,
-        height: 260,
+        width: 200,
+        height: 290,
         borderRadius: 12,
-        background: '#38383833',
+        backgroundColor: isDark ? 'transparent' : '#F3F4F6',
+        backgroundImage: isDark ? themeStyles.cardBg : 'none',
         border: eventCancelled
           ? '1px solid rgba(239,68,68,0.3)'
-          : '1px solid #3D4149',
+          : `1px solid ${themeStyles.border}`,
       }}
       onClick={() => !eventCancelled && router.push(`/events/${event._id}`)}
     >
       {/* Banner image */}
       <div
         className="absolute overflow-hidden"
-        style={{ top: 6, left: 6, width: 158, height: 133, borderRadius: 6 }}
+        style={{ top: 6, left: 6, width: 188, height: 160, borderRadius: 6 }}
       >
         {event.event_banner ? (
           <img
@@ -139,11 +142,15 @@ export function EventCard({
           <div
             className="w-full h-full flex items-center justify-center"
             style={{
-              background:
-                'linear-gradient(135deg, #2D3139 0%, #1C2024 100%)',
+              background: isDark
+                ? 'linear-gradient(135deg, #2D3139 0%, #1C2024 100%)'
+                : 'linear-gradient(135deg, #E5E7EB 0%, #D1D5DB 100%)',
             }}
           >
-            <Calendar className="w-8 h-8 text-white/20" />
+            <Calendar
+              className="w-8 h-8"
+              style={{ color: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)' }}
+            />
           </div>
         )}
 
@@ -184,22 +191,31 @@ export function EventCard({
           disabled={isLoading || !user}
           className="absolute flex items-center justify-center transition-all"
           style={{
-            top: 9,
-            left: 127,
-            width: 34,
-            height: 34,
+            top: 10,
+            right: 10,
+            width: 36,
+            height: 36,
             borderRadius: 17,
-            background: 'rgba(28,32,36,0.75)',
+            background: isDark ? 'rgba(28,32,36,0.75)' : 'rgba(255,255,255,0.75)',
             backdropFilter: 'blur(6px)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            border: 'none',
             zIndex: 2,
           }}
         >
+          <svg width="0" height="0" className="absolute">
+            <defs>
+              <linearGradient id="heartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop stopColor="#B3B8E2" offset="0%" />
+                <stop stopColor="#8860D9" offset="50%" />
+                <stop stopColor="#9575CD" offset="100%" />
+              </linearGradient>
+            </defs>
+          </svg>
           <Heart
             className="w-4 h-4 transition-colors"
             style={{
-              color: isLiked ? '#EF4444' : '#fff',
-              fill: isLiked ? '#EF4444' : 'none',
+              color: isLiked ? 'transparent' : '#fff',
+              fill: isLiked ? 'url(#heartGradient)' : 'none',
             }}
           />
         </button>
@@ -207,12 +223,12 @@ export function EventCard({
 
       {/* Text content */}
       <div
-        className="absolute px-2"
-        style={{ top: 145, left: 0, right: 0 }}
+        className="absolute px-3"
+        style={{ top: 174, left: 0, right: 0 }}
       >
         <p
-          className="text-white font-semibold leading-tight mb-2 line-clamp-2"
-          style={{ fontSize: 11 }}
+          className="font-semibold leading-tight mb-2 line-clamp-2"
+          style={{ fontSize: 13, color: isDark ? '#FFF' : '#000' }}
         >
           {event.event_name}
         </p>
@@ -226,8 +242,8 @@ export function EventCard({
             style={{ width: 10, height: 10, color: '#8860D9' }}
           />
           <span
-            className="text-white/60 truncate"
-            style={{ fontSize: 10 }}
+            className="truncate"
+            style={{ fontSize: 11, color: isDark ? '#E5E7EB' : '#4B5563' }}
           >
             {startDate}
           </span>
@@ -242,8 +258,8 @@ export function EventCard({
             style={{ width: 10, height: 10, color: '#8860D9' }}
           />
           <span
-            className="text-white/60 truncate"
-            style={{ fontSize: 10 }}
+            className="truncate"
+            style={{ fontSize: 11, color: isDark ? '#E5E7EB' : '#4B5563' }}
           >
             {trimmed(locationText)}
           </span>
@@ -260,9 +276,9 @@ export function EventCard({
                   width: 20,
                   height: 20,
                   borderRadius: 100,
-                  border: '2px solid #38383833',
+                  border: `2px solid ${themeStyles.border}`,
                   marginLeft: i === 0 ? 0 : -6,
-                  background: '#2D3139',
+                  background: isDark ? '#2D3139' : '#E5E7EB',
                   zIndex: guests.length - i,
                   position: 'relative',
                 }}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { MapPin, X, Navigation, Search, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useTheme } from '@/components/home/ThemeContext';
 
 interface EnableLocationProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export default function EnableLocation({
   onLocationGranted,
   onManualLocation,
 }: EnableLocationProps) {
+  const { themeStyles, isDark } = useTheme();
   const [step, setStep] = useState<Step>('prompt');
   const [manualInput, setManualInput] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -95,19 +97,22 @@ export default function EnableLocation({
       {/* Sheet / Modal */}
       <div
         className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl"
-        style={{ background: '#1C2024', border: '1px solid #2D3139' }}
+        style={{
+          backgroundColor: themeStyles.cardBg.includes('gradient') ? '#1C2024' : themeStyles.cardBg,
+          backgroundImage: themeStyles.cardBg.includes('gradient') ? themeStyles.cardBg : 'none',
+          border: `1px solid ${themeStyles.border}`
+        }}
       >
         {/* Handle bar (mobile) */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden">
-          <div className="w-10 h-1 rounded-full" style={{ background: '#3D4149' }} />
+          <div className="w-10 h-1 rounded-full" style={{ background: themeStyles.border }} />
         </div>
 
-        {/* Close button */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
         >
-          <X className="w-4 h-4 text-white/60" />
+          <X className="w-4 h-4" style={{ color: themeStyles.textSecondary }} />
         </button>
 
         <div className="px-6 pt-4 pb-8 sm:pt-6">
@@ -122,8 +127,8 @@ export default function EnableLocation({
               >
                 <MapPin className="w-8 h-8 text-purple-400" />
               </div>
-              <h2 className="text-white text-xl font-bold mb-2">Find Events Near You</h2>
-              <p className="text-white/50 text-sm mb-7 leading-relaxed">
+              <h2 className="text-xl font-bold mb-2" style={{ color: themeStyles.text }}>Find Events Near You</h2>
+              <p className="text-sm mb-7 leading-relaxed" style={{ color: themeStyles.textSecondary }}>
                 Enable location to discover events happening nearby, or enter your city manually.
               </p>
 
@@ -144,7 +149,7 @@ export default function EnableLocation({
               <button
                 onClick={() => setStep('manual')}
                 className="w-full py-3.5 rounded-xl text-sm font-semibold transition-colors"
-                style={{ background: '#2D3139', color: '#9CA3AF', border: '1px solid #3D4149' }}
+                style={{ backgroundColor: themeStyles.hoverBg, color: themeStyles.textSecondary, border: `1px solid ${themeStyles.border}` }}
               >
                 Enter Location Manually
               </button>
@@ -156,12 +161,12 @@ export default function EnableLocation({
             <div className="text-center py-4">
               <div
                 className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                style={{ background: '#2D3139' }}
+                style={{ background: themeStyles.hoverBg }}
               >
                 <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
               </div>
-              <h2 className="text-white text-lg font-bold mb-2">Getting Your Location</h2>
-              <p className="text-white/50 text-sm">Please allow location access in your browser…</p>
+              <h2 className="text-lg font-bold mb-2" style={{ color: themeStyles.text }}>Getting Your Location</h2>
+              <p className="text-sm" style={{ color: themeStyles.textSecondary }}>Please allow location access in your browser…</p>
             </div>
           )}
 
@@ -174,11 +179,11 @@ export default function EnableLocation({
               >
                 <CheckCircle2 className="w-8 h-8 text-green-400" />
               </div>
-              <h2 className="text-white text-lg font-bold mb-1">Location Enabled!</h2>
+              <h2 className="text-lg font-bold mb-1" style={{ color: themeStyles.text }}>Location Enabled!</h2>
               {displayName && (
                 <p className="text-green-400 text-sm font-medium">{displayName}</p>
               )}
-              <p className="text-white/50 text-xs mt-1">Finding events near you…</p>
+              <p className="text-xs mt-1" style={{ color: themeStyles.textSecondary }}>Finding events near you…</p>
             </div>
           )}
 
@@ -191,8 +196,8 @@ export default function EnableLocation({
               >
                 <AlertCircle className="w-8 h-8 text-red-400" />
               </div>
-              <h2 className="text-white text-lg font-bold mb-2">Location Access Denied</h2>
-              <p className="text-white/50 text-sm mb-6 leading-relaxed">
+              <h2 className="text-lg font-bold mb-2" style={{ color: themeStyles.text }}>Location Access Denied</h2>
+              <p className="text-sm mb-6 leading-relaxed" style={{ color: themeStyles.textSecondary }}>
                 You've blocked location access. Please update your browser settings, or enter your location manually below.
               </p>
               <button
@@ -212,18 +217,19 @@ export default function EnableLocation({
             <div>
               <button
                 onClick={() => { setStep('prompt'); setErrorMsg(''); }}
-                className="flex items-center gap-1.5 text-white/50 hover:text-white text-xs mb-4 transition-colors"
+                className="flex items-center gap-1.5 text-xs mb-4 transition-colors"
+                style={{ color: themeStyles.textSecondary }}
               >
                 ← Back
               </button>
               <div
                 className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
-                style={{ background: '#2D3139' }}
+                style={{ background: themeStyles.hoverBg }}
               >
                 <Search className="w-6 h-6 text-purple-400" />
               </div>
-              <h2 className="text-white text-lg font-bold mb-1">Enter Your Location</h2>
-              <p className="text-white/50 text-sm mb-5">
+              <h2 className="text-lg font-bold mb-1" style={{ color: themeStyles.text }}>Enter Your Location</h2>
+              <p className="text-sm mb-5" style={{ color: themeStyles.textSecondary }}>
                 City, district, state or country (e.g. Kochi, Kerala, Dubai)
               </p>
               {errorMsg && (
@@ -236,8 +242,8 @@ export default function EnableLocation({
                 onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
                 placeholder="Type your location…"
                 autoFocus
-                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/30 outline-none focus:ring-1 focus:ring-purple-500/60 mb-4"
-                style={{ background: '#2D3139', border: '1px solid #3D4149' }}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-purple-500/60 mb-4"
+                style={{ backgroundColor: themeStyles.hoverBg, border: `1px solid ${themeStyles.border}`, color: themeStyles.text }}
               />
               <button
                 onClick={handleManualSubmit}
