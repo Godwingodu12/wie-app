@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import Image, { StaticImageData } from "next/image";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -48,16 +48,24 @@ const CATEGORIES_DATA: Category[] = [
 
 export default function EventCategoryList() {
   const router = useRouter();
-  const { themeStyles } = useTheme();
+  const { themeStyles, isDark } = useTheme();
   const categoriesRef = useRef<HTMLDivElement>(null);
-
+  const [mounted, setMounted] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const scroll = (direction: "left" | "right") => {
     categoriesRef.current?.scrollBy({
       left: direction === "left" ? -300 : 300,
       behavior: "smooth",
     });
   };
-
+  const handleCategoryClick = (cat: Category) => {
+    // Optimistic: highlight card immediately before route change
+    setActiveCategory(cat.id);
+    router.push(`/events/categories?category=${encodeURIComponent(cat.id)}`);
+  };
   return (
     <div className="relative mx-4 md:mx-[30px]">
       {/* Header */}
@@ -123,42 +131,64 @@ export default function EventCategoryList() {
           ref={categoriesRef}
           className="flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth pb-2"
         >
-          {CATEGORIES_DATA.map((cat, index) => (
-            <button
-              key={cat.id}
-              onClick={() =>
-                router.push(
-                  `/events/categories?category=${encodeURIComponent(cat.id)}`
-                )
-              }
-              className="
-                flex-shrink-0 w-[139px] h-[63px]
-                rounded-[12px] relative overflow-hidden
-                group/card hover:scale-[1.02]
-                transition-transform duration-300
-                backdrop-blur-[15px]
-              "
-            >
-              {/* Background image — fix: add sizes to suppress the "fill without sizes" warning */}
-              <Image
-                src={cat.image}
-                alt={cat.label}
-                fill
-                sizes="139px"
-                className="object-cover transition-transform duration-500 group-hover/card:scale-110"
-              />
+          {!mounted
+            ? /* Skeleton cards while component hydrates */
+              [...Array(6)].map((_, i) => (
+                <div
+                  key={i}
+                  className="flex-shrink-0 w-[139px] h-[63px] rounded-[12px] animate-pulse"
+                  style={{
+                    backgroundColor: isDark ? "#1e1e1e" : "#e5e7eb",
+                    animationDelay: `${i * 80}ms`,
+                  }}
+                />
+              ))
+            : /* Real cards with optimistic active state */
+              CATEGORIES_DATA.map((cat) => {
+                const isActiveCat = activeCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => handleCategoryClick(cat)}
+                    className="
+                      flex-shrink-0 w-[139px] h-[63px]
+                      rounded-[12px] relative overflow-hidden
+                      group/card hover:scale-[1.02]
+                      transition-transform duration-300
+                      backdrop-blur-[15px]
+                    "
+                    style={{
+                      outline: isActiveCat ? "2px solid #8860D9" : "none",
+                      outlineOffset: "2px",
+                    }}
+                  >
+                    <Image
+                      src={cat.image}
+                      alt={cat.label}
+                      fill
+                      sizes="139px"
+                      className="object-cover transition-transform duration-500 group-hover/card:scale-110"
+                    />
 
-              {/* Dark overlay */}
-              <div className="absolute inset-0 bg-black/40 group-hover/card:bg-black/20 transition-colors" />
+                    {/* Overlay — brighter when optimistically active */}
+                    <div
+                      className="absolute inset-0 transition-colors duration-200"
+                      style={{
+                        backgroundColor: isActiveCat
+                          ? "rgba(136,96,217,0.35)"
+                          : "rgba(0,0,0,0.40)",
+                      }}
+                    />
 
-              {/* Label bar */}
-              <div className="absolute bottom-0 inset-x-0 py-2 flex items-center justify-center backdrop-blur-[5px] z-10 bg-black/20">
-                <span className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60 leading-none">
-                  {cat.label}
-                </span>
-              </div>
-            </button>
-          ))}
+                    {/* Label bar */}
+                    <div className="absolute bottom-0 inset-x-0 py-2 flex items-center justify-center backdrop-blur-[5px] z-10 bg-black/20">
+                      <span className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60 leading-none">
+                        {cat.label}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
         </div>
       </div>
     </div>
