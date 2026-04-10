@@ -29,7 +29,7 @@ import {
 import SideBar from "@/components/home/SideBar";
 import { useSidebar } from "@/context/SidebarContext";
 import { useTheme } from "@/components/home/ThemeContext";
-
+import HomeSkeleton from "@/components/home/HomeSkeleton";
 // ✅ Extracted EventCategoryList component
 import EventCategoryList from "@/components/events/Eventcategorylist";
 
@@ -123,6 +123,16 @@ export default function HomePage() {
   const [fluxLoading,   setFluxLoading]   = useState(true);
   const router = useRouter();
   const storiesRef = useRef<HTMLDivElement>(null);
+  const [likeState, setLikeState] = useState<
+    Record<string, { liked: boolean; count: number }>
+  >(() =>
+    Object.fromEntries(
+      dummyPosts.map((p) => [
+        p.id,
+        { liked: false, count: p.likes },
+      ])
+    ) as Record<string, { liked: boolean; count: number }>
+  );
   const [viewedFluxIds, setViewedFluxIds] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem("viewedFluxIds");
@@ -194,7 +204,28 @@ export default function HomePage() {
       return n;
     });
   };
+  const handleLike = async (postId: string) => {
+    // 1. Snapshot current state for rollback
+    const prev = likeState[postId];
 
+    // 2. Optimistically update UI immediately
+    setLikeState((s) => ({
+      ...s,
+      [postId]: {
+        liked:  !s[postId].liked,
+        count: s[postId].liked ? s[postId].count - 1 : s[postId].count + 1,
+      },
+    }));
+
+    try {
+      // 3. Fire real API call in background
+      await new Promise((res) => setTimeout(res, 600)); // ← remove once real API is wired
+    } catch (err) {
+      // 4. Rollback on failure
+      console.error("Like failed, rolling back:", err);
+      setLikeState((s) => ({ ...s, [postId]: prev }));
+    }
+  };
   const markFluxViewed = async (fluxId: string) => {
     if (viewedFluxIds.has(fluxId)) return;
 
@@ -236,322 +267,213 @@ export default function HomePage() {
 
       <main className="transition-all duration-300 ease-in-out" style={{ marginLeft }}>
         <div className="w-full max-w-[1600px] mx-auto flex justify-center xl:justify-between gap-10 pt-4 px-4 md:px-12 xl:px-20">
-
-          {/* LEFT / CENTER FEED  */}
+          {/* LEFT / CENTER FEED */}
           <div className="flex-1 max-w-[700px] min-w-0 flex flex-col gap-8">
+            {fluxLoading ? (
+              <HomeSkeleton />
+            ) : (
+              <div className="flex flex-col gap-8 animate-fadeIn">
 
-            {/* ── Stories / Flux Section — always render "Your story", others only if present ── */}
-            {!fluxLoading && (
-              <div className="relative -mx-4 md:-mx-12 xl:-mx-20 flex items-center lg:ml-12">
+                {/* ── Stories / Flux Section ── */}
+                <div className="relative -mx-4 md:-mx-12 xl:-mx-20 flex items-center lg:ml-12">
 
-                {/* ── My Story bubble — always shown ── */}
-                <div className="pl-4 md:pl-12 xl:pl-20 flex-shrink-0">
-                  <button
-                    onClick={() => {
-                      if (myFluxes.length > 0) {
-                        markFluxViewed(myFluxes[0]._id);
-                        router.push(`/post/flux-view?fluxId=${myFluxes[0]._id}`);
-                      } else {
-                        router.push("/post/flux");
-                      }
-                    }}
-                    className="flex flex-col items-center gap-1.5 cursor-pointer group"
-                    style={{ width: 72 }}
-                  >
-
-                    <div
-                      className="relative overflow-hidden transition-all group-hover:scale-105"
-                      style={{
-                        width:        70,
-                        height:       100,
-                        borderRadius: 12,
-                        padding:      myFluxes.length > 0 ? 2 : 0,
-                        background: myFluxes.length > 0
-                          ? myFluxViewed
-                            ? "linear-gradient(147.67deg,#555 13%,#888 100%)"
-                            : "linear-gradient(147.67deg,#8860D9 13%,#B3B8E2 100%)"
-                          : "transparent",
-                        border: myFluxes.length > 0
-                          ? "none"
-                          : "1.5px dashed rgba(255,255,255,0.25)",
-
+                  {/* ── My Story ── */}
+                  <div className="pl-4 md:pl-12 xl:pl-20 flex-shrink-0">
+                    <button
+                      onClick={() => {
+                        if (myFluxes.length > 0) {
+                          markFluxViewed(myFluxes[0]._id);
+                          router.push(`/post/flux-view?fluxId=${myFluxes[0]._id}`);
+                        } else {
+                          router.push("/post/flux");
+                        }
                       }}
+                      className="flex flex-col items-center gap-1.5 group"
+                      style={{ width: 72 }}
                     >
-                      <div style={{
-                        width:        "100%",
-                        height:       "100%",
-                        borderRadius: myFluxes.length > 0 ? 10 : 12,
-                        overflow:     "hidden",
-                        position:     "relative",
-                        background:   "#1a1a1a",
-                      }}>
-                        {/* Profile picture always as background */}
-                        <Image
-                          src={userProfile?.profile_picture ?? ProfileImage}
-                          alt="my story"
-                          fill
-                          sizes="70px"
-                          className="object-cover"
-                          style={{ opacity: myFluxes.length > 0 ? 1 : 0.6 }}
-                          unoptimized={!!userProfile?.profile_picture}
-                        />
-
-                        {/* + badge when no flux */}
-                        {myFluxes.length === 0 && (
-                          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center pb-2">
-                            <div
-                              className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                              style={{ background: "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)" }}
-                            >
-                              +
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-center truncate w-full" style={{ color: themeStyles.textSecondary }}>
-                      Your Flux
-                    </span>
-                  </button>
-                </div>
-
-                {/* ── Other users' flux bubbles — only if feed has data ── */}
-                {feedGroups.length > 0 && (
-                  <div className="flex-1 min-w-0 relative group">
-                    <button
-                      onClick={() => scrollStories("left")}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-[28px] h-[28px] rounded-[8px] border border-white/10 backdrop-blur-md hidden lg:flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 p-[6px]"
-                      style={{ backgroundColor: themeStyles.pillBg }}
-                    >
-                      <ChevronLeft className="w-[16px] h-[16px]" style={{ color: themeStyles.text }} />
-                    </button>
-                    <button
-                      onClick={() => scrollStories("right")}
-                      className="absolute right-4 md:right-12 xl:right-20 top-1/2 -translate-y-1/2 z-20 w-[28px] h-[28px] rounded-[8px] border border-white/10 backdrop-blur-md hidden lg:flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 p-[6px]"
-                      style={{ backgroundColor: themeStyles.pillBg }}
-                    >
-                      <ChevronRight className="w-[16px] h-[16px]" style={{ color: themeStyles.text }} />
-                    </button>
-
-                    <div
-                      ref={storiesRef}
-                      className="flex gap-4 overflow-x-auto scrollbar-hide py-2 pl-4 pr-4 md:pr-12 xl:pr-20 scroll-smooth"
-                    >
-                      {feedGroups.map((group) => {
-                        const firstFlux  = group.fluxes[0];
-                        const userAvatar = group.user?.profile_picture ?? null;
-                        const username   = group.user?.username ?? group._id;
-                        const fluxId     = firstFlux?._id ?? "";
-                        const allViewed = group.fluxes.every((f) => f._id != null && viewedFluxIds.has(f._id));
-                        const isCloseFriend = group.fluxes.some(
-                                                  (f) => f.visibility === "close_friends"
-                                                );
-                        return (
-                          <button
-                            key={group._id}
-                            onClick={() => {
-                              markFluxViewed(fluxId);
-                              router.push(`/post/flux-view?fluxId=${fluxId}&userId=${group._id}`);
-                            }}
-                            className="flex flex-col items-center gap-1.5 cursor-pointer flex-shrink-0 group/item"
-                            style={{ width: 72 }}
-                          >
-                            <div
-                              className="relative overflow-hidden transition-all group-hover/item:scale-105"
-                              style={{
-                                width: 70, height: 100, borderRadius: 12, padding: 2,
-                                background: allViewed
-                                  ? "linear-gradient(147.67deg,#444 13%,#777 100%)"
-                                  : isCloseFriend
-                                    ? "linear-gradient(147.67deg,#22c55e 13%,#16a34a 100%)"
-                                    : "linear-gradient(147.67deg,#2979FF 13%,#6B9CF0 54%,#9DC1FF 100%)",
-                              }}
-                            >
-                              <div style={{
-                                width: "100%", height: "100%", borderRadius: 10,
-                                overflow: "hidden", position: "relative", background: "#1a1a1a",
-                              }}>
-                                <Image
-                                  src={userAvatar || ProfileImage}
-                                  alt={username}
-                                  fill
-                                  sizes="70px"
-                                  className="object-cover"
-                                  unoptimized={!!userAvatar}
-                                />
-                              </div>
-                            </div>
-                            <span className="text-[11px] text-center truncate w-full" style={{ color: themeStyles.textSecondary }}>
-                              {username}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            {/* ✅ Event Categories — now a standalone component */}
-            <EventCategoryList />
-
-            {/* --- Feed Posts --- */}
-            <div className="flex flex-col gap-6 pb-20 mx-[10px]">
-              {dummyPosts.map((post) => {
-                const { text: desc, truncated } = truncateText(post.description, 18);
-                const isExpanded = expandedPosts.has(post.id);
-
-                return (
-                  <article key={post.id} className="w-full flex flex-col gap-3 mb-4">
-                    {/* Header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-[38px] h-[38px] rounded-full overflow-hidden bg-[#222] shrink-0 border border-white/5">
-                          <Image
-                            src={post.user.avatar}
-                            alt={post.user.name}
-                            width={38}
-                            height={38}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <div className="flex items-center gap-1">
-                            <span
-                              className="text-[14px] font-semibold leading-none"
-                              style={{ color: themeStyles.text }}
-                            >
-                              {post.user.name}
-                            </span>
-                            {post.user.isVerified && (
-                              <div className="bg-blue-500 rounded-full p-[2px] w-3 h-3 flex items-center justify-center">
-                                <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                              </div>
-                            )}
-                          </div>
-                          <span className="text-[11px] mt-0.5" style={{ color: themeStyles.textSecondary }}>
-                            {post.user.location} <span className="mx-1">•</span> {post.createdAt}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-                        <button className="px-3 h-[26px] rounded-[25px] flex items-center justify-center text-[10px] sm:text-[11px] font-semibold text-white bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] active:scale-95 transition-transform">
-                          Follow
-                        </button>
-                        <button className="p-1 hover:bg-white/5 rounded-full transition-colors">
-                          <MoreHorizontal className="w-5 h-5 cursor-pointer" style={{ color: themeStyles.text }} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Post Image */}
-                    <div className="relative w-full aspect-square bg-[#1a1a1a] rounded-[24px] overflow-hidden border border-white/5">
-                      <Image
-                        src={DummyPost}
-                        alt="Post content"
-                        fill
-                        sizes="(max-width: 700px) 100vw, 700px"
-                        className="object-cover"
-                        priority={post.id === "1"}
-                      />
-                    </div>
-
-                    {/* Actions Pill & Save */}
-                    <div className="flex items-center justify-between px-1 mt-1">
                       <div
-                        className="flex items-center rounded-full px-4 py-2.5 gap-6"
-                        style={{ backgroundColor: themeStyles.pillBg }}
+                        className="relative overflow-hidden transition-all group-hover:scale-105"
+                        style={{
+                          width: 70,
+                          height: 100,
+                          borderRadius: 12,
+                          padding: myFluxes.length > 0 ? 2 : 0,
+                          background: myFluxes.length > 0
+                            ? myFluxViewed
+                              ? "linear-gradient(147.67deg,#555 13%,#888 100%)"
+                              : "linear-gradient(147.67deg,#8860D9 13%,#B3B8E2 100%)"
+                            : "transparent",
+                          border: myFluxes.length > 0
+                            ? "none"
+                            : "1.5px dashed rgba(255,255,255,0.25)",
+                        }}
                       >
-                        <button className="flex items-center gap-2 group">
-                          {/* ✅ FIX — SVG icons: use explicit equal width+height, no CSS override */}
+                        <div className="w-full h-full rounded-[10px] overflow-hidden relative bg-[#1a1a1a]">
                           <Image
-                            src={LikeIcon}
-                            alt="Like"
-                            width={20}
-                            height={20}
-                            className="group-active:scale-90 transition-transform"
-                            style={{ filter: themeStyles.iconFilter }}
+                            src={userProfile?.profile_picture ?? ProfileImage}
+                            alt="my story"
+                            fill
+                            className="object-cover"
+                            style={{ opacity: myFluxes.length > 0 ? 1 : 0.6 }}
                           />
-                          <span className="text-[13px] font-medium" style={{ color: themeStyles.text }}>1,200</span>
-                        </button>
-                        <button className="flex items-center gap-2">
-                          <Image
-                            src={CommentIcon}
-                            alt="Comment"
-                            width={18}
-                            height={18}
-                            style={{ filter: themeStyles.iconFilter }}
-                          />
-                          <span className="text-[13px] font-medium" style={{ color: themeStyles.text }}>1,111</span>
-                        </button>
-                        <button className="flex items-center gap-2">
-                          <Image
-                            src={ShareCountIcon}
-                            alt="Share"
-                            width={18}
-                            height={18}
-                            style={{ filter: themeStyles.iconFilter }}
-                          />
-                          <span className="text-[13px] font-medium" style={{ color: themeStyles.text }}>666</span>
-                        </button>
+
+                          {myFluxes.length === 0 && (
+                            <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-2">
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-sm font-bold bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD]">
+                                +
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
+
+                      <span className="text-[11px] truncate text-center w-full" style={{ color: themeStyles.textSecondary }}>
+                        Your Flux
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* ── Other Stories ── */}
+                  {feedGroups.length > 0 && (
+                    <div className="flex-1 min-w-0 relative group">
+
+                      {/* Arrows */}
+                      <button
+                        onClick={() => scrollStories("left")}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 z-20 hidden lg:flex opacity-0 group-hover:opacity-100"
+                      >
+                        <ChevronLeft />
+                      </button>
 
                       <button
-                        className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-                        style={{ backgroundColor: themeStyles.pillBg }}
+                        onClick={() => scrollStories("right")}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 z-20 hidden lg:flex opacity-0 group-hover:opacity-100"
                       >
-                        <Image
-                          src={SaveIcon}
-                          alt="Save"
-                          width={18}
-                          height={18}
-                          style={{ filter: themeStyles.iconFilter }}
-                        />
+                        <ChevronRight />
                       </button>
-                    </div>
 
-                    {/* Description */}
-                    <div className="px-1 text-[13px] leading-relaxed" style={{ color: themeStyles.textSecondary }}>
-                      {isExpanded ? post.description : desc}
-                      {truncated && !isExpanded && (
-                        <button
-                          onClick={() => toggleDescription(post.id)}
-                          className="ml-1 font-medium"
-                          style={{ color: themeStyles.textSecondary }}
-                        >
-                          more
-                        </button>
-                      )}
-                    </div>
+                      {/* Stories List */}
+                      <div
+                        ref={storiesRef}
+                        className="flex gap-4 overflow-x-auto scrollbar-hide py-2 px-4 scroll-smooth"
+                      >
+                        {feedGroups.map((group) => {
+                          const firstFlux = group.fluxes[0];
+                          const fluxId = firstFlux?._id ?? "";
 
-                    {/* Liked By */}
-                    <div className="px-1 flex items-center gap-2">
-                      <div className="flex -space-x-1.5 shrink-0">
-                        {[0, 1, 2].map((i) => (
-                          <div key={i} className="w-4 h-4 rounded-full border border-black relative bg-gray-700 overflow-hidden shrink-0">
-                            <Image src={ProfileImage} alt="" fill sizes="16px" className="rounded-full object-cover" />
-                          </div>
-                        ))}
+                          return (
+                            <button
+                              key={group._id}
+                              onClick={() => {
+                                markFluxViewed(fluxId);
+                                router.push(`/post/flux-view?fluxId=${fluxId}&userId=${group._id}`);
+                              }}
+                              className="flex flex-col items-center gap-1.5 flex-shrink-0"
+                              style={{ width: 72 }}
+                            >
+                              <div className="w-[70px] h-[100px] rounded-[12px] overflow-hidden bg-[#1a1a1a]">
+                                <Image
+                                  src={group.user?.profile_picture || ProfileImage}
+                                  alt=""
+                                  fill
+                                  className="object-cover"
+                                />
+                              </div>
+
+                              <span className="text-[11px] truncate text-center w-full">
+                                {group.user?.username}
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
-                      <span className="text-[12px] text-[#888]">
-                        Liked by{" "}
-                        <span className="font-medium" style={{ color: themeStyles.text }}>
-                          {post.likedBy[0]?.name}
-                        </span>{" "}
-                        and others
-                      </span>
                     </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
+                  )}
+                </div>
 
+                {/* ✅ Event Categories */}
+                <EventCategoryList />
+
+                {/* --- Feed Posts --- */}
+                <div className="flex flex-col gap-6 pb-20 mx-[10px]">
+                  {dummyPosts.map((post) => {
+                    const { text: desc, truncated } = truncateText(post.description, 18);
+                    const isExpanded = expandedPosts.has(post.id);
+
+                    return (
+                      <article key={post.id} className="flex flex-col gap-3 mb-4">
+
+                        {/* Header */}
+                        <div className="flex justify-between items-center">
+                          <div className="flex gap-3 items-center">
+                            <div className="w-[38px] h-[38px] rounded-full overflow-hidden bg-[#222]">
+                              <Image src={post.user.avatar} alt="" width={38} height={38} />
+                            </div>
+
+                            <div>
+                              <span className="font-semibold text-sm">{post.user.name}</span>
+                              <div className="text-xs text-gray-400">
+                                {post.user.location} • {post.createdAt}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Image */}
+                        <div className="relative w-full aspect-square rounded-[24px] overflow-hidden">
+                          <Image src={DummyPost} alt="" fill className="object-cover" />
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex justify-between">
+                          <div className="flex gap-4">
+                            <button
+                              onClick={() => handleLike(post.id)}
+                              className="flex items-center gap-2 group active:scale-95 transition-transform"
+                            >
+                              <svg
+                                width={20}
+                                height={20}
+                                viewBox="0 0 24 24"
+                                fill={likeState[post.id]?.liked ? "#8860D9" : "none"}
+                                stroke={likeState[post.id]?.liked ? "#8860D9" : "currentColor"}
+                                strokeWidth={2}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="transition-all duration-200 group-active:scale-90"
+                                style={{ color: themeStyles.text }}
+                              >
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                              </svg>
+                              <span
+                                className="text-[13px] font-medium transition-all duration-150"
+                                style={{ color: likeState[post.id]?.liked ? "#8860D9" : themeStyles.text }}
+                              >
+                                {likeState[post.id]?.count.toLocaleString() ?? post.likes.toLocaleString()}
+                              </span>
+                            </button>
+                            <button>💬 1111</button>
+                            <button>📤 666</button>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        <div className="text-sm text-gray-400">
+                          {isExpanded ? post.description : desc}
+                          {truncated && !isExpanded && (
+                            <button onClick={() => toggleDescription(post.id)}> more</button>
+                          )}
+                        </div>
+
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
           {/* ================= RIGHT SIDEBAR ================= */}
           <div className="hidden xl:flex w-[320px] 2xl:w-[380px] flex-col gap-10 pt-2 h-fit sticky top-6">
-
             {/* Suggested Profiles */}
             <div className="flex flex-col gap-4">
               <div className="flex justify-between items-center">
