@@ -38,8 +38,8 @@ const SideBar: React.FC = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState<number>(0);
   const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
-  const [unreadUsersCount, setUnreadUsersCount] = useState<number>(0); // ✅ Changed variable name
-
+  const [unreadUsersCount, setUnreadUsersCount] = useState<number>(0); 
+  const [sidebarReady, setSidebarReady] = useState(false);
   // Load unread notification count
   useEffect(() => {
     const fetchNotificationCount = async () => {
@@ -72,22 +72,21 @@ const SideBar: React.FC = () => {
     fetchFollowStats();
   }, [user?.id]);
 
-  // ✅ Load unread USERS count (not message count)
   useEffect(() => {
-    const fetchUnreadUsersCount = async () => {
-      if (!user || !token) return;
+      const fetchUnreadUsersCount = async () => {
+        if (!user || !token) return;
+        try {
+          const res = await getUnreadUsersCount();
+          setUnreadUsersCount(res.unreadUsersCount || 0);
+        } catch (error) {
+          console.error("Failed to load unread users count:", error);
+        } finally {
+          setSidebarReady(true); 
+        }
+      };
 
-
-      try {
-        const res = await getUnreadUsersCount();
-        setUnreadUsersCount(res.unreadUsersCount || 0);
-      } catch (error) {
-        console.error("Failed to load unread users count:", error);
-      }
-    };
-
-    fetchUnreadUsersCount();
-  }, [user, token]);
+      fetchUnreadUsersCount();
+    }, [user, token]);
 
   // Subscribe to real-time notification events
   useEffect(() => {
@@ -252,10 +251,15 @@ const SideBar: React.FC = () => {
       const opening = !isNotificationOpen;
       setIsNotificationOpen(opening);
       if (opening) {
+        // Optimistic: clear badge immediately
+        const prevCount = notificationCount;
         setNotificationCount(0);
-        markAllNotificationsAsRead().catch((err) =>
-          console.error('Failed to mark all notifications read:', err)
-        );
+
+        markAllNotificationsAsRead().catch((err) => {
+          console.error('Failed to mark all notifications read:', err);
+          // Rollback on failure
+          setNotificationCount(prevCount);
+        });
       }
       return;
     }
@@ -343,10 +347,12 @@ const SideBar: React.FC = () => {
           messageCount={unreadUsersCount}
           onNotificationClick={() => {
             setIsNotificationOpen(true);
-            setNotificationCount(0);
-            markAllNotificationsAsRead().catch((err) =>
-              console.error('Failed to mark all notifications read:', err)
-            );
+            const prevCount = notificationCount;
+            setNotificationCount(0); // Optimistic clear
+            markAllNotificationsAsRead().catch((err) => {
+              console.error('Failed to mark all notifications read:', err);
+              setNotificationCount(prevCount); // Rollback
+            });
           }}
           onMessageClick={() => router.push("/message")}
           onPostClick={() => {
@@ -360,10 +366,13 @@ const SideBar: React.FC = () => {
         />
          <NotificationPopup
           isOpen={isNotificationOpen}
-           onClose={() => {
+          onClose={() => {
             setIsNotificationOpen(false);
-            setNotificationCount(0);
-            markAllNotificationsAsRead().catch(() => null);
+            const prevCount = notificationCount;
+            setNotificationCount(0); // Optimistic clear
+            markAllNotificationsAsRead().catch(() => {
+              setNotificationCount(prevCount); // Rollback
+            });
           }}
         />
         <style jsx global>{`
@@ -443,115 +452,129 @@ const SideBar: React.FC = () => {
             isCollapsed ? "items-center" : "overflow-y-auto scrollbar-hide"
           } flex-1`}
         >
-
-
-          {/* Main Nav Items */}
-          {mainNavItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => handleNavClick(item.path)}
-              className={`
-              relative flex items-center rounded-xl transition-all duration-200 group
-              ${
-                isCollapsed
-                  ? "justify-center p-2"
-                  : "w-full justify-start px-3 gap-3.5"
-              }
-            `}
-            style={{
-              backgroundColor: isActive(item.path) ? themeStyles.activeTabBg : "transparent",
-              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
-            }}
-            onMouseEnter={(e) => {
-              if (!isActive(item.path)) e.currentTarget.style.backgroundColor = themeStyles.hoverBg;
-            }}
-            onMouseLeave={(e) => {
-              if (!isActive(item.path)) e.currentTarget.style.backgroundColor = "transparent";
-            }}
-            >
-              <div
-                className={`flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200`}
-                style={{
-                  backgroundColor: isActive(item.path) ? "#FFFFFF" : "transparent",
-                }}
-              >
-                <Image
-                  src={item.icon}
-                  alt={item.label}
-                  width={20}
-                  height={20}
-                  className="transition-all duration-200"
+          {/* Nav skeleton while counts load */}
+          {!sidebarReady ? (
+            <>
+              {[...Array(7)].map((_, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3.5 px-3 rounded-xl animate-pulse"
                   style={{
-                    width: "20px",
-                    height: "20px",
-                    filter: isActive(item.path) ? "brightness(0)" : themeStyles.iconFilter,
-                    opacity: 1
+                    height: 44,
+                    animationDelay: `${i * 60}ms`,
                   }}
-                />
-              </div>
-
-              {!isCollapsed && (
-                <>
-                  <span
-                    className={`flex-1 font-medium text-[15px] tracking-tight text-left transition-colors duration-200`}
-                    style={{
-                      fontFamily: "Inter, sans-serif",
-                      color: isActive(item.path) ? themeStyles.text : themeStyles.textSecondary,
-                      fontWeight: isActive(item.path) ? 600 : 500
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive(item.path)) e.currentTarget.style.color = themeStyles.text;
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive(item.path)) e.currentTarget.style.color = themeStyles.textSecondary;
-                    }}
-                  >
-                    {item.label}
-                  </span>
-                  {(item.notificationCount ?? 0) > 0 && (
-                    <span
-                      className="flex items-center justify-center font-bold text-[10px] text-white shadow-lg shadow-purple-500/20"
+                >
+                  <div
+                    className="w-[36px] h-[36px] rounded-full flex-shrink-0"
+                    style={{ backgroundColor: isDark ? "#2a2a2a" : "#e5e7eb" }}
+                  />
+                  {!isCollapsed && (
+                    <div
+                      className="h-3 rounded-full flex-1"
                       style={{
-                        width: "24px",
-                        height: "16px",
-                        borderRadius: "20px",
-                        padding: "4px 5px",
-                        background:
-                          "linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)",
-                        opacity: 1,
+                        maxWidth: `${60 + (i % 3) * 20}px`,
+                        backgroundColor: isDark ? "#2a2a2a" : "#e5e7eb",
                       }}
+                    />
+                  )}
+                </div>
+              ))}
+            </>
+          ) : (
+            <div className="flex flex-col gap-2 w-full animate-fadeIn">
+              {/* Main Nav Items */}
+              {mainNavItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavClick(item.path)}
+                  className={`
+                  relative flex items-center rounded-xl transition-all duration-200 group
+                  ${isCollapsed ? "justify-center p-2" : "w-full justify-start px-3 gap-3.5"}
+                `}
+                  style={{
+                    backgroundColor: isActive(item.path) ? themeStyles.activeTabBg : "transparent",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive(item.path)) e.currentTarget.style.backgroundColor = themeStyles.hoverBg;
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive(item.path)) e.currentTarget.style.backgroundColor = "transparent";
+                  }}
+                >
+                  <div
+                    className="flex items-center justify-center w-[36px] h-[36px] rounded-full flex-shrink-0 transition-all duration-200"
+                    style={{ backgroundColor: isActive(item.path) ? "#FFFFFF" : "transparent" }}
+                  >
+                    <Image
+                      src={item.icon}
+                      alt={item.label}
+                      width={20}
+                      height={20}
+                      className="transition-all duration-200"
+                      style={{
+                        width: "20px",
+                        height: "20px",
+                        filter: isActive(item.path) ? "brightness(0)" : themeStyles.iconFilter,
+                        opacity: 1
+                      }}
+                    />
+                  </div>
+
+                  {!isCollapsed && (
+                    <>
+                      <span
+                        className="flex-1 font-medium text-[15px] tracking-tight text-left transition-colors duration-200"
+                        style={{
+                          fontFamily: "Inter, sans-serif",
+                          color: isActive(item.path) ? themeStyles.text : themeStyles.textSecondary,
+                          fontWeight: isActive(item.path) ? 600 : 500
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive(item.path)) e.currentTarget.style.color = themeStyles.text;
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive(item.path)) e.currentTarget.style.color = themeStyles.textSecondary;
+                        }}
+                      >
+                        {item.label}
+                      </span>
+                      {(item.notificationCount ?? 0) > 0 && (
+                        <span
+                          className="flex items-center justify-center font-bold text-[10px] text-white shadow-lg shadow-purple-500/20"
+                          style={{
+                            width: "24px",
+                            height: "16px",
+                            borderRadius: "20px",
+                            padding: "4px 5px",
+                            background: "linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)",
+                          }}
+                        >
+                          {formatCount(item.notificationCount)}
+                        </span>
+                      )}
+                    </>
+                  )}
+
+                  {isCollapsed && (
+                    <div className="absolute left-full ml-4 px-2 py-1 bg-[#1a1a1a] text-white text-xs rounded border border-[#2D2F39] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50">
+                      {item.label}
+                    </div>
+                  )}
+
+                  {isCollapsed && (item.notificationCount ?? 0) > 0 && (
+                    <span
+                      className="absolute min-w-[18px] h-[18px] rounded-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-[10px] font-bold text-white flex items-center justify-center border border-[#0a0a0a] z-10 px-1"
+                      style={{ top: "12px", left: "35px" }}
                     >
                       {formatCount(item.notificationCount)}
                     </span>
                   )}
-                </>
-              )}
-
-              {/* Tooltip for collapsed state */}
-              {isCollapsed && (
-                <div className="absolute left-full ml-4 px-2 py-1 bg-[#1a1a1a] text-white text-xs rounded border border-[#2D2F39] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50">
-                  {item.label}
-                </div>
-              )}
-
-              {/* Notification count for collapsed state */}
-              {isCollapsed && (item.notificationCount ?? 0) > 0 && (
-                <span
-                  className="absolute min-w-[18px] h-[18px] rounded-full bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD] text-[10px] font-bold text-white flex items-center justify-center border border-[#0a0a0a] z-10 px-1"
-                  style={{
-                    top: "12px",
-                    left: "35px",
-                  }}
-                >
-                  {formatCount(item.notificationCount)}
-                </span>
-              )}
-            </button>
-          ))}
+                </button>
+              ))}
+            </div>
+          )}
         </nav>
-
-
-
         {/* Secondary Navigation */}
         <div
           className={`flex flex-col gap-2 w-full ${
@@ -758,12 +781,14 @@ const SideBar: React.FC = () => {
       </aside>
        <NotificationPopup
         isOpen={isNotificationOpen}
-
         onClose={() => {
-            setIsNotificationOpen(false);
-            setNotificationCount(0);
-            markAllNotificationsAsRead().catch(() => null);
-          }}
+          setIsNotificationOpen(false);
+          const prevCount = notificationCount;
+          setNotificationCount(0); // Optimistic clear
+          markAllNotificationsAsRead().catch(() => {
+            setNotificationCount(prevCount); // Rollback
+          });
+        }}
       />
       <style jsx global>{`
         .scrollbar-hide::-webkit-scrollbar {
