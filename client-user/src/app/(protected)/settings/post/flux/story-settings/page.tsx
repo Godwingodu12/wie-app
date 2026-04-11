@@ -1,40 +1,23 @@
 "use client";
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Eye, EyeOff, MessageCircle, Heart, Share2, Save,
   Archive, Star, Clock, BarChart2, Camera, ChevronRight,
-  Check, Users, Globe, Lock, UserCheck,
+  Check, Users, Globe, Lock, UserCheck, Loader2,
 } from "lucide-react";
+import {
+  getStorySettings,updateStorySettings,getHideFromList,updateFluxVisibility,getScreenshotBlockSetting,type StorySettings,
+  type HiddenUser,type FluxVisibility,
+} from "@/services/mediaService";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 type Audience = "public" | "followers" | "close_friends" | "only_me";
-type ReplyMode = "everyone" | "followers_back" | "off";
+type ReplyMode = "everyone" | "mutual" | "off";
 
-interface StorySettings {
-  // Privacy
-  audience:        Audience;
-  hideFrom:        string[];      // user IDs
-  // Interactions
-  allowReplies:    ReplyMode;
-  allowReactions:  boolean;
-  allowMessageReplies: boolean;
-  // Sharing
-  allowShareToStory:   boolean;
-  allowShareAsMessage: boolean;
-  allowExternalShare:  boolean;
-  // Save & Archive
-  saveToDevice:    boolean;
-  saveToArchive:   boolean;
-  autosaveDrafts:  boolean;
-  // Advanced
-  duration:        24 | 48 | "custom";
-  showAnalytics:   boolean;
-  restrictScreenshots: boolean;
-}
 
 const DEFAULT: StorySettings = {
-  audience: "followers",
+  visibility: "public",
+  audience: "public",
   hideFrom: [],
   allowReplies: "everyone",
   allowReactions: true,
@@ -49,8 +32,6 @@ const DEFAULT: StorySettings = {
   showAnalytics: true,
   restrictScreenshots: false,
 };
-
-// ─── Micro components ─────────────────────────────────────────────────────────
 
 function SectionLabel({ label }: { label: string }) {
   return (
@@ -110,7 +91,6 @@ function Row({
   );
 }
 
-// iOS-style toggle
 function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
@@ -134,7 +114,6 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   );
 }
 
-// Radio card (audience selector)
 function AudienceCard({
   value, current, label, sub, icon, onSelect,
 }: {
@@ -181,7 +160,6 @@ function AudienceCard({
   );
 }
 
-// Segmented control for reply mode
 function Segment({
   value, current, label, onSelect,
 }: { value: ReplyMode; current: ReplyMode; label: string; onSelect: (v: ReplyMode) => void }) {
@@ -203,10 +181,9 @@ function Segment({
   );
 }
 
-// Duration radio
 function DurBtn({
   value, current, label, onSelect,
-}: { value: 24 | 48 | "custom"; current: 24 | 48 | "custom"; label: string; onSelect: (v: 24 | 48 | "custom") => void }) {
+}: { value: 24 | 48 | 72; current: 24 | 48 | 72; label: string; onSelect: (v: 24 | 48 | 72) => void }) {
   const active = value === current;
   return (
     <button
@@ -224,22 +201,141 @@ function DurBtn({
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function StorySettingsPage() {
   const router = useRouter();
-  const [s,  setS]  = useState<StorySettings>(DEFAULT);
-  const [saved, setSaved] = useState(false);
+  const [s, setS]                     = useState<StorySettings>(DEFAULT);
+  const [saved, setSaved]             = useState(false);
+  const [loading, setLoading]         = useState(true);
+  const [autoSaving, setAutoSaving]   = useState(false);
+  const [hiddenUsers, setHiddenUsers] = useState<HiddenUser[]>([]);
+  const [error, setError]             = useState<string | null>(null);
+  const [activeFluxId, setActiveFluxId] = useState<string | null>(null);
+  const [visibilityUpdating, setVisibilityUpdating] = useState(false);
+  const autoSaveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Load settings from backend on mount
+  useEffect(() => {
+    // Read optional ?fluxId= from URL to show per-flux visibility
+    const params  = new URLSearchParams(window.location.search);
+    const fluxId  = params.get("fluxId") ?? null;
+    setActiveFluxId(fluxId);
 
-  const update = useCallback(<K extends keyof StorySettings>(key: K, val: StorySettings[K]) => {
-    setS((prev) => ({ ...prev, [key]: val }));
+    const tasks: Promise<any>[] = [getStorySettings(), getHideFromList()];
+
+    // If a specific flux is in context, fetch its current visibility too
+    if (fluxId) {
+      tasks.push(
+        import("@/services/mediaService").then(({ getFluxVisibility }) =>
+          getFluxVisibility(fluxId)
+        )
+      );
+    }
+
+    Promise.all(tasks)
+      .then(([settings, hidden, fluxVis]) => {
+        // Merge per-flux visibility on top of global settings
+        const merged: StorySettings = {
+          ...settings,
+          ...(fluxVis
+            ? {
+                visibility: fluxVis.visibility,
+                audience:   fluxVis.visibility,
+              }
+            : {}),
+        };
+        setS(merged);
+        setHiddenUsers(hidden);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+  // per-flux visibility if a fluxId is present in the URL
+  const handleAudienceSelect = async (v: Audience) => {
+    // Update both fields atomically in one state mutation → one auto-save
+    setS((prev) => {
+      const next = { ...prev, audience: v, visibility: v };
+      autoSave(next);
+      return next;
+    });
     setSaved(false);
+
+    if (!activeFluxId) return;
+
+    setVisibilityUpdating(true);
+    try {
+      await updateFluxVisibility(activeFluxId, v);
+    } catch {
+      setS((prev) => ({ ...prev, audience: prev.audience, visibility: prev.visibility }));
+      setError("Failed to update visibility. Please try again.");
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setVisibilityUpdating(false);
+    }
+  };
+
+  // Debounced auto-save — fires 600ms after the last change
+  const autoSave = useCallback(async (latest: StorySettings) => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+
+    autoSaveTimer.current = setTimeout(async () => {
+      setAutoSaving(true);
+      try {
+        const payload: Partial<StorySettings> = {
+          visibility:          latest.visibility,
+          audience:            latest.audience,
+          allowReplies:        latest.allowReplies,
+          allowReactions:      latest.allowReactions,
+          allowMessageReplies: latest.allowMessageReplies,
+          allowShareToStory:   latest.allowShareToStory,
+          allowShareAsMessage: latest.allowShareAsMessage,
+          allowExternalShare:  latest.allowExternalShare,
+          saveToDevice:        latest.saveToDevice,
+          saveToArchive:       latest.saveToArchive,
+          autosaveDrafts:      latest.autosaveDrafts,
+          duration:            latest.duration,
+          showAnalytics:       latest.showAnalytics,
+          restrictScreenshots: latest.restrictScreenshots,
+        };
+        const updated = await updateStorySettings(payload);
+        setS((prev) => ({ ...prev, ...updated }));
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1800);
+      } catch {
+        setError("Auto-save failed. Please try again.");
+        setTimeout(() => setError(null), 3000);
+      } finally {
+        setAutoSaving(false);
+      }
+    }, 600);
   }, []);
 
-  const handleSave = () => {
-    // TODO: persist to API
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2200);
-  };
+  // update — mutates state and triggers debounced auto-save
+  const update = useCallback(<K extends keyof StorySettings>(key: K, val: StorySettings[K]) => {
+    setS((prev) => {
+      const next = { ...prev, [key]: val };
+      autoSave(next);
+      return next;
+    });
+    setSaved(false);
+  }, [autoSave]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+        background: "transparent",
+      }}>
+        <Loader2 size={28} color="#8860D9" style={{ animation: "spin 1s linear infinite" }} />
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -248,7 +344,6 @@ export default function StorySettingsPage() {
       padding: "24px", paddingBottom: 80,
     }}>
 
-      {/* Save toast */}
       {saved && (
         <div style={{
           position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)",
@@ -257,44 +352,67 @@ export default function StorySettingsPage() {
           fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
           boxShadow: "0 4px 24px rgba(0,0,0,0.4)", display: "flex", alignItems: "center", gap: 7,
         }}>
-          <Check size={14} strokeWidth={3} /> Story settings updated
+          <Check size={14} strokeWidth={3} /> Saved automatically
         </div>
       )}
-
-      {/* ── 1. PRIVACY ─────────────────────────────────────────────────────── */}
-      <SectionLabel label="Privacy" />
+      {error && (
+        <div style={{
+          position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)",
+          zIndex: 999, padding: "10px 22px", borderRadius: 24,
+          background: "rgba(239,68,68,0.92)", color: "#fff",
+          fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.4)", display: "flex", alignItems: "center", gap: 7,
+        }}>
+          ⚠️ {error}
+        </div>
+      )}
+      {autoSaving && (
+        <div style={{
+          position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)",
+          zIndex: 998, padding: "8px 18px", borderRadius: 24,
+          background: "rgba(20,20,25,0.88)", color: "rgba(255,255,255,0.6)",
+          fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+          border: "1px solid rgba(255,255,255,0.08)",
+          display: "flex", alignItems: "center", gap: 7,
+          backdropFilter: "blur(10px)",
+        }}>
+          <Loader2 size={12} color="#8860D9" style={{ animation: "spin 1s linear infinite" }} />
+          Saving…
+        </div>
+      )}
+      {/* ── 1. PRIVACY */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <SectionLabel label="Privacy" />
+        {visibilityUpdating && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+            <Loader2 size={12} color="#8860D9" style={{ animation: "spin 1s linear infinite" }} />
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Updating…</span>
+          </div>
+        )}
+      </div>
       <Card>
         <div style={{ padding: "12px 16px 6px" }}>
           <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, margin: "0 0 10px" }}>
-            Who can view your story?
+            Who can view your flux?
           </p>
         </div>
         <Divider />
-        <AudienceCard
-          value="public" current={s.audience} onSelect={(v) => update("audience", v)}
-          icon={<Globe />} label="Public" sub="Anyone on Wie can see your story"
-        />
-        <Divider />
-        <AudienceCard
-          value="followers" current={s.audience} onSelect={(v) => update("audience", v)}
-          icon={<Users />} label="Followers" sub="Only people who follow you"
-        />
-        <Divider />
-        <AudienceCard
-          value="close_friends" current={s.audience} onSelect={(v) => update("audience", v)}
-          icon={<Star />} label="Close Friends" sub="Only your close friends list"
-        />
-        <Divider />
-        <AudienceCard
-          value="only_me" current={s.audience} onSelect={(v) => update("audience", v)}
-          icon={<Lock />} label="Only Me" sub="Completely private"
-        />
-
+          <AudienceCard value="public" current={s.audience} onSelect={handleAudienceSelect}
+            icon={<Globe />} label="Public" sub="Anyone on Wie can see your flux" />
+          <Divider />
+          <AudienceCard value="followers" current={s.audience} onSelect={handleAudienceSelect}
+            icon={<Users />} label="Followers" sub="Only people who follow you" />
+          <Divider />
+          <AudienceCard value="close_friends" current={s.audience} onSelect={handleAudienceSelect}
+            icon={<Star />} label="Close Friends" sub="Only your close friends list" />
+          <Divider />
+          <AudienceCard value="only_me" current={s.audience} onSelect={handleAudienceSelect}
+            icon={<Lock />} label="Only Me" sub="Completely private" />
         <Divider />
 
-        {/* Hide story from */}
+        {/* Hide flux from */}
         <button
-          onClick={() => router.push("/settings/post/flux/hide-from")}
+          onClick={() => router.push("/settings/post/flux/flux-settings/hide-flux")}
           style={{
             display: "flex", alignItems: "center", gap: 14, width: "100%",
             padding: "13px 16px", background: "transparent", border: "none",
@@ -311,19 +429,18 @@ export default function StorySettingsPage() {
             <EyeOff size={16} color="rgba(255,255,255,0.4)" />
           </div>
           <div style={{ flex: 1 }}>
-            <p style={{ color: "#fff", fontSize: 14, fontWeight: 500, margin: "0 0 1px" }}>Hide story from</p>
+            <p style={{ color: "#fff", fontSize: 14, fontWeight: 500, margin: "0 0 1px" }}>Hide flux from</p>
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, margin: 0 }}>
-              {s.hideFrom.length > 0 ? `${s.hideFrom.length} people hidden` : "Select users to hide from"}
+              {hiddenUsers.length > 0 ? `${hiddenUsers.length} people hidden` : "Select users to hide from"}
             </p>
           </div>
           <ChevronRight size={16} color="rgba(255,255,255,0.25)" />
         </button>
       </Card>
 
-      {/* ── 2. INTERACTIONS ────────────────────────────────────────────────── */}
+      {/* ── 2. INTERACTIONS */}
       <SectionLabel label="Interactions" />
       <Card>
-        {/* Allow replies — segmented */}
         <div style={{ padding: "13px 16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -331,13 +448,13 @@ export default function StorySettingsPage() {
             </div>
             <div>
               <p style={{ color: "#fff", fontSize: 14, fontWeight: 500, margin: "0 0 1px" }}>Allow replies</p>
-              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, margin: 0 }}>Who can reply to your story</p>
+              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, margin: 0 }}>Who can reply to your flux</p>
             </div>
           </div>
           <div style={{ display: "flex", gap: 6, background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 4 }}>
-            <Segment value="everyone"        current={s.allowReplies} label="Everyone"       onSelect={(v) => update("allowReplies", v)} />
-            <Segment value="followers_back"  current={s.allowReplies} label="Mutual"         onSelect={(v) => update("allowReplies", v)} />
-            <Segment value="off"             current={s.allowReplies} label="Off"             onSelect={(v) => update("allowReplies", v)} />
+            <Segment value="everyone" current={s.allowReplies as ReplyMode} label="Everyone" onSelect={(v) => update("allowReplies", v)} />
+            <Segment value="mutual" current={s.allowReplies as ReplyMode} label="Mutual" onSelect={(v) => update("allowReplies", v)} />
+            <Segment value="off" current={s.allowReplies as ReplyMode} label="Off" onSelect={(v) => update("allowReplies", v)} />
           </div>
         </div>
         <Divider />
@@ -349,10 +466,10 @@ export default function StorySettingsPage() {
         </Row>
       </Card>
 
-      {/* ── 3. SHARING ─────────────────────────────────────────────────────── */}
+      {/* ── 3. SHARING */}
       <SectionLabel label="Sharing" />
       <Card>
-        <Row icon={<Share2 size={16} color="rgba(255,255,255,0.4)" />} label="Allow resharing to story" sub="Others can add your story to theirs">
+        <Row icon={<Share2 size={16} color="rgba(255,255,255,0.4)" />} label="Allow resharing to flux" sub="Others can add your flux to theirs">
           <Toggle value={s.allowShareToStory} onChange={(v) => update("allowShareToStory", v)} />
         </Row>
         <Row icon={<MessageCircle size={16} color="rgba(255,255,255,0.4)" />} label="Allow sharing as message" sub="Share directly to chat">
@@ -363,13 +480,13 @@ export default function StorySettingsPage() {
         </Row>
       </Card>
 
-      {/* ── 4. SAVE & ARCHIVE ──────────────────────────────────────────────── */}
+      {/* 4. SAVE & ARCHIVE */}
       <SectionLabel label="Save & Archive" />
       <Card>
-        <Row icon={<Save size={16} color="rgba(255,255,255,0.4)" />} label="Save story to device" sub="Auto-download after posting">
+        <Row icon={<Save size={16} color="rgba(255,255,255,0.4)" />} label="Save flux to device" sub="Auto-download after posting">
           <Toggle value={s.saveToDevice} onChange={(v) => update("saveToDevice", v)} />
         </Row>
-        <Row icon={<Archive size={16} color="rgba(255,255,255,0.4)" />} label="Save story to archive" sub="Auto-archive when expired">
+        <Row icon={<Archive size={16} color="rgba(255,255,255,0.4)" />} label="Save flux to archive" sub="Auto-archive when expired">
           <Toggle value={s.saveToArchive} onChange={(v) => update("saveToArchive", v)} />
         </Row>
         <Row icon={<Save size={16} color="rgba(255,255,255,0.4)" />} label="Auto-save drafts" sub="Keep unposted flux as draft" last>
@@ -377,7 +494,7 @@ export default function StorySettingsPage() {
         </Row>
       </Card>
 
-      {/* ── 5. CLOSE FRIENDS ───────────────────────────────────────────────── */}
+      {/* 5. CLOSE FRIENDS */}
       <SectionLabel label="Close Friends" />
       <Card>
         <button
@@ -386,7 +503,6 @@ export default function StorySettingsPage() {
             display: "flex", alignItems: "center", gap: 14,
             padding: "14px 16px", width: "100%", background: "transparent",
             border: "none", cursor: "pointer", textAlign: "left",
-            borderBottom: "1px solid rgba(255,255,255,0.05)",
           }}
           onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
@@ -408,81 +524,50 @@ export default function StorySettingsPage() {
           </div>
           <ChevronRight size={16} color="rgba(255,255,255,0.25)" />
         </button>
-
-        {/* Default audience for new fluxes */}
-        <div style={{ padding: "13px 16px" }}>
-          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginBottom: 10 }}>
-            Default audience for new fluxes
-          </p>
-          <div style={{ display: "flex", gap: 6 }}>
-            {([
-              { v: "public" as Audience, l: "Everyone" },
-              { v: "followers" as Audience, l: "Followers" },
-              { v: "close_friends" as Audience, l: "Close Friends" },
-            ]).map(({ v, l }) => (
-              <button
-                key={v}
-                onClick={() => update("audience", v)}
-                style={{
-                  flex: 1, padding: "8px 4px", borderRadius: 10, fontSize: 11, fontWeight: 600,
-                  cursor: "pointer",
-                  background: s.audience === v ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${s.audience === v ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.08)"}`,
-                  color: s.audience === v ? "#22c55e" : "rgba(255,255,255,0.4)",
-                  transition: "all 0.15s",
-                }}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-        </div>
       </Card>
 
-      {/* ── 6. ADVANCED ────────────────────────────────────────────────────── */}
+      {/* 6. ADVANCED */}
       <SectionLabel label="Advanced" />
       <Card>
-        {/* Duration */}
         <div style={{ padding: "13px 16px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Clock size={16} color="rgba(255,255,255,0.4)" />
             </div>
             <div>
-              <p style={{ color: "#fff", fontSize: 14, fontWeight: 500, margin: "0 0 1px" }}>Story duration</p>
+              <p style={{ color: "#fff", fontSize: 14, fontWeight: 500, margin: "0 0 1px" }}>Flux duration</p>
               <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, margin: 0 }}>How long your flux stays visible</p>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <DurBtn value={24}       current={s.duration} label="24 hrs"  onSelect={(v) => update("duration", v)} />
-            <DurBtn value={48}       current={s.duration} label="48 hrs"  onSelect={(v) => update("duration", v)} />
-            <DurBtn value="custom"   current={s.duration} label="Custom"  onSelect={(v) => update("duration", v)} />
+            <DurBtn value={24} current={s.duration as 24 | 48 | 72} label="24 hrs" onSelect={(v) => update("duration", v)} />
+            <DurBtn value={48} current={s.duration as 24 | 48 | 72} label="48 hrs" onSelect={(v) => update("duration", v)} />
+            <DurBtn value={72} current={s.duration as 24 | 48 | 72} label="72 hrs" onSelect={(v) => update("duration", v)} />
           </div>
         </div>
-
-        <Row icon={<BarChart2 size={16} color="rgba(255,255,255,0.4)" />} label="Story analytics" sub="Show view & interaction stats">
+        <Row icon={<BarChart2 size={16} color="rgba(255,255,255,0.4)" />} label="Flux analytics" sub="Show view & interaction stats">
           <Toggle value={s.showAnalytics} onChange={(v) => update("showAnalytics", v)} />
         </Row>
-        <Row icon={<Camera size={16} color="rgba(255,255,255,0.4)" />} label="Restrict screenshots" sub="Notify when someone screenshots" last>
-          <Toggle value={s.restrictScreenshots} onChange={(v) => update("restrictScreenshots", v)} />
-        </Row>
+        <div>
+          <Row icon={<Camera size={16} color="rgba(255,255,255,0.4)" />} label="Restrict screenshots" sub="Detect & notify when someone screenshots your flux" last>
+            <Toggle value={s.restrictScreenshots} onChange={(v) => update("restrictScreenshots", v)} />
+          </Row>
+          {s.restrictScreenshots && (
+            <div style={{
+              margin: "0 16px 12px",
+              padding: "10px 12px",
+              borderRadius: 10,
+              background: "rgba(239,68,68,0.08)",
+              border: "1px solid rgba(239,68,68,0.2)",
+            }}>
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, lineHeight: 1.6, margin: 0 }}>
+                ⚠️ Screenshots cannot be technically blocked (OS limitation). When enabled, viewers are warned before viewing and you receive a notification when a screenshot is detected.
+              </p>
+            </div>
+          )}
+        </div>
       </Card>
-
-      {/* ── Save button ─────────────────────────────────────────────────────── */}
-      <button
-        onClick={handleSave}
-        style={{
-          width: "100%", height: 48, borderRadius: 24,
-          background: "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)",
-          border: "none", color: "#fff", fontSize: 15, fontWeight: 700,
-          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          boxShadow: "0 4px 20px rgba(136,96,217,0.4)", transition: "opacity 0.15s",
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-      >
-        <Check size={16} strokeWidth={3} /> Save Settings
-      </button>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
