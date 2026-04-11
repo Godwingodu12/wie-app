@@ -23,7 +23,7 @@ import MoreIconImg  from "@/assets/post/moreIcon.png";
 import {
   getMyFluxes,getUserFluxes,deleteFlux,getFluxViewers,recordFluxView,getFluxMentions,getReMentions,reMentionFlux,
   getFluxPermissions,removeMentionSelf,getFluxById,toggleFluxLike,getFluxLikes,shareFluxAsMessage,replyFluxAsMessage,
-  archiveFlux, toggleFluxComments, highlightFlux, saveFluxToDevice, getUserDiaries,toggleFluxPersistent,
+  archiveFlux, toggleFluxComments, highlightFlux, saveFluxToDevice, getUserDiaries,toggleFluxPersistent,getStorySettings,
   type Flux, type Diary,
 } from "@/services/mediaService";
 import {getUserById} from "@/services/wieUserService";
@@ -386,10 +386,13 @@ export default function FluxViewPage() {
   const [newDiaryTitle,    setNewDiaryTitle]    = useState("");
   const [savingToDevice,   setSavingToDevice]   = useState(false);
   const [toastMsg,         setToastMsg]         = useState<string | null>(null);
+  const [fluxSettings,      setFluxSettings]      = useState<import("@/services/mediaService").StorySettings | null>(null);
+  const [screenshotReported, setScreenshotReported] = useState(false);
   const [isPersistent,    setIsPersistent]    = useState(false);
   const [diaryPreview,    setDiaryPreview]    = useState<{ id: string; coverImage: string | null; title: string } | null>(null);
   const anyModal = showShare || showMention || showViewers || showMore || showComments;
   const STORY_DURATION = ((current as any)?.duration ?? 15) * 1_000;
+  const [showScreenshotWarning, setShowScreenshotWarning] = useState(false);
   // ── Helper: extract owner id string from any flux shape ──
   const getFluxOwnerId = (flux: Flux | null): string => {
     if (!flux) return "";
@@ -427,85 +430,98 @@ export default function FluxViewPage() {
     return { username: username ?? "user", profile_picture };
   };
   useEffect(() => {
-  if (!user?.id) return;
+    if (!user?.id) return;
 
-  (async () => {
-    try {
-      const targetUserId = searchParams.get("userId");
-      const startId      = searchParams.get("fluxId");
-      const primaryData: Flux[] = targetUserId
-        ? await getUserFluxes(targetUserId)
-        : await getMyFluxes();
+    (async () => {
+      try {
+        const targetUserId = searchParams.get("userId");
+        const startId      = searchParams.get("fluxId");
+        const primaryData: Flux[] = targetUserId
+          ? await getUserFluxes(targetUserId)
+          : await getMyFluxes();
 
-      const safeData = targetUserId
-        ? primaryData.filter((f) => (f as any).visibility !== "close_friends" || false)
-        : primaryData; 
-      setFluxes(safeData);
+        const safeData = targetUserId
+          ? primaryData.filter((f) => (f as any).visibility !== "close_friends" || false)
+          : primaryData; 
+        setFluxes(safeData);
 
-      // 2. Set starting index within primary user
-      let startIdx = 0;
-      if (startId) {
-        const i = primaryData.findIndex((f) => f._id === startId);
-        if (i >= 0) startIdx = i;
+        // 2. Set starting index within primary user
+        let startIdx = 0;
+        if (startId) {
+          const i = primaryData.findIndex((f) => f._id === startId);
+          if (i >= 0) startIdx = i;
+        }
+        setIdx(startIdx);
+
+        // 3. Build allFluxes: primary user first, then others
+        //    For simplicity, allFluxes starts with primary; more users
+        //    can be fetched here if you have a "get all active fluxes" endpoint.
+        //    For now we use primaryData as the flat list (extend as needed).
+        setAllFluxes(primaryData);
+
+        // Global index = same as local start index
+        setGlobalIdx(startIdx);
+
+        // 4. Owner profile
+        if (primaryData[0]?.viewCount !== undefined)
+          setViewCount(primaryData[0].viewCount);
+          const ownerIdToFetch = targetUserId ?? (primaryData[0] as any)?.userId?._id ?? (primaryData[0] as any)?.userId ?? null;
+        // Try embedded first
+        const ownerData =
+          (primaryData[0] as any)?.user   ??
+          (primaryData[0] as any)?.owner  ??
+          ((primaryData[0] as any)?.userId && typeof (primaryData[0] as any).userId === "object"
+            ? (primaryData[0] as any).userId
+            : null);
+
+          if (ownerData?.username) {
+            const profile = {
+              username:        ownerData.username        ?? ownerData.name ?? "user",
+              profile_picture: ownerData.profile_picture ?? ownerData.profilePicture ?? ownerData.avatar ?? null,
+            };
+            setFluxOwnerProfile(profile);
+            if (ownerIdToFetch) ownerCacheRef.current[String(ownerIdToFetch)] = profile;
+          }
+
+          // Always fetch fresh via getUserById for accuracy
+          if (ownerIdToFetch) {
+            getUserById(String(ownerIdToFetch))
+              .then((userData) => {
+                if (!userData) return;
+                const profile = {
+                  username:
+                    userData.username ??
+                    userData.name     ??
+                    "user",
+                  profile_picture:
+                    userData.profile_picture ??
+                    null,
+                };
+                setFluxOwnerProfile(profile);
+                ownerCacheRef.current[String(ownerIdToFetch)] = profile;
+              })
+              .catch(() => {});
+          }
+      } catch {
+        /* silently ignore */
+      } finally {
+        setLoading(false);
       }
-      setIdx(startIdx);
+    })();
+  }, [user?.id]);
 
-      // 3. Build allFluxes: primary user first, then others
-      //    For simplicity, allFluxes starts with primary; more users
-      //    can be fetched here if you have a "get all active fluxes" endpoint.
-      //    For now we use primaryData as the flat list (extend as needed).
-      setAllFluxes(primaryData);
-
-      // Global index = same as local start index
-      setGlobalIdx(startIdx);
-
-      // 4. Owner profile
-      if (primaryData[0]?.viewCount !== undefined)
-        setViewCount(primaryData[0].viewCount);
-        const ownerIdToFetch = targetUserId ?? (primaryData[0] as any)?.userId?._id ?? (primaryData[0] as any)?.userId ?? null;
-      // Try embedded first
-      const ownerData =
-        (primaryData[0] as any)?.user   ??
-        (primaryData[0] as any)?.owner  ??
-        ((primaryData[0] as any)?.userId && typeof (primaryData[0] as any).userId === "object"
-          ? (primaryData[0] as any).userId
-          : null);
-
-        if (ownerData?.username) {
-          const profile = {
-            username:        ownerData.username        ?? ownerData.name ?? "user",
-            profile_picture: ownerData.profile_picture ?? ownerData.profilePicture ?? ownerData.avatar ?? null,
-          };
-          setFluxOwnerProfile(profile);
-          if (ownerIdToFetch) ownerCacheRef.current[String(ownerIdToFetch)] = profile;
-        }
-
-        // Always fetch fresh via getUserById for accuracy
-        if (ownerIdToFetch) {
-          getUserById(String(ownerIdToFetch))
-            .then((userData) => {
-              if (!userData) return;
-              const profile = {
-                username:
-                  userData.username ??
-                  userData.name     ??
-                  "user",
-                profile_picture:
-                  userData.profile_picture ??
-                  null,
-              };
-              setFluxOwnerProfile(profile);
-              ownerCacheRef.current[String(ownerIdToFetch)] = profile;
-            })
-            .catch(() => {});
-        }
-    } catch {
-      /* silently ignore */
-    } finally {
-      setLoading(false);
-    }
-  })();
-}, [user?.id]);
+//Fetch owner's flux settings to enforce restrictions on viewers
+  useEffect(() => {
+    if (!current?._id || !user?.id || isOwner) return;
+    const ownerId = getFluxOwnerId(current);
+    if (!ownerId) return;
+    // We need the owner's settings — fetch via the flux analytics endpoint
+    // which already checks ownership, so we rely on the settings embedded
+    // in the flux response. For viewers, we check reaction/reply flags.
+    import("@/services/mediaService").then(({ getStorySettings }) => {
+      // Only callable by the owner — skip for viewers; settings come via flux metadata
+    });
+  }, [current?._id, isOwner]);
 
   // Record a view whenever the story changes
   useEffect(() => {
@@ -681,6 +697,116 @@ const goPrev = useCallback(() => {
     setPaused(true);
   };
   const handlePointerUp   = () => setPaused(false);
+  // ── Screenshot detection via Page Visibility / keyboard shortcut heuristic 
+  useEffect(() => {
+    if (!current?._id || isOwner || screenshotReported) return;
+
+    const handleVisibilityChange = () => {
+      // On mobile, switching away briefly often means screenshot
+      // We use a conservative heuristic: hidden + back within 2s
+      if (document.visibilityState === "hidden") {
+        const hiddenAt = Date.now();
+        const onVisible = () => {
+          const delta = Date.now() - hiddenAt;
+          if (delta < 2000) {
+            // Likely a screenshot — report once
+            setScreenshotReported(true);
+            import("@/services/mediaService")
+              .then(({ reportFluxScreenshot }) =>
+                reportFluxScreenshot(current._id),
+              )
+              .catch(() => {});
+          }
+          document.removeEventListener("visibilitychange", onVisible);
+        };
+        document.addEventListener("visibilitychange", onVisible);
+      }
+    };
+
+    // Desktop: PrintScreen key
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "PrintScreen" && !screenshotReported) {
+        setScreenshotReported(true);
+        import("@/services/mediaService")
+          .then(({ reportFluxScreenshot }) =>
+            reportFluxScreenshot(current._id),
+          )
+          .catch(() => {});
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [current?._id, isOwner, screenshotReported]);
+
+  // ── Load owner's interaction settings for this flux (viewers only) ──
+  const [ownerFluxSettings, setOwnerFluxSettings] = useState<{
+      allowReplies:        "everyone" | "mutual" | "off";
+      allowReactions:      boolean;
+      allowMessageReplies: boolean;
+      allowShareToStory:   boolean;
+      allowShareAsMessage: boolean;
+      allowExternalShare:  boolean;
+      screenshotAlert:     boolean;
+      saveToDevice:        boolean;
+    } | null>(null);
+
+  useEffect(() => {
+    if (!current?._id || loading) return;
+
+    if (isOwner) {
+      // Owner: use their own global settings
+      import("@/services/mediaService").then(({ getStorySettings }) => {
+        getStorySettings()
+          .then((s) => setOwnerFluxSettings({
+            allowReplies:        s.allowReplies as "everyone" | "mutual" | "off",
+            allowReactions:      s.allowReactions,
+            allowMessageReplies: s.allowMessageReplies,
+            allowShareToStory:   s.allowShareToStory,
+            allowShareAsMessage: s.allowShareAsMessage,
+            allowExternalShare:  s.allowExternalShare,
+            screenshotAlert:     s.restrictScreenshots,
+            saveToDevice:        s.saveToDevice,
+          }))
+          .catch(() => {});
+      });
+    } else {
+      // Viewer: fetch owner's settings from dedicated endpoint
+      // Reset to null first so stale settings from the previous flux don't bleed through
+      setOwnerFluxSettings(null);
+      import("@/services/mediaService").then(({ getFluxOwnerSettings }) => {
+        getFluxOwnerSettings(current._id)
+          .then((data) => setOwnerFluxSettings(data))
+          .catch(() => {
+            // Fallback: assume all allowed if endpoint fails
+            setOwnerFluxSettings({
+              allowReplies:        "everyone",
+              allowReactions:      true,
+              allowMessageReplies: true,
+              allowShareToStory:   true,
+              allowShareAsMessage: true,
+              allowExternalShare:  false,
+              screenshotAlert:     false,
+              saveToDevice:        false,
+            });
+          });
+      });
+    }
+  }, [current?._id, isOwner, loading]);
+
+  // Show screenshot warning overlay if owner has screenshotAlert on
+  useEffect(() => {
+    if (!ownerFluxSettings?.screenshotAlert || isOwner) return;
+    setShowScreenshotWarning(true);
+    const t = setTimeout(() => setShowScreenshotWarning(false), 3000);
+    return () => clearTimeout(t);
+  }, [ownerFluxSettings?.screenshotAlert, current?._id, isOwner]);
+
   const currentFluxId = fluxes[idx]?._id ?? null;
   useEffect(() => {
     if (!currentFluxId) return;
@@ -720,7 +846,7 @@ const goPrev = useCallback(() => {
     setIsOwner(false);
     setIsMentioned(false);
     setHasReMentioned(false);
-
+    setScreenshotReported(false);
     const fluxId   = current._id;
     const viewerId = String(user.id);
     const ownerId  = getFluxOwnerId(current);
@@ -1382,13 +1508,13 @@ return (
             </div>
           )}
           {/* Reply bar — sends as chat message with flux reference */}
-          {!isOwner && (
-          <div style={{
-            position:   "absolute",
-            bottom:     0, left: 0, right: 0,
-            padding:    "12px",
-            background: "linear-gradient(0deg,rgba(0,0,0,0.65) 0%,transparent 100%)",
-            zIndex:     10,
+          {!isOwner && ownerFluxSettings !== null && ownerFluxSettings.allowReplies !== "off" && (
+            <div style={{
+              position:   "absolute",
+              bottom:     0, left: 0, right: 0,
+              padding:    "12px",
+              background: "linear-gradient(0deg,rgba(0,0,0,0.65) 0%,transparent 100%)",
+              zIndex:     10,
           }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
@@ -1442,9 +1568,38 @@ return (
             </div>
           </div>
           )}
+          {/* Screenshot warning overlay — shown briefly when screenshotAlert is on */}
+          {showScreenshotWarning && !isOwner && (
+            <div style={{
+              position:       "absolute",
+              inset:          0,
+              zIndex:         20,
+              background:     "rgba(0,0,0,0.82)",
+              display:        "flex",
+              flexDirection:  "column",
+              alignItems:     "center",
+              justifyContent: "center",
+              gap:            12,
+              backdropFilter: "blur(4px)",
+              borderRadius:   12,
+            }}>
+              <div style={{ fontSize: 40 }}>📸</div>
+              <p style={{
+                color: "#fff", fontSize: 15, fontWeight: 700,
+                textAlign: "center", padding: "0 24px",
+              }}>
+                Screenshots are monitored
+              </p>
+              <p style={{
+                color: "rgba(255,255,255,0.5)", fontSize: 12,
+                textAlign: "center", padding: "0 32px", lineHeight: 1.6,
+              }}>
+                The creator will be notified if you take a screenshot of this flux.
+              </p>
+            </div>
+          )}
         </div>
         {/* ── Bottom bar ── */}
-
         {/* ── Persistent badge ── */}
         {isPersistent && (
           <div style={{
@@ -1597,7 +1752,7 @@ return (
               </button>
             )}
             {/* ❤️ Like — hidden for owner */}
-            {!isOwner && (
+            {!isOwner && ownerFluxSettings !== null && ownerFluxSettings.allowReactions && (
               <button
                 onClick={handleLike}
                 style={{
@@ -1617,7 +1772,7 @@ return (
             )}
 
             {/* 💬 Comment */}
-            {(!commentsDisabled || isOwner) && (
+            {(isOwner || !commentsDisabled) && (            
             <button
               onClick={() => {
                 setShowComments((v) => !v);
@@ -1767,6 +1922,8 @@ return (
           commentsDisabled={commentsDisabled}
           isArchived={isArchived}
           isPersistent={isPersistent}
+          allowShare={ownerFluxSettings?.allowShareAsMessage ?? true}
+          allowSaveToDevice={ownerFluxSettings?.saveToDevice ?? true}
         />
       )}
       {/* ── ShareBar / MentionBar  — right side panel ── */}
