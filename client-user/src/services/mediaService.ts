@@ -311,7 +311,14 @@ export const getFluxFeed = async (): Promise<FeedFluxGroup[]> => {
   const res = await mediaApi.get<ApiResponse<FeedFluxGroup[]>>("/flux/feed");
   return res.data.data;
 };
-
+/**
+ * POST /flux/invalidate-feed
+ * Call this immediately after User A follows User B
+ * so User B's fluxes appear in User A's feed without waiting for cache TTL.
+ */
+export const invalidateFluxFeedCache = async (ownerId: string): Promise<void> => {
+  await mediaApi.post("/flux/invalidate-feed", { ownerId });
+};
 /**
  * GET /flux/mine — current user's own active fluxes, newest first.
  * Used by the flux-view page.
@@ -958,16 +965,22 @@ export const removeFromHideFromList = async (
 ): Promise<void> => {
   await mediaApi.post("/flux/settings/hide-from/remove", { unhideUserId });
 };
-
 export const reportFluxScreenshot = async (
   fluxId: string,
-): Promise<{ alerted: boolean; count?: number }> => {
-  const res = await mediaApi.post<{
-    success: boolean;
-    alerted: boolean;
-    count?: number;
-  }>(`/flux/${fluxId}/screenshot`);
-  return res.data;
+  platform: string = "web",
+): Promise<{ alerted: boolean; count?: number; reason?: string }> => {
+  try {
+    const res = await mediaApi.post<{
+      success: boolean;
+      alerted: boolean;
+      count?: number;
+      reason?: string;
+    }>(`/flux/${fluxId}/screenshot`, { platform });
+    return res.data;
+  } catch {
+    // Silent — never block UX on screenshot report failure
+    return { alerted: false };
+  }
 };
 
 export interface FluxAnalytics {
