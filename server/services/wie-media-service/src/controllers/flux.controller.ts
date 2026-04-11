@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import { AuthRequest } from "../middlewares/auth";
 import FluxModel from "../models/flux.model";
 import CloseFriendModel from "../models/close-friend.model";
+import FluxSettingsModel from "../models/flux-settings.model";
+import FluxScreenshotEventModel from "../models/flux-screenshot-event.model";
 import * as fluxService from "../services/flux.service";
 import {
   isFollowing,
@@ -19,6 +21,7 @@ import {
 import * as chatClient from "../grpc/clients/chatClient";
 const FEED_CACHE_KEY = (viewerId: string) => `flux:feed:${viewerId}`;
 const USER_FLUXES_KEY = (userId: string) => `flux:user:${userId}`;
+const SCREENSHOT_THRESHOLDS = [5, 10, 20, 50, 100, 200, 500];
 
 export const createFlux = async (
   req: AuthRequest,
@@ -802,6 +805,96 @@ export const updateFluxVisibility = async (
   }
 };
 
+// ── GET /api/flux/:fluxId/visibility
+export const getFluxVisibility = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { fluxId } = req.params;
+    const flux = await FluxModel.findOne({
+      _id: fluxId,
+      userId: req.userId,
+      isDeleted: false,
+    })
+      .select("visibility")
+      .lean();
+
+    if (!flux) {
+      res
+        .status(404)
+        .json({ success: false, message: "Flux not found or not yours" });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: { _id: flux._id, visibility: flux.visibility },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── GET /api/flux/settings/screenshot-block
+// Returns whether the owner has screenshot blocking enabled (for flux-view page)
+export const getScreenshotBlockSetting = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.userId!.toString();
+    const settings = await FluxSettingsModel.findOne({ userId }).lean();
+    const screenshotAlert =
+      (settings as any)?.advanced?.screenshotAlert ?? false;
+    res.json({ success: true, data: { screenshotAlert } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── GET /api/flux/:fluxId/owner-settings
+// Called by viewers to know which interactions are allowed on a flux
+export const getFluxOwnerSettings = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { fluxId } = req.params;
+
+    const flux = await FluxModel.findOne({ _id: fluxId, isDeleted: false })
+      .select("userId visibility")
+      .lean();
+
+    if (!flux) {
+      res.status(404).json({ success: false, message: "Flux not found" });
+      return;
+    }
+
+    const ownerId = (flux as any).userId.toString();
+    const settings = await FluxSettingsModel.findOne({
+      userId: ownerId,
+    }).lean();
+    const s = settings as any;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        visibility:          (flux as any).visibility        ?? "public",
+        allowReplies:        s?.interactions?.replies        ?? "everyone",
+        allowReactions:      s?.interactions?.reactions      ?? true,
+        allowMessageReplies: s?.interactions?.messageReplies ?? true,
+        allowShareToStory:   s?.sharing?.reshare             ?? true,
+        allowShareAsMessage: s?.sharing?.shareToMessage      ?? true,
+        allowExternalShare:  s?.sharing?.externalShare       ?? false,
+        saveToDevice:        s?.save?.saveToDevice           ?? false,
+        screenshotAlert:     s?.advanced?.screenshotAlert    ?? false,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 /**
  * PATCH /api/flux/:fluxId/hide-from
  * Add a userId to the hidden-viewers list for a flux.
@@ -2287,5 +2380,450 @@ export const getFluxLikes = async (
   } catch (err) {
     console.error("getFluxLikes error:", err);
     res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+// ── GET /api/flux/settings
+export const getFluxSettings = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.userId!.toString();
+    const existingSettings = await FluxSettingsModel.findOne({ userId }).lean();
+    const s: any =
+      existingSettings ??
+      (await FluxSettingsModel.create({ userId })).toObject();
+    res.json({
+      success: true,
+      data: {
+        // Visibility
+        visibility: s.visibility ?? "followers",
+        hideFrom: s.hideFrom ?? [],
+        // Interactions
+        allowReplies: s.interactions?.replies ?? s.allowReplies ?? "everyone",
+        allowReactions: s.interactions?.reactions ?? s.allowReactions ?? true,
+        allowMessageReplies:
+          s.interactions?.messageReplies ?? s.allowMessageReplies ?? true,
+        // Sharing
+        allowShareToStory: s.sharing?.reshare ?? s.allowShareToStory ?? true,
+        allowShareAsMessage:
+          s.sharing?.shareToMessage ?? s.allowShareAsMessage ?? true,
+        allowExternalShare:
+          s.sharing?.externalShare ?? s.allowExternalShare ?? false,
+        // Save
+        saveToDevice: s.save?.saveToDevice ?? s.saveToDevice ?? false,
+        saveToArchive: s.save?.archive ?? s.saveToArchive ?? true,
+        autosaveDrafts: s.save?.drafts ?? s.autosaveDrafts ?? true,
+        // Advanced
+        duration: s.advanced?.duration ?? s.duration ?? 24,
+        showAnalytics: s.advanced?.analytics ?? s.showAnalytics ?? true,
+        restrictScreenshots:
+          s.advanced?.screenshotAlert ?? s.restrictScreenshots ?? false,
+        // legacy audience field kept for compatibility
+        audience: s.visibility ?? s.audience ?? "followers",
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── PATCH /api/flux/settings
+export const updateFluxSettings = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.userId!.toString();
+    const b = req.body;
+    const update: Record<string, any> = {};
+    const vis = b.visibility ?? b.audience;
+    if (vis !== undefined) {
+      update.visibility = vis;
+    }
+    // Accept both flat keys (allowReplies) and nested (interactions.replies)
+    const replies        = b.allowReplies        ?? b["interactions.replies"]        ?? b.interactions?.replies;
+    const reactions      = b.allowReactions      ?? b["interactions.reactions"]      ?? b.interactions?.reactions;
+    const messageReplies = b.allowMessageReplies ?? b["interactions.messageReplies"] ?? b.interactions?.messageReplies;
+    if (replies !== undefined) {
+      // Write to both the nested path AND the top-level field so both stay in sync
+      update["interactions.replies"] = replies;
+      update["allowReplies"]         = replies;
+    }
+    if (reactions      !== undefined) update["interactions.reactions"]     = reactions;
+    if (messageReplies !== undefined) update["interactions.messageReplies"] = messageReplies;
+    const reshare       = b.allowShareToStory   ?? b["sharing.reshare"]        ?? b.sharing?.reshare;
+    const shareToMsg    = b.allowShareAsMessage  ?? b["sharing.shareToMessage"] ?? b.sharing?.shareToMessage;
+    const externalShare = b.allowExternalShare   ?? b["sharing.externalShare"]  ?? b.sharing?.externalShare;
+    if (reshare       !== undefined) update["sharing.reshare"]        = reshare;
+    if (shareToMsg    !== undefined) update["sharing.shareToMessage"] = shareToMsg;
+    if (externalShare !== undefined) update["sharing.externalShare"]  = externalShare;
+    const saveToDevice = b.saveToDevice  ?? b["save.saveToDevice"] ?? b.save?.saveToDevice;
+    const archive      = b.saveToArchive ?? b["save.archive"]      ?? b.save?.archive;
+    const drafts       = b.autosaveDrafts ?? b["save.drafts"]      ?? b.save?.drafts;
+
+    if (saveToDevice !== undefined) update["save.saveToDevice"] = saveToDevice;
+    if (archive      !== undefined) update["save.archive"]      = archive;
+    if (drafts       !== undefined) update["save.drafts"]       = drafts;
+    const duration          = b.duration            ?? b["advanced.duration"]          ?? b.advanced?.duration;
+    const analytics         = b.showAnalytics       ?? b["advanced.analytics"]         ?? b.advanced?.analytics;
+    const screenshotAlert   = b.restrictScreenshots ?? b["advanced.screenshotAlert"]   ?? b.advanced?.screenshotAlert;
+
+    if (duration        !== undefined) update["advanced.duration"]        = duration;
+    if (analytics       !== undefined) update["advanced.analytics"]       = analytics;
+    if (screenshotAlert !== undefined) update["advanced.screenshotAlert"] = screenshotAlert;
+
+    if (Object.keys(update).length === 0) {
+      res.status(400).json({ success: false, message: "No valid fields to update" });
+      return;
+    }
+
+    const settings = await FluxSettingsModel.findOneAndUpdate(
+      { userId },
+      { $set: update },
+      { new: true, upsert: true },
+    ).lean();
+
+    const s = settings as any;
+    res.status(200).json({
+      success: true,
+      data: {
+        visibility:          s.visibility                    ?? "public",
+        hideFrom:            s.hideFrom                     ?? [],
+        allowReplies:        s.interactions?.replies        ?? s.allowReplies ?? "everyone",
+        allowReactions:      s.interactions?.reactions      ?? true,
+        allowMessageReplies: s.interactions?.messageReplies ?? true,
+        allowShareToStory:   s.sharing?.reshare             ?? true,
+        allowShareAsMessage: s.sharing?.shareToMessage      ?? true,
+        allowExternalShare:  s.sharing?.externalShare       ?? false,
+        saveToDevice:        s.save?.saveToDevice           ?? false,
+        saveToArchive:       s.save?.archive                ?? true,
+        autosaveDrafts:      s.save?.drafts                 ?? true,
+        duration:            s.advanced?.duration           ?? 24,
+        showAnalytics:       s.advanced?.analytics          ?? true,
+        restrictScreenshots: s.advanced?.screenshotAlert    ?? false,
+        audience:            s.visibility                   ?? "public",
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── GET /api/flux/settings/hide-from
+export const getGlobalHideFromList = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.userId!.toString();
+    const settings = await FluxSettingsModel.findOne({ userId }).lean();
+    const hideFrom: string[] = (settings as any)?.hideFrom ?? [];
+
+    if (hideFrom.length === 0) {
+      res.json({ success: true, data: [] });
+      return;
+    }
+
+    const resp = await wieUserClient
+      .getUsersByIds(hideFrom)
+      .catch(() => ({ users: [] }));
+    const users = (resp.users ?? []).map((u: any) => ({
+      id: (u._id ?? u.id).toString(),
+      username: u.username ?? "",
+      name: u.name ?? u.username ?? "",
+      profile_picture: u.profile_picture ?? u.profilePicture ?? null,
+      is_verified: u.is_verified ?? false,
+    }));
+
+    res.json({ success: true, data: users });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── PATCH /api/flux/settings/hide-from — bulk replace
+export const updateGlobalHideFrom = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.userId!.toString();
+    const { userIds } = req.body;
+    if (!Array.isArray(userIds)) {
+      res
+        .status(400)
+        .json({ success: false, message: "userIds must be an array" });
+      return;
+    }
+    await FluxSettingsModel.findOneAndUpdate(
+      { userId },
+      { $set: { hideFrom: userIds } },
+      { upsert: true },
+    );
+    res.json({ success: true, message: "Hide list updated" });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── POST /api/flux/settings/hide-from/add
+export const addToGlobalHideFrom = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.userId!.toString();
+    const { hideUserId } = req.body;
+    if (!hideUserId) {
+      res
+        .status(400)
+        .json({ success: false, message: "hideUserId is required" });
+      return;
+    }
+    // No follow check — any user can be hidden
+    await FluxSettingsModel.findOneAndUpdate(
+      { userId },
+      { $addToSet: { hideFrom: hideUserId } },
+      { upsert: true },
+    );
+    res.json({ success: true, message: "User hidden from your flux" });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── POST /api/flux/settings/hide-from/remove
+export const removeFromGlobalHideFrom = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.userId!.toString();
+    const { unhideUserId } = req.body;
+    if (!unhideUserId) {
+      res
+        .status(400)
+        .json({ success: false, message: "unhideUserId is required" });
+      return;
+    }
+    await FluxSettingsModel.findOneAndUpdate(
+      { userId },
+      { $pull: { hideFrom: unhideUserId } },
+      { upsert: true },
+    );
+    res.json({ success: true, message: "User unhidden from your flux" });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+async function shouldSendScreenshotNotification(
+  fluxId: string,
+  newCount: number,
+): Promise<{ send: boolean; count: number }> {
+  // Fire at every threshold crossing only
+  for (const t of SCREENSHOT_THRESHOLDS) {
+    if (newCount === t) return { send: true, count: newCount };
+  }
+  return { send: false, count: newCount };
+}
+// ── POST /api/flux/:fluxId/screenshot
+export const reportScreenshot = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { fluxId } = req.params;
+    const viewerId = req.userId!.toString();
+
+    const flux = await FluxModel.findOne({
+      _id: fluxId,
+      isDeleted: false,
+    }).lean();
+
+    if (!flux) {
+      res.status(404).json({ success: false, message: "Flux not found" });
+      return;
+    }
+
+    const ownerId = (flux as any).userId.toString();
+
+    if (ownerId === viewerId) {
+      res.json({ success: true, alerted: false });
+      return;
+    }
+
+    const ownerSettings = await FluxSettingsModel.findOne({
+      userId: ownerId,
+    }).lean();
+    const alertEnabled =
+      (ownerSettings as any)?.advanced?.screenshotAlert ?? false;
+
+    if (!alertEnabled) {
+      res.json({ success: true, alerted: false });
+      return;
+    }
+
+    // ── Dedupe: 1 event per viewer per flux (Redis key, TTL via value + timestamp) ──
+    const dedupeKey = `flux:${fluxId}:ss:user:${viewerId}`;
+    const alreadySeen = await redisClient.get(dedupeKey).catch(() => null);
+    if (alreadySeen) {
+      res.json({ success: true, alerted: false, reason: "already_counted" });
+      return;
+    }
+    // Store dedupe flag (we rely on DB for persistence; Redis is best-effort)
+    await redisClient
+      .set(dedupeKey, "1", { EX: 48 * 60 * 60 } as any)
+      .catch(() => {});
+
+    // ── Persist to DB ──
+    await FluxScreenshotEventModel.updateOne(
+      { fluxId, userId: viewerId },
+      { $setOnInsert: { fluxId, userId: viewerId, timestamp: new Date() } },
+      { upsert: true },
+    ).catch(() => {});
+
+    // ── Count total unique screenshotters from DB ──
+    const totalCount = await FluxScreenshotEventModel.countDocuments({
+      fluxId,
+    });
+
+    // ── Batched notification thresholds: 1, 5, 10, 20, 50, 100 ──
+    const thresholds = [1, 5, 10, 20, 50, 100];
+    const shouldSend = thresholds.includes(totalCount);
+
+    if (shouldSend) {
+      const recentEvents = await FluxScreenshotEventModel.find({ fluxId })
+        .sort({ timestamp: -1 })
+        .limit(3)
+        .lean();
+      const previewIds = recentEvents.map((e: any) => e.userId.toString());
+
+      let previewNames = "";
+      if (previewIds.length > 0) {
+        const resp = await wieUserClient
+          .getUsersByIds(previewIds)
+          .catch(() => ({ users: [] }));
+        previewNames = (resp.users ?? [])
+          .map((u: any) => u.username ?? u.name ?? "someone")
+          .join(", ");
+      }
+
+      const priority =
+        totalCount >= 100 ? "🚨" : totalCount >= 20 ? "🔔" : "📸";
+      const title = `${priority} ${totalCount} ${totalCount === 1 ? "person" : "people"} captured your flux`;
+      const message = previewNames
+        ? `Including ${previewNames}`
+        : `${totalCount} people took screenshots of your flux`;
+
+      await createNotification({
+        userId: ownerId,
+        type: "flux_screenshot" as any,
+        title,
+        message,
+        fromUserId: viewerId,
+        metadata: {
+          fluxId,
+          fluxMediaUrl: (flux as any).mediaUrl,
+          screenshotCount: totalCount,
+          previewUserIds: previewIds,
+        },
+      }).catch(() => {});
+    }
+
+    res.json({ success: true, alerted: shouldSend, count: totalCount });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+// ── GET /api/flux/:fluxId/analytics
+export const getFluxAnalytics = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { fluxId } = req.params;
+    const callerId = req.userId!.toString();
+
+    const flux = await FluxModel.findOne({
+      _id: fluxId,
+      userId: callerId,
+      isDeleted: false,
+    }).lean();
+
+    if (!flux) {
+      res
+        .status(404)
+        .json({ success: false, message: "Flux not found or not yours" });
+      return;
+    }
+
+    const settings = await FluxSettingsModel.findOne({
+      userId: callerId,
+    }).lean();
+    const analyticsEnabled = (settings as any)?.advanced?.analytics ?? true;
+
+    if (!analyticsEnabled) {
+      res.json({ success: true, analyticsEnabled: false });
+      return;
+    }
+
+    const allViewers: string[] = (flux as any).viewers ?? [];
+    const viewCount = allViewers.filter(
+      (id) => id.toString() !== callerId,
+    ).length;
+
+    const reactions: any[] = (flux as any).reactions ?? [];
+    const reactionMap: Record<string, number> = {};
+    for (const r of reactions) {
+      const emoji = r.emoji ?? "❤️";
+      reactionMap[emoji] = (reactionMap[emoji] ?? 0) + 1;
+    }
+
+    const likes: any[] = (flux as any).likes ?? [];
+    const comments: any[] = (flux as any).comments ?? [];
+    const mentions: any[] = (flux as any).mentions ?? [];
+
+    // Screenshot stats from DB only (no Redis sets)
+    const screenshotCount = await FluxScreenshotEventModel.countDocuments({
+      fluxId,
+    });
+    const recentEvents = await FluxScreenshotEventModel.find({ fluxId })
+      .sort({ timestamp: -1 })
+      .limit(10)
+      .lean();
+    const screenshotUserIds = recentEvents.map((e: any) => e.userId.toString());
+
+    let recentScreenshotters: any[] = [];
+    if (screenshotUserIds.length > 0) {
+      const resp = await wieUserClient
+        .getUsersByIds(screenshotUserIds)
+        .catch(() => ({ users: [] }));
+      recentScreenshotters = (resp.users ?? []).map((u: any) => ({
+        id: (u._id ?? u.id).toString(),
+        username: u.username ?? "",
+        name: u.name ?? u.username ?? "",
+        profile_picture: u.profile_picture ?? u.profilePicture ?? null,
+      }));
+    }
+
+    res.json({
+      success: true,
+      analyticsEnabled: true,
+      viewCount,
+      likeCount: likes.length,
+      reactionBreakdown: reactionMap,
+      commentCount: comments.length,
+      mentionCount: mentions.length,
+      screenshots: {
+        count: screenshotCount,
+        uniqueUsers: screenshotUserIds.length,
+        recentUsers: recentScreenshotters,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };

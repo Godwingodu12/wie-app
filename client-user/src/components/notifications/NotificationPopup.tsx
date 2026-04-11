@@ -12,7 +12,8 @@ import {
   MessageCircle,
   Users,
   Ticket,
-  CheckCircle
+  CheckCircle,
+  Camera
 } from "lucide-react";
 import {
   Notification,
@@ -381,6 +382,13 @@ const loadNotifications = async () => {
         onClose();
         return;
       }
+      // FLUX SCREENSHOT — aggregated alert to owner
+      if (notification.type === 'flux_screenshot') {
+        const fluxId = notification.meta?.fluxId;
+        if (fluxId) router.push(`/post/flux-view?fluxId=${fluxId}`);
+        onClose();
+        return;
+      }
       // GENERIC FALLBACK
       // booking_confirmed, payment_success, refund_initiated, etc.
       const bookingId = notification.bookingId || notification.meta?.bookingId;
@@ -432,7 +440,8 @@ const loadNotifications = async () => {
           n.type === 'flux_remention_sent'||
           n.type === 'flux_comment' ||
           n.type === 'flux_like'    ||
-          n.type === 'flux_reply'   
+          n.type === 'flux_reply'   ||
+          n.type === 'flux_screenshot'
         ) return true;
         return ["like", "comment", "mention", "message_received", "connection"].some(
           (t) => n.type?.includes(t),
@@ -1360,6 +1369,7 @@ const getIcon = (type: string | undefined) => {
   if (type === 'flux_comment') return <MessageCircle size={18} style={{ color: '#8860D9' }} />;
   if (type === 'flux_like')    return <Heart size={18} style={{ color: '#e53e3e' }} />;
   if (type === 'flux_reply')   return <MessageCircle size={18} style={{ color: '#2979FF' }} />;
+  if (type === 'flux_screenshot') return <Camera size={18} style={{ color: '#f59e0b' }} />;
   if (type.includes("event")) return <Calendar size={18} />;
   if (type.includes("ticket") || type.includes("booking"))
     return <Ticket size={18} />;

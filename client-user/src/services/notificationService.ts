@@ -1,88 +1,95 @@
-import axios from 'axios';
+import axios from "axios";
 const NOTIFICATION_API_URL =
   process.env.NEXT_PUBLIC_NOTIFICATION_API_URL ||
-  'http://localhost:5006/api/notification';
+  "http://localhost:5006/api/notification";
 // Ensure the URL doesn't have trailing slash
-const baseURL = NOTIFICATION_API_URL.replace(/\/$/, '');
+const baseURL = NOTIFICATION_API_URL.replace(/\/$/, "");
 // Create axios instance
 const notificationApi = axios.create({
   baseURL: baseURL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
   timeout: 30000, // 30 second timeout
 });
 // Add auth token to requests (same pattern as other services)
 notificationApi.interceptors.request.use(
   (config) => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('token');
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("token");
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 notificationApi.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.config) {
       const fullUrl = error.config.baseURL + error.config.url;
-      console.error(`❌ Notification API Error [${error.config.method?.toUpperCase()} ${fullUrl}]:`, {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        code: error.code,
-      });
+      console.error(
+        `❌ Notification API Error [${error.config.method?.toUpperCase()} ${fullUrl}]:`,
+        {
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data,
+          code: error.code,
+        },
+      );
     } else {
-      console.error('Notification API Error:', error.response?.data || error.message);
+      console.error(
+        "Notification API Error:",
+        error.response?.data || error.message,
+      );
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 // Types should match backend notification.model.js
 export type NotificationType =
-  | 'event_created'
-  | 'group_updated'
-  | 'event_hosted'
-  | 'event_recovered'
-  | 'event_invite'
-  | 'event_cancelled'
-  | 'event_rehosted'
-  | 'event_completed'
-  | 'event_updated'
-  | 'event_refunded'
-  | 'ticket_purchased'
-  | 'ticket_cancelled'
-  | 'message_received'
-  | 'follow_request'
-  | 'follow_accepted'
-  | 'comment'
-  | 'like'
-  | 'mention'
-  | 'system'
-  | 'booking_confirmed'
-  | 'booking_pending'
-  | 'payment_success'
-  | 'payment_failed'
-  | 'payment_processing'
-  | 'booking_cancelled'
-  | 'refund_initiated'
-  | 'refund_processing'
-  | 'refund_completed'
-  | 'refund_failed'
-  | 'event_reminder'
-  | 'ticket_verified'
-  | 'qr_code_generated'
-  | 'following'
-  | 'flux_mention'
-  | 'flux_remention'
-  | 'flux_comment'
-  | 'flux_like'
-  | 'flux_reply'
+  | "event_created"
+  | "group_updated"
+  | "event_hosted"
+  | "event_recovered"
+  | "event_invite"
+  | "event_cancelled"
+  | "event_rehosted"
+  | "event_completed"
+  | "event_updated"
+  | "event_refunded"
+  | "ticket_purchased"
+  | "ticket_cancelled"
+  | "message_received"
+  | "follow_request"
+  | "follow_accepted"
+  | "comment"
+  | "like"
+  | "mention"
+  | "system"
+  | "booking_confirmed"
+  | "booking_pending"
+  | "payment_success"
+  | "payment_failed"
+  | "payment_processing"
+  | "booking_cancelled"
+  | "refund_initiated"
+  | "refund_processing"
+  | "refund_completed"
+  | "refund_failed"
+  | "event_reminder"
+  | "ticket_verified"
+  | "qr_code_generated"
+  | "following"
+  | "flux_mention"
+  | "flux_remention"
+  | "flux_comment"
+  | "flux_like"
+  | "flux_reply"
+  | "flux_screenshot"
   | string;
 
 export interface Notification {
@@ -91,7 +98,7 @@ export interface Notification {
   title: string;
   message: string;
   createdAt: string;
-  updatedAt?: string;  
+  updatedAt?: string;
   isRead: boolean;
   // Optional fields from backend
   bookingId?: string;
@@ -172,7 +179,7 @@ export const getUserNotifications = async (params?: {
   limit?: number;
   skip?: number;
 }): Promise<NotificationListResponse> => {
-  const response = await notificationApi.get('/get-notifications', { params });
+  const response = await notificationApi.get("/get-notifications", { params });
   const data = response.data || {};
 
   const notifications = Array.isArray(data.notifications)
@@ -192,12 +199,14 @@ export const getUserNotifications = async (params?: {
 
 // Mark a single notification as read
 export const markNotificationAsRead = async (notificationId: string) => {
-    const response = await notificationApi.patch(`/notification-read/${notificationId}`);
-    return response.data;
+  const response = await notificationApi.patch(
+    `/notification-read/${notificationId}`,
+  );
+  return response.data;
 };
 // Mark all notifications as read
 export const markAllNotificationsAsRead = async () => {
-    const response = await notificationApi.patch('/mark-all-read');
-    return response.data;
+  const response = await notificationApi.patch("/mark-all-read");
+  return response.data;
 };
 export default notificationApi;

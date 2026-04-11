@@ -11,7 +11,7 @@ import type { Flux } from "@/services/mediaService";
 const PURPLE  = "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)";
 const GREEN   = "linear-gradient(135deg,#22c55e,#16a34a)";
 
-// ── Tiny toast ──────────────────────────────────────────────────────────────
+// ── Tiny toast 
 function Toast({ msg }: { msg: string }) {
   return (
     <div style={{
@@ -26,7 +26,7 @@ function Toast({ msg }: { msg: string }) {
   );
 }
 
-// ── Section card wrapper ─────────────────────────────────────────────────────
+// ── Section card wrapper 
 function SectionCard({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
     <div style={{
@@ -45,7 +45,7 @@ function SectionCard({ children, title }: { children: React.ReactNode; title?: s
   );
 }
 
-// ── Nav row (tappable row that goes to sub-page) ─────────────────────────────
+// ── Nav row (tappable row that goes to sub-page) 
 function NavRow({
   icon, label, sub, href, accent = "rgba(136,96,217,0.15)", accentColor = "#8860D9",
 }: {
@@ -136,12 +136,12 @@ export default function FluxSettingsPage() {
 
       {/* ── Core Flux Controls ── */}
       <SectionCard title="Controls">
-        {/* Story Settings — main sub-page */}
+        {/* flux Settings — main sub-page */}
         <NavRow
           icon={<Film />}
-          label="Story Settings"
+          label="flux Settings"
           sub="Privacy, interactions, sharing & advanced"
-          href="/settings/post/flux/story-settings"
+          href="/settings/post/flux/flux-settings"
           accent="rgba(136,96,217,0.18)"
           accentColor="#9575CD"
         />

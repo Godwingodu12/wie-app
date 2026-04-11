@@ -889,28 +889,38 @@ export const getFluxLikes = async (
   const res = await mediaApi.get(`/flux/${fluxId}/likes`);
   return res.data;
 };
-
-// Story / Flux Settings
+// ── Flux Settings
 export interface StorySettings {
-  audience: "public" | "followers" | "close_friends" | "only_me";
+  // Visibility
+  visibility: "public" | "followers" | "close_friends" | "only_me";
+  audience: "public" | "followers" | "close_friends" | "only_me"; // alias
   hideFrom: string[];
-  allowReplies: "everyone" | "followers_back" | "off";
+  // Interactions
+  allowReplies: "everyone" | "mutual" | "off";
   allowReactions: boolean;
   allowMessageReplies: boolean;
+  // Sharing
   allowShareToStory: boolean;
   allowShareAsMessage: boolean;
   allowExternalShare: boolean;
+  // Save
   saveToDevice: boolean;
   saveToArchive: boolean;
   autosaveDrafts: boolean;
-  duration: 24 | 48 | "custom";
+  // Advanced
+  duration: 24 | 48 | 72;
   showAnalytics: boolean;
   restrictScreenshots: boolean;
 }
 
-/**
- * GET /flux/settings — fetch the current user's flux / story settings.
- */
+export interface HiddenUser {
+  id: string;
+  username: string;
+  name: string;
+  profile_picture: string | null;
+  is_verified: boolean;
+}
+
 export const getStorySettings = async (): Promise<StorySettings> => {
   const res = await mediaApi.get<{ success: boolean; data: StorySettings }>(
     "/flux/settings",
@@ -918,9 +928,6 @@ export const getStorySettings = async (): Promise<StorySettings> => {
   return res.data.data;
 };
 
-/**
- * PATCH /flux/settings — persist updated flux / story settings.
- */
 export const updateStorySettings = async (
   settings: Partial<StorySettings>,
 ): Promise<StorySettings> => {
@@ -931,10 +938,113 @@ export const updateStorySettings = async (
   return res.data.data;
 };
 
-/**
- * PATCH /flux/settings/hide-from — update the "hide story from" user list.
- */
+export const getHideFromList = async (): Promise<HiddenUser[]> => {
+  const res = await mediaApi.get<{ success: boolean; data: HiddenUser[] }>(
+    "/flux/settings/hide-from",
+  );
+  return res.data.data;
+};
+
 export const updateHideFromList = async (userIds: string[]): Promise<void> => {
   await mediaApi.patch("/flux/settings/hide-from", { userIds });
+};
+
+export const addToHideFromList = async (hideUserId: string): Promise<void> => {
+  await mediaApi.post("/flux/settings/hide-from/add", { hideUserId });
+};
+
+export const removeFromHideFromList = async (
+  unhideUserId: string,
+): Promise<void> => {
+  await mediaApi.post("/flux/settings/hide-from/remove", { unhideUserId });
+};
+
+export const reportFluxScreenshot = async (
+  fluxId: string,
+): Promise<{ alerted: boolean; count?: number }> => {
+  const res = await mediaApi.post<{
+    success: boolean;
+    alerted: boolean;
+    count?: number;
+  }>(`/flux/${fluxId}/screenshot`);
+  return res.data;
+};
+
+export interface FluxAnalytics {
+  analyticsEnabled: boolean;
+  viewCount: number;
+  likeCount: number;
+  reactionBreakdown: Record<string, number>;
+  commentCount: number;
+  mentionCount: number;
+  screenshots: {
+    count: number;
+    uniqueUsers: number;
+    recentUsers: {
+      id: string;
+      username: string;
+      name: string;
+      profile_picture: string | null;
+    }[];
+  };
+}
+
+export const getFluxAnalytics = async (
+  fluxId: string,
+): Promise<FluxAnalytics> => {
+  const res = await mediaApi.get<{ success: boolean } & FluxAnalytics>(
+    `/flux/${fluxId}/analytics`,
+  );
+  return res.data;
+};
+/**
+ * GET /flux/:fluxId/visibility — get current visibility of a flux (owner only)
+ */
+export const getFluxVisibility = async (
+  fluxId: string,
+): Promise<{ _id: string; visibility: FluxVisibility }> => {
+  const res = await mediaApi.get<{
+    success: boolean;
+    data: { _id: string; visibility: FluxVisibility };
+  }>(`/flux/${fluxId}/visibility`);
+  return res.data.data;
+};
+
+export const getFluxOwnerSettings = async (fluxId: string): Promise<{
+  allowReplies:        "everyone" | "mutual" | "off";
+  allowReactions:      boolean;
+  allowMessageReplies: boolean;
+  allowShareToStory:   boolean;
+  allowShareAsMessage: boolean;
+  allowExternalShare:  boolean;
+  screenshotAlert:     boolean;
+  saveToDevice:        boolean;
+}> => {
+  const res = await mediaApi.get<{
+    success: boolean;
+    data: {
+      allowReplies:        "everyone" | "mutual" | "off";
+      allowReactions:      boolean;
+      allowMessageReplies: boolean;
+      allowShareToStory:   boolean;
+      allowShareAsMessage: boolean;
+      allowExternalShare:  boolean;
+      screenshotAlert:     boolean;
+      saveToDevice:        boolean;
+    };
+  }>(`/flux/${fluxId}/owner-settings`);
+  return res.data.data;
+};
+/**
+ * GET /flux/settings/screenshot-block — check if current user has screenshot blocking on
+ */
+export const getScreenshotBlockSetting = async (): Promise<{
+  screenshotAlert: boolean;
+}> => {
+  const res = await mediaApi.get<{
+    success: boolean;
+    data: { screenshotAlert: boolean };
+  }>("/flux/settings/screenshot-block");
+  return res.data.data;
 };
 export default mediaApi;

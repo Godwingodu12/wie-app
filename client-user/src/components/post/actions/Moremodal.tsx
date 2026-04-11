@@ -2,7 +2,6 @@
 import React from "react";
 import { X } from "lucide-react";
 
-// FIND the interface and REPLACE:
 interface MoreModalProps {
   onClose:              () => void;
   onDelete:             () => void;
@@ -15,12 +14,14 @@ interface MoreModalProps {
   onComments:           () => void;
   onRemoveMention?:     () => void;
   onToggleComments?:    () => void;
-  onTogglePersistent?:  () => void;  
+  onTogglePersistent?:  () => void;
   isOwner:              boolean;
   isMentioned:          boolean;
   commentsDisabled?:    boolean;
   isArchived?:          boolean;
-  isPersistent?:        boolean;     
+  isPersistent?:        boolean;
+  allowShare?:          boolean;  
+  allowSaveToDevice?:   boolean;   
 }
 
 export default function MoreModal({
@@ -28,9 +29,11 @@ export default function MoreModal({
   onCopyLink, onShare, onSettings, onComments,
   onRemoveMention, onToggleComments, onTogglePersistent,
   isOwner, isMentioned,
-  commentsDisabled = false,
-  isArchived = false,
-  isPersistent = false,
+  commentsDisabled    = false,
+  isArchived          = false,
+  isPersistent        = false,
+  allowShare          = true,
+  allowSaveToDevice   = true,
 }: MoreModalProps) {
 
   const ITEMS: { key: string; label: string; danger?: boolean; sub?: string }[] = [
@@ -46,9 +49,7 @@ export default function MoreModal({
         sub: isPersistent
           ? "Story will expire normally after 24h"
           : "Story stays visible until you delete it (max 5)" },
-      { key: "save",
-        label: "Save to device",
-        sub: "Download this flux to your device" },
+      ...(allowSaveToDevice ? [{ key: "save", label: "Save to device", sub: "Download this flux to your device" }] : []),
       { key: "highlight",
         label: "Add to diary",
         sub: "Save this flux to a diary highlight" },
@@ -64,9 +65,8 @@ export default function MoreModal({
     ...(isMentioned && !isOwner ? [
       { key: "removeMention", label: "Remove from my stories", danger: true },
     ] : []),
-
     { key: "link",  label: "Copy link" },
-    { key: "share", label: "Share" },
+    ...(allowShare ? [{ key: "share", label: "Share" }] : []),
   ];
 
   const handlers: Record<string, () => void> = {
