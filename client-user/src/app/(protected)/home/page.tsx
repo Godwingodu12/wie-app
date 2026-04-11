@@ -291,35 +291,69 @@ export default function HomePage() {
                       className="flex flex-col items-center gap-1.5 group"
                       style={{ width: 72 }}
                     >
-                      <div
-                        className="relative overflow-hidden transition-all group-hover:scale-105"
+<div
+                        className="relative flex-shrink-0 transition-all group-hover:scale-105"
                         style={{
-                          width: 70,
-                          height: 100,
+                          width:        70,
+                          height:       100,
                           borderRadius: 12,
-                          padding: myFluxes.length > 0 ? 2 : 0,
-                          background: myFluxes.length > 0
+                          padding:      myFluxes.length > 0 ? 2 : 0,
+                          background:   myFluxes.length > 0
                             ? myFluxViewed
                               ? "linear-gradient(147.67deg,#555 13%,#888 100%)"
                               : "linear-gradient(147.67deg,#8860D9 13%,#B3B8E2 100%)"
                             : "transparent",
-                          border: myFluxes.length > 0
+                          border:       myFluxes.length > 0
                             ? "none"
                             : "1.5px dashed rgba(255,255,255,0.25)",
+                          boxSizing:    "border-box",
                         }}
                       >
-                        <div className="w-full h-full rounded-[10px] overflow-hidden relative bg-[#1a1a1a]">
+                        <div
+                          style={{
+                            width:        "100%",
+                            height:       "100%",
+                            borderRadius: myFluxes.length > 0 ? 10 : 12,
+                            overflow:     "hidden",
+                            position:     "relative",
+                            background:   "#1a1a1a",
+                          }}
+                        >
                           <Image
                             src={userProfile?.profile_picture ?? ProfileImage}
                             alt="my story"
                             fill
+                            sizes="70px"
                             className="object-cover"
                             style={{ opacity: myFluxes.length > 0 ? 1 : 0.6 }}
+                            unoptimized={!!userProfile?.profile_picture}
                           />
-
                           {myFluxes.length === 0 && (
-                            <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-2">
-                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-sm font-bold bg-gradient-to-b from-[#B3B8E2] via-[#8860D9] to-[#9575CD]">
+                            <div
+                              style={{
+                                position:       "absolute",
+                                bottom:         0,
+                                left:           0,
+                                right:          0,
+                                display:        "flex",
+                                justifyContent: "center",
+                                paddingBottom:  8,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width:           24,
+                                  height:          24,
+                                  borderRadius:    "50%",
+                                  display:         "flex",
+                                  alignItems:      "center",
+                                  justifyContent:  "center",
+                                  color:           "#fff",
+                                  fontSize:        14,
+                                  fontWeight:      700,
+                                  background:      "linear-gradient(180deg,#B3B8E2 0%,#8860D9 50%,#9575CD 100%)",
+                                }}
+                              >
                                 +
                               </div>
                             </div>
@@ -368,19 +402,54 @@ export default function HomePage() {
                                 markFluxViewed(fluxId);
                                 router.push(`/post/flux-view?fluxId=${fluxId}&userId=${group._id}`);
                               }}
-                              className="flex flex-col items-center gap-1.5 flex-shrink-0"
+                              className="flex flex-col items-center gap-1.5 flex-shrink-0 group/item"
                               style={{ width: 72 }}
                             >
-                              <div className="w-[70px] h-[100px] rounded-[12px] overflow-hidden bg-[#1a1a1a]">
-                                <Image
-                                  src={group.user?.profile_picture || ProfileImage}
-                                  alt=""
-                                  fill
-                                  className="object-cover"
-                                />
+                              {/* Gradient border ring */}
+                              <div
+                                className="transition-all group-hover/item:scale-105"
+                                style={{
+                                  width:        70,
+                                  height:       100,
+                                  borderRadius: 12,
+                                  padding:      2,
+                                  background: group.fluxes.every(
+                                    (f) => f._id != null && viewedFluxIds.has(f._id)
+                                  )
+                                    ? "linear-gradient(147.67deg,#444 13%,#777 100%)"
+                                    : group.fluxes.some((f) => f.visibility === "close_friends")
+                                      ? "linear-gradient(147.67deg,#22c55e 13%,#16a34a 100%)"
+                                      : "linear-gradient(147.67deg,#2979FF 13%,#6B9CF0 54%,#9DC1FF 100%)",
+                                  boxSizing: "border-box",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {/* Inner image container */}
+                                <div
+                                  style={{
+                                    width:        "100%",
+                                    height:       "100%",
+                                    borderRadius: 10,
+                                    overflow:     "hidden",
+                                    position:     "relative",
+                                    background:   "#1a1a1a",
+                                  }}
+                                >
+                                  <Image
+                                    src={group.user?.profile_picture || ProfileImage}
+                                    alt={group.user?.username ?? ""}
+                                    fill
+                                    sizes="70px"
+                                    className="object-cover"
+                                    unoptimized={!!group.user?.profile_picture}
+                                  />
+                                </div>
                               </div>
 
-                              <span className="text-[11px] truncate text-center w-full">
+                              <span
+                                className="text-[11px] truncate text-center w-full"
+                                style={{ color: themeStyles.textSecondary }}
+                              >
                                 {group.user?.username}
                               </span>
                             </button>
