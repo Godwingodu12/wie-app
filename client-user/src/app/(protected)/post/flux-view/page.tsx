@@ -13,7 +13,7 @@ import MentionBar   from "@/components/post/actions/MentionBar";
 import ViewersPanel from "@/components/post/actions/Viewerspanel";
 import MoreModal    from "@/components/post/actions/Moremodal";
 import CommentSheet from "@/components/post/actions/CommentSheet";
-
+import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
 // ── Assets 
 import LeftArrow   from "@/assets/post/leftArrow.png";
 import RightArrow  from "@/assets/post/rightArrow.png";
@@ -692,57 +692,13 @@ const goPrev = useCallback(() => {
     return () => cancelAnimationFrame(rafRef.current);
   }, [idx, paused, anyModal, loading, fluxes.length, startProgress]);
 
+
   const handlePointerDown = () => {
     pausedAtRef.current = progress;
     setPaused(true);
   };
   const handlePointerUp   = () => setPaused(false);
-  // ── Screenshot detection via Page Visibility / keyboard shortcut heuristic 
-  useEffect(() => {
-    if (!current?._id || isOwner || screenshotReported) return;
 
-    const handleVisibilityChange = () => {
-      // On mobile, switching away briefly often means screenshot
-      // We use a conservative heuristic: hidden + back within 2s
-      if (document.visibilityState === "hidden") {
-        const hiddenAt = Date.now();
-        const onVisible = () => {
-          const delta = Date.now() - hiddenAt;
-          if (delta < 2000) {
-            // Likely a screenshot — report once
-            setScreenshotReported(true);
-            import("@/services/mediaService")
-              .then(({ reportFluxScreenshot }) =>
-                reportFluxScreenshot(current._id),
-              )
-              .catch(() => {});
-          }
-          document.removeEventListener("visibilitychange", onVisible);
-        };
-        document.addEventListener("visibilitychange", onVisible);
-      }
-    };
-
-    // Desktop: PrintScreen key
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "PrintScreen" && !screenshotReported) {
-        setScreenshotReported(true);
-        import("@/services/mediaService")
-          .then(({ reportFluxScreenshot }) =>
-            reportFluxScreenshot(current._id),
-          )
-          .catch(() => {});
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [current?._id, isOwner, screenshotReported]);
 
   // ── Load owner's interaction settings for this flux (viewers only) ──
   const [ownerFluxSettings, setOwnerFluxSettings] = useState<{
@@ -807,6 +763,16 @@ const goPrev = useCallback(() => {
     return () => clearTimeout(t);
   }, [ownerFluxSettings?.screenshotAlert, current?._id, isOwner]);
 
+  // Screenshot protection (watermark + detection + blackout)
+  useScreenshotProtection({
+    enabled:    Boolean(!isOwner && ownerFluxSettings?.screenshotAlert === true),
+    fluxId:     current?._id ?? null,
+    isOwner,
+    userId:     String(user?.id ?? ""),
+    username:   user?.username ?? "viewer",
+    onDetected: () => setScreenshotReported(true),
+  });
+
   const currentFluxId = fluxes[idx]?._id ?? null;
   useEffect(() => {
     if (!currentFluxId) return;
@@ -841,7 +807,6 @@ const goPrev = useCallback(() => {
 
   useEffect(() => {
     if (!current?._id || !user?.id || loading) return;
-
     // Reset per-flux state
     setIsOwner(false);
     setIsMentioned(false);
@@ -850,7 +815,7 @@ const goPrev = useCallback(() => {
     const fluxId   = current._id;
     const viewerId = String(user.id);
     const ownerId  = getFluxOwnerId(current);
-    const ownerFlag = ownerId === viewerId;
+    const ownerFlag = Boolean(ownerId) && ownerId === viewerId;
     setIsOwner(ownerFlag);
     setCommentsDisabled((current as any)?.commentsDisabled ?? false);
     setIsArchived((current as any)?.isArchived ?? false);
@@ -1328,6 +1293,7 @@ return (
         </div>
         {/* Story card */}
         <div
+          data-flux-card
           style={{
             width:        360,
             height:       500,
@@ -1567,36 +1533,6 @@ return (
               )}
             </div>
           </div>
-          )}
-          {/* Screenshot warning overlay — shown briefly when screenshotAlert is on */}
-          {showScreenshotWarning && !isOwner && (
-            <div style={{
-              position:       "absolute",
-              inset:          0,
-              zIndex:         20,
-              background:     "rgba(0,0,0,0.82)",
-              display:        "flex",
-              flexDirection:  "column",
-              alignItems:     "center",
-              justifyContent: "center",
-              gap:            12,
-              backdropFilter: "blur(4px)",
-              borderRadius:   12,
-            }}>
-              <div style={{ fontSize: 40 }}>📸</div>
-              <p style={{
-                color: "#fff", fontSize: 15, fontWeight: 700,
-                textAlign: "center", padding: "0 24px",
-              }}>
-                Screenshots are monitored
-              </p>
-              <p style={{
-                color: "rgba(255,255,255,0.5)", fontSize: 12,
-                textAlign: "center", padding: "0 32px", lineHeight: 1.6,
-              }}>
-                The creator will be notified if you take a screenshot of this flux.
-              </p>
-            </div>
           )}
         </div>
         {/* ── Bottom bar ── */}
