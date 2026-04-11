@@ -37,7 +37,7 @@ export interface IFluxSettings extends Document {
     analytics:       boolean;
     screenshotAlert: boolean;
   };
-
+  restrictScreenshots: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -87,6 +87,7 @@ const FluxSettingsSchema = new Schema(
       analytics:       { type: Boolean,                    default: true  },
       screenshotAlert: { type: Boolean,                    default: false },
     },
+    restrictScreenshots: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

@@ -13,7 +13,7 @@ import ShareCountIcon from "@/assets/Home/ShareCount.svg";
 import SaveIcon from "@/assets/Home/ShareIcon.svg";
 import QrCode from "@/assets/Home/QrCode.png";
 import ProfileImage from "@/assets/profile/ProfileImage.jpg";
-import { getFluxFeed, getMyFluxes, viewFlux } from "@/services/mediaService";
+import { getFluxFeed, getMyFluxes, viewFlux, invalidateFluxFeedCache } from "@/services/mediaService";
 import type { FeedFluxGroup, Flux } from "@/services/mediaService";
 // Icons
 import {
@@ -160,12 +160,16 @@ export default function HomePage() {
           console.error("Error fetching profile:", e);
         }
       };
-      const fetchFluxes = async () => {
-      try {
-        const [mine, feed] = await Promise.all([
-          getMyFluxes(),
-          getFluxFeed(),
-        ]);
+      const fetchFluxes = async (bustCache?: string) => {
+        try {
+          // If a specific ownerId is passed, bust that cache entry first
+          if (bustCache) {
+            await invalidateFluxFeedCache(bustCache).catch(() => {});
+          }
+          const [mine, feed] = await Promise.all([
+            getMyFluxes(),
+            getFluxFeed(),
+          ]);
         setMyFluxes(mine);
 
         const activeFeed = feed.filter((g) => !g.isSelf && g.fluxes.length > 0);
@@ -250,6 +254,18 @@ export default function HomePage() {
     return words.length > limit
       ? { text: words.slice(0, limit).join(" ") + "...", truncated: true }
       : { text, truncated: false };
+  };
+
+  const refreshFeedAfterFollow = async (followedUserId: string) => {
+    try {
+      await invalidateFluxFeedCache(followedUserId);
+      const [mine, feed] = await Promise.all([getMyFluxes(), getFluxFeed()]);
+      setMyFluxes(mine);
+      const activeFeed = feed.filter((g) => !g.isSelf && g.fluxes.length > 0);
+      setFeedGroups(activeFeed);
+    } catch (e) {
+      console.error("refreshFeedAfterFollow failed:", e);
+    }
   };
   const myFluxViewed =
     myFluxes.length > 0 && myFluxes.every((f) => viewedFluxIds.has(f._id));

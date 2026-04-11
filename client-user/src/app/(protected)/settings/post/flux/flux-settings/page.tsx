@@ -293,10 +293,14 @@ export default function StorySettingsPage() {
           autosaveDrafts:      latest.autosaveDrafts,
           duration:            latest.duration,
           showAnalytics:       latest.showAnalytics,
-          restrictScreenshots: latest.restrictScreenshots,
+          restrictScreenshots: Boolean(latest.restrictScreenshots),
         };
         const updated = await updateStorySettings(payload);
-        setS((prev) => ({ ...prev, ...updated }));
+        setS((prev) => ({
+          ...prev,
+          ...updated,
+          restrictScreenshots: updated.restrictScreenshots ?? prev.restrictScreenshots,
+        }));
         setSaved(true);
         setTimeout(() => setSaved(false), 1800);
       } catch {
@@ -552,19 +556,6 @@ export default function StorySettingsPage() {
           <Row icon={<Camera size={16} color="rgba(255,255,255,0.4)" />} label="Restrict screenshots" sub="Detect & notify when someone screenshots your flux" last>
             <Toggle value={s.restrictScreenshots} onChange={(v) => update("restrictScreenshots", v)} />
           </Row>
-          {s.restrictScreenshots && (
-            <div style={{
-              margin: "0 16px 12px",
-              padding: "10px 12px",
-              borderRadius: 10,
-              background: "rgba(239,68,68,0.08)",
-              border: "1px solid rgba(239,68,68,0.2)",
-            }}>
-              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, lineHeight: 1.6, margin: 0 }}>
-                ⚠️ Screenshots cannot be technically blocked (OS limitation). When enabled, viewers are warned before viewing and you receive a notification when a screenshot is detected.
-              </p>
-            </div>
-          )}
         </div>
       </Card>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>

@@ -9,9 +9,18 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: [
-      'event_created','group_updated','event_hosted','event_recovered','event_invite','event_cancelled','event_completed','event_updated','event_rehosted','event_refunded','ticket_purchased','ticket_cancelled','message_received','follow_request','follow_accepted','comment','like','mention','system','booking_confirmed','payment_success','payment_failed','payment_processing','booking_cancelled','refund_initiated','refund_processing','refund_completed',
-      'refund_failed','event_reminder','ticket_verified','qr_code_generated','following','flux_mention','flux_remention',
-      'flux_comment','flux_like','flux_reply','flux_screenshot'
+      'event_created','group_updated','event_hosted','event_recovered','event_invite',
+      'event_cancelled','event_completed','event_updated','event_rehosted','event_refunded',
+      'ticket_purchased','ticket_cancelled','message_received','follow_request','follow_accepted',
+      'comment','like','mention','system','booking_confirmed','payment_success','payment_failed',
+      'payment_processing','booking_cancelled','refund_initiated','refund_processing',
+      'refund_completed','refund_failed','event_reminder','ticket_verified','qr_code_generated',
+      'following',
+      'flux_mention','flux_mention_sent',
+      'flux_remention','flux_remention_sent',
+      'flux_comment','flux_like','flux_reply',
+      'flux_screenshot',
+      'flux_share',
     ]
   },
   title: {

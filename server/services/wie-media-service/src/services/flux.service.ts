@@ -5,7 +5,7 @@ import * as wieUserClient from "../grpc/clients/wieUserClient";
 import redisClient from "../config/redis";
 import { uploadFluxMedia, deleteFluxMedia } from "../utils/cloudinaryHelper";
 
-const FEED_CACHE_TTL = 300; // 5 min
+const FEED_CACHE_TTL = 60;// 1 min
 const FEED_CACHE_KEY = (userId: string) => `flux:feed:${userId}`;
 const USER_FLUXES_KEY = (userId: string) => `flux:user:${userId}`;
 
@@ -29,6 +29,20 @@ export const invalidateFollowerFeedCaches = async (
   }
 };
 
+export const invalidateViewerFeedCache = async (
+  viewerId: string,
+  ownerId: string,
+): Promise<void> => {
+  try {
+    await Promise.all([
+      redisClient.del(FEED_CACHE_KEY(viewerId)).catch(() => {}),
+      // Also bust ownerId's cache in case they follow back later
+      redisClient.del(FEED_CACHE_KEY(ownerId)).catch(() => {}),
+    ]);
+  } catch {
+    // Non-fatal
+  }
+};
 export const canViewFlux = async (
   viewerId: string,
   ownerId: string,
@@ -154,10 +168,23 @@ export const createFlux = async (
   if (!mediaUrl && (!textLayers || textLayers.length === 0) && !body.textBg) {
     throw new Error("Flux must have media or text content");
   }
+  // Respect the owner's duration setting (24 | 48 | 72 hours)
+  let durationHours = 24;
+  try {
+    const userSettings = await (
+      await import("../models/flux-settings.model")
+    ).default
+      .findOne({ userId })
+      .lean();
+    const settingDuration = (userSettings as any)?.advanced?.duration;
+    if ([24, 48, 72].includes(settingDuration)) durationHours = settingDuration;
+  } catch {
+    /* use default 24h */
+  }
 
-  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  const DURATION_MS = durationHours * 60 * 60 * 1000;
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + TWENTY_FOUR_HOURS_MS);
+  const expiresAt = new Date(now.getTime() + DURATION_MS);
   const flux = await FluxModel.create({
     userId,
     mediaUrl,
@@ -277,7 +304,15 @@ export const getFluxFeed = async (viewerId: string): Promise<any[]> => {
   const allFluxes = await FluxModel.aggregate([
     {
       $match: {
-        userId: { $in: targetUserIds.map(String) },
+        $or: [
+          { userId: { $in: targetUserIds } },
+          { userId: { $in: targetUserIds.map((id: string) => {
+            try {
+              const { Types } = require("mongoose");
+              return new Types.ObjectId(id);
+            } catch { return id; }
+          }) } },
+        ],
         expiresAt: { $gt: new Date() },
         isDeleted: false,
         isArchived: false,
@@ -498,14 +533,48 @@ export const getAllMyFluxes = async (userId: string): Promise<IFlux[]> => {
 };
 
 export const archiveExpiredFluxes = async (): Promise<number> => {
-  const result = await FluxModel.updateMany(
-    {
-      expiresAt: { $lt: new Date() },
-      isArchived: false,
-      isDeleted: false,
-      status: { $ne: "expired" },
-    },
-    { $set: { isArchived: true, status: "expired" } },
-  );
-  return result.modifiedCount;
+  const FluxSettingsModel = (await import("../models/flux-settings.model"))
+    .default;
+
+  // Find all newly-expired fluxes
+  const expiredFluxes = await FluxModel.find({
+    expiresAt: { $lt: new Date() },
+    isArchived: false,
+    isDeleted: false,
+    status: { $nin: ["expired", "deleted"] },
+  }).lean();
+
+  if (expiredFluxes.length === 0) return 0;
+
+  // Group by userId so we fetch settings once per user
+  const byUser: Record<string, string[]> = {};
+  for (const f of expiredFluxes) {
+    const uid = (f as any).userId.toString();
+    if (!byUser[uid]) byUser[uid] = [];
+    byUser[uid].push((f as any)._id.toString());
+  }
+
+  let modified = 0;
+
+  for (const [userId, fluxIds] of Object.entries(byUser)) {
+    const settings = await FluxSettingsModel.findOne({ userId }).lean();
+    const saveToArchive: boolean = (settings as any)?.save?.archive ?? true;
+
+    if (saveToArchive) {
+      // Archive: keep document, mark as expired + archived
+      await FluxModel.updateMany(
+        { _id: { $in: fluxIds } },
+        { $set: { isArchived: true, status: "expired" } },
+      );
+    } else {
+      // Delete permanently: owner opted out of archive
+      await FluxModel.updateMany(
+        { _id: { $in: fluxIds } },
+        { $set: { isDeleted: true, status: "deleted", isArchived: false } },
+      );
+    }
+    modified += fluxIds.length;
+  }
+
+  return modified;
 };
