@@ -2,23 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, Filter, MapPin, Calendar, Globe, Search, RotateCcw } from 'lucide-react';
-import { EVENT_CATEGORIES, EVENT_LANGUAGES, FilterEventsParams } from '@/types/ticket';
-
-// Subcategories mapping
-const SUBCATEGORIES: Record<string, string[]> = {
-  'Sports, Fitness, & Adventure': ['Cricket', 'Football', 'Basketball', 'Tennis', 'Swimming', 'Yoga', 'Gym', 'Marathon', 'Cycling', 'Hiking', 'Trekking', 'Other'],
-  'Music': ['Concert', 'Live Band', 'Classical', 'Rock', 'Pop', 'Jazz', 'Electronic', 'Folk', 'Devotional', 'Other'],
-  'Arts, Culture, & Literature': ['Art Exhibition', 'Book Fair', 'Poetry', 'Theatre', 'Museum', 'Heritage Walk', 'Craft', 'Other'],
-  'Dance': ['Classical', 'Contemporary', 'Hip Hop', 'Salsa', 'Bollywood', 'Folk', 'Ballet', 'Other'],
-  'Business & Innovation': ['Conference', 'Seminar', 'Workshop', 'Networking', 'Startup', 'Tech Talk', 'Other'],
-  'Food, Lifestyle, & Wellness': ['Food Festival', 'Cooking Class', 'Wine Tasting', 'Health Camp', 'Spa', 'Other'],
-  'Film, Media, & Gaming': ['Film Festival', 'Screening', 'Gaming Tournament', 'Esports', 'Podcast', 'Other'],
-  'Travel, Holidays, & Tourism': ['Tour', 'Camp', 'Beach Party', 'Mountain Trip', 'City Tour', 'Other'],
-  'Festivals & Celebrations': ['Cultural Festival', 'Carnival', 'Fair', 'New Year', 'Diwali', 'Christmas', 'Eid', 'Other'],
-  'Environment, Sustainability, & Agriculture': ['Tree Plantation', 'Clean-up Drive', 'Farm Visit', 'Eco Workshop', 'Other'],
-  'Religious & Spiritual Events': ['Pilgrimage', 'Satsang', 'Meditation', 'Prayer Meet', 'Retreat', 'Other'],
-  'Education & Learning': ['Webinar', 'Course', 'Training', 'Certification', 'School Event', 'College Fest', 'Other'],
-};
+import { EVENT_CATEGORIES, EVENT_LANGUAGES, FilterEventsParams, SUBCATEGORIES } from '@/types/ticket';
 
 interface EventFilterModalProps {
   isOpen: boolean;
