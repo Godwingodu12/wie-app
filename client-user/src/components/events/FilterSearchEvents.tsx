@@ -3,25 +3,8 @@
 import { useState, useEffect } from 'react';
 import { X, RotateCcw, Calendar } from 'lucide-react';
 import { getFilteredEvents } from '@/services/ticketUserService';
-import { FilterEventsParams, EVENT_CATEGORIES } from '@/types/ticket';
+import { FilterEventsParams, EVENT_CATEGORIES, SUBCATEGORIES } from '@/types/ticket';
 import { useTheme } from '@/components/home/ThemeContext';
-
-// Sub-category map — extend as needed
-const SUBCATEGORY_MAP: Record<string, string[]> = {
-  'Sports, Fitness, & Adventure': ['Football', 'Cricket', 'Basketball', 'Yoga', 'Marathon', 'Cycling', 'Swimming', 'Hiking'],
-  'Music': ['Jazz', 'Classical', 'Rock', 'Pop', 'Hip-Hop', 'Electronic', 'Folk', 'Indie'],
-  'Arts, Culture, & Literature': ['Painting', 'Sculpture', 'Photography', 'Poetry', 'Theatre', 'Literature', 'Craft'],
-  'Dance': ['Classical', 'Hip-Hop', 'Salsa', 'Ballet', 'Bharatanatyam', 'Contemporary', 'Folk'],
-  'Business & Innovation': ['Startup', 'Tech', 'Finance', 'Marketing', 'Leadership', 'Networking', 'AI'],
-  'Food, Lifestyle, & Wellness': ['Cooking', 'Nutrition', 'Wellness', 'Meditation', 'Fashion', 'Beauty'],
-  'Film, Media, & Gaming': ['Film Screening', 'Gaming', 'Animation', 'Podcast', 'Media', 'Esports'],
-  'Travel, Holidays, & Tourism': ['Adventure Travel', 'Beach', 'Mountains', 'City Tours', 'Cultural'],
-  'Festivals & Celebrations': ['Cultural Festival', 'Music Festival', 'Food Festival', 'Religious', 'New Year'],
-  'Environment, Sustainability, & Agriculture': ['Conservation', 'Organic Farming', 'Climate', 'Recycling'],
-  'Religious & Spiritual Events': ['Prayer', 'Meditation', 'Satsang', 'Pilgrimage', 'Interfaith'],
-  'Education & Learning': ['Workshop', 'Seminar', 'Conference', 'Hackathon', 'Bootcamp', 'Webinar'],
-  'Entertainment & Performing Arts': ['Comedy', 'Magic Show', 'Drama', 'Circus', 'Stand-up', 'Opera'],
-};
 
 const DISTANCE_STEPS = [10, 20, 30, 50];
 
@@ -55,7 +38,7 @@ export default function FilterSearchEvents({
     ? customDistance ? parseInt(customDistance) : undefined
     : DISTANCE_STEPS[distanceIndex];
 
-  const subcategories = selectedCategory ? (SUBCATEGORY_MAP[selectedCategory] || []) : [];
+  const subcategories = selectedCategory ? (SUBCATEGORIES[selectedCategory] || []) : [];
 
   // Reset subcategory when category changes
   useEffect(() => {
