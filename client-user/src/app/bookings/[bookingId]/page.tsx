@@ -78,7 +78,8 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
     try {
       await cancelBooking(bookingId, cancellationReason);
       setShowCancelModal(false);
-      loadBooking();
+      // Redirect to refund status page after cancellation
+      router.push(`/bookings/${bookingId}/refund`);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to cancel booking');
     } finally {
@@ -93,6 +94,8 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
     link.download = `ticket-${bookingId.slice(-6)}.png`;
     link.click();
   };
+
+  const [showSaveModal, setShowSaveModal] = useState(false);
 
   if (loading) {
     return (
@@ -248,7 +251,7 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                           <p className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest ${isDark ? 'text-white' : 'text-black opacity-60'}`}>Tickets</p>
                         </div>
                         <p className={`font-bold text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} sm:ml-auto`}>
-                          {booking.quantity} {booking.ticketType || 'Adults'}
+                          {booking.quantity} × {booking.ticketType || 'Adults'}
                         </p>
                       </div>
                     </div>
@@ -327,13 +330,10 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                       </div>
                     </div>
                     <h3 className="font-bold text-lg sm:text-xl mb-1">Entry Ticket</h3>
-                    <p className={`text-[10px] font-bold uppercase tracking-widest ${themeStyles.textSecondary} opacity-60`}>
-                      Scan this at the venue entry
-                    </p>
                   </div>
                   <div className="p-5 sm:p-8 pt-4">
                     <Button
-                      onClick={downloadQRCode}
+                      onClick={() => setShowSaveModal(true)}
                       className="w-full h-14 bg-[linear-gradient(180deg,_#B3B8E2_0%,_#8860D9_50%,_#9575CD_100%)] hover:opacity-90 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl shadow-[#8860D9]/20 transition-all border-none"
                     >
                       <Download className="w-6 h-6" />
@@ -364,6 +364,24 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
                       </div>
                     </div>
                     <ChevronRight className={`w-5 h-5 opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all`} />
+                  </button>
+                )}
+
+                {isCancelled && (
+                  <button
+                    onClick={() => router.push(`/bookings/${bookingId}/refund`)}
+                    className={`w-full group flex items-center justify-between p-6 rounded-xl ${isDark ? 'bg-[#8860D9]/10' : 'bg-[#8860D9]/5'} border border-[#8860D9]/20 hover:bg-[#8860D9]/20 transition-all`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-[#8860D9]/20 text-[#8860D9] group-hover:scale-110 transition-transform">
+                        <RefreshCw className="w-6 h-6" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-lg tracking-tight text-[#8860D9]">Track Refund Status</p>
+                        <p className={`text-xs opacity-60 text-[#8860D9]/80`}>Check your refund progress</p>
+                      </div>
+                    </div>
+                    <ArrowRight className={`w-5 h-5 text-[#8860D9] group-hover:translate-x-1 transition-all`} />
                   </button>
                 )}
 
@@ -436,6 +454,150 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
           </Card>
         </div>
       )}
+      {/* Save Ticket Modal */}
+      {showSaveModal && (
+        <SaveTicketModal
+          show={showSaveModal}
+          onClose={() => setShowSaveModal(false)}
+          booking={booking}
+        />
+      )}
     </div>
   );
 }
+
+// --- SaveTicketModal Component ---
+
+const SaveTicketModal = ({ show, onClose, booking }: { show: boolean, onClose: () => void, booking: any }) => {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { themeStyles, isDark } = useTheme();
+
+  // Construct QR Data in human-readable format
+  const qrData = [
+    `Event: ${booking.eventDetails.eventName}`,
+    `Date & Time: ${booking.eventDetails.eventDate} at ${booking.eventDetails.eventTime}`,
+    `Quantity: ${booking.quantity} Tickets`,
+    `Location: ${booking.eventDetails.venue || booking.eventDetails.location || 'TBA'}`,
+    `Booked By: ${booking.userDetails?.userName || booking.userDetails?.username || booking.userDetails?.name || `${booking.userDetails?.firstName || ''} ${booking.userDetails?.lastName || ''}`.trim() || 'Guest'}`,
+  ].join('\n');
+
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`;
+
+  const handleDownload = async () => {
+    try {
+      setIsDownloading(true);
+      const response = await fetch(qrCodeUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Ticket_${booking.bookingId.slice(-6)}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-[95%] max-w-[400px] border border-white/10 rounded-[24px] sm:rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300"
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: isDark ? 'linear-gradient(160deg, #1a1c2e 0%, #161925 100%)' : '#ffffff',
+          color: isDark ? '#ffffff' : '#000000'
+        }}
+      >
+        {/* Header */}
+        <div className="pt-6 sm:pt-8 pb-3 sm:pb-4 text-center px-4">
+          <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-500/20 mb-2 sm:mb-3">
+            <Ticket className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
+          </div>
+          <h2 className="text-lg sm:text-xl font-bold tracking-tight">Your Digital Ticket</h2>
+        </div>
+
+        {/* Image Section */}
+        <div className="px-6 sm:px-8 pb-4 sm:pb-6">
+          <div className="bg-white p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-inner flex items-center justify-center aspect-square relative group overflow-hidden">
+            <img
+              src={booking.eventDetails.event_portrait || booking.eventDetails.event_banner || booking.eventDetails.image || qrCodeUrl}
+              alt={booking.eventDetails.eventName}
+              className="w-full h-full object-cover rounded-xl"
+            />
+          </div>
+        </div>
+
+        {/* Ticket Details */}
+        <div className="px-6 sm:px-8 pb-6 sm:pb-8 space-y-3 sm:space-y-4">
+          <div className="flex flex-col gap-0.5 sm:gap-1">
+            <span className="text-[9px] sm:text-[10px] font-bold opacity-50 uppercase tracking-widest">Event</span>
+            <span className="text-sm sm:text-base font-bold truncate">{booking.eventDetails.eventName}</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-0.5 sm:gap-1">
+              <span className="text-[9px] sm:text-[10px] font-bold opacity-50 uppercase tracking-widest">Date & Time</span>
+              <span className="text-xs sm:text-sm font-semibold">{booking.eventDetails.eventDate} | {booking.eventDetails.eventTime}</span>
+            </div>
+            <div className="flex flex-col gap-0.5 sm:gap-1 text-right">
+              <span className="text-[9px] sm:text-[10px] font-bold opacity-50 uppercase tracking-widest">Quantity</span>
+              <span className="text-xs sm:text-sm font-bold">{booking.quantity} * {booking.ticketType}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-0.5 sm:gap-1">
+              <span className="text-[9px] sm:text-[10px] font-bold opacity-50 uppercase tracking-widest">Location</span>
+              <div className="flex items-start gap-1 sm:gap-1.5">
+                <MapPin className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-purple-400 shrink-0 mt-0.5" />
+                <span className="text-[11px] sm:text-xs font-medium italic leading-relaxed opacity-80 truncate max-w-[120px]">{booking.eventDetails.venue || booking.eventDetails.location || 'TBA'}</span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-0.5 sm:gap-1 text-right">
+              <span className="text-[9px] sm:text-[10px] font-bold opacity-50 uppercase tracking-widest">Total Pricing</span>
+              <span className="text-xs sm:text-sm font-bold text-[#8860D9]">₹{booking.totalAmount.toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="pt-3 sm:pt-4 flex gap-2 sm:gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl border border-white/10 font-bold text-xs sm:text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-all text-current"
+            >
+              Close
+            </button>
+            <button
+              onClick={handleDownload}
+              disabled={isDownloading}
+              style={{ background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)' }}
+              className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl text-white font-bold text-xs sm:text-sm shadow-lg shadow-purple-500/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 sm:gap-2"
+            >
+              {isDownloading ? (
+                <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              )}
+              {isDownloading ? 'Saving...' : 'Save Ticket'}
+            </button>
+          </div>
+        </div>
+
+        {/* Decorative elements */}
+        {isDark && (
+          <>
+            <div className="absolute top-0 left-0 w-24 h-24 bg-purple-500/10 blur-[60px] rounded-full -translate-x-1/2 -translate-y-1/2" />
+            <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/10 blur-[60px] rounded-full translate-x-1/2 translate-y-1/2" />
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
