@@ -19,6 +19,9 @@ import FestivalImg from "@/assets/Home/festivalImg.jpg";
 import EnvironmentImg from "@/assets/Home/environmentImg.jpg";
 import ReligiousImg from "@/assets/Home/religuosImg.jpg";
 import EducationImg from "@/assets/Home/educationImg.jpg";
+import MotorImg from "@/assets/Home/motorImg.jpg";
+import NightImg from "@/assets/Home/nightImg.jpg";
+import OtherImg from "@/assets/Home/otherImg.jpg";
 
 interface Category {
   id: string;
@@ -44,6 +47,9 @@ const CATEGORIES_DATA: Category[] = [
   },
   { id: "Religious & Spiritual Events",    label: "Religious",     image: ReligiousImg },
   { id: "Education & Learning",            label: "Education",     image: EducationImg },
+  { id: "Motorsport Racing",               label: "Motorsports",   image: MotorImg },
+  { id: "Night Life",                      label: "Nightlife",     image: NightImg },
+  { id: "Other",                           label: "Other",         image: OtherImg },
 ];
 
 export default function EventCategoryList() {
