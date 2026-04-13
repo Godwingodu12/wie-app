@@ -1,6 +1,6 @@
-import { prisma } from '../config/db';
-import { Booking, BookingStatus, PaymentStatus } from '../generated/prisma';
-import { Decimal } from '../generated/prisma/runtime/library';
+import { prisma } from "../config/db";
+import { Booking, BookingStatus, PaymentStatus } from "../generated/prisma";
+import { Decimal } from "../generated/prisma/runtime/library";
 export interface CreateBookingData {
   bookingId: string;
   userId: string;
@@ -25,6 +25,7 @@ export interface CreateBookingData {
     eventTime?: string;
     venue?: string;
     location?: string;
+    event_portrait?: string;
     settlementBankDetails?: {
       bank_acc_holder: string;
       bank_acc_no: string;
@@ -66,13 +67,15 @@ export interface UpdateBookingData {
   refundAmount?: number | Decimal;
   refundStatus?: string;
   refundProcessedAt?: Date;
-  refundId?: string; 
-  refundInitiatedAt?: Date; 
+  refundId?: string;
+  refundInitiatedAt?: Date;
   refundReason?: string;
 }
 const isValidUUID = (id: string): boolean => {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-}
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    id,
+  );
+};
 export class BookingModel {
   static async create(data: CreateBookingData): Promise<Booking> {
     return await prisma.booking.create({
@@ -88,12 +91,12 @@ export class BookingModel {
         tax: data.tax,
         platformFee: data.platformFee,
         totalAmount: data.totalAmount,
-        currency: data.currency || 'INR',
+        currency: data.currency || "INR",
         userDetails: data.userDetails as any,
         eventDetails: data.eventDetails as any,
         seatDetails: data.seatDetails as any,
-        paymentStatus: data.paymentStatus || 'PENDING',
-        bookingStatus: data.bookingStatus || 'PENDING',
+        paymentStatus: data.paymentStatus || "PENDING",
+        bookingStatus: data.bookingStatus || "PENDING",
       },
     });
   }
@@ -101,7 +104,7 @@ export class BookingModel {
   /**
    * Find booking by ID
    */
- static async findById(id: string): Promise<Booking | null> {
+  static async findById(id: string): Promise<Booking | null> {
     // Guard: Prisma UUID column rejects non-UUID strings with a hard crash
     // If the caller passed a bookingId string (e.g. "WIE-...") instead of the UUID id,
     // fall back to findByBookingId automatically
@@ -131,7 +134,9 @@ export class BookingModel {
   /**
    * Find booking by Razorpay order ID
    */
-  static async findByRazorpayOrderId(razorpayOrderId: string): Promise<Booking | null> {
+  static async findByRazorpayOrderId(
+    razorpayOrderId: string,
+  ): Promise<Booking | null> {
     return await prisma.booking.findUnique({
       where: { razorpayOrderId },
     });
@@ -146,7 +151,7 @@ export class BookingModel {
       status?: BookingStatus;
       limit?: number;
       skip?: number;
-    }
+    },
   ): Promise<{ bookings: Booking[]; total: number }> {
     const where: any = { userId };
 
@@ -157,7 +162,7 @@ export class BookingModel {
     const [bookings, total] = await Promise.all([
       prisma.booking.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         take: options?.limit || 50,
         skip: options?.skip || 0,
       }),
@@ -173,7 +178,7 @@ export class BookingModel {
   static async findByTicketId(ticketId: string): Promise<Booking[]> {
     return await prisma.booking.findMany({
       where: { ticketId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -189,7 +194,7 @@ export class BookingModel {
       endDate?: Date;
       limit?: number;
       skip?: number;
-    }
+    },
   ): Promise<{ bookings: Booking[]; total: number }> {
     const where: any = { groupId };
 
@@ -214,7 +219,7 @@ export class BookingModel {
     const [bookings, total] = await Promise.all([
       prisma.booking.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         take: options?.limit || 100,
         skip: options?.skip || 0,
       }),
@@ -223,7 +228,7 @@ export class BookingModel {
 
     return { bookings, total };
   }
-  
+
   static async update(id: string, data: UpdateBookingData): Promise<Booking> {
     return await prisma.booking.update({
       where: { id },
@@ -236,7 +241,7 @@ export class BookingModel {
    */
   static async updateByRazorpayOrderId(
     razorpayOrderId: string,
-    data: UpdateBookingData
+    data: UpdateBookingData,
   ): Promise<Booking> {
     return await prisma.booking.update({
       where: { razorpayOrderId },
@@ -245,12 +250,12 @@ export class BookingModel {
   }
   static async cancel(
     id: string,
-    cancellationReason: string
+    cancellationReason: string,
   ): Promise<Booking> {
     // Get current booking to increment cancellation count
     const booking = await prisma.booking.findUnique({
       where: { id },
-      select: { cancellationCount: true }
+      select: { cancellationCount: true },
     });
 
     const currentCount = booking?.cancellationCount || 0;
@@ -258,7 +263,7 @@ export class BookingModel {
     return await prisma.booking.update({
       where: { id },
       data: {
-        bookingStatus: 'CANCELLED',
+        bookingStatus: "CANCELLED",
         cancellationReason,
         cancelledAt: new Date(),
         cancellationCount: currentCount + 1, // ✅ Increment count
@@ -275,7 +280,7 @@ export class BookingModel {
     const stats = await prisma.booking.aggregate({
       where: {
         userId,
-        bookingStatus: 'CANCELLED',
+        bookingStatus: "CANCELLED",
       },
       _sum: {
         quantity: true,
@@ -293,7 +298,7 @@ export class BookingModel {
     return await prisma.booking.aggregate({
       where: {
         groupId,
-        bookingStatus: 'CONFIRMED',
+        bookingStatus: "CONFIRMED",
       },
       _sum: {
         totalAmount: true,
@@ -304,7 +309,7 @@ export class BookingModel {
   }
   static async getTicketStatistics(ticketId: string) {
     const stats = await prisma.booking.groupBy({
-      by: ['bookingStatus'],
+      by: ["bookingStatus"],
       where: { ticketId },
       _count: true,
       _sum: {
@@ -317,13 +322,13 @@ export class BookingModel {
   }
   static async countBookedTickets(
     ticketId: string,
-    ticketType: string
+    ticketType: string,
   ): Promise<number> {
     const result = await prisma.booking.aggregate({
       where: {
         ticketId,
         ticketType,
-        bookingStatus: { in: ['PENDING', 'CONFIRMED'] },
+        bookingStatus: { in: ["PENDING", "CONFIRMED"] },
       },
       _sum: { quantity: true },
     });
@@ -331,16 +336,12 @@ export class BookingModel {
     return result._sum.quantity || 0;
   }
   static async findOne(filter: any): Promise<any> {
-  if (filter.bookingStatus?.$in) {
-    filter.bookingStatus = {
-      in: filter.bookingStatus.$in
-    };
+    const where = { ...filter };
+    if (where.bookingStatus?.$in) {
+      where.bookingStatus = { in: where.bookingStatus.$in };
+    }
+    return await prisma.booking.findFirst({ where });
   }
-  
-  return await prisma.booking.findFirst({
-    where: filter,
-  });
-}
   static async verify(id: string, verifiedBy: string): Promise<Booking> {
     return await prisma.booking.update({
       where: { id },
@@ -360,25 +361,25 @@ export class BookingModel {
       include: {
         paymentTransactions: {
           where: {
-            method: 'refund'
+            method: "refund",
           },
           orderBy: {
-            createdAt: 'desc'
-          }
-        }
-      }
+            createdAt: "desc",
+          },
+        },
+      },
     });
     return {
       booking,
-      refundTransactions: booking?.paymentTransactions || []
+      refundTransactions: booking?.paymentTransactions || [],
     };
   }
   static async getDailyBookingStats(ticketId: string): Promise<any[]> {
     const bookings = await prisma.booking.findMany({
       where: {
         ticketId,
-        bookingStatus: 'CONFIRMED',
-        paymentStatus: 'COMPLETED',
+        bookingStatus: "CONFIRMED",
+        paymentStatus: "COMPLETED",
       },
       select: {
         createdAt: true,
@@ -389,8 +390,8 @@ export class BookingModel {
 
     // Group by date
     const dailyStats = bookings.reduce((acc: any, booking) => {
-      const date = new Date(booking.createdAt).toISOString().split('T')[0];
-      
+      const date = new Date(booking.createdAt).toISOString().split("T")[0];
+
       if (!acc[date]) {
         acc[date] = {
           date,
@@ -399,24 +400,29 @@ export class BookingModel {
           revenue: 0,
         };
       }
-      
+
       acc[date].bookings += 1;
       acc[date].ticketsSold += booking.quantity;
       acc[date].revenue += parseFloat(booking.subtotal.toString());
-      
+
       return acc;
     }, {});
 
-    return Object.values(dailyStats).sort((a: any, b: any) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
+    return Object.values(dailyStats).sort(
+      (a: any, b: any) =>
+        new Date(a.date).getTime() - new Date(b.date).getTime(),
     );
   }
-  static async getMonthlyBookingStats(ticketId: string, startDate: string, endDate: string): Promise<any[]> {
+  static async getMonthlyBookingStats(
+    ticketId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<any[]> {
     const bookings = await prisma.booking.findMany({
       where: {
         ticketId,
-        bookingStatus: 'CONFIRMED',
-        paymentStatus: 'COMPLETED',
+        bookingStatus: "CONFIRMED",
+        paymentStatus: "COMPLETED",
         createdAt: {
           gte: new Date(startDate),
           lte: new Date(endDate),
@@ -432,9 +438,11 @@ export class BookingModel {
     // Group by month
     const monthlyStats = bookings.reduce((acc: any, booking) => {
       const date = new Date(booking.createdAt);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthName = date.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-      
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const monthName = date
+        .toLocaleString("en-US", { month: "short" })
+        .toUpperCase();
+
       if (!acc[monthKey]) {
         acc[monthKey] = {
           month: monthName,
@@ -444,11 +452,11 @@ export class BookingModel {
           revenue: 0,
         };
       }
-      
+
       acc[monthKey].bookings += 1;
       acc[monthKey].ticketsSold += booking.quantity;
       acc[monthKey].revenue += parseFloat(booking.subtotal.toString());
-      
+
       return acc;
     }, {});
 
@@ -458,8 +466,8 @@ export class BookingModel {
     const bookings = await prisma.booking.findMany({
       where: {
         ticketId,
-        bookingStatus: 'CONFIRMED',
-        paymentStatus: 'COMPLETED',
+        bookingStatus: "CONFIRMED",
+        paymentStatus: "COMPLETED",
       },
       select: {
         ticketType: true,
@@ -471,7 +479,7 @@ export class BookingModel {
     // Group by ticket type
     const typeStats = bookings.reduce((acc: any, booking) => {
       const type = booking.ticketType;
-      
+
       if (!acc[type]) {
         acc[type] = {
           ticketType: type,
@@ -479,10 +487,10 @@ export class BookingModel {
           revenue: 0,
         };
       }
-      
+
       acc[type].soldCount += booking.quantity;
       acc[type].revenue += parseFloat(booking.subtotal.toString());
-      
+
       return acc;
     }, {});
 
@@ -491,17 +499,17 @@ export class BookingModel {
   static async findByTicketIdWithStatus(
     ticketId: string,
     statuses: string[],
-    dateRange?: { gte: Date; lte: Date }
+    dateRange?: { gte: Date; lte: Date },
   ): Promise<Booking[]> {
     // Map status strings to valid BookingStatus enum values
     const validStatuses = statuses
-      .map(s => {
+      .map((s) => {
         const upper = s.toUpperCase();
         // Map 'COMPLETED' to 'CONFIRMED' since COMPLETED doesn't exist in enum
-        if (upper === 'COMPLETED') return 'CONFIRMED';
+        if (upper === "COMPLETED") return "CONFIRMED";
         return upper as BookingStatus;
       })
-      .filter(s => ['PENDING', 'CONFIRMED', 'CANCELLED'].includes(s));
+      .filter((s) => ["PENDING", "CONFIRMED", "CANCELLED"].includes(s));
 
     const where: any = {
       ticketId,
@@ -514,41 +522,41 @@ export class BookingModel {
 
     return await prisma.booking.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
   static async getBookingsByDayOfMonth(
     ticketId: string,
     startDate: Date,
-    endDate: Date
+    endDate: Date,
   ): Promise<Array<{ day: number; count: number; revenue: number }>> {
     const bookings = await prisma.booking.findMany({
       where: {
         ticketId,
         createdAt: { gte: startDate, lte: endDate },
-        bookingStatus: 'CONFIRMED',
-        paymentStatus: 'COMPLETED',
+        bookingStatus: "CONFIRMED",
+        paymentStatus: "COMPLETED",
       },
       select: {
         createdAt: true,
         totalAmount: true,
       },
       orderBy: {
-        createdAt: 'asc',
+        createdAt: "asc",
       },
     });
 
     // Group by day
     const dailyStats = bookings.reduce((acc: any, booking) => {
       const day = new Date(booking.createdAt).getDate();
-      
+
       if (!acc[day]) {
         acc[day] = { day, count: 0, revenue: 0 };
       }
-      
+
       acc[day].count += 1;
-      acc[day].revenue += parseFloat(booking.totalAmount?.toString() || '0');
-      
+      acc[day].revenue += parseFloat(booking.totalAmount?.toString() || "0");
+
       return acc;
     }, {});
 
@@ -564,7 +572,7 @@ export class BookingModel {
 
     const settlement = await prisma.settlement.findFirst({
       where: { bookingId: id },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
 
     return { booking, settlement };
@@ -573,12 +581,12 @@ export class BookingModel {
   static async bulkCancelByTicketId(
     ticketId: string,
     reason: string,
-    refundPercentage: number
+    refundPercentage: number,
   ): Promise<{ count: number; bookings: Booking[] }> {
     const bookings = await prisma.booking.findMany({
       where: {
         ticketId,
-        bookingStatus: { in: ['CONFIRMED', 'PENDING'] },
+        bookingStatus: { in: ["CONFIRMED", "PENDING"] },
       },
     });
 
@@ -587,16 +595,19 @@ export class BookingModel {
         prisma.booking.update({
           where: { id: b.id },
           data: {
-            bookingStatus:      'CANCELLED',
+            bookingStatus: "CANCELLED",
             cancellationReason: reason,
-            cancelledAt:        new Date(),
-            refundStatus:       'PENDING',
-            refundAmount:       parseFloat(
-              ((parseFloat(b.subtotal.toString()) * refundPercentage) / 100).toFixed(2)
+            cancelledAt: new Date(),
+            refundStatus: "PENDING",
+            refundAmount: parseFloat(
+              (
+                (parseFloat(b.subtotal.toString()) * refundPercentage) /
+                100
+              ).toFixed(2),
             ),
           },
-        })
-      )
+        }),
+      ),
     );
 
     return { count: bookings.length, bookings };
