@@ -34,6 +34,12 @@ export interface CreateBookingData {
     };
     groupName?: string;
   };
+  convenienceFee?: number; // ← was incorrectly string, fixed to number
+  organizerGst?: number;
+  platformGst?: number;
+  settlementMode?: string; // 'INSTANT' | 'DELAYED' | 'HIGH_RISK_ESCROW'
+  refundPolicyId?: string; // 'DEFAULT' | 'STRICT' | 'FLEXIBLE' | 'NO_REFUND'
+  financialState?: string; // 'CREATED' | 'PAID' | 'HELD' | 'SETTLED' | 'REFUNDED'
   paymentStatus?: PaymentStatus;
   bookingStatus?: BookingStatus;
   seatDetails?: {
@@ -48,8 +54,9 @@ export interface CreateBookingData {
       color: string;
     }>;
   };
-  selectedSeats?: string[]; // Add this line
+  selectedSeats?: string[];
 }
+
 export interface UpdateBookingData {
   paymentStatus?: PaymentStatus;
   bookingStatus?: BookingStatus;
@@ -70,6 +77,9 @@ export interface UpdateBookingData {
   refundId?: string;
   refundInitiatedAt?: Date;
   refundReason?: string;
+  settlementMode?: string;
+  financialState?: string;
+  refundPolicyId?: string;
 }
 const isValidUUID = (id: string): boolean => {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -97,6 +107,24 @@ export class BookingModel {
         seatDetails: data.seatDetails as any,
         paymentStatus: data.paymentStatus || "PENDING",
         bookingStatus: data.bookingStatus || "PENDING",
+        ...(data.convenienceFee !== undefined && {
+          convenienceFee: data.convenienceFee,
+        }),
+        ...(data.organizerGst !== undefined && {
+          organizerGst: data.organizerGst,
+        }),
+        ...(data.platformGst !== undefined && {
+          platformGst: data.platformGst,
+        }),
+        ...(data.settlementMode !== undefined && {
+          settlementMode: data.settlementMode,
+        }),
+        ...(data.refundPolicyId !== undefined && {
+          refundPolicyId: data.refundPolicyId,
+        }),
+        ...(data.financialState !== undefined && {
+          financialState: data.financialState,
+        }),
       },
     });
   }
