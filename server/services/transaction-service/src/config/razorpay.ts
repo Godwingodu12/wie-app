@@ -1,266 +1,270 @@
-import crypto from 'crypto';
-import Razorpay from 'razorpay';
-class RazorpayService {
-  private static instances: Map<string, Razorpay> = new Map();
-
-  static getInstance(keyId: string, keySecret: string): Razorpay {
-    const key = `${keyId}:${keySecret}`;
-    
-    if (!this.instances.has(key)) {
-      this.instances.set(
-        key,
-        new Razorpay({
-          key_id: keyId,
-          key_secret: keySecret,
-        })
-      );
-    }
-    
-    return this.instances.get(key)!;
-  }
-
-  static async createOrder(
-    razorpay: Razorpay,
-    amount: number,
-    currency: string,
-    receipt: string,
-    notes?: any
-  ): Promise<any> {
-    try {
-      const order = await razorpay.orders.create({
-        amount: Math.round(amount * 100),
-        currency,
-        receipt,
-        notes,
-      });
-      return order;
-    } catch (error: any) {
-      console.error('❌ Error creating Razorpay order:', error);
-      throw new Error(`Failed to create order: ${error.message}`);
-    }
-  }
-
-  // ✅ FIXED: Removed require, using crypto directly
-  static verifySignature(
-    orderId: string,
-    paymentId: string,
-    signature: string,
-    secret: string
-  ): boolean {
-    try {
-      const generatedSignature = crypto
-        .createHmac('sha256', secret)
-        .update(`${orderId}|${paymentId}`)
-        .digest('hex');
-
-      return generatedSignature === signature;
-    } catch (error: any) {
-      console.error('❌ Error verifying signature:', error);
-      return false;
-    }
-  }
-
-  static async getPaymentDetails(
-    razorpay: Razorpay,
-    paymentId: string
-  ): Promise<any> {
-    try {
-      const payment = await razorpay.payments.fetch(paymentId);
-      return payment;
-    } catch (error: any) {
-      console.error('❌ Error fetching payment details:', error);
-      throw new Error(`Failed to fetch payment: ${error.message}`);
-    }
-  }
-  static async initiateRefund(
-    razorpay: Razorpay,
-    paymentId: string,
-    amount: number,
-    notes?: any
-  ): Promise<any> {
-    try {
-      // ✅ Validate inputs
-      if (!paymentId || paymentId.trim() === '') {
-        throw new Error('Invalid payment ID');
-      }
-  
-      if (!amount || amount <= 0) {
-        throw new Error('Invalid refund amount: must be greater than 0');
-      }
-  
-      // ✅ Convert to paise (Razorpay uses paise)
-      const refundAmountInPaise = Math.round(amount * 100);
-  
-      console.log(`🔄 Creating refund request:`, {
-        paymentId: paymentId.trim(),
-        amountInRupees: amount,
-        amountInPaise: refundAmountInPaise
-      });
-  
-      // ✅ Create minimal refund request
-      const refundRequest: any = {
-        amount: refundAmountInPaise,
-        speed: 'optimum'
-      };
-  
-      // ✅ Only add notes if provided and valid
-      if (notes && typeof notes === 'object' && Object.keys(notes).length > 0) {
-        const cleanNotes: any = {};
-        
-        // Only keep simple string fields
-        if (notes.booking_id) {
-          cleanNotes.booking_id = String(notes.booking_id).substring(0, 255);
-        }
-        if (notes.reason) {
-          cleanNotes.reason = String(notes.reason).substring(0, 255);
-        }
-        
-        if (Object.keys(cleanNotes).length > 0) {
-          refundRequest.notes = cleanNotes;
-        }
-      }
-  
-      console.log(`📤 Sending refund request to Razorpay:`, refundRequest);
-  
-      // ✅ Call Razorpay API
-      const refund = await razorpay.payments.refund(
-        paymentId.trim(),
-        refundRequest
-      );
-      console.log(`✅ Refund response from Razorpay:`, {
-        id: refund.id,
-        status: refund.status,
-        amount: refund.amount,
-      });
-      return refund;
-    } catch (error: any) {
-      console.error('❌ Razorpay refund error:', {
-        message: error.message,
-        description: error.error?.description,
-        code: error.error?.code,
-        field: error.error?.field,
-        reason: error.error?.reason
-      });
-  
-      // ✅ Extract meaningful error message
-      if (error.error) {
-        const errorMessage = error.error.description || error.error.reason || error.message || 'Unknown refund error';
-        const errorCode = error.error.code || 'REFUND_ERROR';
-        
-        throw new Error(`Razorpay ${errorCode}: ${errorMessage}`);
-      }
-      
-      throw new Error(`Refund failed: ${error.message}`);
-    }
-  }
-  static async getRefundStatus(
-    razorpay: Razorpay,
-    refundId: string
-  ): Promise<any> {
-    try {
-      const refund = await razorpay.refunds.fetch(refundId);
-      return refund;
-    } catch (error: any) {
-      console.error('❌ Error fetching refund status:', error);
-      throw new Error(`Failed to fetch refund: ${error.message}`);
-    }
-  }
-  // ─── Create Razorpay Linked Account for Host (one-time onboarding)
-static async createLinkedAccount(data: {
-  name: string;
-  email: string;
-  phone: string;
-  legalBusinessName: string;
-  businessType?: string;
-}): Promise<any> {
-  try {
-    const razorpay = this.getInstance(
-      process.env.RAZORPAY_KEY_ID!,
-      process.env.RAZORPAY_KEY_SECRET!
-    );
-    // Razorpay Route: create sub-merchant account
-    const account = await (razorpay as any).accounts.create({
-      email:               data.email,
-      profile: {
-        category:          'entertainment',
-        subcategory:       'ticketing',
-        addresses: {
-          registered: {
-            street1:   '507, Koramangala',
-            street2:   '1st block',
-            city:      'Bengaluru',
-            state:     'KARNATAKA',
-            postal_code: 560034,
-            country:   'IN',
-          },
-        },
-      },
-      legal_info: {
-        pan:  'AAACL1234C',  
-        gst:  '29AAACL1234C1Z5',
-      },
-    });
-    return account;
-  } catch (error: any) {
-    console.error('❌ Error creating linked account:', error);
-    throw new Error(`Failed to create linked account: ${error.message}`);
-  }
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
-// ─── Transfer host share AFTER event completion (Phase 5)
-static async transferToHost(data: {
-  razorpayAccountId: string;   // host's linked account ID
-  amount: number;               // in rupees
-  currency: string;
-  settlementId: string;         // used as idempotency key
-  bookingId: string;
-  notes?: any;
-}): Promise<any> {
-  try {
-    const razorpay = this.getInstance(
-      process.env.RAZORPAY_KEY_ID!,
-      process.env.RAZORPAY_KEY_SECRET!
-    );
-
-    const transfer = await (razorpay as any).transfers.create({
-      account:  data.razorpayAccountId,
-      amount:   Math.round(data.amount * 100), // paise
-      currency: data.currency || 'INR',
-      notes: {
-        settlementId: data.settlementId,
-        bookingId:    data.bookingId,
-        ...data.notes,
-      },
-    });
-
-    console.log(`✅ Razorpay transfer created: ${transfer.id} → ₹${data.amount}`);
-    return transfer;
-  } catch (error: any) {
-    console.error('❌ Error creating transfer:', error.error || error.message);
-    throw new Error(
-      `Transfer failed: ${error.error?.description || error.message}`
-    );
-  }
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["transactions"]
 }
 
-// ─── Reverse a transfer (if host hasn't withdrawn yet) ───────────────────────
-static async reverseTransfer(
-  transferId: string,
-  amount: number
-): Promise<any> {
-  try {
-    const razorpay = this.getInstance(
-      process.env.RAZORPAY_KEY_ID!,
-      process.env.RAZORPAY_KEY_SECRET!
-    );
-    const reversal = await (razorpay as any).transfers.reverse(transferId, {
-      amount: Math.round(amount * 100),
-    });
-    return reversal;
-  } catch (error: any) {
-    console.error('❌ Error reversing transfer:', error.message);
-    throw new Error(`Transfer reversal failed: ${error.message}`);
-  }
+model Booking {
+  id                  String               @id @default(uuid()) @db.Uuid
+  bookingId           String               @unique @map("booking_id") @db.VarChar(50)
+  userId              String               @map("user_id") @db.Uuid
+  ticketId            String               @map("ticket_id") @db.VarChar(50)
+  groupId             String               @map("group_id") @db.VarChar(50)
+  ticketType          String               @map("ticket_type") @db.VarChar(100)
+  quantity            Int                  @default(1)
+  pricePerTicket      Decimal              @map("price_per_ticket") @db.Decimal(10, 2)
+  subtotal            Decimal              @db.Decimal(10, 2)
+  tax                 Decimal              @default(0) @db.Decimal(10, 2)
+  platformFee         Decimal              @default(0) @map("platform_fee") @db.Decimal(10, 2)
+  totalAmount         Decimal              @map("total_amount") @db.Decimal(10, 2)
+  currency            String               @default("INR") @db.VarChar(10)
+  paymentStatus       PaymentStatus        @default(PENDING) @map("payment_status")
+  paymentMethod       String?              @map("payment_method") @db.VarChar(50)
+  razorpayOrderId     String?              @unique @map("razorpay_order_id") @db.VarChar(100)
+  razorpayPaymentId   String?              @map("razorpay_payment_id") @db.VarChar(100)
+  razorpaySignature   String?              @map("razorpay_signature")
+  bookingStatus       BookingStatus        @default(PENDING) @map("booking_status")
+  userDetails         Json                 @map("user_details")
+  eventDetails        Json                 @map("event_details")
+  qrCode              String?              @map("qr_code")
+  qrCodeUrl           String?              @map("qr_code_url")
+  isVerified          Boolean              @default(false) @map("is_verified")
+  verifiedAt          DateTime?            @map("verified_at") @db.Timestamp(6)
+  verifiedBy          String?              @map("verified_by") @db.VarChar(50)
+  cancellationReason  String?              @map("cancellation_reason")
+  cancelledAt         DateTime?            @map("cancelled_at") @db.Timestamp(6)
+  refundAmount        Decimal?             @map("refund_amount") @db.Decimal(10, 2)
+  refundStatus        RefundStatus?        @map("refund_status")
+  refundProcessedAt   DateTime?            @map("refund_processed_at") @db.Timestamp(6)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamp(6)
+  cancellationCount   Int                  @default(0) @map("cancellation_count")
+  refundId            String?              @map("refund_id") @db.VarChar(100)
+  refundInitiatedAt   DateTime?            @map("refund_initiated_at") @db.Timestamp(6)
+  seatDetails         Json?                @map("seat_details")
+  refund_retry_count  Int                  @default(0)
+  convenienceFee      Decimal              @default(0) @map("convenience_fee") @db.Decimal(10, 2)
+  organizerGst        Decimal              @default(0) @map("organizer_gst") @db.Decimal(10, 2)
+  platformGst         Decimal              @default(0) @map("platform_gst") @db.Decimal(10, 2)
+  settlementMode      String               @default("DELAYED") @map("settlement_mode") @db.VarChar(20)
+  refundPolicyId      String               @default("DEFAULT") @map("refund_policy_id") @db.VarChar(30)
+  financialState      String               @default("CREATED") @map("financial_state") @db.VarChar(30)
+  refundReason        String?              @map("refund_reason")
+
+  isAdminCancelled    Boolean              @default(false) @map("is_admin_cancelled")
+  paymentTransactions PaymentTransaction[]
+
+  @@index([userId], map: "idx_bookings_user_id")
+  @@index([ticketId], map: "idx_bookings_ticket_id")
+  @@index([groupId], map: "idx_bookings_group_id")
+  @@index([razorpayOrderId], map: "idx_bookings_razorpay_order")
+  @@index([bookingStatus], map: "idx_bookings_status")
+  @@index([createdAt], map: "idx_bookings_created_at")
+  @@map("bookings")
+  @@schema("transactions")
 }
+
+model Interaction {
+  id              String          @id @default(uuid()) @db.Uuid
+  userId          String          @map("user_id") @db.Uuid
+  ticketId        String          @map("ticket_id") @db.VarChar(50)
+  interactionType InteractionType @map("interaction_type")
+  metadata        Json?           @db.Json
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@unique([userId, ticketId, interactionType], map: "unique_user_ticket_interaction")
+  @@index([ticketId, interactionType], map: "idx_interactions_ticket_type")
+  @@index([userId], map: "idx_interactions_user_id")
+  @@map("interactions")
+  @@schema("transactions")
 }
-export default RazorpayService;
+
+model PaymentTransaction {
+  id                String        @id @default(uuid()) @db.Uuid
+  bookingId         String        @map("booking_id") @db.Uuid
+  razorpayOrderId   String        @map("razorpay_order_id") @db.VarChar(100)
+  razorpayPaymentId String?       @map("razorpay_payment_id") @db.VarChar(100)
+  amount            Decimal       @db.Decimal(10, 2)
+  currency          String        @default("INR") @db.VarChar(10)
+  status            PaymentStatus
+  method            String?       @db.VarChar(50)
+  bank              String?       @db.VarChar(100)
+  wallet            String?       @db.VarChar(50)
+  vpa               String?       @db.VarChar(100)
+  email             String?       @db.VarChar(255)
+  contact           String?       @db.VarChar(20)
+  webhookData       Json?         @map("webhook_data") @db.Json
+  errorCode         String?       @map("error_code") @db.VarChar(50)
+  errorDescription  String?       @map("error_description")
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamp(6)
+  refundId          String?       @map("refund_id") @db.VarChar(100)
+  booking           Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId], map: "idx_payment_transactions_booking")
+  @@index([razorpayOrderId], map: "idx_payment_transactions_order")
+  @@index([razorpayPaymentId], map: "idx_payment_transactions_payment")
+  @@map("payment_transactions")
+  @@schema("transactions")
+}
+
+model Settlement {
+  id                    String           @id @default(uuid()) @db.Uuid
+  bookingId             String           @map("booking_id") @db.Uuid
+  organizationAmount    Decimal          @map("organization_amount") @db.Decimal(10, 2)
+  platformFee           Decimal          @map("platform_fee") @db.Decimal(10, 2)
+  status                SettlementStatus @default(PENDING)
+  bankDetails           Json             @map("bank_details")
+  razorpayPayoutId      String?          @map("razorpay_payout_id") @db.VarChar(100)
+  processedAt           DateTime?        @map("processed_at") @db.Timestamp(6)
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamp(6)
+  ticketId              String?          @map("ticket_id") @db.VarChar(50)
+  groupId               String?          @map("group_id") @db.VarChar(50)
+  totalAmount           Decimal?         @map("total_amount") @db.Decimal(10, 2)
+  settlementType        String           @default("STANDARD") @map("settlement_type") @db.VarChar(20)
+  scheduledAt           DateTime?        @map("scheduled_at") @db.Timestamp(6)
+  retryCount            Int              @default(0) @map("retry_count")
+  hostRazorpayAccountId String?          @map("host_razorpay_account_id") @db.VarChar(100)
+  razorpayTransferId    String?          @map("razorpay_transfer_id") @db.VarChar(100)
+
+  @@index([bookingId], map: "idx_settlements_booking")
+  @@index([status], map: "idx_settlements_status")
+  @@index([groupId], map: "idx_settlements_group_id")
+  @@index([ticketId], map: "idx_settlements_ticket_id")
+  @@map("settlements")
+  @@schema("transactions")
+}
+
+model HostLinkedAccount {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id            String   @unique @db.VarChar(50)
+  razorpay_account_id String   @db.VarChar(100)
+  kyc_status          String   @default("pending") @db.VarChar(20)
+  business_name       String?  @db.VarChar(255)
+  email               String?  @db.VarChar(255)
+  is_active           Boolean  @default(true)
+  created_at          DateTime @default(now()) @db.Timestamp(6)
+  updated_at          DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([group_id], map: "idx_host_linked_accounts_group_id")
+  @@map("host_linked_accounts")
+  @@schema("transactions")
+}
+
+model Ledger {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  booking_id   String   @db.VarChar(100)
+  ticket_id    String?  @db.VarChar(50)
+  group_id     String?  @db.VarChar(50)
+  type         String   @db.VarChar(20)
+  debit        Decimal? @db.Decimal(10, 2)
+  credit       Decimal? @db.Decimal(10, 2)
+  balance      Decimal  @db.Decimal(10, 2)
+  reference_id String?  @db.VarChar(100)
+  description  String?
+  status       String   @default("completed") @db.VarChar(20)
+  created_at   DateTime @default(now()) @db.Timestamp(6)
+  updated_at   DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([booking_id], map: "idx_ledger_booking_id")
+  @@index([group_id], map: "idx_ledger_group_id")
+  @@index([ticket_id], map: "idx_ledger_ticket_id")
+  @@index([type], map: "idx_ledger_type")
+  @@map("ledger")
+  @@schema("transactions")
+}
+
+model HostAdjustment {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id          String    @db.VarChar(50)
+  booking_id        String    @db.VarChar(100)
+  settlement_id     String    @db.VarChar(100)
+  adjustment_amount Decimal   @db.Decimal(10, 2)
+  reason            String?
+  status            String    @default("PENDING") @db.VarChar(20)
+  applied_at        DateTime? @db.Timestamp(6)
+  created_at        DateTime  @default(now()) @db.Timestamp(6)
+  updated_at        DateTime  @default(now()) @db.Timestamp(6)
+
+  @@index([booking_id], map: "idx_host_adjustments_booking_id")
+  @@index([group_id], map: "idx_host_adjustments_group_id")
+  @@map("host_adjustments")
+  @@schema("transactions")
+}
+
+model OrganizerTrustScore {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id        String   @unique @db.VarChar(50)
+  trust_score     Int      @default(50)
+  total_events    Int      @default(0)
+  refund_rate     Decimal  @default(0) @db.Decimal(5, 4)
+  completion_rate Decimal  @default(1) @db.Decimal(5, 4)
+  complaint_rate  Decimal  @default(0) @db.Decimal(5, 4)
+  total_revenue   Decimal  @default(0) @db.Decimal(14, 2)
+  last_updated    DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([group_id])
+  @@map("organizer_trust_scores")
+  @@schema("transactions")
+}
+
+enum SettlementStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  HELD
+  REFUND_INITIATED
+
+  @@schema("transactions")
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  REFUND_PENDING
+  REFUND_PROCESSING
+  NOT_APPLICABLE  
+  REFUND_FAILED
+  @@schema("transactions")
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+  VERIFIED
+
+  @@schema("transactions")
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  NOT_APPLICABLE 
+  @@schema("transactions")
+}
+enum InteractionType {
+  LIKE
+  SHARE
+  VIEW
+  SAVE
+  FEEDBACK
+
+  @@schema("transactions")
+}
