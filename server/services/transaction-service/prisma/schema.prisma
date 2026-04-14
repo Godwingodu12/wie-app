@@ -1,7 +1,6 @@
 generator client {
-  provider        = "prisma-client-js"
-  output          = "../src/generated/prisma"
-  previewFeatures = ["multiSchema"]
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -50,6 +49,14 @@ model Booking {
   refundInitiatedAt   DateTime?            @map("refund_initiated_at") @db.Timestamp(6)
   seatDetails         Json?                @map("seat_details")
   refund_retry_count  Int                  @default(0)
+  convenienceFee      Decimal              @default(0) @map("convenience_fee") @db.Decimal(10, 2)
+  organizerGst        Decimal              @default(0) @map("organizer_gst") @db.Decimal(10, 2)
+  platformGst         Decimal              @default(0) @map("platform_gst") @db.Decimal(10, 2)
+  settlementMode      String               @default("DELAYED") @map("settlement_mode") @db.VarChar(20)
+  refundPolicyId      String               @default("DEFAULT") @map("refund_policy_id") @db.VarChar(30)
+  financialState      String               @default("CREATED") @map("financial_state") @db.VarChar(30)
+  refundReason        String?              @map("refund_reason")
+
   isAdminCancelled    Boolean              @default(false) @map("is_admin_cancelled")
   paymentTransactions PaymentTransaction[]
 
@@ -190,6 +197,22 @@ model HostAdjustment {
   @@index([booking_id], map: "idx_host_adjustments_booking_id")
   @@index([group_id], map: "idx_host_adjustments_group_id")
   @@map("host_adjustments")
+  @@schema("transactions")
+}
+
+model OrganizerTrustScore {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id        String   @unique @db.VarChar(50)
+  trust_score     Int      @default(50)
+  total_events    Int      @default(0)
+  refund_rate     Decimal  @default(0) @db.Decimal(5, 4)
+  completion_rate Decimal  @default(1) @db.Decimal(5, 4)
+  complaint_rate  Decimal  @default(0) @db.Decimal(5, 4)
+  total_revenue   Decimal  @default(0) @db.Decimal(14, 2)
+  last_updated    DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([group_id])
+  @@map("organizer_trust_scores")
   @@schema("transactions")
 }
 
