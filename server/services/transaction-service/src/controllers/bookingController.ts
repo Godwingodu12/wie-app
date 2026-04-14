@@ -18,6 +18,10 @@ import { generateQRCode } from "../utils/qrGenerator";
 import { createNotification } from "../utils/notificationHelper";
 import { LedgerModel } from "../models/ledger.model";
 import { BookingModel, PaymentTransactionModel } from "../models";
+import { calculateFeeBreakdown } from "../utils/platformFeeEngine";
+import { calculateRefund } from "../utils/refundPolicyEngine";
+import { determineSettlementMode } from "../utils/settlementModeEngine";
+
 async function safeUpdateTicketStats(
   ticketId: string,
   field: "like" | "share" | "totalBookings" | "totalTicketsSold" | "revenue",
@@ -226,21 +230,22 @@ export const createBooking = async (req: Request, res: Response) => {
 
     const user = await getUserById(userId);
     const group = await getGroupById(ticket.groupId);
-
-    // ── Pricing: host gets full ticket value, WIE charges flat fee on top ────
-    // subtotal     = ticket price × qty  → goes to host 100%
-    // platformFee  = ₹1 × qty           → wie keeps
-    // totalAmount  = subtotal + fee      → user pays this
-    const subtotal = parseFloat(
-      (ticketType.ticket_price * quantity).toFixed(2),
+    const includeGst = parseFloat(process.env.TAX_PERCENTAGE || "0") > 0;
+    const fees = calculateFeeBreakdown(
+      ticketType.ticket_price,
+      quantity,
+      includeGst,
     );
-    const platformFee = parseFloat(
-      (
-        parseFloat(process.env.PLATFORM_FEE_PER_TICKET || "1") * quantity
-      ).toFixed(2),
-    );
-    const totalAmount = parseFloat((subtotal + platformFee).toFixed(2));
-
+    const {
+      ticketSubtotal: subtotal,
+      platformFee,
+      organizerGst,
+      platformGst,
+      gatewayFeeAbsorbed,
+      totalAmount,
+    } = fees;
+    // convenienceFee alias for DB storage (internal accounting only — not shown to user)
+    const convenienceFee = gatewayFeeAbsorbed;
     const settlementBankDetails =
       ticket.banking_details && ticket.banking_details.length > 0
         ? ticket.banking_details[0]
@@ -265,8 +270,8 @@ export const createBooking = async (req: Request, res: Response) => {
       quantity,
       pricePerTicket: ticketType.ticket_price,
       subtotal, // ✅ pure ticket value — host's 100% share
-      tax: 0,
-      platformFee, // ✅ ₹1 × qty — wie's flat fee
+      tax: organizerGst, // GST on ticket (TAX_PERCENTAGE% from env) — shown to user
+      platformFee, // ₹5 flat WIE fee — shown to user as "Convenience Fee"
       totalAmount, // ✅ what user pays
       currency: "INR",
       userDetails: {
@@ -283,14 +288,52 @@ export const createBooking = async (req: Request, res: Response) => {
         settlementBankDetails,
         groupName: group.name || "",
       },
+      convenienceFee,
+      organizerGst,
+      platformGst,
+      settlementMode: "DELAYED",
+      refundPolicyId: "DEFAULT",
+      financialState: "CREATED",
     });
-
-    // Create Razorpay order for totalAmount (what user pays)
     const razorpay = RazorpayService.getInstance(
       process.env.RAZORPAY_KEY_ID!,
       process.env.RAZORPAY_KEY_SECRET!,
     );
+    // Determine settlement mode from organizer trust score
+    let settlementModeResult = {
+      mode: "DELAYED",
+      onHoldForRazorpay: 1 as 0 | 1,
+      releaseAfterHours: 24,
+      reason: "",
+    };
+    let hostRazorpayAccountId: string | undefined;
 
+    try {
+      const [hostAccount, trustRecord] = await Promise.all([
+        prisma.hostLinkedAccount.findUnique({
+          where: { group_id: ticket.groupId },
+        }),
+        prisma.organizerTrustScore.findUnique({
+          where: { group_id: ticket.groupId },
+        }),
+      ]);
+
+      hostRazorpayAccountId = hostAccount?.razorpay_account_id ?? undefined;
+
+      if (trustRecord) {
+        settlementModeResult = determineSettlementMode({
+          trustScore: trustRecord.trust_score,
+          totalEventsHosted: trustRecord.total_events,
+          refundRate: parseFloat(trustRecord.refund_rate.toString()),
+          completionRate: parseFloat(trustRecord.completion_rate.toString()),
+          totalTicketValue: subtotal,
+        });
+      }
+    } catch {
+      /* non-blocking — default to DELAYED */
+    }
+
+    // Replace the existing createOrder call:
     const razorpayOrder = await RazorpayService.createOrder(
       razorpay,
       totalAmount,
@@ -302,13 +345,22 @@ export const createBooking = async (req: Request, res: Response) => {
         ticketId,
         eventName: ticket.event_name,
         platformFee,
-        organizationAmount: subtotal, // host's share stored in notes
+        organizationAmount: subtotal,
       },
+      // Route split: only if host has a linked account
+      hostRazorpayAccountId
+        ? {
+            hostAccountId: hostRazorpayAccountId,
+            hostAmount: subtotal, // host gets ticket value only
+            onHold: settlementModeResult.onHoldForRazorpay,
+          }
+        : undefined,
     );
 
     await BookingModel.update(booking.id, {
       razorpayOrderId: razorpayOrder.id,
-    });
+      settlementMode: settlementModeResult.mode,
+    } as any);
 
     await PaymentTransactionModel.create({
       bookingId: booking.id,
@@ -325,14 +377,39 @@ export const createBooking = async (req: Request, res: Response) => {
         booking: {
           id: booking.id,
           bookingId: booking.bookingId,
-          subtotal: booking.subtotal, // ₹ host's share
-          platformFee: booking.platformFee, // ₹1 × qty
-          totalAmount: booking.totalAmount, // user pays this
+          subtotal: booking.subtotal, // ticket value
+          platformFee: booking.platformFee, // ₹5 WIE convenience fee
+          tax: organizerGst, // GST on ticket (if applicable)
+          totalAmount: booking.totalAmount, // grand total
           currency: booking.currency,
+          feeBreakdown: {
+            lines: [
+              {
+                label: "Ticket price",
+                amount: subtotal,
+                note: `₹${ticketType.ticket_price} × ${quantity}`,
+              },
+              ...(organizerGst > 0
+                ? [
+                    {
+                      label: `GST (${process.env.TAX_PERCENTAGE || 18}%)`,
+                      amount: organizerGst,
+                      note: "On ticket price",
+                    },
+                  ]
+                : []),
+              {
+                label: "Convenience fee",
+                amount: platformFee,
+                note: "WIE platform fee",
+              },
+            ],
+            total: totalAmount,
+          },
         },
         razorpayOrder: {
           id: razorpayOrder.id,
-          amount: razorpayOrder.amount, // in paise
+          amount: razorpayOrder.amount,
           currency: razorpayOrder.currency,
         },
         razorpayKeyId: process.env.RAZORPAY_KEY_ID,
@@ -609,12 +686,23 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
 
     const quantity = selectedSeats.length;
     subtotal = parseFloat(subtotal.toFixed(2));
-    const platformFee = parseFloat(
-      (
-        parseFloat(process.env.PLATFORM_FEE_PER_TICKET || "1") * quantity
-      ).toFixed(2),
+
+    const avgPricePerSeat = quantity > 0 ? subtotal / quantity : 0;
+    const includeGstSeated = parseFloat(process.env.TAX_PERCENTAGE || "0") > 0;
+    const seatedFees = calculateFeeBreakdown(
+      avgPricePerSeat,
+      quantity,
+      includeGstSeated,
     );
-    const totalAmount = parseFloat((subtotal + platformFee).toFixed(2));
+
+    const platformFee = seatedFees.platformFee;
+    const organizerGst = seatedFees.organizerGst;
+    const platformGst = seatedFees.platformGst;
+    const convenienceFee = seatedFees.gatewayFeeAbsorbed; // internal accounting only
+    // Recalculate total using actual subtotal (not avg-rounded subtotal from engine)
+    const totalAmount = parseFloat(
+      (subtotal + organizerGst + platformFee).toFixed(2), // gateway absorbed — NOT added
+    );
 
     const settlementBankDetails =
       ticket.banking_details && ticket.banking_details.length > 0
@@ -640,10 +728,10 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
       quantity,
       pricePerTicket:
         quantity > 0 ? parseFloat((subtotal / quantity).toFixed(2)) : 0,
-      subtotal, // ✅ sum of seat prices — host's 100% share
-      tax: 0,
-      platformFee, // ✅ ₹1 × seats — wie's flat fee
-      totalAmount, // ✅ user pays this
+      subtotal, //sum of seat prices for host's
+      tax: organizerGst, // GST on seat prices (TAX_PERCENTAGE%)
+      platformFee, // ₹5 × seats WIE flat fee
+      totalAmount, // what user pays (gateway absorbed by WIE)
       currency: "INR",
       userDetails: {
         name: user.name || "",
@@ -706,9 +794,20 @@ export const createSeatedBooking = async (req: Request, res: Response) => {
           bookingId: booking.bookingId,
           subtotal: booking.subtotal,
           platformFee: booking.platformFee,
+          tax: organizerGst,
+          platformGst: platformGst,
+          convenienceFee: convenienceFee,
           totalAmount: booking.totalAmount,
           currency: booking.currency,
           seatDetails,
+          feeBreakdown: {
+            subtotal,
+            platformFee,
+            gst: organizerGst,
+            platformGst,
+            convenienceFee,
+            total: totalAmount,
+          },
         },
         razorpayOrder: {
           id: razorpayOrder.id,
@@ -817,6 +916,7 @@ export const getBookingById = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 export const cancelBooking = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -845,38 +945,18 @@ export const cancelBooking = async (req: Request, res: Response) => {
       });
     }
 
-    // Validate 4-hour cancellation window
+    // ── Step 1: Fetch event dates ONCE — reused for both window check and refund policy ──
+    let eventStartDate: Date | null = null;
+
     try {
       const eventDates = await getEventDates(booking.ticketId);
       if (eventDates?.start_date) {
-        const eventStartDate = new Date(eventDates.start_date);
+        eventStartDate = new Date(eventDates.start_date);
         if (eventDates.start_time) {
           const [h, m, s] = eventDates.start_time.split(":");
           eventStartDate.setHours(parseInt(h), parseInt(m), parseInt(s || "0"));
         } else {
           eventStartDate.setHours(0, 0, 0, 0);
-        }
-
-        const now = new Date();
-        const fourHoursBefore = new Date(
-          eventStartDate.getTime() - 4 * 60 * 60 * 1000,
-        );
-        const hoursUntilEvent =
-          (eventStartDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-        if (hoursUntilEvent < 0) {
-          return res.status(400).json({
-            success: false,
-            message: "Cannot cancel. The event has already started or passed.",
-          });
-        }
-
-        if (now > fourHoursBefore) {
-          return res.status(400).json({
-            success: false,
-            message: `Cannot cancel. Must cancel at least 4 hours before event. ${hoursUntilEvent.toFixed(1)} hours remaining.`,
-            hoursUntilEvent: parseFloat(hoursUntilEvent.toFixed(1)),
-          });
         }
       }
     } catch (dateErr: any) {
@@ -887,7 +967,32 @@ export const cancelBooking = async (req: Request, res: Response) => {
       });
     }
 
-    // Cancel the booking
+    // ── Step 2: Enforce cancellation window using fetched dates ──────────────
+    if (eventStartDate) {
+      const now = new Date();
+      const hoursUntilEvent =
+        (eventStartDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+      const fourHoursBefore = new Date(
+        eventStartDate.getTime() - 4 * 60 * 60 * 1000,
+      );
+
+      if (hoursUntilEvent < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot cancel. The event has already started or passed.",
+        });
+      }
+
+      if (now > fourHoursBefore) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot cancel. Must cancel at least 4 hours before event. ${hoursUntilEvent.toFixed(1)} hours remaining.`,
+          hoursUntilEvent: parseFloat(hoursUntilEvent.toFixed(1)),
+        });
+      }
+    }
+
+    // ── Step 3: Cancel the booking record ────────────────────────────────────
     const updatedBooking = await BookingModel.cancel(
       bookingId,
       cancellationReason,
@@ -897,16 +1002,63 @@ export const cancelBooking = async (req: Request, res: Response) => {
     const platformFee = parseFloat(booking.platformFee.toString());
     const totalPaid = parseFloat(booking.totalAmount.toString());
 
-    // User cancellation: refund full totalAmount (subtotal + platform fee)
-    // Platform fee IS refunded on user cancellation (host didn't cancel)
     const isPaidBooking =
       totalPaid > 0 &&
       booking.paymentStatus === "COMPLETED" &&
       !!booking.razorpayPaymentId;
 
+    // ── Step 4: Refund logic (paid bookings only) ─────────────────────────────
     if (isPaidBooking) {
-      // ✅ Refund totalAmount — user gets everything back on self-cancellation
-      const refundAmount = totalPaid;
+      // Use fetched eventStartDate; fall back to far-future so refund is always eligible
+      const refundEventDate =
+        eventStartDate ?? new Date(Date.now() + 999 * 60 * 60 * 1000);
+
+      // ── Policy-driven refund calculation ──────────────────────────────────
+      const refundResult = calculateRefund({
+        subtotal,
+        platformFee,
+        eventStartDate: refundEventDate,
+        cancelledAt: new Date(),
+        policyId: (booking as any).refundPolicyId || "DEFAULT",
+        cancelledBy: "user",
+      });
+
+      // Policy says no refund — booking is still cancelled but no money returned
+      if (!refundResult.eligible) {
+        await BookingModel.update(booking.id, {
+          refundStatus: "NOT_APPLICABLE",
+        });
+
+        await createNotification({
+          userId,
+          type: "booking_cancelled",
+          title: "Booking Cancelled — No Refund",
+          message: `Your booking was cancelled. ${refundResult.reason}`,
+          bookingId: String(booking.id),
+          ticketId: booking.ticketId,
+        });
+
+        // Still update ticket stats even with no refund
+        await _postCancelStats(booking, subtotal);
+
+        return res.json({
+          success: true,
+          message: "Booking cancelled. No refund applicable per policy.",
+          data: {
+            booking: updatedBooking,
+            refundStatus: "NOT_APPLICABLE",
+            refundReason: refundResult.reason,
+            cancellationStats: await BookingModel.getUserCancellationStats(
+              userId,
+            ).catch(() => ({
+              totalCancellations: 0,
+              totalCancelledTickets: 0,
+            })),
+          },
+        });
+      }
+
+      const refundAmount = refundResult.refundAmount;
 
       try {
         const razorpay = RazorpayService.getInstance(
@@ -943,18 +1095,19 @@ export const cancelBooking = async (req: Request, res: Response) => {
             reason: cancellationReason || "Booking cancelled by user",
           },
         );
-        const isTestMode =
-          process.env.NODE_ENV === "development" ||
-          process.env.RAZORPAY_TEST_MODE === "true";
+
         const isCompleted = !!refund.id && refund.status !== "failed";
         const now = new Date();
+
         await BookingModel.update(booking.id, {
           refundAmount,
           refundStatus: isCompleted ? "COMPLETED" : "PROCESSING",
           refundId: refund.id,
           refundInitiatedAt: now,
           refundProcessedAt: isCompleted ? now : undefined,
-        });
+          financialState: "REFUNDED",
+        } as any);
+
         console.log(
           `✅ Refund ${isCompleted ? "COMPLETED" : "PROCESSING"}: ${refund.id}`,
         );
@@ -972,18 +1125,21 @@ export const cancelBooking = async (req: Request, res: Response) => {
           webhookData: {
             refundId: refund.id,
             refundStatus: refund.status,
+            refundType: refundResult.refundType, // 'FULL' | 'PARTIAL'
+            refundPercentage: refundResult.refundPercentage,
             refundAmountRupees: refundAmount,
             subtotalRefunded: subtotal,
-            platformFeeRefunded: platformFee, // ✅ platform fee also refunded
+            platformFeeRefunded: refundResult.platformFeeRefunded,
             originalPaymentId: paymentDetails.id,
             cancelledBy: "user",
+            policyId: (booking as any).refundPolicyId || "DEFAULT",
           } as any,
         });
 
-        // Update escrow — cancel it so host doesn't get paid
+        // Block host payout for this ticket
         await SettlementService.markEscrowAsRefunding(booking.ticketId);
 
-        // Record refund in ledger
+        // Record in ledger
         await LedgerModel.recordRefund({
           bookingId: String(booking.id),
           ticketId: booking.ticketId,
@@ -992,29 +1148,31 @@ export const cancelBooking = async (req: Request, res: Response) => {
           referenceId: refund.id,
           reason: cancellationReason || "Cancelled by user",
         });
+
         await createNotification({
           userId,
           type: isCompleted ? "refund_success" : "refund_initiated",
           title: isCompleted ? "✅ Refund Successful" : "Refund Initiated",
           message: isCompleted
-            ? `Your refund of ₹${refundAmount.toFixed(2)} has been processed successfully.`
-            : `Full refund of ₹${refundAmount.toFixed(2)} has been initiated. Will be credited shortly.`,
+            ? `Your ${refundResult.refundType === "PARTIAL" ? "partial " : ""}refund of ₹${refundAmount.toFixed(2)} has been processed. ${refundResult.reason}`
+            : `Refund of ₹${refundAmount.toFixed(2)} has been initiated and will be credited shortly. ${refundResult.reason}`,
           bookingId: String(booking.id),
           ticketId: booking.ticketId,
         });
       } catch (refundErr: any) {
         console.error("❌ Refund failed:", refundErr.message);
 
-        await BookingModel.update(bookingId, {
+        await BookingModel.update(booking.id, {
           refundStatus: "FAILED",
-          refundAmount: totalPaid,
+          refundAmount,
         });
 
         await createNotification({
           userId,
           type: "refund_failed",
           title: "Refund Will Be Processed Manually",
-          message: `Your booking was cancelled. Refund of ₹${totalPaid.toFixed(2)} will be processed manually within 5–7 business days.`,
+          // ← fixed: no longer says "initiated" — clearly says manual processing
+          message: `Your booking was cancelled. Refund of ₹${refundAmount.toFixed(2)} will be processed manually within 5–7 business days.`,
           bookingId: String(booking.id),
           ticketId: booking.ticketId,
         });
@@ -1031,16 +1189,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
       });
     }
 
-    await safeUpdateTicketStats(booking.ticketId, "totalBookings", -1);
-    await safeUpdateTicketStats(
-      booking.ticketId,
-      "totalTicketsSold",
-      -booking.quantity,
-    );
-    if (subtotal > 0) {
-      await safeUpdateTicketStats(booking.ticketId, "revenue", -subtotal);
-    }
-    await updateTicketCancellation(booking.ticketId, 1).catch(console.error);
+    await _postCancelStats(booking, subtotal);
 
     const cancellationStats = await BookingModel.getUserCancellationStats(
       userId,
@@ -1062,6 +1211,22 @@ export const cancelBooking = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ── Private helper: update ticket stats after any cancellation
+// Extracted to avoid duplicating the 3 stat calls in both the early-return
+async function _postCancelStats(booking: any, subtotal: number) {
+  await safeUpdateTicketStats(booking.ticketId, "totalBookings", -1);
+  await safeUpdateTicketStats(
+    booking.ticketId,
+    "totalTicketsSold",
+    -booking.quantity,
+  );
+  if (subtotal > 0) {
+    await safeUpdateTicketStats(booking.ticketId, "revenue", -subtotal);
+  }
+  await updateTicketCancellation(booking.ticketId, 1).catch(console.error);
+}
+
 export const getUserCancellationStats = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
