@@ -1,4 +1,4 @@
-import express from 'express';
+import express from "express";
 import {
   registerFreeEvent,
   createBooking,
@@ -10,24 +10,33 @@ import {
   getUserCancellationStats,
   trackRefund,
   createSeatedBooking,
-  getBookedSeats,getDailyBookingStats, getMonthlyBookingStats, getTicketTypeStats,getUserCancelledBookings,getUserRehostedBookings
-} from '../controllers/bookingController';
-import { authenticate } from '../middleware/auth';
+  countUnread,
+  markAsRead,
+  getBookedSeats,
+  getDailyBookingStats,
+  getMonthlyBookingStats,
+  getTicketTypeStats,
+  getUserCancelledBookings,
+  getUserRehostedBookings,
+} from "../controllers/bookingController";
+import { authenticate } from "../middleware/auth";
 const router: express.Router = express.Router();
-router.post('/create-seated', authenticate, createSeatedBooking);
-router.get('/booked-seats/:ticketId', authenticate, getBookedSeats);
-router.post('/register-free', authenticate, registerFreeEvent);
-router.post('/create', authenticate, createBooking);
-router.get('/check-booking/:ticketId', authenticate, checkUserBooking);
-router.post('/verify-payment', authenticate, verifyPayment);
-router.get('/my-bookings', authenticate, getUserBookings);
-router.get('/cancellation-stats', authenticate, getUserCancellationStats);
-router.get('/my-cancelled-bookings',    authenticate, getUserCancelledBookings);  
-router.get('/my-rehosted-bookings',     authenticate, getUserRehostedBookings); 
-router.get('/:bookingId', authenticate, getBookingById);
-router.post('/:bookingId/cancel', authenticate, cancelBooking);
-router.get('/:bookingId/refund/track', authenticate, trackRefund);
-router.get('/stats/daily/:ticketId', getDailyBookingStats);
-router.get('/stats/monthly/:ticketId', getMonthlyBookingStats);
-router.get('/stats/ticket-types/:ticketId', getTicketTypeStats);
+router.post("/create-seated", authenticate, createSeatedBooking);
+router.get("/booked-seats/:ticketId", authenticate, getBookedSeats);
+router.post("/register-free", authenticate, registerFreeEvent);
+router.post("/create", authenticate, createBooking);
+router.get("/check-booking/:ticketId", authenticate, checkUserBooking);
+router.post("/verify-payment", authenticate, verifyPayment);
+router.get("/my-bookings", authenticate, getUserBookings);
+router.get("/cancellation-stats", authenticate, getUserCancellationStats);
+router.get("/my-cancelled-bookings", authenticate, getUserCancelledBookings);
+router.get("/my-rehosted-bookings", authenticate, getUserRehostedBookings);
+router.get("/unread-count", authenticate, countUnread);
+router.post("/mark-read", authenticate, markAsRead);
+router.get("/:bookingId", authenticate, getBookingById);
+router.post("/:bookingId/cancel", authenticate, cancelBooking);
+router.get("/:bookingId/refund/track", authenticate, trackRefund);
+router.get("/stats/daily/:ticketId", getDailyBookingStats);
+router.get("/stats/monthly/:ticketId", getMonthlyBookingStats);
+router.get("/stats/ticket-types/:ticketId", getTicketTypeStats);
 export default router;
