@@ -1620,3 +1620,70 @@ export const getUserRehostedBookings = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const markAsRead = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const bookingIdParam = req.params.bookingId;
+    const { bookingId, bookingIds, statuses } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    let ids: string[] | undefined = undefined;
+    if (bookingIds && Array.isArray(bookingIds)) {
+      ids = bookingIds;
+    } else if (bookingId) {
+      ids = [bookingId];
+    } else if (bookingIdParam) {
+      ids = [bookingIdParam];
+    }
+
+    if (!ids && (!statuses || statuses.length === 0)) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Require at least bookingId, bookingIds, or statuses to mark read",
+        });
+    }
+
+    const { count } = await BookingModel.updateReadStatus(userId, {
+      ids,
+      statuses,
+    });
+
+    if (count === 0 && !statuses) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking(s) not found or already marked as read",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Bookings marked as read",
+      data: { count },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const countUnread = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const counts = await BookingModel.countUnread(userId);
+
+    res.json({ success: true, data: counts });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
