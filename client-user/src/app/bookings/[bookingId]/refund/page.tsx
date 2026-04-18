@@ -28,6 +28,13 @@ import {
   ExternalLink,
   HelpCircle
 } from 'lucide-react';
+import RefundSkeleton from '@/components/skeletons/RefundSkeleton';
+
+const LAYOUT = {
+  SIDEBAR_EXPANDED_WIDTH: '281px',
+  SIDEBAR_COLLAPSED_WIDTH: '92px',
+  BACKGROUND_DARK: '#0C1014',
+};
 
 export default function RefundTrackingPage() {
   return (
@@ -135,15 +142,16 @@ function RefundTrackingContent() {
 
   if (loading) {
     return (
-      <div 
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: isDark ? '#0C1014' : themeStyles.background }}
+      <div
+        className="min-h-screen flex flex-col transition-colors duration-300"
+        style={{ background: isDark ? LAYOUT.BACKGROUND_DARK : themeStyles.background, color: themeStyles.text }}
       >
-        <div className="flex flex-col items-center gap-6">
-          <div className="relative">
-            <Loader2 className="w-14 h-14 text-[#8860D9] animate-spin relative z-10" />
-          </div>
-          <p className="font-bold tracking-tight opacity-60 text-lg">Fetching your refund status...</p>
+        <SideBar />
+        <div 
+          className="flex-1 transition-all duration-300 relative z-10"
+          style={{ paddingLeft: isMobile ? "0" : (isCollapsed ? LAYOUT.SIDEBAR_COLLAPSED_WIDTH : LAYOUT.SIDEBAR_EXPANDED_WIDTH) }}
+        >
+          <RefundSkeleton />
         </div>
       </div>
     );
@@ -151,7 +159,7 @@ function RefundTrackingContent() {
 
   if (error || !refundData) {
     return (
-      <div 
+      <div
         className="min-h-screen flex items-center justify-center p-4 lg:p-0"
         style={{ background: isDark ? '#0C1014' : themeStyles.background }}
       >
@@ -200,18 +208,18 @@ function RefundTrackingContent() {
       style={{ background: isDark ? '#0C1014' : themeStyles.background, color: themeStyles.text }}
     >
       {!isDark && (
-        <div className="absolute inset-0 pointer-events-none" style={{ 
-          background: 'radial-gradient(circle at top right, rgba(136,96,217,0.05) 0%, transparent 50%)' 
+        <div className="absolute inset-0 pointer-events-none" style={{
+          background: 'radial-gradient(circle at top right, rgba(136,96,217,0.05) 0%, transparent 50%)'
         }} />
       )}
-      
+
       <SideBar />
 
-      <div className={`transition-all duration-300 relative z-10 w-full`} style={{ 
-        paddingLeft: isMobile ? "0" : (isCollapsed ? "92px" : "281px"), 
+      <div className={`transition-all duration-300 relative z-10 w-full`} style={{
+        paddingLeft: isMobile ? "0" : (isCollapsed ? "92px" : "281px"),
       }}>
         <Header title="" />
-        
+
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 sm:mt-8 lg:mt-10">
           {/* Back Action */}
           <button
@@ -229,20 +237,20 @@ function RefundTrackingContent() {
           <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-10">
             {/* Main Content Column */}
             <div className="lg:col-span-2 space-y-6 sm:space-y-8">
-              
+
               {/* Primary Status Card */}
               {/* Primary Status Card - Compact & Optimized */}
               <Card className={`p-5 sm:p-7 overflow-hidden relative border-white/5 shadow-2xl ${isDark ? '' : cfg.glow}`}>
-                
+
                 {/* Top Row: Hash ID & Encrypted Badge */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                <div className="flex items-center justify-between gap-3 mb-6">
                   {refundId ? (
                     <div className="flex items-center gap-2 overflow-hidden">
                        <span className="text-[8px] sm:text-[9px] font-bold tracking-widest opacity-30 uppercase shrink-0">Hash ID</span>
                        <div className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg ${isDark ? 'bg-white/5 border border-white/5' : 'bg-black/5 border border-transparent'} font-mono text-[8px] sm:text-[9px] opacity-50 flex items-center gap-1.5 overflow-hidden`}>
                           <span className="truncate">{refundId}</span>
-                          <button 
-                            onClick={() => navigator.clipboard.writeText(refundId)} 
+                          <button
+                            onClick={() => navigator.clipboard.writeText(refundId)}
                             className="p-0.5 hover:text-[#8860D9] transition-colors shrink-0"
                             title="Copy ID"
                           >
@@ -251,29 +259,43 @@ function RefundTrackingContent() {
                        </div>
                     </div>
                   ) : <div />}
-                  
+
                   <div className="self-start sm:self-auto flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[8px] sm:text-[9px] font-bold tracking-wider">
                     <ShieldCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                     ENCRYPTED
                   </div>
                 </div>
 
-                {/* Middle Row: Status Icon & Info */}
-                <div className="flex items-center gap-3.5 sm:gap-6 mb-6">
-                  <div className="relative shrink-0">
-                    {!isDark && <div className={`absolute inset-0 blur-xl ${cfg.bg} scale-110 rounded-full opacity-50`} />}
-                    <div className={`relative p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl ${isDark ? 'bg-white/5' : 'bg-white shadow-md'} border ${isDark ? 'border-white/10' : 'border-black/5'}`}>
-                      <div className="scale-75 sm:scale-95 flex items-center justify-center">
-                        {cfg.icon}
-                      </div>
+                {/* Middle Row: Event Portrait & Status Info */}
+                <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8 mb-8">
+                  <div className="relative shrink-0 w-32 sm:w-40 aspect-[3/4]">
+                     {/* Glow effect */}
+                    <div className={`absolute -inset-4 ${isDark ? 'bg-[#8860D9]/10' : 'bg-[#8860D9]/5'} rounded-[2rem] blur-2xl opacity-50`} />
+
+                    <div className="relative w-full h-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl z-10">
+                      <img
+                        src={(booking?.eventDetails as any)?.event_portrait || (booking?.eventDetails as any)?.image || (booking?.eventDetails as any)?.event_banner || "/placeholder-event.jpg"}
+                        alt="Event Portrait"
+                        className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-500"
+                      />
                     </div>
                   </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <h1 className="text-lg sm:text-2xl font-bold tracking-tight mb-1 truncate">{cfg.title}</h1>
-                    <p className="text-[10px] sm:text-sm opacity-60 leading-relaxed max-w-md line-clamp-2 sm:line-clamp-none" style={{ color: themeStyles.textSecondary }}>
+
+                  <div className="flex-1 min-w-0 text-center sm:text-left flex flex-col justify-center">
+                    <div className="flex flex-col sm:flex-row items-center sm:items-baseline gap-2 mb-3">
+                      <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">{cfg.title}</h1>
+                    </div>
+
+                    <p className="text-sm sm:text-base opacity-60 font-medium leading-relaxed max-w-xl mx-auto sm:mx-0" style={{ color: themeStyles.textSecondary }}>
                       {cfg.message}
                     </p>
+
+                    <div className="mt-4 flex flex-wrap justify-center sm:justify-start gap-3">
+                      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${cfg.bg} border ${cfg.border} border-white/5 text-[10px] font-bold uppercase tracking-wider ${cfg.accent}`}>
+                        <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+                        {refundStatus}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -285,7 +307,7 @@ function RefundTrackingContent() {
                       </div>
                       <span className="text-[8px] sm:text-[10px] font-bold tracking-widest uppercase opacity-40">Total Reversal</span>
                     </div>
-                    
+
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-[10px] sm:text-xs font-bold opacity-30">₹</span>
                       <span className="text-lg sm:text-2xl font-black tracking-tighter text-[#8860D9]">
@@ -327,8 +349,8 @@ function RefundTrackingContent() {
                   {steps.map((step, i) => (
                     <div key={i} className="flex gap-4 sm:gap-8 relative group">
                       <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-[1rem] sm:rounded-[1.25rem] flex items-center justify-center shrink-0 z-10 transition-all duration-500 ${
-                        step.done 
-                          ? 'bg-[#8860D9] shadow-xl shadow-[#8860D9]/30 ring-3 sm:ring-4 ring-[#8860D9]/10' 
+                        step.done
+                          ? 'bg-[#8860D9] shadow-xl shadow-[#8860D9]/30 ring-3 sm:ring-4 ring-[#8860D9]/10'
                           : `${isDark ? 'bg-[#1A202C]' : 'bg-[#E2E8F0]'} opacity-80 border-2 border-transparent`
                       }`}>
                         {step.done ? <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-white" /> : <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-slate-500/30" />}
@@ -361,7 +383,7 @@ function RefundTrackingContent() {
 
             {/* Sidebar Details Column */}
             <div className="flex flex-col gap-6 sm:gap-8">
-              
+
               {/* Event Context Card */}
               <Card className="p-5 sm:p-7 border-white/5 overflow-hidden group">
                 <div className="flex flex-col gap-5 sm:gap-6">
@@ -371,7 +393,7 @@ function RefundTrackingContent() {
                       <Ticket className="w-4 h-4" />
                     </div>
                   </div>
-                  
+
                   <div>
                     <h3 className="font-extrabold text-lg sm:text-xl leading-tight mb-2 sm:mb-3 group-hover:text-[#8860D9] transition-colors line-clamp-2">
                        {(booking?.eventDetails as any)?.eventName || 'Event Booking'}
@@ -383,7 +405,7 @@ function RefundTrackingContent() {
                       </span>
                     </div>
                   </div>
-                  
+
                   <div className={`p-4 sm:p-5 rounded-2xl sm:rounded-[1.5rem] ${isDark ? 'bg-white/[0.03] border-white/5' : 'bg-black/[0.02] border-black/5'} border space-y-3 sm:space-y-4`}>
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] sm:text-[11px] opacity-40 font-bold uppercase tracking-wider">Pass Group</span>
@@ -420,7 +442,7 @@ function RefundTrackingContent() {
                     <span className="font-medium">Refund Surcharge</span>
                     <span className="font-bold">-₹{booking?.platformFee?.toLocaleString('en-IN')}</span>
                   </div>
-                  
+
                   <div className={`mt-5 sm:mt-6 pt-5 sm:pt-6 border-t-2 border-dashed ${isDark ? 'border-white/10' : 'border-black/5'} flex items-end justify-between`}>
                     <div className="flex flex-col gap-0.5 sm:gap-1">
                       <span className="text-[9px] sm:text-[10px] font-bold opacity-30 uppercase tracking-widest leading-none">Net Payout</span>
