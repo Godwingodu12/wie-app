@@ -7,7 +7,7 @@ getTicketById,deleteTicket,deleteSubEvent,deleteEventPermenently,deleteAllEvents
 import { getGroupsTypes,updateSubEvent,getTicketSubEvents,getGroupView,getGroupById,getOtherGroupView,getMyEvents,getMyEventById,getMyLiveEvents,getMyLiveEventView,getMyPastEvents,getMyUpcomingEvents,getMyPreviousEventView,getOthersEvents,getOthersEventsById,getOtherLiveEvents,
 getOthersPastEvents,getGroupStatistics,confirmEvent,goLiveEvent,getAddOnEventLiveView,getPreviousEvents,showEventBankDetails,showAllBankDetails,LiveEventBankDetails,likeEvent,unlikeEvent,checkUserLiked,groupEventCount,totalEventsCreatedCount,makeEventCompleted,getPostalDetailsFromCoords,
 getPreviousEventView,getPreviousSubEventView,getPreviousEventStatistics,getPreviousEventMonthlyStats,getPreviousSubEventMonthlyStats,getPreviousEventCapacityStats,getPreviousSubEventCapacityStats,getEventMetrics,getEventStatsByDate, getEventGrowthStats, getEventMonthlyChart,
-cancelEvent, getCancellationReport, rehostEvent, rehostSubEvent,goLiveSubEvent,getAuditHistory,getEventVersions,getSubEventAudit } from '../controller/ticket.controller.js';
+cancelEvent, getCancellationReport, rehostEvent, rehostSubEvent,goLiveSubEvent,getAuditHistory,getEventVersions,getSubEventAudit, getEventFinancialSummaryHandler, getEventTransactionListHandler } from '../controller/ticket.controller.js';
 import { protect } from '../middlewares/auth.js';
 const router = express.Router();
 router.use(protect);
@@ -89,4 +89,6 @@ router.post('/:parentTicketId/sub-events/:subEventId/recover', protect, recoverS
 router.get('/audit-history/:ticketId', getAuditHistory);
 router.get('/event-versions/:originalEventId', getEventVersions);
 router.get('/audit/sub-event/:parentEventId/:subEventId', getSubEventAudit);
+router.get('/event-financial-summary/:ticketId',getEventFinancialSummaryHandler);
+router.get('/event-transactions/:ticketId',getEventTransactionListHandler);
 export default router;
