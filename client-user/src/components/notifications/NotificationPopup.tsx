@@ -26,6 +26,7 @@ import realtimeNotificationService from "@/services/realtimeNotificationService"
 import NotificationInitializer from "./NotificationInitializer";
 import { useTheme } from "@/components/home/ThemeContext";
 import {getUserById} from "@/services/wieUserService";
+import NotificationSkeleton from "../skeletons/NotificationSkeleton";
 
 interface NotificationPopupProps {
   isOpen: boolean;
@@ -256,7 +257,7 @@ const loadNotifications = async () => {
     try {
       await handleMarkRead(notification);
 
-      //  FOLLOW REQUEST 
+      //  FOLLOW REQUEST
       if (notification.type === 'follow_request') {
         const username = notification.meta?.username || notification.fromUserId;
         if (username) router.push(`/profile/${username}`);
@@ -264,7 +265,7 @@ const loadNotifications = async () => {
         return;
       }
 
-      //  FOLLOWING (grouped or single) 
+      //  FOLLOWING (grouped or single)
       if (notification.type === 'following') {
         if (notification.meta?.primaryActors?.length === 1) {
           const follower = notification.meta.primaryActors[0];
@@ -278,7 +279,7 @@ const loadNotifications = async () => {
         return;
       }
 
-      // EVENT CANCELLED 
+      // EVENT CANCELLED
       // Must come BEFORE generic bookingId check so it routes to cancelled tab
       if (notification.type === 'event_cancelled') {
         const bId = notification.bookingId || notification.meta?.bookingId;
@@ -613,9 +614,7 @@ const loadNotifications = async () => {
           {/* Scrollable List */}
           <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-4">
             {loading && notifications.length === 0 ? (
-              <div className="flex items-center justify-center py-10" style={{ color: themeStyles.textSecondary }}>
-                Loading...
-              </div>
+              <NotificationSkeleton />
             ) : (
               <>
                 {filteredNotifications.length === 0 ? (
