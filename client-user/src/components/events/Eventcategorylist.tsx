@@ -97,17 +97,18 @@ export default function EventCategoryList() {
           onClick={() => scroll("left")}
           aria-label="Scroll left"
           className="
-            absolute -left-3 top-1/2 -translate-y-1/2 z-20
-            w-[28px] h-[28px] rounded-[8px]
-            border border-white/10 backdrop-blur-md
+            absolute left-0 top-1/2 -translate-y-1/2 z-20
+            w-[32px] h-[32px] rounded-full
+            border border-white/10 backdrop-blur-xl
             hidden sm:flex items-center justify-center
-            transition-opacity duration-200
-            p-[6px]
+            transition-all duration-300
+            opacity-0 group-hover:opacity-100 hover:scale-110
+            shadow-lg
             "
           style={{ backgroundColor: themeStyles.pillBg }}
         >
           <ChevronLeft
-            className="w-[16px] h-[16px]"
+            className="w-[18px] h-[18px]"
             style={{ color: themeStyles.text }}
           />
         </button>
@@ -117,17 +118,18 @@ export default function EventCategoryList() {
           onClick={() => scroll("right")}
           aria-label="Scroll right"
           className="
-            absolute -right-3 top-1/2 -translate-y-1/2 z-20
-            w-[28px] h-[28px] rounded-[8px]
-            border border-white/10 backdrop-blur-md
+            absolute right-0 top-1/2 -translate-y-1/2 z-20
+            w-[32px] h-[32px] rounded-full
+            border border-white/10 backdrop-blur-xl
             hidden sm:flex items-center justify-center
-            transition-opacity duration-200
-            p-[6px]
+            transition-all duration-300
+            opacity-0 group-hover:opacity-100 hover:scale-110
+            shadow-lg
             "
           style={{ backgroundColor: themeStyles.pillBg }}
         >
           <ChevronRight
-            className="w-[16px] h-[16px]"
+            className="w-[18px] h-[18px]"
             style={{ color: themeStyles.text }}
           />
         </button>
