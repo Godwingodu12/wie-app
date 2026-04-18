@@ -114,8 +114,8 @@ function EventRow({
 
         <div
           ref={rowRef}
-          className={isGrid 
-            ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6" 
+          className={isGrid
+            ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6"
             : "flex gap-6 overflow-x-auto scrollbar-hide pb-1"
           }
         >
@@ -178,9 +178,9 @@ function UserCancelledSection({ events, router }: { events: any[]; router: any }
   return (
     <div
       className="mb-6 p-4 rounded-2xl"
-      style={{ 
-        background: isDark ? 'rgba(239,68,68,0.06)' : 'rgba(239,68,68,0.04)', 
-        border: `1px solid ${isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.1)'}` 
+      style={{
+        background: isDark ? 'rgba(239,68,68,0.06)' : 'rgba(239,68,68,0.04)',
+        border: `1px solid ${isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.1)'}`
       }}
     >
       {/* Header */}

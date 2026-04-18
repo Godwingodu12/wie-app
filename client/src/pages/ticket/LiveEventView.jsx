@@ -16,7 +16,8 @@ import {
   getMyLiveEventView,
   getGroupView,
   getTicketById,cancelEvent, cancelSubEvent, getCancellationReport,rehostEvent,
-  getEventMetrics,getEventStatsByDate, getEventGrowthStats, getEventMonthlyChart
+  getEventMetrics,getEventStatsByDate, getEventGrowthStats, getEventMonthlyChart,
+  getEventFinancialSummary, getEventTransactions
 } from "../../services/ticketService";
 import { getImageUrl } from "../../utils/imageUtils";
 import TicketDetailModal from "../../components/ViewSingleEvent/TicketDetailModal";
@@ -87,6 +88,12 @@ const LiveEventsPage = () => {
   const [downloadError, setDownloadError]             = useState("");
   const [showRehostModal, setShowRehostModal]         = useState(false);
   const [isRehosting, setIsRehosting]                 = useState(false);
+  const [financialSummary, setFinancialSummary]       = useState(null);
+  const [transactions, setTransactions]               = useState([]);
+  const [transactionTotal, setTransactionTotal]       = useState(0);
+  const [transactionFilter, setTransactionFilter]     = useState('all');
+  const [loadingFinancial, setLoadingFinancial]       = useState(false);
+  const [showTransactionPanel,setShowTransactionPanel]= useState(false);
 // Update the fetchEventData useEffect to also fetch initial growth stats
 useEffect(() => {
   const fetchEventData = async () => {
@@ -185,6 +192,17 @@ useEffect(() => {
       // Fetch initial growth stats (yesterday vs day before)
       try {
         const yesterday = new Date();
+         try {
+          setLoadingFinancial(true);
+          const financialResponse = await getEventFinancialSummary(ticketId);
+          if (financialResponse?.data) {
+            setFinancialSummary(financialResponse.data);
+          }
+        } catch (finErr) {
+          console.warn('Failed to fetch financial summary:', finErr);
+        } finally {
+          setLoadingFinancial(false);
+        }
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayFormatted = yesterday.toISOString().split('T')[0];
         
@@ -1052,7 +1070,238 @@ const displayDate = isSameDate
                 </div>
               </div>
             </div>
+            {/*  Host Financial Summary Panel  */}
+            {financialSummary && eventData?.payment_type !== 'free' && (
+              <div
+                className={`mb-8 p-6 rounded-3xl ${theme.cardBgDarker}`}
+                style={{ ...cardStyle, borderRadius: '24px' }}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
+                      <Lock className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold uppercase tracking-wider">
+                        Your Revenue & Payouts
+                      </h3>
+                      <p className={`text-xs ${theme.subText}`}>
+                        What you earn from ticket sales
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowTransactionPanel(!showTransactionPanel)}
+                    className="text-xs px-4 py-2 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white transition-colors flex items-center gap-2"
+                  >
+                    <Ticket size={14} />
+                    {showTransactionPanel ? 'Hide' : 'View'} All Transactions
+                  </button>
+                </div>
 
+                {/* Revenue breakdown — 4 key numbers */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  {[
+                    {
+                      label: 'Ticket Revenue',
+                      value: `₹${financialSummary.revenue?.totalRevenue?.toFixed(2) || '0.00'}`,
+                      note:  'Gross ticket sales (your share)',
+                      color: 'text-emerald-400',
+                      bg:    'bg-emerald-500/10',
+                    },
+                    {
+                      label: 'Refunds Issued',
+                      value: `₹${financialSummary.revenue?.totalRefunded?.toFixed(2) || '0.00'}`,
+                      note:  'Returned to attendees',
+                      color: 'text-red-400',
+                      bg:    'bg-red-500/10',
+                    },
+                    {
+                      label: 'Net Payout',
+                      value: `₹${financialSummary.revenue?.netHostPayout?.toFixed(2) || '0.00'}`,
+                      note:  'Revenue after refunds',
+                      color: 'text-blue-400',
+                      bg:    'bg-blue-500/10',
+                    },
+                    {
+                      label: 'GST Collected',
+                      value: `₹${financialSummary.revenue?.totalTax?.toFixed(2) || '0.00'}`,
+                      note:  'Tax on ticket price',
+                      color: 'text-amber-400',
+                      bg:    'bg-amber-500/10',
+                    },
+                  ].map((item, idx) => (
+                    <div key={idx} className={`p-4 rounded-2xl ${item.bg} ${theme.bg}`}>
+                      <p className={`text-xs uppercase font-semibold ${theme.subText} mb-1`}>
+                        {item.label}
+                      </p>
+                      <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+                      <p className={`text-xs mt-1 ${theme.subText} opacity-70`}>{item.note}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* WIE fee transparency row */}
+                <div className={`flex flex-wrap gap-4 p-4 rounded-2xl ${theme.bg} mb-6 border-l-4 border-indigo-500`}>
+                  <p className={`text-xs ${theme.subText} w-full font-semibold mb-1`}>
+                    WIE Platform Charges (deducted from user total, not from your payout)
+                  </p>
+                  <div className="flex gap-6 flex-wrap">
+                    <span className={`text-xs ${theme.subText}`}>
+                      Platform Fee:{' '}
+                      <span className="font-bold text-white">
+                        ₹{financialSummary.revenue?.totalPlatformFee?.toFixed(2) || '0.00'}
+                      </span>
+                    </span>
+                    <span className={`text-xs ${theme.subText}`}>
+                      Gateway Fee (absorbed by WIE):{' '}
+                      <span className="font-bold text-white">
+                        ₹{financialSummary.revenue?.totalConvenienceFee?.toFixed(2) || '0.00'}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Per ticket type breakdown */}
+                {financialSummary.byTicketType?.length > 0 && (
+                  <div>
+                    <p className={`text-xs uppercase font-semibold ${theme.subText} mb-3`}>
+                      Revenue by Ticket Type
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {financialSummary.byTicketType.map((t, idx) => (
+                        <div
+                          key={idx}
+                          className={`flex items-center justify-between p-3 rounded-xl ${theme.bg}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full bg-indigo-400" />
+                            <span className={`text-sm font-medium ${theme.text}`}>
+                              {t.ticketType}
+                            </span>
+                            <span className={`text-xs ${theme.subText}`}>
+                              ({t.count} ticket{t.count !== 1 ? 's' : ''})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-6">
+                            <span className="text-sm font-bold text-emerald-400">
+                              ₹{t.revenue?.toFixed(2)}
+                            </span>
+                            {t.refunded > 0 && (
+                              <span className="text-xs text-red-400">
+                                −₹{t.refunded?.toFixed(2)} refunded
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recent transactions inline (collapsed by default, shown via toggle) */}
+                {showTransactionPanel && (
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className={`text-xs uppercase font-semibold ${theme.subText}`}>
+                        Transactions
+                      </p>
+                      {/* Status filter */}
+                      <div className="flex gap-2">
+                        {['all', 'CONFIRMED', 'CANCELLED'].map((f) => (
+                          <button
+                            key={f}
+                            onClick={() => setTransactionFilter(f)}
+                            className={`text-xs px-3 py-1 rounded-full transition-colors ${
+                              transactionFilter === f
+                                ? 'bg-indigo-600 text-white'
+                                : `${theme.bg} ${theme.subText} border border-gray-600`
+                            }`}
+                          >
+                            {f === 'all' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className="overflow-x-auto rounded-2xl">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className={`${theme.bg}`}>
+                            {['Booking ID', 'Attendee', 'Type', 'Qty', 'Your Share', 'Total Paid', 'Method', 'Status', 'Refund', 'Date'].map((h) => (
+                              <th key={h} className={`text-left px-3 py-2 font-semibold ${theme.subText} whitespace-nowrap`}>
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(financialSummary.recentTransactions || [])
+                            .filter((t) => transactionFilter === 'all' || t.bookingStatus === transactionFilter)
+                            .map((t, idx) => (
+                              <tr
+                                key={idx}
+                                className={`border-t ${theme.border} hover:opacity-80 transition-opacity`}
+                              >
+                                <td className={`px-3 py-2 font-mono ${theme.subText}`}>
+                                  {t.bookingId?.slice(-10) || '—'}
+                                </td>
+                                <td className={`px-3 py-2 ${theme.text}`}>{t.userName}</td>
+                                <td className={`px-3 py-2 ${theme.subText}`}>{t.ticketType}</td>
+                                <td className={`px-3 py-2 text-center ${theme.text}`}>{t.quantity}</td>
+                                <td className="px-3 py-2 text-emerald-400 font-semibold">
+                                  ₹{t.subtotal?.toFixed(2)}
+                                </td>
+                                <td className={`px-3 py-2 font-semibold ${theme.text}`}>
+                                  ₹{t.totalPaid?.toFixed(2)}
+                                </td>
+                                <td className={`px-3 py-2 ${theme.subText} uppercase`}>
+                                  {t.paymentMethod || '—'}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    t.bookingStatus === 'CONFIRMED'
+                                      ? 'bg-emerald-500/20 text-emerald-400'
+                                      : t.bookingStatus === 'CANCELLED'
+                                      ? 'bg-red-500/20 text-red-400'
+                                      : 'bg-gray-500/20 text-gray-400'
+                                  }`}>
+                                    {t.bookingStatus}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2">
+                                  {t.refundAmount > 0 ? (
+                                    <span className="text-red-400">−₹{t.refundAmount?.toFixed(2)}</span>
+                                  ) : (
+                                    <span className={theme.subText}>—</span>
+                                  )}
+                                </td>
+                                <td className={`px-3 py-2 whitespace-nowrap ${theme.subText}`}>
+                                  {t.createdAt
+                                    ? new Date(t.createdAt).toLocaleDateString('en-IN', {
+                                        day: '2-digit', month: 'short', year: '2-digit',
+                                      })
+                                    : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+
+                      {(financialSummary.recentTransactions || []).filter(
+                        (t) => transactionFilter === 'all' || t.bookingStatus === transactionFilter
+                      ).length === 0 && (
+                        <div className={`text-center py-8 ${theme.subText}`}>
+                          No transactions found for this filter.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {/* Main Dashboard Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 flex-1">
               {/* Left Column: Total Booking of Events Chart */}

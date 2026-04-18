@@ -133,3 +133,42 @@ export const cancelEventBookings = (eventId, { cancellationReason, refundPercent
     );
   });
 };
+
+export const getEventFinancialSummary = (ticketId) => {
+  return new Promise((resolve) => {
+    const grpcClient = getClient();
+    grpcClient.GetEventFinancialSummary(
+      { ticketId: String(ticketId) },
+      (error, response) => {
+        if (error) {
+          console.error('❌ [Booking gRPC] getEventFinancialSummary error:', error.message);
+          resolve(null);
+          return;
+        }
+        if (!response.success) {
+          console.error('❌ [Booking gRPC] getEventFinancialSummary failed:', response.error);
+          resolve(null);
+          return;
+        }
+        resolve(response);
+      }
+    );
+  });
+};
+
+export const getEventTransactionList = (ticketId, { limit = 50, offset = 0, status = 'all' } = {}) => {
+  return new Promise((resolve) => {
+    const grpcClient = getClient();
+    grpcClient.GetEventTransactionList(
+      { ticketId: String(ticketId), limit, offset, status },
+      (error, response) => {
+        if (error) {
+          console.error('❌ [Booking gRPC] getEventTransactionList error:', error.message);
+          resolve({ transactions: [], total: 0 });
+          return;
+        }
+        resolve(response);
+      }
+    );
+  });
+};

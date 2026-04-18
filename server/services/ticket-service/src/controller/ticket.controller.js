@@ -9,7 +9,8 @@ import { promoteFirstSubEventToMain, getCancellationDescription, snapshotAndLock
 import TicketAudit from '../models/ticketAudit.model.js';
 import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
 import { publishEventCancellation, publishToExchange } from "../utils/eventPublisher.js";
-import { getBookingStatsByDate, getBookingGrowthStats, getMonthlyBookingChart, getBookingsForEvent, cancelEventBookings } from '../grpc/bookingClient.js';
+import { getBookingStatsByDate, getBookingGrowthStats, getMonthlyBookingChart, getBookingsForEvent, cancelEventBookings, 
+  getEventFinancialSummary, getEventTransactionList } from '../grpc/bookingClient.js';
 import ExcelJS from 'exceljs';
 import { getWieUsersByIds }    from '../grpc/wieUserClient.js';
 import { 
@@ -4103,5 +4104,104 @@ export const getSubEventAudit = async (req, res) => {
   } catch (err) {
     console.error("❌ getSubEventAudit error:", err);
     return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getEventFinancialSummaryHandler = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const userId = req.user._id || req.user.id;
+
+    if (!ticketId?.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ success: false, message: 'Invalid ticket ID' });
+    }
+
+    // Verify ownership (main ticket or parent of sub-event)
+    let ticket = await Ticket.findOne({ _id: ticketId, userId });
+    if (!ticket) {
+      ticket = await Ticket.findOne({ 'sub_events._id': ticketId, userId });
+    }
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: 'Event not found or access denied' });
+    }
+
+    const summary = await getEventFinancialSummary(ticketId);
+    if (!summary) {
+      return res.status(500).json({ success: false, message: 'Could not fetch financial summary' });
+    }
+
+    // Determine the event name for the response
+    const isSubEvent    = ticket._id.toString() !== ticketId;
+    const subEvent      = isSubEvent
+      ? ticket.sub_events.find(se => se._id.toString() === ticketId)
+      : null;
+    const eventName     = subEvent?.event_name || ticket.event_name || 'Event';
+    const paymentType   = subEvent?.payment_type || ticket.payment_type || 'paid';
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        eventName,
+        paymentType,
+        ticketId,
+        // Host-visible revenue breakdown
+        revenue: {
+          totalRevenue:       summary.totalRevenue,       // host's ticket income
+          totalRefunded:      summary.totalRefunded,      // money returned to users
+          netHostPayout:      summary.netHostPayout,      // what host receives after refunds
+          totalTax:           summary.totalTax,           // GST collected from users
+          // WIE internal — shown for transparency
+          totalPlatformFee:   summary.totalPlatformFee,
+          totalConvenienceFee: summary.totalConvenienceFee,
+        },
+        bookings: {
+          totalConfirmed:    summary.totalConfirmedBookings,
+          totalCancelled:    summary.totalCancelledBookings,
+          totalTicketsSold:  summary.totalTicketsSold,
+        },
+        byTicketType:        summary.byTicketType,
+        recentTransactions:  summary.recentTransactions,
+      },
+    });
+  } catch (error) {
+    console.error('❌ getEventFinancialSummaryHandler error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getEventTransactionListHandler = async (req, res) => {
+  try {
+    const { ticketId } = req.params;
+    const userId       = req.user._id || req.user.id;
+    const { limit = 50, offset = 0, status = 'all' } = req.query;
+
+    if (!ticketId?.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ success: false, message: 'Invalid ticket ID' });
+    }
+
+    let ticket = await Ticket.findOne({ _id: ticketId, userId });
+    if (!ticket) ticket = await Ticket.findOne({ 'sub_events._id': ticketId, userId });
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: 'Event not found or access denied' });
+    }
+
+    const result = await getEventTransactionList(ticketId, {
+      limit:  parseInt(limit),
+      offset: parseInt(offset),
+      status,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        transactions: result.transactions || [],
+        total:        result.total        || 0,
+        limit:        parseInt(limit),
+        offset:       parseInt(offset),
+      },
+    });
+  } catch (error) {
+    console.error('❌ getEventTransactionListHandler error:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

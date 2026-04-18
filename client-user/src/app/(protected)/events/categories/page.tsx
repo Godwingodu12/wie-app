@@ -255,6 +255,7 @@ export default function CategoryEventsPage() {
   };
 
   const handleClearSearch = async () => {
+    router.push("/events/categories");
     setSelectedCategory(undefined);
     setSearchInput("");
     setHasActiveSearch(false);
