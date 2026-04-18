@@ -68,6 +68,7 @@ export interface UpdateBookingData {
   isVerified?: boolean;
   verifiedAt?: Date;
   verifiedBy?: string;
+  isRead?: boolean;
   cancellationCount?: number;
   cancellationReason?: string;
   cancelledAt?: Date;
@@ -639,6 +640,48 @@ export class BookingModel {
     );
 
     return { count: bookings.length, bookings };
+  }
+
+  static async updateReadStatus(
+    userId: string,
+    params: { ids?: string | string[]; statuses?: BookingStatus[] },
+  ): Promise<{ count: number }> {
+    const whereClause: any = { userId, isRead: false };
+
+    if (params.ids) {
+      const idArray = Array.isArray(params.ids) ? params.ids : [params.ids];
+      whereClause.id = { in: idArray };
+    }
+
+    if (params.statuses) {
+      whereClause.bookingStatus = { in: params.statuses };
+    }
+
+    const result = await prisma.booking.updateMany({
+      where: whereClause,
+      data: { isRead: true } as any,
+    });
+    return { count: result.count };
+  }
+
+  /**
+   * Count unread bookings for a user grouped by status.
+   */
+  static async countUnread(
+    userId: string,
+  ): Promise<{ confirmed: number; pending: number; cancelled: number }> {
+    const [confirmed, pending, cancelled] = await Promise.all([
+      prisma.booking.count({
+        where: { userId, bookingStatus: "CONFIRMED", isRead: false } as any,
+      }),
+      prisma.booking.count({
+        where: { userId, bookingStatus: "PENDING", isRead: false } as any,
+      }),
+      prisma.booking.count({
+        where: { userId, bookingStatus: "CANCELLED", isRead: false } as any,
+      }),
+    ]);
+    return { confirmed, pending, cancelled };
   }
 }
 export default BookingModel;
