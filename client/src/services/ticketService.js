@@ -676,3 +676,25 @@ export const getTicketAuditBySubEvent = async (parentEventId, subEventId) => {
   );
   return response.data;
 };
+
+export const getEventFinancialSummary = async (ticketId) => {
+  try {
+    const response = await api.get(`/ticket/event-financial-summary/${ticketId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error in getEventFinancialSummary:', error);
+    throw error;
+  }
+};
+
+export const getEventTransactions = async (ticketId, { limit = 50, offset = 0, status = 'all' } = {}) => {
+  try {
+    const response = await api.get(`/ticket/event-transactions/${ticketId}`, {
+      params: { limit, offset, status },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error in getEventTransactions:', error);
+    throw error;
+  }
+};
