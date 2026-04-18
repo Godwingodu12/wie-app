@@ -1,16 +1,17 @@
-import axios from 'axios';
-const TRANSACTION_API_URL = process.env.NEXT_PUBLIC_TRANSACTION_API_URL || 'http://localhost:5007/api';
+import axios from "axios";
+const TRANSACTION_API_URL =
+  process.env.NEXT_PUBLIC_TRANSACTION_API_URL || "http://localhost:5007/api";
 // Create axios instance
 const transactionApi = axios.create({
   baseURL: TRANSACTION_API_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 // Add auth token to requests
 transactionApi.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -18,15 +19,18 @@ transactionApi.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 // Response interceptor
 transactionApi.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('Transaction API Error:', error.response?.data || error.message);
+    console.error(
+      "Transaction API Error:",
+      error.response?.data || error.message,
+    );
     return Promise.reject(error);
-  }
+  },
 );
 
 // Types
@@ -82,13 +86,13 @@ export interface Booking {
   isVerified: boolean;
   createdAt: string;
   updatedAt: string;
-  refundAmount?: number; 
-  refundStatus?: string; 
+  refundAmount?: number;
+  refundStatus?: string;
   refundProcessedAt?: string;
-  refundId?: string; 
-  refundInitiatedAt?: string; 
-  cancelledAt?: string; 
-  cancellationReason?: string; 
+  refundId?: string;
+  refundInitiatedAt?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
 }
 export interface CreateSeatedBookingRequest {
   ticketId: string;
@@ -124,7 +128,7 @@ export interface CancelledBooking {
   // Cancellation
   cancellationReason?: string;
   cancelledAt?: string;
-  cancelledBy: 'host' | 'user';
+  cancelledBy: "host" | "user";
   isAdminCancelled: boolean;
   // Refund
   refundAmount?: number;
@@ -144,41 +148,51 @@ export interface CancelledBooking {
 }
 
 export const registerFreeEvent = async (ticketId: string, quantity: number) => {
-  const response = await transactionApi.post('/bookings/register-free', {
+  const response = await transactionApi.post("/bookings/register-free", {
     ticketId,
     quantity,
   });
   return response.data;
 };
 // Booking APIs
-export const createBooking = async (data: CreateBookingRequest): Promise<CreateBookingResponse> => {
-  const response = await transactionApi.post('/bookings/create', data);
+export const createBooking = async (
+  data: CreateBookingRequest,
+): Promise<CreateBookingResponse> => {
+  const response = await transactionApi.post("/bookings/create", data);
   return response.data;
 };
 export const createSeatedBooking = async (data: CreateSeatedBookingRequest) => {
   try {
-    const res = await transactionApi.post('/bookings/create-seated', data);
+    const res = await transactionApi.post("/bookings/create-seated", data);
     return res.data;
   } catch (err) {
-    console.error('❌ createSeatedBooking error:', err);
+    console.error("❌ createSeatedBooking error:", err);
     throw err;
   }
 };
-export const getBookedSeats = async (ticketId: string): Promise<BookedSeatsResponse> => {
+export const getBookedSeats = async (
+  ticketId: string,
+): Promise<BookedSeatsResponse> => {
   try {
     const res = await transactionApi.get(`/bookings/booked-seats/${ticketId}`);
     return res.data;
   } catch (err) {
-    console.error('❌ getBookedSeats error:', err);
+    console.error("❌ getBookedSeats error:", err);
     throw err;
   }
 };
 export const verifyPayment = async (data: VerifyPaymentRequest) => {
-  const response = await transactionApi.post('/bookings/verify-payment', data);
+  const response = await transactionApi.post("/bookings/verify-payment", data);
   return response.data;
 };
-export const getUserBookings = async (params?: { status?: string; limit?: number; skip?: number }) => {
-  const response = await transactionApi.get('/bookings/my-bookings', { params });
+export const getUserBookings = async (params?: {
+  status?: string;
+  limit?: number;
+  skip?: number;
+}) => {
+  const response = await transactionApi.get("/bookings/my-bookings", {
+    params,
+  });
   return response.data;
 };
 export const getBookingById = async (bookingId: string) => {
@@ -194,34 +208,45 @@ export const getGroupBookings = async (
     endDate?: string;
     limit?: number;
     skip?: number;
-  }
+  },
 ) => {
-  const response = await transactionApi.get(`/admin/group/${groupId}/bookings`, { params });
+  const response = await transactionApi.get(
+    `/admin/group/${groupId}/bookings`,
+    { params },
+  );
   return response.data;
 };
 
 export const getEventStatistics = async (ticketId: string) => {
-  const response = await transactionApi.get(`/admin/event/${ticketId}/statistics`);
+  const response = await transactionApi.get(
+    `/admin/event/${ticketId}/statistics`,
+  );
   return response.data;
 };
 
 export const verifyTicketQR = async (qrData: string) => {
-  const response = await transactionApi.post('/admin/verify-qr', { qrData });
+  const response = await transactionApi.post("/admin/verify-qr", { qrData });
   return response.data;
 };
 
 export const getEventFeedback = async (
   ticketId: string,
-  params?: { limit?: number; skip?: number }
+  params?: { limit?: number; skip?: number },
 ) => {
-  const response = await transactionApi.get(`/admin/event/${ticketId}/feedback`, { params });
+  const response = await transactionApi.get(
+    `/admin/event/${ticketId}/feedback`,
+    { params },
+  );
   return response.data;
 };
 
-export const exportBookings = async (params: { groupId?: string; ticketId?: string }) => {
-  const response = await transactionApi.get('/admin/export-bookings', {
+export const exportBookings = async (params: {
+  groupId?: string;
+  ticketId?: string;
+}) => {
+  const response = await transactionApi.get("/admin/export-bookings", {
     params,
-    responseType: 'blob',
+    responseType: "blob",
   });
   return response.data;
 };
@@ -232,17 +257,26 @@ export const getBookingAnalytics = async (params: {
   startDate?: string;
   endDate?: string;
 }) => {
-  const response = await transactionApi.get('/admin/analytics', { params });
+  const response = await transactionApi.get("/admin/analytics", { params });
   return response.data;
 };
 
-export const getTopEventsByRevenue = async (groupId: string, limit?: number) => {
-  const response = await transactionApi.get(`/admin/group/${groupId}/top-events`, {
-    params: { limit },
-  });
+export const getTopEventsByRevenue = async (
+  groupId: string,
+  limit?: number,
+) => {
+  const response = await transactionApi.get(
+    `/admin/group/${groupId}/top-events`,
+    {
+      params: { limit },
+    },
+  );
   return response.data;
 };
-export const cancelBooking = async (bookingId: string, cancellationReason: string) => {
+export const cancelBooking = async (
+  bookingId: string,
+  cancellationReason: string,
+) => {
   const response = await transactionApi.post(`/bookings/${bookingId}/cancel`, {
     cancellationReason,
   });
@@ -256,9 +290,12 @@ export const toggleLike = async (ticketId: string) => {
 };
 
 export const shareEvent = async (ticketId: string, shareMethod: string) => {
-  const response = await transactionApi.post(`/interactions/${ticketId}/share`, {
-    shareMethod,
-  });
+  const response = await transactionApi.post(
+    `/interactions/${ticketId}/share`,
+    {
+      shareMethod,
+    },
+  );
   return response.data;
 };
 
@@ -272,12 +309,16 @@ export const toggleSave = async (ticketId: string) => {
   return response.data;
 };
 export const unlikeEvent = async (ticketId: string) => {
-  const response = await transactionApi.delete(`/interactions/${ticketId}/like`);
+  const response = await transactionApi.delete(
+    `/interactions/${ticketId}/like`,
+  );
   return response.data;
 };
 
 export const unsaveEvent = async (ticketId: string) => {
-  const response = await transactionApi.delete(`/interactions/${ticketId}/save`);
+  const response = await transactionApi.delete(
+    `/interactions/${ticketId}/save`,
+  );
   return response.data;
 };
 export const getEventStats = async (ticketId: string) => {
@@ -285,27 +326,48 @@ export const getEventStats = async (ticketId: string) => {
   return response.data;
 };
 
-export const submitFeedback = async (ticketId: string, rating: number, comment: string) => {
-  const response = await transactionApi.post(`/interactions/${ticketId}/feedback`, {
-    rating,
-    comment,
+export const submitFeedback = async (
+  ticketId: string,
+  rating: number,
+  comment: string,
+) => {
+  const response = await transactionApi.post(
+    `/interactions/${ticketId}/feedback`,
+    {
+      rating,
+      comment,
+    },
+  );
+  return response.data;
+};
+export const getUserLikedEvents = async (params?: {
+  limit?: number;
+  skip?: number;
+}) => {
+  const response = await transactionApi.get("/interactions/liked-events", {
+    params,
   });
   return response.data;
 };
-export const getUserLikedEvents = async (params?: { limit?: number; skip?: number }) => {
-  const response = await transactionApi.get('/interactions/liked-events', { params });
-  return response.data;
-};
-export const getUserSavedEvents = async (params?: { limit?: number; skip?: number }) => {
-  const response = await transactionApi.get('/interactions/saved-events', { params });
+export const getUserSavedEvents = async (params?: {
+  limit?: number;
+  skip?: number;
+}) => {
+  const response = await transactionApi.get("/interactions/saved-events", {
+    params,
+  });
   return response.data;
 };
 export const checkUserBooking = async (ticketId: string) => {
-  const response = await transactionApi.get(`/bookings/check-booking/${ticketId}`);
+  const response = await transactionApi.get(
+    `/bookings/check-booking/${ticketId}`,
+  );
   return response.data;
 };
 export const trackRefund = async (bookingId: string) => {
-  const response = await transactionApi.get(`/bookings/${bookingId}/refund/track`);
+  const response = await transactionApi.get(
+    `/bookings/${bookingId}/refund/track`,
+  );
   return response.data;
 };
 export const getUserCancelledBookings = async (): Promise<{
@@ -317,14 +379,32 @@ export const getUserCancelledBookings = async (): Promise<{
     completedRefunds: number;
   };
 }> => {
-  const response = await transactionApi.get('/bookings/my-cancelled-bookings');
+  const response = await transactionApi.get("/bookings/my-cancelled-bookings");
   return response.data;
 };
 export const getUserRehostedBookings = async (): Promise<{
   success: boolean;
   data: { events: any[]; count: number };
 }> => {
-  const response = await transactionApi.get('/bookings/my-rehosted-bookings');
+  const response = await transactionApi.get("/bookings/my-rehosted-bookings");
+  return response.data;
+};
+
+export const getUnreadCount = async (): Promise<{
+  success: boolean;
+  data: { confirmed: number; pending: number; cancelled: number };
+}> => {
+  const response = await transactionApi.get("/bookings/unread-count");
+  return response.data;
+};
+
+export const markAsRead = async (
+  params:
+    | string
+    | { bookingId?: string; bookingIds?: string[]; statuses?: string[] },
+) => {
+  const payload = typeof params === "string" ? { bookingId: params } : params;
+  const response = await transactionApi.post("/bookings/mark-read", payload);
   return response.data;
 };
 export default transactionApi;
