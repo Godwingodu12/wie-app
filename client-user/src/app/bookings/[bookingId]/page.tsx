@@ -28,7 +28,14 @@ import {
 import { format } from 'date-fns';
 import CalendarIcon from '@/assets/Event/CalenderIcon.svg';
 import LocationIcon from '@/assets/Event/LocationIcon.svg';
+import DigitalTicketModal from '@/components/bookings/DigitalTicketModal';
+import BookingDetailSkeleton from '@/components/skeletons/BookingDetailSkeleton';
 
+const LAYOUT = {
+  SIDEBAR_EXPANDED_WIDTH: '281px',
+  SIDEBAR_COLLAPSED_WIDTH: '92px',
+  BACKGROUND_DARK: '#0C1014',
+};
 export default function BookingDetailPage({ params }: { params: { bookingId: string } }) {
   const bookingId = params.bookingId;
   return (
@@ -101,11 +108,14 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
     return (
       <div
         className="min-h-screen flex flex-col transition-colors duration-300"
-        style={{ background: themeStyles.background, color: themeStyles.text }}
+        style={{ background: isDark ? LAYOUT.BACKGROUND_DARK : themeStyles.background, color: themeStyles.text }}
       >
         <SideBar />
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-12 h-12 text-[#8860D9] animate-spin" />
+        <div 
+          className="flex-1 transition-all duration-300 relative z-10"
+          style={{ marginLeft: isMobile ? "0" : (isCollapsed ? LAYOUT.SIDEBAR_COLLAPSED_WIDTH : LAYOUT.SIDEBAR_EXPANDED_WIDTH) }}
+        >
+          <BookingDetailSkeleton />
         </div>
       </div>
     );
@@ -137,7 +147,27 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
     );
   }
 
-  const isConfirmed = booking.bookingStatus === 'CONFIRMED';
+  const isEventCompleted = (booking: any): boolean => {
+    if (booking.bookingStatus !== 'CONFIRMED') return false;
+    const event = booking.eventDetails;
+    const endDateStr = event?.eventEndDate || event?.eventDate;
+    if (!endDateStr) return false;
+    try {
+      const eventEnd = new Date(endDateStr);
+      if (isNaN(eventEnd.getTime())) return false;
+      eventEnd.setHours(23, 59, 59, 999);
+      return eventEnd < new Date();
+    } catch {
+      return false;
+    }
+  };
+
+  const getDisplayStatus = (booking: any): string => {
+    if (isEventCompleted(booking)) return 'COMPLETED';
+    return booking.bookingStatus;
+  };
+
+  const isConfirmed = booking.bookingStatus === 'CONFIRMED' && !isEventCompleted(booking);
   const isCancelled = booking.bookingStatus === 'CANCELLED';
   const isAdminCancelled = booking.cancellationReason?.toLowerCase().includes('event cancelled') ||
                           booking.cancellationReason?.toLowerCase().includes('host');
@@ -145,9 +175,11 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
   const getStatusStyle = (status: string) => {
     switch (status) {
       case 'CONFIRMED': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+      case 'COMPLETED': return 'bg-sky-500/10 text-sky-500 border-sky-500/20';
       case 'CANCELLED': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+      case 'VERIFIED':  return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
       case 'PENDING': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-      default: return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
+      default: return 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
     }
   };
 
@@ -180,26 +212,33 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
             <div className="lg:col-span-2 space-y-8">
               {/* Event Main Section */}
               <Card className="p-0 overflow-hidden border-white/5">
-                <div className="p-5 sm:p-8">
-                  <div className="flex flex-wrap justify-between items-start gap-4 mb-6 sm:mb-8">
-                    <div className="w-full">
-                      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight">
-                            {booking.eventDetails.eventName}
-                          </h1>
-                          <div className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-widest border ${getStatusStyle(booking.bookingStatus)}`}>
-                            {booking.bookingStatus}
-                          </div>
+                <div className="p-4 sm:p-8">
+                  <div className="flex flex-col sm:flex-row gap-6 mb-8 items-center sm:items-start text-center sm:text-left">
+                    <div className="w-36 h-48 sm:w-40 sm:h-56 rounded-xl overflow-hidden shrink-0 border border-white/10 shadow-2xl bg-white/5 transition-transform hover:scale-[1.02] duration-300">
+                      <img
+                        src={booking.eventDetails.event_portrait || booking.eventDetails.event_banner || booking.eventDetails.image || '/placeholder.png'}
+                        alt={booking.eventDetails.eventName}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    <div className="flex-1 min-w-0 pt-2 w-full">
+                      <h1 className="text-2xl sm:text-4xl font-bold tracking-tight leading-tight mb-4" style={{ color: themeStyles.text }}>
+                        {booking.eventDetails.eventName}
+                      </h1>
+
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                        <div className={`px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-bold tracking-widest border ${getStatusStyle(getDisplayStatus(booking))}`}>
+                          {getDisplayStatus(booking)}
                         </div>
-                        <div className={`px-4 py-1.5 rounded-xl border ${isDark ? 'bg-white/5 border-white/5 text-gray-400' : 'bg-black/5 border-black/5 text-gray-500'} font-mono text-xs font-bold`}>
+                        <div className={`px-4 py-1.5 rounded-xl border ${isDark ? 'bg-white/5 border-white/5 text-gray-400' : 'bg-black/5 border-black/5 text-gray-500'} font-mono text-[10px] sm:text-xs font-bold`}>
                           #{bookingId.slice(-8).toUpperCase()}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4 sm:gap-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 lg:gap-x-12 gap-y-4 sm:gap-y-6">
                     <div className="space-y-4 sm:space-y-5">
                       {/* Date */}
                       <div className="flex items-center justify-between sm:justify-start gap-4">
@@ -316,7 +355,7 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
 
             <div className="space-y-8">
               {/* Ticket/QR Section */}
-              {isConfirmed && booking.qrCode && (
+              {((isConfirmed || isEventCompleted(booking))) && booking.qrCode && (
                 <Card className="p-0 overflow-hidden border-indigo-500/20">
                   <div className="p-8 pb-4 text-center">
                     <div className="relative group mx-auto max-w-[200px] mb-6">
@@ -456,7 +495,7 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
       )}
       {/* Save Ticket Modal */}
       {showSaveModal && (
-        <SaveTicketModal
+        <DigitalTicketModal
           show={showSaveModal}
           onClose={() => setShowSaveModal(false)}
           booking={booking}
@@ -465,139 +504,3 @@ function BookingDetailContent({ bookingId }: { bookingId: string }) {
     </div>
   );
 }
-
-// --- SaveTicketModal Component ---
-
-const SaveTicketModal = ({ show, onClose, booking }: { show: boolean, onClose: () => void, booking: any }) => {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const { themeStyles, isDark } = useTheme();
-
-  // Construct QR Data in human-readable format
-  const qrData = [
-    `Event: ${booking.eventDetails.eventName}`,
-    `Date & Time: ${booking.eventDetails.eventDate} at ${booking.eventDetails.eventTime}`,
-    `Quantity: ${booking.quantity} Tickets`,
-    `Location: ${booking.eventDetails.venue || booking.eventDetails.location || 'TBA'}`,
-    `Booked By: ${booking.userDetails?.userName || booking.userDetails?.username || booking.userDetails?.name || `${booking.userDetails?.firstName || ''} ${booking.userDetails?.lastName || ''}`.trim() || 'Guest'}`,
-  ].join('\n');
-
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`;
-
-  const handleDownload = async () => {
-    try {
-      setIsDownloading(true);
-      const response = await fetch(qrCodeUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Ticket_${booking.bookingId.slice(-6)}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Download failed:', error);
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-[95%] max-w-[400px] border border-white/10 rounded-[24px] sm:rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300"
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: isDark ? 'linear-gradient(160deg, #1a1c2e 0%, #161925 100%)' : '#ffffff',
-          color: isDark ? '#ffffff' : '#000000'
-        }}
-      >
-        {/* Header */}
-        <div className="pt-6 sm:pt-8 pb-3 sm:pb-4 text-center px-4">
-          <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-500/20 mb-2 sm:mb-3">
-            <Ticket className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
-          </div>
-          <h2 className="text-lg sm:text-xl font-bold tracking-tight">Your Digital Ticket</h2>
-        </div>
-
-        {/* Image Section */}
-        <div className="px-6 sm:px-8 pb-4 sm:pb-6">
-          <div className="bg-white p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-inner flex items-center justify-center aspect-square relative group overflow-hidden">
-            <img
-              src={booking.eventDetails.event_portrait || booking.eventDetails.event_banner || booking.eventDetails.image || qrCodeUrl}
-              alt={booking.eventDetails.eventName}
-              className="w-full h-full object-cover rounded-xl"
-            />
-          </div>
-        </div>
-
-        {/* Ticket Details */}
-        <div className="px-6 sm:px-8 pb-6 sm:pb-8 space-y-3 sm:space-y-4">
-          <div className="flex flex-col gap-0.5 sm:gap-1">
-            <span className="text-[9px] sm:text-[10px] font-bold opacity-50 uppercase tracking-widest">Event</span>
-            <span className="text-sm sm:text-base font-bold truncate">{booking.eventDetails.eventName}</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-0.5 sm:gap-1">
-              <span className="text-[9px] sm:text-[10px] font-bold opacity-50 uppercase tracking-widest">Date & Time</span>
-              <span className="text-xs sm:text-sm font-semibold">{booking.eventDetails.eventDate} | {booking.eventDetails.eventTime}</span>
-            </div>
-            <div className="flex flex-col gap-0.5 sm:gap-1 text-right">
-              <span className="text-[9px] sm:text-[10px] font-bold opacity-50 uppercase tracking-widest">Quantity</span>
-              <span className="text-xs sm:text-sm font-bold">{booking.quantity} * {booking.ticketType}</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-0.5 sm:gap-1">
-              <span className="text-[9px] sm:text-[10px] font-bold opacity-50 uppercase tracking-widest">Location</span>
-              <div className="flex items-start gap-1 sm:gap-1.5">
-                <MapPin className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-purple-400 shrink-0 mt-0.5" />
-                <span className="text-[11px] sm:text-xs font-medium italic leading-relaxed opacity-80 truncate max-w-[120px]">{booking.eventDetails.venue || booking.eventDetails.location || 'TBA'}</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-0.5 sm:gap-1 text-right">
-              <span className="text-[9px] sm:text-[10px] font-bold opacity-50 uppercase tracking-widest">Total Pricing</span>
-              <span className="text-xs sm:text-sm font-bold text-[#8860D9]">₹{booking.totalAmount.toLocaleString()}</span>
-            </div>
-          </div>
-
-          <div className="pt-3 sm:pt-4 flex gap-2 sm:gap-3">
-            <button
-              onClick={onClose}
-              className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl border border-white/10 font-bold text-xs sm:text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-all text-current"
-            >
-              Close
-            </button>
-            <button
-              onClick={handleDownload}
-              disabled={isDownloading}
-              style={{ background: 'linear-gradient(180deg, #B3B8E2 0%, #8860D9 50%, #9575CD 100%)' }}
-              className="flex-1 h-10 sm:h-12 rounded-xl sm:rounded-2xl text-white font-bold text-xs sm:text-sm shadow-lg shadow-purple-500/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 sm:gap-2"
-            >
-              {isDownloading ? (
-                <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
-              ) : (
-                <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              )}
-              {isDownloading ? 'Saving...' : 'Save Ticket'}
-            </button>
-          </div>
-        </div>
-
-        {/* Decorative elements */}
-        {isDark && (
-          <>
-            <div className="absolute top-0 left-0 w-24 h-24 bg-purple-500/10 blur-[60px] rounded-full -translate-x-1/2 -translate-y-1/2" />
-            <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/10 blur-[60px] rounded-full translate-x-1/2 translate-y-1/2" />
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
