@@ -37,7 +37,6 @@ model Booking {
   isVerified          Boolean              @default(false) @map("is_verified")
   verifiedAt          DateTime?            @map("verified_at") @db.Timestamp(6)
   verifiedBy          String?              @map("verified_by") @db.VarChar(50)
-  isRead              Boolean              @default(false) @map("is_read")
   cancellationReason  String?              @map("cancellation_reason")
   cancelledAt         DateTime?            @map("cancelled_at") @db.Timestamp(6)
   refundAmount        Decimal?             @map("refund_amount") @db.Decimal(10, 2)
@@ -57,8 +56,8 @@ model Booking {
   refundPolicyId      String               @default("DEFAULT") @map("refund_policy_id") @db.VarChar(30)
   financialState      String               @default("CREATED") @map("financial_state") @db.VarChar(30)
   refundReason        String?              @map("refund_reason")
-
   isAdminCancelled    Boolean              @default(false) @map("is_admin_cancelled")
+  isRead              Boolean              @default(false) @map("is_read")
   paymentTransactions PaymentTransaction[]
 
   @@index([userId], map: "idx_bookings_user_id")

@@ -644,43 +644,54 @@ export class BookingModel {
 
   static async updateReadStatus(
     userId: string,
-    params: { ids?: string | string[]; statuses?: BookingStatus[] },
+    options: {
+      ids?: string[];
+      statuses?: string[];
+    },
   ): Promise<{ count: number }> {
-    const whereClause: any = { userId, isRead: false };
+    const where: any = { userId };
 
-    if (params.ids) {
-      const idArray = Array.isArray(params.ids) ? params.ids : [params.ids];
-      whereClause.id = { in: idArray };
+    if (options.ids && options.ids.length > 0) {
+      where.id = { in: options.ids };
     }
-
-    if (params.statuses) {
-      whereClause.bookingStatus = { in: params.statuses };
+    if (options.statuses && options.statuses.length > 0) {
+      where.bookingStatus = { in: options.statuses };
     }
-
     const result = await prisma.booking.updateMany({
-      where: whereClause,
-      data: { isRead: true } as any,
+      where,
+      data: { isRead: true },
     });
+
     return { count: result.count };
   }
 
-  /**
-   * Count unread bookings for a user grouped by status.
-   */
   static async countUnread(
     userId: string,
   ): Promise<{ confirmed: number; pending: number; cancelled: number }> {
     const [confirmed, pending, cancelled] = await Promise.all([
       prisma.booking.count({
-        where: { userId, bookingStatus: "CONFIRMED", isRead: false } as any,
+        where: {
+          userId,
+          bookingStatus: "CONFIRMED",
+          isRead: false,
+        },
       }),
       prisma.booking.count({
-        where: { userId, bookingStatus: "PENDING", isRead: false } as any,
+        where: {
+          userId,
+          bookingStatus: "PENDING",
+          isRead: false,
+        },
       }),
       prisma.booking.count({
-        where: { userId, bookingStatus: "CANCELLED", isRead: false } as any,
+        where: {
+          userId,
+          bookingStatus: "CANCELLED",
+          isRead: false,
+        },
       }),
     ]);
+
     return { confirmed, pending, cancelled };
   }
 }
