@@ -70,64 +70,76 @@ export const validateIFSCCode = async (ifscCode) => {
     };
   }
 };
-// Helper function to extract text from image/PDF using OCR.space API
-const extractTextFromDocument = async (fileBuffer, mimeType) => {
+
+// ── Local OCR fallback using Tesseract.js (no external API needed) ───────────
+const extractTextLocally = async (fileBuffer) => {
   try {
-    // Dynamically import form-data (ES6 style)
-    const FormData = (await import('form-data')).default;
-    const form = new FormData();
-    
-    // Determine file extension
-    let fileExtension = 'jpg';
-    if (mimeType.includes('pdf')) {
-      fileExtension = 'pdf';
-    } else if (mimeType.includes('png')) {
-      fileExtension = 'png';
-    } else if (mimeType.includes('jpeg') || mimeType.includes('jpg')) {
-      fileExtension = 'jpg';
-    }
-    
-    // Append file buffer to form
-    form.append('file', fileBuffer, {
-      filename: `document.${fileExtension}`,
-      contentType: mimeType,
-    });
-    
-    // OCR.space free API configuration
-    form.append('apikey', 'helloworld'); // Replace with your own API key for production
-    form.append('language', 'eng');
-    form.append('isOverlayRequired', 'false');
-    form.append('detectOrientation', 'true');
-    form.append('scale', 'true');
-    form.append('OCREngine', '2'); // Engine 2 is better for Indian documents
+    const { createWorker } = await import('tesseract.js');
+    const worker = await createWorker('eng');
+    // Pass buffer directly — Tesseract.js accepts Buffer
+    const { data: { text } } = await worker.recognize(fileBuffer);
+    await worker.terminate();
+    console.log('Local OCR (Tesseract) extracted text length:', text.length);
+    return { success: true, text };
+  } catch (err) {
+    console.error('Local OCR (Tesseract) failed:', err.message);
+    return { success: false, error: 'Local OCR failed: ' + err.message };
+  }
+};
+
+// Helper function to extract text from image/PDF using OCR.space API
+// Falls back to local Tesseract.js if the remote API is unavailable
+const extractTextFromDocument = async (fileBuffer, mimeType) => {
+  // ── Attempt 1: OCR.space via base64
+  try {
+    const apiKey = process.env.OCR_SPACE_API_KEY || 'helloworld';
+
+    let base64Prefix = 'data:image/jpeg;base64,';
+    if (mimeType.includes('pdf'))        base64Prefix = 'data:application/pdf;base64,';
+    else if (mimeType.includes('png'))   base64Prefix = 'data:image/png;base64,';
+
+    const base64Image = base64Prefix + fileBuffer.toString('base64');
+
+    const params = new URLSearchParams();
+    params.append('apikey',            apiKey);
+    params.append('base64Image',       base64Image);
+    params.append('language',          'eng');
+    params.append('isOverlayRequired', 'false');
+    params.append('detectOrientation', 'true');
+    params.append('scale',             'true');
+    params.append('OCREngine',         '2');
 
     const response = await fetch('https://api.ocr.space/parse/image', {
-      method: 'POST',
-      body: form,
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    params.toString(),
+      // Timeout after 15 s so we don't hang the request
+      signal:  AbortSignal.timeout(15000),
     });
 
-    const data = await response.json();
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await response.json();
 
-    if (data.IsErroredOnProcessing) {
-      return {
-        success: false,
-        error: data.ErrorMessage?.[0] || 'OCR processing failed',
-      };
+      if (!data.IsErroredOnProcessing) {
+        const extractedText = data.ParsedResults?.[0]?.ParsedText || '';
+        if (extractedText.trim().length > 0) {
+          console.log('OCR.space extracted text length:', extractedText.length);
+          return { success: true, text: extractedText };
+        }
+        console.warn('OCR.space returned empty text — switching to local OCR.');
+      } else {
+        console.warn('OCR.space processing error:', data.ErrorMessage);
+      }
+    } else {
+      console.warn('OCR.space returned non-JSON (status', response.status, ') — switching to local OCR.');
     }
-
-    const extractedText = data.ParsedResults?.[0]?.ParsedText || '';
-    
-    return {
-      success: true,
-      text: extractedText,
-    };
-  } catch (error) {
-    console.error('Error extracting text from document:', error);
-    return {
-      success: false,
-      error: 'Failed to extract text from document',
-    };
+  } catch (remoteErr) {
+    console.warn('OCR.space request failed:', remoteErr.message, '— switching to local OCR.');
   }
+  // ── Attempt 2: Tesseract.js (fully local, no API key needed) 
+  console.log('Running local OCR (Tesseract.js)...');
+  return extractTextLocally(fileBuffer);
 };
 
 // Helper function to verify if document is an Aadhaar card
@@ -348,7 +360,7 @@ const validateAadhaarNumber = async (aadhaarNumber) => {
 // Main function to validate Aadhaar document
 export const validateAadhaarDocument = async (file) => {
   try {
-    // Step 1: Check file type
+    // ── Step 1: File type
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
     if (!allowedTypes.includes(file.mimetype)) {
       return {
@@ -357,71 +369,101 @@ export const validateAadhaarDocument = async (file) => {
       };
     }
 
-    // Step 2: Check file size (max 10MB)
+    // ── Step 2: File size (max 10 MB)
     if (file.size > 10 * 1024 * 1024) {
       return {
         isValid: false,
-        error: 'File too large. Maximum size is 10MB.',
+        error: 'File too large. Maximum size is 10 MB.',
       };
     }
 
-    // Step 3: Extract text from document using OCR
-    console.log('Extracting text from Aadhaar card...');
-    const ocrResult = await extractTextFromDocument(file.buffer, file.mimetype);
-    
-    if (!ocrResult.success) {
+    // ── Step 3: Buffer present
+    if (!file.buffer || file.buffer.length === 0) {
       return {
         isValid: false,
-        error: ocrResult.error || 'Failed to read document. Please upload a clear, high-quality image of your Aadhaar card.',
+        error: 'File appears to be empty. Please re-upload your Aadhaar card.',
+      };
+    }
+
+    console.log('Extracting text from Aadhaar card...');
+
+    // ── Step 4: OCR (remote + local fallback)
+    const ocrResult = await extractTextFromDocument(file.buffer, file.mimetype);
+
+    if (!ocrResult.success || !ocrResult.text?.trim()) {
+      // Both remote and local OCR failed — this is a genuine infrastructure problem
+      console.error('Both OCR methods failed:', ocrResult.error);
+      return {
+        isValid: false,
+        error:
+          'Could not read text from your document. Please upload a clear, ' +
+          'well-lit photo of your Aadhaar card (JPEG or PNG preferred, max 10 MB).',
       };
     }
 
     console.log('Extracted text length:', ocrResult.text.length);
+    // Uncomment the line below during debugging to see what OCR reads
+    // console.log('OCR raw text:', ocrResult.text);
 
-    // Step 4: Verify the document is actually an Aadhaar card
+    // ── Step 5: Confirm it is an Aadhaar card
     console.log('Verifying document is an Aadhaar card...');
     if (!isAadhaarCard(ocrResult.text)) {
       return {
         isValid: false,
-        error: 'The uploaded document does not appear to be an Aadhaar card. Please upload a valid Aadhaar card image with visible text including "Aadhaar", UIDAI logo, and your 12-digit Aadhaar number.',
+        error:
+          'The uploaded document does not appear to be an Aadhaar card. ' +
+          'Please upload a valid Aadhaar card that clearly shows the word ' +
+          '"Aadhaar" / "आधार" and your 12-digit Aadhaar number.',
       };
     }
 
-    // Step 5: Extract Aadhaar number from text
+    // ── Step 6: Extract 12-digit number
     console.log('Extracting Aadhaar number...');
     const aadhaarNumber = extractAadhaarNumber(ocrResult.text);
-    
+
     if (!aadhaarNumber) {
       return {
         isValid: false,
-        error: 'Could not find a valid Aadhaar number in the document. Please ensure your Aadhaar card image is clear, well-lit, and the 12-digit number is fully visible.',
+        error:
+          'Could not locate your 12-digit Aadhaar number in the image. ' +
+          'Please ensure the number is fully visible and not covered or cropped.',
       };
     }
 
-    console.log('Found Aadhaar number:', aadhaarNumber.substring(0, 4) + 'XXXX' + aadhaarNumber.substring(8));
+    console.log(
+      'Found Aadhaar number:',
+      aadhaarNumber.substring(0, 4) + ' XXXX ' + aadhaarNumber.substring(8)
+    );
 
-    // Step 6: Validate Aadhaar number using API
-    console.log('Validating Aadhaar number with UIDAI...');
+    // ── Step 7: Verhoeff checksum
+    console.log('Validating Aadhaar number checksum...');
     const validationResult = await validateAadhaarNumber(aadhaarNumber);
-    
+
     if (!validationResult.isValid) {
       return {
         isValid: false,
-        error: validationResult.error + ' Please ensure you have uploaded a valid, government-issued Aadhaar card.',
+        error:
+          'The Aadhaar number in the image did not pass checksum validation. ' +
+          'This can happen if the image is blurry or partially cropped. ' +
+          'Please upload a sharper, uncropped photo of your Aadhaar card. ' +
+          `(Detail: ${validationResult.error})`,
       };
     }
 
     console.log('Aadhaar card validated successfully!');
     return {
-      isValid: true,
-      aadhaarNumber: aadhaarNumber,
-      message: 'Aadhaar card verified successfully',
+      isValid:      true,
+      aadhaarNumber,
+      message:      'Aadhaar card verified successfully.',
     };
+
   } catch (error) {
-    console.error('Error validating Aadhaar document:', error);
+    console.error('Unexpected error in validateAadhaarDocument:', error);
     return {
       isValid: false,
-      error: 'Aadhaar verification failed due to a technical error. Please try again or contact support if the issue persists.',
+      error:
+        'Aadhaar verification encountered an unexpected error. ' +
+        'Please try again. If the issue persists, contact support.',
     };
   }
 };

@@ -100,6 +100,13 @@ const UpdateTicketDetails = () => {
   const [mainEventData, setMainEventData] = useState(null);
   const [simpleTicketPrice, setSimpleTicketPrice] = useState("");
   const [simpleTicketCapacity, setSimpleTicketCapacity] = useState("");
+  // GST state — driven by group's GSTIN presence
+  const [groupHasGSTIN, setGroupHasGSTIN]   = useState(false);
+  const [groupGSTIN, setGroupGSTIN]         = useState('');      // actual GSTIN string for display
+  const [gstEnabled, setGstEnabled]         = useState(false);   // organiser's choice (only relevant when no GSTIN)
+  const GST_PERCENTAGE = 18;
+  // Derived: GST is active when group has GSTIN (mandatory) OR organiser enabled it
+  const gstApplicable = groupHasGSTIN || gstEnabled;
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExtraEventsModalOpen, setIsExtraEventsModalOpen] = useState(false);
 
@@ -123,7 +130,6 @@ const UpdateTicketDetails = () => {
           groupResponse.group || groupResponse.data || groupResponse;
 
         setMainEventData(ticketData);
-
         if (
           ticketData &&
           ticketData.event_dates &&
@@ -139,17 +145,21 @@ const UpdateTicketDetails = () => {
               : ""
           );
         }
-        const firstDate = ticketData.event_dates[0];
-        setEventStartDate(
-          firstDate.start_date
-            ? new Date(firstDate.start_date).toISOString().split("T")[0]
-            : ""
-        );
-
         // Load saved draft from localStorage
         const savedDraftRaw = localStorage.getItem(storageKey);
         const savedDraft = savedDraftRaw ? JSON.parse(savedDraftRaw) : null;
-
+        // ── GST: resolve from group GSTIN + saved draft 
+        const gstin = groupData?.gst_no ? String(groupData.gst_no).trim() : '';
+        setGroupHasGSTIN(!!gstin);
+        setGroupGSTIN(gstin);
+        if (gstin) {
+          // Group is GST-registered → mandatory, draft cannot override
+          setGstEnabled(true);
+        } else {
+          setGstEnabled(
+            savedDraft?.gstEnabled ?? ticketData?.gst_applicable ?? false
+          );
+        }
         if (ticketData) {
           setPaymentType(
             savedDraft?.paymentType ?? ticketData.payment_type ?? "free"
@@ -350,6 +360,7 @@ const UpdateTicketDetails = () => {
             shouldUseGroupBank = true;
           }
         }
+
         // Override with savedDraft if available
         setUseGroupBankAccount(
           savedDraft?.useGroupBankAccount ?? shouldUseGroupBank
@@ -372,6 +383,7 @@ const UpdateTicketDetails = () => {
     };
     fetchData();
   }, [ticketId, storageKey]);
+
   useEffect(() => {
     if (generatedSeatingLayout?.ticketTypeAssignments && tickets.length > 0) {
       const loadedAssignments = {};
@@ -454,7 +466,6 @@ const UpdateTicketDetails = () => {
   }, [darkMode]);
   useEffect(() => {
     if (initialLoading) return;
-
     const draftData = {
       paymentType,
       useGroupBankAccount,
@@ -466,6 +477,7 @@ const UpdateTicketDetails = () => {
       bookingEndDate,
       simpleTicketPrice,
       simpleTicketCapacity,
+      gstEnabled,          
     };
 
     localStorage.setItem(storageKey, JSON.stringify(draftData));
@@ -483,8 +495,8 @@ const UpdateTicketDetails = () => {
     simpleTicketCapacity,
     initialLoading,
     storageKey,
+    gstEnabled,
   ]);
-
   const handleBookingEndDateChange = (e) => {
     const newEndDate = e.target.value;
     setBookingEndDate(newEndDate);
@@ -1070,6 +1082,7 @@ const UpdateTicketDetails = () => {
 
     const apiFormData = new FormData();
     apiFormData.append("payment_type", paymentType);
+    apiFormData.append("gst_applicable", String(gstApplicable));
     apiFormData.append("total_capacity", totalCapacity || "0");
     apiFormData.append("use_group_bank_account", useGroupBankAccount);
     apiFormData.append("booking_start_date", bookingStartDate);
@@ -1354,7 +1367,69 @@ const UpdateTicketDetails = () => {
                   </div>
                 </div>
               </section>
+              {/* GST Notice / Toggle */}
+              {paymentType === 'paid' && (
+                <div className={`rounded-lg border p-4 ${
+                  groupHasGSTIN
+                    ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+                    : 'bg-gray-50 dark:bg-[#2B2B2B] border-gray-200 dark:border-gray-700'
+                }`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <svg className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                        groupHasGSTIN ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'
+                      }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+                      </svg>
+                      <div>
+                        {groupHasGSTIN ? (
+                          <>
+                            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                              GST Registered Group — GSTIN: <span className="font-mono">{groupGSTIN}</span>
+                            </p>
+                            <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                              Your group is GST registered. All paid event tickets <strong>must include 18% GST</strong>.
+                              Enter the <strong>GST-inclusive price</strong> per ticket.
+                              The breakdown is shown on each ticket card below.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-semibold text-gray-800 dark:text-white">
+                              GST on Ticket Prices
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                              Your group is <strong>not GST registered</strong>. You may optionally include GST in your
+                              ticket prices. If enabled, enter the <strong>GST-inclusive price</strong> per ticket.
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
 
+                    {/* Toggle — only shown when group has no GSTIN */}
+                    {!groupHasGSTIN && (
+                      <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setGstEnabled(prev => !prev)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            gstEnabled ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
+                          }`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            gstEnabled ? 'translate-x-6' : 'translate-x-1'
+                          }`} />
+                        </button>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {gstEnabled ? 'GST ON' : 'GST OFF'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               {paymentType === "paid" && (
                 <section className="bg-[#f1f1f1] dark:bg-[#2B2B2B] p-8 rounded-lg space-y-6 animate-fade-in shadow-sm dark:shadow-none">
                   <div className="flex items-center space-x-4">
@@ -1740,52 +1815,61 @@ const UpdateTicketDetails = () => {
                         {/* Display Added Tickets */}
                         {tickets.length > 0 && (
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                            {tickets.map((ticket) => (
-                              <div
-                                key={ticket.id}
-                                className="bg-gray-100 dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none"
-                              >
-                                <div className="flex items-center space-x-3">
-                                  <img
-                                    src={ticket.image}
-                                    alt={ticket.name}
-                                    className="w-16 h-16 rounded-md object-cover"
-                                  />
-                                  <div>
-                                    <p className="font-semibold text-gray-900 dark:text-white">{`${
-                                      ticket.name
-                                    } - ₹${Number(
-                                      ticket.price
-                                    ).toLocaleString()}`}</p>
-                                    <p className="text-xs text-black dark:text-gray-400">
-                                      Capacity: {ticket.capacity}
-                                    </p>
+                            {tickets.map((ticket) => {
+                              const inclPrice = Number(ticket.price || ticket.ticket_price || 0);
+                              const divisor   = 1 + GST_PERCENTAGE / 100;
+                              const basePrice = gstApplicable ? Math.round((inclPrice / divisor) * 100) / 100 : inclPrice;
+                              const gstAmt    = gstApplicable ? Math.round((inclPrice - basePrice) * 100) / 100 : 0;
+
+                              return (
+                                <div key={ticket.id} className="bg-gray-100 dark:bg-[#2B2B2B] rounded-lg overflow-hidden shadow-sm dark:shadow-none">
+                                  {/* Header row */}
+                                  <div className="p-3 flex items-center justify-between">
+                                    <div className="flex items-center space-x-3">
+                                      <img src={ticket.image} alt={ticket.name} className="w-14 h-14 rounded-md object-cover" />
+                                      <div>
+                                        <p className="font-semibold text-gray-900 dark:text-white">{ticket.name}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Capacity: {ticket.capacity}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <button type="button" onClick={() => { setEditingTicket(ticket); setIsTicketModalOpen(true); }}
+                                        className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition">✏️</button>
+                                      <button type="button" onClick={() => handleDeleteTicket(ticket.id)}
+                                        className="text-gray-400 hover:text-red-500 transition">&times;</button>
+                                    </div>
+                                  </div>
+
+                                  {/* Price breakdown */}
+                                  <div className="px-3 pb-3">
+                                    {gstApplicable ? (
+                                      <div className="bg-white dark:bg-[#1c1c1f] rounded-lg p-2 text-xs space-y-1 border border-gray-200 dark:border-gray-700">
+                                        <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                                          <span>Base (excl. GST)</span>
+                                          <span>₹{basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                                          <span>GST ({GST_PERCENTAGE}%) — organiser remits</span>
+                                          <span>₹{gstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <div className="flex justify-between font-semibold text-indigo-700 dark:text-indigo-400 border-t border-gray-200 dark:border-gray-600 pt-1 mt-1">
+                                          <span>Ticket price (buyer pays)</span>
+                                          <span>₹{inclPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="bg-white dark:bg-[#1c1c1f] rounded-lg p-2 text-xs border border-gray-200 dark:border-gray-700">
+                                        <div className="flex justify-between font-semibold text-indigo-700 dark:text-indigo-400">
+                                          <span>Ticket price</span>
+                                          <span>₹{inclPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <p className="text-gray-400 dark:text-gray-500 mt-1">No GST</p>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
-                                {/* Edit/Delete Buttons */}
-                                <div className="flex items-center space-x-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingTicket(ticket);
-                                      setIsTicketModalOpen(true);
-                                    }}
-                                    className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
-                                  >
-                                    ✏️
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      handleDeleteTicket(ticket.id);
-                                    }}
-                                    className="text-gray-400 hover:text-red-500 transition"
-                                  >
-                                    &times;
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
 
@@ -2336,40 +2420,44 @@ const UpdateTicketDetails = () => {
                       )}
                     </div>
                   </div>
-                  
-                  {simpleTicketPrice && simpleTicketCapacity && (
-                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
-                      <div className="flex items-start gap-2">
-                        <svg
-                          className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        <div>
-                          <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
-                            Ticket Summary
-                          </p>
-                          <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                            Price per ticket: ₹{Number(simpleTicketPrice).toLocaleString()}
-                          </p>
-                          <p className="text-xs text-blue-700 dark:text-blue-300">
-                            Total tickets: {Number(simpleTicketCapacity).toLocaleString()}
-                          </p>
-                          <p className="text-xs text-blue-700 dark:text-blue-300 font-semibold mt-1">
-                            Maximum Revenue: ₹{(Number(simpleTicketPrice) * Number(simpleTicketCapacity)).toLocaleString()}
-                          </p>
+                  {simpleTicketPrice && simpleTicketCapacity && (() => {
+                    const inclPrice = Number(simpleTicketPrice);
+                    const divisor   = 1 + GST_PERCENTAGE / 100;
+                    const basePrice = gstApplicable ? Math.round((inclPrice / divisor) * 100) / 100 : inclPrice;
+                    const gstAmt    = gstApplicable ? Math.round((inclPrice - basePrice) * 100) / 100 : 0;
+                    const maxRev    = Math.round(inclPrice * Number(simpleTicketCapacity) * 100) / 100;
+
+                    return (
+                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
+                        <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-3">Ticket Summary</p>
+                        <div className="bg-white dark:bg-[#1c1c1f] rounded-lg p-2 text-xs space-y-1 border border-blue-200 dark:border-blue-700 mb-3">
+                          {gstApplicable ? (
+                            <>
+                              <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                                <span>Base (excl. GST)</span>
+                                <span>₹{basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                              <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                                <span>GST ({GST_PERCENTAGE}%) — organiser remits</span>
+                                <span>₹{gstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            </>
+                          ) : null}
+                          <div className={`flex justify-between font-semibold text-indigo-700 dark:text-indigo-400 ${gstApplicable ? 'border-t border-gray-200 dark:border-gray-600 pt-1 mt-1' : ''}`}>
+                            <span>Ticket price (buyer pays)</span>
+                            <span>₹{inclPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                          </div>
                         </div>
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                          Total tickets: {Number(simpleTicketCapacity).toLocaleString()}
+                        </p>
+                        <p className="text-xs text-blue-700 dark:text-blue-300 font-semibold mt-1">
+                          Max revenue (ticket price × qty): ₹{maxRev.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          {gstApplicable && <span className="font-normal text-amber-600 dark:text-amber-400 ml-1">(incl. GST you remit)</span>}
+                        </p>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </section>
               )}
               <section className="space-y-6">

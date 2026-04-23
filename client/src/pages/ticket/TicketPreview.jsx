@@ -197,6 +197,11 @@ import Calender_Preview from "../../assets/Event/Calender_Preview.svg";
 import Location_Preview from "../../assets/Event/Location_Preview.svg";
 import Event_Preview from "../../assets/Event/Event_Preview.svg";
 
+const sanitizeName = (name) => {
+  if (!name) return "";
+  return name.replace(/[!#$%^*]/g, "");
+};
+
 const TicketPreview = () => {
   const { ticketId } = useParams();
   const API_BASE_URL = import.meta.env.VITE_TICKET_API_BASE_URL;
@@ -454,8 +459,10 @@ const TicketPreview = () => {
 
   const handleShare = useCallback(async () => {
     const shareData = {
-      title: eventData?.event_name || "Check out this event!",
-      text: `I found this amazing event, check it out: ${eventData?.event_name}`,
+      title: sanitizeName(eventData?.event_name) || "Check out this event!",
+      text: `I found this amazing event, check it out: ${sanitizeName(
+        eventData?.event_name
+      )}`,
       url: window.location.href,
     };
 
@@ -818,7 +825,7 @@ const TicketPreview = () => {
     (eventData.sub_events && eventData.sub_events.length > 0) ||
     mainEventActualDates.length > 1;
 
-  const bannerImageUrl = getImageUrl(event.event_banner, "ticket");
+  const bannerImageUrl = getImageUrl(eventData.event_banner, "ticket");
   console.log(bannerImageUrl);
 
   return (
@@ -877,7 +884,7 @@ const TicketPreview = () => {
                   )}
                 </div>
                 <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">
-                  {eventData.event_name || "Event Name"}
+                  {sanitizeName(eventData.event_name) || "Event Name"}
                 </h1>
                 <div className="space-y-2 text-gray-200 text-sm">
                   <p className="flex items-center text-blue-300 font-medium gap-1 md:gap-2 ">
@@ -1114,7 +1121,7 @@ const TicketPreview = () => {
                     >
                       <img
                         src={getImageUrl(event.event_banner, "ticket")}
-                        alt={event.event_name}
+                        alt={sanitizeName(event.event_name)}
                         className="w-full h-40 object-cover"
                       />
                       <div className="p-4">
@@ -1123,7 +1130,7 @@ const TicketPreview = () => {
                             isDarkMode ? "text-white" : "text-gray-900"
                           } mb-1 truncate`}
                         >
-                          {event.event_name}
+                          {sanitizeName(event.event_name)}
                         </h3>
                         <p className={`text-sm ${subTextClass} mb-3`}>
                           {event.event_dates?.[0]?.start_date
@@ -1257,7 +1264,7 @@ const TicketPreview = () => {
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
               <div className="relative z-10 space-y-2">
                 <h2 className="text-3xl font-extrabold">
-                  {selectedSubEvent.event_name}
+                  {sanitizeName(selectedSubEvent.event_name)}
                 </h2>
               </div>
             </div>

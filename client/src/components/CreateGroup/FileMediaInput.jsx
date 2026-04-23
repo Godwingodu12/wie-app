@@ -70,25 +70,21 @@ const FileMediaInput = ({
       // 1:1       → logo/square
       let outputWidth, outputHeight;
 
-      if (Math.abs(aspectRatio - 16 / 9) < 0.1) {
+      if (Math.abs(aspectRatio - 1920 / 720) < 0.1) {
         // Banner: 1920×720
-        outputWidth  = 1920;
+        outputWidth = 1920;
         outputHeight = 720;
-      } else if (Math.abs(aspectRatio - 4 / 5) < 0.1) {
+      } else if (Math.abs(aspectRatio - 1080 / 1350) < 0.1) {
         // Portrait: 1080×1350
-        outputWidth  = 1080;
-        outputHeight = 1350;
-      } else if (Math.abs(aspectRatio - 3 / 4) < 0.1) {
-        // Legacy 3:4 fallback
-        outputWidth  = 1080;
+        outputWidth = 1080;
         outputHeight = 1350;
       } else {
         // Default square (logo): 800×800
-        outputWidth  = 800;
+        outputWidth = 800;
         outputHeight = 800;
       }
 
-      canvas.width  = outputWidth;
+      canvas.width = outputWidth;
       canvas.height = outputHeight;
 
       ctx.drawImage(
@@ -220,7 +216,6 @@ const FileMediaInput = ({
         }`}
       >
         {/* ... (Existing Content Logic - Left & Middle) ... */}
-        {console.log(resolution)}
         {!preview ? (
           <div className="flex gap-12">
           <div className="flex flex-col text-left">

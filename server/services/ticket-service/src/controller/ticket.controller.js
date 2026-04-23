@@ -7,6 +7,7 @@ import { logger } from '../utils/logger.js';
 import { uploadTicketMedia, uploadFields } from '../middlewares/upload.js';
 import { promoteFirstSubEventToMain, getCancellationDescription, snapshotAndLockTicket,snapshotAndLockSubEvent, rehostMainEventV2 } from '../services/ticket.service.js';
 import TicketAudit from '../models/ticketAudit.model.js';
+import { resolveGSTApplicability, extractGSTFromInclusive } from '../services/ticket.service.js';
 import { validateIFSCCode,validateAadhaarDocument } from "../utils/datavalidationHelper.js";
 import { publishEventCancellation, publishToExchange } from "../utils/eventPublisher.js";
 import { getBookingStatsByDate, getBookingGrowthStats, getMonthlyBookingChart, getBookingsForEvent, cancelEventBookings, 
@@ -27,6 +28,8 @@ import {
   downloadFileFromCloudinary
 } from "../utils/cloudinaryHelper.js";
 import mongoose from 'mongoose';
+const GST_PERCENTAGE = parseFloat(process.env.TAX_PERCENTAGE || '18');
+
 export const getGroupsTypes = async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
@@ -166,10 +169,29 @@ export const updateSubEvent = async (req, res) => {
     if (subEventIndex === -1) {
       return res.status(404).json({ message: 'Sub-event not found' });
     }
-
     const existingSubEvent = ticket.sub_events[subEventIndex];
-        // Process file uploads
-    const uploadedFiles = await processFileUploads(req.files || {});    const guestProfileFiles = {};
+    //Resolve GST from the group
+    const GroupForGST = await Group.findById(ticket.groupId).lean();
+    if (!GroupForGST) {
+      return res.status(404).json({ message: "Associated group not found" });
+    }
+    const groupHasGSTIN = !!(
+      GroupForGST.gst_no && String(GroupForGST.gst_no).trim() !== ""
+    );
+    const paymentTypeForGST = updateData?.payment_type || existingSubEvent.payment_type || "free";
+    const frontendGSTChoice =
+      updateData?.gst_applicable !== undefined
+        ? updateData.gst_applicable
+        : existingSubEvent.gst_applicable;
+    const { applicable: gstApplicable } = resolveGSTApplicability(
+      GroupForGST,
+      paymentTypeForGST,
+      frontendGSTChoice
+    );
+    const appliedGSTPct = gstApplicable ? GST_PERCENTAGE : 0;
+    // Process file uploads
+    const uploadedFiles = await processFileUploads(req.files || {});  
+    const guestProfileFiles = {};
     processedFiles = uploadedFiles;
     
     // Process guest profiles and ticket photos
@@ -584,28 +606,43 @@ if (uploadedFiles.event_images) {
     } else if (existingSubEvent.guests) {
       processedGuests = existingSubEvent.guests;
     }
-
-    // Process ticket types with photos
+    // Process ticket types with photos + GST fields
     let processedTicketTypes = [];
     if (ticketTypes && ticketTypes.length > 0) {
       processedTicketTypes = ticketTypes.map((ticket, index) => {
+        const parsedPrice = Number(ticket.ticket_price) || 0;
+        const { basePrice, gstAmount } = extractGSTFromInclusive(parsedPrice, appliedGSTPct);
         const ticketData = {
-          ticket_type: ticket.ticket_type || '',
-          ticket_price: Number(ticket.ticket_price) || 0,
-          max_capacity: Number(ticket.max_capacity) || 0,
-          ticket_photo: ticket.ticket_photo || existingSubEvent.ticket_types?.[index]?.ticket_photo || '',
-          ticket_photo_public_id: ticket.ticket_photo_public_id || existingSubEvent.ticket_types?.[index]?.ticket_photo_public_id || ''
+          ticket_type:            ticket.ticket_type || "",
+          ticket_price:           parsedPrice,
+          ticket_base_price:      gstApplicable ? basePrice : parsedPrice,
+          ticket_gst_percentage:  appliedGSTPct,
+          ticket_gst_amount:      gstApplicable ? gstAmount : 0,
+          ticket_gst_applicable:  gstApplicable,
+          max_capacity:           Number(ticket.max_capacity) || 0,
+          ticket_photo:           ticket.ticket_photo || existingSubEvent.ticket_types?.[index]?.ticket_photo || "",
+          ticket_photo_public_id: ticket.ticket_photo_public_id || existingSubEvent.ticket_types?.[index]?.ticket_photo_public_id || "",
         };
-        
         if (ticketPhotoFiles[index]) {
-          ticketData.ticket_photo = ticketPhotoFiles[index].path;
+          ticketData.ticket_photo           = ticketPhotoFiles[index].path;
           ticketData.ticket_photo_public_id = ticketPhotoFiles[index].public_id;
         }
-        
         return ticketData;
       });
-    } else if (existingSubEvent.ticket_types) {
-      processedTicketTypes = existingSubEvent.ticket_types;
+    } else if (existingSubEvent.ticket_types && existingSubEvent.ticket_types.length > 0) {
+      // No new tickets submitted — recalculate GST on existing ones
+      processedTicketTypes = existingSubEvent.ticket_types.map((t) => {
+        const inclPrice = Number(t.ticket_price || 0);
+        const { basePrice, gstAmount } = extractGSTFromInclusive(inclPrice, appliedGSTPct);
+        return {
+          ...(t.toObject ? t.toObject() : t),
+          ticket_price:           inclPrice,
+          ticket_base_price:      gstApplicable ? basePrice : inclPrice,
+          ticket_gst_percentage:  appliedGSTPct,
+          ticket_gst_amount:      gstApplicable ? gstAmount : 0,
+          ticket_gst_applicable:  gstApplicable,
+        };
+      });
     }
 
     // Build updated sub-event object
@@ -624,7 +661,9 @@ if (uploadedFiles.event_images) {
       max_age_allowed: updateData.max_age_allowed !== undefined ? Number(updateData.max_age_allowed) : existingSubEvent.max_age_allowed,
       event_description: updateData.event_description || existingSubEvent.event_description,
       payment_type: updateData.payment_type || existingSubEvent.payment_type,
-      
+      gst_applicable:       gstApplicable,
+      gst_percentage:       appliedGSTPct,
+      gst_registered_group: groupHasGSTIN,
       // Boolean fields
       kids_friendly: updateData.kids_friendly !== undefined ? Boolean(updateData.kids_friendly === 'true' || updateData.kids_friendly === true) : existingSubEvent.kids_friendly,
       pet_friendly: updateData.pet_friendly !== undefined ? Boolean(updateData.pet_friendly === 'true' || updateData.pet_friendly === true) : existingSubEvent.pet_friendly,
@@ -756,8 +795,7 @@ event_videos: [
       
       updatedSubEvent.gate_open_time = updateData.gate_open_time || existingSubEvent.gate_open_time;
       updatedSubEvent.prohibited_items = updateData.prohibited_items ? parseJSONSafely(updateData.prohibited_items, []) : existingSubEvent.prohibited_items || [];
-      updatedSubEvent.ticket_types = processedTicketTypes && processedTicketTypes.length > 0 ? processedTicketTypes : existingSubEvent.ticket_types || [];
-      
+      updatedSubEvent.ticket_types = processedTicketTypes.length > 0 ? processedTicketTypes : [];
       // ✅ Handle ticket_layout
       updatedSubEvent.ticket_layout = processedFiles.ticket_layout || existingSubEvent.ticket_layout;
       if (processedFiles.ticket_layout_public_id) {
@@ -786,9 +824,9 @@ event_videos: [
         ? parseJSONSafely(updateData.prohibited_items, []) 
         : (existingSubEvent.prohibited_items || []);
       
-      updatedSubEvent.ticket_types = processedTicketTypes && processedTicketTypes.length > 0 
-        ? processedTicketTypes 
-        : (existingSubEvent.ticket_types || []);
+      updatedSubEvent.ticket_types = processedTicketTypes.length > 0
+        ? processedTicketTypes
+        : [];
       
       // Clear offline-specific fields
       updatedSubEvent.seating_arrangement = undefined;

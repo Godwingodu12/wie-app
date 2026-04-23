@@ -41,19 +41,20 @@ import darkThemeStyles from "../../components/CreateGroup/darkThemeStyles.jsx";
 import lightThemeStyles from "../../components/CreateGroup/lightThemeStyles.jsx";
 import FileMediaInput from "../../components/CreateGroup/FileMediaInput.jsx";
 import SortablePhoto from "../../components/CreateGroup/SortablePhoto.jsx";
-import { 
-  DndContext, 
-  closestCenter, 
-  MouseSensor, 
-  TouchSensor, 
-  useSensor, 
-  useSensors 
+import { sanitizeEditorHtml } from "../../utils/editorUtils";
+import {
+  DndContext,
+  closestCenter,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors
 } from "@dnd-kit/core";
-import { 
-  arrayMove, 
-  SortableContext, 
-  rectSortingStrategy, 
-  verticalListSortingStrategy 
+import {
+  arrayMove,
+  SortableContext,
+  rectSortingStrategy,
+  verticalListSortingStrategy
 } from "@dnd-kit/sortable";
 const UpdateTicketAddOns = () => {
   const { ticketId } = useParams();
@@ -81,7 +82,11 @@ const UpdateTicketAddOns = () => {
   const [isProhibitedModalOpen, setIsProhibitedModalOpen] = useState(false);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState(null);
-
+  const [groupHasGSTIN, setGroupHasGSTIN] = useState(false);
+  const [groupGSTIN, setGroupGSTIN]       = useState('');
+  const [gstEnabled, setGstEnabled]       = useState(false);
+  const GST_PERCENTAGE = 18;
+  const gstApplicable = groupHasGSTIN || gstEnabled;
   const [mainEventData, setMainEventData] = useState(null);
   const [videoFiles, setVideoFiles] = useState({});
   const [previewImageFiles, setPreviewImageFiles] = useState({});
@@ -204,7 +209,7 @@ const UpdateTicketAddOns = () => {
     ticket_layout: null,
     event_banner: null,
     event_portrait: null,
-    event_images: [], 
+    event_images: [],
   event_videos: [],
   });
   const categoryOptions = Object.keys(eventCategories).map((category) => ({
@@ -212,7 +217,7 @@ const UpdateTicketAddOns = () => {
     label: category,
   }));
 
-  
+
   const subCategoryOptions = formData.event_category
     ? eventCategories[formData.event_category].map((sub) => ({
         value: sub,
@@ -390,7 +395,11 @@ const UpdateTicketAddOns = () => {
         }
 
         setGroupBankDetails(cleanBankInfo);
-
+        // GST: check group GSTIN
+        const gstin = groupData?.gst_no ? String(groupData.gst_no).trim() : '';
+        setGroupHasGSTIN(!!gstin);
+        setGroupGSTIN(gstin);
+        setGstEnabled(!!gstin); // mandatory if GSTIN present
         // Check if all required fields are present and not empty
         const hasAllFields =
           cleanBankInfo.bank_acc_holder &&
@@ -449,9 +458,7 @@ const UpdateTicketAddOns = () => {
     }
     styleSheet.innerText = darkMode ? darkThemeStyles : lightThemeStyles;
   }, [darkMode]);
-  useEffect(() => {
-    fetchData();
-  }, [ticketId]);
+
   const resetForm = () => {
     setFormData(initialFormState);
     setPreviews({ ticket_layout: null, event_banner: null, event_logo: null });
@@ -468,11 +475,13 @@ const UpdateTicketAddOns = () => {
     if (descriptionEditorRef.current)
       descriptionEditorRef.current.innerHTML = "";
   };
+
   useEffect(() => {
     if (ticketId) {
       fetchData();
     }
   }, [ticketId]);
+
   const renderBankingSection = () => {
     if (pageLoading) {
       return (
@@ -1095,7 +1104,7 @@ const handleMultipleFileChange = async (e, targetField) => {
       if (hasInvalidFormat) {
         addError(
           "hashtag",
-          "Hashtags must start with '#' and contain only letters, numbers, and underscores (e.g., #MyEvent_2025)."
+          "Hashtags must start with '#' and contain only letters, numbers, and underscores (e.g., #MyEvent_2025). Internal '#' characters are not allowed."
         );
       }
     }
@@ -1142,19 +1151,6 @@ const handleMultipleFileChange = async (e, targetField) => {
           "total_capacity",
           "Maximum capacity is required for offline events."
         );
-        if (
-          formData.location_type === "offline" &&
-          hasSeatingLayout &&
-          generatedSeatingLayout &&
-          formData.payment_type === "paid" &&
-          formData.ticket_types.length > 0 &&
-          Object.keys(seatAssignments).length === 0
-        ) {
-          addError(
-            "seatAssignments",
-            "Seat assignment is required. Please assign seats to ticket types before saving."
-          );
-        }
     } else {
       if (!formData.total_capacity || isNaN(parseInt(formData.total_capacity)))
         addError(
@@ -1372,17 +1368,25 @@ const handleMultipleFileChange = async (e, targetField) => {
         }
         return [];
       }
-
       if (Array.isArray(formData.ticket_types)) {
-        const processed = formData.ticket_types.map((t, index) => {
+        const processed = formData.ticket_types.map((t) => {
+          const resolvedPrice = Number(t.ticket_price ?? t.price ?? 0);
+
           const ticket = {
-            ticket_type: t.name || t.ticket_type || "Standard Ticket",
-            ticket_price: Number(t.price || t.ticket_price || 0),
-            max_capacity: Number(t.capacity || t.max_capacity || 0),
-            ticket_photo: t.existingPhotoPath || t.ticket_photo || "",
+            ticket_type:  t.ticket_type  || t.name          || "Standard Ticket",
+            ticket_price: resolvedPrice,                       // GST-inclusive price organiser entered
+            max_capacity: Number(t.max_capacity ?? t.capacity ?? 0),
+            ticket_photo: t.ticket_photo || t.existingPhotoPath || t.image || "",
           };
+
+          // Preserve DB _id when editing so the backend can match the record
+          if (t._id || t.id) {
+            ticket._id = t._id || t.id;
+          }
+
           return ticket;
         });
+
         if (isSimplePaid && processed.length > 0) {
           processed[0].max_capacity = Number(formData.total_capacity) || 0;
         }
@@ -1430,6 +1434,7 @@ const handleMultipleFileChange = async (e, targetField) => {
       prohibited_items: ensureProhibitedItemsArray(),
       ticket_types: ensureTicketTypesArray(),
       payment_type: formData.payment_type,
+      gst_applicable: formData.payment_type === 'paid' ? gstApplicable : false,
       POCS: formData.POCS,
       guests: formData.guests.map((g) => ({
         guest_name: g.name,
@@ -1457,91 +1462,118 @@ const handleMultipleFileChange = async (e, targetField) => {
       ) {
         const ticketTypeMap = {};
         formData.ticket_types.forEach((ticket) => {
-          const id = String(ticket.id);
-          ticketTypeMap[id] = {
-            name: ticket.name || ticket.ticket_type || "",
-            price: Number(ticket.price || ticket.ticket_price || 0),
-            color: getTicketTypeColor(ticket.id),
-          };
-        });
-
-        // Process seats with complete data - PRESERVE ALL ASSIGNMENTS
-        const processedSeats = generatedSeatingLayout.seats.map((seat) => {
-          const seatId = String(seat.seatId);
-          // Get current assignment data from seat itself (already has complete data)
-          const ticketTypeId = seat.ticketTypeId
-            ? String(seat.ticketTypeId)
-            : null;
-          const ticketTypeName = seat.ticketTypeName || null;
-          const ticketTypeColor = seat.ticketTypeColor || null;
-          const price = seat.price !== undefined ? Number(seat.price) : 0;
-          return {
-            seatId: seatId,
-            row: String(seat.row),
-            column: Number(seat.column),
-            isAvailable: true,
-            isSelected: false,
-            ticketTypeId: ticketTypeId,
-            ticketTypeName: ticketTypeName,
-            ticketTypeColor: ticketTypeColor,
-            price: price,
-          };
-        });
-        // Log validation
-        const assignedSeatsCount = processedSeats.filter(
-          (s) => s.ticketTypeId
-        ).length;
-        const seatsWithPrice = processedSeats.filter((s) => s.price > 0).length;
-        if (assignedSeatsCount !== seatsWithPrice) {
-          console.error("❌ MISMATCH: Some assigned seats missing prices!", {
-            assigned: assignedSeatsCount,
-            withPrice: seatsWithPrice,
-          });
-        }
-        // Process assignments with complete data
-        const processedAssignments = Object.entries(seatAssignments)
-          .filter(
-            ([_, seatIds]) => Array.isArray(seatIds) && seatIds.length > 0
-          )
-          .map(([typeId, seatIds]) => {
-            const normalizedTypeId = String(typeId);
-            const ticketDetails = ticketTypeMap[normalizedTypeId];
-
-            if (!ticketDetails) {
-              console.warn(
-                `⚠️ Missing ticket details for type ${normalizedTypeId}`
-              );
-              return null;
-            }
-
-            return {
-              ticketTypeId: normalizedTypeId,
-              ticketTypeName: ticketDetails.name,
-              color: ticketDetails.color,
-              assignedSeats: seatIds.map((id) => String(id)),
-              capacity: seatIds.length,
-              price: ticketDetails.price,
+          const id = String(ticket.id || ticket._id || "");
+          if (id) {
+            ticketTypeMap[id] = {
+              name: ticket.name || ticket.ticket_type || "",
+              price: Number(ticket.price || ticket.ticket_price || 0),
+              color: getTicketTypeColor(ticket.id || ticket._id),
             };
-          })
-          .filter(Boolean); // Remove null entries
+          }
+        });
+
+        // Process seats — preserve ALL assignment data already stored on each seat.
+        // Seats already carry ticketTypeId/Name/Color/price from DB or from the
+        // seat-assignment modal, so we trust that data directly instead of only
+        // looking in seatAssignments (which may be empty for pre-existing layouts).
+        const processedSeats = generatedSeatingLayout.seats.map((seat) => ({
+          seatId:          String(seat.seatId),
+          row:             String(seat.row),
+          column:          Number(seat.column),
+          isAvailable:     seat.isAvailable !== false,
+          isSelected:      false,
+          ticketTypeId:    seat.ticketTypeId    ? String(seat.ticketTypeId)    : null,
+          ticketTypeName:  seat.ticketTypeName  ? String(seat.ticketTypeName)  : null,
+          ticketTypeColor: seat.ticketTypeColor ? String(seat.ticketTypeColor) : null,
+          price:           seat.price !== undefined ? Number(seat.price) : 0,
+        }));
+
+        // Build ticketTypeAssignments.
+        // Priority 1: from seatAssignments state (set by SeatAssignmentModal).
+        // Priority 2: rebuild from seat data already on the layout (edit mode).
+        let processedAssignments = [];
+
+        const hasSeatAssignments =
+          Object.values(seatAssignments).some(
+            (ids) => Array.isArray(ids) && ids.length > 0
+          );
+
+        if (hasSeatAssignments) {
+          // Fresh assignments from the modal
+          processedAssignments = Object.entries(seatAssignments)
+            .filter(([_, seatIds]) => Array.isArray(seatIds) && seatIds.length > 0)
+            .map(([typeId, seatIds]) => {
+              const normalizedTypeId = String(typeId);
+              const ticketDetails = ticketTypeMap[normalizedTypeId];
+              if (!ticketDetails) {
+                console.warn(`⚠️ Missing ticket details for type ${normalizedTypeId}`);
+                return null;
+              }
+              return {
+                ticketTypeId:  normalizedTypeId,
+                ticketTypeName: ticketDetails.name,
+                color:         ticketDetails.color,
+                assignedSeats: seatIds.map((id) => String(id)),
+                capacity:      seatIds.length,
+                price:         ticketDetails.price,
+              };
+            })
+            .filter(Boolean);
+        } else {
+          // Rebuild from existing seat data (loaded from DB in edit mode)
+          const assignmentMap = {};
+          processedSeats.forEach((seat) => {
+            if (!seat.ticketTypeId) return;
+            const key = seat.ticketTypeId;
+            if (!assignmentMap[key]) {
+              assignmentMap[key] = {
+                ticketTypeId:   key,
+                ticketTypeName: seat.ticketTypeName  || "",
+                color:          seat.ticketTypeColor || "",
+                assignedSeats:  [],
+                price:          seat.price || 0,
+              };
+            }
+            assignmentMap[key].assignedSeats.push(seat.seatId);
+          });
+          processedAssignments = Object.values(assignmentMap).map((a) => ({
+            ...a,
+            capacity: a.assignedSeats.length,
+          }));
+        }
+
+        // Also use existing ticketTypeAssignments from the loaded layout as a
+        // final fallback when both the modal and seat data are empty
+        if (
+          processedAssignments.length === 0 &&
+          generatedSeatingLayout.ticketTypeAssignments?.length > 0
+        ) {
+          processedAssignments = generatedSeatingLayout.ticketTypeAssignments.map(
+            (a) => ({
+              ticketTypeId:   String(a.ticketTypeId  || ""),
+              ticketTypeName: String(a.ticketTypeName || ""),
+              color:          String(a.color          || ""),
+              assignedSeats:  (a.assignedSeats || []).map(String),
+              capacity:       Number(a.capacity || 0),
+              price:          Number(a.price    || 0),
+            })
+          );
+        }
 
         payload.seating_layout = {
-          rows: (generatedSeatingLayout.rows || []).map((r) => String(r)),
-          columns: Number(generatedSeatingLayout.columns || 0),
-          seats: processedSeats,
+          rows:                  (generatedSeatingLayout.rows || []).map((r) => String(r)),
+          columns:               Number(generatedSeatingLayout.columns || 0),
+          seats:                 processedSeats,
           ticketTypeAssignments: processedAssignments,
         };
-        const invalidSeats = processedSeats.filter(
-          (s) => s.ticketTypeId && (!s.ticketTypeName || s.price === undefined)
-        );
-        if (invalidSeats.length > 0) {
-          console.warn(
-            "⚠️ Warning: Some assigned seats missing complete data:",
-            {
-              count: invalidSeats.length,
-              samples: invalidSeats.slice(0, 3),
-            }
-          );
+
+        // Validation log
+        const assignedSeatsCount = processedSeats.filter((s) => s.ticketTypeId).length;
+        const seatsWithPrice     = processedSeats.filter((s) => s.price > 0).length;
+        if (assignedSeatsCount > 0 && assignedSeatsCount !== seatsWithPrice) {
+          console.warn("⚠️ MISMATCH: Some assigned seats missing prices!", {
+            assigned: assignedSeatsCount, withPrice: seatsWithPrice,
+          });
         }
       }
     }
@@ -1848,11 +1880,7 @@ if (formData.event_portrait instanceof File) {
       return null;
     }
   };
-  useEffect(() => {
-    if (formData.event_name || formData.location) {
-      saveFormDataToStorage(formData);
-    }
-  }, [formData]);
+
   useEffect(() => {
     if (!pageLoading && !isEditMode) {
       saveFormDataToStorage(formData);
@@ -2030,8 +2058,7 @@ if (formData.event_portrait instanceof File) {
 
             const { lat, lng } = place.geometry.location;
             const newPosition = { lat: lat(), lng: lng() };
-
-            setSubEventFormData((prev) => ({
+            setFormData((prev) => ({
               ...prev,
               location: place.formatted_address || "",
               venue: place.name || prev.venue,
@@ -2041,7 +2068,6 @@ if (formData.event_portrait instanceof File) {
                 address: place.formatted_address || "",
               },
             }));
-
             mapInstance.setCenter(newPosition);
             mapInstance.setZoom(15);
             markerInstance.setPosition(newPosition);
@@ -2677,7 +2703,7 @@ const handleReorderToggle = (targetField) => {
                 type: "image",
               }
             : null,
-            event_images: imagePreviews, 
+            event_images: imagePreviews,
           event_videos: videoPreviews,
           event_logo: subEvent.event_logo
             ? {
@@ -2696,6 +2722,11 @@ const handleReorderToggle = (targetField) => {
               }
             : null,
         }));
+        // If group has GSTIN → gstEnabled stays true (set at fetchData)
+        // If no GSTIN → restore what the organiser chose for this sub-event
+        if (!groupHasGSTIN) {
+          setGstEnabled(subEvent.gst_applicable === true);
+        }
         if (subEvent.ticket_layout) {
           setHasSeatingLayout(true);
           setSeatingLayoutPreview(
@@ -2878,19 +2909,31 @@ const handleReorderToggle = (targetField) => {
       setSubEventLoading(false);
     }
   };
+  // Ref to always hold latest previews for cleanup on unmount
+  const previewsRef = useRef(previews);
+  useEffect(() => {
+    previewsRef.current = previews;
+  }, [previews]);
+
+  // Revoke all blob URLs when component unmounts
   useEffect(() => {
     return () => {
-      Object.values(previews).forEach((preview) => {
-        if (
-          preview &&
-          typeof preview === "string" &&
-          preview.startsWith("blob:")
-        ) {
-          URL.revokeObjectURL(preview);
+      const p = previewsRef.current;
+      const revoke = (url) => {
+        if (url && typeof url === 'string' && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
         }
+      };
+      // Single-value preview fields (stored as objects with .data or as strings)
+      ['event_banner', 'event_portrait', 'ticket_layout'].forEach((key) => {
+        revoke(p[key]?.data ?? p[key]);
+      });
+      // Array preview fields — iterate items
+      ['event_images', 'event_videos'].forEach((key) => {
+        (p[key] || []).forEach((item) => revoke(item?.preview));
       });
     };
-  }, []);
+  }, []); // runs once on unmount
 
   const mainEventStartDate = mainEventData?.event_dates?.[0]?.start_date;
   const mainEventEndDate =
@@ -3727,6 +3770,7 @@ const handleReorderToggle = (targetField) => {
                       }
                       placeholder="Eg. #Concert"
                       darkMode={darkMode}
+                      showAlert={showAlert}
                     />
                   </div>
                 </div>
@@ -4029,6 +4073,14 @@ const handleReorderToggle = (targetField) => {
                       <div
                         ref={rulesEditorRef}
                         contentEditable="true"
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pastedHtml =
+                            e.clipboardData.getData("text/html") ||
+                            e.clipboardData.getData("text/plain").replace(/\n/g, "<br>");
+                          const clean = sanitizeEditorHtml(pastedHtml);
+                          document.execCommand("insertHTML", false, clean);
+                        }}
                         className="w-full min-h-[120px] p-3 focus:outline-none"
                       ></div>
                     </div>
@@ -4121,7 +4173,7 @@ const handleReorderToggle = (targetField) => {
                       ref={(el) =>
                         (errorFieldRefs.current.event_description = el)
                       }
-                      className={`mt-4 bg-transparent border rounded-lg 
+                      className={`mt-4 bg-transparent border rounded-lg
                         ${
                           errors.event_description
                             ? "border-red-500"
@@ -4172,6 +4224,14 @@ const handleReorderToggle = (targetField) => {
                       <div
                         ref={descriptionEditorRef}
                         contentEditable="true"
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pastedHtml =
+                            e.clipboardData.getData("text/html") ||
+                            e.clipboardData.getData("text/plain").replace(/\n/g, "<br>");
+                          const clean = sanitizeEditorHtml(pastedHtml);
+                          document.execCommand("insertHTML", false, clean);
+                        }}
                         className="w-full min-h-[120px] p-3 focus:outline-none"
                       ></div>
                     </div>
@@ -4283,7 +4343,7 @@ const handleReorderToggle = (targetField) => {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Event Media
                     </h2>
-                    <div className="gap-8">
+
                       <FileMediaInput
                         id="event_banner"
                         label="Event Banner* (Desktop)"
@@ -4325,52 +4385,53 @@ const handleReorderToggle = (targetField) => {
                           <button type="button" onClick={() => handleReorderToggle('event_images')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingImages ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
                             <span className="text-lg">⠿</span> {isReorderingImages ? "Done" : "Drag and Re-order"}
                           </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     disabled={previews.event_images?.length >= 10} // Disable if 10 reached
-                    onClick={() => document.getElementById('image_upload_addon').click()} 
+                    onClick={() => document.getElementById('image_upload_addon').click()}
                     className={`px-3 py-1 text-xs rounded text-white transition-all ${
-                      previews.event_images?.length >= 10 
-                        ? "bg-gray-500 cursor-not-allowed opacity-50" 
+                      previews.event_images?.length >= 10
+                        ? "bg-gray-500 cursor-not-allowed opacity-50"
                         : "bg-indigo-600 hover:bg-indigo-700"
                     }`}
                   >
                     {previews.event_images?.length >= 10 ? "Limit Reached" : "Browse file"}
                   </button>      </div>
-                  <DndContext 
-                    sensors={sensors} 
-                    collisionDetection={closestCenter} 
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
                     onDragEnd={(e) => handleDragEnd(e, 'event_images')}
                   >
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
-                      <SortableContext 
+                      <SortableContext
                         // Mapping to just the ID strings is crucial for dnd-kit
-                        items={previews.event_images?.map(img => img.id) || []} 
+                        items={previews.event_images?.map(img => img.id) || []}
                         strategy={rectSortingStrategy}
                       >
                         {previews.event_images?.map((img) => (
                           <SortablePhoto
-                            key={img.id} 
-                            img={img} 
-                            isReordering={isReorderingImages} 
+                            key={img.id}
+                            img={img}
+                            isReordering={isReorderingImages}
                             onRemove={(id) => removeImageFromList(id, 'event_images')}
-                            targetField="event_images" 
+                            targetField="event_images"
                           />
                         ))}
                       </SortableContext>
                       {/* Hidden file input */}
-                      <input 
-                        id="image_upload_addon" 
-                        type="file" 
-                        multiple 
-                        className="hidden" 
-                        onChange={(e) => handleMultipleFileChange(e, 'event_images')} 
+                      <input
+                        id="image_upload_addon"
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => handleMultipleFileChange(e, 'event_images')}
                       />
                     </div>
                   </DndContext>
                       </div>
 
                     </div>
+
 
                     {/* --- VIDEO GALLERY --- */}
                     <div className="mt-10">
@@ -4385,48 +4446,46 @@ const handleReorderToggle = (targetField) => {
                           <button type="button" onClick={() => handleReorderToggle('event_videos')} className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 ${isReorderingVideos ? "bg-green-600 text-white" : "bg-[#2B2B2B] text-gray-300"}`}>
                             <span className="text-lg">⠿</span> {isReorderingVideos ? "Done" : "Drag and Re-order"}
                           </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     disabled={previews.event_videos?.length >= 5} // Disable if 5 reached
-                    onClick={() => document.getElementById('video_upload_addon').click()} 
+                    onClick={() => document.getElementById('video_upload_addon').click()}
                     className={`px-3 py-1 text-xs rounded text-white transition-all ${
-                      previews.event_videos?.length >= 5 
-                        ? "bg-gray-500 cursor-not-allowed opacity-50" 
+                      previews.event_videos?.length >= 5
+                        ? "bg-gray-500 cursor-not-allowed opacity-50"
                         : "bg-indigo-600 hover:bg-indigo-700"
                     }`}
                   >
                     {previews.event_videos?.length >= 5 ? "Limit Reached" : "Browse file"}
                   </button>      </div>
-                  <DndContext 
-                    sensors={sensors} 
-                    collisionDetection={closestCenter} 
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
                     onDragEnd={(e) => handleDragEnd(e, 'event_videos')}
                   >
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 ">
-                      <SortableContext 
-                        items={previews.event_videos?.map(vid => vid.id) || []} 
+                      <SortableContext
+                        items={previews.event_videos?.map(vid => vid.id) || []}
                         strategy={rectSortingStrategy}
                       >
                         {previews.event_videos?.map((vid) => (
                           <SortablePhoto
-                            key={vid.id} 
-                            img={vid} 
-                            isReordering={isReorderingVideos} 
+                            key={vid.id}
+                            img={vid}
+                            isReordering={isReorderingVideos}
                             onRemove={(id) => removeImageFromList(id, 'event_videos')}
-                            targetField="event_videos" 
+                            targetField="event_videos"
                           />
                         ))}
                       </SortableContext>
                       <input id="video_upload_addon" type="file" multiple accept="video/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_videos')} />
                     </div>
                   </DndContext>
-                      </div>
-
-
-                    </div>
-                  </div>
                 </div>
-                <div className="space-y-12">
+              </div>
+            </div>
+
+            <div className="space-y-12">
                   <div className="space-y-4">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                       Payment Type
@@ -4458,11 +4517,78 @@ const handleReorderToggle = (targetField) => {
                       </label>
                     </div>
                   </div>
+                  {/* ── GST Notice / Toggle  */}
+                  {formData.payment_type === 'paid' && (
+                    <div className={`rounded-lg border p-4 ${
+                      groupHasGSTIN
+                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+                        : 'bg-gray-50 dark:bg-[#2B2B2B] border-gray-200 dark:border-gray-700'
+                    }`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <svg className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                            groupHasGSTIN ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'
+                          }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+                          </svg>
+                          <div>
+                            {groupHasGSTIN ? (
+                              <>
+                                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                                  GST Registered{groupGSTIN ? (
+                                    <> — GSTIN: <span className="font-mono">{groupGSTIN}</span></>
+                                  ) : null}
+                                </p>
+                                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                                  Your group is GST registered. All paid tickets <strong>must include 18% GST</strong>.
+                                  Enter the <strong>GST-inclusive price</strong> per ticket.
+                                  The GST breakdown is shown on each ticket card.
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm font-semibold text-gray-800 dark:text-white">GST on Ticket Prices</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                  Your group is <strong>not GST registered</strong>. You may optionally
+                                  include GST. If enabled, enter the <strong>GST-inclusive price</strong> per ticket.
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        </div>
 
-                  {/* FIX: Entire paid section is now conditional */}
-                  {formData.payment_type === "paid" &&
-                    renderBankingSection() && (
-                      <div className="space-y-12 animate-fade-in">
+                        {!groupHasGSTIN && (
+                          <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setGstEnabled(prev => !prev)}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                gstEnabled ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
+                              }`}
+                            >
+                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                gstEnabled ? 'translate-x-6' : 'translate-x-1'
+                              }`} />
+                            </button>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {gstEnabled ? 'GST ON' : 'GST OFF'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {/* Banking section — shown only for paid events */}
+                  {formData.payment_type === "paid" && (
+                    <div className="space-y-12 animate-fade-in">
+                      {/* Loading skeleton */}
+                      {pageLoading ? (
+                        <div className="space-y-4">
+                          <div className="animate-pulse bg-gray-200 dark:bg-gray-700 h-8 w-64 rounded" />
+                          <div className="animate-pulse bg-gray-200 dark:bg-gray-700 h-32 w-full rounded" />
+                        </div>
+                      ) : (
                         <section className="bg-white dark:bg-[#2B2B2B] p-8 rounded-lg space-y-6 shadow-sm dark:shadow-none">
                           <div className="flex items-center justify-between">
                             <div className="flex-1">
@@ -4667,16 +4793,15 @@ const handleReorderToggle = (targetField) => {
                             </div>
                           </div>
                         </section>
-
-                        {/* Rest of the paid section content */}
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  )}
                   <div>
                     <section className="space-y-6 animate-fade-in">
                       <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                         Ticketing details
                       </h2>
-                      {(formData.location_type === "online" || formData.location_type === "recorded") && 
+                      {(formData.location_type === "online" || formData.location_type === "recorded") &&
                         formData.payment_type === "paid" && (
                           <div className="bg-[#f1f1f1] dark:bg-[#2B2B2B] p-8 rounded-lg space-y-6 animate-fade-in shadow-sm dark:shadow-none mt-8">
                             <div className="flex items-center space-x-4">
@@ -4687,7 +4812,7 @@ const handleReorderToggle = (targetField) => {
                             <p className="text-black dark:text-gray-400 text-sm">
                               Set the price and total capacity for your {formData.location_type} event tickets.
                             </p>
-                            
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 pt-2">
                               <div ref={(el) => (errorFieldRefs.current.simpleTicketPrice = el)}>
                                 <label
@@ -4702,8 +4827,8 @@ const handleReorderToggle = (targetField) => {
                                   id="simpleTicketPrice"
                                   name="simpleTicketPrice"
                                   value={
-                                    formData.ticket_types && formData.ticket_types[0] 
-                                      ? (formData.ticket_types[0].price || formData.ticket_types[0].ticket_price || "") 
+                                    formData.ticket_types && formData.ticket_types[0]
+                                      ? (formData.ticket_types[0].price || formData.ticket_types[0].ticket_price || "")
                                       : ""
                                   }
                                   onChange={(e) => {
@@ -4722,13 +4847,13 @@ const handleReorderToggle = (targetField) => {
                                             image: "",
                                             existingPhotoPath: "",
                                           }];
-                                      
+
                                       newTickets[0] = {
                                         ...newTickets[0],
                                         price: newValue,
                                         ticket_price: newValue,
                                       };
-                                      
+
                                       return { ...prev, ticket_types: newTickets };
                                     });
                                     setErrors((prev) => ({ ...prev, simpleTicketPrice: null }));
@@ -4778,17 +4903,17 @@ const handleReorderToggle = (targetField) => {
                                             image: "",
                                             existingPhotoPath: "",
                                           }];
-                                      
+
                                       newTickets[0] = {
                                         ...newTickets[0],
                                         capacity: newValue,
                                         max_capacity: newValue,
                                       };
-                                      
-                                      return { 
-                                        ...prev, 
+
+                                      return {
+                                        ...prev,
                                         total_capacity: newValue,
-                                        ticket_types: newTickets 
+                                        ticket_types: newTickets
                                       };
                                     });
                                     setErrors((prev) => ({ ...prev, simpleTicketCapacity: null }));
@@ -4810,46 +4935,70 @@ const handleReorderToggle = (targetField) => {
                               </div>
                             </div>
 
-                            {/* Summary Display */}
-                            {formData.ticket_types && 
-                            formData.ticket_types[0] && 
-                            (formData.ticket_types[0].price || formData.ticket_types[0].ticket_price) && 
-                            formData.total_capacity && (
-                              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
-                                <div className="flex items-start gap-2">
-                                  <svg
-                                    className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                    />
-                                  </svg>
-                                  <div>
-                                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
-                                      Ticket Summary
-                                    </p>
-                                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                                      Price per ticket: ₹{Number(formData.ticket_types[0].price || formData.ticket_types[0].ticket_price).toLocaleString()}
-                                    </p>
-                                    <p className="text-xs text-blue-700 dark:text-blue-300">
-                                      Total tickets: {Number(formData.total_capacity).toLocaleString()}
-                                    </p>
-                                    <p className="text-xs text-blue-700 dark:text-blue-300 font-semibold mt-1">
-                                      Maximum Revenue: ₹{(
-                                        Number(formData.ticket_types[0].price || formData.ticket_types[0].ticket_price) * 
-                                        Number(formData.total_capacity)
-                                      ).toLocaleString()}
-                                    </p>
+                            {/* ── Online/Recorded Ticket Summary */}
+                            {(() => {
+                              // Guard: need first ticket type, a price, and capacity
+                              const firstTicket = formData.ticket_types?.[0];
+                              const rawPrice = firstTicket?.price || firstTicket?.ticket_price;
+                              if (!firstTicket || !rawPrice || !formData.total_capacity) return null;
+
+                              const inclPrice = Number(rawPrice);
+                              if (isNaN(inclPrice) || inclPrice <= 0) return null;
+
+                              const capacity   = Number(formData.total_capacity);
+                              const divisor    = 1 + GST_PERCENTAGE / 100;                                        // 1.18
+                              const basePrice  = gstApplicable
+                                ? Math.round((inclPrice / divisor) * 100) / 100                                   // ₹100.00
+                                : inclPrice;
+                              const gstAmt     = gstApplicable
+                                ? Math.round((inclPrice - basePrice) * 100) / 100                                  // ₹18.00
+                                : 0;
+                              const maxRev     = Math.round(inclPrice * capacity * 100) / 100;                    // total
+
+                              return (
+                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
+                                  <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-3">
+                                    Ticket Summary
+                                  </p>
+
+                                  {/* Price breakdown card */}
+                                  <div className="bg-white dark:bg-[#1c1c1f] rounded-lg p-2 text-xs space-y-1 border border-blue-200 dark:border-blue-700 mb-3">
+                                    {gstApplicable && (
+                                      <>
+                                        <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                                          <span>Base (excl. GST)</span>
+                                          <span>₹{basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                                          <span>GST ({GST_PERCENTAGE}%) — organiser remits</span>
+                                          <span>₹{gstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                      </>
+                                    )}
+
+                                    <div className={`flex justify-between font-semibold text-indigo-700 dark:text-indigo-400 ${
+                                      gstApplicable ? 'border-t border-gray-200 dark:border-gray-600 pt-1 mt-1' : ''
+                                    }`}>
+                                      <span>Ticket price (buyer pays)</span>
+                                      <span>₹{inclPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                    </div>
                                   </div>
+
+                                  {/* Footer stats */}
+                                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                                    Total tickets: {capacity.toLocaleString('en-IN')}
+                                  </p>
+                                  <p className="text-xs text-blue-700 dark:text-blue-300 font-semibold mt-1">
+                                    Max revenue: ₹{maxRev.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    {gstApplicable && (
+                                      <span className="font-normal text-amber-600 dark:text-amber-400 ml-1">
+                                        (incl. GST you remit)
+                                      </span>
+                                    )}
+                                  </p>
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })()}
                           </div>
                         )}
                       <p className="text-black dark:text-gray-400 text-sm">
@@ -4971,52 +5120,59 @@ const handleReorderToggle = (targetField) => {
                             </button>
                             {formData.ticket_types.length > 0 && (
                               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                                {formData.ticket_types.map((ticket) => (
-                                  <div
-                                    key={ticket.id}
-                                    className="bg-white dark:bg-[#2B2B2B] p-3 rounded-lg flex items-center justify-between shadow-sm dark:shadow-none"
-                                  >
-                                    <div className="flex items-center space-x-3">
-                                      <img
-                                        src={ticket.image}
-                                        alt={ticket.name}
-                                        className="w-16 h-16 rounded-md object-cover"
-                                      />
-                                      <div>
-                                        <p className="font-semibold text-gray-900 dark:text-white">{`${
-                                          ticket.name
-                                        } - ₹${Number(
-                                          ticket.price
-                                        ).toLocaleString()}`}</p>
-                                        <p className="text-xs text-black dark:text-gray-400">
-                                          Capacity: {ticket.capacity}
-                                        </p>
+                                {formData.ticket_types.map((ticket) => {
+                                  const inclPrice = Number(ticket.price || ticket.ticket_price || 0);
+                                  const divisor   = 1 + GST_PERCENTAGE / 100;
+                                  const basePrice = gstApplicable ? Math.round((inclPrice / divisor) * 100) / 100 : inclPrice;
+                                  const gstAmt    = gstApplicable ? Math.round((inclPrice - basePrice) * 100) / 100 : 0;
+
+                                  return (
+                                    <div key={ticket.id} className="bg-white dark:bg-[#2B2B2B] rounded-lg shadow-sm dark:shadow-none overflow-hidden">
+                                      <div className="p-3 flex items-center justify-between">
+                                        <div className="flex items-center space-x-3">
+                                          <img src={ticket.image} alt={ticket.name} className="w-14 h-14 rounded-md object-cover" />
+                                          <div>
+                                            <p className="font-semibold text-gray-900 dark:text-white">{ticket.name}</p>
+                                            <p className="text-xs text-black dark:text-gray-400">Capacity: {ticket.capacity}</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                          <button type="button" onClick={() => { setEditingTicket(ticket); setIsTicketModalOpen(true); }}
+                                            className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition">✏️</button>
+                                          <button type="button" onClick={() => handleDeleteTicket(ticket.id)}
+                                            className="text-gray-400 hover:text-red-500 transition">&times;</button>
+                                        </div>
+                                      </div>
+
+                                      <div className="px-3 pb-3">
+                                        {gstApplicable ? (
+                                          <div className="bg-gray-50 dark:bg-[#1c1c1f] rounded-lg p-2 text-xs space-y-1 border border-gray-200 dark:border-gray-700">
+                                            <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                                              <span>Base (excl. GST)</span>
+                                              <span>₹{basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                            </div>
+                                            <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                                              <span>GST ({GST_PERCENTAGE}%) — organiser remits</span>
+                                              <span>₹{gstAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                            </div>
+                                            <div className="flex justify-between font-semibold text-indigo-700 dark:text-indigo-400 border-t border-gray-200 dark:border-gray-600 pt-1 mt-1">
+                                              <span>Ticket price (buyer pays)</span>
+                                              <span>₹{inclPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="bg-gray-50 dark:bg-[#1c1c1f] rounded-lg p-2 text-xs border border-gray-200 dark:border-gray-700">
+                                            <div className="flex justify-between font-semibold text-indigo-700 dark:text-indigo-400">
+                                              <span>Ticket price</span>
+                                              <span>₹{inclPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                            </div>
+                                            <p className="text-gray-400 dark:text-gray-500 mt-1">No GST</p>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
-                                    {/* Edit/Delete Buttons */}
-                                    <div className="flex items-center space-x-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setEditingTicket(ticket);
-                                          setIsTicketModalOpen(true);
-                                        }}
-                                        className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition"
-                                      >
-                                        ✏️
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          handleDeleteTicket(ticket.id);
-                                        }}
-                                        className="text-gray-400 hover:text-red-500 transition"
-                                      >
-                                        &times;
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                             {formData.ticket_types.length === 0 && (
@@ -5229,45 +5385,6 @@ const handleReorderToggle = (targetField) => {
                                           </button>
                                         )}
                                     </div>
-                                    {formData.payment_type === "paid" &&
-                                      formData.ticket_types.length > 0 &&
-                                      generatedSeatingLayout &&
-                                      Object.keys(seatAssignments).length === 0 && (
-                                        <div
-                                          ref={(el) => (errorFieldRefs.current.seatAssignments = el)}
-                                          className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border-2 border-red-500 dark:border-red-600 rounded-lg p-3 mb-3 animate-fade-in"
-                                        >
-                                          <svg
-                                            className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                          >
-                                            <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              strokeWidth={2}
-                                              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-                                            />
-                                          </svg>
-                                          <div>
-                                            <p className="text-sm font-bold text-red-600 dark:text-red-400">
-                                              ⚠ Seat Assignment Required
-                                            </p>
-                                            <p className="text-xs text-red-500 dark:text-red-400 mt-0.5">
-                                              You must assign seats to ticket types before saving. Click the{" "}
-                                              <span className="font-semibold">"Assign Seats"</span> button
-                                              above to assign seats to your ticket types.
-                                            </p>
-                                          </div>
-                                        </div>
-                                      )}
-                                    {/* Also show inline error if form was submitted without assignment */}
-                                    {errors.seatAssignments && (
-                                      <p className="text-red-500 text-xs font-medium mt-1">
-                                        {errors.seatAssignments}
-                                      </p>
-                                    )}
                                     <div className="border-2 border-green-500 dark:border-green-600 rounded-lg overflow-hidden">
                                       <SeatingLayoutPreview
                                         seatingLayout={generatedSeatingLayout}
