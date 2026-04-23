@@ -14,7 +14,7 @@ import MediaIcon from "../../assets/Event/MediaIcon.svg?react";
 import InfoTooltip from "../../components/CreateGroup/InfoTooltip.jsx";
 import FileInput from "../../components/CreateGroup/FileInput.jsx";
 import ScrollBarStyle from "../../components/ScrollBarStyle.jsx";
-import { getTicketImageUrl } from "../../utils/imageUtils"; 
+import { getTicketImageUrl } from "../../utils/imageUtils";
 import getInitialTheme from "../../components/CreateGroup/getIntialTheme.jsx";
 import FullScreenViewer from "../../components/CreateGroup/FullScreenViewer.jsx";
 import FileMediaInput from "../../components/CreateGroup/FileMediaInput.jsx";
@@ -104,13 +104,13 @@ const UpdateTicketMedia = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [ticketData, setTicketData] = useState(null);
-  const [userDetails, setUserDetails] = useState(null); 
+  const [userDetails, setUserDetails] = useState(null);
   const [alert, setAlert] = useState(null);
   const [viewerFile, setViewerFile] = useState(null);
   const [isReorderingImages, setIsReorderingImages] = useState(false);
   const [isReorderingVideos, setIsReorderingVideos] = useState(false);
 
-const [removedFields, setRemovedFields] = useState([]);
+
   const storageKey = `ticketMediaFormData_${ticketId}`;
 
   const displayAlert =
@@ -120,7 +120,7 @@ const [removedFields, setRemovedFields] = useState([]);
   const openViewer = useCallback((url, mimeType, name) => {
     setFullScreenViewer({ url, mimeType, name });
   }, []);
-  
+
   const closeViewer = useCallback(() => {
     setFullScreenViewer(null);
   }, []);
@@ -288,7 +288,7 @@ useEffect(() => {
     ...serverMedia.event_videos || [], // Ensure videos from server are handled
     ...(savedPreviews.event_videos || []).filter(vid => !vid.isExisting)
   ],
-              
+
             };
             setPreviews(mergedPreviews);
             const newFormData = { event_images: [] };
@@ -394,11 +394,11 @@ savedPreviews.event_videos?.forEach((vid) => {
       return;
     }
 
-    const maxSize = 50 * 1024 * 1024; // 50MB
+    const maxSize = type === "college_authorisation" ? 1.5 * 1024 * 1024 : 50 * 1024 * 1024;
     if (file.size > maxSize) {
       setErrors((prev) => ({
         ...prev,
-        [type]: "File size must be less than 50MB.",
+        [type]: `File size must be less than ${type === "college_authorisation" ? "1.5MB" : "50MB"}.`,
       }));
       return;
     }
@@ -430,9 +430,8 @@ const removeSingleFile = (type) => {
   setPreviews((prev) => ({ ...prev, [type]: null }));
   setFormData((prev) => ({ ...prev, [type]: null }));
   setErrors((prev) => ({ ...prev, [type]: null }));
-  
-  // Track that this field was explicitly cleared
-  setRemovedFields(prev => [...new Set([...prev, type])]);
+
+
 
   const savedStateJSON = sessionStorage.getItem(storageKey);
   if (savedStateJSON) {
@@ -453,6 +452,16 @@ const handleMultipleFileChange = async (e, targetField) => {
     setErrors((prev) => ({
       ...prev,
       [targetField]: `Maximum ${limit} files allowed for this section.`,
+    }));
+    return;
+  }
+
+  const maxSize = 50 * 1024 * 1024; // 50MB
+  const oversizedFiles = files.filter(file => file.size > maxSize);
+  if (oversizedFiles.length > 0) {
+    setErrors((prev) => ({
+      ...prev,
+      [targetField]: `Some files exceed the 50MB size limit.`,
     }));
     return;
   }
@@ -534,12 +543,12 @@ const removeImageFromList = (idToRemove, targetField = 'event_images') => {
       // Find the index of this item among ONLY the new files in the previews list
       const newItemsOnly = previews[targetField].filter(item => !item.isExisting);
       const indexInNewItems = newItemsOnly.findIndex(item => item.id === idToRemove);
-      
+
       const updatedFiles = [...prev[targetField]];
       if (indexInNewItems !== -1) {
         updatedFiles.splice(indexInNewItems, 1);
       }
-      
+
       return { ...prev, [targetField]: updatedFiles };
     });
   }
@@ -556,21 +565,29 @@ const removeImageFromList = (idToRemove, targetField = 'event_images') => {
 
   const validateForm = async () => {
     const newErrors = {};
-    
+
     if (isEducationalOrg && !previews.college_authorisation) {
       newErrors.college_authorisation =
         "College authorization file is required for educational organizations.";
     }
 
-    // Check for banner - either existing or new upload
+    // Check for banner or portrait - either existing or new upload
     const hasBanner = !!previews.event_banner;
-    
-    if (!hasBanner) {
-      newErrors.event_banner = "Event banner is required to proceed.";
+    const hasPortrait = !!previews.event_portrait;
+
+    if (!hasBanner && !hasPortrait) {
+      newErrors.event_banner = "Either an Event Banner or a Portrait image is required.";
+      newErrors.event_portrait = "Either an Event Banner or a Portrait image is required.";
+    }
+
+    // Ensure at least one gallery image exists
+    const hasGallery = previews.event_images && previews.event_images.length > 0;
+    if (!hasGallery) {
+      newErrors.event_images = "At least one gallery image is required.";
     }
 
     setErrors(newErrors);
-    
+
     if (Object.keys(newErrors).length > 0) {
       const firstError = Object.values(newErrors)[0];
       displayAlert({
@@ -580,7 +597,7 @@ const removeImageFromList = (idToRemove, targetField = 'event_images') => {
       });
       return false;
     }
-    
+
     return true;
   };
 const handleSubmit = async (e) => {
@@ -594,7 +611,7 @@ const handleSubmit = async (e) => {
     const submitData = new FormData();
 
     // 1. Detect if any single file was deleted (Present in existingMedia but null in previews)
-    const isSingleFileDeleted = 
+    const isSingleFileDeleted =
       (!!existingMedia.event_logo && !previews.event_logo) ||
       (!!existingMedia.event_banner && !previews.event_banner) ||
       (!!existingMedia.event_portrait && !previews.event_portrait) ||
@@ -602,20 +619,20 @@ const handleSubmit = async (e) => {
 
     // 2. Check for brand new binary files
     const hasNewFiles = !!(
-      formData.event_logo || 
-      formData.event_banner || 
-      formData.event_portrait || 
-      formData.college_authorisation || 
-      formData.event_images.length > 0 || 
+      formData.event_logo ||
+      formData.event_banner ||
+      formData.event_portrait ||
+      formData.college_authorisation ||
+      formData.event_images.length > 0 ||
       formData.event_videos.length > 0
     );
 
     // 3. Check for gallery changes (surviving URLs)
     const currentImages = previews.event_images.filter(img => img.isExisting).map(img => img.path || img.preview);
     const originalImages = (existingMedia.event_images || []).map(img => img.path || img.preview || img);
-    
-    const isGalleryModified = 
-      currentImages.length !== originalImages.length || 
+
+    const isGalleryModified =
+      currentImages.length !== originalImages.length ||
       JSON.stringify(currentImages) !== JSON.stringify(originalImages);
 
     // Final Modification Check
@@ -624,7 +641,7 @@ const handleSubmit = async (e) => {
     console.log("🧐 Submit Check:", { hasNewFiles, isGalleryModified, isSingleFileDeleted, anyChangesMade });
 
     // EXIT GATE: If absolutely nothing changed, just navigate away
-    if (!anyChangesMade) {      
+    if (!anyChangesMade) {
       sessionStorage.removeItem(storageKey);
       navigate(`/ticket/update-ticket-details/${ticketId}`);
       setLoading(false);
@@ -643,9 +660,6 @@ const handleSubmit = async (e) => {
         if (typeof val === 'string' && !val.startsWith('data:')) {
             submitData.append(`existing_${field}`, val);
         }
-      } else {
-        // Explicitly tell backend to wipe the field
-        submitData.append(`delete_${field}`, "true");
       }
     });
 
@@ -664,7 +678,7 @@ const handleSubmit = async (e) => {
 
     try {
       await updateTicketMedia(ticketId, submitData);
-      sessionStorage.removeItem(storageKey); 
+      sessionStorage.removeItem(storageKey);
   localStorage.removeItem(storageKey);
       displayAlert({
         type: "success",
@@ -751,7 +765,7 @@ const handleSubmit = async (e) => {
                                  // Determine the primary URL/Data source
                                  const fileData = previews.college_authorisation;
                       const fileUrl = fileData.data || fileData.url || fileData;
-                      
+
                                  openViewer(
                                     fileUrl,
                                     fileData.mimeType || "application/pdf",
@@ -781,8 +795,8 @@ const handleSubmit = async (e) => {
                   onPreviewClick={() => {
                               if (previews.event_logo) {
                                  const fileData = previews.event_logo;
-                      const fileUrl = fileData.data || fileData.url || fileData; 
-                      
+                      const fileUrl = fileData.data || fileData.url || fileData;
+
                                  openViewer(
                                     fileUrl,
                                     fileData.mimeType || "image/jpeg",
@@ -804,90 +818,85 @@ const handleSubmit = async (e) => {
                   maxSizeMB={1.5}
                   info="Required. 1920×720 recommended for desktop. JPG, JPEG, PNG, GIF, or WEBP format."
                   onPreviewClick={() => {
-                  if (previews.event_banner) {
-                      const fileData = previews.event_banner;
-                      const fileUrl = fileData.data || fileData.url || fileData;
-                      const fileName = fileData.name || "Event Banner";
-                      const mimeType = fileData.mimeType || "image/jpeg";
-                      openViewer(fileUrl, mimeType, fileName);
-                  }
-                }}
+                              if (previews.event_banner) {
+                                 const fileData = previews.event_banner;
+                        // For single images (logo/banner), preview directly holds the URL/Data URI string
+                        const fileUrl = fileData.data || fileData.url || fileData;
+                        const fileName = fileData.name || "Event Banner";
+                        const mimeType = fileData.mimeType || "image/jpeg";
+
+                                 openViewer(fileUrl, mimeType, fileName);
+                              }
+                           }}
                 />
                 <FileMediaInput
-                  id="event_portrait"
-                  label="Portrait Image (Mobile App)"
-                  aspectRatio={4 / 5}
-                  resolution="1080px by 1350px"
-                  onFileChange={handleSingleFileChange}
-                  onRemove={removeSingleFile}
-                  preview={previews.event_portrait}
-                  error={errors.event_portrait}
-                  acceptedFiles=".jpg,.jpeg,.png,.webp"
-                  maxSizeMB={1.5}
-                  info="Resolution: (1080px × 1350px). Recommended for mobile app views."
-                  onPreviewClick={() => {
-                    if (previews.event_portrait) {
-                      const url = previews.event_portrait.data || previews.event_portrait.url || previews.event_portrait;
-                      openViewer(url, "image/jpeg", "Portrait Image");
-                    }
-                  }}
-                />
-              </div>
-            <div className="mt-8">
-              <div className=" justify-between items-center mb-4  pb-2">
-                <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                Image galleries
-                <InfoTooltip note="Max 10 videos. Max Size :1.5MB, Only .jpeg, .jpg files allowed Resolution: (900px by 1200px)" />
-                </label>
-            </div>
-              <div className=" rounded-xl border border-dashed border-gray-600 p-3">
-                <div className="flex gap-2 justify-end">
-                <button 
-                type="button" 
-                onClick={() => handleReorderToggle('event_images')} // Call the function here
-                className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 transition-colors ${
-                  isReorderingImages 
-                    ? "bg-green-600 text-white border-green-500 hover:bg-green-700" 
-                    : "bg-[#2B2B2B] text-gray-300 hover:bg-[#333]"
-                }`}
-              >
-                <span className="text-lg">⠿</span> 
-                {isReorderingImages ? "Done Re-ordering" : "Drag and Re-order"}
-              </button>
-              
-              <button 
-                type="button" 
-                onClick={() => document.getElementById('image_upload').click()} 
-                className="px-3 py-1 bg-indigo-600 text-xs rounded text-white hover:bg-indigo-700"
-              >
-                Browse file
-              </button>
-                
-
+  id="event_portrait"
+  label="Portrait image (for mobile app)"
+  aspectRatio={3 / 4} // 900x1200 is 3:4
+  resolution="400px by 400px"
+  onFileChange={handleSingleFileChange}
+  onRemove={removeSingleFile}
+  preview={previews.event_portrait}
+  error={errors.event_portrait}
+  acceptedFiles=".jpg,.jpeg,.png,.webp"
+  maxSizeMB={1.5}
+  info="Resolution: (900px by 1200px). Recommended for mobile app views."
+  onPreviewClick={() => {
+    if (previews.event_portrait) {
+      const url = previews.event_portrait.data || previews.event_portrait.url || previews.event_portrait;
+      openViewer(url, "image/jpeg", "Portrait Image");
+    }
+  }}
+/>
+</div>
+              <div className="mt-8">
+                <div className="flex justify-between items-center mb-4 pb-2">
+                  <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    Image galleries
+                    <InfoTooltip note="Max 10 videos. Max Size :1.5MB, Only .jpeg, .jpg files allowed Resolution: (900px by 1200px)" />
+                  </label>
                 </div>
-                  <DndContext 
-                collisionDetection={closestCenter} 
-                onDragEnd={(e) => handleDragEnd(e, 'event_images')}
-              >
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 p-6  ">
-                <SortableContext items={previews.event_images.map(img => img.id)} strategy={rectSortingStrategy}>
-                    {previews.event_images.map((img) => (
-                      <SortablePhoto
-                      key={img.id}
-                      id={img.id}                
-                      img={img}
-                      isReordering={isReorderingImages}
-                      onRemove={(id) => removeImageFromList(id, "event_images")}
-                    />
-                    ))}
-                  </SortableContext>
-                  <input id="image_upload" type="file" multiple accept="image/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_images')} />
+                <div className="rounded-xl border border-dashed border-gray-600 p-3">
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => handleReorderToggle('event_images')}
+                      className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 transition-colors ${
+                        isReorderingImages ? "bg-green-600 text-white border-green-500 hover:bg-green-700" : "bg-[#2B2B2B] text-gray-300 hover:bg-[#333]"
+                      }`}
+                    >
+                      <span className="text-lg">⠿</span>
+                      {isReorderingImages ? "Done Re-ordering" : "Drag and Re-order"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById('image_upload').click()}
+                      className="px-3 py-1 bg-indigo-600 text-xs rounded text-white hover:bg-indigo-700"
+                    >
+                      Browse file
+                    </button>
+                  </div>
+                  <DndContext
+                    collisionDetection={closestCenter}
+                    onDragEnd={(e) => handleDragEnd(e, 'event_images')}
+                  >
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 p-6">
+                      <SortableContext items={previews.event_images?.map(img => img.id) || []} strategy={rectSortingStrategy}>
+                        {previews.event_images?.map((img) => (
+                          <SortablePhoto
+                            key={img.id}
+                            id={img.id}
+                            img={img}
+                            isReordering={isReorderingImages}
+                            onRemove={(id) => removeImageFromList(id, "event_images")}
+                          />
+                        ))}
+                      </SortableContext>
+                      <input id="image_upload" type="file" multiple accept="image/*" className="hidden" onChange={(e) => handleMultipleFileChange(e, 'event_images')} />
+                    </div>
+                  </DndContext>
                 </div>
-              </DndContext>
               </div>
-
-
-            </div>
             <div className="mt-10">
               <div className="flex justify-between items-center mb-4 pb-2">
                 <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
@@ -895,10 +904,10 @@ const handleSubmit = async (e) => {
                   <InfoTooltip note="Max 5 videos. Duration 10s–1m." />
                 </label>
               </div>
-              <div className="rounded-xl border border-dashed border-gray-600 p-3"> 
+              <div className="rounded-xl border border-dashed border-gray-600 p-3">
                 <div className="flex gap-2 justify-end">
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => handleReorderToggle('event_videos')}
                     className={`px-3 py-1 text-xs rounded border border-gray-600 flex items-center gap-2 transition-colors ${
                       isReorderingVideos ? "bg-green-600 text-white border-green-500" : "bg-[#2B2B2B] text-gray-300"
@@ -906,16 +915,16 @@ const handleSubmit = async (e) => {
                   >
                     <span className="text-lg">⠿</span> {isReorderingVideos ? "Done Re-ordering" : "Drag and Re-order"}
                   </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => document.getElementById('video_input').click()}
                     className="px-3 py-1 bg-[#4F46E5] text-xs text-white rounded hover:bg-[#4338CA]"
                   >
                     Browse file
                   </button>
                 </div>
-                  <DndContext 
-                collisionDetection={closestCenter} 
+                  <DndContext
+                collisionDetection={closestCenter}
                 onDragEnd={(e) => handleDragEnd(e, 'event_videos')}
               >
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 p-6 ">
