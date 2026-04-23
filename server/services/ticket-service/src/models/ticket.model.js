@@ -7,11 +7,15 @@ const guestSchema = new mongoose.Schema({
 });
 // Ticket Type Schema
 const ticketTypeSchema = new mongoose.Schema({
-  ticket_type: { type: String },
-  ticket_price: { type: Number },
-  ticket_photo: { type: String },
+  ticket_type:            { type: String },
+  ticket_price:           { type: Number },   // GST-inclusive price organiser sets (buyer pays this for ticket)
+  ticket_base_price:      { type: Number, default: 0 }, // extracted base (ticket_price / 1.18)
+  ticket_gst_percentage:  { type: Number, default: 0 }, // 18 if GST applicable
+  ticket_gst_amount:      { type: Number, default: 0 }, // extracted GST = ticket_price - ticket_base_price
+  ticket_gst_applicable:  { type: Boolean, default: false },
+  ticket_photo:           { type: String },
   ticket_photo_public_id: { type: String },
-  max_capacity: { type: Number },
+  max_capacity:           { type: Number },
 });
 const ticketdateSchema = new mongoose.Schema({
     start_date: { type: String, required: true },
@@ -146,6 +150,9 @@ const subEventSchema = new mongoose.Schema({
   // Event Details
   hashtag: [{ type: String }], // Array of hashtags
   payment_type: { type: String, enum: ['free', 'paid'], required: true },
+  gst_applicable: { type: Boolean, default: false },
+  gst_percentage:{ type: Number,  default: 0 },
+  gst_registered_group: { type: Boolean, default: false },
   main_ticket_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
   // Banking Details for sub-events
   banking_details: [bankingDetailsSchema],
@@ -303,10 +310,11 @@ const ticketSchema = new mongoose.Schema({
   // Event Details
   hashtag: [{ type: String }], // Array of hashtags
   payment_type: { type: String, enum: ['free', 'paid'], required: false },
-  
+  gst_applicable:       { type: Boolean, default: false },
+  gst_percentage:       { type: Number,  default: 0 },
+  gst_registered_group: { type: Boolean, default: false },
   // Banking Details (can have multiple for main event)
   banking_details: [bankingDetailsSchema],
-  
   // Multiple Guests, Guides, and Ticket Types
   guests: [guestSchema], // This remains as array of objects
   POCS: [POCSchema],
