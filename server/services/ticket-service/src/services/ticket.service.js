@@ -23,6 +23,43 @@ import { createNotification } from '../utils/notificationHelper.js';
 import multer from "multer";
 import { getUserFromAuthService } from "../grpc/authClient.js";
 const _processingRequests = new Set();
+// GST Configuration
+const GST_PERCENTAGE = parseFloat(process.env.TAX_PERCENTAGE || '18');
+
+/**
+ * Decide GST applicability.
+ * Rule: If group has a GSTIN → GST is MANDATORY regardless of frontend input.
+ *       If group has no GSTIN → GST is OPTIONAL; honour the organiser's choice.
+ */
+export const resolveGSTApplicability = (group, paymentType, frontendChoice) => {
+  if (paymentType !== 'paid') return { applicable: false, mandatory: false };
+
+  const hasGSTIN = !!(group?.gst_no && String(group.gst_no).trim() !== '');
+  if (hasGSTIN) return { applicable: true, mandatory: true };
+
+  // No GSTIN — use organiser's explicit choice from the form
+  const chosen = frontendChoice === true || frontendChoice === 'true';
+  return { applicable: chosen, mandatory: false };
+};
+
+/**
+ * Option C — Inclusive model.
+ * The price the organiser enters already contains GST.
+ * We extract the GST portion for internal tracking.
+ *
+ * Example: organiser enters ₹118 (18% GST inclusive)
+ *   basePrice = 118 × 100 / 118 = 100.00
+ *   gstAmount = 118 − 100   = 18.00
+ */
+export const extractGSTFromInclusive = (inclusivePrice, gstPct) => {
+  if (!gstPct || gstPct === 0) {
+    return { basePrice: inclusivePrice, gstAmount: 0 };
+  }
+  const divisor   = 1 + gstPct / 100;                                    // 1.18
+  const basePrice = Math.round((inclusivePrice / divisor) * 100) / 100;  // 100.00
+  const gstAmount = Math.round((inclusivePrice - basePrice) * 100) / 100; // 18.00
+  return { basePrice, gstAmount };
+};
 
 function parseJSONSafely(value, defaultValue = []) {
   if (!value) return defaultValue;
@@ -306,25 +343,51 @@ export const CreateGroup = async (req, res) => {
       if (!address) {
         return res.status(400).json({ message: "Address is required" });
       }
-      if (organisation_type.toLowerCase() !== "educational") {
-        if (!gst_no) {
-          return res.status(400).json({
-            message: "GST number is required for non-educational organisations",
-          });
-        }
+      // Sectors where GST registration is mandatory under Indian law
+      // (profit-oriented commercial entities)
+      const GST_MANDATORY_SECTORS = [
+        "Private Limited", "Public Limited", "Partnership",
+        "Proprietorship", "LLP",
+      ];
+      // Sectors where GST is conditional (commercial activity dependent)
+      const GST_CONDITIONAL_SECTORS = [
+        "NGO", "Non-profit", "Trust", "Society",
+      ];
+      // Sectors that are generally GST-exempt for core activities
+      // (educational, healthcare) — GST still optional if they choose to register
+      const GST_EXEMPT_SECTORS = [
+        "Educational", "Healthcare", "Institute",
+      ];
+      const orgTypeLower = (organisation_type || "").toLowerCase().trim();
+      const isGSTMandatory  = GST_MANDATORY_SECTORS.includes(orgTypeLower);
+      const isGSTConditional = GST_CONDITIONAL_SECTORS.includes(orgTypeLower);
+      const isGSTExempt     = GST_EXEMPT_SECTORS.includes(orgTypeLower);
+      // Enforce GST only for mandatory sectors
+      if (isGSTMandatory && !gst_no) {
+        return res.status(400).json({
+          message: `GST number is required for ${organisation_type} organisations`,
+          hint: "Profit-oriented business entities must have GST registration",
+          sector: organisation_type,
+        });
+      }
+
+      // For conditional sectors: warn but don't block (they may or may not be registered)
+      // For exempt sectors: completely optional
+
+      // Bank check and company logo required for all non-exempt sectors
+      if (!isGSTExempt) {
         if (!filePaths.bank_check) {
           return res.status(400).json({
-            message:
-              "Bank check document is required for non-educational organisations",
+            message: "Bank check document is required",
           });
         }
         if (!filePaths.company_logo) {
           return res.status(400).json({
-            message:
-              "Company logo is required for non-educational organisations",
+            message: "Company logo is required",
           });
         }
       }
+
     }
 
     // Additional validation: If bank account details are provided, IFSC is required
@@ -723,30 +786,41 @@ export const UpdateGroup = async (req, res) => {
     // Validation for organisation groups
     if (existingGroup.grp_type === "organisation") {
       const finalOrgType = organisation_type !== undefined ? organisation_type : existingGroup.organisation_type;
-
-      if (finalOrgType && finalOrgType.toLowerCase() !== "educational") {
-        // Check if required fields are present (either in update or existing data)
-        const finalGst = gst_no !== undefined ? gst_no : existingGroup.gst_no;
+      if (finalOrgType) {
+        const GST_MANDATORY_SECTORS = [
+          "Private Limited", "Public Limited", "Partnership",
+          "Proprietorship", "LLP",
+        ];
+        // Sectors where GST is conditional (commercial activity dependent)
+        const GST_CONDITIONAL_SECTORS = [
+          "NGO", "Non-profit", "Trust", "Society",
+        ];
+        const GST_EXEMPT_SECTORS = [
+          "Educational", "Healthcare", "Institute",
+        ];
+        const orgTypeLower = finalOrgType.toLowerCase().trim();
+        const isGSTMandatory = GST_MANDATORY_SECTORS.includes(orgTypeLower);
+        const isGSTConditional = GST_CONDITIONAL_SECTORS.includes(orgTypeLower);
+        const isGSTExempt    = GST_EXEMPT_SECTORS.includes(orgTypeLower);
+        const finalGst       = gst_no !== undefined ? gst_no : existingGroup.gst_no;
         const finalBankCheck = uploadedFiles.bank_check || existingGroup.bank_check;
-        const finalLogo = uploadedFiles.company_logo || existingGroup.company_logo;
-
+        const finalLogo      = uploadedFiles.company_logo || existingGroup.company_logo;
         const missingFields = [];
-        
-        // Only validate if the fields are truly missing (empty string or null/undefined)
-        if (!finalGst || (typeof finalGst === 'string' && finalGst.trim() === '')) {
-          missingFields.push("gst_no");
+        if (isGSTMandatory && (!finalGst || finalGst.trim() === "")) {
+          missingFields.push("gst_no (mandatory for this sector)");
         }
-        if (!finalBankCheck || (typeof finalBankCheck === 'string' && finalBankCheck.trim() === '')) {
-          missingFields.push("bank_check file");
+        if (!isGSTExempt) {
+          if (!finalBankCheck || (typeof finalBankCheck === "string" && finalBankCheck.trim() === "")) {
+            missingFields.push("bank_check file");
+          }
+          if (!finalLogo || (typeof finalLogo === "string" && finalLogo.trim() === "")) {
+            missingFields.push("company_logo file");
+          }
         }
-        if (!finalLogo || (typeof finalLogo === 'string' && finalLogo.trim() === '')) {
-          missingFields.push("company_logo file");
-        }
-
         if (missingFields.length > 0) {
           return res.status(400).json({
-            message: `Non-educational organisations require: ${missingFields.join(", ")}`,
-            missingFields: missingFields,
+            message: `Missing required fields for ${finalOrgType}: ${missingFields.join(", ")}`,
+            missingFields,
           });
         }
       }
@@ -2508,11 +2582,24 @@ export const updateTicketAddOns = async (req, res) => {
     if (!existingTicket) {
       return res.status(404).json({ message: "Ticket not found" });
     }
-
-    const isLayoutGenerationOnly =
-      req.body.generate_layout_only === "true" ||
-      req.body.generate_layout_only === true;
-
+    // ── Detect layout-generation-only requests 
+    // This flag can arrive either as a top-level body field OR inside sub_event JSON
+    let isLayoutGenerationOnly = false;
+    if (req.body.generate_layout_only === "true" || req.body.generate_layout_only === true) {
+      isLayoutGenerationOnly = true;
+    } else if (req.body.sub_event) {
+      try {
+        const subEventPreview =
+          typeof req.body.sub_event === "string"
+            ? JSON.parse(req.body.sub_event)
+            : req.body.sub_event;
+        if (subEventPreview?.generate_layout_only === true || subEventPreview?.generate_layout_only === "true") {
+          isLayoutGenerationOnly = true;
+        }
+      } catch {
+        // ignore parse errors here; full parsing happens below
+      }
+    }
     // ── Layout-only path: exits early, NO lock needed ──
     if (isLayoutGenerationOnly) {
       const uploadedFiles = await processFileUploads(req.files || {});
@@ -2900,7 +2987,28 @@ export const updateTicketAddOns = async (req, res) => {
         validOptions: validPaymentTypes,
       });
     }
-
+    // Resolve GST (now that subEventData.payment_type is validated)
+    const GroupForGST = await Group.findById(existingTicket.groupId).lean();
+    if (!GroupForGST) {
+      clearTimeout(_lockTimeout);
+      _processingRequests.delete(_lockKey);
+      return res.status(404).json({ message: "Associated group not found" });
+    }
+    // groupHasGSTIN: true only when the group has a non-empty GSTIN stored
+    const groupHasGSTIN = !!(
+      GroupForGST.gst_no &&
+      String(GroupForGST.gst_no).trim() !== ""
+    );
+    const { applicable: gstApplicable } = resolveGSTApplicability(
+      GroupForGST,
+      subEventData.payment_type,
+      // Front-end sends gst_applicable inside the sub_event JSON payload
+      subEventData.gst_applicable !== undefined
+        ? subEventData.gst_applicable
+        : req.body.gst_applicable
+    );
+    // appliedGSTPct is always read from the env — never from the client
+    const appliedGSTPct = gstApplicable ? GST_PERCENTAGE : 0;
     const ageNum = Number(subEventData.min_age_allowed);
     if (isNaN(ageNum) || ageNum < 1 || ageNum > 150) {
       clearTimeout(_lockTimeout);
@@ -3545,14 +3653,19 @@ export const updateTicketAddOns = async (req, res) => {
           throw new Error(`Invalid ticket price for ticket ${index + 1}`);
         if (isNaN(parsedCapacity) || parsedCapacity <= 0)
           throw new Error(`Invalid max capacity for ticket ${index + 1}`);
-
+        const { basePrice, gstAmount } = extractGSTFromInclusive(parsedPrice, appliedGSTPct);
         const ticketData = {
-          ticket_type: String(ticketType).trim(),
-          ticket_price: parsedPrice,
-          max_capacity: parsedCapacity,
-          ticket_photo: "",
+          ticket_type:            String(ticketType).trim(),
+          ticket_price:           parsedPrice,
+          ticket_base_price:      gstApplicable ? basePrice : parsedPrice,
+          ticket_gst_percentage:  appliedGSTPct,
+          ticket_gst_amount:      gstApplicable ? gstAmount : 0,
+          ticket_gst_applicable:  gstApplicable,
+          max_capacity:           parsedCapacity,
+          ticket_photo:           "",
           ticket_photo_public_id: "",
         };
+
         if (ticketPhotoFiles[index]) {
           ticketData.ticket_photo = ticketPhotoFiles[index].path;
           ticketData.ticket_photo_public_id = ticketPhotoFiles[index].public_id;
@@ -3617,22 +3730,24 @@ export const updateTicketAddOns = async (req, res) => {
         })
         .filter((item) => item !== "" && item !== "undefined" && item !== "null");
     })();
-
     const finalTicketTypes =
-      processedTicketTypes && processedTicketTypes.length > 0
-        ? processedTicketTypes.map((ticket) => ({
-            ticket_type: String(ticket.ticket_type),
-            ticket_price: Number(ticket.ticket_price),
-            max_capacity: Number(ticket.max_capacity),
-            ticket_photo: String(ticket.ticket_photo || ""),
-            ticket_photo_public_id: String(ticket.ticket_photo_public_id || ""),
-          }))
-        : [];
+          processedTicketTypes && processedTicketTypes.length > 0
+            ? processedTicketTypes.map((ticket) => ({
+                ticket_type:            String(ticket.ticket_type),
+                ticket_price:           Number(ticket.ticket_price),
+                ticket_base_price:      Number(ticket.ticket_base_price),
+                ticket_gst_percentage:  Number(ticket.ticket_gst_percentage),
+                ticket_gst_amount:      Number(ticket.ticket_gst_amount),
+                ticket_gst_applicable:  Boolean(ticket.ticket_gst_applicable),
+                max_capacity:           Number(ticket.max_capacity),
+                ticket_photo:           String(ticket.ticket_photo || ""),
+                ticket_photo_public_id: String(ticket.ticket_photo_public_id || ""),
+              }))
+            : [];
 
     const cleanedDescription = sanitizeDescriptionHtml(subEventData.event_description);
     const descriptionPlainText = stripHtmlForValidation(cleanedDescription);
-
-    // ── EDIT MODE ────────────────────────────────────────────────────────────
+    // ── EDIT MODE
     if (isEditingSubEvent && editingSubEventId) {
       const ticket = await Ticket.findById(ticketId);
       if (!ticket) {
@@ -3665,7 +3780,10 @@ export const updateTicketAddOns = async (req, res) => {
         min_age_allowed: Number(ageNum),
         max_age_allowed: Number(ageMax),
         event_description: descriptionPlainText,
-        payment_type: String(subEventData.payment_type),
+        payment_type:         String(subEventData.payment_type),
+        gst_applicable:       gstApplicable,
+        gst_percentage:       appliedGSTPct,
+        gst_registered_group: groupHasGSTIN,
         kids_friendly: Boolean(
           subEventData.kids_friendly === "true" || subEventData.kids_friendly === true
         ),
@@ -3702,10 +3820,26 @@ export const updateTicketAddOns = async (req, res) => {
           finalProhibitedItems.length > 0
             ? finalProhibitedItems
             : existingSubEvent.prohibited_items || [],
-        ticket_types:
-          finalTicketTypes.length > 0
-            ? finalTicketTypes
-            : existingSubEvent.ticket_types || [],
+        ticket_types: (() => {
+          // Priority 1: New tickets submitted with this request
+          if (finalTicketTypes.length > 0) return finalTicketTypes;
+          // Priority 2: No new tickets — recalculate GST on existing ones
+          // (covers the case where only non-ticket fields are being edited)
+          const existing = existingSubEvent.ticket_types || [];
+          if (existing.length === 0) return [];
+          return existing.map((t) => {
+            const inclPrice = Number(t.ticket_price || 0);
+            const { basePrice, gstAmount } = extractGSTFromInclusive(inclPrice, appliedGSTPct);
+            return {
+              ...t.toObject ? t.toObject() : t,
+              ticket_price:           inclPrice,
+              ticket_base_price:      gstApplicable ? basePrice  : inclPrice,
+              ticket_gst_percentage:  appliedGSTPct,
+              ticket_gst_amount:      gstApplicable ? gstAmount  : 0,
+              ticket_gst_applicable:  gstApplicable,
+            };
+          });
+        })(),
         guests: processedGuests.map((guest) => ({
           guest_name: String(guest.guest_name || ""),
           guest_profile: String(guest.guest_profile || ""),
@@ -4268,7 +4402,7 @@ export const updateTicketAddOns = async (req, res) => {
       }
     }
 
-    // ── Build new sub-event ───────────────────────────────────────────────────
+    // ── Build new sub-event
     const newSubEvent = {
       event_name: String(subEventData.event_name).trim(),
       event_category: String(subEventData.event_category).trim(),
@@ -4280,7 +4414,10 @@ export const updateTicketAddOns = async (req, res) => {
       min_age_allowed: Number(ageNum),
       max_age_allowed: Number(ageMax),
       event_description: descriptionPlainText,
-      payment_type: String(subEventData.payment_type),
+      payment_type:String(subEventData.payment_type),
+      gst_applicable: gstApplicable,
+      gst_percentage: appliedGSTPct,
+      gst_registered_group: groupHasGSTIN,
       main_ticket_id: ticketId,
       kids_friendly: Boolean(
         subEventData.kids_friendly === "true" || subEventData.kids_friendly === true
@@ -4738,19 +4875,20 @@ export const updateTicketDetails = async (req, res) => {
     if (!GroupBank) {
       return res.status(404).json({ message: "Associated group not found" });
     }
-
-    // Extract form data
+    // Extract form data FIRST (must come before GST resolution)
     const {
       payment_type,
       ticket_layout,
       total_capacity,
       booking_start_date,
       booking_end_date,
-      use_group_bank_account = "true", // Default to true for group bank account
+      use_group_bank_account = "true",
     } = req.body;
-
-    // ========== VALIDATION SECTION ==========
-
+    // Resolve GST (now payment_type is defined)
+    const { applicable: gstApplicable, mandatory: gstMandatory } =
+      resolveGSTApplicability(GroupBank, payment_type, req.body.gst_applicable);
+    const appliedGSTPct = gstApplicable ? GST_PERCENTAGE : 0;
+    //VALIDATION SECTION 
     // 1. Validate payment_type (REQUIRED)
     if (!payment_type || String(payment_type).trim() === "") {
       return res.status(400).json({
@@ -5064,14 +5202,19 @@ export const updateTicketDetails = async (req, res) => {
             `Invalid max_capacity for ticket ${index + 1}. Must be a positive integer. Provided: ${maxCapacity}`
           );
         }
+        const { basePrice, gstAmount } = extractGSTFromInclusive(parsedPrice, appliedGSTPct);
         const ticketData = {
-          ticket_type: String(ticketType).trim(),
-          ticket_price: parsedPrice,
-          max_capacity: parsedCapacity,
-          ticket_photo: existingPhoto,
+          ticket_type:            String(ticketType).trim(),
+          ticket_price:           parsedPrice,                        // GST-inclusive price (buyer sees this)
+          ticket_base_price:      gstApplicable ? basePrice : parsedPrice,
+          ticket_gst_percentage:  appliedGSTPct,
+          ticket_gst_amount:      gstApplicable ? gstAmount : 0,
+          ticket_gst_applicable:  gstApplicable,
+          max_capacity:           parsedCapacity,
+          ticket_photo:           existingPhoto,
           ticket_photo_public_id: ticket.ticket_photo_public_id || "",
-          assigned_seats: ticket.assigned_seats || [],
-          _id: ticket._id || ticket.id,
+          assigned_seats:         ticket.assigned_seats || [],
+          _id:                    ticket._id || ticket.id,
         };
         // Add uploaded ticket photo if available
         if (ticketPhotoFiles[index]) {
@@ -5289,11 +5432,14 @@ export const updateTicketDetails = async (req, res) => {
       finalBankingDetails = [];
     }
     const updateData = {
-      payment_type: String(payment_type),
-      banking_details: finalBankingDetails,
+      payment_type:                    String(payment_type),
+      banking_details:                 finalBankingDetails,
+      gst_applicable:                  gstApplicable,
+      gst_percentage:                  appliedGSTPct,
+      gst_registered_group:            !!(GroupBank?.gst_no),
       "form_progress.banking_tickets": true,
-      updated_by: userId,
-      updated_at: new Date(),
+      updated_by:                      userId,
+      updated_at:                      new Date(),
     };
     // Add ticket types if provided
     if (processedTicketTypes.length > 0) {
@@ -5776,6 +5922,7 @@ export const updateTicketDetails = async (req, res) => {
     });
   }
 };
+
 export const updateTicketTerms = async (req, res) => {
   try {
     const ticketId = req.params.ticketId || req.body.ticketId;
