@@ -33,8 +33,8 @@ const userSchema = new mongoose.Schema(
         return this.role === 'organisation';
       },
       enum: [
-          'Private Limited', 'Public Limited', 'Partnership', 'Proprietorship', 'LLP', 
-          'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Trust', 'Society','Government', 'Other'
+          'Private Limited', 'Public Limited', 'Partnership', 'Proprietorship', 'LLP', 'Sole Proprietorship','Hospital',
+          'NGO', 'Educational', 'Healthcare', 'Non-profit', 'Trust', 'Society','Government', 'Other','Institute','Corporation','Association','Club'
       ]
     },
     status: {
