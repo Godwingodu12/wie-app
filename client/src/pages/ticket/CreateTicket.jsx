@@ -33,6 +33,7 @@ import CustomSelectStyles from "../../components/CreateGroup/CustomSelectStyles.
 import getInitialTheme from "../../components/CreateGroup/getIntialTheme.jsx";
 import darkThemeStyles from "../../components/CreateGroup/darkThemeStyles.jsx";
 import lightThemeStyles from "../../components/CreateGroup/lightThemeStyles.jsx";
+import { sanitizeEditorHtml } from "../../utils/editorUtils";
 const eventCategories = {
   "Arts, Culture, & Literature": ["Art Exhibitions", "Cultural Festivals", "Theater Performances", "Literature Festivals", "Historical Reenactments", "Art Installations", "Art Workshops & Competitions", "Guided Art Walks", "Printmaking & Conceptual Art", "Residency Showcases", "Art Auctions", "Poetry Readings", "Book Launch Events", "Author Meet & Greets", "Storytelling Sessions", "Film Screenings", "Short Film Festivals", "Heritage Walks", "Museum Tours", "Craft Fairs", "Handicraft Exhibitions", "Photography Exhibitions", "Sculpture Exhibitions", "Calligraphy Workshops", "Creative Writing Workshops", "Drama Workshops", "Open Mic Poetry Nights", "Comic Cons", "Zine Fairs", "Cultural Parades", "Traditional Dance Performances", "Folk Art Festivals", "Literary Debates", "Panel Discussions", "Cultural Conferences"],
   Music: ["Concerts", "Music Festivals", "Live Performances", "Battle of the Bands", "DJ Nights", "Karaoke Nights", "Open Mics & Jam Sessions", "Acoustic Nights", "Album Launch Events", "Music Tours", "Symphony Orchestra Performances", "Opera Shows", "Choir Performances", "Tribute Shows", "Music Competitions", "Band Nights", "Indie Music Shows", "Rap Battles", "Electronic Dance Music (EDM) Events", "Classical Music Concerts", "Folk Music Events", "Cultural Music Nights", "Music Workshops", "Music Masterclasses", "Instrumental Recitals", "Music Award Shows", "Street Music Performances", "Unplugged Sessions", "Live Recording Sessions"],
@@ -270,35 +271,6 @@ const CreateTicket = () => {
     cleanPath = cleanPath.replace(/^\//, "");
     const fullUrl = `${API_BASE_URL}/${cleanPath}`;
     return fullUrl;
-  };
-  const sanitizeEditorHtml = (html) => {
-    const temp = document.createElement("div");
-    temp.innerHTML = html;
-
-    temp.querySelectorAll("*").forEach((el) => {
-      Array.from(el.attributes).forEach((attr) => {
-        if (attr.name.startsWith("data-")) {
-          el.removeAttribute(attr.name);
-        }
-      });
-      el.removeAttribute("class");
-      el.removeAttribute("style");
-    });
-    temp.querySelectorAll("p p").forEach((innerP) => {
-      const parent = innerP.parentNode;
-      while (innerP.firstChild) {
-        parent.insertBefore(innerP.firstChild, innerP);
-      }
-      parent.removeChild(innerP);
-    });
-
-    return (
-      temp.innerHTML
-        .replace(/\u200B/g, "")
-        .replace(/​/g, "") 
-        .replace(/<p>\s*<\/p>/g, "")
-        .trim()
-    );
   };
   const loadExistingTicketData = async (ticketIdParam) => {
     try {
@@ -992,42 +964,42 @@ const CreateTicket = () => {
             console.log("Missing date:", item);
             return true;
           }
-          
+
           // Check start time - handle both 12-hour and 24-hour formats
           if (!item.startTime || (typeof item.startTime === 'string' && item.startTime.trim() === '')) {
             console.log("Missing or empty startTime:", item);
             return true;
           }
-          
+
           // Only check startAmPm if it's not in 24-hour format (24-hour format won't have AM/PM)
           const is24HourFormat = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(item.startTime);
           if (!is24HourFormat && (!item.startAmPm || item.startAmPm.trim() === '')) {
             console.log("Missing or empty startAmPm:", item);
             return true;
           }
-          
+
           // Check end time
           if (!item.endTime || (typeof item.endTime === 'string' && item.endTime.trim() === '')) {
             console.log("Missing or empty endTime:", item);
             return true;
           }
-          
+
           // Only check endAmPm if it's not in 24-hour format
           if (!is24HourFormat && (!item.endAmPm || item.endAmPm.trim() === '')) {
             console.log("Missing or empty endAmPm:", item);
             return true;
           }
-          
+
           // Check for event link (it might be stored as eventLink or event_link)
           const hasEventLink = item.eventLink || item.event_link;
           if (!hasEventLink || (typeof hasEventLink === 'string' && hasEventLink.trim() === '')) {
             console.log("Missing or empty event link:", item);
             return true;
           }
-          
+
           return false;
         });
-        
+
         if (dateValidationFailed) {
           addError(
             "event_dates",
@@ -1066,7 +1038,10 @@ const CreateTicket = () => {
           (tag) => !validHashtagRegex.test(tag)
         );
         if (hasInvalidFormat) {
-          addError("hashtag", "Hashtags must be valid (e.g., #MyEvent_2025)");
+          addError(
+            "hashtag",
+            "Hashtags must start with '#' and contain only letters, numbers, and underscores (e.g., #MyEvent_2026)."
+          );
         }
       }
 
@@ -1154,7 +1129,7 @@ if (
 ) {
   addError(
     "event_youtube_link",
-    "Please use a valid format like 'https://www.youtube.com/watch?v=VIDEO_ID'." 
+    "Please use a valid format like 'https://www.youtube.com/watch?v=VIDEO_ID'."
   );
 }
 
@@ -2188,6 +2163,7 @@ if (
                       }
                       placeholder="Eg. #Concert"
                       darkMode={darkMode}
+                      showAlert={showAlert}
                     />
                   </div>
                 </div>
@@ -2485,7 +2461,15 @@ if (
                       </div>
                       <div
                         ref={rulesEditorRef}
-                        contentEditable="true"
+                        contentEditable
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pastedHtml =
+                            e.clipboardData.getData("text/html") ||
+                            e.clipboardData.getData("text/plain").replace(/\n/g, "<br>");
+                          const clean = sanitizeEditorHtml(pastedHtml);
+                          document.execCommand("insertHTML", false, clean);
+                        }}
                         onInput={() => {
                           if (rulesEditorRef.current) {
                             setFormData((prev) => ({
